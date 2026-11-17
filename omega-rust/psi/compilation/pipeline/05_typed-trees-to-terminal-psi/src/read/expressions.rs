@@ -1040,7 +1040,7 @@ impl<'t> Program<'t> {
             None => return Err(unserved("match with a Unit arm")),
         };
         if result.is_some_and(|result| {
-            !self.type_excludes_values(result) && !self.agrees(Some(value_type), result)
+            !self.type_excludes_values(result) && !self.agrees(Some(value_type), Some(result))
         }) {
             return Err(self.mistyped(
                 id,
@@ -1524,6 +1524,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => a == b && a_selected == b_selected,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
+            (ExpressionKind::ByteSequencePredicate { base: a, predicate: ap }, ExpressionKind::ByteSequencePredicate { base: b, predicate: bp }) => ap == bp && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
@@ -1684,6 +1685,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
+                | ExpressionKind::ByteSequencePredicate { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }

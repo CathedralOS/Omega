@@ -8,12 +8,6 @@
   the final entry and callback roster to select functions, then settles their
   boundary coverage and comparisons before lowering those same functions.
 */
-#[path = "retained_terminal_codec.rs"]
-mod codec;
-pub use codec::{
-    decode_installation_assumptions, encode_installation_assumptions,
-    recover_native_derivation_inputs, retain_native_derivation_inputs,
-};
 
 pub use verified_optimization_input::component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,

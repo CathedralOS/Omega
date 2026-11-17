@@ -1521,6 +1521,7 @@ pub(crate) mod identity_context {
                         operand: IndexIdentityArgument::TypeArgument(reference),
                         lexical_owner: owner,
                         binders: &[],
+                        exact_toolchain_sources: &[],
                         lifetime_binders: &[
                             (region(owner), 0),
                             (
@@ -3764,7 +3765,7 @@ pub(crate) mod normalized_identities {
     #[derive(Default)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
-        composites: std::sync::RwLock<CompositeIndex>,
+        composites: std::sync::RwLock<std::sync::Arc<CompositeIndex>>,
     }
 
     /*
@@ -3794,14 +3795,15 @@ pub(crate) mod normalized_identities {
 
     impl Clone for TypeIdentityTable {
         fn clone(&self) -> Self {
+            // Hold the cache snapshot while capturing text publication, so a
+            // concurrent new key cannot name a text beyond this fork's prefix.
+            let composites = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner());
             Self {
                 texts: self.texts.clone(),
-                composites: std::sync::RwLock::new(
-                    self.composites
-                        .read()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .clone(),
-                ),
+                composites: std::sync::RwLock::new(std::sync::Arc::clone(&composites)),
             }
         }
     }
@@ -3854,6 +3856,12 @@ pub(crate) mod normalized_identities {
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
             input.record(|input| {
+                let cache_allocation =
+                    compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                        CompositeIndex,
+                    >())
+                    .ok_or_else(|| input.error("type identity cache allocation overflow"))?;
+                input.allocate(cache_allocation)?;
                 Ok(Self {
                     texts: compiler_storage::Record::read(input)?,
                     composites: Default::default(),
@@ -3901,9 +3909,13 @@ pub(crate) mod normalized_identities {
                 return *identity;
             }
             let identity = self.intern(&self.composite_text(key.0, &key.1));
-            self.composites
+            // The derived cache shares its payload until the first new key.
+            // Unlike text storage, that write still copies the cached map.
+            let mut index = self
+                .composites
                 .write()
-                .unwrap_or_else(|error| error.into_inner())
+                .unwrap_or_else(|error| error.into_inner());
+            std::sync::Arc::make_mut(&mut index)
                 .entry(key)
                 .or_insert(identity);
             identity
@@ -3964,7 +3976,7 @@ pub(crate) mod normalized_identities {
 
     #[cfg(test)]
     mod canonical_numbering_tests {
-        use super::{TypeIdentityId, TypeIdentityTable};
+        use super::{IdentityPart, TypeIdentityId, TypeIdentityTable};
         use compiler_storage::RecordLimits;
         use std::collections::BTreeMap;
 
@@ -4048,6 +4060,118 @@ pub(crate) mod normalized_identities {
             checked.identities.renumber_canonically(&mut output);
             let late = checked.identities.intern("d");
             assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn identity_forks_share_text_and_cache_until_new_composites_need_private_keys() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite("tag", vec![IdentityPart::Identity(atom)]);
+            let child = parent.clone();
+            assert!(std::ptr::eq(
+                parent.text(atom).unwrap(),
+                child.text(atom).unwrap()
+            ));
+            let cache_pointer = |table: &TypeIdentityTable| {
+                std::sync::Arc::as_ptr(&table.composites.read().unwrap())
+            };
+            let parent_cache = cache_pointer(&parent);
+            let child_cache = cache_pointer(&child);
+            assert_eq!(parent_cache, child_cache);
+            assert_eq!(
+                child.intern_composite("tag", vec![IdentityPart::Identity(atom)]),
+                compound
+            );
+            assert_eq!(cache_pointer(&child), parent_cache);
+            let parent_only = parent.intern("parent-only");
+            let child_only = child.intern("child-only");
+            assert_eq!(
+                parent_only, child_only,
+                "forks keep independent append numbering"
+            );
+            assert!(!child.by_text("parent-only").is_valid());
+            child.intern_composite("tag", vec![IdentityPart::Identity(child_only)]);
+            assert_eq!(parent.composite_count(), 1);
+            assert_eq!(child.composite_count(), 2);
+            assert_ne!(cache_pointer(&child), parent_cache);
+
+            let independent = TypeIdentityTable::default();
+            independent.intern("child-only");
+            independent.intern_composite("tag", vec![IdentityPart::Text("child-only".into())]);
+            independent.intern("atom");
+            independent.intern_composite("tag", vec![IdentityPart::Text("atom".into())]);
+            let encoded = |table: &TypeIdentityTable| {
+                compiler_storage::encode_with(table, RecordLimits::default(), |output| {
+                    table.renumber_canonically(output)
+                })
+                .unwrap()
+            };
+            assert_eq!(encoded(&child), encoded(&independent));
+        }
+
+        #[test]
+        fn identity_decoder_charges_the_empty_shared_cache_before_constructing_it() {
+            fn minimum_allocation<T: compiler_storage::Record>(bytes: &[u8]) -> usize {
+                let mut lower = 0;
+                let mut upper = 4096;
+                assert!(
+                    compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: upper,
+                            ..Default::default()
+                        }
+                    )
+                    .is_ok()
+                );
+                while lower < upper {
+                    let candidate = lower + (upper - lower) / 2;
+                    if compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: candidate,
+                            ..Default::default()
+                        },
+                    )
+                    .is_ok()
+                    {
+                        upper = candidate;
+                    } else {
+                        lower = candidate + 1;
+                    }
+                }
+                lower
+            }
+            let bytes = compiler_storage::encode(&TypeIdentityTable::default(), Default::default())
+                .unwrap();
+            let text_allocation = minimum_allocation::<arena::OwnedTextInterner>(&bytes);
+            let cache_allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                    super::CompositeIndex,
+                >())
+                .unwrap();
+            let required = text_allocation + cache_allocation;
+            assert_eq!(minimum_allocation::<TypeIdentityTable>(&bytes), required);
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required - 1,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+            );
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required,
+                        ..Default::default()
+                    }
+                )
+                .is_ok()
+            );
         }
     }
 
@@ -6485,11 +6609,15 @@ pub(crate) mod portable_machine_applications {
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let missing_exact_owner = Cell::new(false);
-        let result = portable_operation_record_value_under_owner_policy(
+        let result = portable_operation_record_value_in_context(
             program,
             symbol,
-            exact_toolchain_sources,
-            &missing_exact_owner,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_owner),
+                ..Default::default()
+            },
         )?;
         if missing_exact_owner.get() {
             return Err("static record lost its exact operand or owner identity".into());
@@ -6497,50 +6625,23 @@ pub(crate) mod portable_machine_applications {
         Ok(result)
     }
 
-    /// Compute a record value for an operand named inside a larger identity.
-    /// The record's toolchain owners follow the enclosing identity's own rule:
-    /// when the enclosing request requires exact toolchain owners, a missing
-    /// one is reported to that request, which then refuses exactly as it does
-    /// for its other names. When it does not require them, the record names
-    /// toolchain declarations with the same plain owner its other names use.
-    /// Every other loss of identity still refuses the record.
+    /// A nested record keeps the enclosing identity's application and lifetime
+    /// scopes and its policy for exact source owners. A portable record request
+    /// above explicitly requires those owners; local comparisons do not add
+    /// that requirement merely by reading a conformance's value.
     pub(crate) fn portable_operation_record_value_in_context(
         program: &TypedTrees,
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        let missing_exact_owner = Cell::new(false);
-        let result = portable_operation_record_value_under_owner_policy(
-            program,
-            symbol,
-            context.exact_toolchain_sources,
-            &missing_exact_owner,
-        )?;
-        if missing_exact_owner.get()
-            && let Some(missing) = context.missing_exact_nominal_owner
-        {
-            missing.set(true);
-        }
-        Ok(result)
-    }
-
-    fn portable_operation_record_value_under_owner_policy(
-        program: &TypedTrees,
-        symbol: SymbolHandle,
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-        missing_exact_owner: &Cell<bool>,
-    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
-            qualification: TypeIdentityQualification::PackageQualified,
-            exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(missing_exact_owner),
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..Default::default()
+            invalid_application: context.invalid_application.or(Some(&invalid)),
+            encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
+            invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
+            ..*context
         };
         let result = projection.record_value(program, symbol, &context)?;
         if let Some(reason) = projection.error.into_inner() {
@@ -6634,11 +6735,7 @@ pub(crate) mod portable_machine_applications {
             }
             self.active.borrow_mut().push(symbol);
             let result = program
-                .canonical_operation_record_value_in_context(
-                    symbol,
-                    context.exact_toolchain_sources,
-                    context,
-                )
+                .canonical_operation_record_value_in_context(symbol, context)
                 .map_err(str::to_owned);
             self.active.borrow_mut().pop();
             if let Err(reason) = &result {
@@ -7399,6 +7496,7 @@ pub(crate) mod static_operand_identity {
         pub lexical_owner: SymbolHandle,
         pub binders: &'a [(SymbolHandle, String)],
         pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     }
 
     impl TypedTrees {
@@ -7547,6 +7645,7 @@ pub(crate) mod static_operand_identity {
                     application_argument_owner: request.lexical_owner,
                     binders: request.binders,
                     lifetime_binders: request.lifetime_binders,
+                    exact_toolchain_sources: request.exact_toolchain_sources,
                     qualification: super::TypeIdentityQualification::PackageQualified,
                     invalid_application: Some(&invalid),
                     encountered_elided_regions: Some(&invalid),
@@ -9222,6 +9321,9 @@ impl TypedTrees {
                     &path, &callable,
                 )
             }
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
+                self.domain_declaration_path(symbol, path)?
+            }
             None => path,
         };
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
@@ -9241,6 +9343,32 @@ impl TypedTrees {
                 "declaration `{path}` has no retained source/package provenance"
             )),
         }
+    }
+
+    fn domain_declaration_path(
+        &self,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> Result<String, String> {
+        let declaration = self
+            .domain_definition(symbol)
+            .ok_or("a domain identity has no retained declaration")?;
+        let subject = crate::reflection::construction::schema_type_identity(
+            self,
+            declaration.target_type,
+            declaration.symbol,
+        )
+        .map_err(|detail| format!("a domain identity lost its declared subject: {detail}"))?;
+        // One predicate meaning can apply across capacities. Both the source
+        // dictionary and portable domain catalog still name the declaration's
+        // complete subject rather than its shared family display path.
+        Ok(compound(
+            CoordinateTag::Declaration,
+            [
+                atom(CoordinateTag::Path, &path),
+                compound(CoordinateTag::Owner, [subject]),
+            ],
+        ))
     }
 
     fn closed_requirement_declaration_identity(
@@ -9640,13 +9768,18 @@ impl TypedTrees {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Option<NormalizedTypeIdentity> {
-        if !symbol.is_valid() {
+        if !symbol.is_valid() || !self.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
         let path = self.symbols.display_path(symbol, "::");
         if path.is_empty() {
             return None;
         }
+        let path = if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain {
+            self.domain_declaration_path(symbol, path).ok()?
+        } else {
+            path
+        };
         let missing_exact_nominal_owner = Cell::new(false);
         let identity = program_intern_type_identity(
             self,

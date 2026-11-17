@@ -73,7 +73,7 @@ pub(crate) fn prepare(
                 .set_constructed_value_type_reference(expression, carrier);
         }
     }
-    crate::contracts::proof_facts::normalize_membership_selections(program, &owners)?;
+    crate::contracts::proof_facts::normalize_membership_selections(source, program, &owners)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
     Ok(())
 }

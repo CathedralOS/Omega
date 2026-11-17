@@ -149,6 +149,9 @@ pub(crate) fn declare<'a, 'b>(
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
     let mut structural_types: Vec<StructuralTypeDeclaration> = Vec::with_capacity(types.len());
+    // Scratch for this dependency-ordered construction only. The published
+    // flag describes an intrinsic root, while this summary follows children.
+    let mut potential_claims: Vec<bool> = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
@@ -351,10 +354,14 @@ pub(crate) fn declare<'a, 'b>(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if let StructuralTypeShape::FixedArray { element, .. } = &shape {
+        if let StructuralTypeShape::FixedArray { element, length } = &shape
+            && length.literal() != Some(0)
+        {
             children.push(*element);
         }
-        let mut no_code = !record.owns_linear_claim && record.cleanup.is_none();
+        let mut contains_claim = false;
+        let mut no_code =
+            record.multiplicity != StructuralMultiplicity::Linear && record.cleanup.is_none();
         let mut descriptor_cleanup = no_code;
         for child in children {
             let raw = usize::try_from(child.get() - 1).map_err(|_| {
@@ -371,9 +378,19 @@ pub(crate) fn declare<'a, 'b>(
                     Unserved::Type("cleanup child declaration is not established"),
                 )
             })?;
+            contains_claim |= potential_claims[raw];
             no_code &= child.no_code_affine_cleanup;
             descriptor_cleanup &= child.descriptor_cleanup;
         }
+        // Transparent compositions keep each member claim. A declared linear
+        // leaf may establish its own logical obligation; generated arrays and
+        // borrowed descriptors never manufacture one from their shape.
+        let owns_linear_claim = terminal_semantics::owned_structure::intrinsic_claim_required(
+            record.multiplicity,
+            &shape,
+            contains_claim,
+        );
+        potential_claims.push(owns_linear_claim || contains_claim);
         let nominal_cleanup =
             record
                 .cleanup
@@ -390,8 +407,8 @@ pub(crate) fn declare<'a, 'b>(
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
-            owns_linear_claim: record.owns_linear_claim,
-            copyable: record.copyable,
+            owns_linear_claim,
+            multiplicity: record.multiplicity,
             no_code_affine_cleanup: no_code,
             descriptor_cleanup,
             nominal_cleanup,
@@ -647,7 +664,7 @@ pub(crate) fn declare<'a, 'b>(
         if let StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape
             && declaration.scalar_restriction.is_none()
             && declaration.requires.is_empty()
-            && declaration.copyable
+            && declaration.is_copyable()
             && !declaration.owns_linear_claim
             && declaration.no_code_affine_cleanup
             && declaration.descriptor_cleanup
@@ -811,7 +828,7 @@ fn append_scalar_type(
         id,
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: true,
         nominal_cleanup: None,
@@ -918,6 +935,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
+        | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
@@ -1178,11 +1196,7 @@ impl Records<'_> {
             return Ok(StructuralMultiplicity::Unrestricted);
         }
         let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
-        Ok(if record.copyable {
-            StructuralMultiplicity::Unrestricted
-        } else {
-            StructuralMultiplicity::Affine
-        })
+        Ok(record.multiplicity)
     }
     pub(super) fn lender_homes(
         &self,
@@ -1280,19 +1294,6 @@ pub(super) enum Step {
         case: usize,
         field: usize,
     },
-}
-
-impl Step {
-    /// The type of the value this step goes into: the record, sum, array or
-    /// reference that holds what the step reaches.
-    pub(super) fn owner(&self) -> StructuralTypeId {
-        match self {
-            Self::Field { owner, .. }
-            | Self::Payload { owner, .. }
-            | Self::Index { owner, .. }
-            | Self::Referent { owner } => *owner,
-        }
-    }
 }
 
 /// One dispatch arm the open block lies in. For a case arm: the sum place
@@ -2589,6 +2590,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -2773,7 +2775,7 @@ impl<'a> Lowering<'a> {
         value_type: ValueType,
         source: SourceOrigin,
     ) -> Evaluation<PlaceId> {
-        let moving = !self.record_type(at.record)?.copyable;
+        let moving = !self.record_type(at.record)?.is_copyable();
         let borrowed = self.borrowed_roots.contains(&at.root);
         let mut window = borrowed;
         let mut exclusive_path = !borrowed || self.exclusive_roots.contains(&at.root);
@@ -2861,7 +2863,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar initializer is used as a record"));
         };
         let value = continuing!(self.record(expression));
-        if self.record_type(record)?.copyable {
+        if self.record_type(record)?.is_copyable() {
             return Ok(Reached::Value(value));
         }
         self.retire_homes(&[], expression.source)?;
@@ -2933,7 +2935,7 @@ impl<'a> Lowering<'a> {
             // arguments can replace the source slot. The ordinary copy
             // retains the original backing and its exact source version;
             // the call borrows this value, not the carrier's old home.
-            if !self.record_type(record)?.copyable {
+            if !self.record_type(record)?.is_copyable() {
                 return Err(refuse(
                     self.id,
                     Construct::Machine,
@@ -3217,7 +3219,7 @@ impl<'a> Lowering<'a> {
             return self.establish_laid_out(record, roster, source);
         }
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
+
         let (root, exact) = self.produce(
             operation,
             ValueType::record(record),
@@ -3253,14 +3255,13 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let (root, exact) = self.establish_zeroed(ValueType::record(record), source)?;
-        let owed = self.record_type(record)?.requires.len();
         let fields = roster
             .into_iter()
             .map(|(field, operand)| (field.id, operand))
             .collect::<Vec<_>>();
         for (position, (field, operand)) in fields.into_iter().enumerate() {
             let operation = self.operation_identity(source);
-            self.owe_domains(operation, owed, source)?;
+
             let leaf = self.project(exact, Segment::Field(field))?;
             let at = ProgramPoint::AfterOperation(operation);
             match operand {
@@ -3472,7 +3473,6 @@ impl<'a> Lowering<'a> {
             }
         };
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(operation, ValueType::record(record), kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
@@ -3966,6 +3966,48 @@ impl<'a> Lowering<'a> {
         })
     }
 
+    /// A primitive observes the ordinary argument loan once. Its descriptor
+    /// capture and access remain the same as at a call; measuring the exact
+    /// view neither grants another loan nor substitutes its whole backing.
+    pub(super) fn byte_sequence_predicate(
+        &mut self,
+        base: &Expression,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let ExpressionKind::Borrow { access, place, .. } = &base.kind else {
+            return Err(self.internal("a byte observation has no formed argument loan"));
+        };
+        if *access != language_core::ReferenceAccess::Shared {
+            return Err(self.internal("a byte observation changed its shared argument access"));
+        }
+        let Some(ValueType::Record(record, _, _)) = place.result else {
+            return Err(self.internal("a byte observation has no structural argument"));
+        };
+        let lent = continuing!(self.lend(place, *access));
+        // This primitive only reads the captured view. Any reference or
+        // view formation in its argument already owns its real loan row;
+        // a byte read is neither another call nor a loan-forming operation.
+        let at = Located {
+            root: lent.argument.0,
+            place: lent.place,
+            path: lent.argument.1,
+            record,
+            fresh: false,
+        };
+        let operand = self.measured_byte_view(&at, source)?;
+        let operation = self.operation_identity(source);
+        let result = self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequencePredicate { operand, predicate },
+        )?;
+        if let Some(home) = lent.temporary {
+            self.retire_homes(&[home], source)?;
+        }
+        Ok(Reached::Value(result))
+    }
+
     pub(super) fn measure_collection(
         &mut self,
         base: &Expression,
@@ -4121,10 +4163,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("zero construction has no complete structural carrier"));
         };
         let mut zeros = Vec::new();
-        let mut owed = 0;
-        self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
+        self.zero_leaves(record, &mut Vec::new(), &mut zeros, source)?;
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, owed, source)?;
+
         let (root, exact) = self.produce(
             operation,
             value_type,
@@ -4226,10 +4267,6 @@ impl<'a> Lowering<'a> {
         let (root, steps, place, expected) = continuing!(self.capture_place(destination));
         let (root, steps, place) =
             self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
-        let mut owed = 0;
-        for step in &steps {
-            owed += self.record_type(step.owner())?.requires.len();
-        }
         self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
@@ -4239,7 +4276,7 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(..) => {
                 let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let kind = if let Some(Step::Field { .. }) = steps.last() {
                     let field = self
                         .declared(
@@ -4281,7 +4318,7 @@ impl<'a> Lowering<'a> {
             ValueType::Record(stored, _, _) => {
                 let constructed = continuing!(self.record(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let mut storage =
                     self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
                 let view_field = match steps.last() {
@@ -4502,9 +4539,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// Emits the zero constant of every scalar leaf of the zero value of
-    /// `record`, each with its path beneath the value, and counts the
-    /// `requires` clauses the zero value owes: the type's own, then those of
-    /// each data-typed field in declaration order, parent first. A sum's
+    /// `record`, each with its path beneath the value. A sum's
     /// zero value is its first declared case, so only that case's payload
     /// is walked.
     fn zero_leaves(
@@ -4512,11 +4547,9 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         prefix: &mut Vec<Segment>,
         zeros: &mut Vec<(Vec<Segment>, ValueId)>,
-        owed: &mut usize,
         source: SourceOrigin,
     ) -> Checked<()> {
         let data = self.record_type(record)?;
-        *owed += data.requires.len();
         match data.shape {
             StorageShape::AtomicCell(_) => return Ok(()),
             StorageShape::Opaque => {
@@ -4536,7 +4569,7 @@ impl<'a> Lowering<'a> {
             } => {
                 for index in 0..length {
                     prefix.push(Segment::FixedIndex(index));
-                    self.zero_leaves(element, prefix, zeros, owed, source)?;
+                    self.zero_leaves(element, prefix, zeros, source)?;
                     prefix.pop();
                 }
                 return Ok(());
@@ -4602,34 +4635,13 @@ impl<'a> Lowering<'a> {
                 // nothing").
                 ValueType::Record(nested, _, _) if self.is_stored_view(nested)? => {}
                 ValueType::Record(nested, _, _) => {
-                    self.zero_leaves(nested, prefix, zeros, owed, source)?;
+                    self.zero_leaves(nested, prefix, zeros, source)?;
                 }
             }
             prefix.pop();
         }
         if case.is_some() {
             prefix.pop();
-        }
-        Ok(())
-    }
-
-    /// Mints the `DataDomain` obligations of `operation`, one per clause it
-    /// owes, at the point before it. data_and_literals.md: "Construction and
-    /// every restoring write prove the owning default-domain clauses."
-    pub(super) fn owe_domains(
-        &mut self,
-        operation: OperationId,
-        clauses: usize,
-        source: SourceOrigin,
-    ) -> Checked<()> {
-        let before = self.here()?;
-        for clause in 0..clauses {
-            let clause = self.position(clause)?;
-            self.obligation(
-                ObligationKind::DataDomain { operation, clause },
-                before,
-                source,
-            );
         }
         Ok(())
     }
@@ -4671,6 +4683,168 @@ mod tests {
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
+    fn declared_multiplicity_keeps_intrinsic_and_active_component_claims_independent() {
+        let record = |identity: &str, multiplicity, shape| RecordType {
+            multiplicity,
+            cleanup: None,
+            identity: identity.into(),
+            shape,
+            requires: Vec::new(),
+            authored_layout: false,
+        };
+        let field = |raw, identity: &str, child| RecordField {
+            id: semantic_vocabulary::StructuralFieldId::new(raw).unwrap(),
+            identity: identity.into(),
+            value_type: ValueType::record(child),
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
+        };
+        let mut types = IdTable::default();
+        let marker = types.push(record(
+            "Marker",
+            StructuralMultiplicity::Linear,
+            StorageShape::Record(Vec::new()),
+        ));
+        let token = types.push(record(
+            "OpaqueToken",
+            StructuralMultiplicity::Linear,
+            StorageShape::Opaque,
+        ));
+        let wrapper = types.push(record(
+            "LinearWrapper",
+            StructuralMultiplicity::Linear,
+            StorageShape::Record(vec![field(1, "storage", token)]),
+        ));
+        let parts = types.push(record(
+            "LinearParts",
+            StructuralMultiplicity::Linear,
+            StorageShape::Record(vec![
+                field(2, "first", wrapper),
+                field(3, "second", wrapper),
+            ]),
+        ));
+        let pair = types.push(record(
+            "AffinePair",
+            StructuralMultiplicity::Affine,
+            StorageShape::Record(vec![field(4, "left", token), field(5, "right", token)]),
+        ));
+        let empty = StructuralCaseId::new(1).unwrap();
+        let live = StructuralCaseId::new(2).unwrap();
+        let conditional = types.push(record(
+            "Conditional",
+            StructuralMultiplicity::Affine,
+            StorageShape::Sum(vec![
+                crate::body::CaseType {
+                    id: empty,
+                    identity: "Empty".into(),
+                    fields: Vec::new(),
+                },
+                crate::body::CaseType {
+                    id: live,
+                    identity: "Live".into(),
+                    fields: vec![field(6, "token", token)],
+                },
+            ]),
+        ));
+        let reference = types.push(record(
+            "SharedTokenReference",
+            StructuralMultiplicity::Unrestricted,
+            StorageShape::Reference {
+                referent: token,
+                access: StructuralAccess::SharedBorrow,
+            },
+        ));
+        let declared = declare(
+            MachineId::new(1).unwrap(),
+            &types,
+            &IdTable::default(),
+            std::iter::empty::<&Signature>(),
+            &[],
+            None,
+            TerminalIdentityTableBuilder::default(),
+        )
+        .unwrap();
+        let lookup = |id: StructuralTypeId| declared.structural_types.get((id.get() - 1) as usize);
+        for id in [marker, token] {
+            let row = lookup(id).unwrap();
+            assert_eq!(row.multiplicity, StructuralMultiplicity::Linear);
+            assert!(row.owns_linear_claim);
+            assert!(!row.no_code_affine_cleanup);
+        }
+        for id in [wrapper, parts] {
+            let row = lookup(id).unwrap();
+            assert_eq!(row.multiplicity, StructuralMultiplicity::Linear);
+            assert!(!row.owns_linear_claim);
+            assert!(!row.no_code_affine_cleanup);
+        }
+        for id in [pair, conditional] {
+            let row = lookup(id).unwrap();
+            assert_eq!(row.multiplicity, StructuralMultiplicity::Affine);
+            assert!(!row.owns_linear_claim);
+            assert!(!row.no_code_affine_cleanup);
+        }
+        assert!(lookup(reference).unwrap().is_copyable());
+        assert!(!lookup(reference).unwrap().owns_linear_claim);
+        assert!(lookup(reference).unwrap().no_code_affine_cleanup);
+        let pair_fields = lookup(pair).unwrap().shape.direct_fields().unwrap();
+        let claims = pair_fields
+            .iter()
+            .map(|field| vec![StructuralPathSegment::Field(field.identity)])
+            .collect::<Vec<_>>();
+        let claim_types =
+            terminal_semantics::owned_structure::ClaimTypes::new(&declared.structural_types)
+                .unwrap();
+        terminal_semantics::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            pair,
+            &[],
+            claims.iter().map(Vec::as_slice),
+            &|_, _| false,
+        )
+        .unwrap();
+        assert!(
+            terminal_semantics::owned_structure::validate_complete_claim_frontier(
+                &claim_types,
+                pair,
+                &[],
+                claims[..1].iter().map(Vec::as_slice),
+                &|_, _| false
+            )
+            .is_err()
+        );
+        terminal_semantics::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            conditional,
+            &[],
+            std::iter::empty::<&[StructuralPathSegment]>(),
+            &|prefix, case| prefix.is_empty() && case == empty,
+        )
+        .unwrap();
+        let cases = lookup(conditional).unwrap().shape.sum_cases().unwrap();
+        let active = vec![
+            StructuralPathSegment::Case(live),
+            StructuralPathSegment::Field(cases[1].fields[0].identity),
+        ];
+        terminal_semantics::owned_structure::validate_complete_claim_frontier(
+            &claim_types,
+            conditional,
+            &[],
+            [active.as_slice()],
+            &|prefix, case| prefix.is_empty() && case == live,
+        )
+        .unwrap();
+        assert!(
+            terminal_semantics::owned_structure::validate_complete_claim_frontier(
+                &claim_types,
+                conditional,
+                &[],
+                [active.as_slice()],
+                &|prefix, case| prefix.is_empty() && case == empty
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn scalar_homes_keep_their_identity_beside_qualified_array_elements() {
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let plain = ValueType::Scalar(scalar, Qualification::NONE);
@@ -4678,8 +4852,7 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         let mut types = IdTable::default();
         let wrapping_id = types.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
@@ -4690,8 +4863,7 @@ mod tests {
             authored_layout: false,
         });
         types.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {

@@ -829,6 +829,19 @@ fn artifact_current_rejection_precedence_is_trailing_payload_semantic_then_outer
 }
 
 #[test]
+fn the_copy_bit_recovery_header_rejects_before_type_payload() {
+    // Version 115 writes a copy-permission bool where the current payload
+    // writes declared multiplicity. Refuse that header before reading types,
+    // even when no identity or payload follows it.
+    let mut header = b"OMGFCV\0\0".to_vec();
+    header.extend_from_slice(&115_u32.to_le_bytes());
+    assert_eq!(
+        FixedViewCopyPlan::decode(&header),
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(115)),
+    );
+}
+
+#[test]
 fn every_previous_wire_generation_rejects_before_payload_decoding() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1)
         .encode()

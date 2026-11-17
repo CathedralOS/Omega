@@ -27,10 +27,10 @@ use native_artifact::{
     ExecutablePublicationReceipt, NativeArtifactIdentity, NativePackagePublicationReceipt,
 };
 use optimization_core::OptimizationRollbackSettlement;
+use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy;
 
 pub struct PendingNativeProduct {
     pub terminal: RetainedTerminalArtifact,

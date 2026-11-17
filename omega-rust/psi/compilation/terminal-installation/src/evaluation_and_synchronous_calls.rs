@@ -1959,8 +1959,7 @@ pub(crate) mod synchronous_calls {
                                     terminal_callable_values_with_boundary_implementations(
                                         self.module,
                                         &implementations,
-                                    )
-                                    .map_err(str::to_owned)?;
+                                    )?;
                                 let mut entries = Vec::with_capacity(roots.len());
                                 for root in &roots {
                                     match *root {

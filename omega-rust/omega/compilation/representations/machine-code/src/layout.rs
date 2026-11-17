@@ -290,6 +290,35 @@ pub struct ResolvedMachineProgram {
     pub layout: Arc<ResolvedMachineLayout>,
 }
 
+/// Stage 09's output as later consumers read it: the program with its active
+/// layout, the baseline layout it came from, the layout-phase selections and
+/// budget that governed the run, and the roots of any x86 branch relaxation.
+/// The relaxation trace itself stays with stage 09 for replay.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizedMachineLayout {
+    pub baseline: ResolvedLayoutRoots,
+    pub program: ResolvedMachineProgram,
+    pub selections: optimization_core::OptimizationPhaseSelections,
+    pub budget: optimization_core::OptimizationWorkBudget,
+    pub relaxation: Option<X86BranchRelaxationRoots>,
+}
+
+impl OptimizedMachineLayout {
+    /// The active layout: the baseline, or the relaxed layout when relaxation ran.
+    pub fn layout(&self) -> &ResolvedMachineLayout {
+        &self.program.layout
+    }
+}
+
+/// Which layout an x86 branch relaxation started from and produced, and the
+/// identity of its complete trace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86BranchRelaxationRoots {
+    pub identity: X86BranchRelaxationIdentity,
+    pub source: ResolvedSelectedFormLayoutIdentity,
+    pub output: ResolvedSelectedFormLayoutIdentity,
+}
+
 pub fn resolved_machine_layout_identity(
     selected: SelectedInstructionPlanIdentity,
     machine: PostAllocationMachineIdentity,

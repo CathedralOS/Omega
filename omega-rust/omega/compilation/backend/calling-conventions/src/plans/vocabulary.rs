@@ -471,9 +471,10 @@ pub enum CallingPolicy {
     Aapcs64,
     LinuxSyscallX86_64,
     LinuxSyscallAarch64,
-    /// Apple's arm64 variant of AAPCS64: the same registers, but stack
-    /// arguments sit at their natural alignment with no eight-byte minimum
-    /// slot, so `f(x0..x7, b: u32, c: u32)` reads `c` at sp+4.
+    /// Apple's arm64 variant of AAPCS64 permits a 16-byte-aligned argument
+    /// to start in an odd x register. Stack scalars sit at their natural
+    /// alignment with no eight-byte minimum slot, so
+    /// `f(x0..x7, b: u32, c: u32)` reads `c` at sp+4.
     DarwinAapcs64,
 }
 

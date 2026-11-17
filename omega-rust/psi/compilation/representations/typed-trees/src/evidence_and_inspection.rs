@@ -9,8 +9,8 @@ pub mod evidence {
         use crate::TypedTrees;
         use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
-        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-        use symbols::{BuiltinTypeAtom, SymbolHandle, UnresolvedName};
+        use crate::types::TypeReferenceNode;
+        use symbols::{BuiltinTypeAtom, SymbolHandle};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
 
@@ -22,31 +22,80 @@ pub mod evidence {
                 return None;
             }
             let call = program.expression_table.call_node(expression)?;
-            if call.target_symbol != SymbolHandle::invalid()
-                || call.receiver != ExpressionHandle::invalid()
+            // Optional handles have one exact absent sentinel. A partial or
+            // stale handle is present malformed custody, not an omitted input.
+            if !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+                || (call.receiver != ExpressionHandle::invalid()
+                    && !program.expression_table.expression_is_valid(call.receiver))
+            {
+                return None;
+            }
+            if !program.call_has_no_runtime_receiver_for_target(call)
                 || call.runtime_call.is_some()
-                || call.authored_call_binding.is_some()
-                || call.build_selection != arena::Handle::invalid()
-                || call.authored_machine_application
-                    != crate::static_applications::StaticMachineApplicationHandle::invalid()
-                || call.exact_coercion_target != TypeReferenceHandle::invalid()
-                || call.requirement_application != TypeReferenceHandle::invalid()
-                || call.static_machine_parameter != SymbolHandle::invalid()
-                || call.static_requirement_dispatch.is_some()
                 || !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
+                || call.requirement_application != Default::default()
+                || call.exact_coercion_target != Default::default()
+                || call.build_selection != Default::default()
+                || call.static_machine_parameter != Default::default()
+                || call.static_requirement_dispatch.is_some()
                 || call.quotient_operation.is_some()
                 || call.private_layout_operation.is_some()
                 || call.installed_interrupt_operation.is_some()
                 || call.layout_query.is_some()
                 || call.native_code_layout.is_some()
                 || call.operational_acknowledgement != Default::default()
-                || program.expression_table.unresolved_name(expression)
-                    != UnresolvedName::NoVisibleDeclaration
             {
                 return None;
             }
-            let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+            let (declaration, predicate) =
+                byte_observation_declaration(program, call.target_symbol)?;
+            let entry = program
+                .machine_states(program.machine_by_symbol(declaration)?)
+                .first()?
+                .symbol;
+            let names_target =
+                |symbol| symbol == call.target_symbol || symbol == declaration || symbol == entry;
+            if let Some(binding) = call.authored_call_binding
+                && (binding.selected != call.target_symbol || binding.original != binding.selected)
+            {
+                return None;
+            }
+            if let Some(occurrence) = call.authored_call_selection {
+                let selected = program.authored_declaration_selections().get(occurrence)?;
+                if !matches!(selected.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(resolved)
+                    if names_target(resolved.selected_symbol()))
+                {
+                    return None;
+                }
+            }
+            if call.authored_machine_application != Default::default() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(call.authored_machine_application)
+                {
+                    return None;
+                }
+                let application = program
+                    .expression_table
+                    .static_machine_application(call.authored_machine_application);
+                if !application.arguments.is_empty()
+                    || !application.selected_machine_arguments.is_empty()
+                    || !application.input_selections.is_empty()
+                    || !application.bindings.is_empty()
+                    || !application.lifetime_bindings.is_empty()
+                    || application.conformance_selection.is_some()
+                    || application.callable_contract_source != Default::default()
+                    || (application.registration_operation != SymbolHandle::invalid()
+                        && !names_target(application.registration_operation))
+                {
+                    return None;
+                }
+            }
             let arguments = program.expression_table.expression_handles(call.arguments);
             let [argument] = arguments else {
                 return None;
@@ -55,6 +104,27 @@ pub mod evidence {
                 return None;
             }
             Some((predicate, *argument))
+        }
+
+        /// Catalog custody and the complete canonical header nominate the
+        /// observation. Callers still owe argument and storage formation.
+        pub fn byte_observation_declaration(
+            program: &TypedTrees,
+            target: SymbolHandle,
+        ) -> Option<(SymbolHandle, ByteSequencePredicate)> {
+            let declaration = program
+                .machine_by_symbol(target)
+                .or_else(|| program.machine_holding_state(target))?;
+            let (
+                language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
+                _,
+            ) = program
+                .compiler_primitive_schema(declaration.symbol)
+                .ok()??
+            else {
+                return None;
+            };
+            Some((declaration.symbol, predicate))
         }
 
         pub fn domain_byte_predicate(
@@ -145,8 +215,43 @@ pub mod evidence {
                 return None;
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
-            crate::domain::domain_subject_reference(program, domain, argument)
+            // The domain subject is a logical value, not an implicit loan.
+            // Its declaration must explicitly form the shared whole view the
+            // selected observer's ordinary formal receives.
+            if !matches!(program.expression_table.expression(argument),
+                crate::expression::ExpressionNode::Borrow(borrow)
+                    if borrow.access == language_core::ReferenceAccess::Shared)
+            {
+                return None;
+            }
+            let subject = whole_byte_observation_subject(program, argument)?;
+            crate::domain::domain_subject_reference(program, domain, subject)
                 .then_some((*expression, predicate))
+        }
+
+        /// A shared loan of an entire range observes the same bytes as its
+        /// backing. Partial ranges remain distinct subjects, including UTF-8
+        /// windows whose endpoints need not be character boundaries.
+        pub fn whole_byte_observation_subject(
+            program: &TypedTrees,
+            argument: ExpressionHandle,
+        ) -> Option<ExpressionHandle> {
+            use crate::expression::ExpressionNode;
+            let table = &program.expression_table;
+            let ExpressionNode::Borrow(borrow) = table.expression(argument) else {
+                return Some(argument);
+            };
+            if borrow.access != language_core::ReferenceAccess::Shared {
+                return None;
+            }
+            let ExpressionNode::Indexed(indexed) = table.expression(borrow.target) else {
+                return Some(borrow.target);
+            };
+            let ExpressionNode::Range(range) = table.expression(indexed.index) else {
+                return Some(borrow.target);
+            };
+            (!range.start.is_valid() && !range.end.is_valid() && !range.end_inclusive)
+                .then_some(indexed.collection)
         }
 
         /// The exact primitive predicate of a declared byte-slice domain.

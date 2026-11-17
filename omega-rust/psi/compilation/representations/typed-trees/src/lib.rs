@@ -1489,7 +1489,7 @@ pub struct TypedTreeTables {
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
-    pub machine_trait_conformances: Arena<machine::TraitConformance>,
+    pub machine_trait_conformances: arena::RootedArena<machine::TraitConformance>,
     pub machine_states: arena::RootedArena<crate::state::State>,
     pub state_parameters: arena::RootedArena<signature::StateParameter>,
     pub traits: arena::RootedArena<trait_definition::TraitDefinition>,

@@ -56,6 +56,9 @@ pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
+    Encoding(post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError),
+    Layout(selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError),
+    LayoutOptimization(resolved_layout_to_resolved_layout::ResolvedLayoutOptimizationError),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
@@ -72,6 +75,9 @@ impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
             Self::PostAllocationMachine(error) => {
                 write!(formatter, "PostAllocationMachine({error:?})")
             }
+            Self::Encoding(error) => write!(formatter, "Encoding({error:?})"),
+            Self::Layout(error) => write!(formatter, "Layout({error:?})"),
+            Self::LayoutOptimization(error) => write!(formatter, "LayoutOptimization({error:?})"),
             Self::FunctionRelativeRealization(error) => {
                 write!(formatter, "FunctionRelativeRealization({error:?})")
             }
@@ -209,12 +215,12 @@ pub(crate) fn emit_target(
     let encoding = {
         observation.enter(NativePipelineStage::SelectedFormEncoding);
         stage_optimized_layout_independent_selected_form_encoding(framed)
-            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::Encoding)
     }?;
     let layout = {
         observation.enter(NativePipelineStage::ResolvedLayout);
         stage_optimized_resolved_selected_form_layout(encoding.current())
-            .map_err(FunctionRelativeOptimizationRealizationError::Layout)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::Layout)
     }?;
     let optimized_layout = {
         observation.enter(NativePipelineStage::LayoutOptimization);
@@ -228,11 +234,14 @@ pub(crate) fn emit_target(
                 .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
             layout.current().instructions.publication.budget(),
         )
-        .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::LayoutOptimization)
     }?;
-    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
-    let realization = if retain_native_stage_inputs {
-        realization.retain_replay_for_validation(machine_emission::FunctionRealizationReplay {
+    // Machine emission reads stage 09's current form. The stage checks an
+    // audit runs travel beside it; a validator request adds the originals,
+    // and a default compile drops them here.
+    let (optimized_layout, relaxation) = optimized_layout.into_parts();
+    let originals = if retain_native_stage_inputs {
+        Some(crate::stage_audit::RetainedOriginals {
             allocation,
             machine,
             encoding,
@@ -244,8 +253,12 @@ pub(crate) fn emit_target(
         })
     } else {
         drop((allocation, machine, encoding, layout, selected_optimization));
-        realization
+        None
     };
+    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?
+        .with_stage_audit(Box::new(crate::stage_audit::NativeStageAudit::new(
+            relaxation, originals,
+        )));
     let physical =
         StagedOptimizedFunctionFragmentEmissionSource::new(realization, facts, installations)
             .map_err(|error| {

@@ -1580,6 +1580,10 @@ impl<'t> Program<'t> {
                     lexical_owner: operand_owner,
                     binders: &[],
                     lifetime_binders: &[],
+                    exact_toolchain_sources: self
+                        .shared
+                        .exact_toolchain_sources(self.typed)
+                        .map_err(|reason| super::services::unavailable(id, reason))?,
                 },
             )
             .and_then(|identity| self.typed.type_identity_text(identity))
@@ -2428,6 +2432,9 @@ impl<'t> Program<'t> {
         if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
+        if let Some(observation) = self.byte_observation(id, slots, target, arguments, source)? {
+            return Ok(observation);
+        }
         if let Some((boundary, signature)) = self.read_boundary_declaration(id, target)? {
             return self.call_with_signature(
                 id,
@@ -3016,7 +3023,7 @@ impl<'t> Program<'t> {
             let agrees = if borrowed.is_some() {
                 self.same_type(actual.result, formal)
             } else {
-                self.agrees(actual.result, formal)
+                self.agrees(actual.result, Some(formal))
             };
             let agrees = agrees
                 || self.const_array_argument_agrees(
@@ -3177,8 +3184,7 @@ impl<'t> Program<'t> {
                 return false;
             };
             if aq != eq
-                || actual.copyable != expected.copyable
-                || actual.owns_linear_claim != expected.owns_linear_claim
+                || actual.multiplicity != expected.multiplicity
                 || !actual.requires.is_empty()
                 || !expected.requires.is_empty()
                 || actual.cleanup.is_some()
@@ -3923,6 +3929,7 @@ impl Touches<'_> {
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::CollectionView { base: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
+            | ExpressionKind::ByteSequencePredicate { base: operand, .. }
             | ExpressionKind::IsCase {
                 subject: operand, ..
             } => self.expression(operand, changes, captures),

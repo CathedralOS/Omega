@@ -924,7 +924,11 @@ fn machine(
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
             Ok(Discharged::Certificate(evidence)) if stores => {
-                restoring.push((storage.owner(operation, clause, concerns)?, operation));
+                let owner = storage.owner(operation, clause, concerns)?;
+                restoring.push((
+                    storage.capture_owner(&mut references, operation, owner, concerns)?,
+                    operation,
+                ));
                 Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
@@ -937,7 +941,12 @@ fn machine(
                     windows.push(places::Window {
                         obligation,
                         opened_by: operation,
-                        owner,
+                        owner: storage.capture_owner(
+                            &mut references,
+                            operation,
+                            owner,
+                            concerns,
+                        )?,
                         initial: zeroes,
                         restored: Vec::new(),
                     });
@@ -1084,20 +1093,33 @@ fn fill_knowledge<'a>(
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here.
-        let stated = match substitute(proposition, &mut storage.at_entry(references, tables)) {
-            Ok(stated) => stated,
-            Err(Unbound::Unproved(_)) => continue,
-            Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-        };
-        push_knowledge(
-            tables,
-            stated,
-            ProgramPoint::BlockEntry(lowered.entry),
-            Justification::EntryRequirement {
-                clause: position(clause, id)?,
-            },
-        );
+        // field. One that names no such value states nothing here. Each
+        // conjunct of a clause holds on its own, so only the conjuncts that
+        // name such a field are dropped: an inferred input condition joins
+        // facts about every field the caller knew, and one about a field this
+        // body never reads must not discard the bound it does need. A
+        // disjunction stays whole, since dropping one of its alternatives
+        // would assume more than the clause says.
+        let mut conjuncts = vec![proposition];
+        while let Some(conjunct) = conjuncts.pop() {
+            if let Proposition::Conjunction(parts) = conjunct {
+                conjuncts.extend(parts);
+                continue;
+            }
+            let stated = match substitute(conjunct, &mut storage.at_entry(references, tables)) {
+                Ok(stated) => stated,
+                Err(Unbound::Unproved(_)) => continue,
+                Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
+            };
+            push_knowledge(
+                tables,
+                stated,
+                ProgramPoint::BlockEntry(lowered.entry),
+                Justification::EntryRequirement {
+                    clause: position(clause, id)?,
+                },
+            );
+        }
     }
     // Each readable record formal of the machine or of a loop head arrived
     // as a member of its type's domain, so the clauses of that type hold of
@@ -1607,6 +1629,7 @@ impl Unbound {
 
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
+    substitute_sufficient_clause as sufficient_goal,
 };
 
 /// States a clause the checker must prove: a goal, never a premise.
@@ -1628,7 +1651,7 @@ pub(crate) fn substitute_goal(
     let (parts, conjunction) = match clause {
         Proposition::Conjunction(parts) => (parts, true),
         Proposition::Disjunction(parts) => (parts, false),
-        _ => return substitute(clause, bindings),
+        _ => return sufficient_goal(clause, bindings),
     };
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
@@ -1740,6 +1763,18 @@ impl Bindings for ErasedTerms<'_> {
         Ok(supplied.clone())
     }
 
+    fn value_alternatives(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        if self.terms.iter().any(|(formal, _)| *formal == id) {
+            self.value(id, scalar_type).map(|value| vec![value])
+        } else {
+            self.runtime.value_alternatives(id, scalar_type)
+        }
+    }
+
     fn field(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,
@@ -1748,6 +1783,17 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.field(version, root, path, scalar_type)
+    }
+
+    fn field_alternatives(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        self.runtime
+            .field_alternatives(version, root, path, scalar_type)
     }
 
     fn extent(

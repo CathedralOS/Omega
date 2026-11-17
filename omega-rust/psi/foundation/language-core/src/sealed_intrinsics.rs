@@ -20,6 +20,7 @@ declaration's signature, supply mode and contracts against the operation it
 realizes before it uses the row.
 */
 
+use crate::byte_predicates::ByteSequencePredicate;
 use crate::static_interrupts::StaticInterruptOperation;
 use std::path::Path;
 
@@ -84,6 +85,8 @@ pub enum SealedIntrinsic {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerPrimitive {
     AtomicFence,
+    /// An exact pure observation of one borrowed byte sequence.
+    ByteObservation(ByteSequencePredicate),
     FloatProjection,
     FloatSemantics,
     NaturalRanking,
@@ -190,6 +193,7 @@ macro_rules! bundled {
     };
 }
 
+const CORE_BYTE_OBSERVATION: &[u8] = bundled!("core/byte_observation.omg");
 const CORE_LAYOUT: &[u8] = bundled!("core/layout.omg");
 const CORE_ACCESS: &[u8] = bundled!("core/access.omg");
 const CORE_RUN: &[u8] = bundled!("core/run.omg");
@@ -268,6 +272,38 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "fence",
         bundled!("core/atomic.omg"),
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
+    ),
+    row(
+        "byte_observation.omg",
+        "valid_utf8",
+        CORE_BYTE_OBSERVATION,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+            ByteSequencePredicate::ValidUtf8,
+        )),
+    ),
+    row(
+        "byte_observation.omg",
+        "no_nul",
+        CORE_BYTE_OBSERVATION,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+            ByteSequencePredicate::NoNul,
+        )),
+    ),
+    row(
+        "byte_observation.omg",
+        "ascii_only",
+        CORE_BYTE_OBSERVATION,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+            ByteSequencePredicate::AsciiOnly,
+        )),
+    ),
+    row(
+        "byte_observation.omg",
+        "non_empty",
+        CORE_BYTE_OBSERVATION,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+            ByteSequencePredicate::NonEmpty,
+        )),
     ),
     row(
         "float_operations.omg",
@@ -648,6 +684,66 @@ mod tests {
             declaration,
             source,
         }
+    }
+
+    #[test]
+    fn byte_observations_match_only_exact_bundled_declaration_sites() {
+        // This lower-level catalog assumes toolchain provenance. The symbol
+        // gate separately proves that the source was loaded from the toolchain.
+        for (declaration, predicate) in [
+            ("valid_utf8", ByteSequencePredicate::ValidUtf8),
+            ("no_nul", ByteSequencePredicate::NoNul),
+            ("ascii_only", ByteSequencePredicate::AsciiOnly),
+            ("non_empty", ByteSequencePredicate::NonEmpty),
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    "byte_observation.omg",
+                    declaration,
+                    CORE_BYTE_OBSERVATION,
+                )),
+                Some(SealedIntrinsic::CompilerPrimitive(
+                    CompilerPrimitive::ByteObservation(predicate),
+                )),
+            );
+            for file in ["copied/byte_observation.omg", "other.omg"] {
+                assert_eq!(
+                    SealedIntrinsicCatalog::classify(site(
+                        file,
+                        declaration,
+                        CORE_BYTE_OBSERVATION,
+                    )),
+                    None,
+                );
+            }
+            let mut edited = CORE_BYTE_OBSERVATION.to_vec();
+            edited.push(b' ');
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    "byte_observation.omg",
+                    declaration,
+                    &edited,
+                )),
+                None,
+            );
+            let foreign_member = format!("Lookalike::{declaration}");
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    "byte_observation.omg",
+                    &foreign_member,
+                    CORE_BYTE_OBSERVATION,
+                )),
+                None,
+            );
+        }
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "byte_observation.omg",
+                "unknown_predicate",
+                CORE_BYTE_OBSERVATION,
+            )),
+            None,
+        );
     }
 
     #[test]

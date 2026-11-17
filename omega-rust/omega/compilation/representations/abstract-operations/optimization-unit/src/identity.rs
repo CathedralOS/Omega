@@ -1855,7 +1855,7 @@ pub(crate) mod structural_encoding {
         bytes.u8(u8::from(declaration.no_code_affine_cleanup));
         bytes.u8(u8::from(declaration.owns_linear_claim));
         bytes.u8(u8::from(declaration.descriptor_cleanup));
-        bytes.u8(u8::from(declaration.copyable));
+        encode_multiplicity(bytes, declaration.multiplicity);
         encode_optional(
             bytes,
             declaration.nominal_cleanup.as_ref(),
@@ -2250,7 +2250,7 @@ pub(crate) mod structural_encoding {
                             cleanup_machine: MachineId::new(machine).unwrap(),
                         }
                     }),
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     scalar_restriction: None,
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2269,9 +2269,13 @@ pub(crate) mod structural_encoding {
         }
 
         #[test]
-        fn logical_copy_permission_changes_encoded_identity() {
+        fn declared_multiplicity_changes_encoded_identity() {
             let mut encodings = Vec::new();
-            for copyable in [false, true] {
+            for multiplicity in [
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                terminal_psi::StructuralMultiplicity::Affine,
+                terminal_psi::StructuralMultiplicity::Linear,
+            ] {
                 let declaration = StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     requires: Vec::new(),
@@ -2280,7 +2284,7 @@ pub(crate) mod structural_encoding {
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
-                    copyable,
+                    multiplicity,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2592,7 +2596,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v58\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v59\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {

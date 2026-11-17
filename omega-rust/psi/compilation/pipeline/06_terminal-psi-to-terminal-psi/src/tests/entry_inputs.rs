@@ -665,3 +665,71 @@ machine check(pair: &mut Pair) -> u32 requires pair.first < 10 || pair.second < 
         }
     }
 }
+
+#[test]
+fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
+    // The stack samples write their stack pointer and then guard it on the
+    // edge into the helper that indexes with it. The guard's bound must reach
+    // that helper whichever field the guarded value was read from, and an
+    // unrelated write must not discard it. Guarding a field that no longer
+    // holds the index must still refuse.
+    for (name, writes, guarded, accepted) in [
+        (
+            "copied_from_another_field",
+            "main.sp = main.k;",
+            "main.sp",
+            true,
+        ),
+        (
+            "guarded_through_its_source",
+            "main.sp = main.k;",
+            "main.k",
+            true,
+        ),
+        ("unrelated_field_written", "main.k = 5;", "main.sp", true),
+        ("nothing_written", "", "main.sp", true),
+        (
+            "source_rewritten_after_copy",
+            "main.sp = main.k; main.k = 2;",
+            "main.k",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Main {{ stack: [i32; 8]; sp: i32; k: i32; }}
+            machine entry(main: &mut Main) {{
+                {writes}
+                transition {guarded} >= 0 && {guarded} < 8 {{ true -> push(main) false -> done() }}
+                machine push(main: &mut Main) {{
+                    main.stack[main.sp] = 3;
+                }}
+                machine done() {{}}
+            }}"
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        let verdict = judge(Ok(elaboration)).unwrap();
+        if accepted {
+            let RouteVerdict::Accepted(accepted) = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            accepted.publish_invocation().unwrap();
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| row.machine == id(2) && safety(&row.kind)),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+}

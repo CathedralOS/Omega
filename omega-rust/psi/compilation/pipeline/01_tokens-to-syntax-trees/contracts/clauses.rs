@@ -1,0 +1,642 @@
+use crate::errors::parse_error::ParseError;
+use crate::expressions::parse::{
+    parse_expression_handle_without_struct_literals,
+    parse_expression_handle_without_struct_literals_or_membership,
+};
+use crate::parameters::callable::parse_optional_return_type;
+use crate::parameters::requirements::parse_machine_parameter_contracts;
+use crate::syntax_storage::tables::{exprs, items};
+use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use arena::HandleSpan;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::expression::TableRangeExpression;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
+use tokens::{KeywordKind, PunctuationKind};
+
+pub(crate) struct MachineClauses {
+    pub terminates_guarantee: bool,
+    pub ranking_subjects: HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    pub ranking_view: HandleSpan<Identifier>,
+    pub ranking_view_arguments: HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    pub ranking_range: syntax_trees::expression::ExpressionHandle,
+    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
+    pub service_reach_is_installation_bound: bool,
+    pub service_reaches: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<Identifier>,
+    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub contracts: HandleSpan<CapabilityContract>,
+    pub return_type: syntax_trees::types::TypeReferenceHandle,
+    pub admitted_same_stack_bytes: u64,
+    pub same_stack_clause_span: Option<source::SourceSpan>,
+    /// The header wrote `crashes none`. That clause publishes no
+    /// contract row, so this is the only record that the empty crash
+    /// set was authored rather than omitted.
+    pub declares_no_crash_route: bool,
+}
+
+type RankedSubjects = (
+    HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    HandleSpan<Identifier>,
+    HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    syntax_trees::expression::ExpressionHandle,
+);
+
+pub(crate) fn parse_machine_clauses<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+) -> ParseResult<'tokens, 'source, MachineClauses> {
+    let mut terminates_guarantee = false;
+    let mut ranking_subjects = HandleSpan::empty();
+    let mut ranking_view = HandleSpan::empty();
+    let mut ranking_view_arguments = HandleSpan::empty();
+    let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
+    let mut service_reach_keyword_source_spans = Vec::new();
+    let mut service_reach_is_installation_bound = false;
+    let mut service_reaches = Vec::new();
+    let mut invokes = Vec::new();
+    let mut suspends_keyword_source_spans = Vec::new();
+    let mut blocks_keyword_source_spans = Vec::new();
+    let mut suspends = false;
+    let mut blocks = false;
+    let mut contracts = Vec::new();
+    let mut crashes_none_declared = false;
+    let mut outcome_case_groups = Vec::<String>::new();
+    let mut public_selectors = Vec::<String>::new();
+    let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
+    let mut admitted_same_stack_bytes = 0u64;
+    let mut same_stack_clause_span = None;
+
+    while !input.at_punctuation(PunctuationKind::LeftBrace)
+        && !input.at_punctuation(PunctuationKind::Semicolon)
+    {
+        if input.at_contextual("requires")
+            && input
+                .take_contextual("requires")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            let ((), rest) =
+                parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+            input = rest;
+            continue;
+        }
+        if input.at_contextual("terminates") {
+            input = input.take_contextual("terminates")?;
+            if input.at_contextual("by") {
+                let by_input = input.take_contextual("by")?;
+                let ((clause_subjects, clause_view, clause_view_arguments, clause_range), rest) =
+                    parse_ranked_subjects(syntax_trees, by_input)?;
+                input = rest;
+                ranking_subjects = clause_subjects;
+                ranking_view = clause_view;
+                ranking_view_arguments = clause_view_arguments;
+                ranking_range = clause_range;
+                continue;
+            }
+            if input.at_retired_ranking_block() {
+                return Err(input.error_here(
+                    "the `terminates { decreases ...; }` block form is retired (decision 23): \
+                 attach the ranking witness to the guarantee as `terminates by \
+                 <subjects> [-> View] [in <range>]`",
+                ));
+            }
+            terminates_guarantee = true;
+            continue;
+        }
+
+        if input.at_contextual("decreases") {
+            return Err(input.error_here(
+                "a standalone `decreases` clause is retired (decision 23): \
+                 attach the ranking witness to the guarantee as `terminates by \
+                 <subjects> [-> View] [in <range>]`",
+            ));
+        }
+
+        if input.at_contextual("increases") {
+            return Err(input.error_here(
+                "a standalone `increases` clause is retired (decision 23): \
+                 select a bounded ranking view with `terminates by \
+                 <subject> -> Nat::IncreasingTo(<bound>)`",
+            ));
+        }
+
+        if input.at_contextual("effects") {
+            return Err(input.error_here(
+                "the `effects` reach clause is retired; write `reaches <Service> + ...`",
+            ));
+        }
+
+        if input.at_contextual("reaches") {
+            input = crate::contracts::effects::take_operational_reaches_clause(
+                input,
+                &mut service_reach_keyword_source_spans,
+                &mut service_reaches,
+                &mut service_reach_is_installation_bound,
+                machine_reaches_clause_boundary,
+            )?;
+            continue;
+        }
+
+        if input.at_contextual("invokes") {
+            input = input.take_contextual("invokes")?;
+            let (binding, after_binding) = input.take_identifier()?;
+            invokes.push(binding);
+            input = after_binding;
+            continue;
+        }
+
+        if input.at_contextual("suspends") {
+            if !suspends_keyword_source_spans.is_empty() {
+                return Err(input.error_here("duplicate `suspends` operational clause"));
+            }
+            suspends_keyword_source_spans.push(input.current_source_span());
+            let after_keyword = input.take_contextual("suspends")?;
+            (suspends, input) = crate::contracts::effects::operational_bound(after_keyword)?;
+            continue;
+        }
+
+        if input.at_contextual("blocks") {
+            if !blocks_keyword_source_spans.is_empty() {
+                return Err(input.error_here("duplicate `blocks` operational clause"));
+            }
+            blocks_keyword_source_spans.push(input.current_source_span());
+            let after_keyword = input.take_contextual("blocks")?;
+            (blocks, input) = crate::contracts::effects::operational_bound(after_keyword)?;
+            continue;
+        }
+
+        if input.at_same_stack_demand() {
+            if admitted_same_stack_bytes != 0 {
+                return Err(input.error_here("duplicate `stack N bytes` clause"));
+            }
+            same_stack_clause_span = Some(input.current_source_span());
+            input = input.take_contextual("stack")?;
+            let number = input;
+            let (bytes, after_number) = input.take_integer()?;
+            if bytes <= 0 {
+                return Err(number.error_here(
+                    "`stack` demand must be a positive byte count; zero does not admit a foreign leaf",
+                ));
+            }
+            if !after_number.at_contextual("bytes") {
+                return Err(after_number.error_here("expected `bytes` after the same-stack demand"));
+            }
+            input = after_number.take_contextual("bytes")?;
+            admitted_same_stack_bytes = u64::try_from(bytes).expect("positive i64 fits in u64");
+            continue;
+        }
+
+        if input.at_contextual("crashes") {
+            let keyword_source_span = Some(input.current_source_span());
+            let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
+            let Some(cause) = cause else {
+                let other_route = contracts.iter().any(|contract: &CapabilityContract| {
+                    matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                });
+                input = crate::contracts::effects::finish_crashes_none(
+                    after_header,
+                    other_route,
+                    machine_reaches_clause_boundary,
+                )?;
+                crashes_none_declared = true;
+                continue;
+            };
+            if crashes_none_declared {
+                return Err(
+                    input.error_here("a `crashes Cause` route cannot follow `crashes none`")
+                );
+            }
+            let ((facts, fact_token_count), rest) =
+                crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
+                    syntax_trees,
+                    after_header,
+                    |input| {
+                        input.at_punctuation(PunctuationKind::LeftBrace)
+                            || input.at_punctuation(PunctuationKind::Semicolon)
+                            || machine_contract_fact_boundary(input)
+                    },
+                    true,
+                )?;
+            contracts.push(CapabilityContract {
+                kind: CapabilityContractKind::Crashes { cause },
+                keyword_source_span,
+                binding: None,
+                facts,
+                token_count: fact_token_count
+                    .checked_add(header_token_count)
+                    .expect("crash contract token count overflow"),
+            });
+            input = rest;
+            continue;
+        }
+
+        if input.at_contextual("boundary") {
+            return Err(input.error_here(
+                "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`",
+            ));
+        }
+
+        if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let keyword_source_span = Some(input.current_source_span());
+            let kind = if input.at_contextual("requires") {
+                input = input.take_contextual("requires")?;
+                CapabilityContractKind::Requires
+            } else {
+                input = input.take_contextual("ensures")?;
+                CapabilityContractKind::Ensures
+            };
+            if matches!(kind, CapabilityContractKind::Ensures)
+                && outcome_case_path_followed_by_arrow(input)?
+            {
+                let ((group_contracts, group_name), rest) =
+                    parse_outcome_specific_ensures_group(syntax_trees, input, keyword_source_span)?;
+                if outcome_case_groups
+                    .iter()
+                    .any(|existing| existing == &group_name)
+                {
+                    return Err(input.error_here(format!(
+                        "duplicate outcome-specific ensures group for `{group_name}`"
+                    )));
+                }
+                outcome_case_groups.push(group_name);
+                for contract in group_contracts {
+                    if let Some(binding) = contract.binding.as_ref() {
+                        if public_selectors
+                            .iter()
+                            .any(|existing| existing == binding.as_str(syntax_trees))
+                        {
+                            return Err(input.error_here(format!(
+                                "duplicate machine-wide public ensures selector `{}`",
+                                binding.as_str(syntax_trees)
+                            )));
+                        }
+                        public_selectors.push(binding.as_str(syntax_trees).to_owned());
+                    }
+                    contracts.push(contract);
+                }
+                input = rest;
+                continue;
+            }
+            if matches!(kind, CapabilityContractKind::Ensures) {
+                reject_ambiguous_outcome_specific_ensures(input)?;
+            }
+            let (binding, fact_input) = input.take_optional_label()?;
+            let ((facts, token_count), rest) =
+                crate::contracts::facts::parse_required_proof_facts_until(
+                    syntax_trees,
+                    fact_input,
+                    |input| {
+                        input.at_punctuation(PunctuationKind::LeftBrace)
+                            || machine_contract_fact_boundary(input)
+                    },
+                    true,
+                )?;
+            if binding.is_some() && facts.count() != 1 {
+                return Err(fact_input.error_here(
+                    "a named requires or ensures clause must contain exactly one proposition",
+                ));
+            }
+            if matches!(kind, CapabilityContractKind::Ensures)
+                && let Some(binding) = binding.as_ref()
+            {
+                if public_selectors
+                    .iter()
+                    .any(|existing| existing == binding.as_str(syntax_trees))
+                {
+                    return Err(fact_input.error_here(format!(
+                        "duplicate machine-wide public ensures selector `{}`",
+                        binding.as_str(syntax_trees)
+                    )));
+                }
+                public_selectors.push(binding.as_str(syntax_trees).to_owned());
+            }
+            contracts.push(CapabilityContract {
+                kind,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
+            input = rest;
+            continue;
+        }
+
+        if input.at_punctuation(PunctuationKind::Arrow) {
+            let (parsed, rest) = parse_optional_return_type(syntax_trees, input)?;
+            return_type = parsed;
+            input = rest;
+            continue;
+        }
+
+        return Err(input.expected_one_of_here(&[
+            "`terminates`",
+            "`decreases`",
+            "`reaches`",
+            "`invokes <binding>`",
+            "`suspends`",
+            "`blocks`",
+            "`crashes <Cause>`",
+            "`boundary`",
+            "`requires`",
+            "`ensures`",
+            "`->`",
+            "`{`",
+        ]));
+    }
+
+    Ok((
+        MachineClauses {
+            terminates_guarantee,
+            ranking_subjects,
+            ranking_view,
+            ranking_view_arguments,
+            ranking_range,
+            service_reach_keyword_source_spans,
+            service_reach_is_installation_bound,
+            service_reaches: syntax_trees
+                .items
+                .insert_identifier_path_members(service_reaches),
+            invokes: items(syntax_trees).insert_identifier_path_members(invokes),
+            suspends_keyword_source_spans,
+            blocks_keyword_source_spans,
+            suspends,
+            blocks,
+            contracts: crate::contracts::effects::publish_capability_contracts(
+                syntax_trees,
+                contracts,
+            ),
+            return_type,
+            admitted_same_stack_bytes,
+            same_stack_clause_span,
+            declares_no_crash_route: crashes_none_declared,
+        },
+        input,
+    ))
+}
+
+fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_keyword(KeywordKind::Machine)
+        || input.at_keyword(KeywordKind::Data)
+        || input.at_keyword(KeywordKind::Use)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contract_continuation_keyword()
+        || input.at_contextual("satisfies")
+        || input.at_same_stack_demand()
+        || input.tokens.is_empty()
+}
+
+fn outcome_case_path_followed_by_arrow(input: Input<'_, '_>) -> Result<bool, ParseError> {
+    if !input.at_name_like() {
+        return Ok(false);
+    }
+    let (_, mut rest) = input.take_identifier()?;
+    let mut member_count = 1usize;
+    while rest.at_punctuation(PunctuationKind::ColonColon) {
+        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (_, next) = rest.take_identifier()?;
+        rest = next;
+        member_count += 1;
+    }
+    Ok(member_count >= 2 && rest.at_punctuation(PunctuationKind::Arrow))
+}
+
+fn reject_ambiguous_outcome_specific_ensures(input: Input<'_, '_>) -> Result<(), ParseError> {
+    let Ok((guard, arrow)) = input.split_at_top_level_punctuation(
+        PunctuationKind::Arrow,
+        "outcome-specific ensures requires an arrow",
+    ) else {
+        return Ok(());
+    };
+    let after_arrow = arrow.take_punctuation(PunctuationKind::Arrow, "->")?;
+    if !after_arrow.at_punctuation(PunctuationKind::LeftBrace) {
+        return Ok(());
+    }
+    if guard.tokens.iter().any(|token| {
+        token.punctuation() == Some(PunctuationKind::Semicolon)
+            || matches!(
+                input.text(token).as_str(),
+                "requires"
+                    | "ensures"
+                    | "crashes"
+                    | "terminates"
+                    | "decreases"
+                    | "reaches"
+                    | "effects"
+                    | "invokes"
+                    | "suspends"
+                    | "blocks"
+                    | "satisfies"
+                    | "stack"
+            )
+    }) {
+        return Ok(());
+    }
+    if guard
+        .tokens
+        .iter()
+        .any(|token| token.punctuation() == Some(PunctuationKind::EqualEqual))
+    {
+        return Err(input.error_here(
+            "outcome-specific ensures rejects Boolean guards; write the exact declared result case as `Result::Case -> { guarantees }`",
+        ));
+    }
+    if guard.tokens.iter().any(|token| {
+        matches!(
+            token.punctuation(),
+            Some(PunctuationKind::LeftParen | PunctuationKind::LeftBrace)
+        )
+    }) {
+        return Err(input.error_here(
+            "outcome-specific ensures rejects case-literal-shaped selectors; write only the exact nominal path `Result::Case -> { guarantees }`",
+        ));
+    }
+    Err(input.error_here(
+        "outcome-specific ensures requires the exact nominal result-case path `Result::Case -> { guarantees }`",
+    ))
+}
+
+fn parse_outcome_specific_ensures_group<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    keyword_source_span: Option<source::SourceSpan>,
+) -> ParseResult<'tokens, 'source, (Vec<CapabilityContract>, String)> {
+    let (result_case, rest) = parse_path_handle_span(input, |member| {
+        items(syntax_trees).append_identifier_path_member(member)
+    })?;
+    let group_name = syntax_trees
+        .items
+        .identifier_path_members(result_case)
+        .iter()
+        .map(|member| member.as_str(syntax_trees))
+        .collect::<Vec<_>>()
+        .join("::");
+    let mut input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut contracts = Vec::new();
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let row_input = input;
+        let (binding, fact_input) = input.take_optional_label()?;
+        let ((facts, token_count), rest) =
+            crate::contracts::facts::parse_proof_facts_until(syntax_trees, fact_input, |input| {
+                input.at_punctuation(PunctuationKind::Semicolon)
+                    || input.at_punctuation(PunctuationKind::RightBrace)
+                    || input.tokens.is_empty()
+            })?;
+        if facts.count() != 1 {
+            return Err(row_input.error_here(
+                "each outcome-specific ensures row must contain exactly one guarantee",
+            ));
+        }
+        contracts.push(CapabilityContract {
+            kind: CapabilityContractKind::EnsuresForResultCase { result_case },
+            keyword_source_span,
+            binding,
+            facts,
+            token_count,
+        });
+        input = rest;
+        if input.at_punctuation(PunctuationKind::Semicolon) {
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        } else if !input.at_punctuation(PunctuationKind::RightBrace) {
+            return Err(input.error_here("expected `;` or `}` after outcome-specific ensures row"));
+        }
+    }
+    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    if contracts.is_empty() {
+        return Err(input
+            .error_here("an outcome-specific ensures group must contain at least one guarantee"));
+    }
+    Ok(((contracts, group_name), input))
+}
+
+fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contract_continuation_keyword()
+        || input.at_contextual("satisfies")
+        || input.at_same_stack_demand()
+}
+
+fn parse_crash_header<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, (Option<CrashCause>, usize)> {
+    let input = input.take_contextual("crashes")?;
+    // `crashes none` carries no cause; the caller finishes the clause.
+    if input.at_contextual("none") {
+        return Ok(((None, 2), input.take_contextual("none")?));
+    }
+    let (cause, after_cause) = input.take_identifier()?;
+    let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
+    Ok(((Some(cause), 2), after_cause))
+}
+
+fn parse_ranked_subjects<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, RankedSubjects> {
+    let (subjects, mut rest) = if input.at_punctuation(PunctuationKind::LeftParen) {
+        let mut tuple_input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+        let mut subjects = Vec::new();
+        loop {
+            let (subject, after_subject) =
+                parse_expression_handle_without_struct_literals(syntax_trees, tuple_input)?;
+            subjects.push(subject);
+            if after_subject.at_punctuation(PunctuationKind::Comma) {
+                tuple_input = after_subject.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            tuple_input = after_subject.take_punctuation(PunctuationKind::RightParen, ")")?;
+            break;
+        }
+        (subjects, tuple_input)
+    } else {
+        let (expression, rest) =
+            parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
+        (vec![expression], rest)
+    };
+    let ranking_subjects = exprs(syntax_trees).insert_expression_handles(subjects);
+    let mut ranking_view = HandleSpan::empty();
+    let mut ranking_view_arguments = HandleSpan::empty();
+
+    if rest.at_punctuation(PunctuationKind::Arrow) {
+        rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+        let (order, next) = parse_path_handle_span(rest, |member| {
+            items(syntax_trees).append_identifier_path_member(member)
+        })?;
+        ranking_view = order;
+        rest = next;
+
+        if rest.at_punctuation(PunctuationKind::LeftParen) {
+            let mut argument_input = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let mut arguments = Vec::new();
+            loop {
+                let (argument, after_argument) =
+                    parse_expression_handle_without_struct_literals(syntax_trees, argument_input)?;
+                arguments.push(argument);
+                if after_argument.at_punctuation(PunctuationKind::Comma) {
+                    argument_input =
+                        after_argument.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                argument_input =
+                    after_argument.take_punctuation(PunctuationKind::RightParen, ")")?;
+                break;
+            }
+            ranking_view_arguments = syntax_trees
+                .expressions
+                .insert_expression_handles(arguments);
+            rest = argument_input;
+        }
+    }
+
+    let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
+    if rest.at_contextual("in") {
+        let range_input = rest.take_contextual("in")?;
+        let (start, after_start) = parse_expression_handle_without_struct_literals_or_membership(
+            syntax_trees,
+            range_input,
+        )?;
+        let end_inclusive = if after_start.at_punctuation(PunctuationKind::DotDotEqual) {
+            true
+        } else if after_start.at_punctuation(PunctuationKind::DotDot) {
+            false
+        } else {
+            return Err(after_start.expected_one_of_here(&["`..`", "`..=`"]));
+        };
+        let after_separator = if end_inclusive {
+            after_start.take_punctuation(PunctuationKind::DotDotEqual, "..=")?
+        } else {
+            after_start.take_punctuation(PunctuationKind::DotDot, "..")?
+        };
+        let (end, next) = parse_expression_handle_without_struct_literals_or_membership(
+            syntax_trees,
+            after_separator,
+        )?;
+        ranking_range = exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
+            start,
+            end,
+            end_inclusive,
+        }));
+        rest = next;
+    }
+
+    Ok((
+        (
+            ranking_subjects,
+            ranking_view,
+            ranking_view_arguments,
+            ranking_range,
+        ),
+        rest,
+    ))
+}

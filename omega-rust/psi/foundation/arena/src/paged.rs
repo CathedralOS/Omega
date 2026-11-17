@@ -1749,6 +1749,19 @@ impl<T> OwnedInterner<T> {
 }
 
 pub struct OwnedTextInterner {
+    prefixes: Vec<TextPrefix>,
+    prefix_len: usize,
+    local: Arc<TextInternerStorage>,
+}
+
+#[derive(Clone)]
+struct TextPrefix {
+    start: usize,
+    end: usize,
+    storage: Arc<TextInternerStorage>,
+}
+
+struct TextInternerStorage {
     texts: [OnceLock<Box<[OnceLock<Box<str>>]>>; TEXT_PAGES],
     indexes: [OnceLock<TextIndex>; INDEX_GENERATIONS],
     generation: AtomicUsize,
@@ -1771,19 +1784,78 @@ enum Probe {
 
 impl Default for OwnedTextInterner {
     fn default() -> Self {
-        let interner = Self {
+        Self {
+            prefixes: Vec::new(),
+            prefix_len: 0,
+            local: Arc::new(TextInternerStorage::default()),
+        }
+    }
+}
+
+impl Default for TextInternerStorage {
+    fn default() -> Self {
+        Self {
             texts: [const { OnceLock::new() }; TEXT_PAGES],
             indexes: [const { OnceLock::new() }; INDEX_GENERATIONS],
             generation: AtomicUsize::new(0),
             minted: Mutex::new(0),
-        };
-        let _ = interner.indexes[0].set(TextIndex::with_words(FIRST_INDEX_WORDS));
-        interner
+        }
     }
 }
 
 impl OwnedTextInterner {
+    // A fork captures each prefix's visible length. The producer may append to
+    // its storage later, but those slots never enter the fork's numbering.
+    // New texts use a private storage, not a copy of the retained prefix.
     pub fn intern(&self, text: &str) -> usize {
+        if let Some(slot) = self.prefix_slot(text) {
+            return slot;
+        }
+        self.prefix_len + self.local.intern(text, u32::MAX as usize - self.prefix_len)
+    }
+
+    pub fn text(&self, slot: usize) -> Option<&str> {
+        if slot >= u32::MAX as usize {
+            return None;
+        }
+        if slot >= self.prefix_len {
+            return self.local.text(slot - self.prefix_len);
+        }
+        let position = self.prefixes.partition_point(|prefix| prefix.end <= slot);
+        let prefix = self.prefixes.get(position)?;
+        prefix.storage.text(slot - prefix.start)
+    }
+
+    fn prefix_slot(&self, text: &str) -> Option<usize> {
+        self.prefixes.iter().find_map(|prefix| {
+            let slot = prefix.storage.slot(text)?;
+            (slot < prefix.end - prefix.start).then_some(prefix.start + slot)
+        })
+    }
+
+    pub fn slot(&self, text: &str) -> Option<usize> {
+        self.prefix_slot(text)
+            .or_else(|| self.local.slot(text).map(|slot| self.prefix_len + slot))
+    }
+
+    pub fn len(&self) -> usize {
+        self.prefix_len + self.local.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn texts_in_order(&self) -> Vec<&str> {
+        let length = self.len();
+        (0..length)
+            .map(|slot| self.text(slot).expect("a minted slot publishes its text"))
+            .collect()
+    }
+}
+
+impl TextInternerStorage {
+    fn intern(&self, text: &str, capacity: usize) -> usize {
         let tag = text_tag(text);
         if let Probe::Found(slot) = self.current_index().probe(tag, text, self) {
             return slot;
@@ -1799,10 +1871,7 @@ impl OwnedTextInterner {
             Probe::Vacant(position) => position,
         };
         let slot = *minted;
-        assert!(
-            slot < u32::MAX as usize,
-            "text interner slot space exhausted"
-        );
+        assert!(slot < capacity, "text interner slot space exhausted");
         *minted += 1;
         let (page, offset) = text_position(slot);
         let published = self.texts[page].get_or_init(|| {
@@ -1863,36 +1932,18 @@ impl OwnedTextInterner {
             .unwrap_or_else(|error| error.into_inner())
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn texts_in_order(&self) -> Vec<&str> {
-        let minted = self
-            .minted
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        (0..*minted)
-            .map(|slot| self.text(slot).expect("a minted slot publishes its text"))
-            .collect()
-    }
-
-    fn from_texts<'text>(texts: impl IntoIterator<Item = &'text str>) -> Self {
-        let interner = Self::default();
-        for text in texts {
-            interner.intern(text);
-        }
-        interner
-    }
-
     fn current_index(&self) -> &TextIndex {
         self.index(self.generation.load(Ordering::Acquire))
     }
 
     fn index(&self, generation: usize) -> &TextIndex {
-        self.indexes[generation]
-            .get()
-            .expect("the current index generation is published before it is named")
+        if generation == 0 {
+            self.indexes[0].get_or_init(|| TextIndex::with_words(FIRST_INDEX_WORDS))
+        } else {
+            self.indexes[generation]
+                .get()
+                .expect("the current index generation is published before it is named")
+        }
     }
 }
 
@@ -1903,7 +1954,7 @@ impl TextIndex {
         }
     }
 
-    fn probe(&self, tag: u32, text: &str, interner: &OwnedTextInterner) -> Probe {
+    fn probe(&self, tag: u32, text: &str, interner: &TextInternerStorage) -> Probe {
         let mask = self.words.len() - 1;
         let mut position = index_start(tag, mask);
         loop {
@@ -1959,7 +2010,22 @@ fn text_tag(text: &str) -> u32 {
 
 impl Clone for OwnedTextInterner {
     fn clone(&self) -> Self {
-        Self::from_texts(self.texts_in_order())
+        let local_len = self.local.len();
+        let mut prefixes = Vec::with_capacity(self.prefixes.len() + usize::from(local_len != 0));
+        prefixes.extend(self.prefixes.iter().cloned());
+        let prefix_len = self.prefix_len + local_len;
+        if local_len != 0 {
+            prefixes.push(TextPrefix {
+                start: self.prefix_len,
+                end: prefix_len,
+                storage: Arc::clone(&self.local),
+            });
+        }
+        Self {
+            prefixes,
+            prefix_len,
+            local: Arc::new(TextInternerStorage::default()),
+        }
     }
 }
 
@@ -2048,8 +2114,59 @@ impl compiler_storage::Record for OwnedTextInterner {
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
-        let texts = Vec::<Box<str>>::read(input)?;
-        Ok(Self::from_texts(texts.iter().map(AsRef::as_ref)))
+        input.record(|input| {
+            let count = input.sequence::<()>()?;
+            if count > u32::MAX as usize {
+                return Err(input.error("text interner slot space exhausted"));
+            }
+            // Decode directly from the input bytes. Charge the retained core,
+            // geometric text pages and every retained index generation before
+            // allocating them; each spelling is charged by its byte sequence.
+            let mut allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                    TextInternerStorage,
+                >())
+                .ok_or_else(|| input.error("text storage allocation overflow"))?;
+            if count != 0 {
+                let (last_page, _) = text_position(count - 1);
+                for page in 0..=last_page {
+                    allocation = allocation
+                        .checked_add(
+                            (FIRST_TEXT_PAGE << page)
+                                .checked_mul(std::mem::size_of::<OnceLock<Box<str>>>())
+                                .ok_or_else(|| input.error("text page allocation overflow"))?,
+                        )
+                        .ok_or_else(|| input.error("text storage allocation overflow"))?;
+                }
+                let mut words = FIRST_INDEX_WORDS;
+                loop {
+                    allocation = allocation
+                        .checked_add(
+                            words
+                                .checked_mul(std::mem::size_of::<AtomicU64>())
+                                .ok_or_else(|| input.error("text index allocation overflow"))?,
+                        )
+                        .ok_or_else(|| input.error("text storage allocation overflow"))?;
+                    if count <= words / 2 {
+                        break;
+                    }
+                    words = words
+                        .checked_mul(2)
+                        .ok_or_else(|| input.error("text index allocation overflow"))?;
+                }
+            }
+            input.allocate(allocation)?;
+            let interner = Self::default();
+            for slot in 0..count {
+                let length = input.sequence::<u8>()?;
+                let text = std::str::from_utf8(input.take(length)?)
+                    .map_err(|_| input.error("invalid UTF-8"))?;
+                if interner.intern(text) != slot {
+                    return Err(input.error("duplicate interned text"));
+                }
+            }
+            Ok(interner)
+        })
     }
 }
 
@@ -2775,5 +2892,136 @@ mod tests {
         }
         assert_eq!(interner.slot("never interned"), None);
         assert_eq!(interner.text(keys.len()), None);
+    }
+
+    #[test]
+    fn text_forks_share_prefixes_but_number_and_append_independently() {
+        let parent = OwnedTextInterner::default();
+        for ordinal in 0..(FIRST_TEXT_PAGE * 3) {
+            assert_eq!(parent.intern(&format!("prefix-{ordinal}")), ordinal);
+        }
+        let first = parent.clone();
+        assert!(first.local.indexes[0].get().is_none());
+        assert!(Arc::ptr_eq(&first.prefixes[0].storage, &parent.local));
+        let prefix_text = first.text(0).unwrap().as_ptr();
+        let prefix_index = first.prefixes[0].storage.current_index().words.as_ptr();
+        let boundary = first.len();
+        assert_eq!(parent.intern("parent-only"), boundary);
+        assert_eq!(first.slot("parent-only"), None);
+        assert_eq!(first.text(boundary), None);
+        assert_eq!(first.intern("child-only"), boundary);
+        // A key added later in the shared ancestor must not mask a local key.
+        assert_eq!(parent.intern("child-only"), boundary + 1);
+        assert_eq!(first.intern("child-only"), boundary);
+        assert_eq!(parent.slot("child-only"), Some(boundary + 1));
+        assert_eq!(first.text(0).unwrap().as_ptr(), prefix_text);
+        assert_eq!(
+            first.prefixes[0].storage.current_index().words.as_ptr(),
+            prefix_index
+        );
+        assert_eq!(parent.slot("child-only"), Some(boundary + 1));
+
+        let mut descendant = first;
+        for generation in 0..24 {
+            let child = descendant.clone();
+            let boundary = child.len();
+            let hidden = format!("ancestor-{generation}");
+            descendant.intern(&hidden);
+            assert_eq!(child.slot(&hidden), None);
+            assert_eq!(child.text(boundary), None);
+            assert_eq!(child.intern(&format!("descendant-{generation}")), boundary);
+            assert_eq!(child.text(0).unwrap().as_ptr(), prefix_text);
+            descendant = child;
+        }
+        drop(parent);
+        assert_eq!(descendant.text(0), Some("prefix-0"));
+        assert_eq!(descendant.text(usize::MAX), None);
+        let bytes = compiler_storage::encode(&descendant, Default::default()).unwrap();
+        let decoded: OwnedTextInterner =
+            compiler_storage::decode(&bytes, Default::default()).unwrap();
+        assert_eq!(decoded.texts_in_order(), descendant.texts_in_order());
+        assert_eq!(
+            compiler_storage::encode(&decoded, Default::default()).unwrap(),
+            bytes
+        );
+    }
+
+    #[test]
+    fn text_decoder_charges_storage_and_refuses_duplicate_or_invalid_text() {
+        let mut limits = compiler_storage::RecordLimits::default();
+        let interner = OwnedTextInterner::default();
+        interner.intern("owned");
+        let bytes = compiler_storage::encode(&interner, limits).unwrap();
+        assert_eq!(
+            bytes,
+            compiler_storage::encode(&vec!["owned".to_owned()], limits).unwrap()
+        );
+        let required = compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+            super::TextInternerStorage,
+        >())
+        .unwrap()
+            + FIRST_TEXT_PAGE * std::mem::size_of::<std::sync::OnceLock<Box<str>>>()
+            + FIRST_INDEX_WORDS * std::mem::size_of::<u64>()
+            + "owned".len();
+        limits.allocation = required;
+        limits.depth = 1;
+        assert!(compiler_storage::decode::<OwnedTextInterner>(&bytes, limits).is_ok());
+        limits.depth = 0;
+        assert!(compiler_storage::decode::<OwnedTextInterner>(&bytes, limits).is_err());
+        limits.depth = 1;
+        limits.allocation -= 1;
+        assert!(compiler_storage::decode::<OwnedTextInterner>(&bytes, limits).is_err());
+        limits.allocation = FIRST_INDEX_WORDS * std::mem::size_of::<u64>();
+        assert!(compiler_storage::decode::<OwnedTextInterner>(&bytes, limits).is_err());
+        let duplicate = compiler_storage::encode(
+            &vec!["same".to_owned(), "same".to_owned()],
+            Default::default(),
+        )
+        .unwrap();
+        let error = compiler_storage::decode::<OwnedTextInterner>(&duplicate, Default::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("duplicate interned text"));
+        let mut invalid = bytes;
+        *invalid.last_mut().unwrap() = 0xff;
+        let error = compiler_storage::decode::<OwnedTextInterner>(&invalid, Default::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("invalid UTF-8"));
+    }
+
+    #[test]
+    fn text_capacity_refusal_leaves_the_storage_unchanged() {
+        let storage = super::TextInternerStorage::default();
+        assert_eq!(storage.intern("first", 1), 0);
+        assert!(std::panic::catch_unwind(|| storage.intern("second", 1)).is_err());
+        assert_eq!(storage.len(), 1);
+        assert_eq!(storage.slot("second"), None);
+        assert_eq!(storage.intern("first", 1), 0);
+        assert_eq!(storage.intern("second", 2), 1);
+    }
+
+    #[test]
+    fn parallel_text_interning_in_a_fork_keeps_one_private_number_per_key() {
+        let parent = OwnedTextInterner::default();
+        parent.intern("prefix");
+        let child = parent.clone();
+        parent.intern("hidden");
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                let child = &child;
+                scope.spawn(move || {
+                    for ordinal in 0..300 {
+                        let text = format!("new-{ordinal}");
+                        let slot = child.intern(&text);
+                        assert_eq!(child.slot(&text), Some(slot));
+                        assert_eq!(child.text(slot), Some(text.as_str()));
+                        assert_eq!(child.intern("prefix"), 0);
+                        assert_eq!(child.slot("hidden"), None);
+                    }
+                });
+            }
+        });
+        assert_eq!(child.len(), 301);
+        assert_eq!(parent.len(), 2);
+        assert_eq!(parent.slot("new-0"), None);
     }
 }

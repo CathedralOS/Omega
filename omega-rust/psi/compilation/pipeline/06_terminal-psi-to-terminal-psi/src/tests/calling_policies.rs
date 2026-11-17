@@ -841,3 +841,109 @@ fn a_data_clause_that_tests_a_case_is_published() {
     let outside = verdict(&root("Place::Two { b: 1, count: 17 }"), &["root"]);
     assert!(outside.starts_with("cannot prove"), "{outside}");
 }
+
+// An abstract operation can name a boundary whose Calling policy is real
+// compile-time code. The check form publishes that policy in its own scope;
+// its bodyless requirement remains a logical declaration.
+#[test]
+fn generic_calling_policies_publish_in_their_own_proof_scope() {
+    use terminal_psi::TargetMachineCallable;
+    let text = format!(
+        r#"{VOCABULARY}
+Policy satisfies CallingPolicy {{
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {{
+        let plan: BoundaryEntryPlan;
+        BoundaryPlanResult::Accepted {{ plan: plan }}
+    }}
+}}
+boundary trait Service: Calling<Policy> {{
+    machine read() -> u32 reaches none crashes none terminates;
+}}
+trait Operations {{
+    machine apply() -> u32 reaches Service crashes none terminates;
+}}
+machine entry<const Selected: Operations>() -> u32
+reaches Service crashes none terminates {{ Selected::apply() }}
+"#
+    );
+    let source = typed(&text);
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    )
+    .expect("publish the generic form's actual Calling declarations");
+    assert!(!form.module.calling_policy_requests.is_empty());
+    assert!(!form.module.service_schemas.is_empty());
+    assert!(
+        form.module.program_entry_contracts.is_empty(),
+        "the check form does not borrow the primary entry nomination"
+    );
+    assert!(
+        !form.conformance_witnesses.is_empty(),
+        "the source policy's real conformance still requires checking"
+    );
+    let scope = &form.module.scalar_applications.proof_scope;
+    for (position, machine) in form.module.machines.iter().enumerate() {
+        if form
+            .tables
+            .machines
+            .get(machine.id)
+            .is_some_and(|table| !table.obligations.is_empty())
+        {
+            let declaration =
+                terminal_psi::ProofDeclarationId(u32::try_from(position + 1).unwrap());
+            assert!(
+                scope
+                    .plan
+                    .symbols
+                    .span(scope.plan.obligation_owners)
+                    .unwrap()
+                    .contains(&declaration),
+                "source publication preserves every actual proof-obligation owner"
+            );
+        }
+    }
+    for request in &form.module.calling_policy_requests {
+        for instance in request.instances.as_ref().unwrap() {
+            let declaration = *instance.policy_declaration.as_ref().unwrap();
+            let TargetMachineCallable::Machine(policy) = *instance.policy.as_ref().unwrap() else {
+                panic!("the source policy has an actual machine body")
+            };
+            let actual = form
+                .module
+                .machine(policy)
+                .unwrap()
+                .declaration
+                .as_ref()
+                .unwrap();
+            assert!(matches!(scope.declaration(declaration),
+                Some(terminal_psi::ProofScopeDeclaration::Callable(checked)) if checked == actual));
+            assert!(
+                scope
+                    .calls
+                    .machines()
+                    .iter()
+                    .any(|(_, row)| row.machine == declaration)
+            );
+        }
+    }
+    assert!(!form.requirements.is_empty());
+    for requirement in &form.requirements {
+        let logical = form.module.machine(*requirement).unwrap();
+        assert!(logical.blocks.is_empty() && logical.declaration.is_none());
+        assert!(
+            !scope
+                .callables
+                .iter()
+                .any(|(_, association)| matches!(association,
+            terminal_psi::ProofCallableAssociation::Callable { callable, .. }
+                if *callable == TargetMachineCallable::Machine(*requirement)))
+        );
+    }
+    assert!(
+        scope
+            .declarations
+            .iter()
+            .any(|(_, row)| matches!(row, terminal_psi::ProofScopeDeclaration::Unavailable(_)))
+    );
+}

@@ -18,8 +18,11 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable,
+        multiplicity: if copyable {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        } else {
+            terminal_psi::StructuralMultiplicity::Affine
+        },
         cleanup: None,
         identity: "Token".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(Vec::new()),
@@ -27,8 +30,11 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable,
+        multiplicity: if copyable {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        } else {
+            terminal_psi::StructuralMultiplicity::Affine
+        },
         cleanup: None,
         identity: "Holder".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {

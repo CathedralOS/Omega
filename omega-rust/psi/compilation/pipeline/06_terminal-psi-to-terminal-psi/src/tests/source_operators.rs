@@ -407,3 +407,47 @@ fn an_inlined_predicate_body_keeps_its_own_source_operator_owner() {
         operator_program(&typed).expect("the actual denotational body has its own source owner");
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+#[test]
+fn arithmetic_contract_terms_keep_their_checked_operand_types() {
+    let source = r#"
+data Pair [copy] { first: i64; second: i64; }
+machine - subtract(left: Pair, right: Pair) -> Pair { left }
+machine bounded(value: i64) -> i64
+requires value >= (0i64 - 2147483648i64) && value <= 2147483647i64
+{ value }
+machine entry() -> bool { bounded(42i64) == 42i64 }
+"#;
+    assert_operator_value(enum_operator(source), true);
+    let rejected = enum_operator(&source.replace("bounded(42i64)", "bounded(2147483648i64)"))
+        .expect("the unchanged complete contract must still be read");
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row|
+                matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
+fn fixed_array_contract_indices_keep_their_selected_collection_operation() {
+    let source = |index, byte| {
+        format!(
+            r#"
+machine last(name: &[u8; 8]) -> bool requires name[{index}] == 0 {{ true }}
+machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; last(&name) }}
+"#
+        )
+    };
+    assert_enum_operator_value(&source(7, 0), true);
+    let detail = enum_operator(&source(8, 0)).unwrap_err();
+    assert!(detail.contains("outside its fixed extent 8"), "{detail}");
+    let verdict = enum_operator(&source(7, 1)).expect("the wrong byte reaches ordinary checking");
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("the caller must establish the indexed precondition");
+    };
+    assert!(unproved.iter().any(|row| matches!(
+        row.kind,
+        terminal_check_tables::obligations::ObligationKind::CallRequirement { .. }
+    )));
+}

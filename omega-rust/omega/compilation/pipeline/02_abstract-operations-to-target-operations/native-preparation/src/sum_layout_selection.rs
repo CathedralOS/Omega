@@ -1863,7 +1863,7 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         field.field_type = StructuralFieldType::Scalar(scalar);
         let path = vec![StructuralPathSegment::Field(field.identity)];
         let mut element = reference_type(1, names.intern("Element"), ty(1));
-        element.copyable = true;
+        element.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
         element.shape = StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![sibling, field],
@@ -2176,6 +2176,23 @@ fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
         (val(1), 8, Some(2), fact.identity)
     );
     assert!(project_write_only_primitive_store(machine(), &[], &retained).is_err());
+    // The retained target row still must fit the instruction's byte-width
+    // field. Preserve the conversion's cause instead of a bare custody error.
+    let oversized = row(16, 256, 8);
+    let error =
+        project_write_only_primitive_store(machine(), std::slice::from_ref(&fact), &oversized)
+            .unwrap_err()
+            .attributed(machine(), Some(op(3)));
+    let diagnostic = error.to_string();
+    assert!(diagnostic.contains("TryFromIntError"), "{diagnostic}");
+    assert!(matches!(
+        error,
+        crate::LegalizationError::SourceCustodyMismatch {
+            machine: Some(owner),
+            operation: Some(operation),
+            ..
+        } if owner == machine() && operation == op(3)
+    ));
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
@@ -3302,7 +3319,7 @@ fn sum_inside_record() -> String {
         id: ty(2),
         identity: names.intern("Outer"),
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4186,7 +4203,7 @@ fn sum_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4222,7 +4239,7 @@ fn reference_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4541,7 +4558,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,

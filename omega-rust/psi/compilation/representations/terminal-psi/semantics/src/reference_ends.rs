@@ -484,7 +484,8 @@ fn machine_candidates(
                     subject: DescriptorLocation {
                         root: location.root,
                         path: location.path[..position].to_vec(),
-                    },
+                    }
+                    .into(),
                     case: *case,
                 };
                 // A possible payload is not an actual descriptor. Propose an

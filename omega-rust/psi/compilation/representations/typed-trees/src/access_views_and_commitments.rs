@@ -340,7 +340,8 @@ pub(crate) mod access_views {
                 if !signature_matches {
                     return Err(invalid());
                 }
-                let [conformance] = program.machine_trait_conformances(machine) else {
+                let Some([conformance]) = program.machine_trait_conformances(machine).as_array()
+                else {
                     return Err(invalid());
                 };
                 let expected_trait = match operation {

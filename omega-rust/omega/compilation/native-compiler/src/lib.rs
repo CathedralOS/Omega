@@ -28,6 +28,7 @@ mod preparation;
 mod realization;
 mod request;
 mod scalar_completion;
+mod stage_audit;
 
 #[cfg(test)]
 mod physical_publication_tests;
@@ -47,6 +48,9 @@ pub use terminal_psi_to_abstract_operations::provider_admission::{
 };
 pub use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
-    NativeProgramEntrySettlement, TerminalNativeProposalRequest, decode_installation_assumptions,
-    encode_installation_assumptions, retain_native_derivation_inputs,
+    NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+};
+pub use verified_optimization_input::{
+    decode_installation_assumptions, encode_installation_assumptions,
+    retain_native_derivation_inputs,
 };

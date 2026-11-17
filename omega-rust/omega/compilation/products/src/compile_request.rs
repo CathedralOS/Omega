@@ -26,13 +26,13 @@ use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageCompilationSourceInputs,
     PackageCompilationTargetInputs,
 };
+pub use provider_admission::provider_admission::{
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use target::TargetProfile;
 pub use terminal_installation::PrivateEntryRamInitialization;
-pub use terminal_psi_to_abstract_operations::provider_admission::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOptions {

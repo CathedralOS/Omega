@@ -1175,7 +1175,7 @@ pub(crate) mod block_bindings {
                 id: structural_type,
                 identity: TerminalIdentityIndex(0),
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,

@@ -183,7 +183,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,

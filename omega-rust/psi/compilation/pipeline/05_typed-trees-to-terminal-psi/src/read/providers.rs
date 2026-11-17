@@ -74,19 +74,14 @@ impl Program<'_> {
             if !has_native_provider_owner(typed, machine) {
                 continue;
             }
-            for edge in typed.machine_trait_conformances(machine) {
+            for (satisfaction, edge) in machine
+                .satisfies
+                .handles()
+                .zip(typed.machine_trait_conformances(machine))
+            {
                 if !chosen && !contains(&demanded, edge.requirement_symbol) {
                     continue;
                 }
-                let satisfaction = typed
-                    .machine_trait_conformances
-                    .handle_of(edge)
-                    .ok_or_else(|| {
-                        services::unavailable(
-                            context,
-                            "native conformance lost its exact declaration occurrence",
-                        )
-                    })?;
                 if self
                     .external_providers
                     .rows
@@ -95,7 +90,7 @@ impl Program<'_> {
                 {
                     continue;
                 }
-                let mut source = self.native_provider_source(context, machine, edge)?;
+                let mut source = self.native_provider_source(context, machine, satisfaction)?;
                 source.boundary = self.boundaries.rows.iter().find_map(|(id, boundary)| {
                     (boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
                         && boundary.source == machine.symbol)
@@ -123,9 +118,18 @@ impl Program<'_> {
         &mut self,
         context: MachineId,
         machine: &Machine,
-        edge: &typed_trees::machine::TraitConformance,
+        satisfaction: arena::Handle<typed_trees::machine::TraitConformance>,
     ) -> Checked<ExternalProviderSource> {
         let typed = self.typed;
+        let edge = typed
+            .machine_trait_conformances
+            .try_get(satisfaction)
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "native conformance lost its exact declaration occurrence",
+                )
+            })?;
         if !edge.requirement_symbol.is_valid() || edge.via_expression.is_valid() {
             return Err(services::unavailable(
                 context,
@@ -303,15 +307,7 @@ impl Program<'_> {
         self.admitted_declarations.include(required.symbol);
         Ok(ExternalProviderSource {
             source: machine.symbol,
-            satisfaction: typed
-                .machine_trait_conformances
-                .handle_of(edge)
-                .ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "native conformance lost its exact declaration occurrence",
-                    )
-                })?,
+            satisfaction,
             state: state.symbol,
             requirement,
             signature,
@@ -344,10 +340,10 @@ impl Program<'_> {
             return Ok(None);
         }
         let target = machine.symbol;
-        let Some(edge) = typed.machine_trait_conformances(machine).first() else {
+        if typed.machine_trait_conformances(machine).is_empty() {
             return Ok(None);
-        };
-        let source = self.native_provider_source(context, machine, edge)?;
+        }
+        let source = self.native_provider_source(context, machine, machine.satisfies.start())?;
         let signature = source.signature.clone();
         let owner =
             typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine)

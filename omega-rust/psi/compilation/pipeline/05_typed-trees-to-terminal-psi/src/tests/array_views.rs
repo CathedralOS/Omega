@@ -7,8 +7,11 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
     let mut records = IdTable::default();
     let mut add = |identity: &str, copyable, shape| {
         records.push(RecordType {
-            owns_linear_claim: false,
-            copyable,
+            multiplicity: if copyable {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             cleanup: None,
             identity: identity.to_owned(),
             shape,

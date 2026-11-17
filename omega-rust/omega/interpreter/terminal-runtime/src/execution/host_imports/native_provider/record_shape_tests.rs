@@ -44,7 +44,7 @@ fn record(id: u32, fields: Vec<StructuralFieldDeclaration>) -> StructuralTypeDec
         id: type_id(id),
         identity: TerminalIdentityIndex(id),
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         nominal_cleanup: None,

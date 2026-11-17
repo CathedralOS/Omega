@@ -308,11 +308,12 @@ impl Program<'_> {
         let prepared_catalog = match &prepared.catalog {
             Some(catalog) => Arc::clone(catalog),
             None => {
-                let sources = source::source_identity::toolchain_source_identities(
-                    typed.symbols.source_files(),
-                )
-                .map_err(|reason| services::unavailable(context, reason))?;
-                let catalog = Arc::new(PreparedServiceCatalog::prepare(context_source, &sources));
+                let catalog = self
+                    .shared
+                    .calling_catalog(typed, source::DependencyScope::Product)
+                    .as_ref()
+                    .map(Arc::clone)
+                    .map_err(|reason| services::unavailable(context, reason.clone()))?;
                 prepared.catalog = Some(Arc::clone(&catalog));
                 catalog
             }
@@ -1101,20 +1102,21 @@ mod header_reading_tests {
         assert!(program.admitted_signature_views.is_empty());
         let (_, source) = typed.trait_machine_signature(requirement).unwrap();
         let reference = typed.state_parameters.span(source.parameters).unwrap()[0].type_reference;
-        assert_eq!(
-            program.value_type(context, reference).unwrap_err().detail,
-            "type data with custody"
-        );
+        let crate::body::ValueType::Record(record, _, _) =
+            program.value_type(context, reference).unwrap()
+        else {
+            panic!("the qualified input must retain its linear record type");
+        };
         assert!(program.symbols.is_empty());
         program.begin_declaration_storage(context, 0).unwrap();
-        let descriptions = program.prepare_calling_storage(context, &policies).unwrap();
+        program.prepare_calling_storage(context, &policies).unwrap();
         assert_eq!(program.admitted_signature_views.len(), 1);
-        let [property] = descriptions.properties.as_slice() else {
-            panic!("the metadata property range must include its header's linear carrier");
-        };
-        assert!(property.owns_linear_claim);
-        assert!(property.descriptor_cleanup && property.no_code_affine_cleanup);
-        assert!(!program.records.get(property.record).unwrap().copyable);
+        // Storage description preserves the same declared multiplicity;
+        // reading a calling header neither creates a value nor retires a claim.
+        assert_eq!(
+            program.records.get(record).unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Linear,
+        );
         let signature = program
             .read_calling_requirement_header(context, &scope, requirement)
             .unwrap();
@@ -1185,6 +1187,95 @@ mod header_reading_tests {
         assert!(refused.detail.contains("Raw::read"));
         assert!(program.admitted_signature_views.is_empty());
         assert!(program.symbols.is_empty());
+    }
+
+    #[test]
+    fn calling_policy_readings_reuse_the_shared_product_catalog() {
+        let (typed, owner, _, _) = fixture(true);
+        let scope = AppliedTraitScope::new(
+            &typed,
+            typed.trait_definition_by_symbol(owner).unwrap(),
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let applications = [scope.environment()];
+        let selected = CallingPolicySelections {
+            source: &typed,
+            applications: &applications,
+            entries: &[],
+        };
+        let shared = crate::shared_reading(&typed);
+        let context = MachineId::new(1).unwrap();
+        let mut prior = None;
+        for purpose in [
+            source::DependencyScope::Product,
+            source::DependencyScope::Build,
+        ] {
+            let mut program = Program::with_captures(&typed, false, purpose, Arc::clone(&shared));
+            let mut policies = SourceCallingPolicies::default();
+            let refusal = program
+                .prepare_calling_policies(context, Some(selected), &mut policies)
+                .expect_err("the fixture has no Calling relationship to authorize");
+            // Check before asking for the cache directly: the production policy
+            // reader must have populated its existing Product slot itself.
+            assert_eq!(shared.prepared_calling_catalogs(), 1);
+            let product = shared
+                .calling_catalog(&typed, source::DependencyScope::Product)
+                .as_ref()
+                .unwrap();
+            assert!(Arc::ptr_eq(policies.catalog.as_ref().unwrap(), product));
+            if let Some(prior) = &prior {
+                assert_eq!(&refusal.detail, prior);
+            } else {
+                prior = Some(refusal.detail);
+            }
+        }
+        // The other consumer still owns its actual dependency purpose. A Build
+        // request cannot reuse a Product binding even though its source is equal.
+        let product = shared
+            .calling_catalog(&typed, source::DependencyScope::Product)
+            .as_ref()
+            .unwrap();
+        assert!(
+            product
+                .bind(ProviderPlanningContext::new(
+                    &typed,
+                    source::DependencyScope::Build
+                ))
+                .is_err()
+        );
+        let foreign = TypedTrees::default();
+        assert!(
+            product
+                .bind(ProviderPlanningContext::new(
+                    &foreign,
+                    source::DependencyScope::Product
+                ))
+                .is_err()
+        );
+        for purpose in [
+            source::DependencyScope::Product,
+            source::DependencyScope::Build,
+        ] {
+            let mut reader = Program::with_captures(&typed, false, purpose, Arc::clone(&shared));
+            reader.begin_declaration_storage(context, 0).unwrap();
+            // This is the existing ABI consumer, rather than a second direct
+            // cache query. Its own exact schema checks remain independent.
+            let _ = reader.prepare_calling_abis(context, &[owner]);
+            assert_eq!(
+                shared.prepared_calling_catalogs(),
+                if purpose == source::DependencyScope::Product {
+                    1
+                } else {
+                    2
+                }
+            );
+        }
     }
 
     #[test]

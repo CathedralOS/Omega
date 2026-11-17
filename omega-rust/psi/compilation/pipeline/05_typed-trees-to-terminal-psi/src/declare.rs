@@ -1111,6 +1111,16 @@ pub(crate) fn close_specializations(
         .iter()
         .map(|generic| (generic.template, template_commitment(generic)))
         .collect();
+    close_specializations_with_bases(&bases, applications, closure)
+}
+
+pub(crate) type TemplateCommitments = symbols::SymbolMap<Result<Option<[u8; 32]>, &'static str>>;
+
+pub(crate) fn close_specializations_with_bases(
+    bases: &TemplateCommitments,
+    applications: Vec<(MachineId, PreparedApplication)>,
+    closure: &mut Elaboration,
+) -> Result<(), (MachineId, &'static str)> {
     let mut chosen = applications
         .iter()
         .flat_map(|(_, application)| {
@@ -1380,12 +1390,18 @@ impl PreparedParameter {
 fn template_commitment(
     generic: &terminal_check_tables::compilation::GenericForms,
 ) -> Result<Option<[u8; 32]>, &'static str> {
-    use terminal_psi::TargetMachineCallable;
-
     let Ok(forms) = &generic.forms else {
         return Ok(None);
     };
-    if forms.is_empty() {
+    template_commitment_for(generic.template, forms.iter())
+}
+
+pub(crate) fn template_commitment_for<'form>(
+    template: SymbolHandle,
+    forms: impl ExactSizeIterator<Item = &'form Elaboration>,
+) -> Result<Option<[u8; 32]>, &'static str> {
+    use terminal_psi::TargetMachineCallable;
+    if forms.len() == 0 {
         return Err("a specialization's template has no check form");
     }
     let mut digest =
@@ -1395,7 +1411,7 @@ fn template_commitment(
         let Some(TargetMachineCallable::Machine(entry)) = form.module.entry else {
             return Err("a specialization's template check form has no machine entry");
         };
-        if form.machines.get(entry) != Some(&generic.template) {
+        if form.machines.get(entry) != Some(&template) {
             return Err("a specialization's template check form belongs to another declaration");
         }
         let declaration = form

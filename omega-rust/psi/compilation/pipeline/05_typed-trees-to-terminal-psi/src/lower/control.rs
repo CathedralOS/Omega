@@ -79,6 +79,25 @@ impl Lowering<'_> {
     }
 
     pub(super) fn terminate(&mut self, terminator: Terminator) -> Checked<()> {
+        // A runtime index in a terminator's storage path is owed by the
+        // terminator, so its safety obligation sits at the terminator's own
+        // point: after the block's last operation. The path may have been
+        // built earlier (a tail transfer captures its arguments before the
+        // successor ranking emits its observations), so anchor each such
+        // obligation here, where the block closes.
+        let point = self.here()?;
+        for projection in terminator.storage_uses() {
+            for segment in projection.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. } =
+                    segment
+                {
+                    let Some(row) = self.tables.obligations.get_mut(*obligation) else {
+                        return Err(self.internal("a terminator's index obligation has no row"));
+                    };
+                    row.created_at = point;
+                }
+            }
+        }
         let draft = self.draft()?;
         if draft.terminator.is_some() {
             return Err(self.internal("block terminated twice"));

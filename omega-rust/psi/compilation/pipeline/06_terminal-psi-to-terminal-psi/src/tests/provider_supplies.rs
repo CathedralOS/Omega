@@ -157,6 +157,59 @@ fn supplied_with_subjects(
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
 
 #[test]
+fn multiple_provider_declarations_publish_in_portable_order() {
+    // All three maps in the kept program are checked declarations. Selecting
+    // one must not stop the other exact candidates from being published.
+    let typed = typed(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/providers/target_selected_implementation/main.omg"
+    )));
+    let supplies = [typed_trees_to_terminal_psi::Supply {
+        slot: declared(&typed, "TargetConstants"),
+        provider: declared(&typed, "WindowsConstants"),
+    }];
+    let entries = [super::build_purpose::symbol(&typed, "main")];
+    let subjects = [Some(super::build_purpose::package())];
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &subjects,
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &supplies,
+        },
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let mut accepted = None;
+    for (part, verdict) in crate::judge_compilation(prepared.program)
+        .into_iter()
+        .enumerate()
+    {
+        let Ok(RouteVerdict::Accepted(closure)) = verdict else {
+            panic!("provider part {part} did not accept: {verdict:?}");
+        };
+        if part == 0 {
+            accepted = Some(closure);
+        }
+    }
+    let accepted = accepted.expect("the runtime closure");
+    assert_eq!(accepted.elaboration.module.provider_candidates.len(), 6);
+    let publication = accepted.publish().expect("all provider rows publish");
+    let artifact = publication.artifact;
+    let restored = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .expect("the published provider roster decodes");
+    assert_eq!(
+        restored.semantic_module().provider_candidates,
+        accepted.elaboration.module.provider_candidates,
+    );
+}
+
+#[test]
 fn a_data_owned_provider_reports_the_attachment_violation() {
     let text = format!(
         r#"

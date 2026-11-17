@@ -571,14 +571,29 @@ machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
     let verdict = judge(invocation(source)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
-    let invalid = source.replace("{ path[7] }", "{ path[7] = 1; path[7] }");
-    let refusal = invocation(&invalid).unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    let preserving = source.replace("{ path[7] }", "{ path[7] = 0; path[7] }");
+    let verdict = judge(invocation(&preserving)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = preserving.replace("path[7] = 0", "path[7] = 1");
+    let elaboration = invocation(&invalid).unwrap();
+    assert!(elaboration.tables.machines.iter().any(|(_, tables)| {
+        tables
+            .obligations
+            .iter()
+            .any(|(_, row)| matches!(row.kind, ObligationKind::DataDomain { .. }))
+    }));
+    let verdict = judge(Ok(elaboration)).unwrap();
     assert!(
-        refusal
-            .detail
-            .contains("write inside a value whose domain has predicates"),
-        "{refusal:?}"
+        matches!(verdict, RouteVerdict::Rejected {
+        ref formations, ref violations, ref unproved, ref unestablished,
+        ref conflicts, ref exceeded,
+    } if formations.is_empty() && violations.is_empty() && conflicts.is_empty()
+        && exceeded.is_empty()
+        && (unproved.iter().any(|failure|
+            matches!(failure.kind, ObligationKind::DataDomain { .. }))
+            || !unestablished.is_empty())),
+        "the changed byte must fail restoration of the declared domain: {verdict:?}"
     );
 }
 

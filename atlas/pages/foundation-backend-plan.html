@@ -1,0 +1,2120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A proposed migration with source evidence, intermediate contracts, and deletion conditions.">
+  <title>Foundation and backend plan</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
+
+.architecture { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); background: var(--surface); }
+.arch-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 16px 8px; }
+.arch-header h2 { font: var(--type-heading); margin: 0; }
+.arch-header a { font: var(--type-label); color: var(--family-native); }
+.arch-badge { font: var(--type-label); color: var(--ink-muted); }
+.arch-legend,.arch-relations { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 6px 16px; font: var(--type-label); }
+.arch-legend span { color: var(--family); display: inline-flex; align-items: center; gap: 6px; }
+.arch-legend i { width: 12px; height: 12px; display: inline-block; background: var(--family); }
+.family-psi { --family: var(--family-psi); --family-bg: var(--family-psi-surface); }
+.family-native { --family: var(--family-native); --family-bg: var(--family-native-surface); }
+.family-build { --family: var(--family-build); --family-bg: var(--family-build-surface); }
+.family-runtime { --family: var(--family-runtime); --family-bg: var(--family-runtime-surface); }
+.family-library { --family: var(--family-library); --family-bg: var(--family-library-surface); }
+.family-bootstrap { --family: var(--family-bootstrap); --family-bg: var(--family-bootstrap-surface); }
+.family-omega-source { --family: var(--family-omega-source); --family-bg: var(--family-omega-source-surface); }
+.family-support { --family: var(--family-support); --family-bg: var(--family-support-surface); }
+.arch-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px; border-block: 1px solid var(--rule); }
+.arch-zoom { display: flex; flex-wrap: wrap; gap: 6px; }
+.arch-toolbar button,.arch-toolbar select { min-height: 36px; border-width: 1px; }
+.arch-toolbar select { max-width: 260px; padding: 8px; color: var(--ink); background: var(--surface); border: 1px solid var(--ink-muted); font: var(--type-label); }
+.arch-jump { font: var(--type-label); display: flex; gap: 8px; align-items: center; }
+.arch-relations { color: var(--ink-muted); font-size: 12px; }
+.arch-relations span { display: inline-flex; align-items: center; gap: 6px; }
+.arch-relations svg { display: inline-block; width: 30px; height: 12px; overflow: visible; }
+.arch-relations path { stroke: var(--ink-muted); stroke-width: 1.5; fill: none; }
+.arch-workspace { position: relative; }
+.architecture-figure { margin: 0; }
+.arch-viewport { background: var(--ground); overflow: auto; position: relative; min-width: 0; }
+.arch-svg { display: block; width: 100%; min-width: 1100px; height: auto; }
+.arch-svg marker path { fill: var(--ink-muted); }
+.arch-row-label { fill: var(--ink-muted); font: 500 22px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+.arch-edge > path { fill: none; stroke: var(--ink-muted); stroke-width: 1.5; }
+.arch-edge > text { display: none; fill: var(--ink-muted); font: 400 16px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+
+.arch-edge.relation-invoke > path,.arch-relations .relation-invoke path { stroke-dasharray: 8 5; }
+.arch-edge.relation-dependency > path,.arch-relations .relation-dependency path { stroke-dasharray: 2 5; }
+.arch-edge.relation-construction > path,.arch-relations .relation-construction path { stroke-dasharray: 12 4 2 4; }
+.arch-edge.relation-validation > path,.arch-relations .relation-validation path { stroke-dasharray: 2 7; stroke-width: 2.5; }
+.arch-edge.relation-normative > path,.arch-relations .relation-normative path { stroke-dasharray: 12 7; stroke-width: 2.5; }
+.arch-edge.relation-bypass > path,.arch-relations .relation-bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.arch-edge.relation-bypass > text { fill: var(--trap); }
+.arch-node rect { fill: var(--family-bg); stroke: var(--family); stroke-width: 2; }
+.arch-node .family-stripe { fill: var(--family); }
+.arch-node text { fill: var(--ink); font: 500 20px var(--font-serif); }
+.arch-node[role="button"] { cursor: pointer; }
+.arch-node.is-selected rect { stroke: var(--ink); stroke-width: 4; }
+.arch-node.is-selected text { text-decoration: underline; text-underline-offset: 4px; }
+.arch-edge.is-related > path { stroke-width: 3.5; }
+.architecture.has-selection .arch-edge:not(.is-related) > path { stroke: var(--rule); marker-end: url(#arch-arrow-quiet); }
+.arch-node:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.architecture-figure figcaption,.arch-help { font: var(--type-label); color: var(--ink-muted); margin: 0; padding: 8px 16px; }
+.arch-outline { padding: 8px 16px; font: var(--type-label); }
+.arch-outline dt { font: var(--type-subheading); margin-top: 24px; }
+.arch-outline dd { margin-left: 0; max-width: 80ch; }
+.arch-detail { position: absolute; right: 16px; top: 16px; width: 330px; max-height: calc(100% - 64px); overflow: auto; background: var(--surface); border: 2px solid var(--family); padding: 16px; }
+.arch-detail h3 { font: var(--type-subheading); margin: 12px 0; }
+.arch-detail p,.arch-detail li { font: var(--type-label); }
+.arch-detail ul { padding-left: 16px; }
+.arch-detail li { margin-bottom: 12px; }
+.arch-detail button { min-height: 36px; }
+.arch-detail-close { float: right; }
+.arch-detail .relationship { color: var(--family); display: block; }
+.arch-detail a { text-underline-offset: 3px; }
+.architecture.is-enhanced .arch-viewport { overflow: hidden; height: max(500px,calc(100dvh - 300px)); touch-action: none; cursor: grab; }
+.architecture.is-enhanced .arch-svg { display: none; }
+.architecture.is-enhanced .arch-viewport.is-dragging { cursor: grabbing; }
+.architecture:fullscreen { width: 100%; height: 100%; overflow: auto; background: var(--surface); }
+.architecture:fullscreen .arch-viewport { height: calc(100dvh - 220px); }
+.overview-page .page { max-width: none; padding: 16px 24px 48px; gap: 16px; }
+.overview-page .top h1 { font-size: 28px; line-height: 34px; }
+.overview-page .top .publication { display: none; }
+.secondary-routes { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); padding: 12px 16px; }
+.secondary-routes > summary { font: var(--type-subheading); }
+.secondary-routes .flow-explorer { margin-top: 16px; }
+@media (max-width: 700px) {
+  .overview-page .page { padding: 12px; }
+  .arch-header { align-items: start; flex-direction: column; gap: 8px; }
+  .arch-header h2 { font-size: 26px; line-height: 32px; }
+  .arch-legend,.arch-relations { gap: 6px 12px; }
+  .arch-jump { width: 100%; } .arch-jump select { max-width: 100%; flex: 1; min-width: 0; }
+  .architecture.is-enhanced .arch-viewport { height: 620px; }
+  .arch-detail { top: auto; bottom: 48px; left: 12px; right: 12px; width: auto; max-height: 45%; }
+}
+
+.architecture :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.arch-canvas { display: block; width: 100%; height: 100%; }
+.arch-key { border-bottom: 1px solid var(--rule); padding: 4px 16px; font: var(--type-label); }
+.arch-key .arch-relations { padding-left: 0; }
+.arch-extra { display: flex; gap: 6px; align-items: center; font: var(--type-label); }
+.arch-minimap { position: absolute; right: 12px; bottom: 70px; width: 238px; padding: 6px; border: 1px solid var(--ink-muted); background: var(--surface); }
+.arch-minimap span { display: block; font: var(--type-label); margin-bottom: 4px; }
+.arch-minimap canvas { display: block; width: 224px; height: 121px; cursor: crosshair; }
+.architecture.has-selection .arch-minimap { right: auto; left: 12px; }
+.arch-detail { max-height: calc(100% - 40px); }
+@media (max-width: 700px) {
+  .arch-minimap { width: 170px; bottom: 80px; }
+  .arch-minimap canvas { width: 156px; height: 85px; }
+  .architecture.has-selection .arch-minimap { display: none; }
+}
+
+.arch-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.arch-header h2 { font-size: 28px; line-height: 34px; }
+.arch-extra input { width: auto; margin: 0; }
+.arch-extra { white-space: nowrap; }
+</style>
+</head>
+<body class="">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Judgment — migration proposal · page 13 of 15</div>
+      <h1>Foundation and backend plan</h1>
+      <p class="lede">A proposed migration with source evidence, intermediate contracts, and deletion conditions.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas"><code>3c8dc4234c71</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
+<details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+    </header>
+
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 15 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
+<li><a href="pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
+<li><a href="architecture.html"><span class="number">12</span>Interactive architecture</a></li>
+<li><a href="foundation-backend-plan.html" aria-current="page"><span class="number">13</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">14</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">15</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#1-scope-evidence-and-the-single-cutover">1. Scope, evidence and the single cutover</a></li>
+<li><a href="#2-what-the-observed-code-requires-us-to-solve">2. What the observed code requires us to solve</a></li>
+<li><a href="#3-recommended-destination-and-stage-contracts">3. Recommended destination and stage contracts</a></li>
+<li><a href="#4-source-settlement-evaluation-and-provider-body-closure">4. Source settlement, evaluation and provider-body closure</a><ul>
+<li><a href="#why-the-old-source-stage-boundaries-change">Why the old source stage boundaries change</a></li>
+<li><a href="#evaluation-is-an-explicit-operation-on-accepted-code">Evaluation is an explicit operation on accepted code</a></li>
+<li><a href="#close-logical-providers-without-violating-the-firewall">Close logical providers without violating the firewall</a></li>
+</ul>
+</li>
+<li><a href="#5-whole-program-reach-generated-code-and-resources">5. Whole-program reach, generated code and resources</a><ul>
+<li><a href="#three-body-sets-with-different-obligations">Three body sets, with different obligations</a></li>
+<li><a href="#generated-bodies-join-the-program-before-encoding">Generated bodies join the program before encoding</a></li>
+<li><a href="#binding-uses-a-complete-resource-summary">Binding uses a complete resource summary</a></li>
+<li><a href="#encoding-and-layout-have-a-closed-executable-input">Encoding and layout have a closed executable input</a></li>
+</ul>
+</li>
+<li><a href="#6-data-ownership-runtimes-and-independent-checks">6. Data ownership, runtimes and independent checks</a><ul>
+<li><a href="#classify-every-export-before-assigning-a-home">Classify every export before assigning a home</a></li>
+<li><a href="#carry-what-emission-actually-reads">Carry what emission actually reads</a></li>
+<li><a href="#runtimes-consume-products-and-admitted-provision-records">Runtimes consume products and admitted provision records</a></li>
+<li><a href="#verification-has-explicit-inputs-and-independent-authority">Verification has explicit inputs and independent authority</a></li>
+</ul>
+</li>
+<li><a href="#7-complete-ownership-and-retirement-inventory">7. Complete ownership and retirement inventory</a><ul>
+<li><a href="#foundation-26-packages">Foundation: 26 packages</a></li>
+<li><a href="#backend-29-packages">Backend: 29 packages</a></li>
+<li><a href="#realization-five-packages">Realization: five packages</a></li>
+<li><a href="#module-and-representation-obligations-that-crate-moves-can-miss">Module and representation obligations that crate moves can miss</a></li>
+</ul>
+</li>
+<li><a href="#8-planning-completion-gates-before-implementation">8. Planning completion gates — before implementation</a></li>
+<li><a href="#9-one-integrated-execution-plan">9. One integrated execution plan</a><ul>
+<li><a href="#retirement-ledger-at-cutover">Retirement ledger at cutover</a></li>
+</ul>
+</li>
+<li><a href="#10-validation-and-exact-done-criteria">10. Validation and exact done criteria</a></li>
+<li><a href="#11-decisions-still-to-settle">11. Decisions still to settle</a></li>
+</ul>
+</div>
+</details><p>This plan replaces the foundation and backend architecture in <strong>one coordinated
+change set with one cutover</strong>. It does not propose a sequence of small migration
+PRs. Source settlement, provider selection, generated code, physical resources,
+representations, runtimes and validators must agree before the new route replaces
+the old one. Internal work has dependencies and can be divided among agents;
+partial routes are not separately rolled out.</p>
+<p>The current task is <strong>plan first</strong>. No compiler migration is implemented by this
+document. The six <a href="rulings.html">owner rulings</a> remain authoritative and unchanged.
+The destination below is a concrete recommendation applying them. Proposed
+boundaries and names are <strong>judgment</strong>; feasibility obligations are <strong>unverified</strong>
+until the named evidence is supplied. Those obligations must be settled in this
+plan before implementation starts. A new folder name is not evidence that a
+contract is possible.</p>
+<h2 id="1-scope-evidence-and-the-single-cutover">1. Scope, evidence and the single cutover</h2>
+<p>The change covers the Rust compiler from source input through accepted Psi,
+native planning, code generation, object/image construction and publication,
+including the consumers affected by dissolving foundation and backend. It also
+updates their documentation, boundary rules, tests, recovery codecs and public
+facades together. Package acquisition, live interpreter execution and filesystem
+publication remain real owners outside the transformation pipeline; they may
+supply inputs or consume outputs, not perform hidden compiler stages.</p>
+<p>The Omega-written compiler and bootstrap chain are <a href="bootstrap.html">separate implementations</a>.
+This plan does not claim to rewrite them incidentally. Their dependencies,
+commands and artifact contracts must still work after the Rust compiler cutover.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Evidence at compiler snapshot <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code></th>
+<th style="text-align: right;">Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Psi + Omega foundation</td>
+<td style="text-align: right;">26 packages; 96,223 tracked Rust lines</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td style="text-align: right;">29 packages; 223,507 tracked Rust lines</td>
+</tr>
+<tr>
+<td>Realization</td>
+<td style="text-align: right;">5 packages; 36,409 tracked Rust lines</td>
+</tr>
+<tr>
+<td>Workspace metadata</td>
+<td style="text-align: right;">139 packages; 1,479 path dependency declarations</td>
+</tr>
+</tbody>
+</table></div>
+<p><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/graph.json">graph</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/usage_be.json">backend usage</a>
+are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
+<code>src_rs_lines</code> is a path scope, not production-only code. The backend has 221,538
+lines under <code>src/</code>. Dependencies are declarations: 1,318 normal, 1 build and
+160 dev. Neither a Cargo edge nor a text reference proves a production call.
+“Unobserved” is not “unused”; removing an edge requires source and configuration
+checks. The scanners now include the real backend <code>target/</code> crate.</p>
+<p>This document was rewritten on atlas content base
+<code>c6cae034e48d8725927f9a7df0582d28266ae154</code>. Unless stated otherwise, source links
+below describe the older compiler snapshot, not moving <code>main</code>. One known delta
+matters: by that content base, the native driver supplied a
+<a href="https://github.com/CathedralOS/Omega/blob/c6cae034e48d8725927f9a7df0582d28266ae154/omega-rust/omega/compilation/native-compiler/src/stage_audit.rs#L1">stage-audit object</a>
+to machine emission. That relocates calls but does not establish a data-only
+handoff. <a href="https://github.com/CathedralOS/Omega/blob/c6cae034e48d8725927f9a7df0582d28266ae154/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L278">EmissionFacts still retains the earlier program</a>.
+Implementation planning must reconcile every inventory row against its chosen
+base once; it must not reintroduce work already removed since the snapshot.</p>
+<p>A single cutover means all production entry points switch to the completed new
+contracts together, old paths and temporary adapters are deleted in that change
+set, and the full boundary checks are enabled when it lands. Development commits
+and parallel branches are permitted working material; none is an independently
+shipped migration milestone. If final validation fails, the old released route
+remains in place. This is not a runtime fallback between two compilers.</p>
+<h2 id="2-what-the-observed-code-requires-us-to-solve">2. What the observed code requires us to solve</h2>
+<p>The <a href="psi.html">Psi</a> and <a href="omega.html">Omega</a> maps retain the
+full snapshot walkthroughs. These observations determine the new contracts:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Observed mechanism</th>
+<th>Evidence</th>
+<th>Consequence for the complete design</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source continuation retains seeded typing, deferred bodies and pending evaluations; selected bodies alternate resolution and typing.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L906">State</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L1091">loop</a></td>
+<td>Preserving all old Psi boundaries and promising one global pass is not credible. Source settlement needs an explicit internal closure.</td>
+</tr>
+<tr>
+<td>Source preparation evaluates layout/access/const work; an evaluation job itself prepares, lowers and checks an invocation.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L119">Preparation</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">job</a></td>
+<td>Source-job preparation belongs to settlement; execution receives only an accepted artifact invocation.</td>
+</tr>
+<tr>
+<td>Prepared domain applications are computed inside typed-tree methods.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L1360">Producer</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/types.rs#L167">consumer</a></td>
+<td>Move computation, not just the record definition. Later lowering must consume the prepared theory and reject missing/open results.</td>
+</tr>
+<tr>
+<td>Declaration selections already pass through typed trees.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1622">Transfer</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls.rs#L515">read</a></td>
+<td>Preserve that handoff; moving a type out of foundation does not fix an imaginary bypass.</td>
+</tr>
+<tr>
+<td>Provider demand grows through selected exact bodies; policy preparation still takes checked source custody.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260">Closure</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14">input</a></td>
+<td>Close logical provider/body discovery before publishing the source result; later native work must not request source activation.</td>
+</tr>
+<tr>
+<td>Native proposals perform provider specialization, task realization and ownership checks.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/native_proposal.rs#L240">Constructor</a></td>
+<td>A representation constructor cannot remain an unnumbered producer under a new name.</td>
+</tr>
+<tr>
+<td>The root pauses after target lowering while handlers are compiled to objects; their requirements are then bound before selection.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L81">Root route</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L117">handlers</a></td>
+<td>Replace this interleaving with explicit whole-program dependencies and resource records.</td>
+</tr>
+<tr>
+<td>Installed requirements include transitive calls, bridge storage, call bias and fault premises.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1499">Requirement</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L5363">call graph</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1264">fault analysis</a></td>
+<td>A frame-size table alone is insufficient.</td>
+</tr>
+<tr>
+<td>Entry transport selects registers, allocates frames and emits instructions after a body object exists.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1220">Creation</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1251">body effects</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/machine-emission/src/native_entry_bridge.rs#L701">encoding</a></td>
+<td>All generated bodies must enter the physical program before common encoding; image writing cannot remain a second code generator.</td>
+</tr>
+<tr>
+<td>Callback reach is currently recovered from emitted root/child object references.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L182">Demand walk</a></td>
+<td>An early roster must preserve pruning; available bodies cannot automatically become native obligations.</td>
+</tr>
+<tr>
+<td>Emission receives an earlier abstract program and lowering facts alongside the machine form.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L261">EmissionFacts</a></td>
+<td>Carry justified facts in current forms; neither an Arc nor an opaque callback repairs earlier-program access.</td>
+</tr>
+<tr>
+<td>Explicit replay needs retained originals; runtime provision capture can itself create foreign adapters.</td>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L71">Audit</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs#L77">adapter</a></td>
+<td>Verification and runtime helpers need complete routes in the new architecture, not exemptions discovered after moving crates.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="3-recommended-destination-and-stage-contracts">3. Recommended destination and stage contracts</h2>
+<p><strong>Proposed · unverified contracts.</strong> This figure states the intended whole-program
+handoffs for one coordinated cutover. The table below supplies their invariants;
+§8 names the feasibility work that must finish before implementation.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented."><svg viewBox="0.00 0.00 3545.28 86.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented." style="min-width:3545px">
+<title>Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.</title><defs><marker id="foundation-backend-plan-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="foundation-backend-plan-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 77.64)">
+<title>atlas</title>
+
+<g id="foundation-backend-plan-diagram-1-node1" class="node proposed" data-node="A">
+<title>A</title>
+<polygon points="197,-55 0,-55 0,-5 197,-5 197,-55" />
+<text text-anchor="middle" x="98.5" y="-33.6">Admitted source bytes and</text>
+<text text-anchor="middle" x="98.5" y="-19.6">requests</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node2" class="node proposed" data-node="B">
+<title>B</title>
+<polygon points="535,-60 361,-60 361,0 535,0 535,-60" />
+<text text-anchor="middle" x="448" y="-40.6">Source settlement: lazy</text>
+<text text-anchor="middle" x="448" y="-26.6">source and evaluation</text>
+<text text-anchor="middle" x="448" y="-12.6">closure</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
+<title>A-&gt;B</title>
+<path stroke-dasharray="5,2" d="M197.22,-30C248.71,-30 311.3,-30 360.95,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="279" y="-46.4">admit and activate</text>
+<text text-anchor="middle" x="279" y="-33.4">on demand</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node3" class="node proposed" data-node="C">
+<title>C</title>
+<polygon points="876,-55 706,-55 706,-5 876,-5 876,-55" />
+<text text-anchor="middle" x="791" y="-26.6">Accepted canonical Psi</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
+<title>B-&gt;C</title>
+<path stroke-dasharray="5,2" d="M535.05,-30C587.33,-30 653.79,-30 705.75,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="620.5" y="-33.4">seal accepted result</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node4" class="node proposed" data-node="D">
+<title>D</title>
+<polygon points="1223,-55 1031,-55 1031,-5 1223,-5 1223,-55" />
+<text text-anchor="middle" x="1127" y="-33.6">Native program planning:</text>
+<text text-anchor="middle" x="1127" y="-19.6">retained-body closure</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
+<title>C-&gt;D</title>
+<path stroke-dasharray="5,2" d="M876.28,-30C923.34,-30 982.12,-30 1030.83,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="953.5" y="-46.4">supply closed</text>
+<text text-anchor="middle" x="953.5" y="-33.4">logical selections</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node5" class="node proposed" data-node="E">
+<title>E</title>
+<polygon points="1565,-60 1388,-60 1388,0 1565,0 1565,-60" />
+<text text-anchor="middle" x="1476.5" y="-40.6">Physical program</text>
+<text text-anchor="middle" x="1476.5" y="-26.6">planning: all generated</text>
+<text text-anchor="middle" x="1476.5" y="-12.6">bodies</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge4" class="edge handoff" data-from="D" data-to="E">
+<title>D-&gt;E</title>
+<path stroke-dasharray="5,2" d="M1223.42,-30C1274.75,-30 1337.63,-30 1387.74,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1305.5" y="-46.4">carry retained</text>
+<text text-anchor="middle" x="1305.5" y="-33.4">bodies and recipes</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node6" class="node proposed" data-node="F">
+<title>F</title>
+<polygon points="1924,-55 1739,-55 1739,-5 1924,-5 1924,-55" />
+<text text-anchor="middle" x="1831.5" y="-33.6">Installation and resource</text>
+<text text-anchor="middle" x="1831.5" y="-19.6">binding</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge5" class="edge handoff" data-from="E" data-to="F">
+<title>E-&gt;F</title>
+<path stroke-dasharray="5,2" d="M1565.21,-30C1618.1,-30 1685.36,-30 1738.93,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1652" y="-59.4">supply complete</text>
+<text text-anchor="middle" x="1652" y="-46.4">effects and resource</text>
+<text text-anchor="middle" x="1652" y="-33.4">demands</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node7" class="node proposed" data-node="G">
+<title>G</title>
+<polygon points="2250,-55 2101,-55 2101,-5 2250,-5 2250,-55" />
+<text text-anchor="middle" x="2175.5" y="-26.6">Common encoding</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge6" class="edge handoff" data-from="F" data-to="G">
+<title>F-&gt;G</title>
+<path stroke-dasharray="5,2" d="M1924.15,-30C1979.45,-30 2048.98,-30 2100.72,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2012.5" y="-46.4">carry bound physical</text>
+<text text-anchor="middle" x="2012.5" y="-33.4">program</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node8" class="node proposed" data-node="H">
+<title>H</title>
+<polygon points="2591,-55 2425,-55 2425,-5 2591,-5 2591,-55" />
+<text text-anchor="middle" x="2508" y="-26.6">Layout and relaxation</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge7" class="edge handoff" data-from="G" data-to="H">
+<title>G-&gt;H</title>
+<path stroke-dasharray="5,2" d="M2250.26,-30C2302.01,-30 2371.23,-30 2424.76,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2337.5" y="-46.4">carry encodings and</text>
+<text text-anchor="middle" x="2337.5" y="-33.4">alternatives</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node9" class="node proposed" data-node="I">
+<title>I</title>
+<polygon points="2914,-55 2763,-55 2763,-5 2914,-5 2914,-55" />
+<text text-anchor="middle" x="2838.5" y="-26.6">Object construction</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge8" class="edge handoff" data-from="H" data-to="I">
+<title>H-&gt;I</title>
+<path stroke-dasharray="5,2" d="M2591.05,-30C2643.78,-30 2711.75,-30 2762.95,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2677" y="-46.4">supply resolved text</text>
+<text text-anchor="middle" x="2677" y="-33.4">and references</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node10" class="node proposed" data-node="J">
+<title>J</title>
+<polygon points="3225,-55 3074,-55 3074,-5 3225,-5 3225,-55" />
+<text text-anchor="middle" x="3149.5" y="-26.6">Image construction</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge9" class="edge handoff" data-from="I" data-to="J">
+<title>I-&gt;J</title>
+<path stroke-dasharray="5,2" d="M2914.3,-30C2962.7,-30 3025.48,-30 3073.85,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2994" y="-59.4">supply completed</text>
+<text text-anchor="middle" x="2994" y="-46.4">objects and entry</text>
+<text text-anchor="middle" x="2994" y="-33.4">plans</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-node11" class="node proposed" data-node="K">
+<title>K</title>
+<polygon points="3528,-55 3377,-55 3377,-5 3528,-5 3528,-55" />
+<text text-anchor="middle" x="3452.5" y="-26.6">Product publication</text>
+</g>
+
+<g id="foundation-backend-plan-diagram-1-edge10" class="edge handoff" data-from="J" data-to="K">
+<title>J-&gt;K</title>
+<path stroke-dasharray="5,2" d="M3225.29,-30C3271.52,-30 3330.63,-30 3376.83,-30" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3301" y="-46.4">write completed</text>
+<text text-anchor="middle" x="3301" y="-33.4">product</text>
+</g>
+</g>
+</svg></div><figcaption>Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[Admitted source bytes and requests]
+  B[Source settlement: lazy source and evaluation closure]
+  C[Accepted canonical Psi]
+  D[Native program planning: retained-body closure]
+  E[Physical program planning: all generated bodies]
+  F[Installation and resource binding]
+  G[Common encoding]
+  H[Layout and relaxation]
+  I[Object construction]
+  J[Image construction]
+  K[Product publication]
+  A -.-&gt; B
+  B -.-&gt; C
+  C -.-&gt; D
+  D -.-&gt; E
+  E -.-&gt; F
+  F -.-&gt; G
+  G -.-&gt; H
+  H -.-&gt; I
+  I -.-&gt; J
+  J -.-&gt; K</code></pre></details></figure>
+<p>Independent verification is a separate consumer of current forms and the
+originals its request explicitly retains. It does not produce program meaning.</p>
+<p><strong>Judgment:</strong> keep the public transformation boundaries where a complete output
+can be stated without asking a previous phase for more work. Coarsen the current
+boundaries that participate in an actual dependency loop. Keep their algorithms
+as named, separately testable private operations; do not preserve obsolete
+public stage APIs behind a coordinator wrapper.</p>
+<p>The names below describe contracts, not final directories or numbers. Assign
+numbers after the feasibility work in §8 establishes these boundaries. Current
+Psi/Omega numbers are used only to locate existing code.</p>
+<p>Every program representation contains its identity, provenance required by its
+consumers, selected target when applicable, current body membership and all
+facts needed next. Immutable leaf definitions may be shared. A phase receives
+its declared predecessor and admitted inputs, such as native planning's accepted
+code catalog. It must not retain an older executable graph beside its current
+input to recover missing facts, or receive a source lookup capability, mutable
+Build context or callback into another producer. Explicit verification may read
+the originals its request declares. Private worklists may contain intermediate
+forms while their owning phase runs; they are not hidden inter-stage products.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Phase / owner</th>
+<th>Complete input</th>
+<th>Output</th>
+<th>Required invariant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source acquisition and admission — packages/Build, before the compiler</td>
+<td>Requested source/package roots, permissions and explicit Build input</td>
+<td>Immutable admitted source-byte/custody reservoir and requests</td>
+<td>Availability and authorization are recorded; acquisition does not imply semantic acceptance or activation of every file.</td>
+</tr>
+<tr>
+<td>Source settlement — Psi producer</td>
+<td>That reservoir, scoped roots, neutral Build selection records, admitted observations and budgets</td>
+<td>Accepted target-neutral program, closed logical provider/body selections, prepared application facts and narrow provenance</td>
+<td>All source and logical-body discovery for this result is closed; only the lowered-form checker can accept it; dormant availability is not a new obligation.</td>
+</tr>
+<tr>
+<td>Portable sealing — Psi representation producer</td>
+<td>Accepted program and its publication policy</td>
+<td>Canonical Psi artifact, identity, acceptance/evidence and required summaries</td>
+<td>Encoding cannot confer semantic acceptance or host execution authority. No live source owner escapes in the artifact.</td>
+</tr>
+<tr>
+<td>Native program planning — Omega producer</td>
+<td>Canonical accepted code catalog, exact logical selections, selected target description, component admissions and native request</td>
+<td>Selected native program with explicit retained-body references, call/ABI plans, obligations and generated-body recipes</td>
+<td>Native work is source-free. It closes target demand and optimization-related body reach over already accepted code; it cannot select a new source body or silently change a logical provider.</td>
+</tr>
+<tr>
+<td>Physical program planning — Omega producer</td>
+<td>Selected native program and immutable target environment</td>
+<td>Complete physical program including ordinary bodies, required adapters/entries/handlers, register choices, frame recipes, effects and symbolic resource uses</td>
+<td>All executable bodies and their effects are represented. Generated code is program data, not a later writer's private byte sequence.</td>
+</tr>
+<tr>
+<td>Installation/resource binding — Omega producer</td>
+<td>Complete physical program, admitted installations and complete resource summaries</td>
+<td>Bound physical program</td>
+<td>Transitive stack demands, bridge storage, call bias, fault premises and placement identities agree; binding cannot invalidate allocation, effects or frame choices.</td>
+</tr>
+<tr>
+<td>Common encoding — Omega producer</td>
+<td>Bound physical program</td>
+<td>Encoded bodies/fragments, all legal alternatives, frame encodings and complete fixup descriptors</td>
+<td>Every executable byte generated by this compilation has this producer, including entry/foreign/writer helpers. Imported pre-encoded components remain explicit admitted inputs. No new body may appear downstream.</td>
+</tr>
+<tr>
+<td>Layout and relaxation — Omega producer</td>
+<td>Encoded program, target placement rules and relocations</td>
+<td>Laid-out text/fragments with resolved internal references</td>
+<td>Choose/patch carried alternatives only. Preserve existing body/frame relaxation semantics and checked range/alignment rules.</td>
+</tr>
+<tr>
+<td>Object construction — Omega producer</td>
+<td>Laid-out program, symbols and object-format request</td>
+<td>Object plus attribution, entry and evidence records</td>
+<td>No source/ABI rediscovery or helper generation; composition uses declared, already encoded bodies or admitted component objects.</td>
+</tr>
+<tr>
+<td>Image construction — Omega producer</td>
+<td>Objects, container request, external binding/loader inputs and carried entry plans</td>
+<td>Final image, regions, symbols, relocation evidence and runtime/provision carriers</td>
+<td>Container placement, relocation, signing/format metadata only; no fresh register, frame or instruction decisions.</td>
+</tr>
+<tr>
+<td>Publication — products/host support</td>
+<td>Completed retained product and output request</td>
+<td>Installed files/packages and receipts</td>
+<td>File installation does not invoke compiler stages; failure retains the existing publication guarantees.</td>
+</tr>
+<tr>
+<td>Independent verification — explicit consumer route</td>
+<td>Current form plus the exact optional originals/evidence required by that validator</td>
+<td>Verification result/diagnostics</td>
+<td>Does not choose providers or produce program meaning. Missing required replay inputs refuse the requested audit.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Native planning absorbs the current early realization/Omega 00–04 operations
+that must cooperate to close retained-body demand. Physical planning owns
+allocation, physical alternatives, frames and generated-body construction.
+This is a recommended starting boundary, <strong>not a proved claim</strong> that all current
+optimizations can close reach before encoding. The proof and adjustments are
+part of §8; a downstream discovery cannot be excused as “just a helper.”</p>
+<h2 id="4-source-settlement-evaluation-and-provider-body-closure">4. Source settlement, evaluation and provider-body closure</h2>
+<h3 id="why-the-old-source-stage-boundaries-change">Why the old source stage boundaries change</h3>
+<p>The recommendation is to replace the externally sequenced Psi 00–06 source
+route with one source-settlement transition. Source acquisition remains outside
+it; canonical publication and all native work remain after it. Its private
+operations retain useful names and tests: lexical/syntax preparation, name and
+body resolution, typing, application preparation, structural lowering,
+obligation generation, proof search and independent certificate admission.
+The lowered-form checker remains the sole semantic verdict. Combining ownership
+does not merge proof search with its checking authority or weaken a refusal.</p>
+<p>Lexing/parsing must be demand-aware too. Settlement starts with admitted bytes,
+not an eagerly parsed forest of all available files. It activates a unit only
+under a recorded root/dependency request, lazily prepares its syntax and retains
+that result in its private state. This avoids both a callback into an earlier
+numbered parser and new errors from unused files. The exact activation/error
+order is a compatibility obligation, not an opportunity to parse more input.</p>
+<p>The private state owns admitted source custody, active scope/bindings, syntax,
+resolved and typed rows, prepared applications, pending evaluation jobs,
+accepted invocation artifacts and charging records. A work item names its
+inputs, requester and unresolved dependency. Completing it publishes a new
+immutable result for dependants; it does not mutate an already admitted answer.
+Equivalent preparation requests may share immutable code and established facts.
+Invocation deduplication is allowed only where the proved request identity and
+existing accounting contract permit it. Distinct deployments, sponsors and
+actual invocations retain their required execution and receipts; the current
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L164">invocation accounting</a> is not blanket memoization.
+A dependency cycle or exhausted budget follows the existing refusal semantics;
+there is no guessed constant, default provider or ambient host observation.</p>
+<p>The old numbered source crates cease being callable stages. Their useful
+algorithms move into this owner or independent checking packages. Keeping the
+same stage calls inside a new <code>settle()</code> wrapper is specifically not completion.
+The scope is bounded by one target-neutral source result; package acquisition,
+process execution, native lowering and file publication are not absorbed into
+an all-purpose compiler stage.</p>
+<h3 id="evaluation-is-an-explicit-operation-on-accepted-code">Evaluation is an explicit operation on accepted code</h3>
+<p>Settlement constructs, lowers and checks the exact required invocation closure,
+then gives the executor immutable accepted code plus sealed invocation admission.
+That admission binds caller, entry, arguments, target/supplies, permitted
+observations and work account. It is the result of source-consent checks, not
+<code>InvocationSourceConsent</code>, a source owner or a lookup callback. The executor
+validates the binding, invokes the interpreter and returns values/status with
+invocation-bound observation and work receipts. Settlement alone decides how
+those values update source preparation.</p>
+<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">source-job preparation</a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/product/retained_provider_selections.rs#L120">retained-product preparation</a> move to settlement.
+The actual <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L402">invocation engine</a> remains an execution service.
+Simply making <code>build-time-evaluation</code> depend on <code>source-compiler</code> creates a
+cycle because the reverse <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/Cargo.toml#L16">dependency already exists</a>. Both
+APIs must be replaced together in this migration.</p>
+<h3 id="close-logical-providers-without-violating-the-firewall">Close logical providers without violating the firewall</h3>
+<p>Available declarations are not roots. Settlement receives admitted Build
+selection/binding descriptions in Psi-neutral data: exact declaration IDs,
+source scope, target keys and language-level requirements. It owns discovery
+and preparation of each selected provider body and its transitive source
+dependencies. The output contains the exact logical selections, required body
+catalog and their acceptance/provenance. Nothing later can request another
+source file, activate a declaration or rejoin a source <code>SymbolTable</code>.</p>
+<p>Omega then evaluates/validates physical ABI plans over those closed identities.
+Failure cannot trigger an alternative logical provider or reopen settlement.
+The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260">closure loop</a> and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14">calling-policy inputs</a>
+must therefore be split by meaning, not moved wholesale before a renamed O00.
+Calling-policy code needed later must already be an admitted immutable artifact.</p>
+<p><strong>Unverified planning obligation:</strong> demonstrate that logical provider choice can
+be separated from target ABI realization with the same choices and refusals.
+Where a choice requires a target observation, state the neutral admitted input
+and its owner explicitly. Passing an Omega ABI object into Psi, hiding a call
+behind a trait, or preparing all candidate source bodies is not an answer. If
+this separation cannot preserve behavior, revise the phase contract before
+implementation; do not ship a backedge or quietly accept fewer programs.</p>
+<h2 id="5-whole-program-reach-generated-code-and-resources">5. Whole-program reach, generated code and resources</h2>
+<h3 id="three-body-sets-with-different-obligations">Three body sets, with different obligations</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Set</th>
+<th>Meaning</th>
+<th>What membership does not imply</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Available</td>
+<td>Admitted source or accepted code that a valid request could select. Source availability and native code availability are separate catalogs.</td>
+<td>It does not demand typing, proof, ABI realization, native support or emission merely by existing.</td>
+</tr>
+<tr>
+<td>Demanded</td>
+<td>A recorded semantic/native dependency of a selected root, with the requester and selected binding.</td>
+<td>It does not guarantee the body survives allowed optimization, nor permit a different source selection.</td>
+</tr>
+<tr>
+<td>Retained</td>
+<td>A body/reference still required after the relevant optimization and closure step.</td>
+<td>It does not let later phases invent another body or erase its obligations.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Source settlement closes the source decisions. Native planning closes the
+native retained set over accepted code. An accepted body can be available for
+native planning without yet requiring target lowering; this is necessary to
+preserve current pruning. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L182">current callback walk</a> uses
+emitted object references, so “all bodies up front” is not a sufficient design.</p>
+<p>Native planning must derive explicit reference edges from the current program
+and keep their relationship to optimization. Each newly retained native body
+is processed within that phase's worklist. Changes to an already settled
+logical binding refuse. Work/identity records distinguish shared processing
+from repeated execution. At phase exit, a certificate or independently
+checkable invariant identifies the closed native body/reference set.</p>
+<p><strong>Unverified:</strong> prove that all later encoding/layout references are a projection
+of this set. If an existing optimization changes whether a callback is needed,
+its demand-changing part belongs before closure, or the planning boundary must
+move. It may not survive as an image-time discovery followed by a recursive
+compiler invocation. Preserve harmless unavailable target support in bodies
+that the old route prunes; a larger conservative native roster can change
+acceptance even when its final bytes omit those bodies.</p>
+<h3 id="generated-bodies-join-the-program-before-encoding">Generated bodies join the program before encoding</h3>
+<p>Entries, foreign adapters, callback transports, interrupt entries, stack-switch
+helpers, floating-control/hosted sequences and any live post-handoff writers
+must have explicit identities, inputs, effects, calls and resource contracts.
+Native planning declares their recipes; physical planning instantiates them
+using carried ABI plans and actual body effects. Fixed target byte templates
+are allowed only as fully described encoding inputs, with effects and fixups;
+they cannot hide an instruction-selection algorithm in target description.</p>
+<p>This replaces <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1220">entry generation from a completed object</a>.
+Today its <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L1251">request obtains body effects</a>, then the bridge chooses
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/machine-emission/src/native_entry_bridge.rs#L521">scratch registers</a> and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/machine-emission/src/native_entry_bridge.rs#L701">frame/encoding details</a>.
+Those dependencies must be exposed in the physical program. Image construction
+may resolve addresses or format relocations, but may not call these generators.
+The old suggestion to place their whole implementations in an O14 writer is
+withdrawn.</p>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan/src/lib.rs#L37">post-handoff plan</a> already distinguishes address-free transfer
+steps from invocation relocations. Classify actual callers before claiming a
+production route: an exported library function or its tests alone do not prove
+that image construction uses it. Where required, its transfer program follows
+the common encoding route; otherwise retire or retain it only with an evidenced
+non-production owner.</p>
+<h3 id="binding-uses-a-complete-resource-summary">Binding uses a complete resource summary</h3>
+<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1499">stack requirement</a> contains body demand, bridge bytes,
+call-stack bias, alignment, entry plan and fault premises. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L5363">Transitive demand</a>
+includes called/private bodies; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs#L1264">fault analysis</a> reads physical
+instruction correspondence. The replacement record must name the same program,
+target, entry, installation and body version and preserve all these dimensions.
+It must distinguish a finite admitted bound from unknown/unbounded demand;
+“missing” is never zero.</p>
+<p>Physical planning establishes register/effect and frame facts for ordinary and
+generated bodies. Resource analysis then combines the whole retained call graph,
+entry/bridge costs, arrival nesting and fault premises. Installation binding
+checks that summary against admitted cohorts, environment assumptions and
+placement requirements and publishes one bound physical program.</p>
+<p>Today <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_interrupts.rs#L1145">O03 constructs numeric stack guards</a> before this point. The
+recommendation is to represent those requirements as symbolic operands with
+reserved constraints until binding. Binding must not change body membership,
+register pressure, clobbers, control-flow shape or frame demand. Encoding may
+choose a carried width alternative after the value is known.</p>
+<p><strong>Unverified:</strong> prove this stability for every current numeric consumer. A late
+literal patch is insufficient if the value chooses a different instruction
+sequence, creates a helper or alters its own stack bound. The plan must either
+move that decision into physical planning with a proved finite dependency
+order, or revise the boundary. It cannot claim a global pass while secretly
+compiling handlers through later stages and returning to the installer.</p>
+<h3 id="encoding-and-layout-have-a-closed-executable-input">Encoding and layout have a closed executable input</h3>
+<p>Common encoding owns ordinary instructions and all generated executable
+fragments, including frame prologues/epilogues. It emits legal alternatives and
+fixup data: bases, signed ranges, alignment, bitfield geometry, external symbols,
+callback/image addresses and identity bindings. Layout never asks an earlier
+encoder to regenerate a branch or callback sequence; O08's current
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676">callback re-encoding</a> is part of this migration too.</p>
+<p>Preserve the present reason for body-first relaxation before frame insertion.
+The layout phase can perform those internal placement steps using already
+encoded frame fragments; moving frame <em>encoding</em> earlier need not force a new
+relaxation algorithm. Exact bytes, branch choices and failures must be compared.
+The object and image phases then consume closed encoded content and explicit
+relocations. No stage after encoding may create a new executable body.</p>
+<h2 id="6-data-ownership-runtimes-and-independent-checks">6. Data ownership, runtimes and independent checks</h2>
+<h3 id="classify-every-export-before-assigning-a-home">Classify every export before assigning a home</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Permitted owner</th>
+<th>Test for the distinction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Generic primitive</td>
+<td>Foundation</td>
+<td>No language, program, target or source-authority meaning.</td>
+</tr>
+<tr>
+<td>Definition</td>
+<td>Narrow representation vocabulary</td>
+<td>Names a stable semantic or target concept; holds no live source/body lookup.</td>
+</tr>
+<tr>
+<td>Carried record</td>
+<td>The first complete program form that establishes it</td>
+<td>Includes identities/provenance needed to interpret it, not an earlier program used as a database.</td>
+</tr>
+<tr>
+<td>Producer</td>
+<td>The phase whose complete input permits the calculation</td>
+<td>Creates a plan, offset, choice, commitment, body or authority-bound result. “Pure” does not make it data.</td>
+</tr>
+<tr>
+<td>Checker</td>
+<td>Admission boundary or explicit independent verifier</td>
+<td>Checks evidence against a stated input contract; it does not choose missing semantics.</td>
+</tr>
+<tr>
+<td>Live host operation</td>
+<td>Packages, executor/runtime, products or host support</td>
+<td>Performs acquisition, execution or publication, not a compiler transformation.</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>terminal-psi/vocabulary</code> (TPV) is a proposed family of small definition/carrier
+leaves, not a destination for 40k lines of mixed semantic code. Split identities,
+scalar/path definitions, declarations, access/resources and layout by their
+actual dependencies. The old 40–45k figure was an inventory estimate, not an
+approved API or a size target.</p>
+<p><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/src/retained_declaration.rs#L67">RetainedDeclaration contains SourceFile</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/source/src/lib.rs#L144">SourceFile contains text and ownership/scope data</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/src/retained_declaration.rs#L106">rejoining consults the source symbol table</a>. Those capabilities
+stay inside source settlement. Publish only necessary IDs, selected declaration
+summaries and immutable error provenance. Likewise,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L1360">application preparation</a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/access-plans/src/plan.rs#L212">access-plan commitment construction</a> are producers.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/layout-plans/src/lib.rs#L69">Layout defaults</a> are realizations, not automatically language
+promises. Moving these modules unchanged into TPV would reproduce the problem.</p>
+<p>Generic byte cursors, record encoding and digest bytes may become <code>wire</code>.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/semantic-vocabulary/src/identity_encoding.rs#L5">Scalar identity encoding</a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/semantic-vocabulary/src/structural_path_encoding.rs#L3">field/case path encoding</a> assign semantic tags and stay with their
+representation codecs. A <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/src/fast_map.rs#L85">SymbolHandle-keyed alias</a> stays with
+symbol vocabulary even if its generic hasher moves to foundation.</p>
+<h3 id="carry-what-emission-actually-reads">Carry what emission actually reads</h3>
+<p>For every <code>EmissionFacts</code> consumer, record the field read, meaning, producer,
+first available phase, version/identity and final consumer. Replace access to
+whole abstract/Terminal programs with those current-form records. Current
+immutable structural declarations may be shared by content identity where
+unchanged; executable graphs and source owners may not be retained as lookup
+shortcuts. The deletion condition is that consumers no longer recover facts
+from an earlier program, not that the struct or Arc changed its name.</p>
+<h3 id="runtimes-consume-products-and-admitted-provision-records">Runtimes consume products and admitted provision records</h3>
+<p>Keep sealed admitted carrier definitions separate from their issuing producer;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports.rs#L365">terminal-runtime already names an admission type</a>. The runtime
+must not import a producing stage merely to read it. Native/Psi execution
+provisions carry exact program/target/binding identities and the necessary host
+plans; only the corresponding admission phase may issue them.</p>
+<p>The Psi execution route does not automatically require a native version of the
+main program. It may require generated foreign adapters: <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/runtime_provisions.rs#L77">current capture emits
+one</a>. Model those as explicit auxiliary native roots with their
+own completed pipeline results. They use the common planning/encoding route,
+then join the provision output. Do not revive a private adapter compiler inside
+a runtime carrier constructor, and do not reject a valid Psi program because
+an unused native main body lacks support. Independent components remain
+separately admitted products; the migration does not merge their address spaces
+or change their isolation/ABI contracts.</p>
+<h3 id="verification-has-explicit-inputs-and-independent-authority">Verification has explicit inputs and independent authority</h3>
+<p>Retain producer admission at trust boundaries and object/image consistency
+checks. Keep explicit correspondence/rewrite replay separate from ordinary
+production. Its request identifies which originals must be retained; absence
+refuses that audit. Moving a validator beside a representation does not remove
+its dependency on a producing stage or make it independent.</p>
+<p>The verifier route receives current data and retained evidence directly through
+a verification dispatcher. Program representations hold no callback into the
+native driver or an earlier stage. Separate shared vocabulary/codecs from
+independent checking logic; do not deduplicate a verifier into the producer
+whose error it must catch. Proof search, certificate admission, source acceptance,
+canonical decoding and host execution authorization remain distinct contracts.</p>
+<h2 id="7-complete-ownership-and-retirement-inventory">7. Complete ownership and retirement inventory</h2>
+<p>The tables account for every package in the pinned foundation, backend and
+realization groups. Counts are generated package totals, not estimated savings.
+Each destination is <strong>judgment</strong> and requires a per-export classification from
+§6. No row authorizes moving all functions into a passive representation.</p>
+<h3 id="foundation-26-packages">Foundation: 26 packages</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Existing package</th>
+<th style="text-align: right;">Tracked Rust lines</th>
+<th>Destination and required split — judgment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/access-plans/Cargo.toml#L1">access-plans</a></td>
+<td style="text-align: right;">5,790</td>
+<td>Split access vocabulary and plan records from construction and checking. Portable records belong with the accepted program; access/extent commitment derivation belongs to source or native planning when its inputs exist; runtime checks stay with the interpreter. No whole-crate move into TPV.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/arena/Cargo.toml#L1">arena</a></td>
+<td style="text-align: right;">8,402</td>
+<td>Keep generic arenas, handles and dense storage primitives. Receive generic ID tables and hashing only; no SymbolHandle-specific aliases.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/artifacts/Cargo.toml#L1">artifacts</a></td>
+<td style="text-align: right;">345</td>
+<td>Move measurement/report carriers to a products leaf package that package compilation can use without depending on the product coordinator.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/bounded-process/Cargo.toml#L1">bounded-process</a></td>
+<td style="text-align: right;">3,823</td>
+<td>Move the reusable process mechanism to explicit host support; CLI-only private observation stays with CLI. Permit this leaf for package resolvers, runtimes and tools; it owns no compilation.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/build-time-values/Cargo.toml#L1">build-time-values</a></td>
+<td style="text-align: right;">91</td>
+<td>Put immutable evaluation result values beside the executor contract; source settlement interprets them. Move native-binding description production to Build.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/compiler-storage/Cargo.toml#L1">compiler-storage</a></td>
+<td style="text-align: right;">1,599</td>
+<td>Keep generic record encoding/decoding. Semantic wire tags remain with the representation they encode.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/compiler-storage/derive/Cargo.toml#L1">compiler-storage-derive</a></td>
+<td style="text-align: right;">168</td>
+<td>Keep the generic record derive package beside compiler-storage; count it as a separate package.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/diagnostics/Cargo.toml#L1">diagnostics</a></td>
+<td style="text-align: right;">598</td>
+<td>Keep plain diagnostic values and formatting. Source parsing helpers move into source settlement; stages retain exact provenance needed for errors.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/evaluation-accounting/Cargo.toml#L1">evaluation-accounting</a></td>
+<td style="text-align: right;">1,499</td>
+<td>Separate invocation/work records carried by accepted programs from evaluation sponsorship, limits and charging owned by source settlement/execution services.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/execution-admission/Cargo.toml#L1">execution-admission</a></td>
+<td style="text-align: right;">138</td>
+<td>Keep generic worker/stack budget machinery if export review confirms no language policy. It is not authority to accept a program.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/extents/Cargo.toml#L1">extents</a></td>
+<td style="text-align: right;">4,915</td>
+<td>Shared extent IDs and rights go with portable vocabulary; semantic bound derivation goes to its producing phase; mutable ledgers, root grants and host issuance stay with the interpreter/runtime owner.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/filesystem-authority/Cargo.toml#L1">filesystem-authority</a></td>
+<td style="text-align: right;">2,670</td>
+<td>Separate source admission/capture, evaluation filesystem sponsorship and product-output obligations. Package/source acquisition, source settlement and products own these respectively; no runtime-stage dependency.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/flow-effects/Cargo.toml#L1">flow-effects</a></td>
+<td style="text-align: right;">1,132</td>
+<td>Move carried invocation, dependency, capability and installation-reach records to accepted/current forms. Construction and contract checking stay with source/native producers or explicit independent checkers.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/function-identity/Cargo.toml#L1">function-identity</a></td>
+<td style="text-align: right;">151</td>
+<td>Move stable machine-function identities into a native leaf. Keep body membership and mappings in current program records.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/language-core/Cargo.toml#L1">language-core</a></td>
+<td style="text-align: right;">6,175</td>
+<td>Split source syntax vocabulary, portable semantic definitions and producer algorithms. Shared atomic/intrinsic/float definitions may be portable leaves; source-only spelling and resolution helpers stay inside source settlement.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/language-semantics/Cargo.toml#L1">language-semantics</a></td>
+<td style="text-align: right;">11,821</td>
+<td>Split declaration/semantic records, source preparation, Build descriptions and independent checks. Logical provider declarations needed after source settlement must be published in the accepted program; no later source lookup.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/layout-plans/Cargo.toml#L1">layout-plans</a></td>
+<td style="text-align: right;">8,205</td>
+<td>Separate data such as StorageGeometry from target/default selection and layout computation. Producers own offsets and defaults; portable/current forms carry their results; ingestion/runtime checks keep their own owner.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/mutation-matrix/Cargo.toml#L1">mutation-matrix</a></td>
+<td style="text-align: right;">113</td>
+<td>Move to test support and migrate optional test-support users. Remove the optimization-core re-export once all test imports move in the same change set.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/numerics/Cargo.toml#L1">numerics</a></td>
+<td style="text-align: right;">6,799</td>
+<td>Keep BigInt/BigRational as generic bignum. Put numeric type definitions, language arithmetic and float meaning with portable vocabulary; put evaluation/realization algorithms in the relevant producer.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/optimization/Cargo.toml#L1">optimization</a></td>
+<td style="text-align: right;">437</td>
+<td>Merge only generic wire helpers into wire. Carry Psi optimization selections/identity with the accepted representation.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/optimization-core/Cargo.toml#L1">optimization-core</a></td>
+<td style="text-align: right;">5,818</td>
+<td>Split generic wire helpers, optimization definitions, current decision/work records, reporting and checker logic. Native vocabulary owns definitions; actual rewrites belong to planning; products owns report requests/rollback presentation.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/platform-custody/Cargo.toml#L1">platform-custody</a></td>
+<td style="text-align: right;">1,146</td>
+<td>Move filesystem installation and executable-bit/publication operations to package/host support used by products. It is not a native transformation.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/semantic-vocabulary/Cargo.toml#L1">semantic-vocabulary</a></td>
+<td style="text-align: right;">12,136</td>
+<td>Keep generic ID tables/hash bytes in primitives; semantic IDs, scalar terms, proposition/path definitions and their codecs in narrow portable leaves. Build/source-only operations and live source authority stay with their owners.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/source/Cargo.toml#L1">source</a></td>
+<td style="text-align: right;">2,556</td>
+<td>Keep primitive positions/spans separate from file contents and acquisition custody. Source settlement owns admitted bytes, source scopes and consent. Later forms receive only required immutable identity/provenance.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/source-audit/Cargo.toml#L1">source-audit</a></td>
+<td style="text-align: right;">107</td>
+<td>Move dev-only source guards to test support. Preserve existing guards and their selectors; no production dependency.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/symbols/Cargo.toml#L1">symbols</a></td>
+<td style="text-align: right;">9,589</td>
+<td>Move symbol-table mutation, resolution, builtins and retained source declarations to source settlement. Publish stable symbol IDs and selected declaration summaries only. RetainedDeclaration/SourceFile are not portable identity leaves.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The retained primitive set is generic arena/storage, record codec and derive,
+plain diagnostics, text positions, generic wire/digests, bignum and generic worker
+budget support. There is no <code>omega/foundation/</code> at cutover. Host/process support
+is explicitly outside compilation. Support needed by Psi must remain reachable
+without a dependency on Omega; a host-support label does not waive the firewall.
+Its boundary rule is updated with its users,
+not an unexplained package exception for the runtime.</p>
+<h3 id="backend-29-packages">Backend: 29 packages</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Existing package</th>
+<th style="text-align: right;">Tracked Rust lines</th>
+<th>Destination and required split — judgment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/backend-plan/Cargo.toml#L1">backend-plan</a></td>
+<td style="text-align: right;">2,726</td>
+<td>Split selected-provider/proposal carriers from canonical-schema construction and closure. Logical body selection moves into source settlement; target realization/admission into native planning.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/runtime/bound-installations/Cargo.toml#L1">bound-installations</a></td>
+<td style="text-align: right;">348</td>
+<td>Carry bound installation facts in the bound physical program; constructors belong to installation binding. Records must not expose an earlier whole program.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/boundary-applications/Cargo.toml#L1">boundary-applications</a></td>
+<td style="text-align: right;">1,350</td>
+<td>Carry canonical artifact/application identities and selected rows in native input. Selection/construction belongs to source/native settlement; checking remains explicit.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/calling-conventions/Cargo.toml#L1">calling-conventions</a></td>
+<td style="text-align: right;">11,063</td>
+<td>Target-invariant ABI vocabulary goes to target description. Signature-specific call plans, callback placement and boundary materialization are produced by native/physical planning and carried forward.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/component-description/Cargo.toml#L1">component-description</a></td>
+<td style="text-align: right;">2,542</td>
+<td>Keep imported component carriers, codec and independent verifier separate from the producer/publisher. Native admission consumes checked descriptions; products publishes them.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/effects/Cargo.toml#L1">effects</a></td>
+<td style="text-align: right;">7,782</td>
+<td>Split effect vocabulary and selected evidence records from derivation and authority issuance. Physical planning publishes actual clobbers/effects; admission/binding checks the corresponding promises.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/encoded-scalar-plan/Cargo.toml#L1">encoded-scalar-plan</a></td>
+<td style="text-align: right;">324</td>
+<td>Move encoder logic into common encoding; put its required plan data in the bound physical/encoded forms. Later stages receive fixups rather than calling the encoder.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image/Cargo.toml#L1">image</a></td>
+<td style="text-align: right;">5,281</td>
+<td>Image representation owns bytes, regions, symbols and relocation facts; image construction owns placement/relocation algorithms; independent validators are separate consumers.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-elf/Cargo.toml#L1">image-elf</a></td>
+<td style="text-align: right;">22,191</td>
+<td>Move ELF container production under image construction, with ELF data/codec and independent validation separated as needed. No instruction selection or fresh helper generation there.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/Cargo.toml#L1">image-emission</a></td>
+<td style="text-align: right;">43,553</td>
+<td>Distribute object construction, image construction, early generated-body recipes, runtime carriers and explicit verification. No umbrella replacement library owns all these routes.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-macho/Cargo.toml#L1">image-macho</a></td>
+<td style="text-align: right;">4,710</td>
+<td>Move Mach-O container/signature production under image construction; preserve format-specific validation and metadata semantics.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-pe/Cargo.toml#L1">image-pe</a></td>
+<td style="text-align: right;">1,904</td>
+<td>Move PE container production under image construction; preserve format-specific entry/import/relocation validation.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/runtime/installation-evidence/Cargo.toml#L1">installation-evidence</a></td>
+<td style="text-align: right;">357</td>
+<td>Separate admitted early obligations, full resource summaries and final bound facts. Put each in the first current form that can establish it; preserve sealed construction.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/isa/isa-aarch64/Cargo.toml#L1">isa-aarch64</a></td>
+<td style="text-align: right;">25,746</td>
+<td>Target register/effect catalogs become description data; all body/entry/adapter/frame/writer encoders move to common encoding. Physical recipes are established before encoding; validators remain independent.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/isa/isa-conformance/Cargo.toml#L1">isa-conformance</a></td>
+<td style="text-align: right;">579</td>
+<td>Keep the existing ISA conformance suite as encoding test support; relocate selectors/imports in the same change set.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/isa/isa-x86_64/Cargo.toml#L1">isa-x86_64</a></td>
+<td style="text-align: right;">32,987</td>
+<td>Same split as AArch64: catalogs, planned physical operations, common encoding and independent checks. Hosted byte sequences cannot hide late program construction.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/layout/Cargo.toml#L1">layout</a></td>
+<td style="text-align: right;">1,934</td>
+<td>Shared layout records become leaves; signature/program layout calculation belongs to native planning. Do not retain a realization/layout library that continues to perform unnumbered stage work.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/machine-emission/Cargo.toml#L1">machine-emission</a></td>
+<td style="text-align: right;">17,781</td>
+<td>Physical planning owns frames, exit contracts and bridge recipes; common encoding owns every executable fragment; layout owns placement/frame insertion/fixups. Explicit audit work moves to verifier consumers. Delete the crate after every part moves together.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/Cargo.toml#L1">native-artifact</a></td>
+<td style="text-align: right;">16,394</td>
+<td>Move final/runtime carriers to image/provision representations, early entry admission to native planning, physical evidence production to its actual phase, explicit verification to verifier packages, and filesystem publication/receipts to products.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/normalized-foreign-call-plan/Cargo.toml#L1">normalized-foreign-call-plan</a></td>
+<td style="text-align: right;">1,202</td>
+<td>Normalization belongs to native/physical planning; encoding-specific interpretation belongs to common encoding. Carry results so layout never reopens signatures.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/object-file/Cargo.toml#L1">object-file</a></td>
+<td style="text-align: right;">3,552</td>
+<td>Move object/name/container construction into the object phase and data into the object representation. The driver owns sequencing, not a product wrapper.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan/Cargo.toml#L1">post-handoff-writer-plan</a></td>
+<td style="text-align: right;">960</td>
+<td>Classify live consumers first. Where used, lower symbolic materialization into explicit writer recipes before common encoding; carry invocation relocations separately. Do not infer an image-time production caller from a library export.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/plans/program-entry-plan/Cargo.toml#L1">program-entry-plan</a></td>
+<td style="text-align: right;">1,300</td>
+<td>Entry selection/admission and physical entry recipes belong to source/native/physical planning at their respective boundaries; later forms carry selected records.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/register-environment/Cargo.toml#L1">register-environment</a></td>
+<td style="text-align: right;">5,171</td>
+<td>Derive immutable target-only environment from target description before native planning; pass it explicitly. Program-specific reservation decisions belong to the current planning phase.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/register-model/Cargo.toml#L1">register-model</a></td>
+<td style="text-align: right;">3,514</td>
+<td>Move declarative register, constraint and preservation vocabulary to target description. Computation from a specific body remains a producer responsibility.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/runtime/runtime-abi/Cargo.toml#L1">runtime-abi</a></td>
+<td style="text-align: right;">2,356</td>
+<td>Separate target geometry and carrier definitions from live host descriptor/network/numeric operations. Geometry belongs to target description, current values to program/provision records, host operations to runtime.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/target/Cargo.toml#L1">target</a></td>
+<td style="text-align: right;">3,921</td>
+<td>Move target identity/catalogs into the selected input description. Build owns target-set selection; products/request records own per-product application metadata; review-evidence owns package review descriptions.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/runtime/task-plans/Cargo.toml#L1">task-plans</a></td>
+<td style="text-align: right;">1,901</td>
+<td>Put realized activation records in native/current forms and move realize_task_activations into native planning. Preserve admission and stack-contribution checks.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/isa/x86_64-encoding/Cargo.toml#L1">x86_64-encoding</a></td>
+<td style="text-align: right;">78</td>
+<td>Move primitive instruction encodings to common encoding, including users that currently reach them through native-artifact. Image construction receives encoded fragments and fixups.</td>
+</tr>
+</tbody>
+</table></div>
+<p>No replacement <code>backend</code> umbrella remains. All ordinary and generated executable
+construction has a phase owner; final data and format-specific validators may
+have separate packages. Deleting machine-emission waits until frames, fragments,
+bridges and all audit consumers have moved within the same integrated change.</p>
+<h3 id="realization-five-packages">Realization: five packages</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Existing package</th>
+<th style="text-align: right;">Tracked Rust lines</th>
+<th>Destination and required split — judgment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/Cargo.toml#L1">provider-admission</a></td>
+<td style="text-align: right;">26,491</td>
+<td>Move admission operations to native planning and late installation binding; split sealed carrier definitions for runtimes and representations. Preserve who can issue each record.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-planning/Cargo.toml#L1">provider-planning</a></td>
+<td style="text-align: right;">7,231</td>
+<td>Separate logical requirement/body discovery from target ABI realization. The former is resolved in source settlement through neutral Build records; the latter belongs to native planning over closed accepted code.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-selection/Cargo.toml#L1">provider-selection</a></td>
+<td style="text-align: right;">1,874</td>
+<td>Publish exact selected declaration/body/application identities during logical source settlement; native planning may validate these but may not activate source.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/Cargo.toml#L1">selected-dispatch</a></td>
+<td style="text-align: right;">105</td>
+<td>Replace the external wrapper role with the selected native input contract. Preserve target agreement and canonical plan custody; public from_realization is a current construction route, not unique settle authority.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/trust-model/Cargo.toml#L1">trust-model</a></td>
+<td style="text-align: right;">708</td>
+<td>Run trust-obligation reconstruction in native admission from carried declarations, grants and evidence; carry the result. It must not reconstruct source facts later.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="module-and-representation-obligations-that-crate-moves-can-miss">Module and representation obligations that crate moves can miss</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Current surface</th>
+<th>Required treatment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>declaration_selection</code></td>
+<td>Keep exact occurrence/body identities; preserve the existing resolved → typed → lowering ledger. Logical selection mutation belongs to source settlement.</td>
+</tr>
+<tr>
+<td><code>RetainedDeclaration</code>, <code>SourceFile</code>, source scopes/consent</td>
+<td>Keep source content and authority private to source settlement. Only explicit provenance projections enter portable leaves.</td>
+</tr>
+<tr>
+<td><code>callable_applications</code>, semantic domains and prepared theories</td>
+<td>Producer builds closed application records; consumers never reconstruct an unapplied family. Missing preparation preserves refusal.</td>
+</tr>
+<tr>
+<td><code>float_operations</code>, scalar/proposition/numeric tables</td>
+<td>Shared definitions stay portable. <code>float_operations</code> has both terminal-semantics and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/target/src/float_realization.rs#L72">target</a> users; a single-stage move is wrong.</td>
+</tr>
+<tr>
+<td><code>layout_reports</code>, aggregate geometry, access/extent plans</td>
+<td>Split records, default/target choices, computation and validation. Carry computed geometry and commitments; retain actual runtime ledgers in the runtime.</td>
+</tr>
+<tr>
+<td><code>build_requests</code>, native binding descriptions, compiler evaluation</td>
+<td>Neutral records cross the appropriate input boundary; Build/source production and artifact execution do not share mutable contexts.</td>
+</tr>
+<tr>
+<td><code>VerifiedPsiOptimizationInput</code>, native proposal constructors</td>
+<td>Passive accepted/current records after extracting provider closure, task realization and admission. Preserve sealing authority.</td>
+</tr>
+<tr>
+<td><code>native-vocabulary</code>, <code>target-vocabulary</code></td>
+<td>Stable leaves, not routes to abstract/target programs. Eliminate reverse program-form dependencies and producer imports.</td>
+</tr>
+<tr>
+<td>Selected instruction analyses / register homes</td>
+<td>Split shared analysis records from allocation-specific output; an earlier form cannot depend on a later whole program.</td>
+</tr>
+<tr>
+<td><code>FramedMachineProgram</code>, encoded/resolved machine roots</td>
+<td>Distinct forms remain explicit even if private phases coarsen. Carry effects, resources, encoding and fixup data with versioned identities.</td>
+</tr>
+<tr>
+<td><code>EmissionFacts</code>, fragment/object replay wrappers</td>
+<td>Inventory actual reads; remove earlier executable-program access from production. Keep requested replay originals in verifier-owned evidence only.</td>
+</tr>
+<tr>
+<td>Target environment/cache and per-product metadata</td>
+<td>Immutable target-only facts are explicit input; product application identity is a separate carried request. Program-specific reservations remain current facts.</td>
+</tr>
+<tr>
+<td>Entry/foreign/hosted/frame/post-handoff sequences</td>
+<td>Declare recipes early, include generated physical bodies, encode once, relocate later. Evidence decides whether an exported helper has a live producer at all.</td>
+</tr>
+<tr>
+<td>Publication wrappers and receipts</td>
+<td>Move filesystem publication to products; remove duplicate stage sequencing from native-artifact and other product helpers.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-planning-completion-gates-before-implementation">8. Planning completion gates — before implementation</h2>
+<p>These are not deferred cleanup tasks. They are the remaining proof/design work
+needed to turn the recommendation into an implementation-ready contract. Each
+must end with a concrete field/API model, source-backed consumer inventory and
+an ordering argument; a diagram alone does not close it.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Required result</th>
+<th>What would make the proposed boundary fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source activation and closure</td>
+<td>Exact lazy source activation, extension, evaluation and charging state transitions; preserve error order and checker verdicts. Show that private operations replace, rather than call, the old source stages.</td>
+<td>Eager errors from unused files; dynamic source discovered after portable publication; a callback to an old stage.</td>
+</tr>
+<tr>
+<td>Logical provider separation</td>
+<td>Map every provider-selection input to neutral admitted Build/source data or later ABI admission. Close selected source bodies and calling-policy code before source publication.</td>
+<td>A later target decision needs another source body, an ABI object enters Psi, or moving checks changes provider choice/refusal.</td>
+</tr>
+<tr>
+<td>Native demand closure</td>
+<td>Show available/demanded/retained membership and every generated reference; prove later encoding/layout cannot discover new bodies. Preserve optimization-pruned unavailable targets.</td>
+<td>A conservative roster introduces new native obligations, or object symbols remain the authoritative source of reach.</td>
+</tr>
+<tr>
+<td>Generated physical program</td>
+<td>Model entries/adapters/handlers/hosted/writer code, their body-effect inputs and caller constraints in one physical form. Prove ordinary body effects remain valid after adding helpers.</td>
+<td>Late scratch/frame choices, missing helper clobbers or image-time code generation.</td>
+</tr>
+<tr>
+<td>Resource/binding stability</td>
+<td>Inventory every numeric consumer; model transitive demand, bridge/bias/arrival costs, fault premises and identity joins. Prove finite ordering and unchanged allocation/effects after binding.</td>
+<td>A resolved bound changes its own frame, instruction constraints, helper set or resource graph.</td>
+</tr>
+<tr>
+<td>Encoding/layout closure</td>
+<td>Complete alternative/fixup schema for both ISAs, callbacks, frames, entries and formats; account for exact old relaxation decisions.</td>
+<td>A layout phase must invoke an encoder or the new order changes bytes/refusals without authorization.</td>
+</tr>
+<tr>
+<td>Carried-fact and authority interfaces</td>
+<td>Finish per-export/per-field classification, including EmissionFacts and source custody; specify allowed constructors and runtime/verifier inputs.</td>
+<td>A representation exposes an earlier graph, source lookup, producing stage or driver callback.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A gate may require changing the proposed boundary. Resolve that change in the
+plan and its consumer contracts before coding. Do not hide the conflict with an
+extra shared library, blanket allowance, speculative new acceptance rule or a
+“temporary” runtime branch intended to survive cutover.</p>
+<h2 id="9-one-integrated-execution-plan">9. One integrated execution plan</h2>
+<p>After §8 is closed, implementation is one coordinated effort on a fixed base.
+The following work packages are internal dependencies, not PR rollout steps.
+They may proceed in parallel where their agreed contracts allow it. One
+integration owner maintains the complete producer/consumer and retirement
+matrix and resolves conflicts across all packages.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Internal package</th>
+<th>Depends on</th>
+<th>Complete responsibility within the change set</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Contract and evidence baseline</td>
+<td>Planning gates closed</td>
+<td>Refresh the pinned inventory against the implementation base; freeze stage IO, authority, wire/identity and failure contracts; list all entry points and test selectors.</td>
+</tr>
+<tr>
+<td>Primitive/leaf extraction</td>
+<td>Agreed export/field model</td>
+<td>Build the acyclic generic and representation leaves; update every consumer. No semantic algorithms or source custody move into primitives.</td>
+</tr>
+<tr>
+<td>Source and evaluation replacement</td>
+<td>Neutral Build/provider and executor contracts</td>
+<td>Implement lazy source settlement, accepted invocation execution and closed logical body selection; replace old source stage APIs and facade continuations together.</td>
+</tr>
+<tr>
+<td>Native demand/planning replacement</td>
+<td>Accepted code/selection contract; target leaves</td>
+<td>Implement source-free retained-body closure, native admission, ABI plans and explicit generated-body recipes. Consume components and target requests through their declared interfaces.</td>
+</tr>
+<tr>
+<td>Physical/resource replacement</td>
+<td>Selected program and generated-recipe contracts</td>
+<td>Implement allocation/physical completion, complete resource analysis and stable installation binding for ordinary and generated bodies.</td>
+</tr>
+<tr>
+<td>Encoding/layout/object/image replacement</td>
+<td>Bound physical contract; format/fixup definitions</td>
+<td>Route every executable body through common encoding, preserve layout behavior, and construct object/image data without new program decisions.</td>
+</tr>
+<tr>
+<td>Runtime, products and independent verification</td>
+<td>Carrier/authority contracts from all producers</td>
+<td>Move provision consumers, auxiliary native roots, publication and explicit audit inputs; preserve runtime isolation and independent checks.</td>
+</tr>
+<tr>
+<td>Integrated retirement and proof</td>
+<td>All above complete</td>
+<td>Switch every production facade together, remove old paths/adapters/allowances, enable final gates, run §10 validation on the exact change, and publish one reviewable cutover.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Primitive extraction, verifier interface work and source/native implementations
+can overlap after contracts are agreed. A consumer does not invent its own
+version of an unfinished producer contract. No package is “done” while another
+package still calls its old route. The final combined review, not individual
+work-package completion, decides whether the compiler can switch.</p>
+<h3 id="retirement-ledger-at-cutover">Retirement ledger at cutover</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Retire</th>
+<th>Replacement required before deletion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-primitive foundation crates and <code>omega/foundation/</code></td>
+<td>Every row in the foundation table assigned and all imports/codecs/tests moved.</td>
+</tr>
+<tr>
+<td><code>omega/compilation/backend/</code> and umbrella re-exports</td>
+<td>Every backend row assigned to a phase, representation, verifier, product/runtime or evidenced test owner.</td>
+</tr>
+<tr>
+<td>Old source stage entry APIs and split continuation/evaluation coordination</td>
+<td>Single source-settlement producer with demand-aware syntax, exact checker acceptance and artifact-only execution.</td>
+</tr>
+<tr>
+<td>External provider-to-source completion and stage work in proposal constructors</td>
+<td>Closed logical selections/accepted code plus source-free native planning.</td>
+</tr>
+<tr>
+<td>Root/handler recursive native stage interleaving</td>
+<td>Closed current native program, full resources and stable binding; no later-stage output fed to an earlier installer.</td>
+</tr>
+<tr>
+<td>Image-time entry/adapter/frame/writer program generation</td>
+<td>Explicit physical bodies and common encoding, including runtime auxiliary artifacts.</td>
+</tr>
+<tr>
+<td>EmissionFacts and equivalent earlier-program access</td>
+<td>Every consumer supplied by justified current-form fields; no renamed wrapper around the old graph.</td>
+</tr>
+<tr>
+<td>Driver callbacks embedded in program/audit carriers</td>
+<td>Explicit verifier dispatch and evidence inputs; production program forms are data.</td>
+</tr>
+<tr>
+<td>Product-owned stage sequencing and filesystem writes inside compiler stages</td>
+<td>Driver sequence plus final product publication only.</td>
+</tr>
+<tr>
+<td>Temporary adapters, duplicate types and migration allowances</td>
+<td>Final dependency/authority rules enabled in the same change set; no compatibility path selected in production.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The integration also updates <code>AGENTS.md</code>, pipeline documentation, applicable
+skills, crate READMEs, Cargo workspace paths, command/test selectors and atlas
+sources that describe the replaced architecture. Preserve the six owner rulings;
+do not reinterpret them as permission to weaken language or trust contracts.</p>
+<h2 id="10-validation-and-exact-done-criteria">10. Validation and exact done criteria</h2>
+<p>This is the validation plan for implementation, <strong>not a report of tests already
+run</strong>. Establish the baseline on the chosen source and run the replacement on the
+same inputs, targets, optimization settings, permissions and budgets. Existing
+focused tests stay with their operations; add only tests that prove changed
+contracts or previously untested failure modes.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Boundary</th>
+<th>Required evidence for the cutover</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source and evaluation</td>
+<td>Same selected source activation, values, work charging, diagnostic provenance and accepted/rejected/incomplete results; unused invalid/unavailable source remains governed by the same demand rules. Exact-budget and one-unit-short behavior survives.</td>
+</tr>
+<tr>
+<td>Source acceptance and proof authority</td>
+<td>Positive/negative twins preserve the sole lowered-form verdict and independent certificate checks. Wire decoding, proof search or a native request cannot substitute for acceptance.</td>
+</tr>
+<tr>
+<td>Logical and native provider demand</td>
+<td>Same exact providers/bodies/calling-policy outputs; previously selected choices cannot change. Unused or optimization-pruned target-unsupported callbacks do not become new errors; reached equivalents still refuse.</td>
+</tr>
+<tr>
+<td>Generated bodies and installation resources</td>
+<td>Compare ordinary/adapter/handler call graphs, register/effect contracts, finite bounds, bridge/bias costs, alignment and fault evidence. Preserve cyclic-resource, identity-substitution and missing-evidence refusals.</td>
+</tr>
+<tr>
+<td>Physical/encoding/layout</td>
+<td>Same semantic effects, ABI transfers, frames, branch choices, bytes, fixups and target refusal behavior for unchanged requests. Cover x86-64 and AArch64 and both ordinary/generated code.</td>
+</tr>
+<tr>
+<td>Object/image/products</td>
+<td>Byte-for-byte canonical artifacts and native outputs, identity/digest/relocation/signature contracts and publication receipts remain stable for identical deterministic inputs. Preserve failure atomicity and component isolation. Any proposed intentional format/byte change requires an explicit separate design decision, not an unexplained comparison waiver.</td>
+</tr>
+<tr>
+<td>Runtime routes</td>
+<td>Native/Psi agreement for the affected accepted programs on the four hosted targets; Psi-only operation and required auxiliary adapters retain their own support contract. Runtime packages import carriers/host support, not producing stages.</td>
+</tr>
+<tr>
+<td>Independent validators</td>
+<td>Tampered facts/identities/bytes refuse; valid retained evidence passes; missing requested originals refuse. Production has no hidden replay/driver callback and does not lose required trust-boundary checks.</td>
+</tr>
+<tr>
+<td>Architecture and deletion</td>
+<td>Check complete dependency graph, per-export ownership and all public entrances; no old backend/non-primitive foundation path, bypass, adapter, duplicate route or unexplained allowance remains. Text matching alone is not proof of behavior.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Use repository-required <code>mbx</code> commands for actual Rust builds/tests and the
+shared host budget. The exact changed crates and programs determine the focused
+validation set; the integrated cutover also exercises every affected public
+route: compile/check, native and Psi execution, component production/import,
+explicit validators and publication. A passing library test is not evidence
+that an untested public route migrated.</p>
+<p>The migration is done only when all planning gates have closed, every inventory
+row and retirement item is accounted for, all producers and consumers use the
+same final contracts, the exact combined change passes its behavior/identity and
+architecture checks, and the old route is deleted at the single cutover. A page
+build, a smaller crate count, a renamed stage or a partially connected native
+example does not establish that outcome.</p>
+<h2 id="11-decisions-still-to-settle">11. Decisions still to settle</h2>
+<p><a href="questions.html">Questions</a> keeps Q-A/B/C/D/F/G aligned with this design. The
+recommendation is explicit: narrow host support; no source custody in leaves;
+one source-settlement owner and artifact executor; shared definition leaves but
+no earlier program access; one common encoding route; logical provider closure
+before native work and full resource binding before encoding. The open items
+are the concrete feasibility proofs in §8, not authorization to perform a
+piecemeal migration.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
+  });
+})();
+
+(() => {
+  const root = document.querySelector('.architecture');
+  if (!root) return;
+  const model = JSON.parse(root.querySelector('#architecture-model').textContent);
+  const viewport = root.querySelector('.arch-viewport'), svg = root.querySelector('.arch-svg');
+  const canvas = root.querySelector('.arch-canvas'), ctx = canvas.getContext('2d');
+  const mini = root.querySelector('.arch-minimap canvas'), miniCtx = mini.getContext('2d');
+  if (!ctx || !miniCtx) return;
+  const detail = root.querySelector('.arch-detail'), jump = root.querySelector('.arch-jump select');
+  const camera = {x:0, y:0, scale:1}, pointers = new Map();
+  const byId = new Map(model.nodes.map(n => [n.id,n]));
+  const paths = new Map([...svg.querySelectorAll('.arch-edge')].map(g => {
+    const p=g.querySelector('path'), length=p.getTotalLength();
+    return [g.dataset.edge, {path:new Path2D(p.getAttribute('d')), end:p.getPointAtLength(length), before:p.getPointAtLength(Math.max(0,length-2))}];
+  }));
+  const rows = [...svg.querySelectorAll('.arch-row-label')].map(t=>({x:+t.getAttribute('x'),y:+t.getAttribute('y'),text:t.textContent}));
+  const lines = new Map([...svg.querySelectorAll('.arch-node')].map(g=>[g.dataset.node,[...g.querySelectorAll('text')].map(t=>({y:+t.getAttribute('y'),text:t.textContent}))]));
+  const dashes = {data:[],invoke:[8,5],dependency:[2,5],construction:[12,4,2,4],validation:[2,7],normative:[12,7],bypass:[6,4]};
+  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false;
+  const make = (tag,text) => {const e=document.createElement(tag);if(text)e.textContent=text;return e;};
+  const dimensions = () => ({w:viewport.clientWidth,h:viewport.clientHeight});
+  const color = name => getComputedStyle(root).getPropertyValue('--'+name).trim();
+  const invalidate = () => {if(!frame)frame=requestAnimationFrame(draw);};
+  const cameraChanged = () => {root.querySelector('.arch-scale').textContent=Math.round(camera.scale*100)+'%';invalidate();};
+  const fit = () => {
+    const {w,h}=dimensions();camera.scale=Math.min(w/model.width,h/model.height)*.97;
+    camera.x=(model.width-w/camera.scale)/2;camera.y=(model.height-h/camera.scale)/2;cameraChanged();
+  };
+  const reset = () => {clear();camera.scale=1;camera.x=0;camera.y=0;cameraChanged();};
+  const zoom = (scale,px,py) => {
+    const {w,h}=dimensions();px??=w/2;py??=h/2;
+    const x=camera.x+px/camera.scale,y=camera.y+py/camera.scale;
+    camera.scale=Math.max(.15,Math.min(3,scale));camera.x=x-px/camera.scale;camera.y=y-py/camera.scale;cameraChanged();
+  };
+  function prepare(context,element,w,h) {
+    const dpr=devicePixelRatio||1, width=Math.round(w*dpr),height=Math.round(h*dpr);
+    if(element.width!==width||element.height!==height){element.width=width;element.height=height;}
+    context.setTransform(dpr,0,0,dpr,0,0);context.clearRect(0,0,w,h);
+  }
+  function draw() {
+    frame=0;const {w,h}=dimensions();if(!w||!h)return;
+    prepare(ctx,canvas,w,h);
+    const ink=color('ink'),muted=color('ink-muted'),ground=color('ground'),quiet=color('rule'),trap=color('trap');
+    const font=getComputedStyle(root).getPropertyValue('--font-serif').trim();
+    ctx.fillStyle=ground;ctx.fillRect(0,0,w,h);ctx.save();ctx.scale(camera.scale,camera.scale);ctx.translate(-camera.x,-camera.y);
+    for(const e of model.edges) {
+      const related=e.start===selected||e.end===selected;
+      if(!selected&&!allRelations&&!e.main)continue;
+      const shape=paths.get(e.id),tint=selected&&!related?quiet:e.kind==='bypass'?trap:muted;
+      ctx.strokeStyle=tint;ctx.lineWidth=related?3.5:['validation','normative'].includes(e.kind)?2.5:1.5;
+      ctx.setLineDash(dashes[e.kind]);ctx.stroke(shape.path);ctx.setLineDash([]);
+      const angle=Math.atan2(shape.end.y-shape.before.y,shape.end.x-shape.before.x);
+      ctx.save();ctx.translate(shape.end.x,shape.end.y);ctx.rotate(angle);ctx.fillStyle=tint;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-9,-4.5);ctx.lineTo(-9,4.5);ctx.closePath();ctx.fill();ctx.restore();
+    }
+    ctx.font='500 22px '+font;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    for(const row of rows) {
+      ctx.fillStyle=ground;ctx.fillRect(row.x-4,row.y-23,ctx.measureText(row.text).width+8,30);
+      ctx.fillStyle=muted;ctx.fillText(row.text,row.x,row.y);
+    }
+    ctx.font='500 20px '+font;ctx.textAlign='center';
+    for(const n of model.nodes) {
+      ctx.fillStyle=color('family-'+n.family+'-surface');ctx.fillRect(n.x,n.y,n.width,n.height);
+      ctx.strokeStyle=selected===n.id?ink:color('family-'+n.family);ctx.lineWidth=selected===n.id?4:2;
+      ctx.strokeRect(n.x,n.y,n.width,n.height);ctx.fillStyle=color('family-'+n.family);ctx.fillRect(n.x,n.y,n.width,7);
+      ctx.fillStyle=ink;for(const line of lines.get(n.id))ctx.fillText(line.text,n.x+n.width/2,n.y+line.y);
+    }
+    ctx.restore();
+    const mw=mini.clientWidth,mh=mini.clientHeight,scale=Math.min(mw/model.width,mh/model.height);
+    prepare(miniCtx,mini,mw,mh);miniCtx.fillStyle=color('surface');miniCtx.fillRect(0,0,mw,mh);
+    for(const n of model.nodes){miniCtx.fillStyle=color('family-'+n.family);miniCtx.fillRect(n.x*scale,n.y*scale,n.width*scale,n.height*scale);}
+    miniCtx.strokeStyle=ink;miniCtx.lineWidth=2;miniCtx.strokeRect(camera.x*scale,camera.y*scale,w/camera.scale*scale,h/camera.scale*scale);
+    root.dataset.scale=String(camera.scale);root.dataset.camera=JSON.stringify(camera);
+  }
+  function clear(restore=false) {
+    detail.hidden=true;jump.value='';root.classList.remove('has-selection');selected=null;
+    if(restore)jump.focus({preventScroll:true});invalidate();
+  }
+  function select(id,focus=false) {
+    const n=byId.get(id);if(!n)return;
+    selected=id;jump.value=id;detail.hidden=false;root.classList.add('has-selection');detail.className='arch-detail family-'+n.family;
+    const close=make('button','Close ×');close.type='button';close.className='arch-detail-close';close.addEventListener('click',()=>clear(true));
+    const badge=make('p',model.families[n.family]);badge.className='relationship';
+    const heading=make('h3',n.title.replaceAll('\n',' · '));heading.tabIndex=-1;
+    detail.replaceChildren(close,badge,heading,make('p',n.description));
+    const links=make('p'),page=make('a','Read subsystem'),source=make('a','Pinned source');
+    const prefix=location.pathname.endsWith('/')||location.pathname.endsWith('/index.html')?'pages/':'';
+    page.href=new URL(prefix+n.page+'.html',location.href).href;source.href=n.source;
+    links.append(page,document.createTextNode(' · '),source);detail.append(links);
+    for(const incoming of [true,false]) {
+      const relations=model.edges.filter(e=>(incoming?e.end:e.start)===id);if(!relations.length)continue;
+      detail.append(make('h4',incoming?'Incoming relationships':'Outgoing relationships'));const list=make('ul');
+      for(const e of relations) {
+        const target=byId.get(incoming?e.start:e.end),item=make('li'),button=make('button',target.title.replaceAll('\n',' · '));button.type='button';
+        button.addEventListener('click',()=>select(target.id,true));
+        const kind=make('span',model.relations[e.kind]);kind.className='relationship';
+        const evidence=make('a','Relationship source');evidence.href=e.source;
+        item.dataset.edge=e.id;item.append(kind,button,make('p',e.label),evidence);list.append(item);
+      }
+      detail.append(list);
+    }
+    const {w,h}=dimensions(),narrow=w<700;camera.scale=Math.max(camera.scale,1);
+    camera.x=n.x+n.width/2-(narrow?w/2:(w-370)/2)/camera.scale;
+    camera.y=n.y+n.height/2-(narrow?h*.23:h/2)/camera.scale;
+    cameraChanged();if(focus)heading.focus({preventScroll:true});
+  }
+  root.classList.add('is-enhanced');root.querySelector('.arch-toolbar').hidden=false;
+  canvas.hidden=false;svg.hidden=true;root.querySelector('.arch-minimap').hidden=false;
+  // The DOM outline and grouped selector expose every node without relying on
+  // canvas hit targets or a screen reader interpreting pixels.
+  root.querySelectorAll('.arch-outline dt').forEach((dt,i)=>{
+    const button=make('button','Focus on map');button.type='button';button.setAttribute('aria-label','Focus on '+model.nodes[i].title.replaceAll('\n',' '));
+    button.addEventListener('click',()=>{root.scrollIntoView({block:'start'});select(model.nodes[i].id,true);});dt.append(document.createTextNode(' '),button);
+  });
+  root.querySelectorAll('[data-map]').forEach(button=>button.addEventListener('click',async()=>{
+    const action=button.dataset.map;
+    if(action==='fit')fit();if(action==='reset')reset();if(action==='in')zoom(camera.scale*1.3);if(action==='out')zoom(camera.scale/1.3);if(action==='natural')zoom(1);
+    if(action==='fullscreen')try{if(document.fullscreenElement===root)await document.exitFullscreen();else await root.requestFullscreen();}catch{button.textContent='Fullscreen unavailable';}
+  }));
+  root.querySelector('.arch-all-relations').addEventListener('change',e=>{allRelations=e.target.checked;invalidate();});
+  jump.addEventListener('change',()=>{if(jump.value)select(jump.value,true);});
+  viewport.addEventListener('wheel',e=>{
+    e.preventDefault();const box=viewport.getBoundingClientRect();
+    if(e.ctrlKey||e.metaKey)zoom(camera.scale*Math.exp(-e.deltaY*.003),e.clientX-box.left,e.clientY-box.top);
+    else{camera.x+=(e.shiftKey?e.deltaY:e.deltaX)/camera.scale;camera.y+=(e.shiftKey?0:e.deltaY)/camera.scale;cameraChanged();}
+  },{passive:false});
+  viewport.addEventListener('pointerdown',e=>{if(e.button>0)return;moved=false;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});viewport.setPointerCapture(e.pointerId);if(pointers.size>1)moved=true;});
+  viewport.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;const before=[...pointers.values()],previous=pointers.get(e.pointerId),dx=e.clientX-previous.x,dy=e.clientY-previous.y;
+    if(Math.abs(dx)+Math.abs(dy)<2)return;moved=true;viewport.classList.add('is-dragging');pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){const after=[...pointers.values()],distance=p=>Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),box=viewport.getBoundingClientRect(),old=distance(before);if(old)zoom(camera.scale*distance(after)/old,(after[0].x+after[1].x)/2-box.left,(after[0].y+after[1].y)/2-box.top);}
+    else{camera.x-=dx/camera.scale;camera.y-=dy/camera.scale;cameraChanged();}
+  });
+  const release=e=>{
+    if(!pointers.has(e.pointerId))return;
+    pointers.delete(e.pointerId);if(pointers.size)return;viewport.classList.remove('is-dragging');
+    if(e.type==='pointerup'&&!moved){const b=viewport.getBoundingClientRect(),x=camera.x+(e.clientX-b.left)/camera.scale,y=camera.y+(e.clientY-b.top)/camera.scale;const n=model.nodes.find(n=>x>=n.x&&x<=n.x+n.width&&y>=n.y&&y<=n.y+n.height);if(n)select(n.id);}
+  };
+  viewport.addEventListener('pointerup',release);viewport.addEventListener('pointercancel',release);
+  mini.addEventListener('pointerdown',e=>{const b=mini.getBoundingClientRect(),s=Math.min(b.width/model.width,b.height/model.height),{w,h}=dimensions();camera.x=(e.clientX-b.left)/s-w/camera.scale/2;camera.y=(e.clientY-b.top)/s-h/camera.scale/2;cameraChanged();});
+  viewport.addEventListener('keydown',e=>{
+    const delta=80/camera.scale;
+    if(e.key==='Home'){e.preventDefault();reset();return;}if(e.key.toLowerCase()==='f'){e.preventDefault();fit();return;}
+    if(e.key==='+'||e.key==='='){e.preventDefault();zoom(camera.scale*1.3);return;}if(e.key==='-'){e.preventDefault();zoom(camera.scale/1.3);return;}
+    const actions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
+    if(actions[e.key]){e.preventDefault();camera.x+=actions[e.key][0];camera.y+=actions[e.key][1];cameraChanged();}
+  });
+  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);}});
+  new ResizeObserver(()=>{const next=dimensions();if(size.w&&size.h){camera.x+=(size.w-next.w)/2/camera.scale;camera.y+=(size.h-next.h)/2/camera.scale;}size=next;invalidate();}).observe(viewport);
+  new MutationObserver(invalidate).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',invalidate);
+  window.addEventListener('resize',invalidate);
+  const watchDpr=()=>matchMedia('(resolution: '+devicePixelRatio+'dppx)').addEventListener('change',()=>{invalidate();watchDpr();},{once:true});
+  watchDpr();
+  document.fonts.ready.then(invalidate);document.fonts.addEventListener('loadingdone',invalidate);
+  document.addEventListener('fullscreenchange',()=>{root.querySelector('[data-map="fullscreen"]').textContent=document.fullscreenElement===root?'Exit fullscreen':'Fullscreen';invalidate();});
+  reset();
+})();
+</script>
+</body>
+</html>

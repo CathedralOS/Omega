@@ -18,15 +18,15 @@ use omega::language::core::FilesystemNamespaceMutation;
 // `unlinkat` take no variadic argument without `O_CREAT`, so their ordinary
 // entries are called with their fixed arguments only.
 //
-// `errno` lives in libc's thread-local storage, reachable only as the address
-// `___error()` returns. The adapter copies the complete four-byte `int`
-// through `_memcpy`; Darwin's `errno` values stop at `ELAST` (106), so its
-// low byte is the whole value.
+// `errno` lives in libc's thread-local storage; std reads it through the
+// shared `PosixErrno` view that `___error` provides.
 use omega::language::core::widen_u8_to_u64;
 use omega::language::core::narrow_u32_to_u16_wrapping;
 use omega::language::core::narrow_u64_to_i64_wrapping;
 use omega::language::core::narrow_i32_to_u16_wrapping;
 use omega::language::core::narrow_i32_to_u32_wrapping;
+use omega::language::core::narrow_i64_to_i32_wrapping;
+use omega::language::core::widen_i32_to_i64;
 use omega::language::core::min_u64;
 
 // The explicit policy exports the borrowed view as pointer/count, not one byte.
@@ -150,31 +150,19 @@ boundary trait PosixFilesystemDarwin {
     machine c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
     reaches FilesystemMetadataMutation
     crashes none;
-    machine c_error_location() -> u64
-    reaches none
-    crashes none;
-    machine c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-    reaches none
-    requires count <= 4
-    crashes none;
 }
-// The negated `errno` of the call that just failed.
+// The negated `errno` of the call that just failed, read through std's
+// shared `PosixErrno` view of the thread's slot.
 machine darwin_failure_i32() -> i32
 {
-    let location: u64 = PosixFilesystemDarwin::c_error_location();
-    let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
-    let low: u8 = code[0];
-    0 - (low as i32)
+    let code: i64 = widen_i32_to_i64(posix_errno());
+    narrow_i64_to_i32_wrapping(0 - code)
 }
 
 machine darwin_failure_i64() -> i64
 {
-    let location: u64 = PosixFilesystemDarwin::c_error_location();
-    let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
-    let low: u8 = code[0];
-    0 - (low as i64)
+    let code: i64 = widen_i32_to_i64(posix_errno());
+    0 - code
 }
 
 // Capture libc errno before restoring caller storage after a native write.

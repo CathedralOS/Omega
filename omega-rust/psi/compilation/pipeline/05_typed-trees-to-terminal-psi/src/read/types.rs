@@ -1290,7 +1290,7 @@ impl Program<'_> {
             }
             let copies = match carrier {
                 ValueType::Scalar(..) => true,
-                ValueType::Record(record, _, _) => self.data_type(id, record)?.copyable,
+                ValueType::Record(record, _, _) => self.data_type(id, record)?.is_copyable(),
                 ValueType::Rigid(_) => return unserved("domain on a type parameter"),
             };
             if !copies {

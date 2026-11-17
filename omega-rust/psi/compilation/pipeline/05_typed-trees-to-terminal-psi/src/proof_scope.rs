@@ -19,12 +19,67 @@ use typed_trees::TypedTrees;
 
 use crate::{Elaboration, Unserved, refuse};
 
+fn non_callable_source(
+    typed: &TypedTrees,
+    elaboration: &Elaboration,
+    machine: &terminal_psi::TerminalMachine,
+    logical_requirements: &[MachineId],
+) -> Checked<Option<&'static str>> {
+    let unavailable = |reason| {
+        refuse(
+            machine.id,
+            Construct::Machine,
+            Unserved::Declaration(reason),
+        )
+    };
+    let symbol = *terminal_check_tables::row(
+        &elaboration.machines,
+        machine.id,
+        machine.id,
+        Construct::Machine,
+    )?;
+    if !typed.symbols.symbols().nodes().is_valid(symbol) {
+        return Err(unavailable(
+            "proof source frame has a stale declaration owner",
+        ));
+    }
+    if logical_requirements.binary_search(&machine.id).is_ok() {
+        if !machine.blocks.is_empty() || machine.declaration.is_some() {
+            return Err(unavailable(
+                "logical proof requirement supplies an executable declaration or body",
+            ));
+        }
+        return Ok(Some("a logical requirement has no executable source body"));
+    }
+    if machine.declaration.is_none()
+        && typed.machine_by_symbol(symbol).is_none()
+        && (typed.trait_machine_signature(symbol).is_some()
+            || typed.closed_requirement_application(symbol).is_some()
+            || typed.retained_static_machine_contract(symbol).is_some())
+        && elaboration
+            .undeclared
+            .iter()
+            .any(|(owner, _)| *owner == machine.id)
+        && elaboration
+            .check_form_envelopes
+            .iter()
+            .any(|row| row.machine == machine.id)
+    {
+        return Ok(Some(
+            "a synthetic refinement frame is not a source-callable body",
+        ));
+    }
+    Ok(None)
+}
+
 pub(crate) fn declare(
     typed: &TypedTrees,
     elaboration: &mut Elaboration,
     selected_calls: &[crate::compilation::SelectedSourceCall<'_>],
 ) -> Checked<()> {
     let selection_requests = selection_requests(typed, elaboration, selected_calls)?;
+    let mut logical_requirements = elaboration.requirements.clone();
+    logical_requirements.sort_unstable();
     let mut scope = ProofApplicationScope::default();
     let mut declarations = Vec::with_capacity(elaboration.module.machines.len());
     for machine in &elaboration.module.machines {
@@ -39,6 +94,15 @@ pub(crate) fn declare(
                     Unserved::Declaration("proof declaration coordinate overflow"),
                 )
             })?;
+        if let Some(reason) =
+            non_callable_source(typed, elaboration, machine, &logical_requirements)?
+        {
+            scope
+                .declarations
+                .insert(ProofScopeDeclaration::Unavailable(reason.into()));
+            declarations.push((machine.id, id));
+            continue;
+        }
         let declaration = machine.declaration.clone().ok_or_else(|| {
             let reason = elaboration
                 .undeclared
@@ -178,6 +242,16 @@ pub(crate) fn declare(
                 Unserved::Declaration("provider candidate without its proof declarations"),
             ));
         };
+        if !matches!(
+            scope.declaration(realization),
+            Some(ProofScopeDeclaration::Callable(_))
+        ) {
+            return Err(refuse(
+                candidate,
+                Construct::Machine,
+                Unserved::Declaration("provider candidate has no executable proof declaration"),
+            ));
+        }
         scope
             .plan
             .provider_candidates
@@ -191,6 +265,12 @@ pub(crate) fn declare(
                 Unserved::Declaration("proof machine lost its declaration"),
             )
         })?;
+        if matches!(
+            scope.declaration(id),
+            Some(ProofScopeDeclaration::Unavailable(_))
+        ) {
+            continue;
+        }
         let symbol = *terminal_check_tables::row(
             &elaboration.machines,
             machine.id,
@@ -219,10 +299,17 @@ pub(crate) fn declare(
             for operation in &block.operations {
                 if let Some(callee) = operation.kind.direct_callee() {
                     match declaration_for(callee) {
-                        Ok(callee) => calls.push(ProofApplicationCall {
-                            callee,
-                            ..ProofApplicationCall::default()
-                        }),
+                        Ok(callee) => {
+                            if let Some(ProofScopeDeclaration::Unavailable(reason)) =
+                                scope.declaration(callee)
+                            {
+                                unavailable = Some(reason.clone());
+                            }
+                            calls.push(ProofApplicationCall {
+                                callee,
+                                ..ProofApplicationCall::default()
+                            });
+                        }
                         Err(reason) => unavailable = Some(reason),
                     }
                 }
@@ -253,10 +340,17 @@ pub(crate) fn declare(
             }
             match &block.terminator {
                 Terminator::InvokeNoNormal { callee, .. } => match declaration_for(*callee) {
-                    Ok(callee) => calls.push(ProofApplicationCall {
-                        callee,
-                        ..ProofApplicationCall::default()
-                    }),
+                    Ok(callee) => {
+                        if let Some(ProofScopeDeclaration::Unavailable(reason)) =
+                            scope.declaration(callee)
+                        {
+                            unavailable = Some(reason.clone());
+                        }
+                        calls.push(ProofApplicationCall {
+                            callee,
+                            ..ProofApplicationCall::default()
+                        });
+                    }
                     Err(reason) => unavailable = Some(reason),
                 },
                 Terminator::ExternalCompletion { boundary, .. } => {
@@ -281,7 +375,14 @@ pub(crate) fn declare(
                 for action in actions {
                     if let TerminalAffineCleanupAction::InvokeOwned(action) = action {
                         match declaration_for(action.cleanup_machine) {
-                            Ok(target) => cleanup.push(target),
+                            Ok(target) => {
+                                if let Some(ProofScopeDeclaration::Unavailable(reason)) =
+                                    scope.declaration(target)
+                                {
+                                    unavailable = Some(reason.clone());
+                                }
+                                cleanup.push(target);
+                            }
                             Err(reason) => unavailable = Some(reason),
                         }
                     }

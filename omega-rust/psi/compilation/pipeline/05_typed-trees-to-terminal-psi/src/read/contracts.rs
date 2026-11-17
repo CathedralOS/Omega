@@ -58,21 +58,7 @@ pub(super) struct ClauseScope<'s> {
     /// selects the input observation. Crash guards retain their separate
     /// admission rule.
     pub(super) formal_fields: bool,
-    /// Whether a comparison in this clause may be between mathematical
-    /// integers (`embed(a) + embed(b) <= 99`).
-    pub(super) mathematical: MathematicalTerms,
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
-}
-
-/// Whether a clause may compare mathematical integers. A machine's
-/// `requires`, `ensures` and crash guards may: elaboration and the checker
-/// restate them using the same checked semantic substitution. A data
-/// `requires` still needs its own mathematical domain-establishment goals.
-#[derive(Clone, Copy)]
-pub(super) enum MathematicalTerms {
-    Served,
-    /// The refusal that names the clause kind.
-    Refused(&'static str),
 }
 
 /// The stored value a `requires` clause is about: the value of a data
@@ -274,10 +260,11 @@ impl Program<'_> {
         fact: &ProofFact,
         requirement: bool,
     ) -> Checked<Option<(Proposition, ClauseText)>> {
-        if let Some(logical) = scope.logical
-            && let ProofFact::Membership(membership) = fact
-        {
-            return logical.membership_clause(self, scope, membership).map(Some);
+        if let ProofFact::Membership(membership) = fact {
+            return match scope.logical {
+                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                None => self.runtime_membership_clause(id, scope, membership),
+            };
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
@@ -315,8 +302,8 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
-        if let Some((predicate, argument)) =
-            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
         {
             return self.byte_predicate_clause(id, scope, predicate, argument);
         }
@@ -521,9 +508,6 @@ impl Program<'_> {
         if left_type != right_type
             && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
         {
-            if let MathematicalTerms::Refused(why) = scope.mathematical {
-                return Err(refuse(id, Construct::Machine, Unserved::Contract(why)));
-            }
             let embedded = |term| {
                 IntegerMathTerm::embed(term).ok_or_else(|| {
                     refuse(
@@ -589,13 +573,9 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<Proposition> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let Some((root, path, value_type)) = self.projected(id, scope, argument)? else {
-            return Err(unserved("byte predicate of something that is not storage"));
-        };
+        let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
-            return Err(unserved(
-                "byte predicate of something that is not a byte view or a byte array",
-            ));
+            unreachable!("validated byte carrier")
         };
         match self.data_type(id, row)?.shape {
             StorageShape::ByteSequence(_) => {}
@@ -615,6 +595,113 @@ impl Program<'_> {
             ScalarTerm::Boolean(true),
             id,
         )
+    }
+
+    fn byte_predicate_subject(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject =
+            typed_trees::byte_predicates::whole_byte_observation_subject(self.typed, argument)
+                .ok_or_else(|| {
+                    unserved("logical byte observation requires a shared exact whole view")
+                })?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte carrier",
+            ));
+        };
+        let explicit_loan = matches!(
+            self.typed.expression_table.expression(argument),
+            ExpressionNode::Borrow(_)
+        );
+        let valid = match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StorageShape::ByteSequence(_) if explicit_loan => true,
+            StorageShape::FixedArray { .. } if explicit_loan => {
+                let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                    return Err(unserved("byte array is not readable"));
+                };
+                let (element, qualification, _) = self.array_element(id, array)?;
+                matches!(self.storage_value_type(id, element, qualification)?,
+                    ValueType::Scalar(ScalarType::Integer(integer), _) if integer.bits() == Some(8)
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(unserved(
+                "byte predicate requires a byte view or fixed u8 array",
+            ));
+        }
+        let collection = if let ExpressionNode::Borrow(borrow) =
+            self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+        {
+            // A domain's `self` names the declared logical carrier, which
+            // may be unsized. Its actual source type is retained by that
+            // declaration; reading it is not executable slice materialization.
+            if let Some(subject) = scope.subject
+                && let Some(definition) = self.typed.domain_definition(scope.owner)
+                && subject.symbol == definition.subject_symbol
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(definition.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+                && typed_trees::domain::domain_subject_reference(
+                    self.typed,
+                    definition,
+                    indexed.collection,
+                )
+            {
+                Some(definition.target_type)
+            } else {
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            }
+        } else {
+            None
+        };
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_byte_observation_range(id, owner, argument, collection)?;
+        Ok((root, path, value_type))
+    }
+
+    /// Form the source range of a logical byte observation. The declaration
+    /// reader supplies its exact logical carrier; instantiated clauses supply
+    /// the actual checked structural operand. Neither call grants membership.
+    pub(super) fn complete_byte_observation_range(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        argument: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+            && matches!(
+                self.typed.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            return self.complete_collection_range_operator(id, owner, borrow.target, collection);
+        }
+        Ok(())
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its
@@ -795,8 +882,9 @@ impl Program<'_> {
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
-        let read = self.read_term(id, scope, expression, expected)?;
-        self.complete_contract_operator(id, scope, expression, [None, None])?;
+        let mut operands = [None, None];
+        let read = self.read_term(id, scope, expression, expected, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
         Ok(read)
     }
 
@@ -806,11 +894,21 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            let (root, path, _) = self.byte_predicate_subject(id, scope, argument)?;
+            return Ok((
+                ScalarTerm::byte_sequence_predicate(predicate, root, path),
+                ValueType::plain(ScalarType::Boolean),
+            ));
         }
         if let Some(logical) = &scope.logical
             && let Some((term, scalar)) = logical.term(typed, expression)?
@@ -1081,7 +1179,7 @@ impl Program<'_> {
                 // The shared declaration phase forms this canonical term
                 // before any containing clause becomes proof knowledge.
                 crate::policy::Suffix::Unwritten => {
-                    self.arithmetic_term(id, scope, binary, None, expected)
+                    self.arithmetic_term(id, scope, binary, None, expected, operands)
                 }
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
@@ -1094,7 +1192,7 @@ impl Program<'_> {
                      mathematical arithmetic",
                 )),
                 crate::policy::Suffix::Total(policy) => {
-                    self.arithmetic_term(id, scope, binary, Some(policy), expected)
+                    self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
                 }
             },
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
@@ -1315,6 +1413,7 @@ impl Program<'_> {
         binary: &typed_trees::expression::TableBinaryExpression,
         suffix: Option<Policy>,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let anonymous = (
@@ -1356,6 +1455,9 @@ impl Program<'_> {
             crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
+        // Source selection must see the operands this reader actually
+        // checked; unknown operands would leave unrelated overloads eligible.
+        *operands = [left_type, right_type].map(|value| self.operator_operand_reference(value));
         Ok((term, selected))
     }
 
@@ -1409,6 +1511,8 @@ impl Program<'_> {
     /// Terminal Psi keeps for one (`IntegerMathEqual`, `IntegerMathLessThan`,
     /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
     /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
+    /// Domain and data clauses retain the same terms; the lowered-form checker
+    /// still proves their formation and establishment in each subject scope.
     fn mathematical_comparison(
         &mut self,
         id: MachineId,
@@ -1417,10 +1521,6 @@ impl Program<'_> {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-        if let MathematicalTerms::Refused(why) = scope.mathematical {
-            return unserved(why);
-        }
         let left = self.mathematical_term(id, scope, left)?;
         let right = self.mathematical_term(id, scope, right)?;
         mathematical_relation(comparison, left, right, id)
@@ -1487,11 +1587,7 @@ impl Program<'_> {
                     return unserved("embed of other than one value");
                 };
                 let (term, value_type) = self.term(id, scope, *argument, None)?;
-                self.clause_operand_type(id, value_type)?;
-                match IntegerMathTerm::embed(term) {
-                    Some(embedded) => Ok(embedded),
-                    None => unserved("embed of a value that is not an integer"),
-                }
+                super::mathematics::integer_embedding(id, term, value_type)
             }
             ExpressionNode::Call(_) => unserved("call in a mathematical term"),
             ExpressionNode::Integer(literal) if literal.landing().is_none() => {
@@ -1579,16 +1675,13 @@ impl Program<'_> {
             ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
             // counts_and_addresses.md: valid geometry proves `embed(base) +
             // embed(length) <= addr::Bound` "in unbounded proof integers".
-            // The bound is one past the largest address. Here an address is
-            // the one carrier the lowered form gives `addr`
-            // (`read/types.rs`), so the bound is that carrier's. A clause
-            // judged against a binding's own address model is read by
-            // `logical_mathematical_term` instead.
+            // The bound is one past the largest address. Its interpretation
+            // follows this clause: the ordinary lowered carrier, or the exact
+            // retained model of a bound callable.
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                let address =
-                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
                 match 1_u128.checked_shl(u32::from(address.bits())) {
                     Some(bound) => Ok(IntegerMathTerm::literal(
                         semantic_vocabulary::IntegerValue::Unsigned(bound),
@@ -1607,7 +1700,7 @@ impl Program<'_> {
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
     fn field_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1650,8 +1743,8 @@ impl Program<'_> {
     /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
-    fn projected(
-        &self,
+    pub(super) fn projected(
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1791,10 +1884,19 @@ impl Program<'_> {
                         ),
                     ));
                 };
+                // A contract's checked index is the same primitive collection
+                // operation as a body read. Retain its actual collection type
+                // before publishing the source selection; bounds alone cannot
+                // resolve a competing declared operator.
+                let operands = self.collection_index_operand_types(id, array.record());
+                self.complete_contract_operator(id, scope, expression, operands)?;
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
                 let value_type = self.storage_value_type(id, element, qualification)?;
+                let operands = self.collection_index_operand_types(id, array.record());
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.complete_builtin_operator(id, owner, expression, &operands)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)

@@ -7,14 +7,18 @@ optimization and frame decisions to those current bytes.
 `stage_function_frame` prepares callee-save storage, frame geometry and the
 prologue/epilogue protocol before encoding. `assemble_fixed_frame_realization`
 then publishes the whole-function exit contract, manifest and custody receipt.
-Only `validate_fixed_frame_function_relative_realization` reads the original
-artifacts in `FunctionRealizationReplay`, reconstructs their correspondence and
-checks the published result. The v12 manifest wire format (`OMGFRM\0\0`) is
-unchanged.
+It reads stage 09's output as `machine_code::OptimizedMachineLayout` and names
+no stage. The stage validators an audit needs arrive with the realization as a
+`FunctionStageAudit` the native driver supplies;
+`validate_fixed_frame_function_relative_realization` and
+`verify_fixed_frame_original_correspondence` run them, then check this
+library's own frame, exit contract, manifest and receipt. The v12 manifest wire
+format (`OMGFRM\0\0`) is unchanged.
 */
 
 use std::sync::Arc;
 
+use machine_code::OptimizedMachineLayout;
 use machine_code::{
     FramedMachineProgram, ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity,
     SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy, TargetFrameLayoutIdentity,
@@ -31,26 +35,11 @@ use optimization_core::{
 use post_allocation_machine::{
     PostAllocationMachineOptimizationCustody, PostAllocationMachineProgram,
 };
-use post_allocation_machine_to_selected_form_encoding::{
-    OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
-    validate_optimized_layout_independent_selected_form_encoding,
-};
-use register_homes::AllocatedCalleeSavedRequirements;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use resolved_layout_to_resolved_layout::{
-    ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
-    StagedOptimizedX86BranchRelaxation, validate_resolved_layout_optimization,
-};
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-    validate_optimized_resolved_selected_form_layout,
-};
+use register_homes::{AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirements};
 use selected_instructions::SelectedInstructionPlanIdentity;
-use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, RetainedAllocation, SelectedProgramView,
-    validate_allocated_callee_saved_requirements,
-};
 use target::{NativeTarget, TargetWireIdentityError};
+
+use crate::stage_audit::{FunctionStageAudit, StageAuditError};
 
 use crate::exit_contract::{
     StagedWholeFunctionExitContract, WholeFunctionExitContractError,
@@ -151,30 +140,13 @@ impl ValidatedFunctionRelativeOptimizationRealizationManifest {
     }
 }
 
-/// Original artifacts are retained only for explicitly requested independent
-/// replay. Ordinary publication reads the current resolved form and receipts.
-/// Stage 02's output is not among them: the object audits that compare with
-/// it keep it beside the emitted object instead.
-#[derive(Debug)]
-pub struct FunctionRealizationReplay {
-    pub allocation: RetainedAllocation,
-    pub machine: StagedOptimizedPostAllocationMachinePlan,
-    pub encoding: StagedOptimizedSelectedFormEncoding,
-    pub baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-    /// The Omega 04 rewrite run behind the allocated program, when a rewrite
-    /// phase ran. Only its own validator reads it.
-    pub selected_optimization:
-        Option<Box<dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>>,
-}
-
-pub type EncodedFunction = StagedOptimizedSelectedFormEncoding;
-pub type LaidOutFunction = StagedOptimizedResolvedSelectedFormLayout;
-pub type OptimizedFunctionLayout = ResolvedLayoutOptimization;
-
+/// A realized function: stage 09's current output, its whole-function exit
+/// contract, manifest and receipt, and the stage checks the driver supplied for
+/// audits. Ordinary publication reads only the current form and receipts.
 #[derive(Debug)]
 pub struct StagedFixedFrameFunctionRelativeRealization {
-    replay: Option<FunctionRealizationReplay>,
-    layout_optimization: ResolvedLayoutOptimization,
+    audit: Option<Box<dyn FunctionStageAudit>>,
+    layout_optimization: OptimizedMachineLayout,
     exit_contract: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
@@ -190,23 +162,27 @@ optimization_core::record_views! {
 }
 
 impl StagedFixedFrameFunctionRelativeRealization {
-    /// Retain original owners for an explicitly requested source audit. This
-    /// changes storage only; ordinary realization has already finished.
-    pub fn retain_replay_for_validation(mut self, replay: FunctionRealizationReplay) -> Self {
-        self.replay = Some(replay);
+    /// Attach the stage checks the native driver supplies for audits of this
+    /// function. This changes storage only; realization has already finished.
+    pub fn with_stage_audit(mut self, audit: Box<dyn FunctionStageAudit>) -> Self {
+        self.audit = Some(audit);
         self
     }
 
-    pub(crate) fn replay(
+    fn audit(
         &self,
-    ) -> Result<&FunctionRealizationReplay, FunctionRelativeOptimizationRealizationError> {
-        self.replay
-            .as_ref()
-            .ok_or(FunctionRelativeOptimizationRealizationError::ReplayUnavailable)
+    ) -> Result<&dyn FunctionStageAudit, FunctionRelativeOptimizationRealizationError> {
+        self.audit
+            .as_deref()
+            .ok_or(FunctionRelativeOptimizationRealizationError::StageAudit(
+                StageAuditError::ChecksUnavailable,
+            ))
     }
 
     pub fn has_original_replay(&self) -> bool {
-        self.replay.is_some()
+        self.audit
+            .as_ref()
+            .is_some_and(|audit| audit.has_originals())
     }
 
     /// The retained Omega 04 rewrite run, if one produced this program, and
@@ -220,11 +196,9 @@ impl StagedFixedFrameFunctionRelativeRealization {
         ),
         FunctionRelativeOptimizationRealizationError,
     > {
-        let replay = self.replay()?;
-        Ok((
-            replay.selected_optimization.as_deref(),
-            replay.allocation.current().history(),
-        ))
+        self.audit()?
+            .selected_optimization()
+            .ok_or(FunctionRelativeOptimizationRealizationError::ReplayUnavailable)
     }
 
     /// Replay the retained Omega 04 rewrite run against the record the
@@ -246,14 +220,14 @@ impl StagedFixedFrameFunctionRelativeRealization {
         }
     }
 
-    pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
-        self.layout_optimization.relaxation()
+    pub fn relaxation(&self) -> Option<machine_code::X86BranchRelaxationRoots> {
+        self.layout_optimization.relaxation
     }
     pub fn layout(&self) -> &ResolvedMachineLayout {
         self.layout_optimization.layout()
     }
     pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
-        self.layout_optimization.program()
+        &self.layout_optimization.program
     }
     pub fn requirements(&self) -> &AllocatedCalleeSavedRequirements {
         &self.program().instructions.preservation
@@ -297,13 +271,9 @@ optimization_core::record_views! {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationError {
-    Encoding(OptimizedSelectedFormEncodingError),
-    Layout(OptimizedResolvedSelectedFormLayoutError),
-    LayoutOptimization(ResolvedLayoutOptimizationError),
+    /// A stage check the driver supplied refused the realized function.
+    StageAudit(StageAuditError),
     ExitContract(WholeFunctionExitContractError),
-    CalleeSavedRequirements(
-        selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
-    ),
     CalleeSaveStorage(crate::frame_layout::NonAuthoritativeCalleeSaveStorageError),
     FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::frame_protocol::TargetFrameProtocolEncodingError),
@@ -311,7 +281,6 @@ pub enum FunctionRelativeOptimizationRealizationError {
     ReplayUnavailable,
     /// The retained Omega 04 run failed its independent replay.
     SelectedOptimizationReplay(String),
-    CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
     RootMismatch,
     ReceiptMismatch,
 }
@@ -438,16 +407,19 @@ fn validate_frame_geometry(
     Ok((frame, protocol))
 }
 
+/// Publish the exit contract, manifest and receipt for stage 09's output. The
+/// driver then attaches the stage checks later audits run
+/// (`with_stage_audit`); assembly reads none of them.
 pub fn assemble_fixed_frame_realization(
-    layout_optimization: ResolvedLayoutOptimization,
+    layout_optimization: OptimizedMachineLayout,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
     let exit_contract = stage_whole_function_exit_contract_for_layout(&layout_optimization)
         .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(&layout_optimization, &exit_contract)?;
-    let custody = fixed_frame_custody(layout_optimization.program(), &exit_contract, &manifest);
+    let custody = fixed_frame_custody(&layout_optimization.program, &exit_contract, &manifest);
     Ok(StagedFixedFrameFunctionRelativeRealization {
-        replay: None,
+        audit: None,
         layout_optimization,
         exit_contract,
         manifest,
@@ -461,20 +433,39 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
+    staged
+        .audit()?
+        .validate_current(&staged.layout_optimization)
+        .map_err(FunctionRelativeOptimizationRealizationError::StageAudit)?;
     let program = staged.program();
-    post_allocation_machine_to_selected_form_encoding::validate_current_selected_form_encoding(
-        &program.instructions,
-        &program.frame,
-        &program.encoding,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    selected_form_encoding_to_resolved_layout::validate_current_resolved_layout(program)
-        .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    resolved_layout_to_resolved_layout::validate_current_layout_optimization(
-        &staged.layout_optimization,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-    let (frame, protocol) = validate_frame_geometry(program, &program.instructions.preservation)?;
+    let requirements = &program.instructions.preservation;
+    check_published_realization(staged, requirements)
+}
+
+pub(crate) fn verify_fixed_frame_original_correspondence(
+    staged: &StagedFixedFrameFunctionRelativeRealization,
+) -> Result<
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let requirements = staged
+        .audit()?
+        .verify_originals(&staged.layout_optimization)
+        .map_err(FunctionRelativeOptimizationRealizationError::StageAudit)?;
+    check_published_realization(staged, &requirements)
+}
+
+/// This library's own checks: frame geometry under `requirements`, the exit
+/// record, the manifest and the custody receipt.
+fn check_published_realization(
+    staged: &StagedFixedFrameFunctionRelativeRealization,
+    requirements: &AllocatedCalleeSavedRequirements,
+) -> Result<
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let program = staged.program();
+    let (frame, protocol) = validate_frame_geometry(program, requirements)?;
     validate_exit_record_for_current_layout(
         &staged.layout_optimization,
         Some((&frame, &protocol)),
@@ -490,97 +481,18 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     Ok(custody)
 }
 
-pub(crate) fn verify_fixed_frame_original_correspondence(
-    staged: &StagedFixedFrameFunctionRelativeRealization,
-) -> Result<
-    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
-    FunctionRelativeOptimizationRealizationError,
-> {
-    let originals = staged.replay()?;
-    let current = originals.allocation.current();
-    let selected = current.selected();
-    let environment = current.register_environment();
-    let physical = environment.physical();
-    let replay = post_allocation_machine::program_validation::PhysicalProgramReplay {
-        selected: selected.current_program(),
-        machine: originals.machine.machine().plan(),
-        environment,
-        preservation: originals.allocation.preservation().retained(),
-        publication: originals.allocation.publication(),
-        phase: post_allocation_machine::PostAllocationMachinePhaseReceipt::from_parts(
-            originals.machine.optimization().complete_selection(),
-            originals.machine.optimization().phase_selections(),
-            originals.machine.optimization().result(),
-        ),
-    };
-    post_allocation_machine::program_validation::validate_current_program(
-        &staged.program().instructions,
-        replay,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CurrentProgram)?;
-    if staged.program().encoding.as_ref() != originals.encoding.program()
-        || staged.layout_optimization.baseline_identity() != originals.baseline_layout.identity()
-    {
-        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
-    }
-    validate_optimized_layout_independent_selected_form_encoding(
-        post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingValidation {
-            replay,
-            frame: Some(&staged.program().frame),
-            artifact: &originals.encoding,
-        },
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(
-        selected_form_encoding_to_resolved_layout::ResolvedLayoutValidation {
-            replay,
-            pre_layout: originals.encoding.program(),
-            artifact: &originals.baseline_layout,
-        },
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_resolved_layout_optimization(
-        physical,
-        originals.baseline_layout.program(),
-        &current
-            .selections()
-            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-        &staged.layout_optimization,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-    let requirements = validate_allocated_callee_saved_requirements(
-        &current,
-        staged.program().instructions.preservation.plan().clone(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
-    let (frame, protocol) = validate_frame_geometry(staged.program(), requirements.retained())?;
-    validate_exit_record_for_current_layout(
-        &staged.layout_optimization,
-        Some((&frame, &protocol)),
-        &staged.exit_contract,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
-    let manifest =
-        expected_fixed_frame_manifest(&staged.layout_optimization, &staged.exit_contract)?;
-    let custody = fixed_frame_custody(staged.program(), &staged.exit_contract, &manifest);
-    if manifest.record != staged.manifest.record || custody != staged.custody {
-        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
-    }
-    Ok(custody)
-}
-
 fn expected_fixed_frame_manifest(
-    layout_optimization: &ResolvedLayoutOptimization,
+    layout_optimization: &OptimizedMachineLayout,
     exit_contract: &StagedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let program = layout_optimization.program();
+    let program = &layout_optimization.program;
     let machine = &program.instructions.machine;
     let encoding = &*program.encoding;
-    let baseline_layout = layout_optimization.baseline_identity();
-    let baseline_roots = layout_optimization.baseline_roots();
+    let baseline_layout = layout_optimization.baseline.identity;
+    let baseline_roots = layout_optimization.baseline;
     let frame = &program.frame;
     let protocol = &program.protocol;
     let facts = &program.instructions.publication;
@@ -588,8 +500,8 @@ fn expected_fixed_frame_manifest(
     validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
     let layout = layout_optimization.layout();
     let relaxation = layout_optimization
-        .relaxation()
-        .map(|relaxation| relaxation.identity());
+        .relaxation
+        .map(|relaxation| relaxation.identity);
     let layout_custody = match relaxation {
         Some(relaxation) => {
             machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
@@ -703,19 +615,18 @@ fn fixed_frame_custody(
 
 fn validate_layout_optimization_manifest_roots(
     baseline_layout: ResolvedSelectedFormLayoutIdentity,
-    layout: &ResolvedLayoutOptimization,
+    layout: &OptimizedMachineLayout,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
     let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    if layout.selections() != &phase {
+    if layout.selections != phase {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    match layout.relaxation() {
+    match layout.relaxation {
         None if layout.layout().identity() == baseline_layout => Ok(()),
         Some(relaxation)
-            if relaxation.source() == baseline_layout
-                && relaxation.output() == layout.layout().identity()
-                && relaxation.layout() == layout.layout() =>
+            if relaxation.source == baseline_layout
+                && relaxation.output == layout.layout().identity() =>
         {
             Ok(())
         }

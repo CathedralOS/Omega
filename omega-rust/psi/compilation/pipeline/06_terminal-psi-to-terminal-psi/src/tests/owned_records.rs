@@ -27,7 +27,7 @@ fn moved_record() -> typed_trees_to_terminal_psi::Elaboration {
 #[test]
 fn a_whole_move_preserves_the_fact_needed_by_a_bounded_call() {
     let elaboration = moved_record();
-    assert!(!elaboration.module.structural_types[0].copyable);
+    assert!(!elaboration.module.structural_types[0].is_copyable());
     let caller = &elaboration.module.machines[0];
     assert!(
         caller

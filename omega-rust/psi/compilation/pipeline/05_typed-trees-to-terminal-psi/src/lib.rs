@@ -51,6 +51,7 @@ mod callable_formations;
 mod callable_headers;
 mod callables;
 mod calling_publication;
+mod claim_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
@@ -87,12 +88,14 @@ type SharedReading = std::sync::Arc<SharedProgram>;
 fn shared_reading(typed: &TypedTrees) -> SharedReading {
     std::sync::Arc::new(SharedProgram {
         captures: typed_trees::NamedConformanceCaptureIndex::new(typed),
+        exact_toolchain_sources: Default::default(),
         calling_catalogs: Default::default(),
     })
 }
 
 pub(crate) struct SharedProgram {
     pub captures: typed_trees::NamedConformanceCaptureIndex,
+    exact_toolchain_sources: std::sync::OnceLock<Result<Vec<(source::SourceId, [u8; 32])>, String>>,
     /// The service catalog that supplies boundary calling ABIs, one slot per
     /// dependency purpose (`Product`, `Build`). The catalog depends only on
     /// the typed program and that purpose, so the first reading that asks for
@@ -105,6 +108,18 @@ type CallingCatalog =
     Result<std::sync::Arc<typed_trees::service_declarations::PreparedServiceCatalog>, String>;
 
 impl SharedProgram {
+    pub(crate) fn exact_toolchain_sources(
+        &self,
+        typed: &TypedTrees,
+    ) -> Result<&[(source::SourceId, [u8; 32])], &str> {
+        self.exact_toolchain_sources
+            .get_or_init(|| {
+                source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            })
+            .as_deref()
+            .map_err(String::as_str)
+    }
+
     pub(crate) fn calling_catalog(
         &self,
         typed: &TypedTrees,
@@ -122,11 +137,10 @@ impl SharedProgram {
             // authority. The coordinator authenticates the nominated handles
             // against its admitted source registry before constructing the
             // compilation.
-            let sources =
-                source::source_identity::toolchain_source_identities(typed.symbols.source_files())?;
+            let sources = self.exact_toolchain_sources(typed).map_err(str::to_owned)?;
             Ok(std::sync::Arc::new(
                 typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-                    context, &sources,
+                    context, sources,
                 ),
             ))
         })
@@ -1616,6 +1630,7 @@ fn lower_program<'source>(
             signatures,
             &outcomes,
             &declared.records,
+            &module.structural_types,
             callables,
             boundaries,
             requirements.contains(&id),
@@ -1693,7 +1708,7 @@ fn lower_program<'source>(
         services,
         &mut qualifications,
         &mut module,
-        typed_source,
+        declarations,
         &external_provider_candidates,
     )?;
     module.scalar_qualifications = qualifications.catalog;
@@ -1886,6 +1901,39 @@ fn finish_storage(
             }
             Err(refused) => return Err(refused),
         };
+        terminal_semantics::validate_structural_store_values(
+            machine,
+            &module.structural_types,
+            &plan.stores,
+        )
+        .map_err(|error| match error {
+            terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: machine.id,
+                concerns: Construct::Machine,
+                source_span: None,
+                detail: format!("replacement input {place:?} has no unique source declaration"),
+            },
+            terminal_semantics::StructuralStoreValueError::CannotDiscard {
+                operation,
+                multiplicity,
+            } => {
+                let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
+                Refusal {
+                    reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
+                    machine: machine.id,
+                    concerns: Construct::Operation(operation),
+                    source_span: sources.get(machine.id)
+                        .and_then(|source| source.operations.get(operation))
+                        .and_then(|origin| origin.span()),
+                    detail: if linear {
+                        "whole-value replacement cannot implicitly discard a linear value"
+                    } else {
+                        "replacement input does not have the checked discardability required by this store"
+                    }.into(),
+                }
+            },
+        })?;
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
@@ -1955,6 +2003,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
+    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

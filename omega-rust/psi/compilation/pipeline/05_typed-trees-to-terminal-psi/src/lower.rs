@@ -134,6 +134,7 @@ pub(crate) fn machine(
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
     requirement: bool,
@@ -169,7 +170,7 @@ pub(crate) fn machine(
     if requirement {
         lowering.blocks = IdTable::default();
         lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result, contract);
+        return lowering.finish(entry, formals, result, contract, structural_types);
     }
     if component.is_empty() {
         // Even an acyclic body must prove formation of its authored measure.
@@ -178,7 +179,7 @@ pub(crate) fn machine(
     } else {
         lowering.component(id, bodies, component, &formals)?;
     }
-    lowering.finish(entry, formals, result, contract)
+    lowering.finish(entry, formals, result, contract, structural_types)
 }
 
 /// A signature's declarations, shared by named bodies and stored callable
@@ -1343,9 +1344,9 @@ impl<'a> Lowering<'a> {
         formals: Formals,
         result: TerminalMachineResult,
         contract_id: ContractId,
+        structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Checked<Lowered> {
         self.arrivals()?;
-        self.name_storage_contents()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {
@@ -1434,6 +1435,8 @@ impl<'a> Lowering<'a> {
         self.publish_rankings(&mut machine)?;
         self.qualifications
             .complete(&machine, self.coercions_start)?;
+        self.name_default_contents(&machine, structural_types)?;
+        self.name_storage_contents(&machine)?;
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {

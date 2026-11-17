@@ -68,8 +68,6 @@ const TARGETS: [HostedTarget; 4] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Cause {
-    /// A 16-byte-aligned value starts one integer register later than clang.
-    AppleOddRegister,
     /// A stack argument lands too early because a non-HFA record on the
     /// stack (itself or an earlier one) was packed instead of taking an
     /// 8-byte-aligned slot of whole 8-byte units.
@@ -85,28 +83,17 @@ struct KnownMismatch {
     rule: &'static str,
 }
 
-const KNOWN_MISMATCHES: &[KnownMismatch] = &[
-    KnownMismatch {
-        target: "macos_arm64",
-        cause: Cause::AppleOddRegister,
-        concern: "macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one",
-        rule: "Apple, Writing ARM64 code for Apple platforms: \"Apple platforms allow the \
-               argument to start in an odd-numbered xN register\" for a 16-byte-aligned \
-               argument passed in general-purpose registers (AAPCS64 C.10 rounds the NGRN \
-               up to even).",
-    },
-    KnownMismatch {
-        target: "macos_arm64",
-        cause: Cause::DarwinRecordStackSlot,
-        concern: "macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot",
-        rule: "AAPCS64 B.5: \"If the argument type is a Composite Type then the size of the \
+const KNOWN_MISMATCHES: &[KnownMismatch] = &[KnownMismatch {
+    target: "macos_arm64",
+    cause: Cause::DarwinRecordStackSlot,
+    concern: "macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot",
+    rule: "AAPCS64 B.5: \"If the argument type is a Composite Type then the size of the \
                argument is rounded up to the nearest multiple of 8 bytes.\" C.14: \"The NSAA \
                is rounded up to the nearest multiple of the larger of 8 or the Natural \
                Alignment of the argument's type.\" Apple's natural-alignment stack packing \
                covers the scalars its document shows; clang keeps B.5 and C.14 for non-HFA \
                records on Apple targets.",
-    },
-];
+}];
 
 #[test]
 #[ignore = "needs clang; the post-merge workflow runs it with --ignored"]
@@ -486,15 +473,6 @@ fn stack_offset(location: &str) -> Option<u32> {
     location.strip_prefix("sp+")?.parse().ok()
 }
 
-fn x_register(location: &str) -> Option<u32> {
-    location
-        .strip_prefix("reg:x")?
-        .split('@')
-        .next()?
-        .parse()
-        .ok()
-}
-
 /// Names the ABI rule behind a mismatching signature from its first wrong
 /// parameter; later differences usually follow from that one.
 fn cause_of(target: &str, rows: &[Row<'_>]) -> Option<Cause> {
@@ -504,14 +482,6 @@ fn cause_of(target: &str, rows: &[Row<'_>]) -> Option<Cause> {
     let (earlier, row) = (&rows[..index], &rows[index]);
     if target != "macos_arm64" {
         return None;
-    }
-    if row.value.alignment == 16
-        && row.class == Some(ValueClass::Integer)
-        && let (Some(clang), Some(omega)) =
-            (x_register(&row.clang_first), x_register(&row.omega_first))
-        && omega == clang + 1
-    {
-        return Some(Cause::AppleOddRegister);
     }
     // A non-HFA record narrower than a whole 8-byte-aligned slot, which C
     // gives one anyway (AAPCS64 B.5 and C.14).

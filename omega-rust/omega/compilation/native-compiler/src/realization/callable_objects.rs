@@ -55,7 +55,7 @@ pub(super) fn prepare_callable_object(
                 realization: settlement.realization.clone(),
             })
             .collect(),
-        &admitted.input,
+        admitted.input.optimization_input().runtime_input(),
         admission.providers.selected_provider_plans,
         admission.providers.external_binding_rows,
         native_artifact::NativeBindingRuntimeInputs {
@@ -66,7 +66,7 @@ pub(super) fn prepare_callable_object(
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
     let runtime = native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
         artifact.view(),
-        &admitted.input,
+        admitted.input.optimization_input().runtime_input(),
         callable_entry,
         admission.providers.profile,
         host,

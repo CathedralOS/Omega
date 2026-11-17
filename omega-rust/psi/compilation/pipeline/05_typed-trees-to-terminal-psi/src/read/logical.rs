@@ -133,6 +133,47 @@ struct Inputs {
     origins: Vec<CallableInputOrigin>,
 }
 
+/// Ordinary contracts retain the program address carrier. Binding projections
+/// require their supplied model and refuse when it is missing or malformed.
+#[derive(Clone, Copy)]
+pub(super) enum MathematicalAddressContext<'a> {
+    Ordinary,
+    Binding(Option<&'a CallableAddressModel>),
+}
+
+impl<'a> MathematicalAddressContext<'a> {
+    pub(super) fn of(scope: &ClauseScope<'a>) -> Self {
+        scope
+            .logical
+            .map_or(Self::Ordinary, |logical| logical.address)
+    }
+
+    pub(super) fn carrier(
+        self,
+        machine: MachineId,
+    ) -> Checked<semantic_vocabulary::ClosedIntegerType> {
+        match self {
+            Self::Ordinary => {
+                Ok(semantic_vocabulary::ClosedIntegerType::supported_address_representation())
+            }
+            Self::Binding(model) => model
+                .filter(|model| {
+                    model.carrier.is_address()
+                        && model.semantics_version != 0
+                        && model.commitment != [0; 32]
+                })
+                .map(|model| model.carrier)
+                .ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("address without its binding's mathematical model"),
+                    )
+                }),
+        }
+    }
+}
+
 pub(super) struct MathematicalInputs {
     inputs: Inputs,
     members: Arena<SymbolHandle>,
@@ -143,7 +184,7 @@ impl MathematicalInputs {
         typed: &TypedTrees,
         machine: MachineId,
         parameters: &[typed_trees::mathematical::MathematicalParameter],
-        model: Option<&CallableAddressModel>,
+        address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
@@ -179,7 +220,7 @@ impl MathematicalInputs {
                     root: parameter.symbol,
                     members: HandleSpan::empty(),
                 },
-                scalar: scalar_type(typed, machine, *reference, model)?,
+                scalar: scalar_type(typed, machine, *reference, address)?,
                 origin: ordinal,
                 reference: None,
             });
@@ -221,14 +262,14 @@ impl MathematicalInputs {
     pub(super) fn scope<'a>(
         &'a self,
         machine: MachineId,
-        model: Option<&'a CallableAddressModel>,
+        address: MathematicalAddressContext<'a>,
         expanding: &'a [SymbolHandle],
     ) -> LogicalScope<'a> {
         LogicalScope {
             inputs: &self.inputs,
             members: &self.members,
             subject: None,
-            model,
+            address,
             expanding,
             machine,
             observation: ContentPlaceVersion::Entry,
@@ -273,7 +314,7 @@ pub(super) struct LogicalScope<'a> {
     inputs: &'a Inputs,
     members: &'a Arena<SymbolHandle>,
     subject: Option<(SymbolHandle, &'a SymbolPath)>,
-    pub(super) model: Option<&'a CallableAddressModel>,
+    pub(super) address: MathematicalAddressContext<'a>,
     pub(super) expanding: &'a [SymbolHandle],
     machine: MachineId,
     observation: ContentPlaceVersion,
@@ -462,7 +503,6 @@ impl LogicalScope<'_> {
             result: ResultTerm::Absent("result of a Unit logical callable"),
             subject: None,
             formal_fields: true,
-            mathematical: super::contracts::MathematicalTerms::Served,
             logical: Some(logical),
         };
         let mut requires = Vec::new();
@@ -618,7 +658,7 @@ pub(super) fn scalar_type(
     typed: &TypedTrees,
     machine: MachineId,
     reference: TypeReferenceHandle,
-    model: Option<&CallableAddressModel>,
+    address: MathematicalAddressContext<'_>,
 ) -> Checked<ScalarType> {
     if !typed
         .type_reference_table
@@ -653,20 +693,7 @@ pub(super) fn scalar_type(
         )
     })?;
     if atom == symbols::BuiltinTypeAtom::Address {
-        let model = model
-            .filter(|model| {
-                model.carrier.is_address()
-                    && model.semantics_version != 0
-                    && model.commitment != [0; 32]
-            })
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("address without its binding's mathematical model"),
-                )
-            })?;
-        return Ok(ScalarType::Integer(model.carrier.as_checking()));
+        return Ok(ScalarType::Integer(address.carrier(machine)?.as_checking()));
     }
     super::types::atom_type(atom, machine)
 }
@@ -956,7 +983,12 @@ impl Inputs {
             {
                 self.leaves.push(Leaf {
                     path: subject,
-                    scalar: scalar_type(typed, machine, reference, model)?,
+                    scalar: scalar_type(
+                        typed,
+                        machine,
+                        reference,
+                        MathematicalAddressContext::Binding(model),
+                    )?,
                     origin,
                     reference: observed_through,
                 });
@@ -1383,7 +1415,7 @@ pub(crate) fn projected_arrival(
         inputs: &required_inputs,
         members: &member_arena,
         subject: None,
-        model,
+        address: MathematicalAddressContext::Binding(model),
         expanding: &[],
         machine: entry,
         observation: ContentPlaceVersion::Entry,
@@ -1394,7 +1426,7 @@ pub(crate) fn projected_arrival(
         inputs: &supplied_inputs,
         members: &member_arena,
         subject: None,
-        model,
+        address: MathematicalAddressContext::Binding(model),
         expanding: &[],
         machine: callee,
         observation: ContentPlaceVersion::Entry,

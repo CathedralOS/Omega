@@ -348,7 +348,7 @@ mod tests {
             id: structural_type,
             identity: names.intern("quoted bytes"),
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
             nominal_cleanup: None,

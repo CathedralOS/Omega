@@ -136,6 +136,7 @@ struct Questions<'source> {
     source: &'source AcceptedTerminalSource,
     module: &'source TerminalModule,
     declarations: Declarations<'source>,
+    exact_toolchain_sources: std::cell::OnceCell<Result<Vec<(source::SourceId, [u8; 32])>, String>>,
     output: SelectionQuestions,
     build_sites: HashMap<
         (SymbolHandle, typed_trees::expression::ExpressionHandle),
@@ -172,6 +173,7 @@ impl<'source> Questions<'source> {
             source,
             module,
             declarations: Declarations::new(source, module)?,
+            exact_toolchain_sources: Default::default(),
             output: SelectionQuestions::default(),
             build_sites: HashMap::default(),
             requirements,
@@ -441,15 +443,11 @@ impl<'source> Questions<'source> {
                         );
                     }
                 } else if source_target != selected {
-                    // Source calls may name the machine's entry State, while
-                    // the published call names the machine. This holds for an
-                    // ordinary machine and for a boundary machine such as the
-                    // core ProcessExit primitive. Only its uniquely registered
-                    // entry authenticates that same declaration.
-                    let entered_machine = typed
-                        .unique_machine_by_entry_state_symbol(source_target)
-                        .map(|(machine, _)| machine.symbol);
-                    if entered_machine != Some(selected) {
+                    // Source calls may name an entry while publication names
+                    // its machine, including a bodyless boundary machine. Use
+                    // the dictionary's exact emitted-entry correspondence for
+                    // both physical forms; another declaration still refuses.
+                    if self.declarations.dictionary_symbol(source_target)? != selected {
                         return Err(refused(format_args!(
                             "declared invocation differs from its exact source selection: source {} ({source_target:?}), emitted {} ({selected:?}), owner {} ({owner:?}), occurrence {node:?}",
                             typed.symbols.display_path(source_target, "::"),
@@ -571,6 +569,15 @@ impl<'source> Questions<'source> {
                     lexical_owner: supplier,
                     binders: &[],
                     lifetime_binders: &[],
+                    exact_toolchain_sources: self
+                        .exact_toolchain_sources
+                        .get_or_init(|| {
+                            source::source_identity::toolchain_source_identities(
+                                typed.symbols.source_files(),
+                            )
+                        })
+                        .as_deref()
+                        .map_err(refused)?,
                 },
             )
             .and_then(|identity| typed.type_identity_text(identity))
@@ -1737,6 +1744,36 @@ machine entry() -> u64 crashes none {
     }
 
     fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
+        accepted_source_with_core(text, metadata_names, &[])
+    }
+
+    fn accepted_source_with_publication(
+        text: &str,
+        metadata_names: &[&str],
+        publication: terminal_codec::TerminalPublication,
+    ) -> AcceptedTerminalSource {
+        accepted_source_with_inputs(text, metadata_names, &[], publication)
+    }
+
+    fn accepted_source_with_core(
+        text: &str,
+        metadata_names: &[&str],
+        core: &[(&str, &str, &[u8])],
+    ) -> AcceptedTerminalSource {
+        accepted_source_with_inputs(
+            text,
+            metadata_names,
+            core,
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    }
+
+    fn accepted_source_with_inputs(
+        text: &str,
+        metadata_names: &[&str],
+        core: &[(&str, &str, &[u8])],
+        publication: terminal_codec::TerminalPublication,
+    ) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
@@ -1750,12 +1787,35 @@ machine entry() -> u64 crashes none {
             )
             .source_id;
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../source/library/core");
+        let mut bindings = Vec::new();
+        for &(file, declaration, bytes) in core {
+            let text = std::str::from_utf8(bytes).unwrap();
+            let source = sources
+                .add_with_metadata(
+                    root.join(file),
+                    text.to_owned(),
+                    root.clone(),
+                    None,
+                    source::SourceOrigin::Toolchain,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).unwrap();
+            bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+                id,
+                source,
+                &format!("omega::language::core::{declaration}"),
+                3,
+            ));
+        }
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax,
                 sources: Some(Arc::new(sources)),
-                top_level_bindings: Vec::new(),
+                top_level_bindings: bindings,
                 retained_base: None,
             },
         )
@@ -1807,7 +1867,7 @@ machine entry() -> u64 crashes none {
                 providers: None,
                 supplies: &[],
             },
-            terminal_codec::TerminalPublication::Invocation,
+            publication,
         )
         .unwrap()
     }
@@ -2032,6 +2092,179 @@ machine entry() -> u32 crashes none {{
     }
 
     #[test]
+    fn recursive_declarations_keep_both_entry_and_folded_head_origins() {
+        let source = accepted_source(
+            r#"
+machine repeat(index: u64) {
+    transition index < 3 {
+        true -> repeat(index + 1)
+        _ -> {}
+    }
+}
+machine entry() { repeat(0); }
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        let validate = |questions: &SelectionQuestions| {
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, questions,
+            )
+        };
+        validate(&prepared.questions).unwrap();
+        let (machine, declaration, head) = prepared
+            .questions
+            .joins
+            .iter()
+            .find_map(|join| match join {
+                SelectionJoin::FoldedCall {
+                    machine,
+                    original_target,
+                    head,
+                    ..
+                } => Some((*machine, *original_target, *head)),
+                _ => None,
+            })
+            .expect("the real recursive call must retain its folded target");
+        let entry = module.machine(machine).unwrap().entry;
+        assert_ne!(entry, head);
+        let is_origin = |join: &SelectionJoin, expected| {
+            matches!(join, SelectionJoin::Machine {
+                declaration: source, machine: body, head,
+            } if *source == declaration && *body == machine && *head == expected)
+        };
+        assert!(
+            prepared
+                .questions
+                .joins
+                .iter()
+                .any(|join| is_origin(join, entry))
+        );
+        let origin = prepared
+            .questions
+            .joins
+            .iter()
+            .find(|join| is_origin(join, head))
+            .unwrap()
+            .clone();
+        let mut duplicate = prepared.questions.clone();
+        duplicate.joins.push(origin);
+        assert!(
+            validate(&duplicate)
+                .unwrap_err()
+                .contains("repeats a machine origin")
+        );
+        let mut missing_head = prepared.questions.clone();
+        missing_head.joins.retain(|join| !is_origin(join, head));
+        assert!(
+            validate(&missing_head)
+                .unwrap_err()
+                .contains("folded selection lost its original caller, target or actual head")
+        );
+    }
+
+    #[test]
+    fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
+        let source = accepted_source_with_publication(
+            r#"
+domain [u8; 2]::Ready requires true;
+domain [u8; 3]::Ready requires true;
+machine entry() {
+    let first: [u8; 2] in Ready = [1u8, 2u8] as +Ready;
+    let second: [u8; 3] in Ready = [3u8, 4u8, 5u8] as +Ready;
+}
+"#,
+            &[],
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let typed = source.source();
+        let domains = typed
+            .domain_definitions()
+            .iter()
+            .filter(|domain| domain.name.as_str().ends_with("::Ready"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            domains.len(),
+            2,
+            "the fixture must retain both qualified Ready declarations: {:?}",
+            typed
+                .domain_definitions()
+                .iter()
+                .map(|domain| domain.name.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            domains[0].semantic_id, domains[1].semantic_id,
+            "the same normalized predicate keeps its meaning across capacities"
+        );
+        let identities = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .normalized_hermetic_symbol_identity(domain.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(identities[0], identities[1]);
+        let exact_sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap();
+        let nominal = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .exact_owner_nominal_identity(domain.symbol, &exact_sources)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(nominal[0], nominal[1]);
+        let module = source.module();
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        let decoded = terminal_codec::decode_module(&bytes).unwrap();
+        assert_eq!(module.structural_domains, decoded.structural_domains);
+        assert_eq!(module.structural_domains.len(), 2);
+        let mut collapsed = module.clone();
+        collapsed.structural_domains[1].identity = collapsed.structural_domains[0].identity;
+        let invalid = terminal_codec::encode_module(&collapsed).unwrap();
+        assert!(matches!(
+            terminal_codec::decode_module(&invalid),
+            Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                "structural domain identity"
+            ))
+        ));
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let rows = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter_map(|(id, row)| identities.contains(&row.identity).then_some(id))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        let mut duplicate = prepared.questions.clone();
+        duplicate.declarations.get_mut(rows[1]).unwrap().identity = prepared
+            .questions
+            .declarations
+            .get(rows[0])
+            .unwrap()
+            .identity
+            .clone();
+        assert!(
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, &duplicate
+            )
+            .is_err(),
+            "different subjects must not bypass the duplicate declaration guard"
+        );
+    }
+
+    #[test]
     fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
         // Publish both complete headers directly. A signature-free named call
         // would test overload selection before reaching this identity owner.
@@ -2161,6 +2394,92 @@ machine entry() reaches Input {}
             error.message.contains("outside its actual lexical context"),
             "{error:?}"
         );
+    }
+
+    #[test]
+    fn a_hosted_boundary_call_keeps_its_actual_machine_entry_selection() {
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let source = accepted_source_with_core(
+            "use omega::language::core::ProcessExit; use omega::language::core::ProcessExitPrimitive; machine entry() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
+            &[],
+            &language_core::sealed_intrinsics::hosted_process_exit_sources(),
+        );
+        let module = source.module();
+        let primitive = module
+            .boundary_machines
+            .iter()
+            .find(|boundary| {
+                matches!(
+                    boundary
+                        .declaration
+                        .as_ref()
+                        .map(|declaration| declaration.execution),
+                    Some(terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. })
+                )
+            })
+            .expect("the real primitive is published as a boundary machine");
+        let requirement = primitive.external_completion_requirement();
+        assert_ne!(primitive.id, requirement);
+        let (caller, site) = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.blocks.iter().find_map(|block| {
+                    let (site, call) = block.terminator.declared_invocation()?;
+                    (call.callee == TargetMachineCallable::Boundary(primitive.id))
+                        .then_some((machine.id, site))
+                })
+            })
+            .expect("the actual terminal call retains its primitive boundary");
+        let mut questions = Questions::new(&source, module).unwrap();
+        let origin = questions.typed_origin(caller, site).unwrap();
+        let selected = questions
+            .source_target(TargetMachineCallable::Boundary(primitive.id))
+            .unwrap();
+        let machine = source.source().machine_by_symbol(selected).unwrap();
+        let entry = source
+            .source()
+            .machine_states(machine)
+            .first()
+            .unwrap()
+            .symbol;
+        assert_ne!(entry, selected);
+        let typed_trees::SourceNode::Statement(statement) = origin.source else {
+            panic!("the primitive call is an authored statement");
+        };
+        let typed_trees::statement::StatementNode::Call(call) =
+            source.source().statement_table.statement(statement)
+        else {
+            panic!("the source occurrence remains a call");
+        };
+        assert_eq!(call.target_symbol, entry);
+        questions
+            .invocation_reference(
+                origin.owner,
+                origin.source,
+                SelectionCallTarget::Declared(TargetMachineCallable::Boundary(primitive.id)),
+            )
+            .expect("the exact entry and emitted boundary select one declaration");
+        let error = questions
+            .invocation_reference(
+                origin.owner,
+                origin.source,
+                SelectionCallTarget::Declared(TargetMachineCallable::Boundary(requirement)),
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("differs from its exact source selection")
+        );
+
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
     }
 
     #[test]

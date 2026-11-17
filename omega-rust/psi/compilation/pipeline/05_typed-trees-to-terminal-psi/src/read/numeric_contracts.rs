@@ -11,7 +11,7 @@ use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement;
 use typed_trees::signature::SignatureContractKind;
 
-use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
+use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{CrashCeiling, Regions, Signature, ValueType};
 use crate::{Unserved, canonical, refuse};
@@ -51,7 +51,6 @@ impl<'t> Program<'t> {
             subject: None,
             formal_fields: true,
             logical: None,
-            mathematical: MathematicalTerms::Served,
         };
         let Some(ValueType::Scalar(result, qualification)) = signature.result else {
             return Err(unavailable("numeric source contract has no scalar result"));
