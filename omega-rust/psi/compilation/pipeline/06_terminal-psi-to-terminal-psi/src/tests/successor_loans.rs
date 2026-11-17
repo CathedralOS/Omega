@@ -145,6 +145,63 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
 }
 
 #[test]
+fn loop_element_reborrows_keep_distinct_incoming_backing() {
+    let program = r#"
+        machine update(left: &mut u32, right: &mut u32) {
+            left = 1u32;
+            right = 2u32;
+        }
+        machine walk(items: &mut [u32], other: &mut [u32], index: u64) {
+            transition index < 4u64 && index < items.len && index < other.len {
+                true -> step(items, other, index)
+                false -> done()
+            }
+            machine step(items: &mut [u32], other: &mut [u32], index: u64)
+            requires index < 4u64 && index < items.len && index < other.len
+            {
+                update(&mut items[index], &mut other[index]);
+                transition { _ -> walk(items, other, index + 1u64) }
+            }
+            machine done() { }
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (
+            program.replace("&mut other[index]", "&mut items[index]"),
+            false,
+        ),
+    ] {
+        let typed = super::boundary_calls::typed(&program);
+        let verdict = super::entryless::judged_typed_result(&typed, false);
+        if accepts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        } else {
+            match verdict {
+                Ok(RouteVerdict::Rejected { conflicts, .. }) => assert!(
+                    conflicts.iter().any(|conflict| matches!(
+                        conflict.conflict,
+                        crate::LoanConflict::TwiceExclusive
+                    )),
+                    "{conflicts:?}"
+                ),
+                Err(crate::CompilationRefusal::Elaboration(refusal)) => assert!(
+                    refusal.reason == RefusalReason::Conflict
+                        && refusal
+                            .detail
+                            .starts_with("successor borrow conflicts with an original live loan"),
+                    "duplicating the input must fail its actual alias check: {refusal:?}"
+                ),
+                other => panic!("duplicating an exclusive element borrow must reject: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn shared_array_views_keep_their_backing_when_sliced() {
     for (start, accepted) in [(1, true), (3, false)] {
         let source = format!(

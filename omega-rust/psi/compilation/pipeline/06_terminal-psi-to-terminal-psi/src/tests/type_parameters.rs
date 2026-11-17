@@ -585,6 +585,90 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
             .contains("recursive generic type application changes its arguments"),
         "{refused:?}"
     );
+
+    let mutually_recursive = r#"
+machine first<T>(remaining: u64) -> u64
+requires remaining > 0u64
+terminates by remaining
+{
+    transition remaining > 1u64 {
+        true -> second<T>(remaining - 1u64)
+        false -> 0u64
+    }
+}
+machine second<T>(remaining: u64) -> u64
+requires remaining > 0u64
+terminates by remaining
+{ transition { _ -> first<T>(remaining) } }
+machine entry() -> u64 { first<u32>(3u64) }
+"#;
+    let prepare = |text: &str| {
+        let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            super::boundary_calls::typed(text),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let entry = super::boundary_calls::entry(&typed);
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    };
+    let verdicts = crate::judge_compilation(prepare(mutually_recursive));
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+    let stalled = mutually_recursive.replace("second<T>(remaining - 1u64)", "second<T>(remaining)");
+    let refused = crate::judge_compilation(prepare(&stalled));
+    assert!(
+        refused.iter().any(|verdict| match verdict {
+            Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal
+                .detail
+                .contains("removing strict rank edges leaves a control cycle"),
+            Ok(RouteVerdict::Rejected { unproved, .. }) => unproved
+                .iter()
+                .any(|failure| matches!(failure.kind, ObligationKind::RankComparison { .. })),
+            _ => false,
+        }),
+        "the actual non-descending cycle must reject: {refused:?}"
+    );
+    for missing in [true, false] {
+        let mut input = prepare(mutually_recursive);
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+            &mut input
+        else {
+            panic!("the recursive source must prepare");
+        };
+        let count = prepared.forms.len();
+        let form = prepared
+            .forms
+            .first_mut()
+            .expect("the source retains its generic check forms");
+        form.applies = if missing { None } else { Some(vec![count]) };
+        let refused = crate::judge_compilation(input);
+        assert!(
+            refused.iter().any(|verdict| matches!(verdict,
+            Err(crate::CompilationRefusal::Elaboration(Refusal {
+                reason: RefusalReason::ForeignIdentity, detail, ..
+            })) if detail.contains("incomplete dependency roster"))),
+            "{refused:?}"
+        );
+    }
 }
 
 #[test]
@@ -687,6 +771,102 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
                     RefusalReason::Unproved(_)
                 ),
                 "{guarantee:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_finite_family_keeps_the_runtime_conjunct_of_its_requirement() {
+    let program = r#"
+        machine entry<Element>(items: &[Element], limit: u64) -> u64
+        requires limit <= 10u64 && (Element == u32 || Element == bool)
+        ensures result <= 10u64
+        {
+            limit
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (program.replace("limit <= 10u64 && ", ""), false),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
+            &source,
+            &[super::boundary_calls::entry(&source)],
+        )
+        .expect("the full requirement contains a complete finite family");
+        assert_eq!(forms.len(), 2);
+        for form in forms {
+            let verdict = judge(Ok(form)).unwrap();
+            if accepts {
+                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+            } else {
+                let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                    panic!("the missing runtime bound must reject: {verdict:?}");
+                };
+                assert!(
+                    unproved.iter().any(|failure| matches!(
+                        failure.kind,
+                        ObligationKind::NormalGuarantee { .. }
+                    )),
+                    "{unproved:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn lexical_siblings_keep_captured_types_and_callee_requirements() {
+    let program = r#"
+        machine entry<Kind>(limit: u32) -> u32
+        requires limit <= 10u32
+        ensures result <= 10u32
+        {
+            first(limit)
+            machine first(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                second(limit)
+            }
+            machine second(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                limit
+            }
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (
+            program.replace(
+                "machine second(limit: u32) -> u32\n            requires limit <= 10u32",
+                "machine second(limit: u32) -> u32\n            requires limit <= 9u32",
+            ),
+            false,
+        ),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .expect("the sibling's complete captured type tuple is available");
+        let verdict = judge(Ok(form)).unwrap();
+        if accepts {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("the stronger callee requirement must reject: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })),
+                "{unproved:?}"
             );
         }
     }

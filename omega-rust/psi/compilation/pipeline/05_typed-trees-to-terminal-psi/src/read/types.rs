@@ -785,6 +785,42 @@ impl Program<'_> {
         }
     }
 
+    /// Scalar lenders and byte elements keep the registered carrier's exact
+    /// storage identity. Their callers cannot substitute a destination type.
+    pub(super) fn plain_scalar_storage(
+        &mut self,
+        id: MachineId,
+        scalar: ScalarType,
+    ) -> Checked<semantic_vocabulary::StructuralTypeId> {
+        let atom = scalar_atom(scalar, id)?;
+        let symbol = self
+            .typed
+            .symbols
+            .builtin_atom_symbol(atom)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("scalar lender has no registered builtin"),
+                )
+            })?;
+        let reference = self
+            .typed
+            .type_reference_table
+            .find_arithmetic_result_type_reference(
+                symbol,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            )
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("scalar lender has no registered type occurrence"),
+                )
+            })?;
+        self.storage_type(id, reference, ValueType::plain(scalar))
+    }
+
     /// A formal's, local's, result's or field's type: a record when the
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.

@@ -255,6 +255,7 @@ impl Program<'_> {
                 }
             }
             requirements.push(SourceSchemaRequirement {
+                instance: None,
                 declaration: signature.symbol,
                 abstract_types,
                 signature: lowered,

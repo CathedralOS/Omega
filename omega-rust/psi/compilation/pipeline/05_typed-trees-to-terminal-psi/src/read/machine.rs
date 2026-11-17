@@ -916,6 +916,8 @@ impl<'t> Program<'t> {
         }
         let id = self.next_identity()?;
         let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
+        self.retain_requirement_policy(id, declared, declared.symbol)?;
+        self.retain_closed_requirement_envelope(id)?;
         if matches!(values, RequirementValues::Rigid) {
             self.generic_binders.extend(
                 self.typed
@@ -3540,7 +3542,13 @@ impl<'t> Program<'t> {
         self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
-            if statically_completed && matches!(statement, StatementNode::Transition(_)) {
+            if statically_completed && let StatementNode::Transition(transition) = statement {
+                // A later target is not executed, but a closed static guard
+                // still has an exact source operator selection. Evaluate only
+                // that static predicate, without reading the target's body.
+                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                    self.read_static_truth(id, symbol, guard, super::types::Reading::Value)?;
+                }
                 position += 1;
                 continue;
             }
@@ -4004,7 +4012,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(operand, binder, out);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             spans(base, binder, out);
             spans(index, binder, out);
         }
@@ -4216,7 +4224,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(operand, uses);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             expression_slot_uses(base, uses);
             expression_slot_uses(index, uses);
         }

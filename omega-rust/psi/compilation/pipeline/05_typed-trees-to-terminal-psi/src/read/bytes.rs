@@ -313,6 +313,7 @@ impl Program<'_> {
             kind: ExpressionKind::ByteElement {
                 base: Box::new(base),
                 index: Box::new(index),
+                element: self.plain_scalar_storage(machine, scalar(8))?,
             },
             result: Some(ValueType::plain(scalar(8))),
             source,
@@ -550,10 +551,7 @@ impl Program<'_> {
         // payload would have to be evaluated or established first, and is
         // refused here.
         if measure == CollectionMeasure::Length
-            && let StorageShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } = self.data_type(machine, record)?.shape
+            && let Some(length) = self.data_type(machine, record)?.shape.fixed_array_length()
         {
             let mut place = &base;
             while let ExpressionKind::Field { base, .. } | ExpressionKind::Referent(base) =

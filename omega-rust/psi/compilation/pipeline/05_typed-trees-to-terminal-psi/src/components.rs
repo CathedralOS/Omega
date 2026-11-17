@@ -298,7 +298,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
                 expression(operand, false, sites);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             expression(base, false, sites);
             expression(index, false, sites);
         }

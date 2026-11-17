@@ -3,11 +3,11 @@
 
 use semantic_vocabulary::CallableCrashPolicy;
 use semantic_vocabulary::{
-    MachineId, ObligationId, PlaceId, PropositionContext, StructuralPlaceKind, ValueId,
+    IdTable, MachineId, ObligationId, PlaceId, PropositionContext, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::contracts::{
-    CallableHeader, StaticCallableEnvelope, StaticImplementation, StaticServiceCeiling,
-    StaticSignature as Signature, StaticValueType as ValueType,
+    CallableHeader, StaticCallableEnvelope, StaticImplementation, StaticRequirementSchema,
+    StaticServiceCeiling, StaticSignature as Signature, StaticValueType as ValueType,
 };
 use terminal_check_tables::program::Elaboration;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
@@ -65,6 +65,16 @@ fn check_envelope(
             "static invocation ceiling is repeated or unordered",
         ));
     }
+    // Invocation ordinals name relevant runtime formals. The static signature
+    // also keeps erased source formals; consume its runtime projection once.
+    let mut formals = signature.map(|signature| {
+        signature
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(move |(position, _)| !signature.is_erased(*position))
+    });
+    let mut next_runtime = 0;
     for invocation in &envelope.invocations {
         match invocation {
             terminal_psi::TerminalCallableInvocation::Service(service)
@@ -86,12 +96,20 @@ fn check_envelope(
                             "static invocation ordinal exceeds its formal namespace",
                         )
                     })?;
-                    if signature.parameters.get(position).is_none()
-                        || !(signature.is_place(position)
-                            || matches!(
-                                signature.parameters[position],
-                                ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_))
-                            ))
+                    let (source, value_type) = loop {
+                        let formal = formals.as_mut().and_then(Iterator::next)
+                            .ok_or_else(|| fault(machine, "static invocation ceiling escapes its runtime formal namespace"))?;
+                        let requested = next_runtime == position;
+                        next_runtime += 1;
+                        if requested {
+                            break formal;
+                        }
+                    };
+                    if !(signature.is_place(source)
+                        || matches!(
+                            value_type,
+                            ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_))
+                        ))
                     {
                         return Err(fault(
                             machine,
@@ -115,6 +133,118 @@ fn check_envelope(
         ));
     }
     Ok(())
+}
+
+/// Rejoin a prepared bodyless machine to the complete source contract that
+/// introduced it. Applied headers sharing a symbol still have distinct IDs.
+pub(crate) fn requirement_declarations(
+    elaboration: &Elaboration,
+) -> Checked<IdTable<MachineId, Option<&StaticRequirementSchema>>> {
+    let module = &elaboration.module;
+    let mut declarations = elaboration.requirement_ceilings.map(|_, _| None);
+    for schema in &elaboration.static_schemas {
+        for declaration in &schema.requirements {
+            let Some(instance) = &declaration.instance else {
+                continue;
+            };
+            let id = instance.machine;
+            let target = declarations.get_mut(id).ok_or_else(|| {
+                fault(
+                    id,
+                    "abstract declaration has no exact requirement coordinate",
+                )
+            })?;
+            if target.replace(declaration).is_some() {
+                return Err(fault(
+                    id,
+                    "abstract requirement repeats its source declaration",
+                ));
+            }
+            let machine = module
+                .machine(id)
+                .ok_or_else(|| fault(id, "abstract declaration names no exact machine"))?;
+            let header = &instance.header;
+            check_envelope(
+                module,
+                id,
+                &declaration.envelope,
+                Some(&declaration.signature),
+            )?;
+            let differs = [
+                (
+                    "abstract requirement has a different source declaration",
+                    schema.declaration != declaration.declaration
+                        || elaboration.machines.get(id) != Some(&declaration.declaration),
+                ),
+                (
+                    "abstract requirement has a different source header coordinate",
+                    header.proof.id != machine.contract.id,
+                ),
+                (
+                    "abstract requirement has a different source parameter order",
+                    header.parameter_order != machine.parameter_order,
+                ),
+                (
+                    "abstract requirement has different source scalar formals",
+                    header.scalar_parameters != machine.parameters,
+                ),
+                (
+                    "abstract requirement has different source structural formals",
+                    header.structural_parameters != machine.structural_parameters,
+                ),
+                (
+                    "abstract requirement has a different source result",
+                    header.result != machine.result,
+                ),
+                (
+                    "abstract requirement has different source erased formals",
+                    header.proof.erased_scalar_formals != machine.erased_scalar_formals,
+                ),
+                (
+                    "abstract requirement has different source entry predicates",
+                    header.proof.requires != machine.requires,
+                ),
+                (
+                    "abstract requirement has different source result predicates",
+                    !header
+                        .proof
+                        .ensures
+                        .iter()
+                        .map(|row| &row.proposition)
+                        .eq(machine.ensures.iter().map(|row| &row.proposition)),
+                ),
+                (
+                    "abstract requirement has different source crash routes",
+                    header.proof.declared_crash_routes != machine.declared_crash_routes,
+                ),
+                (
+                    "abstract requirement has a different source service ceiling",
+                    header.proof.declared_service_reach != machine.declared_service_reach,
+                ),
+                (
+                    "abstract requirement has a different source entry ceiling",
+                    header.proof.declared_synchronous_entries
+                        != machine.declared_synchronous_entries,
+                ),
+                (
+                    "abstract requirement has a different source suspension bound",
+                    header.proof.declared_suspension != machine.declared_suspension,
+                ),
+                (
+                    "abstract requirement has a different source blocking bound",
+                    header.proof.declared_blocking != machine.declared_blocking,
+                ),
+                (
+                    "abstract requirement has a different source progress guarantee",
+                    header.proof.termination != machine.termination,
+                ),
+            ];
+            if let Some((reason, _)) = differs.into_iter().find(|(_, different)| *different) {
+                return Err(fault(id, reason));
+            }
+        }
+    }
+    Ok(declarations)
 }
 
 fn schema_context(

@@ -253,7 +253,9 @@ impl<'t> Program<'t> {
                             }
                     )
                 })
-                && machine.lifetime_parameters.is_empty()
+            // Lifetimes are erased regions, not unspent code selections.
+            // The ordinary call still matches every actual and result region
+            // against the instantiated signature in `call_of`.
         })
     }
 
@@ -2437,24 +2439,16 @@ impl<'t> Program<'t> {
         )
     }
 
-    /// A direct entry into a lexical child carries the caller's own
-    /// telescope even when the call has no explicit static application.
-    /// Read the child's signature at those same rigid types. The existing
-    /// application owner also requests the child's independent body check.
+    /// Captured binders keep their exact identities across calls between
+    /// lexical helpers, including siblings. Read the callee at those same
+    /// bindings; a separately declared binder needs an explicit application.
+    /// The ordinary application owner also requests the independent body check.
     fn inherited_type_arguments(
         &self,
         id: MachineId,
         target: SymbolHandle,
     ) -> Option<Vec<crate::body::ValueType>> {
         if !self.checking_generic_entry(id) {
-            return None;
-        }
-        let caller = *self.symbols.get(id)?;
-        let mut enclosing = self.typed.symbols.get(target).parent;
-        while enclosing.is_valid() && enclosing != caller {
-            enclosing = self.typed.symbols.get(enclosing).parent;
-        }
-        if enclosing != caller {
             return None;
         }
         let machine = self.typed.machine_by_symbol(target)?;
@@ -3474,33 +3468,7 @@ impl<'t> Program<'t> {
                         Unserved::Typing("scalar lender without its carrier"),
                     )
                 })?;
-                let atom = super::types::scalar_atom(scalar, id)?;
-                let symbol = self
-                    .typed
-                    .symbols
-                    .builtin_atom_symbol(atom)
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Type("scalar lender has no registered builtin"),
-                        )
-                    })?;
-                let reference = self
-                    .typed
-                    .type_reference_table
-                    .find_arithmetic_result_type_reference(
-                        symbol,
-                        numerics::arithmetic::ArithmeticDomain::Exact,
-                    )
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Type("scalar lender has no registered type occurrence"),
-                        )
-                    })?;
-                let storage = self.storage_type(id, reference, lender.value_type)?;
+                let storage = self.plain_scalar_storage(id, scalar)?;
                 Some(self.data_type(id, storage)?.identity.clone())
             }
             _ => None,
@@ -3741,7 +3709,9 @@ fn place_path<'a>(
                         .and_then(|record| field_identity(record, *field))
                         .map(Segment::Field),
                 ),
-                ExpressionKind::Payload { .. } | ExpressionKind::Index { .. } => steps.push(None),
+                ExpressionKind::Payload { .. }
+                | ExpressionKind::Index { .. }
+                | ExpressionKind::ByteElement { .. } => steps.push(None),
                 _ => {}
             }
             Ok(())
@@ -3783,7 +3753,8 @@ impl Touches<'_> {
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         match &place.kind {
-            ExpressionKind::Index { base, index } => {
+            ExpressionKind::Index { base, index }
+            | ExpressionKind::ByteElement { base, index, .. } => {
                 Ok(self.selectors(base, captures)? || self.expression(index, false, captures)?)
             }
             ExpressionKind::Field { base, .. }
@@ -3809,7 +3780,8 @@ impl Touches<'_> {
         let mut root = place;
         loop {
             match &root.kind {
-                ExpressionKind::Index { base, index } => {
+                ExpressionKind::Index { base, index }
+                | ExpressionKind::ByteElement { base, index, .. } => {
                     if self.expression(index, false, captures)? {
                         return Ok(true);
                     }
@@ -3858,6 +3830,7 @@ impl Touches<'_> {
             | ExpressionKind::Field { .. }
             | ExpressionKind::Payload { .. }
             | ExpressionKind::Index { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
@@ -3899,9 +3872,6 @@ impl Touches<'_> {
                 }
                 Ok(false)
             }
-            ExpressionKind::ByteElement { base, index } => Ok(self
-                .expression(base, false, captures)?
-                || self.expression(index, false, captures)?),
             ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
                 for (_, operand) in fields {
                     if self.expression(operand, changes, captures)? {

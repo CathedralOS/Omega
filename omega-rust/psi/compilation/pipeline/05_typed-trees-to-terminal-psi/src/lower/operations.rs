@@ -302,7 +302,7 @@ impl Lowering<'_> {
                 )
                 .map(Reached::Value)
             }
-            ExpressionKind::ByteElement { base, index } => {
+            ExpressionKind::ByteElement { base, index, .. } => {
                 self.read_byte_element(base, index, source)
             }
             ExpressionKind::CollectionSubslice { .. } | ExpressionKind::CollectionView { .. } => {

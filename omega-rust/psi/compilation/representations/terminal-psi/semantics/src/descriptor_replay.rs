@@ -18,6 +18,32 @@ pub(crate) mod analysis {
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
+    #[cfg(debug_assertions)]
+    fn trace_storage_query(
+        replay: &super::engine::Replay<'_>,
+        machine: &DescriptorMachine,
+        before: &super::engine::State,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) {
+        if std::env::var_os("OMEGA_DESCRIPTOR_STORAGE_TRACE").is_none() {
+            return;
+        }
+        let root_type = machine.place_types.get(&location.root);
+        let shape = root_type
+            .and_then(|id| replay.types.iter().find(|ty| ty.id == *id))
+            .map(|ty| &ty.shape);
+        let origins = before
+            .slots
+            .get(&DescriptorLocation::whole(location.root))
+            .and_then(Option::as_ref)
+            .map(|origins| origins.iter().take(4).collect::<Vec<_>>());
+        eprintln!(
+            "descriptor storage query: machine={:?} at={position:?} location={location:?} root_type={root_type:?} shape={shape:?} origins={origins:?}",
+            machine.id
+        );
+    }
+
     pub(crate) mod call_origins {
         use super::*;
 
@@ -1343,7 +1369,11 @@ pub(crate) mod analysis {
                                 detail: Some(INEXACT_REFERENCE_BACKING),
                             })
                         }
-                        None => Err(incomplete_step()),
+                        None => {
+                            #[cfg(debug_assertions)]
+                            trace_storage_query(replay, machine, before, *position, location);
+                            Err(incomplete_step())
+                        }
                     }
                 };
                 step.definitions = step
@@ -1514,7 +1544,11 @@ pub(crate) mod analysis {
                         detail: Some(INEXACT_REFERENCE_BACKING),
                     })
                 }
-                None => Err(incomplete_step()),
+                None => {
+                    #[cfg(debug_assertions)]
+                    trace_storage_query(&self.replay, machine, before, position, location);
+                    Err(incomplete_step())
+                }
             };
             let summary = self
                 .replay

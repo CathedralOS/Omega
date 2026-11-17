@@ -479,3 +479,31 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
         "an opaque marker cannot hide a concrete extent equation"
     );
 }
+
+#[test]
+fn fixed_array_contract_lengths_keep_the_exact_field_carrier() {
+    let source = r#"
+data Holder { short: [u8; 2]; long: [u8; 4]; }
+machine bounded(holder: &Holder, index: u64)
+requires index < holder.long.len
+{}
+machine build_entry(holder: &Holder, index: u64)
+requires index < 4u64
+{ bounded(holder, index); }
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let rejected = verdict(&source.replace("holder.long.len", "holder.short.len"));
+    assert!(rejected.starts_with("rejected"), "{rejected}");
+    let unestablished = verdict(
+        r#"
+data Choice { case Empty; case Filled(slots: [u8; 4]); }
+machine build_entry(choice: &Choice, index: u64)
+requires index < choice.slots.len
+{}
+"#,
+    );
+    assert!(
+        unestablished.contains("fixed array length through an unestablished case payload"),
+        "{unestablished}"
+    );
+}

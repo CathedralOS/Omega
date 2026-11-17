@@ -409,6 +409,45 @@ fn one_authored_measure_can_decrease_inside_the_helper() {
 }
 
 #[test]
+fn a_declared_measure_reaches_helpers_before_a_returned_budget() {
+    let program = r#"
+        data Budget { remaining: u64; }
+        machine reduced(remaining: u64) -> Budget {
+            Budget { remaining: remaining }
+        }
+        machine count(remaining: u64) -> u64
+        requires remaining > 0u64
+        terminates by remaining
+        {
+            transition remaining > 1u64 {
+                true -> prepare(remaining)
+                false -> 0u64
+            }
+            machine prepare(remaining: u64) -> u64
+            requires remaining > 1u64
+            {
+                let returned: Budget = reduced(remaining - 1u64);
+                resume(remaining, returned.remaining)
+            }
+            machine resume(original: u64, left: u64) -> u64
+            requires original > 1u64
+            {
+                transition left > 0u64 && left < original {
+                    true -> count(left)
+                    false -> 0u64
+                }
+            }
+        }
+    "#;
+    accepted(program);
+    let failures = unproved(&program.replace("left < original", "left <= original"));
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
+}
+
+#[test]
 fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
     // The helpers permute the scalar positions while carrying the same owned
     // record. Only the cycle root chooses a measure; its exact call bindings

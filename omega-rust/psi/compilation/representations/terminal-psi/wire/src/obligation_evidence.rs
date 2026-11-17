@@ -444,10 +444,16 @@ impl<'module> MachineEvidenceGoals<'module> {
                     projection.path,
                     types,
                     |prefix| {
-                        terminal_semantics::preceding_element_view_length(
+                        terminal_semantics::preceding_collection_length(
                             preceding,
                             projection.root,
                             prefix,
+                            terminal_semantics::runtime_structural_field(
+                                structural_types.iter(),
+                                root,
+                                prefix,
+                            )
+                            .map(|field| field.id),
                         )
                     },
                     |obligation, proposition| {

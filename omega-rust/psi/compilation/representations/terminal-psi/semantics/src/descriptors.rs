@@ -330,6 +330,99 @@ pub mod descriptor_lifetimes {
             }
         }
 
+        /// Indexing a view borrows through that descriptor, even when the
+        /// selected element is an ordinary scalar. This identifies permission,
+        /// not the address or extent of the payload.
+        pub fn view_element_descriptor_prefix(
+            types: &[StructuralTypeDeclaration],
+            root_type: StructuralTypeId,
+            path: &[DescriptorPathSegment],
+        ) -> Result<Option<usize>, &'static str> {
+            let mut tip = Some(root_type);
+            let mut case_fields = None;
+            let mut element = None;
+            for (position, segment) in path.iter().enumerate() {
+                let owner = declaration(types, tip.ok_or("a loan path crosses a scalar leaf")?)
+                    .ok_or("a loan path has no exact structural declaration")?;
+                if case_fields.is_none()
+                    && matches!(
+                        segment,
+                        DescriptorPathSegment::FixedIndex(_)
+                            | DescriptorPathSegment::RuntimeIndex { .. }
+                    )
+                    && owner.shape.is_view_descriptor()
+                {
+                    if element.replace(position).is_some() {
+                        return Err("an inner view needs its own captured descriptor");
+                    }
+                }
+                tip = match segment {
+                    DescriptorPathSegment::Field(id) => {
+                        let fields = match case_fields.take() {
+                            Some(fields) => fields,
+                            None => fields(owner).ok_or("a loan field has no record owner")?,
+                        };
+                        let field = exactly_one(fields.iter(), |field| {
+                            field.id == *id && !field.relevance.is_erased()
+                        })
+                        .ok_or("a loan field has no exact declaration")?;
+                        match field.field_type {
+                            StructuralFieldType::Structural(id) => Some(id),
+                            _ => crate::inline_carrier_declaration(types.iter(), field)
+                                .map(|declaration| declaration.id),
+                        }
+                    }
+                    DescriptorPathSegment::Case(id) if case_fields.is_none() => {
+                        let cases = owner
+                            .shape
+                            .sum_cases()
+                            .ok_or("a loan case has no sum owner")?;
+                        let case = exactly_one(cases.iter(), |case| case.id == *id)
+                            .ok_or("a loan case has no exact declaration")?;
+                        case_fields = Some(case.fields.as_slice());
+                        Some(owner.id)
+                    }
+                    DescriptorPathSegment::Referent if case_fields.is_none() => {
+                        if element.is_some() {
+                            return Err("reference backing beneath an unresolved element selector");
+                        }
+                        let StructuralTypeShape::Reference { referent, .. } = owner.shape else {
+                            return Err("a loan referent has no reference descriptor");
+                        };
+                        Some(referent)
+                    }
+                    DescriptorPathSegment::FixedIndex(_)
+                    | DescriptorPathSegment::RuntimeIndex { .. }
+                        if case_fields.is_none() =>
+                    {
+                        match owner.shape {
+                            StructuralTypeShape::FixedArray { element, .. }
+                            | StructuralTypeShape::ElementView { element, .. } => Some(element),
+                            StructuralTypeShape::ByteSequence(_) => None,
+                            _ => return Err("a loan index has no array or view owner"),
+                        }
+                    }
+                    DescriptorPathSegment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    } if case_fields.is_none() => Some(
+                        crate::representation_view_declaration(
+                            types.iter(),
+                            *structural_type,
+                            *stored_scalar,
+                        )
+                        .ok_or("a loan presentation has no exact declaration")?
+                        .id,
+                    ),
+                    // Extent observations name the descriptor's storage, not
+                    // its separately borrowed bytes.
+                    DescriptorPathSegment::Extent => return Ok(element),
+                    _ => return Err("a loan path has no exact typed projection"),
+                };
+            }
+            Ok(element)
+        }
+
         pub fn descriptor_location_type(
             types: &[StructuralTypeDeclaration],
             root_type: StructuralTypeId,
@@ -638,7 +731,7 @@ pub mod descriptor_lifetimes {
     }
     pub use locations::{
         canonical_descriptor_location, descriptor_location, descriptor_location_type,
-        descriptor_path, fixed_runtime_index_alternatives,
+        descriptor_path, fixed_runtime_index_alternatives, view_element_descriptor_prefix,
     };
     pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 

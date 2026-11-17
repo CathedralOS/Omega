@@ -244,7 +244,21 @@ impl Lowering<'_> {
                     .get(*block)
                     .and_then(Option::as_ref)
                     .ok_or_else(|| {
-                        self.unserved_rank("a call-cycle member has no declared ranking")
+                        let mut refusal =
+                            self.unserved_rank("a cyclic block has no ranking observation");
+                        refusal.concerns = Construct::Block(*block);
+                        let head = heads
+                            .binary_search_by_key(block, |(block, _)| *block)
+                            .ok()
+                            .map(|position| heads[position].1);
+                        refusal.detail.push_str(&format!(
+                            " (machine {:?}, block {:?}, head {:?}, source {:?})",
+                            self.id,
+                            block,
+                            head,
+                            self.sources.blocks.get(*block),
+                        ));
+                        refusal
                     })?;
                 let values = cycle.observations.insert_many(rank.clone());
                 cycle.ranks.push(TerminalBlockNaturalRank {

@@ -871,27 +871,15 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     judge_owing(elaborated, AppliedContracts::Undecided)
 }
 
-/// Who decides the contract rows of the generic machines a generic check
-/// form applies (`Elaboration::applications`): `forward<T>` inside
-/// `relay<T>` is there as its contract with no body, so the form proves
-/// `forward`'s `requires` at the call and relies on its `ensures`.
+/// Who decides bodyless requirement rows. Applied generic helpers have
+/// actual bodies and always receive the ordinary verdict in this form.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppliedContracts {
-    /// Nobody this judgment knows of. Their rows keep the `Unsupported`
-    /// verdict the discharge gives every machine with no body, so the form
-    /// is undecided: a guarantee nothing proves is never read as held.
+    /// No independent implementation witness is available. A missing body
+    /// keeps its ordinary refusal; no unchecked guarantee is assumed.
     Undecided,
-    /// Each applied machine's own check form, judged in the same
-    /// compilation with its parameters rigid, so for every type the caller
-    /// can pass (`examine_generic_forms`). The rows are that form's
-    /// obligations and are not judged a second time here.
-    ///
-    /// A requirement the form calls through an implementation parameter is
-    /// there the same way, as its contract with no body. What makes its
-    /// `ensures` true is each implementation's refinement witness, and the
-    /// same compilation judges the witness of every row its subject declares
-    /// and of every row its closure selects (`judge_compilation`), so
-    /// the requirement's rows are left to them.
+    /// Exact implementation witnesses in this compilation decide abstract
+    /// requirement bodies. Their callers still prove the complete contract.
     OwnCheckForms,
 }
 
@@ -1133,9 +1121,7 @@ fn conclude(
     let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
-        if applied == AppliedContracts::OwnCheckForms
-            && (elaboration.applications.contains(&machine)
-                || elaboration.requirements.contains(&machine))
+        if applied == AppliedContracts::OwnCheckForms && elaboration.requirements.contains(&machine)
         {
             continue;
         }
@@ -1593,8 +1579,7 @@ enum GenericForm {
         template: symbols::SymbolHandle,
         examined: Examined,
     },
-    /// Its verdict, reached before a discharge: a form refused, or a
-    /// template on a call cycle.
+    /// Its verdict, reached before a discharge: preparation or checking refused.
     Decided(Checked<RouteVerdict>),
 }
 
@@ -1717,46 +1702,35 @@ fn carried<'a>(
 /// every generic machine those forms apply, in the order they are met, each
 /// discharged and awaiting its verdict.
 ///
-/// A generic body may call another generic machine at its own type
-/// parameters. That callee is in the caller's form as a contract with no
-/// body, and what makes its `ensures` true is the callee's own check form:
-/// generics.md, "Static type equality", "An unspecialized body checks every
-/// admitted alternative", so one form judged with the callee's parameters
-/// rigid proves the contract for every type a caller can name. The applied
-/// machine is therefore judged here whichever package declares it
-/// (validation_subjects.md: a passed check means "every declaration they
-/// depend on is valid"), and the caller's form leaves the callee's rows to
-/// it. When the callee's form is rejected or not served, that verdict is in
-/// the list and the compilation is rejected or undecided with it.
-///
-/// A machine that reaches itself through such calls is the exception. Each
-/// form on the cycle would take the next one's contract as given, and no
-/// form holds the cycle's bodies together, so nothing would judge the cycle:
-/// termination.md, "Calls and productive loops", asks that a runtime call
-/// cycle stand in tail position and that a `terminates` promise over it be
-/// ranked, and `typed_trees_to_terminal_psi` judges both only for a cycle among
-/// bodies it read. Such a template is refused by name as not supported yet,
-/// whatever contract it states: one with no `ensures` has no applied row
-/// left undecided, and would otherwise be accepted unjudged.
+/// Applied generic helpers retain their actual bodies in the same form.
+/// Ordinary component lowering checks every call, tail transfer and ranking
+/// edge, and the ordinary verdict checks those bodies. Independent forms still
+/// check each declaration universally. Only actual abstract requirements leave
+/// their body obligations to exact implementation witnesses.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
-    let cyclic: Vec<_> = (0..forms.len())
-        .map(|position| reaches_itself(&forms, position))
-        .collect();
+    let count = forms.len();
     let mut examined = Vec::new();
-    for (form, cyclic) in forms.into_iter().zip(cyclic) {
+    for form in forms {
         let template = form.template;
-        if cyclic {
+        if form
+            .applies
+            .as_ref()
+            .is_none_or(|applied| applied.iter().any(|position| *position >= count))
+        {
             let first = MachineId::new(1).expect("1 is nonzero");
-            examined.push(GenericForm::Decided(Ok(RouteVerdict::FallBack(refusal(
-                RefusalReason::Unsupported,
+            examined.push(GenericForm::Decided(Err(refusal(
+                RefusalReason::ForeignIdentity,
                 first,
                 Construct::Machine,
-                &format!("generic machine `{}` on a call cycle", form.name),
-            )))));
+                &format!(
+                    "generic machine `{}` has an incomplete dependency roster",
+                    form.name
+                ),
+            ))));
             continue;
         }
         match form.forms {
@@ -1774,32 +1748,6 @@ fn examine_generic_forms(
         }
     }
     examined
-}
-
-/// Unknown or cyclic generic dependencies cannot supply unchecked guarantees.
-fn reaches_itself(
-    forms: &[terminal_check_tables::compilation::GenericForms],
-    template: usize,
-) -> bool {
-    let mut seen = vec![false; forms.len()];
-    let mut pending = vec![template];
-    while let Some(current) = pending.pop() {
-        let Some(applied) = forms.get(current).and_then(|form| form.applies.as_ref()) else {
-            return true;
-        };
-        for next in applied {
-            if *next == template {
-                return true;
-            }
-            let Some(visited) = seen.get_mut(*next) else {
-                return true;
-            };
-            if !std::mem::replace(visited, true) {
-                pending.push(*next);
-            }
-        }
-    }
-    false
 }
 
 /// Where an operation, edge or block arises in the source, from

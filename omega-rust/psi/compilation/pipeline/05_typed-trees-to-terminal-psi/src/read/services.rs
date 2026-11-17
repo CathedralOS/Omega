@@ -686,6 +686,110 @@ impl Program<'_> {
         *saved = Some(policy);
         Ok(())
     }
+
+    pub(crate) fn retain_requirement_schema(&mut self, id: MachineId) -> Checked<()> {
+        use crate::static_contracts::{
+            SourceSchema, SourceSchemaRequirement, SourceServiceCeiling, StaticSourceEnvelope,
+        };
+        if !self.requirements.contains(&id) {
+            return Err(unavailable(
+                id,
+                "an abstract schema names no actual requirement",
+            ));
+        }
+        let policy = self
+            .declared_envelope_policies
+            .get(id)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source policy"))?;
+        let signature = self
+            .signatures
+            .get(id)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source header"))?;
+        let declaration = *self
+            .symbols
+            .get(id)
+            .ok_or_else(|| unavailable(id, "abstract requirement lost its source declaration"))?;
+        let abstract_types = signature
+            .parameters
+            .iter()
+            .copied()
+            .chain(signature.result)
+            .filter_map(|value| match value {
+                crate::body::ValueType::Rigid(rigid) => Some(rigid.0),
+                _ => None,
+            })
+            .max()
+            .map_or(Some(0), |last| last.checked_add(1))
+            .ok_or_else(|| unavailable(id, "abstract requirement type namespace overflow"))?;
+        let source = SourceSchemaRequirement {
+            instance: Some(id),
+            declaration,
+            abstract_types,
+            signature: signature.clone(),
+            envelope: StaticSourceEnvelope {
+                service_reach: match &policy.reach {
+                    Some(row) => SourceServiceCeiling::Closed(row.clone()),
+                    None => SourceServiceCeiling::Open,
+                },
+                invocations: policy.invokes.clone().ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its invocation bound")
+                })?,
+                suspends: policy.suspends.ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its suspension bound")
+                })?,
+                blocks: policy.blocks.ok_or_else(|| {
+                    unavailable(id, "abstract requirement lost its blocking bound")
+                })?,
+                termination: policy.termination.clone(),
+            },
+        };
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        match self
+            .static_contracts
+            .schemas
+            .binary_search_by_key(&key(declaration), |schema| key(schema.declaration))
+        {
+            Ok(position) => {
+                let schema = &mut self.static_contracts.schemas[position];
+                if schema
+                    .requirements
+                    .last()
+                    .is_some_and(|row| row.instance.is_some_and(|earlier| earlier >= id))
+                {
+                    return Err(unavailable(
+                        id,
+                        "abstract requirement schema was already retained",
+                    ));
+                }
+                schema.requirements.push(source);
+            }
+            Err(position) => self.static_contracts.schemas.insert(
+                position,
+                SourceSchema {
+                    declaration,
+                    requirements: vec![source],
+                },
+            ),
+        }
+        Ok(())
+    }
+
+    pub(super) fn retain_closed_requirement_envelope(&mut self, id: MachineId) -> Checked<()> {
+        let policy = self
+            .declared_envelope_policies
+            .get(id)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| unavailable(id, "bodyless requirement has no retained source policy"))?;
+        // A checked body completes its own envelope. A bodyless requirement
+        // can retain only axes its source contract already closes.
+        if let Some(envelope) = policy.closed() {
+            self.callables
+                .bind_machine_envelope(id, envelope)
+                .map_err(|reason| unavailable(id, reason))?;
+        }
+        Ok(())
+    }
 }
 
 fn call_terminates(
@@ -736,6 +840,16 @@ pub(super) struct Policy {
     termination: TerminalCallableTermination,
 }
 impl Policy {
+    fn closed(&self) -> Option<SourceEnvelope> {
+        Some(SourceEnvelope {
+            service_reach: self.reach.clone()?,
+            invocations: self.invokes.clone()?,
+            suspends: self.suspends?,
+            blocks: self.blocks?,
+            termination: self.termination.clone(),
+        })
+    }
+
     fn initial(&self) -> SourceEnvelope {
         SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or_default(),
@@ -898,7 +1012,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 collect_expression(end, calls);
             }
         }
-        E::Index { base, index } | E::ByteElement { base, index } => {
+        E::Index { base, index } | E::ByteElement { base, index, .. } => {
             collect_expression(base, calls);
             collect_expression(index, calls);
         }

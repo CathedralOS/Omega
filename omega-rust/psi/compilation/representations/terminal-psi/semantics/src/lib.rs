@@ -645,7 +645,7 @@ pub use structural::primitive_place::{
     borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
     canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
     canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, inline_descriptor_type, preceding_element_view_length,
+    inline_backing_container, inline_descriptor_type, preceding_collection_length,
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
     primitive_read_requirement, projection_stays_in_inline_storage,

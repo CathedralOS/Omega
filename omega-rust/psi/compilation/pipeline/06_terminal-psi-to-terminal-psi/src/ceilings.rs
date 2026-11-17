@@ -13,6 +13,7 @@ use terminal_psi::{
     BoundaryParameterKind, TerminalCallableEnvelope, TerminalCallableInvocation as Entry,
     TerminalMachine, TerminalModule,
 };
+use terminal_semantics::callable_envelopes::CallableOperationalView;
 use terminal_semantics::callable_values::{
     CallableFormalInput, CallableInvocationSite, CallableParameter, CallableValuePossibilities,
     CallableValueProgram, CallableValueQuery, resolve_callable_value, terminal_callable_values,
@@ -54,6 +55,20 @@ enum Envelope<'a> {
     Abstract(&'a terminal_check_tables::contracts::RequirementCeilings),
 }
 impl<'a> Envelope<'a> {
+    fn operational(self) -> Option<CallableOperationalView<'a>> {
+        match self {
+            Self::Runtime(envelope) => Some(CallableOperationalView::from(envelope)),
+            Self::Abstract(row) => row
+                .envelope
+                .as_ref()
+                .map(|envelope| CallableOperationalView {
+                    invocations: &envelope.invocations,
+                    suspends: envelope.suspends,
+                    blocks: envelope.blocks,
+                    termination: &envelope.termination,
+                }),
+        }
+    }
     fn reach(self) -> Option<&'a [ServiceId]> {
         match self {
             Self::Runtime(envelope) => Some(&envelope.service_reach),
@@ -66,6 +81,9 @@ impl<'a> Envelope<'a> {
     fn entries(self) -> Option<Vec<Entry>> {
         match self {
             Self::Runtime(envelope) => Some(envelope.invocations.clone()),
+            Self::Abstract(envelope) if envelope.envelope.is_some() => {
+                Some(envelope.envelope.as_ref()?.invocations.clone())
+            }
             Self::Abstract(envelope) => match &envelope.invokes {
                 terminal_check_tables::contracts::Ceiling::Inferred => None,
                 terminal_check_tables::contracts::Ceiling::Authored(row) => {
@@ -87,9 +105,7 @@ impl<'a> Envelope<'a> {
                 .entries()
                 .map(|row| row.into_iter().map(Permission::Entry).collect()),
             Axis::Suspension | Axis::Blocking | Axis::Termination => {
-                let Self::Runtime(envelope) = self else {
-                    return None;
-                };
+                let envelope = self.operational()?;
                 let permitted = match axis {
                     Axis::Suspension => envelope.suspends.then_some(Permission::MaySuspend),
                     Axis::Blocking => envelope.blocks.then_some(Permission::MayBlock),
@@ -275,10 +291,10 @@ struct Contributions {
 }
 
 impl Contributions {
-    fn operational(&mut self, envelope: &TerminalCallableEnvelope) {
+    fn operational(&mut self, envelope: CallableOperationalView<'_>) {
         self.suspends |= envelope.suspends;
         self.blocks |= envelope.blocks;
-        match &envelope.termination {
+        match envelope.termination {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => self.may_diverge = true,
             terminal_psi::TerminalCallableTermination::Terminates { premises } => {
                 self.conditional_progress |= !premises.is_empty();
@@ -658,7 +674,7 @@ impl Calls<'_> {
         let values = self.resolve(query)?;
         self.holder(contract, &values, reached)?;
         let envelope = &self.contract(contract)?.envelope;
-        reached.operational(envelope);
+        reached.operational(CallableOperationalView::from(envelope));
         union(&mut reached.reach, envelope.service_reach.iter().copied());
         for entry in &envelope.invocations {
             match entry {
@@ -742,6 +758,106 @@ fn validate_check_form_envelopes(
     Ok(())
 }
 
+fn validate_requirement_envelopes(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<()> {
+    use terminal_check_tables::contracts::{Ceiling, StaticServiceCeiling};
+    let module = &elaboration.module;
+    let mut requirements = elaboration.requirements.clone();
+    requirements.sort_unstable();
+    let declarations = crate::static_contracts::requirement_declarations(elaboration)?;
+    for (id, row) in elaboration.requirement_ceilings.iter() {
+        let declaration = declarations.get(id).and_then(|source| *source);
+        let Some(envelope) = &row.envelope else {
+            if declaration.is_some() {
+                return Err(fault(
+                    id,
+                    "abstract requirement lost its declared operational row",
+                ));
+            }
+            continue;
+        };
+        let declaration = declaration.ok_or_else(|| {
+            fault(
+                id,
+                "abstract requirement has no complete source declaration",
+            )
+        })?;
+        if envelope != &declaration.envelope {
+            return Err(fault(
+                id,
+                "abstract envelope differs from its complete source declaration",
+            ));
+        }
+        let machine = module
+            .machine(id)
+            .ok_or_else(|| fault(id, "abstract envelope names no exact machine"))?;
+        if requirements.binary_search(&id).is_err()
+            || !machine.blocks.is_empty()
+            || machine.declaration.is_some()
+            || module.callables.machine_envelope(id).is_some()
+        {
+            return Err(fault(
+                id,
+                "abstract envelope does not belong to a bodyless requirement",
+            ));
+        }
+        let reach = match (&row.reaches, &envelope.service_reach) {
+            (Ceiling::Inferred, StaticServiceCeiling::Open) => None,
+            (Ceiling::Authored(expected), StaticServiceCeiling::Closed(actual))
+                if expected == actual =>
+            {
+                Some(actual.as_slice())
+            }
+            _ => {
+                return Err(fault(
+                    id,
+                    "abstract envelope changes its declared service ceiling",
+                ));
+            }
+        };
+        let entries = envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Service(service) => Some(*service),
+                Entry::Parameter(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !matches!(&row.invokes, Ceiling::Authored(expected) if expected == &entries)
+            || reach.is_some_and(|reach| reach != machine.published_service_ceiling)
+            || entries != machine.published_synchronous_entries
+            || envelope.suspends != machine.published_may_suspend
+            || envelope.blocks != machine.published_may_block
+            || (machine.contract.termination == semantic_vocabulary::Termination::Terminates)
+                != matches!(
+                    envelope.termination,
+                    terminal_psi::TerminalCallableTermination::Terminates { .. }
+                )
+        {
+            return Err(fault(
+                id,
+                "abstract envelope differs from its exact published header",
+            ));
+        }
+        terminal_semantics::callable_envelopes::validate_callable_bounds(
+            module,
+            reach,
+            CallableOperationalView {
+                invocations: &envelope.invocations,
+                suspends: envelope.suspends,
+                blocks: envelope.blocks,
+                termination: &envelope.termination,
+            },
+            &machine.parameter_order,
+            &machine.parameters,
+            &machine.structural_parameters,
+        )
+        .map_err(|reason| fault(id, reason))?;
+    }
+    Ok(())
+}
+
 pub(crate) fn judge(
     elaboration: &terminal_check_tables::program::Elaboration,
 ) -> Checked<Vec<Excess>> {
@@ -759,6 +875,7 @@ pub(crate) fn judge(
         ));
     }
     validate_check_form_envelopes(elaboration)?;
+    validate_requirement_envelopes(elaboration)?;
     let Some(first) = module.machines.first().map(|machine| machine.id) else {
         return Ok(Vec::new());
     };
@@ -904,6 +1021,13 @@ pub(crate) fn judge(
             .invocations
             .values()
             .any(|call| matches!(call.callee, Callee::Selected { .. }))
+    }) || elaboration.requirement_ceilings.values().any(|row| {
+        row.envelope.as_ref().is_some_and(|envelope| {
+            envelope
+                .invocations
+                .iter()
+                .any(|entry| matches!(entry, Entry::Parameter(_)))
+        })
     }) || elaboration.check_form_envelopes.iter().any(|row| {
         row.envelope
             .invocations
@@ -988,14 +1112,12 @@ pub(crate) fn judge(
                     "open abstract invocation ceiling cannot establish a finite caller ceiling",
                 ));
             }
-            match envelope {
-                Envelope::Runtime(envelope) => reached.operational(envelope),
-                Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-                    return Err(context.unsupported(
-                        "abstract callable has no closed suspension, blocking or progress envelope",
-                    ));
-                }
-                Envelope::Abstract(_) => {}
+            if let Some(operational) = envelope.operational() {
+                reached.operational(operational);
+            } else if ceiling.operational().is_some() {
+                return Err(context.unsupported(
+                    "abstract callable has no retained suspension, blocking or progress envelope",
+                ));
             }
             if let Callee::Selected { callable } = call.inputs.callee {
                 let contract = call.inputs.contract.ok_or_else(|| {
@@ -1134,14 +1256,12 @@ fn tail_contribution(
             "open abstract invocation ceiling cannot establish a finite caller ceiling",
         ));
     }
-    match envelope {
-        Envelope::Runtime(envelope) => reached.operational(envelope),
-        Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-            return Err(context.unsupported(
-                "abstract callable has no closed suspension, blocking or progress envelope",
-            ));
-        }
-        Envelope::Abstract(_) => {}
+    if let Some(operational) = envelope.operational() {
+        reached.operational(operational);
+    } else if ceiling.operational().is_some() {
+        return Err(context.unsupported(
+            "abstract callable has no retained suspension, blocking or progress envelope",
+        ));
     }
     if reached.conditional_progress
         && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination,

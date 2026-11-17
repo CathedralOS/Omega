@@ -343,11 +343,7 @@ pub(crate) fn publish(
         // Lowering retained the authored bound and its applied service
         // identities. Publish those records for named machines and for
         // conformance entries built from requirement signatures.
-        let written = if elaboration.requirements.contains(&machine.id) {
-            None
-        } else {
-            machine.declared_service_reach.clone()
-        };
+        let written = machine.declared_service_reach.clone();
         ceilings.push(written);
     }
     let mut published = ceilings

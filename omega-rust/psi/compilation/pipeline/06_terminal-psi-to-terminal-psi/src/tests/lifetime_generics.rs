@@ -191,3 +191,202 @@ machine build_entry() {{ }}
         );
     }
 }
+
+#[test]
+fn selected_generic_helpers_keep_their_ordinary_lifetime_obligations() {
+    let source = r#"
+machine make<'storage>(bytes: &'storage [u8]) -> u64 { bytes.len }
+machine relay<'storage, Kind, machine Make>(bytes: &'storage [u8], other: &'storage [u8], count: &mut u64) -> u64
+requires machine Make(bytes: &'storage [u8]) -> u64 reaches none crashes none;
+{ let length: u64 = Make(bytes); count = length; length }
+machine entry(left: &[u8], right: &[u8], count: &mut u64) {
+    let selected: u64 = relay<u32, make>(left, left, count);
+}
+"#;
+    let judged = |text: &str| {
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            super::boundary_calls::typed(text),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("ordinary preparation must retain the selected helper");
+        let template = prepared
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "relay")
+            .unwrap();
+        assert!(!template.lifetime_parameters.is_empty());
+        let callback = prepared
+            .machine_type_parameters(template)
+            .iter()
+            .find_map(|parameter| prepared.retained_static_machine_contract(parameter.symbol))
+            .expect("the callback keeps its actual declared contract");
+        let typed_trees::data::MachineParameterContractView::Structural(callback) = callback else {
+            panic!("the callback is an actual structural requirement");
+        };
+        assert!(callback.declares_no_crash_route);
+        assert!(
+            prepared
+                .authored_service_reach_rows_for(callback.symbol)
+                .next()
+                .is_some(),
+            "the pure callback has an authored reach bound"
+        );
+        let receipt = prepared
+            .machines()
+            .iter()
+            .find_map(|machine| {
+                prepared
+                    .machine_instantiation(machine.symbol)
+                    .unwrap()
+                    .filter(|receipt| receipt.template() == template.symbol)
+            })
+            .expect("the call must use an actual retained specialization");
+        assert!(
+            !prepared
+                .expression_table
+                .static_machine_application(receipt.binding_application())
+                .arguments
+                .is_empty()
+        );
+        super::boundary_calls::compilation_results_of(&prepared)
+    };
+    let accepted = judged(source);
+    for (position, verdict) in accepted.iter().enumerate() {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "form {position}: {verdict:?}"
+        );
+    }
+    let mut checked_envelopes = 0;
+    for verdict in &accepted {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            continue;
+        };
+        let Some((requirement, _)) = accepted
+            .elaboration
+            .requirement_ceilings
+            .iter()
+            .find(|(_, ceiling)| ceiling.envelope.is_some())
+        else {
+            continue;
+        };
+        let mut forged = accepted.elaboration.clone();
+        let envelope = forged
+            .requirement_ceilings
+            .get_mut(requirement)
+            .unwrap()
+            .envelope
+            .as_mut()
+            .unwrap();
+        envelope.blocks = !envelope.blocks;
+        let refused = crate::judge(Ok(forged));
+        assert!(
+            matches!(refused, Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
+            if detail.starts_with("abstract envelope differs from its complete source declaration")),
+            "the abstract bound must keep its actual header: {refused:?}"
+        );
+        checked_envelopes += 1;
+    }
+    assert!(
+        checked_envelopes > 0,
+        "the actual callback requirement must retain its operational bound"
+    );
+    let entering = source.replace(
+        "-> u64 reaches none crashes none;",
+        "-> u64 reaches none crashes none invokes bytes;",
+    );
+    let erased = entering
+        .replace(
+            "(bytes: &'storage [u8])",
+            "(prior [erased]: u32, bytes: &'storage [u8])",
+        )
+        .replace("Make(bytes)", "Make(0u32, bytes)");
+    for (text, erased_formal) in [(&entering, false), (&erased, true)] {
+        let mut checked_parameter = false;
+        let entering = judged(text);
+        for verdict in &entering {
+            let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+                panic!("the actual parameter-entry bound must remain valid: {verdict:?}");
+            };
+            let Some((requirement, _)) =
+                accepted
+                    .elaboration
+                    .requirement_ceilings
+                    .iter()
+                    .find(|(_, row)| {
+                        row.envelope.as_ref().is_some_and(|envelope| {
+                            envelope.invocations.iter().any(|entry| {
+                                matches!(
+                                    entry,
+                                    terminal_psi::TerminalCallableInvocation::Parameter(_)
+                                )
+                            })
+                        })
+                    })
+            else {
+                continue;
+            };
+            let source = accepted
+                .elaboration
+                .static_schemas
+                .iter()
+                .flat_map(|schema| &schema.requirements)
+                .find(|source| {
+                    source
+                        .instance
+                        .as_ref()
+                        .is_some_and(|instance| instance.machine == requirement)
+                })
+                .expect("the runtime row has its exact source declaration");
+            assert_eq!(
+                source.signature.erased.as_slice(),
+                if erased_formal { &[0][..] } else { &[][..] }
+            );
+            assert_eq!(
+                source.envelope.invocations,
+                vec![terminal_psi::TerminalCallableInvocation::Parameter(0)]
+            );
+            let mut forged = accepted.elaboration.clone();
+            forged
+                .requirement_ceilings
+                .get_mut(requirement)
+                .unwrap()
+                .envelope
+                .as_mut()
+                .unwrap()
+                .invocations
+                .retain(|entry| {
+                    !matches!(
+                        entry,
+                        terminal_psi::TerminalCallableInvocation::Parameter(_)
+                    )
+                });
+            let refused = crate::ceilings::judge(&forged).unwrap_err();
+            assert_eq!(
+                refused.reason,
+                RefusalReason::ForeignIdentity,
+                "{refused:?}"
+            );
+            assert_eq!(
+                refused.detail,
+                "abstract envelope differs from its complete source declaration"
+            );
+            checked_parameter = true;
+        }
+        assert!(
+            checked_parameter,
+            "the source schema must retain its exact parameter-entry permission"
+        );
+    }
+    let refused = judged(&source.replace("(left, left, count)", "(left, right, count)"));
+    assert!(
+        refused.iter().any(|verdict| match verdict {
+            Err(crate::CompilationRefusal::Elaboration(refusal))
+            | Ok(RouteVerdict::FallBack(refusal)) => refusal
+                .detail
+                .contains("call that gives one lifetime two regions"),
+            _ => false,
+        }),
+        "{refused:?}"
+    );
+}

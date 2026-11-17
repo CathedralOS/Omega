@@ -228,13 +228,10 @@ pub struct Elaboration {
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
-    /// The requirements that are another generic machine's own contract, at
-    /// the type arguments one call in this generic check form's entry
-    /// applies it at (`same<T>(left, right)` inside `compare<T>`). A
-    /// specialization of the entry calls the machine stage 04 generated
-    /// from that machine for the same arguments, whose contract is this one
-    /// at them, so no refinement proof stands between the two. Each is
-    /// also in `requirements`. Empty for every concrete module.
+    /// Actual generic helper applications read in this check form. Their
+    /// bodies receive ordinary component and contract checks here; independent
+    /// forms also check each template universally. These are not bodyless
+    /// requirements and grant no unchecked guarantees.
     pub applications: Vec<MachineId>,
     /// How many of each machine's scalar formals are value parameters
     /// (`const Units: u64`) left rigid by a generic check form: they are the

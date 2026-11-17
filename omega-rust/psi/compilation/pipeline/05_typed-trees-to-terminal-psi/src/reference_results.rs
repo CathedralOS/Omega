@@ -544,10 +544,21 @@ fn publish_parents(
             {
                 let (root, segments) = captured_path(tables, captured)
                     .map_err(|reason| unavailable(machine.id, reason))?;
-                if let Some(crossing) = segments
-                    .iter()
-                    .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
-                {
+                let root_type = machine.structural_place_type(root).ok_or_else(|| {
+                    unavailable(machine.id, "loan parent has no source storage type")
+                })?;
+                let element =
+                    terminal_semantics::descriptor_lifetimes::view_element_descriptor_prefix(
+                        &module.structural_types,
+                        root_type,
+                        &segments,
+                    )
+                    .map_err(|reason| unavailable(machine.id, reason))?;
+                if let Some(crossing) = element.or_else(|| {
+                    segments.iter().rposition(|step| {
+                        *step == terminal_check_tables::bindings::Segment::Referent
+                    })
+                }) {
                     let parent =
                         terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
                             root,
@@ -721,6 +732,25 @@ fn publish_parents(
                             "reference formation has no unique exact Loan row",
                         ));
                     };
+                    if matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishElementView { .. }
+                            | terminal_psi::OperationKind::EstablishMutableElementView { .. }
+                    ) && terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+                        &module.structural_types,
+                        ty,
+                        &source_location.path,
+                    )
+                    .is_some_and(|source_type| {
+                        terminal_semantics::descriptor_results::is_descriptor(
+                            module.structural_types.iter(),
+                            source_type,
+                        )
+                    }) {
+                        *children.get_mut(*identity).ok_or_else(|| {
+                            unavailable(machine.id, "view formation lost its parent child row")
+                        })? = Some((before, source_location));
+                    }
                     let position = u32::try_from(position).map_err(|_| {
                         unavailable(machine.id, "reference formation position exceeds its graph")
                     })?;

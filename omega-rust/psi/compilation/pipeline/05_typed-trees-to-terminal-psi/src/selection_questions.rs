@@ -59,7 +59,7 @@ impl CompletedOperators {
             AuthoredDeclarationSelectionTarget as Target,
         };
         if !typed.expression_table.expression_is_valid(expression) {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "completed operator has a stale expression".into(),
             ));
         }
@@ -71,13 +71,15 @@ impl CompletedOperators {
                 .authored_declaration_selections()
                 .get(occurrence)
                 .ok_or_else(|| {
-                    SelectionCaptureError("completed operator lost its attached occurrence".into())
+                    SelectionCaptureError::new(
+                        "completed operator lost its attached occurrence".into(),
+                    )
                 })?;
             if row.kind() != Kind::Operator {
                 continue;
             }
             if !owner.is_valid() || !typed.symbols.symbols().nodes().is_valid(owner) {
-                return Err(SelectionCaptureError(
+                return Err(SelectionCaptureError::new(
                     "completed operator has no exact source owner".into(),
                 ));
             }
@@ -90,7 +92,7 @@ impl CompletedOperators {
                         occurrence,
                     });
                 }
-                _ => return Err(SelectionCaptureError(
+                _ => return Err(SelectionCaptureError::new(
                     "completed primitive operation conflicts with its authored operator selection"
                         .into(),
                 )),
@@ -190,10 +192,25 @@ pub struct RawSelectionQuestions {
 }
 
 #[derive(Debug, Clone)]
-pub struct SelectionCaptureError(String);
+pub struct SelectionCaptureError {
+    detail: String,
+    source_span: Option<source::SourceSpan>,
+}
+impl SelectionCaptureError {
+    fn new(detail: String) -> Self {
+        Self {
+            detail,
+            source_span: None,
+        }
+    }
+
+    pub fn source_span(&self) -> Option<source::SourceSpan> {
+        self.source_span
+    }
+}
 impl fmt::Display for SelectionCaptureError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
-        output.write_str(&self.0)
+        output.write_str(&self.detail)
     }
 }
 impl std::error::Error for SelectionCaptureError {}
@@ -295,8 +312,15 @@ impl Capture<'_> {
     }
 
     fn fail(&mut self, reason: impl Into<String>) {
+        self.fail_at(reason, None);
+    }
+
+    fn fail_at(&mut self, reason: impl Into<String>, source_span: Option<source::SourceSpan>) {
         if self.error.is_none() {
-            self.error = Some(SelectionCaptureError(reason.into()));
+            self.error = Some(SelectionCaptureError {
+                detail: reason.into(),
+                source_span,
+            });
         }
     }
 
@@ -431,12 +455,12 @@ impl Capture<'_> {
             return Ok(None);
         };
         if conflicting {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "runtime call retains conflicting nominal or static routing".into(),
             ));
         }
         let occurrence = occurrence.ok_or_else(|| {
-            SelectionCaptureError("runtime call has no exact authored Call occurrence".into())
+            SelectionCaptureError::new("runtime call has no exact authored Call occurrence".into())
         })?;
         if let typed_trees::SourceNode::Expression(expression) = node
             && !self
@@ -445,7 +469,7 @@ impl Capture<'_> {
                 .authored_selection_occurrences(expression)
                 .any(|attached| attached == occurrence)
         {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "runtime call does not retain its own Call occurrence attachment".into(),
             ));
         }
@@ -454,7 +478,7 @@ impl Capture<'_> {
             .authored_declaration_selections()
             .get(occurrence)
             .ok_or_else(|| {
-                SelectionCaptureError("runtime call lost its own authored occurrence".into())
+                SelectionCaptureError::new("runtime call lost its own authored occurrence".into())
             })?;
         if row.kind()
             != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
@@ -466,7 +490,7 @@ impl Capture<'_> {
                     )
             )
         {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "runtime call occurrence has no computed-call source target".into(),
             ));
         }
@@ -475,13 +499,13 @@ impl Capture<'_> {
             .expression_table
             .expression_is_valid(binding.callee)
         {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "runtime call has a stale evaluated callee".into(),
             ));
         }
         let signature = binding
             .signature(self.typed)
-            .map_err(|reason| SelectionCaptureError(reason.into()))?;
+            .map_err(|reason| SelectionCaptureError::new(reason.into()))?;
         let contract = self.typed.runtime_callable_contracts.get(binding.contract);
         if !signature.symbol.is_valid()
             || !self
@@ -518,7 +542,7 @@ impl Capture<'_> {
                 .span(signature.invokes)
                 .is_none()
         {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "runtime call has no current complete signature namespace".into(),
             ));
         }
@@ -544,17 +568,17 @@ impl Capture<'_> {
             .typed
             .expression_table
             .build_selection_inputs(expression)
-            .map_err(|reason| SelectionCaptureError(reason.into()))?
+            .map_err(|reason| SelectionCaptureError::new(reason.into()))?
         else {
             return Ok(Vec::new());
         };
         let ExpressionNode::Call(call) = self.typed.expression_table.expression(expression) else {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "Build input commitment is not on a call expression".into(),
             ));
         };
         if inputs.request != call.build_selection || inputs.lexical_owner != self.owner {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "Build input commitment names another request or lexical owner".into(),
             ));
         }
@@ -562,7 +586,9 @@ impl Capture<'_> {
             .typed
             .trait_machine_signature(call.target_symbol)
             .ok_or_else(|| {
-                SelectionCaptureError("Build selection has no exact protocol declaration".into())
+                SelectionCaptureError::new(
+                    "Build selection has no exact protocol declaration".into(),
+                )
             })?;
         if !owner.is_boundary
             || !language_semantics::build_requests::is_build_protocol(
@@ -571,13 +597,13 @@ impl Capture<'_> {
                 language_semantics::build_requests::SELECTION_PROTOCOL,
             )
         {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "Build selection does not name its compiler-owned protocol".into(),
             ));
         }
         if inputs.phase == BuildSelectionPhase::Preparation {
             if !inputs.inputs.is_empty() {
-                return Err(SelectionCaptureError(
+                return Err(SelectionCaptureError::new(
                     "Build preparation carries commit designation inputs".into(),
                 ));
             }
@@ -596,17 +622,17 @@ impl Capture<'_> {
                 .authored_declaration_selections()
                 .get(input.occurrence)
                 .ok_or_else(|| {
-                    SelectionCaptureError(
+                    SelectionCaptureError::new(
                         "Build input commitment lost its exact authored occurrence".into(),
                     )
                 })?;
             if row.target() != input.target || !attached.contains(&input.occurrence) {
-                return Err(SelectionCaptureError("Build input commitment differs from its retained occurrence target or attachment".into()));
+                return Err(SelectionCaptureError::new("Build input commitment differs from its retained occurrence target or attachment".into()));
             }
             if let Some(resolved) = input.resolved_target {
                 if !resolved.is_valid() || !self.typed.symbols.symbols().nodes().is_valid(resolved)
                 {
-                    return Err(SelectionCaptureError(
+                    return Err(SelectionCaptureError::new(
                         "Build input resolution names a stale declaration".into(),
                     ));
                 }
@@ -614,13 +640,13 @@ impl Capture<'_> {
                     AuthoredDeclarationSelectionTarget::Resolved(selected)
                         if selected.selected_symbol() != resolved =>
                     {
-                        return Err(SelectionCaptureError(
+                        return Err(SelectionCaptureError::new(
                             "Build input resolution conflicts with its resolved ledger target"
                                 .into(),
                         ));
                     }
                     AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
-                        return Err(SelectionCaptureError(
+                        return Err(SelectionCaptureError::new(
                             "Build intrinsic input also claims a declaration resolution".into(),
                         ));
                     }
@@ -631,12 +657,12 @@ impl Capture<'_> {
                 .top_level_static_argument_position()
                 .is_some_and(|position| u32::try_from(position) != Ok(input.argument_ordinal))
             {
-                return Err(SelectionCaptureError(
+                return Err(SelectionCaptureError::new(
                     "Build input commitment changed the original static argument ordinal".into(),
                 ));
             }
             if !seen.insert(input.occurrence) {
-                return Err(SelectionCaptureError(
+                return Err(SelectionCaptureError::new(
                     "Build input commitment repeats an authored occurrence".into(),
                 ));
             }
@@ -760,7 +786,7 @@ impl TypedReferences for Capture<'_> {
         let designated = match self.designated(expression) {
             Ok(designated) => designated,
             Err(reason) => {
-                self.fail(reason.0);
+                self.fail_at(reason.detail, reason.source_span);
                 return false;
             }
         };
@@ -771,7 +797,7 @@ impl TypedReferences for Capture<'_> {
             ) {
                 Ok(runtime) => runtime,
                 Err(reason) => {
-                    self.fail(reason.0);
+                    self.fail_at(reason.detail, reason.source_span);
                     return false;
                 }
             },
@@ -824,7 +850,7 @@ impl TypedReferences for Capture<'_> {
                 true
             }
             Err(reason) => {
-                self.fail(reason.0);
+                self.fail_at(reason.detail, reason.source_span);
                 false
             }
         }
@@ -920,12 +946,12 @@ impl TypedReferences for Capture<'_> {
                             let expression = self.expressions.last().map(|scope| {
                                 self.typed.expression_table.display_name(scope.expression)
                             });
-                            self.fail(format!(
+                            self.fail_at(format!(
                                 "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}",
                                 row.kind(),
                                 self.typed.symbols.display_path(self.owner, "::"),
                                 expression.as_deref().unwrap_or("a declaration"),
-                            ));
+                            ), Some(row.source_span()));
                             return;
                         };
                         match input.resolved_target {
@@ -1023,22 +1049,24 @@ pub(crate) fn capture_with_bodies(
     signature_views: &[typed_trees::signature::StateSignature],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     let roots = admitted.explicit_symbols().ok_or_else(|| {
-        SelectionCaptureError(
+        SelectionCaptureError::new(
             "source selection capture requires the reader's explicit finite declaration roster"
                 .into(),
         )
     })?;
     let body_roots = bodies.explicit_symbols().ok_or_else(|| {
-        SelectionCaptureError("source body capture requires an explicit finite body roster".into())
+        SelectionCaptureError::new(
+            "source body capture requires an explicit finite body roster".into(),
+        )
     })?;
     if body_roots.iter().any(|symbol| !admitted.contains(*symbol)) {
-        return Err(SelectionCaptureError(
+        return Err(SelectionCaptureError::new(
             "source body capture names a declaration this form did not admit".into(),
         ));
     }
     for &symbol in roots {
         if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
-            return Err(SelectionCaptureError(
+            return Err(SelectionCaptureError::new(
                 "admitted source root has a missing or stale declaration coordinate".into(),
             ));
         }
@@ -1131,7 +1159,7 @@ pub fn declaration_custody(
 ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, SelectionCaptureError> {
     use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
     if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
-        return Err(SelectionCaptureError(
+        return Err(SelectionCaptureError::new(
             "declaration custody has a missing or stale symbol".into(),
         ));
     }
@@ -1886,12 +1914,9 @@ mod tests {
         typed.machine_states.get_mut(state).statement_nodes = body;
         let admitted = DeclarationSelection::from_symbols([a]);
         let mut answers = CompletedOperators::default();
-        assert!(
-            capture(&typed, &admitted, &answers, &[])
-                .unwrap_err()
-                .to_string()
-                .contains("CheckedOperator")
-        );
+        let refused = capture(&typed, &admitted, &answers, &[]).unwrap_err();
+        assert!(refused.to_string().contains("CheckedOperator"));
+        assert_eq!(refused.source_span(), Some(span));
         answers.record_builtin(&typed, b, expression).unwrap();
         answers.finish();
         assert!(

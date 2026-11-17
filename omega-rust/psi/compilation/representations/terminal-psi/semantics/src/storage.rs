@@ -1844,81 +1844,93 @@ pub(crate) mod arrival_storage {
         argument: &terminal_psi::StructuralArgument,
     ) -> Option<terminal_psi::StructuralAccess> {
         let source = structural_argument_source(machine, argument.place, 0)?;
+        let projected_access = |path: &[terminal_psi::StructuralPathSegment], mut access| {
+            let selected =
+                crate::runtime_structural_path_tip(types.iter(), source.structural_type, path);
+            let Some(selected) = selected else {
+                if matches!(
+                    crate::runtime_read_projection_tip(types.iter(), source.structural_type, path,),
+                    Some(crate::Position::ByteElement)
+                ) {
+                    return Some(access);
+                }
+                let carrier =
+                    crate::runtime_structural_field(types.iter(), source.structural_type, path)?
+                        .field_type
+                        .byte_sequence_carrier()?;
+                return match carrier {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(retained),
+                    }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(retained),
+                        ..
+                    } => Some(retained),
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. } => None,
+                    _ => Some(access),
+                };
+            };
+            // A canonical direct view leaves permission on its declared formal.
+            // Its carrier alone has no access to use in place of that loan.
+            if selected.shape.is_canonical_view_descriptor()
+                && path.is_empty()
+                && let Some(parameter) = arrival_parameter(machine, argument.place)
+                && parameter.access != terminal_psi::StructuralAccess::Owned
+            {
+                return descriptor_parameter_access(parameter, types.iter());
+            }
+            match &selected.shape {
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(retained),
+                    }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(retained),
+                        ..
+                    },
+                )
+                | terminal_psi::StructuralTypeShape::ElementView {
+                    access: Some(retained),
+                    ..
+                } => access = *retained,
+                _ if crate::descriptor_results::is_descriptor(types.iter(), selected.id) => {
+                    access = crate::descriptor_results::descriptor_value_access(
+                        types.iter(),
+                        selected.id,
+                        source.multiplicity,
+                    )?;
+                }
+                _ => {}
+            }
+            Some(access)
+        };
         let mut access = source.access;
         for (position, step) in argument.path.iter().enumerate() {
+            let prefix = &argument.path[..position];
             if *step == terminal_psi::StructuralPathSegment::Referent {
                 let terminal_psi::StructuralTypeShape::Reference { access: parent, .. } =
                     &crate::runtime_structural_path_tip(
                         types.iter(),
                         source.structural_type,
-                        &argument.path[..position],
+                        prefix,
                     )?
                     .shape
                 else {
                     return None;
                 };
                 access = *parent;
+            } else if matches!(
+                step,
+                terminal_psi::StructuralPathSegment::FixedIndex(_)
+                    | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+            ) {
+                // Indexing reaches the descriptor's payload. Keep its real
+                // access instead of the access to the descriptor's home.
+                access = projected_access(prefix, access)?;
             }
         }
-        let selected = crate::runtime_structural_path_tip(
-            types.iter(),
-            source.structural_type,
-            &argument.path,
-        );
-        let Some(selected) = selected else {
-            let carrier = crate::runtime_structural_field(
-                types.iter(),
-                source.structural_type,
-                &argument.path,
-            )?
-            .field_type
-            .byte_sequence_carrier()?;
-            return match carrier {
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(retained),
-                }
-                | terminal_psi::ByteSequenceCarrier::BoundedView {
-                    access: Some(retained),
-                    ..
-                } => Some(retained),
-                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. } => None,
-                _ => Some(access),
-            };
-        };
-        // A canonical direct view leaves permission on its declared formal.
-        // Its carrier alone has no access to use in place of that loan.
-        if selected.shape.is_canonical_view_descriptor()
-            && argument.path.is_empty()
-            && let Some(parameter) = arrival_parameter(machine, argument.place)
-            && parameter.access != terminal_psi::StructuralAccess::Owned
-        {
-            return descriptor_parameter_access(parameter, types.iter());
-        }
-        match &selected.shape {
-            terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(retained),
-                }
-                | terminal_psi::ByteSequenceCarrier::BoundedView {
-                    access: Some(retained),
-                    ..
-                },
-            )
-            | terminal_psi::StructuralTypeShape::ElementView {
-                access: Some(retained),
-                ..
-            } => access = *retained,
-            _ if crate::descriptor_results::is_descriptor(types.iter(), selected.id) => {
-                access = crate::descriptor_results::descriptor_value_access(
-                    types.iter(),
-                    selected.id,
-                    source.multiplicity,
-                )?;
-            }
-            _ => {}
-        }
-        Some(access)
+        projected_access(&argument.path, access)
     }
 
     pub fn root_before_edge(

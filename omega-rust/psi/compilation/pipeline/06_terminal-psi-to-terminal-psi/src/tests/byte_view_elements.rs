@@ -1666,3 +1666,61 @@ fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
         "the short arrival must fail only its own length requirement: {rejected:?}"
     );
 }
+
+#[test]
+fn whole_records_from_a_view_keep_their_index_bound_and_access() {
+    let source = r#"
+data Cell [copy] { before: u32; value: u32; after: u32; }
+machine pick(cells: &[Cell], index: u64) -> u32 requires index < cells.len {
+    let cell: Cell = cells[index];
+    cell.value
+}
+machine entry() -> u32 {
+    let cells: [Cell; 2] = [Cell { before: 11, value: 12, after: 13 }, Cell { before: 21, value: 22, after: 23 }];
+    pick(&cells[..], 1u64)
+}
+"#;
+    let check = |text: &str| {
+        super::entryless::judged_typed_result(&super::boundary_calls::typed(text), false)
+    };
+    let verdict = check(source);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "{verdict:?}"
+    );
+    let writing = source
+        .replace("cells: &[Cell]", "cells: &mut [Cell]")
+        .replace("let cells: [Cell; 2]", "let mut cells: [Cell; 2]")
+        .replace("pick(&cells[..]", "pick(&mut cells[..]")
+        .replace("let cell: Cell = cells[index];", "let view: &mut [Cell] = &mut cells[..];\n    view[index].value = 9u32;\n    let cell: Cell = view[index];");
+    let verdict = check(&writing);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "the indexed write uses the actual retained descriptor permission: {verdict:?}"
+    );
+    let bypass = writing.replace("view[index].value = 9u32;", "cells[index].value = 9u32;");
+    let verdict = check(&bypass);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Rejected { ref conflicts, .. })
+        if conflicts.iter().any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed)),
+        "the original owner cannot bypass its still-live view: {verdict:?}"
+    );
+    let missing = source.replace("index < cells.len", "index <= cells.len");
+    let verdict = check(&missing);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Rejected { ref unproved, .. })
+        if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::OperationSafety { .. }))),
+        "the record copy still owes its exact index bound: {verdict:?}"
+    );
+    let moving = source.replace("Cell [copy]", "Cell");
+    let verdict = check(&moving);
+    assert!(
+        match &verdict {
+            Err(crate::CompilationRefusal::Elaboration(Refusal { detail, .. }))
+            | Ok(RouteVerdict::FallBack(Refusal { detail, .. })) =>
+                detail.contains("copying a slice element requires a copyable element type"),
+            _ => false,
+        },
+        "a shared view cannot give away its affine element: {verdict:?}"
+    );
+}

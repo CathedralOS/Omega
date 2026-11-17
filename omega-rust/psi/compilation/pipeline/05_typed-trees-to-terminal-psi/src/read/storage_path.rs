@@ -22,6 +22,7 @@ pub(super) fn walk<'a, E>(
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::Index { base, .. }
+            | ExpressionKind::ByteElement { base, .. }
             | ExpressionKind::Referent(base) => {
                 projected(place, base)?;
                 place = base;
@@ -38,7 +39,6 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Boolean(_)

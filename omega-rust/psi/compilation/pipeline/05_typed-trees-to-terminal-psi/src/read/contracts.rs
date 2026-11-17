@@ -231,15 +231,20 @@ impl Program<'_> {
         }
     }
 
-    /// The disjuncts of an `||` chain, left to right.
-    fn disjuncts(&self, expression: ExpressionHandle, out: &mut Vec<ExpressionHandle>) {
+    /// The operands of one connective chain, in authored order.
+    fn connective_parts(
+        &self,
+        expression: ExpressionHandle,
+        connective: BinaryOperator,
+        out: &mut Vec<ExpressionHandle>,
+    ) {
         if expression.is_valid()
             && let ExpressionNode::Binary(binary) =
                 self.typed.expression_table.expression(expression)
-            && binary.operator == BinaryOperator::Or
+            && binary.operator == connective
         {
-            self.disjuncts(binary.left, out);
-            self.disjuncts(binary.right, out);
+            self.connective_parts(binary.left, connective, out);
+            self.connective_parts(binary.right, connective, out);
         } else {
             out.push(expression);
         }
@@ -374,17 +379,23 @@ impl Program<'_> {
             if self.guarded_false(expression) {
                 return unserved("conjunction that type equations decide false");
             }
-            let known_true = |side| self.clause_truth(side) == Some(TypeTruth::Known(true));
-            if known_true(binary.left) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            // A folded type guard still owns the operator answers produced
+            // while evaluating it. Keep them before retaining its sibling.
+            if self.read_static_truth(id, owner, binary.left, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
                 return self.clause(id, scope, binary.right);
             }
-            if known_true(binary.right) {
+            if self.read_static_truth(id, owner, binary.right, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
                 return self.clause(id, scope, binary.left);
             }
         }
         if scope.subject.is_none() && operator == BinaryOperator::Or {
             let mut disjuncts = Vec::new();
-            self.disjuncts(expression, &mut disjuncts);
+            self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
             if disjuncts
                 .iter()
                 .any(|disjunct| self.guarded_false(*disjunct))
@@ -793,8 +804,9 @@ impl Program<'_> {
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
-        let read = self.read_term(id, scope, expression, expected)?;
-        self.complete_contract_operator(id, scope, expression, [None, None])?;
+        let mut operands = [None, None];
+        let read = self.read_term(id, scope, expression, expected, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
         Ok(read)
     }
 
@@ -804,6 +816,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
@@ -975,27 +988,37 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if self
-                    .data_type(id, record)?
-                    .shape
-                    .length_operation()
-                    .is_none()
-                {
-                    return unserved("extent without its descriptor operation");
-                }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
                     semantic_vocabulary::IntegerSign::Unsigned,
                     64,
                 )
                 .expect("u64 is valid");
-                Ok((
+                let shape = &self.data_type(id, record)?.shape;
+                let length = if let Some(length) = shape.fixed_array_length() {
+                    // Taking a type's constant length must not erase the
+                    // obligation to establish a payload before selecting it.
+                    if path
+                        .iter()
+                        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+                    {
+                        return unserved(
+                            "fixed array length through an unestablished case payload",
+                        );
+                    }
+                    ScalarTerm::Integer {
+                        scalar_type,
+                        value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                    }
+                } else if shape.length_operation().is_some() {
                     ScalarTerm::ViewExtent {
                         root,
                         path,
                         scalar_type,
-                    },
-                    ValueType::plain(ScalarType::Integer(scalar_type)),
-                ))
+                    }
+                } else {
+                    return unserved("extent without its descriptor operation");
+                };
+                Ok((length, ValueType::plain(ScalarType::Integer(scalar_type))))
             }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
@@ -1079,7 +1102,7 @@ impl Program<'_> {
                 // The shared declaration phase forms this canonical term
                 // before any containing clause becomes proof knowledge.
                 crate::policy::Suffix::Unwritten => {
-                    self.arithmetic_term(id, scope, binary, None, expected)
+                    self.arithmetic_term(id, scope, binary, None, expected, operands)
                 }
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
@@ -1092,7 +1115,7 @@ impl Program<'_> {
                      mathematical arithmetic",
                 )),
                 crate::policy::Suffix::Total(policy) => {
-                    self.arithmetic_term(id, scope, binary, Some(policy), expected)
+                    self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
                 }
             },
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
@@ -1313,6 +1336,7 @@ impl Program<'_> {
         binary: &typed_trees::expression::TableBinaryExpression,
         suffix: Option<Policy>,
         expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let anonymous = (
@@ -1354,6 +1378,9 @@ impl Program<'_> {
             crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
+        // Source selection must see the operands this reader actually
+        // checked; unknown operands would leave unrelated overloads eligible.
+        *operands = [left_type, right_type].map(|value| self.operator_operand_reference(value));
         Ok((term, selected))
     }
 
@@ -2014,42 +2041,49 @@ impl Program<'_> {
                 "fact span",
             )? {
                 let expression = self.fact(id, fact)?;
-                let mut disjuncts = Vec::new();
-                self.disjuncts(expression, &mut disjuncts);
-                let listed = parameters
-                    .iter()
-                    .enumerate()
-                    .find_map(|(position, parameter)| {
-                        disjuncts
-                            .iter()
-                            .map(|disjunct| {
-                                disjunct
-                                    .is_valid()
-                                    .then(|| alternative(parameter, *disjunct))?
-                            })
-                            .collect::<Option<Vec<_>>>()
-                            .map(|listed| (position, listed))
-                    });
-                let Some((position, listed)) = listed else {
-                    continue;
-                };
-                if found.is_some() {
-                    return unserved("finite family listed by two clauses");
-                }
-                let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
-                for reference in listed {
-                    let identity = self.typed.normalized_type_identity(reference);
-                    if !alternatives.iter().any(|known| {
-                        known[position].is_some_and(|reference| {
-                            self.typed.normalized_type_identity(reference) == identity
-                        })
-                    }) {
-                        let mut arguments = vec![None; parameters.len()];
-                        arguments[position] = Some(reference);
-                        alternatives.push(arguments);
+                let mut conjuncts = Vec::new();
+                self.connective_parts(expression, BinaryOperator::And, &mut conjuncts);
+                // A finite family remains complete when another input
+                // requirement shares its clause. Every alternative still
+                // reads that whole clause, including its runtime conditions.
+                for expression in conjuncts {
+                    let mut disjuncts = Vec::new();
+                    self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
+                    let listed = parameters
+                        .iter()
+                        .enumerate()
+                        .find_map(|(position, parameter)| {
+                            disjuncts
+                                .iter()
+                                .map(|disjunct| {
+                                    disjunct
+                                        .is_valid()
+                                        .then(|| alternative(parameter, *disjunct))?
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .map(|listed| (position, listed))
+                        });
+                    let Some((position, listed)) = listed else {
+                        continue;
+                    };
+                    if found.is_some() {
+                        return unserved("finite family listed by two clauses");
                     }
+                    let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
+                    for reference in listed {
+                        let identity = self.typed.normalized_type_identity(reference);
+                        if !alternatives.iter().any(|known| {
+                            known[position].is_some_and(|reference| {
+                                self.typed.normalized_type_identity(reference) == identity
+                            })
+                        }) {
+                            let mut arguments = vec![None; parameters.len()];
+                            arguments[position] = Some(reference);
+                            alternatives.push(arguments);
+                        }
+                    }
+                    found = Some(alternatives);
                 }
-                found = Some(alternatives);
             }
         }
         match found {
@@ -2067,7 +2101,7 @@ impl Program<'_> {
                 let mut instances = vec![(
                     symbol,
                     (0..parameters.len()).map(Some).collect::<Vec<_>>(),
-                    None,
+                    None::<usize>,
                 )];
                 let mut visited = symbols::SymbolMap::<Vec<usize>>::default();
                 visited.insert(symbol, vec![0]);

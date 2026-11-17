@@ -12,7 +12,8 @@ use crate::{Signature, Unserved, refuse};
 
 pub use terminal_check_tables::contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
-    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+    StaticProviderCandidate, StaticRequirementInstance, StaticRequirementSchema,
+    StaticSchemaQuestion, StaticServiceCeiling,
 };
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,7 @@ pub(crate) struct StaticSourceEnvelope {
     pub termination: TerminalCallableTermination,
 }
 impl StaticSourceEnvelope {
-    fn publish(
+    pub(crate) fn publish(
         &self,
         context: MachineId,
         services: &ServiceMap,
@@ -78,6 +79,7 @@ impl StaticSourceEnvelope {
 }
 #[derive(Debug, Clone)]
 pub(crate) struct SourceSchemaRequirement {
+    pub instance: Option<MachineId>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
     pub signature: Signature,
@@ -145,7 +147,24 @@ impl StaticContracts {
                         .requirements
                         .iter()
                         .map(|requirement| {
+                            let instance = requirement
+                                .instance
+                                .map(|machine| {
+                                    crate::lower::static_signature_header(
+                                        machine,
+                                        &requirement.signature,
+                                        signatures,
+                                        outcomes,
+                                        records,
+                                        callables,
+                                        boundaries,
+                                        qualifications,
+                                    )
+                                    .map(|header| StaticRequirementInstance { machine, header })
+                                })
+                                .transpose()?;
                             Ok(StaticRequirementSchema {
+                                instance,
                                 declaration: requirement.declaration,
                                 abstract_types: requirement.abstract_types,
                                 signature: requirement.signature.static_signature(),

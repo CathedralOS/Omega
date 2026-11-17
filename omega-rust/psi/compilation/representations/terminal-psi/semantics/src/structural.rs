@@ -2945,30 +2945,43 @@ pub(crate) mod primitive_place {
     /// Find a live extent immediately before a projection. Only adjacent length
     /// observations may intervene; no mutation can change the descriptor between
     /// this measurement and the access whose bound it establishes.
-    pub fn preceding_element_view_length(
+    pub fn preceding_collection_length(
         operations: &[terminal_psi::Operation],
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Option<semantic_vocabulary::ValueId> {
         for operation in operations.iter().rev() {
-            let terminal_psi::OperationKind::ElementViewLength { source } = &operation.kind else {
-                break;
+            let matches = match &operation.kind {
+                terminal_psi::OperationKind::ElementViewLength { source }
+                | terminal_psi::OperationKind::ByteSequenceLength { source } => {
+                    source.place == root
+                        && crate::structural_paths_select_same_location(&source.path, path)
+                        && source.access == StructuralAccess::SharedBorrow
+                }
+                terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                    source,
+                    path: observed,
+                    field: selected,
+                } => {
+                    *source == root
+                        && Some(*selected) == field
+                        && path.split_last().is_some_and(|(step, prefix)| {
+                            matches!(step, StructuralPathSegment::Field(_))
+                                && crate::structural_paths_select_same_location(observed, prefix)
+                        })
+                }
+                _ => return None,
             };
-            if source.place == root
-                && crate::structural_paths_select_same_location(&source.path, path)
-            {
+            if matches {
                 let result = operation.result.scalar_ref()?;
                 let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
-                return (source.access == StructuralAccess::SharedBorrow
-                    && result.scalar_type == count)
-                    .then_some(result.id);
+                return (result.scalar_type == count).then_some(result.id);
             }
         }
         None
     }
 
-    /// Recover each bound from the array reached immediately before its index.
-    /// The enclosing operation checks the path after its last index separately.
     /// Use the visited goals only when the indexed prefix is valid.
     pub fn visit_runtime_index_goals<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -3058,7 +3071,15 @@ pub(crate) mod primitive_place {
                             upper
                         })
                     }
-                    StructuralTypeShape::ElementView { .. } => {
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                        capacity,
+                        ..
+                    }) => super::static_path::runtime_index_bound(index, carrier, capacity),
+                    StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { .. }
+                        | ByteSequenceCarrier::BoundedOwned { .. },
+                    ) => {
                         let count = ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
                         );
