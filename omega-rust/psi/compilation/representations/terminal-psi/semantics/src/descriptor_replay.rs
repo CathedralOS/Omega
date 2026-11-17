@@ -6162,6 +6162,17 @@ pub(crate) mod engine {
                 super::case_flow::Transfer::Arrival { edge, reads },
                 case_storage,
             )?;
+            // A captured indexed address is an exact projection, even when
+            // it cannot be expressed as a descriptor-slot location. Forward
+            // that address before installing the destination header.
+            let storage_origin = |source: &DescriptorLocation| {
+                let origin = match self.resolve_storage(machine, before, source, None)? {
+                    StorageResolution::Unique(storage) => Origin::Storage(storage),
+                    StorageResolution::Projected(origin) => Origin::Backing(origin),
+                    StorageResolution::Alternatives => return None,
+                };
+                Some(BTreeSet::from([origin]))
+            };
             for binding in &edge.bindings {
                 let query = match &binding.source {
                     DescriptorFlowSource::Location(location) => {
@@ -6185,15 +6196,11 @@ pub(crate) mod engine {
                             let value = if is_descriptor(self.types.iter(), ty) {
                                 self.read_with_depth(machine, before, descriptor, reads)
                             } else {
-                                self.canonical_storage(machine, before, descriptor, None)
-                                    .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                                storage_origin(descriptor)
                             };
                             self.project(machine, value, Some(projection))
                         } else {
-                            binding.source.exact_location().and_then(|source| {
-                                self.canonical_storage(machine, before, source, None)
-                                    .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
-                            })
+                            binding.source.exact_location().and_then(&storage_origin)
                         }
                     } else {
                         self.read_contents_with_depth(machine, before, &query, reads)
@@ -10084,8 +10091,10 @@ pub(crate) mod engine {
             let replacement = location(2);
             let captured = location(3);
             let descriptor_alias = location(4);
+            let forwarded = location(5);
             let entry = (BlockId::new(1).unwrap(), 0);
             let target = (BlockId::new(2).unwrap(), 0);
+            let forwarded_target = (BlockId::new(3).unwrap(), 0);
             let mut machine = bare_machine(
                 MachineId::new(1).unwrap(),
                 vec![
@@ -10121,12 +10130,20 @@ pub(crate) mod engine {
                             access: StructuralAccess::MutableBorrow,
                         },
                     },
+                    DescriptorPlace {
+                        producer: None,
+                        place: forwarded.root,
+                        definition: DescriptorDefinition::Arrival {
+                            access: StructuralAccess::MutableBorrow,
+                        },
+                    },
                 ],
                 BTreeMap::from([
                     (source.root, view),
                     (replacement.root, view),
                     (captured.root, scalar),
                     (descriptor_alias.root, view),
+                    (forwarded.root, scalar),
                 ]),
                 BTreeSet::new(),
             );
@@ -10177,12 +10194,45 @@ pub(crate) mod engine {
                         ..Default::default()
                     },
                 ),
-                (target, DescriptorFlowStep::default()),
+                (
+                    target,
+                    DescriptorFlowStep {
+                        successors: vec![DescriptorFlowEdge {
+                            edge: None,
+                            effects: Vec::new(),
+                            definitions: Vec::new(),
+                            target: forwarded_target,
+                            parameters: vec![forwarded.clone()],
+                            bindings: vec![
+                                DescriptorFlowBinding::new(
+                                    captured.clone(),
+                                    forwarded.clone(),
+                                    StructuralAccess::MutableBorrow,
+                                    StructuralAccess::MutableBorrow,
+                                )
+                                .unwrap(),
+                            ],
+                        }],
+                        ..DescriptorFlowStep::default()
+                    },
+                ),
+                (forwarded_target, DescriptorFlowStep::default()),
             ]);
             let graph = vec![machine];
             let mut replay =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
             let states = replay.states(graph[0].id, 0).unwrap();
+            let expected = DescriptorCallOrigin::Argument {
+                source: source.root,
+                projection: projection.clone(),
+            };
+            assert!(
+                matches!(
+                    replay.resolve_storage(&graph[0], &states[&forwarded_target], &forwarded, None),
+                    Some(StorageResolution::Projected(held)) if held == expected
+                ),
+                "a second borrowed-header edge preserves the original captured projection"
+            );
             let mut after = states[&target].clone();
             assert!(
                 matches!(
@@ -10247,6 +10297,26 @@ pub(crate) mod engine {
                 replay.resolve_storage(&graph[0], &after, &captured, None),
                 Some(StorageResolution::Alternatives)
             ));
+            let case_storage = super::case_flow::Storage::new(&replay, &graph[0]);
+            let edge = &graph[0].flow[&target].successors[0];
+            for before in [&joined_missing, &after] {
+                let arrived = replay
+                    .transfer_edge(
+                        &graph[0],
+                        before,
+                        before,
+                        edge,
+                        &case_storage,
+                        &DescriptorReadDepth::at(&graph[0], before, None),
+                    )
+                    .unwrap();
+                assert!(
+                    replay
+                        .resolve_storage(&graph[0], &arrived, &forwarded, None)
+                        .is_none(),
+                    "forwarding cannot establish missing or competing backing"
+                );
+            }
         }
 
         #[test]
