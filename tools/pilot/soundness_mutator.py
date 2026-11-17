@@ -225,6 +225,7 @@ def helpers(scalars, carriers, datas):
     for t in sorted(scalars):
         out.append(f"machine pilot_poke_{t}(slot: &mut {t}, value: {t}) {{ slot = value; }}")
     out.append("machine pilot_opaque_u64(value: u64) -> u64 { value }")
+    out.append("machine pilot_pick_u64(taken: u64, other: u64) -> u64 ensures result == taken || result == other { taken }")
     for t, path, st in sorted(carriers):
         tag = path.replace(".", "_")
         out.append(f"data PilotCarrier_{t}<'storage> {{ cell: &'storage mut {t}; }}")
@@ -263,6 +264,12 @@ def mutate(text, rng, budget):
                 candidates.append((weight, "swap", idx, machine, stmts))
             if re.search(r"\[\s*\d+\s*\]", stmt):
                 candidates.append((weight * 2, "runtime_index", s, e))
+                body = clean[machine["body_start"]:machine["body_end"]]
+                indices = sorted(set(re.findall(r"\[\s*(\d+)\s*\]", body)))
+                if len(indices) > 1:
+                    candidates.append((weight * 3, "pick_index", s, e, indices))
+            if re.match(r"[\w.\[\]]+\s*=[^=]", stmt) or re.match(r"[\w:]+\s*\(", stmt):
+                candidates.append((weight, "delete", s, e))
     if not candidates:
         return []
     mutants = []
@@ -301,6 +308,19 @@ def mutate(text, rng, budget):
             (a0, a1), (b0, b1) = stmts[idx], stmts[idx + 1]
             new = clean[:a0] + clean[b0:b1] + clean[a1:b0] + clean[a0:a1] + clean[b1:]
             desc = f"swap {clean[a0:a1].strip()[:60]!r} <-> {clean[b0:b1].strip()[:60]!r}"
+        elif kind == "delete":
+            _, _, s, e = cand
+            new = clean[:s] + clean[e:]
+            desc = f"delete {clean[s:e].strip()[:80]!r}"
+        elif kind == "pick_index":
+            _, _, s, e, indices = cand
+            stmt = clean[s:e]
+            hits = list(re.finditer(r"\[\s*(\d+)\s*\]", stmt))
+            h = rng.choice(hits)
+            other = rng.choice([i for i in indices if i != h.group(1)])
+            replaced = stmt[:h.start()] + f"[pilot_pick_u64({other}, {h.group(1)})]" + stmt[h.end():]
+            new = clean[:s] + replaced + clean[e:]
+            desc = f"pick_index runs {other} for {h.group(1)} in {stmt.strip()[:60]!r}"
         else:
             _, _, s, e = cand
             stmt = clean[s:e]

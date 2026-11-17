@@ -20,6 +20,7 @@ import time
 def run_one(binary, mutant, both):
     oracle = tempfile.NamedTemporaryFile(prefix="oracle", suffix=".txt", delete=False).name
     env = dict(os.environ, OMEGA_SOUNDNESS_ORACLE=oracle)
+    mutant = os.path.abspath(mutant)
     root = os.path.join(mutant, "build.omg")
     cmd = [binary, "run"] + (["--both"] if both else ["--engine", "psi"]) + [root]
     start = time.time()
@@ -50,6 +51,8 @@ def main():
     mutants = sorted(
         os.path.join(dp) for dp, dn, fn in os.walk(root) if "mutation.json" in fn
     )
+    import random
+    random.Random(0).shuffle(mutants)
     with open(results, "w") as out, cf.ThreadPoolExecutor(jobs) as pool:
         for row in pool.map(lambda m: run_one(binary, m, both), mutants):
             out.write(json.dumps(row) + "\n")

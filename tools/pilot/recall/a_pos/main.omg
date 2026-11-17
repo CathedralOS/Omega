@@ -1,0 +1,11 @@
+data Choice [copy] { case Left(value: u32); case Right; }
+data Shelf [copy] { items: [Choice; 2]; }
+machine pick(shelf: &mut Shelf, slot: u64) -> u32 requires slot < 2 {
+    shelf.items[0] = Choice::Left { value: 3u32 };
+    shelf.items[1] = Choice::Right {};
+    shelf.items[0].value
+}
+machine entry() {
+    let mut shelf: Shelf;
+    let seen: u32 = pick(&mut shelf, 0u64);
+}

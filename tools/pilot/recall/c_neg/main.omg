@@ -1,0 +1,20 @@
+data Slot { case Full(n: u32); case Empty; }
+machine peek(held: &mut Slot) -> u32 { 0 }
+machine refill(held: &mut Slot) -> u32 {
+    held = Slot::Full { n: 9 };
+    0
+}
+machine need_nine(v: u32) requires v == 9 { }
+machine entry() crashes Trap {
+    let mut s: Slot = Slot::Full { n: 1 };
+    let got: u32 = match s {
+        Slot::Full { .. } -> refill(&mut s) + s.n,
+        Slot::Empty -> 0
+    };
+    transition got == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
