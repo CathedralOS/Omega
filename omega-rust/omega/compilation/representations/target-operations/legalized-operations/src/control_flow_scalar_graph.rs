@@ -130,7 +130,7 @@ impl LegalizedScalarFunction {
     ) -> impl Iterator<Item = &terminal_psi::StructuralParameterDeclaration> + '_ {
         self.blocks
             .iter()
-            .flat_map(|block| &block.structural_parameters)
+            .flat_map(|block| block.structural_parameters.iter())
     }
 }
 
@@ -146,7 +146,7 @@ pub struct LegalizedScalarParameter {
 pub struct LegalizedScalarBlock {
     pub id: BlockId,
     pub parameters: Vec<LegalizedValueDefinition>,
-    pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub structural_parameters: std::sync::Arc<[terminal_psi::StructuralParameterDeclaration]>,
     pub instructions: Vec<LegalizedScalarInstruction>,
     pub terminator: LegalizedScalarTerminator,
 }

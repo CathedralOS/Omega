@@ -109,8 +109,8 @@ names the goals every checker must find such proofs for.
 | `IntegerMathOrderTranslation` | From mathematical `a <= b`, conclude exactly `a + t <= b + t` for one well-formed mathematical integer term `t`. The child remains independently checked, all embedded value identities and carriers remain scoped, and no finite arithmetic or overflow authority is introduced. Strict premises are outside this certificate rule. |
 | `IntegerOrderAntisymmetry` | From independently proved `a <= b` and `b <= a`, conclude `a == b`. Both endpoints retain the same fixed non-address integer carrier and exact identities; strict, missing, or mismatched premises reject. |
 | `IntegerStrictOrderTransitivity` | Compose `a < b` with `b <= c`, `a <= b` with `b < c`, or two strict orders to conclude `a < c`. The shared middle and ordered endpoints are exact. Both children and conclusion use the same scalar integer type, including carrier, signedness, and width, or all use mathematical integers; no mixed domains or IEEE relations. |
-| `IntegerOrderDiscreteness` | Replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Check adjacency and carrier bounds; no wrap or address carrier. |
-| `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. Its mathematical form bounds `MathValue` by the exact retained carrier endpoints, including an address model's width; it grants no conversion or storage authority. No strict, compound, or narrower bound. |
+| `IntegerOrderDiscreteness` | Three forms. Outward: replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Inward: replace one literal endpoint of fixed-integer `<` with its immediate inward neighbor to obtain `<=`, such as `length < 8` to `length <= 7`. Both check adjacency inside the shared carrier; no wrap or address carrier. Open: from `a < b`, mathematical or a fixed-integer relation read mathematically, conclude mathematical `a + 1 <= b` with the same `a` and `b`; no literal or carrier check is needed because mathematical integers are unbounded. Only the outward form has a mathematical-core derivation; the core judges the inward and open forms as named rule instances. |
+| `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. Its mathematical form bounds `MathValue` by the exact retained carrier endpoints, including an address model's width; it grants no conversion or storage authority. For an address model's `MathValue` it also accepts the strict upper bound `value < R` when `R` normalizes to exactly `MAX + 1`, such as `value < 2^64` for a 64-bit address; `R` may be compound or open if its ring normalization equals that constant. No other strict, compound, or narrower bound. |
 | `IntegerSubtractOrder` | From exact fixed-integer `result = original - decrement` and `0 < decrement`, conclude `result < original`. Match all operand identities/types; wrapping subtraction and nonstrict positivity do not qualify. |
 | `IntegerAddOrder` | From exact fixed-integer `result = original + increment` and `0 < increment`, conclude `original < result`. Match all operand identities/types; wrapping or saturating addition and nonstrict positivity do not qualify. |
 | `IntegerSubtractAntitone` | From exact fixed-integer `smaller = minuend - large`, `larger = minuend - small` and `small < large`, conclude `smaller < larger`. Both differences name one exact minuend term and carrier; each subtrahend matches its order endpoint exactly. |
@@ -118,6 +118,16 @@ names the goals every checker must find such proofs for.
 Reflexive integer order can use reflexive equality and weakening. Closed strict
 comparisons use the closed-integer primitive; relating an evaluated operand
 identity requires explicit equality substitution, not trusted constant folding.
+The same primitive also accepts an open relation whose two sides differ by a
+constant after ring normalization over the same atoms, such as `x < x + 1` or
+`a * (b + c) == a * b + a * c`, and a fixed-integer equality whose sides agree
+modulo `2^width` after normalizing [wrapping arithmetic](#bounded-wrapping-equality).
+It reads exact add, subtract, multiply and shift-left and total widening as
+their mathematical results. That reading is the one
+[total arithmetic](../proofs/contracts.md#total-arithmetic) fixes: an exact
+term forms only after its representability is discharged, so `x < x +! 1` over
+`u8` holds at every point where `x +! 1` exists, and says nothing about
+`x == 255`, where that term cannot be formed.
 
 Closed, same-carrier fixed-integer literal equality and order also have exact
 `Truth` or `Falsehood` predicate denotations. This conversion uses the primitive

@@ -2067,7 +2067,9 @@ pub(crate) mod machine_wire {
         Ok(())
     }
 
-    fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
+    pub(crate) fn decode_ranked_scc(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<TerminalRankedScc>, CodecError> {
         match reader.u8()? {
             0 => Ok(None),
             3 => {
@@ -2506,7 +2508,9 @@ pub(crate) mod reach_application_wire {
         }))
     }
 
-    fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParameter>, CodecError> {
+    pub(crate) fn decode_telescope(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ClosedReachParameter>, CodecError> {
         decode_counted(reader, |reader| {
             Ok(match reader.u8()? {
                 0 => ClosedReachParameter::Type {
@@ -4136,6 +4140,29 @@ mod routed_scalar_tests {
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
         public.termination = semantic_vocabulary::Termination::Terminates;
+        // Receiving validation refuses a public declaration without its own
+        // operational envelope, so publish one that repeats what the contract
+        // already promises: no services, no suspension, guaranteed termination.
+        module
+            .callables
+            .declaration_envelopes
+            .push(terminal_psi::TerminalDeclarationEnvelope {
+                contract: required,
+                envelope: terminal_psi::TerminalCallableEnvelope {
+                    service_reach: public.published_service_ceiling.clone(),
+                    invocations: public
+                        .published_synchronous_entries
+                        .iter()
+                        .copied()
+                        .map(terminal_psi::TerminalCallableInvocation::Service)
+                        .collect(),
+                    suspends: public.published_may_suspend,
+                    blocks: public.published_may_block,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+            });
         module.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);

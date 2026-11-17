@@ -82,19 +82,26 @@ framework or a list of unimplemented features.
 - Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
 - Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
 
-### encoding.md tag tables still omit tags the codec decodes
-- Category: The documents disagree
-- Where: [structural type shapes](wiki/spec/terminal-psi/encoding.md#L2089), [byte-sequence carriers](wiki/spec/terminal-psi/encoding.md#L2108), [structural field types](wiki/spec/terminal-psi/encoding.md#L2122), [structural path segments](wiki/spec/terminal-psi/encoding.md#L2152), [canonical path segments](wiki/spec/terminal-psi/encoding.md#L2176), [structural decoders](omega-rust/psi/compilation/representations/terminal-psi/wire/src/structural_wire.rs#L208), [tag-table test](omega-rust/psi/compilation/representations/terminal-psi/wire/src/spec_tag_tables.rs)
-- Saw: The page says a tag absent from a closed-sum table rejects. A spec-table pilot fed every byte value to each decoder and found five tables missing tags the codec accepts:
-  - structural type shapes: 12 (refined `PrimitiveScalar`), 16 (`AtomicCell`) and 19 (`Opaque`) appear nowhere on the page;
-  - byte-sequence carriers: 3 `BoundedView` (access plus `u64` capacity);
-  - structural field types: 9 `RefinedScalar` and 10 `AtomicBoundedInteger`;
-  - canonical path segments: 4 `Referent`, though the summary row at L458 lists it;
-  - structural path segments: 7 `Case`, 8 `RepresentationView` and 10 `AllElements`.
+### The Omega 04 replay validator reruns the optimizer instead of checking it
+- Category: A verdict with nothing behind it
+- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
+- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
+- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
 
-  The scalar-field-carrier path table (L561) lists 1–2 while its summary row (L460) lists 1–4. `spec_tag_tables.rs` checks only 7 of the page's 82 marked tag tables, so none of these was caught.
-- Cost: Encoders and refusal tests written from the page miss valid forms. Add the missing rows, decide the L561 table, and extend `spec_tag_tables.rs` to every marked tag table so the next drift fails the test.
-- Reported: 2026-11-16, Claude Code, while piloting a spec-table drift check
+### An optional Omega 04 rewrite shrinks the registers allocation may use
+- Category: Knowledge crossing a boundary
+- Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
+- Saw: When a SelectedLowering or PreAllocation rule runs, Omega 04 builds legality under `FramelessLeafCallerSavedViews` and hands that analysis to Omega 05, which allocates on it. With no rewrite selected, `SelectedAllocationInput::into_legality` builds legality under `AllEnvironmentAllocatableViews`. So selecting an optional profitability rewrite restricts the whole program to caller-saved registers. This predates #3833, which kept it. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation", and [exact selection](wiki/spec/build/optimizations.md#exact-selection) treats allocation as mandatory "whether or not optional profitability rewrites are selected".
+- Cost: The same program allocates under different constraints, and may be refused, depending on an unrelated optimization choice. Let the rewrite run on its own analysis and have Omega 05 build legality under the availability allocation needs, whatever ran before.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
+### Allocation admission re-checks choices Omega 05 just made
+- Category: Re-deriving
+- Where: [admission](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs#L250)
+- Saw: On every compile, `validate_recovery_selection` checks that the recovery rule that ran equals the selection `stage_register_allocation` picked it from, and `capture_publication_facts` checks the manifest Omega 05 built against the record it built it from. [Verification placement](omega-rust/pipeline.md#verification-placement) says a default compile does not revalidate output the same compile just produced.
+- Cost: The checks are cheap, but they cannot fail unless the same function is wrong twice, and they add error variants every reader must handle. Move them into the allocation validator or a test.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
@@ -102,9 +109,17 @@ framework or a list of unimplemented features.
 - Saw: [three layers](wiki/spec/build/platform_services.md) says a portable service "is identical on every target". A static diff of the two adapter families found three differences that #3864 did not cover:
   - `set_times` accepts any `i64` on POSIX, but Windows refuses times at or before 1601 and after about year 60056. The comment cites Win32, but the portable contract does not state the limit.
   - `read_dir_nth` and `read_dir_is_empty` error on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
-  - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows.
+  - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows. `read_at`, `write_at` and `copy` refuse a count over 4 GiB on Windows the same way.
+  - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
+
+### Each provider row rehashes every toolchain source
+- Category: Verifying costs more than writing
+- Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
+- Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
+- Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
+- Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
 
 ### A qualified collection gets builtin `[..]` indexing without a declared operator
 - Category: A verdict with nothing behind it
@@ -141,24 +156,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### Domain lookup silently prefers the same-module or same-package domain over visible competitors
-- Category: One idea, several implementations
-- Where: [Psi 02 prefer_module_local_domain](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs#L1805), [Psi 02 operator homes](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs#L2826), [Psi 02 preparation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L649), [Psi 03 prefer_local_domain](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L459), [pinning test](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_domain_exposure_tests.rs#L209)
-- Saw: [resolution](wiki/spec/language/modules.md) says distinct visible declarations competing for the same carrier-qualified domain "reject. Neither carrier ownership nor import order selects a winner", and [visibility and foreign declarations](wiki/spec/language/domains.md) repeats it. Psi 02's `prefer_module_local_domain` (used by membership, type constraints, operator homes and preparation) keeps only the referencing module's candidates whenever any exist, and Psi 03's `prefer_local_domain` keeps the module's, then the package's. In `module one; use two; machine probe(value: u64 in Mark)` with `public domain u64::Mark` in both `one` and `two`, the test `domain_exposure_operator_home_preserves_ambiguity_and_local_precedence` asserts that `one`'s domain is selected; the spec requires a refusal.
-- Cost: Adding a domain to a module silently changes what an imported domain spelling means in its sibling files, with different predicates and authority. Delete both local tiers, refuse two visible candidates naming both owners, and flip the test.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
-
-### Three kernel rules accept more forms than their audited rows say
-- Category: The documents disagree
-- Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
-- Saw: [classicality.md](wiki/spec/proofs/classicality.md) and [integer_certificates.md](wiki/spec/terminal-psi/integer_certificates.md) describe narrower rules than the code accepts:
-  - `Primitive(ClosedIntegerRelation)` is documented as re-deciding "closed integer relations ... over closed data", but `compare_integer_math_terms` falls back to ring normalization of open terms, so it accepts `x < x + 1` and open distributivity with no premises, and it lifts `ExactIntegerAdd`, multiply and shift-left into total mathematical operations, so u8 `x < x +! 1` is accepted although `x +! 1` traps at 255.
-  - `IntegerCarrierBound` is documented as "Exactly `MIN <= value` or `value <= MAX` ... No strict, compound, or narrower bound", but it also accepts an address `a < R` where `R` evaluates to `MAX + 1`, including compound and open terms.
-  - `IntegerOrderDiscreteness` is documented as an outward literal-adjacency step with no address carrier, but it also accepts the inward `a < c ⊢ a <= c - 1` and open `a < b ⊢ a + 1 <= b` with no literal or carrier check.
-- Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
 
 ### A shared byte view of an array gives its elements different addresses in the Psi interpreter
 - Category: Re-deriving

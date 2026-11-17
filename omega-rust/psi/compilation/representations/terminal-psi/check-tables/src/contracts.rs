@@ -32,6 +32,10 @@ pub enum Ceiling {
 pub struct RequirementCeilings {
     pub reaches: Ceiling,
     pub invokes: Ceiling,
+    /// Source-only bounds; None still requires inference, not a false promise.
+    pub suspension: Option<bool>,
+    pub blocking: Option<bool>,
+    pub termination: TerminalCallableTermination,
 }
 
 #[derive(Debug, Clone, Default)]

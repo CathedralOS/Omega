@@ -1799,30 +1799,6 @@ mod lookup {
     }
 
     /*
-        A domain declared in the reference's own module outranks same-spelled
-        foreign or root candidates, mirroring local-binding precedence.
-    */
-    pub(crate) fn prefer_module_local_domain(
-        symbols: &SymbolTable,
-        candidates: Vec<SymbolHandle>,
-        reference: source::SourceSpan,
-    ) -> Vec<SymbolHandle> {
-        if reference.span.start == reference.span.end {
-            return candidates;
-        }
-        let reference_module = symbols.source_module(reference.source_id);
-        if !reference_module.is_valid() {
-            return candidates;
-        }
-        let local = candidates
-            .iter()
-            .copied()
-            .filter(|candidate| symbols.symbol_module(*candidate) == reference_module)
-            .collect::<Vec<_>>();
-        if local.is_empty() { candidates } else { local }
-    }
-
-    /*
         The type role among top-level declarations. A constant is a value and
         is never read here. A builtin type spelling names only the builtin
         type: no declaration may introduce a type with that spelling, and a
@@ -2212,7 +2188,6 @@ mod lookup {
                 candidates.push(symbol);
             }
         }
-        let candidates = prefer_module_local_domain(symbols, candidates, reference);
         let mut distinct = Vec::new();
         for candidate in candidates {
             if !distinct.contains(&candidate) {
@@ -6382,7 +6357,7 @@ pub(crate) fn assign_constant_expression_symbols(
 pub(crate) use lookup::{
     DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
     constructor_prefix_is_value, constructor_type, domain_name_reaches, membership_domain_lookup,
-    membership_selection, prefer_module_local_domain, qualified_payload_free_case_type,
+    membership_selection, qualified_payload_free_case_type,
 };
 
 /*

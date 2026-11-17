@@ -1180,6 +1180,7 @@ mod tests {
     fn selected_function() -> selected_instructions::SelectedFunction {
         selected_instructions::SelectedFunction {
             contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                structural_block_parameters: Vec::new(),
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
                 provenance: Default::default(),
