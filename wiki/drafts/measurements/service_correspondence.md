@@ -69,6 +69,14 @@ Sampled whole-process peak RSS had medians of 13,561,856 B before and
 13,455,360–13,955,072 B respectively. These measurements do not establish a
 process-memory reduction.
 
+After the repository comparison driver moved to Rust `xtask`, a second set of
+nine alternating pairs over the same saved executables reproduced the counts
+exactly and measured paired ratios of 2.72× for the two-method provider and
+5.70× for Console declarations. The table above retains the first run rather
+than mixing samples from the two runs. The Rust command records native kernel
+resource observations; the earlier RSS figures above came from sampling and
+are not interchangeable with those observations.
+
 ## Execution checks and limits
 
 The unchanged target-selected provider program has native/Psi agreement at
@@ -86,6 +94,7 @@ or a whole-compilation speedup.
 See [the portable driver instructions](../../../tools/benchmark/service-correspondence/README.md).
 The local receipts are under `worker-33/build/service-correspondence/`:
 `final-comparison.json` retains the nine pairs and all four executable hashes;
+`rust-comparison.json` retains the separate Rust-driver confirmation;
 `before-counted.log` and `final-counted.log` retain the separate identity counts.
 The temporary counter patches are `before-counter.patch` and
 `final-counter.patch`. They are observations, not compiler changes to ship.

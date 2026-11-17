@@ -33,18 +33,25 @@ time. The other driver counts allocation requests, requested bytes and peak
 extra live requested heap separately. Do not use that driver's timing column
 as an uninstrumented latency measurement.
 
-With Python 3.11 or newer, compare the four saved files:
+Compare the four saved files with the Rust repository tool:
 
 ```sh
-mbx reserve --cpus 1 -- python tools/benchmark/service-correspondence/compare.py --before BEFORE --after AFTER --allocations-before ALLOCATIONS_BEFORE --allocations-after ALLOCATIONS_AFTER --pairs 9 --output comparison.json
+mbx xtask measure-service-correspondence --before BEFORE --after AFTER --allocations-before ALLOCATIONS_BEFORE --allocations-after ALLOCATIONS_AFTER --pairs 9 --output comparison.json
 ```
 
 The comparison alternates which revision runs first within each adjacent pair.
 Its JSON retains every sample, binary hashes, allocation counters and summaries.
-If `psutil` is installed, it also samples each process's RSS with a 5 ms sleep
-between reads. That
-figure includes parsing and setup and is not the validator's heap size. Without
-`psutil`, RSS is omitted and the other measurements still run.
+The existing bounded-process runner also records kernel resource observations,
+including peak RSS when available. The receipt retains the provider, scope and
+any observation error. Peak RSS includes parsing and setup and is not the
+validator's heap size. Drivers run with closed stdin, a 300-second wall limit,
+120-second CPU limit, 4 GiB memory/address-space limits, and an eight-process
+ceiling. These are measurement-driver limits, not compiler product policy.
+
+Build `xtask` before timing, then reserve one CPU permit around the built
+`target/debug/xtask` command (Windows adds `.exe`). This excludes Cargo work
+from the measurement interval and accounts for the single-threaded driver work
+in the shared host budget.
 
 The Rust drivers also accept `--only LABEL`, `--samples N`, and `--iterations N`.
 The tests exercise missing source coordinates, package mismatches, ordered-row
