@@ -500,6 +500,16 @@ fn order(proposition: &Proposition) -> Option<(bool, &ScalarTerm, &ScalarTerm)> 
     }
 }
 
+/// This rule needs one side to evaluate to an integer constant. Skip other
+/// orders before searching for the opposite or expanding their evidence;
+/// neither can produce a certificate through this rule.
+fn order_with_closed_endpoint(
+    proposition: &Proposition,
+) -> Option<(bool, &ScalarTerm, &ScalarTerm)> {
+    let order @ (_, left, right) = order(proposition)?;
+    (left.integer_value().is_some() || right.integer_value().is_some()).then_some(order)
+}
+
 /// Chains `a R b` and `b R' c` into `a R'' c`, strict when either step is.
 fn chain(first: ProofNode, second: ProofNode) -> Result<ProofNode, Unproven> {
     let (Some((first_strict, left, _)), Some((second_strict, _, right))) =
@@ -963,11 +973,11 @@ impl<'a> Prover<'a> {
         }
         // Facts stay fixed during this search. Construct a certificate only
         // when trying its candidate; a successful refutation leaves later
-        // candidates unexpanded. Keep orders, equalities and guards in their
-        // original order so the selected evidence and citations stay the same.
+        // candidates unexpanded. Try eligible orders, literal equalities and
+        // guards in their existing relative order.
         for index in 0..self.facts.len() {
             let fact = &self.facts[index];
-            if fact.axiom.is_some() || order(&fact.proposition).is_none() {
+            if fact.axiom.is_some() || order_with_closed_endpoint(&fact.proposition).is_none() {
                 continue;
             }
             let known = fact.proof(&self.facts);
@@ -1193,14 +1203,16 @@ impl<'a> Prover<'a> {
     /// One alternative: the kernel adds it as the next assumption.
     fn branch(&mut self, part: &Proposition, goal: &Proposition) -> Option<ProofNode> {
         self.remaining_case_branches = self.remaining_case_branches.checked_sub(1)?;
-        let local = node(
-            part.clone(),
-            ProofRule::Assumption {
-                index: self.assumptions.len(),
-            },
-        );
-        if let Some(contradiction) = self.refute(local, goal) {
-            return Some(contradiction);
+        if order_with_closed_endpoint(part).is_some() {
+            let local = node(
+                part.clone(),
+                ProofRule::Assumption {
+                    index: self.assumptions.len(),
+                },
+            );
+            if let Some(contradiction) = self.refute(local, goal) {
+                return Some(contradiction);
+            }
         }
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(part.clone());
@@ -1223,7 +1235,7 @@ impl<'a> Prover<'a> {
     /// with the opposite order it gives a closed false relation, which
     /// `ex_falso` turns into `goal`.
     fn refute(&mut self, local: ProofNode, goal: &Proposition) -> Option<ProofNode> {
-        let (strict, left, right) = order(&local.conclusion)?;
+        let (strict, left, right) = order_with_closed_endpoint(&local.conclusion)?;
         let (left, right) = (left.clone(), right.clone());
         let opposite = if strict {
             Proposition::LessOrEqual(right.clone(), left.clone())
@@ -1233,10 +1245,8 @@ impl<'a> Prover<'a> {
         let opposite = self.prove_direct(&opposite).ok()?;
         let false_relation = if left.integer_value().is_some() {
             chain(local, opposite).ok()?
-        } else if right.integer_value().is_some() {
-            chain(opposite, local).ok()?
         } else {
-            return None;
+            chain(opposite, local).ok()?
         };
         Some(ex_falso(self.at_literals(false_relation)?, goal))
     }

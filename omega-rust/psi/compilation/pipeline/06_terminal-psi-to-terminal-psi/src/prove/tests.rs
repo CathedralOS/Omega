@@ -1277,3 +1277,105 @@ fn selected_relation_bounds_keep_strict_steps_and_equality_direction() {
         }
     }
 }
+
+/// A value-to-value order cannot finish `refute`'s existing closed-endpoint
+/// chain. Refusing before the opposite search must copy no bound evidence.
+#[test]
+fn refutation_without_a_closed_endpoint_skips_bound_work() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let inputs: Vec<_> = (0..2)
+        .map(|position| {
+            let id = values.push(ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar_type)
+        })
+        .collect();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let assumptions = [Proposition::LessOrEqual(
+        inputs[0].clone(),
+        inputs[1].clone(),
+    )];
+    let local = node(assumptions[0].clone(), ProofRule::Assumption { index: 0 });
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert!(prover.refute(local, &Proposition::Falsehood).is_none());
+    let copied_for_refutation = prover.activity.bound_certificate_copies;
+    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert!(prover.prove(&Proposition::Falsehood).is_err());
+    assert_eq!(copied_for_refutation, 0);
+}
+
+/// Skipping an unusable first order must retain the later literal-endpoint
+/// contradiction and its real premises, in either orientation. Removing
+/// either conflicting premise leaves a consistent context and must refuse.
+#[test]
+fn literal_endpoint_refutation_keeps_the_actual_conflicting_premises() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let inputs: Vec<_> = (0..2)
+        .map(|position| {
+            let id = values.push(ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar_type)
+        })
+        .collect();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let upper = Proposition::LessOrEqual(inputs[0].clone(), literal(3));
+    let lower = Proposition::LessOrEqual(literal(4), inputs[0].clone());
+    for reversed in [false, true] {
+        let mut assumptions = vec![Proposition::LessOrEqual(
+            inputs[0].clone(),
+            inputs[1].clone(),
+        )];
+        if reversed {
+            assumptions.extend([lower.clone(), upper.clone()]);
+        } else {
+            assumptions.extend([upper.clone(), lower.clone()]);
+        }
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&Proposition::Falsehood)
+            .unwrap();
+        let accepted = proof_admission::accept_certificate(
+            &context,
+            &Proposition::Falsehood,
+            &assumptions,
+            &[],
+            &proof,
+        )
+        .unwrap();
+        let mut cited: Vec<_> = accepted.assumptions.iter().map(|used| used.index).collect();
+        cited.sort_unstable();
+        assert_eq!(cited, [1, 2]);
+        assert!(accepted.semantic_axioms.is_empty());
+        for missing in [1, 2] {
+            let mut remaining = assumptions.clone();
+            remaining.remove(missing);
+            assert!(
+                Prover::new(
+                    &context,
+                    &remaining,
+                    &[],
+                    &values,
+                    &mut ProofSearchActivity::default(),
+                )
+                .prove(&Proposition::Falsehood)
+                .is_err()
+            );
+        }
+    }
+}
