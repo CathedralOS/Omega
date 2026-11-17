@@ -179,6 +179,7 @@ pub(super) fn prepare(
                 &native,
                 &permissions,
                 &request.installation_assumptions,
+                program.evidence().map(Arc::as_ref),
             )
             .map_err(refuse)
         })

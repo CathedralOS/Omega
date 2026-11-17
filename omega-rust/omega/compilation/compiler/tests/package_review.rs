@@ -1930,6 +1930,52 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
     );
     assert_eq!(permissions, pending.accepted_package_permissions);
     assert!(assumptions.is_empty());
+
+    // The saved companion is data: it cannot attach another module's seals
+    // or an intact seal whose obligation is not owned by the authorized body.
+    let evidence = original.evidence().unwrap();
+    let original_blob = terminal_codec::encode_operation_evidence(evidence).unwrap();
+    let saved = pending.retained_native_inputs.as_ref().unwrap();
+    assert!(saved.ends_with(&original_blob));
+    let replace_evidence = |changed: &terminal_codec::EvidenceSeals| {
+        let blob = terminal_codec::encode_operation_evidence(changed).unwrap();
+        // The mutations below replace fixed-width identity coordinates only.
+        assert_eq!(blob.len(), original_blob.len());
+        let mut forged = saved.clone();
+        let start = forged.len() - blob.len();
+        forged[start..].copy_from_slice(&blob);
+        forged
+    };
+    let refuse = |bytes: &[u8], expected: &str| {
+        let errors =
+            products::recover_native_derivation_inputs(original.authorization().clone(), bytes)
+                .expect_err("saved evidence cannot supply attachment authority");
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    };
+    let mut foreign = evidence.as_ref().clone();
+    foreign.module.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
+    refuse(
+        &replace_evidence(&foreign),
+        "operation evidence belongs to another canonical artifact",
+    );
+    let mut unowned = evidence.as_ref().clone();
+    let missing = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+    assert!(
+        original
+            .artifact()
+            .semantic_module()
+            .machine(missing)
+            .is_none()
+    );
+    unowned.seals[0].machine = missing;
+    unowned.seals[0].fingerprint = unowned.seals[0].recompute().unwrap();
+    refuse(&replace_evidence(&unowned), "UnownedSeal");
+    let mut damaged = saved.clone();
+    *damaged.last_mut().unwrap() ^= 1;
+    refuse(&damaged, "operation evidence seal fingerprint mismatch");
 }
 
 // The foreign contract keeps its authored method identity, while its closed

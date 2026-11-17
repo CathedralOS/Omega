@@ -1629,7 +1629,7 @@ Calls substitute this input with their other scalar actuals; it is not an IEEE
 projection or a new float source class. Receiving validates the full equation,
 including the integer carrier. Current marker 287 and vocabulary 142 combine
 these operands with complete callable and installation contracts. Native input
-record `OMGNTI38` retains the semantic module's strict current header. Earlier
+record `OMGNTI39` retains the semantic module's strict current header. Earlier
 semantic schemas reject before payload decoding. This adds no arithmetic proof
 rule or execution authority.
 
@@ -1661,17 +1661,37 @@ Formats 282 through 285 do not supply this combined schema; they reject before
 payload interpretation, along with older layouts.
 
 Vocabulary marker 142 distinguishes the combined semantics. The native
-terminal-input record uses `OMGNTI38` and rejects predecessor schemas
-`OMGNTI33`, `OMGNTI35`, `OMGNTI36` and `OMGNTI37`, as well as other stale versions. Calling applications
+terminal-input record uses `OMGNTI39` and rejects predecessor schemas
+`OMGNTI33`, `OMGNTI35`, `OMGNTI36`, `OMGNTI37` and `OMGNTI38`, as well as other stale versions. Calling applications
 retain an optional exact semantic formal for dispatch-only table use rather
 than the retired omitted-prefix count. Proof-system marker 9 separately
 records the integer-to-float representability rule and fingerprint tag 32;
 it does not add a stored certificate decoder or change the `PSICORE` envelope.
 
-Native record `OMGNTI38` also retains the classified `IntegerAggregate` ABI
+Native record `OMGNTI39` also retains the classified `IntegerAggregate` ABI
 case for Darwin non-HFA composites. It distinguishes their whole-eight-byte
 stack slots from scalar packing through saved native inputs and commitments.
 This physical class adds no portable semantic operation or proof rule.
+
+Saved native inputs retain optional operation evidence separately from the
+immutable Psi bytes. Native record `OMGNTI39` appends an optional counted byte
+string after its retained native bindings. The string is an operation-evidence
+companion with magic `PSIOEVD\0`, `u16` format marker 1, `u16` vocabulary marker,
+32-byte module semantic fingerprint and a counted seal roster. Each seal carries
+its owning machine and obligation ids, canonical goal proposition, counted
+ordered assumptions and axioms, complete ordinary certificate, and original
+32-byte seal fingerprint. Seal order and all hypothesis orders are preserved.
+The existing `psi-obligation-evidence-fingerprint\0` domain and fingerprint
+preimage remain unchanged.
+
+Receiving checks bounded counts, complete framing, canonical encodings and seal
+fingerprints. These records supply no producer trust or execution authority.
+The caller separately supplies authorization for the exact canonical artifact;
+attachment checks each seal's module, execution site and goal. Receipt does not
+require proof-kernel replay, as defined by
+[publication and separate consumption](product.md#publication-and-separate-consumption).
+Psi's semantic format and identity are unchanged by this companion.
+
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
