@@ -613,7 +613,7 @@ impl SettledTargetSupply {
         }
         reached.sort_unstable();
         reached.dedup();
-        let realization = super::plan_realization::realize_target_supply_detailed(
+        let realization = super::plan_realization::realize_target_supply(
             super::TargetSupplyRealizationRequest::from_execution_inputs(
                 module,
                 target,

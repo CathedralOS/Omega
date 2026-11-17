@@ -1,24 +1,31 @@
-import json,sys,os,re,collections
-d=json.load(sys.stdin); root=d["workspace_root"]
-rel=lambda p: os.path.relpath(os.path.dirname(p),root).replace("omega-rust/","")
-pk={p["name"]:rel(p["manifest_path"]) for p in d["packages"]}
-users=collections.defaultdict(set)
-for p in d["packages"]:
-    r=rel(p["manifest_path"])
-    m=re.search(r"omega/compilation/pipeline/(\d\d)",r)
-    m2=re.search(r"omega/compilation/representations/([^/]+)",r)
-    if m: who="O"+m.group(1)
-    elif m2: who="rep:"+m2.group(1)
-    elif "omega/compilation/backend/" in r: who="backend"
-    else: who=r.split("/")[2] if r.count("/")>=2 else r
-    for dep in p["dependencies"]:
-        t=pk.get(dep["name"],"")
-        if dep.get("kind") is None and "omega/compilation/backend/" in t:
-            users[t].add(who)
-tot=0
-for t in sorted(pk.values()):
-    if "omega/compilation/backend/" not in t: continue
-    loc=sum(sum(1 for _ in open(os.path.join(dp,f),errors="ignore")) for dp,_,fs in os.walk(os.path.join(root,"omega-rust",t,"src")) for f in fs if f.endswith(".rs"))
-    tot+=loc
-    print(f"{t.split('backend/')[1]:45s} {loc:7d}  users: {sorted(users[t])}")
-print("total", tot)
+"""List backend line counts and dependency users; Cargo metadata comes on stdin."""
+import collections
+import json
+import sys
+from scanlib import SCOPES, Workspace, position
+
+
+def render(workspace, counts=None):
+    counts = counts if counts is not None else workspace.line_counts()
+    users = collections.defaultdict(set)
+    for edge in workspace.edges():
+        if edge["kind"] != "dev":
+            users[edge["to"]].add(position(workspace.dirs[edge["from"]]))
+    lines = ["# Git-tracked Rust physical lines; all includes tests, benches, examples and build.rs.",
+             "# src-only is a separate comparison column. Nested package files are counted once.",
+             "# Users are normal + build declarations, including optional and target-conditional edges.",
+             f"{'crate':45s} {'all .rs':>8s} {'src .rs':>8s}  declared user positions"]
+    total, src_total = 0, 0
+    for name, directory in sorted(workspace.dirs.items(), key=lambda pair: pair[1]):
+        if not directory.startswith(SCOPES["backend"]):
+            continue
+        row = counts[name]
+        total += row["all_rs_lines"]
+        src_total += row["src_rs_lines"]
+        lines.append(f"{name:45s} {row['all_rs_lines']:8d} {row['src_rs_lines']:8d}  {', '.join(sorted(users[name]))}")
+    lines.append(f"{'total':45s} {total:8d} {src_total:8d}")
+    return "\n".join(line.rstrip() for line in lines) + "\n"
+
+
+if __name__ == "__main__":
+    print(render(Workspace(json.load(sys.stdin))), end="")

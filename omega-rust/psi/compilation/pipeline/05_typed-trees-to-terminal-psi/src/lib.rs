@@ -1665,6 +1665,7 @@ fn lower_program<'source>(
             signatures,
             &outcomes,
             &declared.records,
+            &module.structural_types,
             callables,
             boundaries,
             requirements.contains(&id),
@@ -1742,7 +1743,7 @@ fn lower_program<'source>(
         services,
         &mut qualifications,
         &mut module,
-        typed_source,
+        declarations,
         &external_provider_candidates,
     )?;
     module.scalar_qualifications = qualifications.catalog;
@@ -1935,6 +1936,39 @@ fn finish_storage(
             }
             Err(refused) => return Err(refused),
         };
+        terminal_semantics::validate_structural_store_values(
+            machine,
+            &module.structural_types,
+            &plan.stores,
+        )
+        .map_err(|error| match error {
+            terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: machine.id,
+                concerns: Construct::Machine,
+                source_span: None,
+                detail: format!("replacement input {place:?} has no unique source declaration"),
+            },
+            terminal_semantics::StructuralStoreValueError::CannotDiscard {
+                operation,
+                multiplicity,
+            } => {
+                let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
+                Refusal {
+                    reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
+                    machine: machine.id,
+                    concerns: Construct::Operation(operation),
+                    source_span: sources.get(machine.id)
+                        .and_then(|source| source.operations.get(operation))
+                        .and_then(|origin| origin.span()),
+                    detail: if linear {
+                        "whole-value replacement cannot implicitly discard a linear value"
+                    } else {
+                        "replacement input does not have the checked discardability required by this store"
+                    }.into(),
+                }
+            },
+        })?;
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership

@@ -1069,6 +1069,12 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
+    /// Observe the current bytes through the already formed shared loan.
+    /// The Boolean result is tied to that exact view, not its whole backing.
+    ByteSequencePredicate {
+        base: Box<Expression>,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+    },
     /// A checked scalar computed in its selected target scope.
     ScalarApplication {
         application: semantic_vocabulary::ScalarApplicationId,

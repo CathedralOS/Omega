@@ -18,10 +18,10 @@ dynamically linked ELF bytes or unverified emission parts from impersonating
 self-contained installable native artifacts.
 */
 /*
-Upstream lowering and emission stages (`terminal_psi_to_abstract_operations`,
-`machine_emission`, `object_file`, and `image_emission`) supply the verified
-Terminal input, staged function fragments, object containers, and final image
-bytes that `admit_executable_entry`, `publish_fragment_object`, and
+The admitted representations and emission libraries (`verified_optimization_input`,
+`machine_emission`, `object_file`, and `image_emission`) supply runtime custody,
+staged function fragments, object containers, and final image
+bytes that `publish_fragment_object` and
 `RequestedNativeArtifact::emit` assemble and validate before downstream
 compiler drivers install executables or macOS `.app` bundles.
 */
@@ -30,7 +30,6 @@ compiler drivers install executables or macOS `.app` bundles.
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 mod component_product;
-mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
 mod package_publication;
@@ -39,7 +38,6 @@ mod publication;
 mod runtime_provisions;
 pub use component_product::{NativeComponentProduct, NativeComponentPublicationReceipt};
 
-pub use entry_receiver::admit_executable_entry;
 pub use fragment_object_publication::{
     FragmentObjectProjection, FragmentObjectPublicationRequest, PublishedFragmentObject,
     emit_fragment_object, publish_fragment_object,

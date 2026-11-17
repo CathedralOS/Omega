@@ -2490,6 +2490,9 @@ impl<'t> Program<'t> {
         if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
+        if let Some(observation) = self.byte_observation(id, slots, target, arguments, source)? {
+            return Ok(observation);
+        }
         if let Some((boundary, signature)) = self.read_boundary_declaration(id, target)? {
             return self.call_with_signature(
                 id,
@@ -3954,6 +3957,7 @@ impl Touches<'_> {
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::CollectionView { base: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
+            | ExpressionKind::ByteSequencePredicate { base: operand, .. }
             | ExpressionKind::IsCase {
                 subject: operand, ..
             } => self.expression(operand, changes, captures),

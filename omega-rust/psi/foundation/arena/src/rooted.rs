@@ -111,6 +111,12 @@ impl<T: Default> RootedArena<T> {
 }
 
 impl<T> RootedArena<T> {
+    /// Bytes a decoder must charge when retaining an already charged record Vec.
+    /// This excludes the Vec's payload and includes the logical row directory.
+    pub fn decoded_record_metadata_bytes(length: usize) -> Option<usize> {
+        decoded_association_allocation::<T>(length)
+    }
+
     pub(super) fn from_storage_parts(
         dummy: T,
         items: Vec<T>,
@@ -639,6 +645,17 @@ impl<'arena, T> RootRows<'arena, T> {
         }
     }
 
+    pub fn starts_with(self, prefix: Self) -> bool
+    where
+        T: PartialEq,
+    {
+        prefix.len() <= self.len()
+            && self
+                .iter()
+                .zip(prefix.iter())
+                .all(|(row, prefix)| row == prefix)
+    }
+
     pub fn to_vec(self) -> Vec<T>
     where
         T: Clone,
@@ -774,7 +791,7 @@ impl<T: compiler_storage::Record> compiler_storage::Record for RootedArena<T> {
     ) -> Result<Self, compiler_storage::RecordError> {
         let arena = Arena::<T>::read(input)?;
         let length = arena.storage_view().items.len();
-        let additional = decoded_association_allocation::<T>(length)
+        let additional = Self::decoded_record_metadata_bytes(length)
             .ok_or_else(|| input.error("declaration association allocation overflow"))?;
         input.allocate(additional)?;
         Ok(Self::from(arena))
@@ -794,6 +811,13 @@ mod tests {
         let borrowed = RootRows::from_slice(&[1u32, 2, 3]);
         assert_eq!(original.span_or_empty(span), borrowed);
         assert_eq!(fork.span_or_empty(span), borrowed);
+        assert!(borrowed.starts_with(original.span_or_empty(span).slice(0..2)));
+        assert!(
+            !borrowed
+                .slice(0..2)
+                .starts_with(original.span_or_empty(span))
+        );
+        assert!(borrowed.starts_with(RootRows::default()));
         *fork.get_mut(span.start()) = 8;
         assert_eq!(original.span_or_empty(span), borrowed);
         assert_ne!(fork.span_or_empty(span), borrowed);

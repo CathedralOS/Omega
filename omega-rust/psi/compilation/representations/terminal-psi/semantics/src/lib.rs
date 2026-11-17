@@ -538,7 +538,10 @@ pub(crate) mod semantic_rows {
 
     pub(crate) use operation_semantic_cohort;
 }
-pub use structural::structural_store::{discardable_store_value, structural_store_value_admitted};
+pub use structural::structural_store::{
+    StructuralStoreValueError, discardable_store_value, structural_store_value_admitted,
+    validate_structural_store_values,
+};
 
 pub use access::access_view_referent::{
     AccessViewInputError, AccessViewReferentError, access_view_input_parameter,
@@ -558,9 +561,9 @@ pub use bytes::byte_sequence_predicates::{
     byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
     byte_qualification_predicates_in, byte_sequence_argument_predicates,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
-    byte_transfer_qualifications_hold, byte_view_call_result, indexed_byte_store_goal,
-    pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
-    scalar_operation_origin, shared_byte_field_copy_predicates,
+    byte_subslice_is_whole, byte_transfer_qualifications_hold, byte_view_call_result,
+    indexed_byte_store_goal, pure_byte_qualifications, scalar_array_qualifications_hold,
+    scalar_operation_literal, scalar_operation_origin, shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{

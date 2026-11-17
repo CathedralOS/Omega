@@ -76,16 +76,15 @@ fn prepare_saved_project(root: &str, target: &str, output: &str) -> Result<()> {
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .map_err(|error| format!("canonical Psi: {error:?}"))?,
     );
-    let (recovered, permissions, assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
-            {
-                let authorization = pending.terminal.authorization().clone();
-                authorization.require_artifact(&canonical)?;
-                authorization
-            },
-            inputs,
-        )
-        .map_err(diagnostics)?;
+    let (recovered, permissions, assumptions) = products::recover_native_derivation_inputs(
+        {
+            let authorization = pending.terminal.authorization().clone();
+            authorization.require_artifact(&canonical)?;
+            authorization
+        },
+        inputs,
+    )
+    .map_err(diagnostics)?;
     if recovered != pending.terminal
         || permissions != pending.accepted_package_permissions
         || !assumptions.is_empty()
@@ -245,12 +244,11 @@ fn finish_saved_project(
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .map_err(|error| format!("canonical Psi: {error:?}"))?,
     );
-    let (retained, permissions, original_assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
-            terminal_installation::authorize_terminal_artifact(canonical, Some(producer))?,
-            &inputs,
-        )
-        .map_err(diagnostics)?;
+    let (retained, permissions, original_assumptions) = products::recover_native_derivation_inputs(
+        terminal_installation::authorize_terminal_artifact(canonical, Some(producer))?,
+        &inputs,
+    )
+    .map_err(diagnostics)?;
     if !original_assumptions.is_empty() {
         return Err("prepared inputs already contain installation assumptions".into());
     }

@@ -14,7 +14,7 @@ and must be recovered from history.
 
 | Stage | Operation entrance | Output owner |
 | --- | --- | --- |
-| 00 — source loading and lexing | [lex_sources.rs](00_source-files-to-tokens/src/lex_sources.rs) | [tokens](../representations/tokens/) |
+| 00 — source loading and lexing | [lexer.rs](00_source-files-to-tokens/lexer.rs) | [tokens](../representations/tokens/) |
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
@@ -182,7 +182,7 @@ from the former corpus. A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
-The [lexer](00_source-files-to-tokens/src/lexer.rs) reads loaded source records
+The [lexer](00_source-files-to-tokens/lexer.rs) reads loaded source records
 and keeps each token's source identity and byte span. Numeric metadata and
 decoded literal bytes describe spelling only; they are not typed values or
 proof facts. The lexer accepts a fixed set of characters: explicit whitespace,

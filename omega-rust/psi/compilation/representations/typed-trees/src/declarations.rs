@@ -64,10 +64,13 @@ pub mod boundary_completions {
         requirement: SymbolHandle,
     ) -> semantic_vocabulary::BoundaryCompletion {
         use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
-        let external = program
-            .traits()
-            .iter()
-            .any(|definition| exact_process_exit_requirement(program, definition, requirement));
+        let external = program.symbols.symbols().nodes().is_valid(requirement)
+            && program
+                .trait_machine_signature(requirement)
+                .is_some_and(|(owner, _)| {
+                    program.symbols.symbols().nodes().is_valid(owner.symbol)
+                        && exact_process_exit_requirement(program, owner, requirement)
+                });
         if external {
             BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
         } else {
@@ -240,6 +243,190 @@ pub mod boundary_completions {
                 },
                 result,
             )
+        }
+
+        const PROCESS_EXIT_SOURCE: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/process_exit.omg"
+        ));
+
+        fn completion_fixture(
+            origin: SourceOrigin,
+            exit_source: &str,
+        ) -> (TypedTrees, SymbolHandle, SymbolHandle) {
+            let mut sources = SourceMap::default();
+            let never_source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/never.omg"),
+                    NEVER_SOURCE.into(),
+                    PathBuf::from("core"),
+                    None,
+                    SourceOrigin::Toolchain,
+                )
+                .source_id;
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/process_exit.omg"),
+                    exit_source.into(),
+                    PathBuf::from("core"),
+                    None,
+                    origin,
+                )
+                .source_id;
+            let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let never_at = NEVER_SOURCE.find("Never").unwrap();
+            let owner_at = exit_source.find("ProcessExit").unwrap();
+            let roots = builder.insert_children(
+                root,
+                builtin_type_symbols().into_iter().chain([
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            never_source,
+                            Span::new(never_at, never_at + "Never".len()),
+                        )),
+                    ),
+                    (
+                        SymbolKind::Trait,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            source,
+                            Span::new(owner_at, owner_at + "ProcessExit".len()),
+                        )),
+                    ),
+                    (SymbolKind::Trait, SymbolNameRef::Static("Unrelated")),
+                ]),
+            );
+            let builtin_count = u32::try_from(symbols::BUILTIN_TYPE_COUNT).unwrap();
+            let never = roots.handle_at(builtin_count);
+            let owner = roots.handle_at(builtin_count + 1);
+            let unrelated = roots.handle_at(builtin_count + 2);
+            let at = exit_source.find("exit_process").unwrap();
+            let requirement = builder
+                .insert_children(
+                    owner,
+                    [(
+                        SymbolKind::State,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            source,
+                            Span::new(at, at + "exit_process".len()),
+                        )),
+                    )],
+                )
+                .start();
+            let other = builder
+                .insert_children(
+                    unrelated,
+                    [(SymbolKind::State, SymbolNameRef::Static("exit_process"))],
+                )
+                .start();
+            let arguments = [requirement, other].map(|requirement| {
+                builder
+                    .insert_children(
+                        requirement,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("code"))],
+                    )
+                    .start()
+            });
+            let mut typed = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            typed.push_data_definition(DataDefinition {
+                symbol: never,
+                name: "Never".into(),
+                ..Default::default()
+            });
+            let integer = typed
+                .symbols
+                .builtin_atom_symbol(BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::signed(32),
+                ))
+                .unwrap();
+            let argument = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: integer,
+                name: "i32".into(),
+            });
+            let result = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: never,
+                name: "Never".into(),
+            });
+            // Put the unrelated public boundary first. Its equally named member
+            // must not inherit the canonical requirement's completion.
+            for (owner, requirement, parameter, name) in [
+                (unrelated, other, arguments[1], "Unrelated"),
+                (owner, requirement, arguments[0], "ProcessExit"),
+            ] {
+                let parameters = typed.state_parameters.insert_many([StateParameter {
+                    symbol: parameter,
+                    name: "code".into(),
+                    type_reference: argument,
+                    ..Default::default()
+                }]);
+                let machines = typed.trait_machine_signatures.insert_many([
+                    crate::signature::StateSignature {
+                        symbol: requirement,
+                        name: "exit_process".into(),
+                        parameters,
+                        return_type: result,
+                        declares_no_crash_route: true,
+                        termination_guarantee:
+                            language_semantics::TerminationGuarantee::Terminates {
+                                premises: Vec::new(),
+                            },
+                        ..Default::default()
+                    },
+                ]);
+                typed.push_trait_definition(crate::trait_definition::TraitDefinition {
+                    symbol: owner,
+                    name: name.into(),
+                    machines,
+                    is_public: true,
+                    is_boundary: true,
+                    ..Default::default()
+                });
+            }
+            (typed, requirement, other)
+        }
+
+        #[test]
+        fn completion_uses_the_exact_requirement_owner_and_keeps_source_custody() {
+            use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+            let (typed, requirement, other) =
+                completion_fixture(SourceOrigin::Toolchain, PROCESS_EXIT_SOURCE);
+            assert_eq!(
+                boundary_requirement_completion(&typed, requirement),
+                BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
+            );
+            assert_eq!(
+                boundary_requirement_completion(&typed, other),
+                BoundaryCompletion::NormalReturn
+            );
+            assert_eq!(
+                declared_completion(&typed, SymbolHandle::invalid()),
+                BoundaryCompletion::NormalReturn
+            );
+            // A handle from this source cannot give another source owner an
+            // external completion or cause a foreign-symbol lookup panic.
+            assert_eq!(
+                declared_completion(&TypedTrees::default(), requirement),
+                BoundaryCompletion::NormalReturn
+            );
+            let edited = format!("{PROCESS_EXIT_SOURCE}\n// source bytes changed\n");
+            for (origin, source) in [
+                (SourceOrigin::User, PROCESS_EXIT_SOURCE),
+                (SourceOrigin::Toolchain, edited.as_str()),
+            ] {
+                let (typed, requirement, other) = completion_fixture(origin, source);
+                assert_eq!(
+                    boundary_requirement_completion(&typed, requirement),
+                    BoundaryCompletion::NormalReturn
+                );
+                assert_eq!(
+                    boundary_requirement_completion(&typed, other),
+                    BoundaryCompletion::NormalReturn
+                );
+            }
         }
 
         #[test]

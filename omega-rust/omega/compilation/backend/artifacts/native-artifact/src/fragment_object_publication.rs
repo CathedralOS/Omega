@@ -10,7 +10,7 @@ admitted `ValidatedNativeProgramEntrySettlement` before returning a
 use diagnostics::Diagnostic;
 
 use crate::native_artifact_error;
-use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
+use verified_optimization_input::ValidatedNativeProgramEntrySettlement;
 
 pub struct FragmentObjectPublicationRequest<'request> {
     pub program_entry: Option<&'request ValidatedNativeProgramEntrySettlement>,

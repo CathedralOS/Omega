@@ -177,9 +177,9 @@ pub(super) fn mutable_byte_formal_identity(
 /// The type beneath the domains displayed on a view's referent, and those
 /// domains in written order.
 ///
-/// Served: a declared domain whose one `requires` is a primitive byte
-/// predicate of `self` and that holds of the empty view (`valid_utf8`,
-/// `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
+/// Served: a declared domain whose one `requires` selects a genuine Core
+/// byte observer of an explicit shared whole view of `self`, and that holds
+/// of the empty view (`valid_utf8`, `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
 /// shows, which the lowered form carries as the field's predicates
 /// (`StructuralFieldType::PredicateByteSequence`) and the checker judges
 /// from the bytes each store supplies (byte_views.md: "Primitive byte
@@ -325,25 +325,32 @@ impl Program<'_> {
         machine: MachineId,
         row: semantic_vocabulary::StructuralTypeId,
     ) -> [Option<TypeReferenceHandle>; 2] {
-        let count = semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid"),
-        );
         let reference = self
             .record_sources
             .get(row)
             .and_then(|source| source.application.as_ref())
             .map(|application| application.reference);
-        let count_reference = self.typed.type_reference_table.named_references().find_map(
-            |(reference, symbol, _)| {
+        [reference, self.collection_count_operand_type(machine)]
+    }
+
+    pub(super) fn collection_count_operand_type(
+        &self,
+        machine: MachineId,
+    ) -> Option<TypeReferenceHandle> {
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.typed
+            .type_reference_table
+            .named_references()
+            .find_map(|(reference, symbol, _)| {
                 self.typed
                     .symbols
                     .builtin_type_atom(symbol)
                     .is_some_and(|atom| super::types::atom_type(atom, machine) == Ok(count))
                     .then_some(reference)
-            },
-        );
-        [reference, count_reference]
+            })
     }
 
     pub(super) fn collection_range_selection(
@@ -745,6 +752,9 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
+        // Keep the domains on the actual view type in every placement.
+        // Signature clauses and checked establishments owe their predicates;
+        // reading this type supplies no proof of those predicates.
         let mut qualification = Qualification::NONE;
         for domain in domains {
             qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
@@ -946,7 +956,7 @@ impl Program<'_> {
         machine: MachineId,
         value_type: ValueType,
     ) -> Checked<ByteSequencePredicateSet> {
-        let mut predicates = ByteSequencePredicateSet::EMPTY;
+        let predicates = ByteSequencePredicateSet::EMPTY;
         let ValueType::Record(row, qualification, _) = value_type else {
             return Ok(predicates);
         };
@@ -956,8 +966,33 @@ impl Program<'_> {
         ) {
             return Ok(predicates);
         }
+        self.byte_qualification_predicates(machine, qualification)
+    }
+
+    /// Pure byte predicates named by exact domain applications. The caller
+    /// owns the byte carrier's shape; this query supplies no value proof.
+    pub(super) fn byte_qualification_predicates(
+        &self,
+        machine: MachineId,
+        qualification: Qualification,
+    ) -> Checked<ByteSequencePredicateSet> {
+        if qualification.policy.is_some() {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("arithmetic policy on byte storage"),
+            ));
+        }
+        let mut predicates = ByteSequencePredicateSet::EMPTY;
         for domain in qualification.domains.members() {
-            self.domain_theory(machine, domain)?;
+            let theory = self.domain_theory(machine, domain)?;
+            if theory.access_policy.is_some() {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte predicate conversion needs governed domain evidence"),
+                ));
+            }
             let predicate =
                 typed_trees::byte_predicates::domain_byte_predicate(self.typed, domain.declaration)
                     .ok_or_else(|| {

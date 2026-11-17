@@ -4727,6 +4727,20 @@ pub(crate) mod engine {
         }
     }
 
+    // Plain data occupies its resident home. References, views and access
+    // records carry a location or permission for other storage.
+    fn carries_backing(shape: &StructuralTypeShape) -> bool {
+        shape.is_borrowed_descriptor()
+            || matches!(
+                shape,
+                StructuralTypeShape::Record {
+                    storage: terminal_psi::StructuralRecordStorage::AccessView(_)
+                        | terminal_psi::StructuralRecordStorage::Accessor(_),
+                    ..
+                }
+            )
+    }
+
     pub(crate) struct Replay<'a> {
         pub(crate) types: &'a [StructuralTypeDeclaration],
         pub(crate) slot_kind: DescriptorSlotKind,
@@ -5928,6 +5942,59 @@ pub(crate) mod engine {
                 case_storage,
             )
         }
+        /// Capture the address that a reference or inline collection view
+        /// borrows. Replacing a resident value never changes that address.
+        fn capture_storage(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            source: &DescriptorLocation,
+            reads: &DescriptorReadDepth<'_>,
+        ) -> Value {
+            if let Some(carrier) = self.reference_referent_carrier(machine, state, source, reads)? {
+                return self.read_with_depth(machine, state, &carrier, reads);
+            }
+            match self.resolve_storage_with_depth(machine, state, source, reads)? {
+                StorageResolution::Unique(storage) => {
+                    Some(BTreeSet::from([Origin::Storage(storage)]))
+                }
+                StorageResolution::Projected(origin) => {
+                    Some(BTreeSet::from([Origin::Backing(origin)]))
+                }
+                StorageResolution::Alternatives => {
+                    self.read_with_depth(machine, state, source, reads)
+                }
+            }
+        }
+
+        fn location_carries_backing(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            location: &DescriptorLocation,
+            reads: &DescriptorReadDepth<'_>,
+        ) -> Option<bool> {
+            let (path, endpoint) = self.resolved_location(machine, state, location, reads)?;
+            if let Some(endpoint) = endpoint {
+                return Some(carries_backing(
+                    &find_structural_type(self.types, endpoint)?.shape,
+                ));
+            }
+            // Inline scalar and byte-view fields do not need separate type
+            // declarations. Only a borrowed view field carries a payload.
+            let field = crate::runtime_structural_field(
+                self.types.iter(),
+                *machine.place_types.get(&location.root)?,
+                &path,
+            )?;
+            Some(
+                field
+                    .field_type
+                    .byte_sequence_carrier()
+                    .is_some_and(|carrier| carrier.is_borrowed()),
+            )
+        }
+
         fn transfer_states<'locations>(
             &self,
             machine: &DescriptorMachine,
@@ -5995,23 +6062,7 @@ pub(crate) mod engine {
                         destination.clone(),
                     ))
                 }) {
-                    let value = if let Some(carrier) =
-                        self.reference_referent_carrier(machine, before, source, reads)?
-                    {
-                        self.read_with_depth(machine, before, &carrier, reads)
-                    } else {
-                        match self.resolve_storage(machine, before, source, None)? {
-                            StorageResolution::Unique(storage) => {
-                                Some(BTreeSet::from([Origin::Storage(storage)]))
-                            }
-                            StorageResolution::Projected(origin) => {
-                                Some(BTreeSet::from([Origin::Backing(origin)]))
-                            }
-                            StorageResolution::Alternatives => {
-                                self.read_with_depth(machine, before, source, reads)
-                            }
-                        }
-                    };
+                    let value = self.capture_storage(machine, before, source, reads);
                     merge_value(
                         &mut assigned,
                         canonical(destination)?,
@@ -6190,17 +6241,7 @@ pub(crate) mod engine {
                 }
                 let structural_type = *machine.place_types.get(&parameter.root)?;
                 let shape = &find_structural_type(self.types, structural_type)?.shape;
-                if is_descriptor(self.types.iter(), structural_type)
-                    || matches!(
-                        shape,
-                        StructuralTypeShape::Reference { .. }
-                            | StructuralTypeShape::Record {
-                                storage: terminal_psi::StructuralRecordStorage::AccessView(_)
-                                    | terminal_psi::StructuralRecordStorage::Accessor(_),
-                                ..
-                            }
-                    )
-                {
+                if carries_backing(shape) {
                     continue;
                 }
                 let value = Some(BTreeSet::from([Origin::Storage(parameter.clone())]));
@@ -7152,6 +7193,18 @@ pub(crate) mod engine {
                     position,
                     projection,
                 } => {
+                    if let Some(argument) = actuals.arguments.get(*position)?.as_ref()
+                        && !self.location_carries_backing(machine, state, argument, reads)?
+                    {
+                        // A view returned from inline storage borrows the
+                        // evaluated argument's address, not the local value
+                        // whose bytes were last copied into that argument.
+                        return self.project(
+                            machine,
+                            self.capture_storage(machine, state, argument, reads),
+                            Some(projection),
+                        );
+                    }
                     let address = actuals
                         .arguments
                         .get(*position)
@@ -8732,6 +8785,115 @@ pub(crate) mod engine {
                 storage_derivations,
                 calls: BTreeMap::new(),
                 normal_exits: vec![entry],
+            }
+        }
+
+        #[test]
+        fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let array = StructuralTypeId::new(2).unwrap();
+            let reference = StructuralTypeId::new(3).unwrap();
+            let mut array_declaration = scalar_type(2);
+            array_declaration.shape = StructuralTypeShape::FixedArray {
+                element: scalar,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            };
+            let types = [
+                scalar_type(1),
+                array_declaration,
+                reference_type(3, array, StructuralAccess::SharedBorrow),
+            ];
+            let resident = location(1);
+            let replacement = location(2);
+            let descriptor = location(3);
+            let machine = bare_machine(
+                MachineId::new(1).unwrap(),
+                vec![
+                    DescriptorPlace {
+                        producer: None,
+                        place: resident.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::MutableBorrow,
+                            structural_type: array,
+                        },
+                    },
+                    DescriptorPlace {
+                        producer: None,
+                        place: replacement.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                    DescriptorPlace {
+                        producer: None,
+                        place: descriptor.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                ],
+                BTreeMap::from([
+                    (resident.root, array),
+                    (replacement.root, array),
+                    (descriptor.root, reference),
+                ]),
+                BTreeSet::new(),
+            );
+            let replay = Replay::with_slot_kind(
+                &types,
+                std::slice::from_ref(&machine),
+                DescriptorSlotKind::BorrowedStorage,
+            );
+            let mut state = replay.initial(&machine).unwrap();
+            state.slots_mut().insert(
+                resident.clone(),
+                Some(BTreeSet::from([Origin::Storage(replacement.clone())])),
+            );
+            let arguments = [Some(resident.clone())];
+            let contents = [Some(DescriptorContentsQuery::from_location(&resident))];
+            let origin = DescriptorStoredOrigin::Parameter {
+                position: 0,
+                projection: Projection::new(&[StructuralPathSegment::FixedIndex(1)]),
+            };
+            let mut expected = resident.clone();
+            expected.path.push(DescriptorPathSegment::FixedIndex(1));
+            assert_eq!(
+                replay.substitute_actuals(
+                    &machine,
+                    &state,
+                    DescriptorActualInputs {
+                        scalar_arguments: &[],
+                        arguments: &arguments,
+                        argument_contents: &contents,
+                    },
+                    &origin,
+                ),
+                Some(BTreeSet::from([Origin::Storage(expected)])),
+            );
+
+            // A stored reference still follows its current pointer value.
+            // Changing it must not pin the result to the descriptor's home.
+            let arguments = [Some(descriptor.clone())];
+            let contents = [Some(DescriptorContentsQuery::from_location(&descriptor))];
+            let origin = DescriptorStoredOrigin::Parameter {
+                position: 0,
+                projection: Projection::new(&[]),
+            };
+            for target in [resident, replacement] {
+                state.slots_mut().insert(
+                    descriptor.clone(),
+                    Some(BTreeSet::from([Origin::Storage(target.clone())])),
+                );
+                assert_eq!(
+                    replay.substitute_actuals(
+                        &machine,
+                        &state,
+                        DescriptorActualInputs {
+                            scalar_arguments: &[],
+                            arguments: &arguments,
+                            argument_contents: &contents,
+                        },
+                        &origin,
+                    ),
+                    Some(BTreeSet::from([Origin::Storage(target)])),
+                );
             }
         }
 

@@ -1133,7 +1133,10 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<super::Lineage> {
         let place = self.stored_at(source, path, concerns)?;
-        if self.incoming(source).is_some()
+        let owner = terminal_semantics::structural_argument_source(self.lowered, source, 0);
+        if owner
+            .as_ref()
+            .is_some_and(|owner| owner.access != StructuralAccess::Owned)
             || place
                 .segments
                 .contains(&terminal_check_tables::bindings::Segment::Referent)
@@ -1151,15 +1154,17 @@ impl<'a> Storage<'a> {
         {
             return Err(self.foreign(concerns, "reference release names no descriptor"));
         }
-        match self.root_kind(source, concerns)? {
-            StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::OperationResult { .. } => {
-                Ok(place)
-            }
-            _ => Err(self.unsupported(
+        // Disposition consumes the descriptor stored in this home, never its
+        // backing. Literal descriptors and owned block arrivals have the same
+        // custody as other owned homes; the shared source query authenticates
+        // their actual producer or arrival rather than guessing from root kind.
+        if !owner.is_some_and(|owner| owner.access == StructuralAccess::Owned) {
+            return Err(self.unsupported(
                 concerns,
                 "reference release without an owned descriptor home",
-            )),
+            ));
         }
+        Ok(place)
     }
 
     /// A retained loan constrains every use of its backing until its actual

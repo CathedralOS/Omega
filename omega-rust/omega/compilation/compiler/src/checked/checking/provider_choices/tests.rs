@@ -40,6 +40,10 @@ struct Fixture {
 /// Use the ordinary source pipeline and the original package/source custody.
 /// Defaults are harvested before judgment, never recovered from a publication.
 fn typed(supplied: &str, program: &str) -> Fixture {
+    try_typed(supplied, program).expect("harvest source defaults")
+}
+
+fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     for (path, text, origin) in [
@@ -85,19 +89,18 @@ fn typed(supplied: &str, program: &str) -> Fixture {
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
         source::DependencyScope::Product,
-    ))
-    .expect("harvest source defaults");
+    ))?;
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "main")
         .expect("source main")
         .symbol;
-    Fixture {
+    Ok(Fixture {
         source: Arc::new(typed.into()),
         entry,
         defaults,
-    }
+    })
 }
 
 fn prepare(
@@ -169,7 +172,8 @@ fn execution(
             terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::default(
             ),
         },
-    ))?;
+    ))
+    .map_err(|error| error.diagnostic(module))?;
     selected_dispatch::SelectedExecution::from_realization(Some(profile()), realized).map_err(first)
 }
 
@@ -252,16 +256,16 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
 }
 
 #[test]
-fn a_reached_requirement_forms_no_selected_execution_without_its_plan() {
+fn a_data_type_cannot_supply_a_provider_default() {
     // Preserve the original data-only provider as the negative. A data type
     // has no complete named operation record, so no checked plan can form.
-    let fixture = typed(&format!("{SLOT}{ORIGINAL_NATIVE_DEFAULT}"), REACHES);
-    let refusal = prepare(&fixture, &[], fixture.defaults.clone())
+    let refusal = try_typed(&format!("{SLOT}{ORIGINAL_NATIVE_DEFAULT}"), REACHES)
         .err()
         .expect("bodyless data supplies no provider record");
+    assert_eq!(refusal.len(), 1);
     assert_eq!(
-        refusal,
-        "provider position is not a complete named implementation record"
+        refusal[0].message,
+        "provider selection `Native` is not a static operation record from a named implementation; a data type is not a provider value"
     );
 }
 

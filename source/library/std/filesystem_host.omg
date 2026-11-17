@@ -1,4 +1,5 @@
+use omega::language::core::byte_observation;
 // Shared filesystem path domain for portable and raw OS-family services.
 // POSIX preserves these NUL-free bytes; Windows encodes them as UTF-16.
 public domain [u8]::Path
-requires no_nul(self);
+requires byte_observation::no_nul(&self[..]);

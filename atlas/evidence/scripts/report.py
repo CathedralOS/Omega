@@ -1,52 +1,67 @@
-"""For one foundation crate: item -> defining file[::inline mod path] -> user positions.
-Usage: python3 -I report.py usage.json meta.json <crate> [--by-file] [--depth N]"""
-import json, os, re, sys, collections
-u = json.load(open(sys.argv[1]))
-m = json.load(open(sys.argv[2]))
-crate = sys.argv[3]
-byfile = '--by-file' in sys.argv
-depth_limit = int(sys.argv[sys.argv.index('--depth') + 1]) if '--depth' in sys.argv else 1
-pk = next(p for p in m['packages'] if p['name'] == crate)
-src = os.path.join(os.path.dirname(pk['manifest_path']), 'src')
-defs = {}
-DEF = re.compile(r'^\s*pub(?:\([^)]*\))?\s+(?:unsafe\s+)?(?:struct|enum|fn|trait|type|const|static|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)')
-MAC = re.compile(r'^\s*[a-z_]+!\s*[\(\{]\s*(?:pub\s+)?([A-Z][A-Za-z0-9_]*)')
-MACRULE = re.compile(r'macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)')
-MOD = re.compile(r'^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{')
-for dp, dn, fn in os.walk(src):
-    for f in fn:
-        if not f.endswith('.rs'):
+"""Show candidate defining locations for observed items, without resolving Rust.
+
+Usage: report.py usage.json metadata.json crate [--by-file] [--depth N]
+Candidates exclude the same test files/items as the usage scanner. Multiple
+matches remain visible; a repeated name must not silently pick a test helper.
+"""
+import argparse
+import collections
+import json
+from pathlib import Path
+import re
+from scanlib import Workspace, mask_non_code, strip_cfg_test
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("usage", type=Path)
+    parser.add_argument("metadata", type=Path)
+    parser.add_argument("crate")
+    parser.add_argument("--by-file", action="store_true")
+    parser.add_argument("--depth", type=int, default=1)
+    args = parser.parse_args()
+    usage = json.loads(args.usage.read_text())
+    workspace = Workspace(json.loads(args.metadata.read_text()))
+    src = workspace.root / workspace.dirs[args.crate] / "src"
+    definitions = collections.defaultdict(set)
+    definition = re.compile(r"^\s*pub(?:\([^)]*\))?\s+(?:unsafe\s+)?(?:struct|enum|fn|trait|type|const|static|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)")
+    macro = re.compile(r"^\s*[a-z_]+!\s*[\({]\s*(?:pub\s+)?([A-Z][A-Za-z0-9_]*)")
+    macro_rule = re.compile(r"macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)")
+    module = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
+    for path in workspace.production_files(args.crate):
+        if not path.is_relative_to(src):
             continue
-        path = os.path.join(dp, f)
-        relp = path.replace(src + '/', '')
-        stack = []
-        depth = 0
-        for line in open(path, encoding='utf-8', errors='replace'):
-            code = line.split('//')[0]
-            mm = MOD.match(code)
-            where = relp + ''.join('::' + s for s, _ in stack[:depth_limit])
-            for rx in (DEF, MAC, MACRULE):
-                d = rx.search(code) if rx is MACRULE else rx.match(code)
-                if d:
-                    defs.setdefault(d.group(1), where)
-            if mm:
-                stack.append((mm.group(1), depth))
-            depth += code.count('{') - code.count('}')
+        stack, depth = [], 0
+        code = strip_cfg_test(mask_non_code(path.read_text(encoding="utf-8")))
+        for line in code.splitlines():
+            location = path.relative_to(src).as_posix() + "".join("::" + name for name, _ in stack[:args.depth])
+            for pattern in (definition, macro, macro_rule):
+                match = pattern.search(line) if pattern is macro_rule else pattern.match(line)
+                if match:
+                    definitions[match.group(1)].add(location)
+            if match := module.match(line):
+                stack.append((match.group(1), depth))
+            depth += line.count("{") - line.count("}")
             while stack and depth <= stack[-1][1]:
                 stack.pop()
-items = u['usage'].get(crate, {})
-pos = u['pos']
-if byfile:
-    agg = collections.defaultdict(lambda: [set(), set(), []])
-    for it, users in items.items():
-        f = defs.get(it, '?')
-        agg[f][0].update(users)
-        agg[f][1].update(pos.get(x, x) for x in users)
-        agg[f][2].append(it)
-    for f, (us, ps, its) in sorted(agg.items(), key=lambda kv: -len(kv[1][1])):
-        print(f"{f}: {len(ps)} positions | {len(its)} items: {', '.join(sorted(its))[:400]}")
-        print(f"    positions: {', '.join(sorted(ps))}")
-else:
-    for it, users in sorted(items.items(), key=lambda kv: -len(kv[1])):
-        ps = sorted(set(pos.get(x, x) for x in users))
-        print(f"{it} [{defs.get(it,'?')}] ({len(ps)}): {', '.join(ps)}")
+    locations = lambda item: " | ".join(sorted(definitions[item])) or "? unresolved"
+    positions = lambda names: {usage["pos"].get(name, name) for name in names}
+    items = usage["usage"].get(args.crate, {})
+    print("# Definition candidates from source text; reexports/macros and ambiguous names require review.")
+    if args.by_file:
+        aggregate = collections.defaultdict(lambda: [set(), []])
+        for item, names in items.items():
+            row = aggregate[locations(item)]
+            row[0].update(positions(names))
+            row[1].append(item)
+        for location, (places, names) in sorted(aggregate.items(), key=lambda pair: (-len(pair[1][0]), pair[0])):
+            print(f"{location}: {len(places)} positions | {len(names)} items: {', '.join(sorted(names))}")
+            print(f"    positions: {', '.join(sorted(places))}")
+    else:
+        for item, names in sorted(items.items(), key=lambda pair: (-len(pair[1]), pair[0])):
+            places = positions(names)
+            print(f"{item} [{locations(item)}] ({len(places)}): {', '.join(sorted(places))}")
+
+
+if __name__ == "__main__":
+    main()

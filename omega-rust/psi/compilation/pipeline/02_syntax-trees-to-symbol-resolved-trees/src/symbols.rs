@@ -1207,14 +1207,54 @@ mod domain_facts {
         else {
             return None;
         };
-        if call.receiver.is_valid() {
+        if !call.target_symbol.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+        {
             return None;
         }
-        let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+        let target = if program.symbols.get(call.target_symbol).kind == symbols::SymbolKind::State {
+            program.symbols.get(call.target_symbol).parent
+        } else {
+            call.target_symbol
+        };
+        let Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+            language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
+        )) = program
+            .symbols
+            .sealed_declaration(target, program.symbols.name(target))
+        else {
+            return None;
+        };
         let [argument] = body_expressions(program).expression_handles(call.arguments) else {
             return None;
         };
-        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(*argument)
+        let mut argument = *argument;
+        if !matches!(
+            program.tables.bodies.expressions.expression(argument),
+            ExpressionNode::Borrow(_)
+        ) {
+            return None;
+        }
+        if let ExpressionNode::Borrow(borrow) =
+            program.tables.bodies.expressions.expression(argument)
+        {
+            if borrow.access != language_core::ReferenceAccess::Shared {
+                return None;
+            }
+            argument = borrow.target;
+            if let ExpressionNode::Indexed(indexed) =
+                program.tables.bodies.expressions.expression(argument)
+                && let ExpressionNode::Range(range) =
+                    program.tables.bodies.expressions.expression(indexed.index)
+            {
+                if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
+                    return None;
+                }
+                argument = indexed.collection;
+            }
+        }
+        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(argument)
         else {
             return None;
         };
@@ -1430,7 +1470,17 @@ mod domain_facts {
                     {
                         self.assign(argument);
                     }
-                    if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
+                    // A declaration predicate takes the same source-scoped
+                    // static namespace as an ordinary body or callable clause.
+                    let normalized = super::targets::normalize_expression_module_call(
+                        self.symbols,
+                        self.expression_table,
+                        expression,
+                    );
+                    if normalized.is_none()
+                        && !call.receiver.is_valid()
+                        && !call.target_symbol.is_valid()
+                    {
                         let mut lexical_matches = self
                             .local_symbols
                             .iter()

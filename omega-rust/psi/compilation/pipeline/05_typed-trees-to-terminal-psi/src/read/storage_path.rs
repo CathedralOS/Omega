@@ -39,6 +39,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Zero

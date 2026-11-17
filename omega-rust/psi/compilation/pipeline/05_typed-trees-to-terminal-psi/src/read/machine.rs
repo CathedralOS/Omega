@@ -1910,7 +1910,7 @@ impl<'t> Program<'t> {
                 "the requirement it satisfies",
             )
         };
-        let [edge] = self.typed.machine_trait_conformances(machine) else {
+        let Some([edge]) = self.typed.machine_trait_conformances(machine).as_array() else {
             return Err(unserved(
                 "conformer without exactly one declared requirement",
             ));
@@ -2189,6 +2189,125 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
         Ok((signature, names))
+    }
+
+    /// An observation uses the ordinary declaration's full contract. Catalog
+    /// custody fixes its meaning, while its actual formal still owes normal
+    /// shared-loan formation at each call.
+    pub(super) fn byte_observation_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(target));
+        let owner = std::mem::replace(&mut self.lifetime_owner, target);
+        let read = self.read_byte_observation_signature(id, target);
+        self.lifetime_owner = owner;
+        self.elision = elision;
+        read
+    }
+
+    fn read_byte_observation_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        use language_core::sealed_intrinsics::CompilerPrimitive;
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let Some((CompilerPrimitive::ByteObservation(_), _schema)) = self
+            .typed
+            .compiler_primitive_schema(target)
+            .map_err(|_| unavailable("byte observation has no complete authenticated schema"))?
+        else {
+            return Err(unavailable("byte observation has no exact catalog custody"));
+        };
+        self.served(id, target)?;
+        let (machine, state) = self.declaration(id, target)?;
+        if !machine.is_public
+            || machine.interface_exposure != language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            || machine.purpose != MachinePurpose::Runtime
+            || machine.spelling.is_some()
+            || machine.type_parameters != arena::HandleSpan::empty()
+            || machine.lifetime_parameters.len() != 1
+            || machine.admitted_same_stack_bytes != 0
+            || machine.assembly_target_requirement != language_core::inline_assembly::AsmTargetApplicability::Any
+            || !machine.suspends_keyword_source_spans.is_empty()
+            || !machine.blocks_keyword_source_spans.is_empty()
+            || !state.statement_nodes.is_empty() || !state.contracts.is_empty()
+            || self.typed.state_parameters(state).iter().any(|formal|
+                formal.is_const || formal.is_mutable
+                || formal.relevance != language_core::BindingRelevance::Relevant)
+        {
+            return Err(unavailable("byte observation has another static, operational or entry contract"));
+        }
+        let (mut signature, _) = self.contract(
+            id,
+            machine.symbol,
+            state.parameters,
+            state.return_type,
+            machine.contracts,
+            Declarer::Machine {
+                declares_no_crash_route: machine.declares_no_crash_route,
+                is_public: machine.is_public,
+            },
+            &[],
+            &[],
+        )?;
+        signature.termination = self.termination(id, machine)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.machine_invokes(machine),
+            self.typed.state_parameters(state),
+            true,
+        )?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(machine.suspends),
+            blocking: Some(machine.blocks),
+        };
+        let valid_parameter = match signature.parameters.as_slice() {
+            [ValueType::Record(record, qualification, _)] if qualification.domains.is_empty() => {
+                matches!(
+                    self.data_type(id, *record)?.shape,
+                    crate::body::StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+            }
+            _ => false,
+        };
+        let input_region = super::regions::Region::Parameter(
+            typed_trees::type_identity::LifetimeParameterIdentity {
+                declaration: machine.symbol,
+                ordinal: 0,
+            },
+        );
+        if !valid_parameter
+            || signature.borrowed.len() != 1
+            || signature.borrowed[0].position != 0
+            || signature.borrowed[0].access != language_core::ReferenceAccess::Shared
+            || signature.borrowed[0].referent != crate::body::BorrowedReferent::Slice
+            || self.region_tuple(signature.borrowed[0].regions) != [input_region]
+            || self.region_tuple(signature.parameters[0].regions()) != [input_region]
+            || !signature.erased.is_empty()
+            || signature.result != Some(ValueType::plain(semantic_vocabulary::ScalarType::Boolean))
+            || !signature.requires.is_empty()
+            || !signature.ensures.is_empty()
+            || signature.crashes != CrashCeiling::DeclaredNone
+            || signature.reaches != crate::Ceiling::Authored(Vec::new())
+            || signature.invokes != crate::Ceiling::Authored(Vec::new())
+            || signature.termination != Termination::Promised
+            || signature.ranking.is_some()
+            || machine.suspends
+            || machine.blocks
+        {
+            return Err(unavailable(
+                "byte observation differs from its complete pure byte-view contract",
+            ));
+        }
+        Ok(signature)
     }
 
     /// Core's authenticated numeric catalog supplies its exact pure contract.
@@ -4092,7 +4211,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::CollectionView { base, .. }
-        | ExpressionKind::CollectionMeasure { base, .. } => {
+        | ExpressionKind::CollectionMeasure { base, .. }
+        | ExpressionKind::ByteSequencePredicate { base, .. } => {
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
@@ -4305,7 +4425,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::CollectionView { base, .. }
-        | ExpressionKind::CollectionMeasure { base, .. } => {
+        | ExpressionKind::CollectionMeasure { base, .. }
+        | ExpressionKind::ByteSequencePredicate { base, .. } => {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),

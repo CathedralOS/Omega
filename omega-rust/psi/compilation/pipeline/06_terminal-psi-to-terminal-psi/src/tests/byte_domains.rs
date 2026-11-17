@@ -13,9 +13,22 @@
 //!
 //! Each twin below differs from its partner only in the bytes it stores.
 
-use super::build_purpose::judge_build;
 use super::*;
 use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
+
+const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
+    "byte_observation.omg",
+    "byte_observation",
+    include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/byte_observation.omg"
+    )),
+)];
+
+pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let source = format!("use omega::language::core::byte_observation;\n{build}");
+    super::build_purpose::judge_build_with_core(&source, BYTE_OBSERVATION_SOURCE)
+}
 
 /// `accepted` for a program the checker accepts and can publish; for one it
 /// judges wrong, what it could not establish; else the refusal's text.
@@ -50,7 +63,7 @@ fn rejection(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8]::Text
 requires
-    {predicate}(self);
+    byte_observation::{predicate}(&self[..]);
 data Rejection<'reason> {{ reason: &'reason [u8] in Text; }}
 data Outcome<'reason> {{
     case Accepted(value: u64);
@@ -67,8 +80,14 @@ machine build_entry() {{
 }
 
 fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-    use super::build_purpose::{frontier_of, package, roster, symbol};
-    let typed = frontier_of("machine product_entry() { }", source);
+    use super::build_purpose::{frontier_with_core, package, roster, symbol};
+    let source = format!("use omega::language::core::byte_observation;\n{source}");
+    let typed = frontier_with_core(
+        "machine product_entry() { }",
+        &source,
+        source::DependencyScope::Build,
+        BYTE_OBSERVATION_SOURCE,
+    );
     let entries = [symbol(&typed, "build_entry")];
     let subjects = [Some(package())];
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
@@ -130,7 +149,7 @@ fn a_case_literal_retains_other_cases_conditional_domains() {
     use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment};
 
     let source = r#"
-domain [u8]::Text requires valid_utf8(self);
+domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
 data Rejection<'reason> { reason: &'reason [u8] in Text; }
 data Outcome<'reason> {
     case Accepted(value: &'reason [u8]);
@@ -265,7 +284,7 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 #[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
     let source = r#"
-domain [u8]::Text requires no_nul(self);
+domain [u8]::Text requires byte_observation::no_nul(&self[..]);
 data Choice { case First; case Second; }
 machine same<'a>(text: &'a [u8] in Text, choice: Choice) -> &'a [u8] in Text {
     match choice {
@@ -433,7 +452,7 @@ fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
 domain [u8]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Rejection<'reason> { reason: &'reason [u8] in Text; }
 "#;
     let uncast = format!(
@@ -473,7 +492,7 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
     let laundered = r#"
 domain [u8]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Plain<'reason> { reason: &'reason [u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
@@ -485,7 +504,7 @@ machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Tex
     let non_empty = r#"
 domain [u8]::Filled
 requires
-    non_empty(self);
+    byte_observation::non_empty(&self[..]);
 data Named<'name> { name: &'name [u8] in Filled; }
 machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
@@ -594,7 +613,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
 
     let shadowed = format!(
         "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
-        rejection("valid_utf8", "plain")
+        rejection("valid_utf8", "plain").replace("byte_observation::valid_utf8", "valid_utf8")
     );
     let reason = verdict(&shadowed);
     assert!(
@@ -615,7 +634,7 @@ fn forwarded(bytes: &str) -> String {
         r#"
 domain [u8]::Name
 requires
-    no_nul(self);
+    byte_observation::no_nul(&self[..]);
 machine keep(name: &[u8] in Name) {{ }}
 machine forward(name: &[u8] in Name) {{ keep(name); }}
 machine build_entry() {{ forward("{bytes}" as +Name); }}
@@ -626,6 +645,7 @@ machine build_entry() {{ forward("{bytes}" as +Name); }}
 #[test]
 fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
     assert_eq!(verdict(&forwarded("plain")), "accepted");
+    // The explicit qualification must form before `forward` can use it.
     let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&forwarded(r"pla\x00in")) else {
         panic!("not rejected");
     };
@@ -633,9 +653,10 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
     assert_eq!(
         statements,
         [
-            "cannot prove requires contract for call forward from build_entry: no_nul(self) \
-          (needs fact `no_nul(self)` here; establish it before the call via a prior contract \
-          guarantee, domain membership, or guard) in state `entry`"
+            "cannot prove the value of this cast is in the domain it adds in machine `build_entry` \
+             state `entry`: domain `[u8]::Name` requires `byte_observation::no_nul(&self[..])` \
+             (needs that fact about the operand here; establish it before the cast via a guard, \
+             a prior contract guarantee or a `requires` of this machine)"
         ]
     );
 }
@@ -643,7 +664,7 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
 fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
     format!(
         r#"
-domain [u8]::Text requires {predicate}(self);
+domain [u8]::Text requires byte_observation::{predicate}(&self[..]);
 machine length(text: &[u8] in Text) -> u64 {{ text.len }}
 machine prefix_length(text: &[u8]{source_domain}, end: u64) -> u64
 requires end <= text.len {{
@@ -685,7 +706,7 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
 #[test]
 fn a_slice_uses_the_byte_predicate_of_the_current_loop_parameter() {
     let source = r#"
-domain [u8]::Text requires no_nul(self);
+domain [u8]::Text requires byte_observation::no_nul(&self[..]);
 machine length(text: &[u8] in Text) -> u64 { text.len }
 machine prefix_length(text: &[u8] in Text, end: u64, remaining: u32) -> u64
 requires end <= text.len {
@@ -730,7 +751,7 @@ fn fixed_text(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8; 3]::Text
 requires
-    {predicate}(self);
+    byte_observation::{predicate}(&self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
 machine first(bytes: &[u8; 3] in Text) -> u8 {{ bytes[0] }}
 machine build_entry() {{
@@ -791,7 +812,7 @@ fn a_fixed_byte_array_of_unknown_bytes_is_not_cast_into_its_domain() {
     let unknown = r#"
 domain [u8; 3]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Raw { bytes: [u8; 3]; }
 data Holder { bytes: [u8; 3] in Text; }
 machine relabel(raw: &Raw) -> u8 {

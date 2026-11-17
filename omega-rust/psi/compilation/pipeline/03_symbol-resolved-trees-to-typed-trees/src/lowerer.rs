@@ -866,8 +866,8 @@ pub(crate) mod seeded_continuation {
         let destination_ledger = retained.typed.authored_declaration_selections();
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(destination_ledger.as_slice())
+            .rows()
+            .starts_with(destination_ledger.rows())
         {
             return Err(SeededContinuationError::AuthoredSelectionPrefixChanged);
         }
@@ -936,8 +936,8 @@ pub(crate) mod seeded_continuation {
         }
         if !source
             .authored_declaration_selections()
-            .as_slice()
-            .starts_with(retained.typed.authored_declaration_selections().as_slice())
+            .rows()
+            .starts_with(retained.typed.authored_declaration_selections().rows())
         {
             return Err(Diagnostic::error(
                 "authored-body completion did not retain the typed selection ledger prefix",
@@ -1934,6 +1934,10 @@ pub(crate) fn close_typed_cohort(
         bound_types,
     )?);
     crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    crate::constructor_applications::retain_indexed_operand_types(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    );
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
     crate::typing_queries::defer_unbound_calls(

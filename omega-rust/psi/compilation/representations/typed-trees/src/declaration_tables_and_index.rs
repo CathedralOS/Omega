@@ -3911,7 +3911,7 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[machine::OwnedData] = machine_owned_data.owned_data
                 [push_machine_owned_data];
             machine_trait_conformances(machine: machine::Machine)
-                -> &[machine::TraitConformance] = machine_trait_conformances.satisfies
+                -> rows[machine::TraitConformance] = machine_trait_conformances.satisfies
                 [push_machine_trait_conformance];
             machine_invokes(machine: machine::Machine)
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes

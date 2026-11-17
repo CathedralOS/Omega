@@ -47,7 +47,7 @@ impl<'a> Storage<'a> {
         })
     }
 
-    fn cleanup_backing(
+    pub(super) fn cleanup_backing(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,

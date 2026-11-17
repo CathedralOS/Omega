@@ -1,3 +1,4 @@
+use omega::language::core::byte_observation;
 // Explicit application-owned macOS window state and stateless operations.
 // Named provider maps select these machines; selection creates no hidden state.
 // Cocoa calls use the raw Objective-C/Core Graphics seams below. Window owns
@@ -31,7 +32,7 @@ use omega::language::core::ProcessExit;
 
 public domain [u8]::CString
 requires
-    no_nul(self);
+    byte_observation::no_nul(&self[..]);
 
 // AppKit must be loaded before looking up Cocoa classes through libobjc.
 // The explicit import owns that dependency; class names do not select libraries.

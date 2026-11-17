@@ -216,7 +216,7 @@ impl StaticContracts {
         services: &ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
-        typed_source: Option<&typed_trees::TypedTrees>,
+        source_reader: Option<&crate::read::Program<'_>>,
         native: &[crate::ExternalProviderCandidate],
     ) -> Checked<(Vec<StaticSchemaQuestion>, Vec<StaticConformanceQuestion>)> {
         qualifications.identities = std::mem::take(&mut module.identities).into_builder();
@@ -313,24 +313,21 @@ impl StaticContracts {
                     .provider
                     .as_ref()
                     .map(|provider| -> Checked<StaticProviderCandidate> {
-                        let typed = typed_source.ok_or_else(|| {
+                        let reader = source_reader.ok_or_else(|| {
                             crate::read::services::unavailable(
                                 context,
                                 "static provider lost its immutable source declaration table",
                             )
                         })?;
-                        let sources = source::source_identity::toolchain_source_identities(
-                            typed.symbols.source_files(),
-                        )
-                        .map_err(|_| {
+                        let sources = reader.exact_toolchain_sources().map_err(|_| {
                             crate::read::services::unavailable(
                                 context,
                                 "static provider lost its exact toolchain source identities",
                             )
                         })?;
                         let identity = crate::declare::nominal(
-                            typed,
-                            &sources,
+                            reader.typed,
+                            sources,
                             provider.declaration,
                             &mut qualifications.identities,
                         )

@@ -67,7 +67,9 @@ fn a_target_without_a_build_row_has_no_implementation() {
     let directory = fixture("fail/build/target_selected_implementation_missing_row");
     let output = omega_run(
         &directory,
-        &["--engine", "psi", "--target", "windows_x86_64"],
+        // Both requirements share one cause; ask for every diagnostic so the
+        // assertions below check both exact missing selections.
+        &["--verbose", "--engine", "psi", "--target", "windows_x86_64"],
     );
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");

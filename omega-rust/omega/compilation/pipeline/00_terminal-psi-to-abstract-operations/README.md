@@ -44,10 +44,12 @@ established public names.
   package permissions and prepares callbacks, imports and builtins for
   admission. Derived import evidence stays invocation-owned through admission
   and emission; the compiler forwards this stage's request rather than copying
-  its fields. The [codec](src/retained_terminal_codec.rs)
-  saves derivation inputs that contain no source. Recovery runs them through
-  the same shared proposal operation without source. The in-memory
-  retained product encodes no separate native authority record.
+  its fields. The [codec](../../representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs)
+  that saves derivation inputs, which contain no source, lives beside
+  `RetainedTerminalArtifact` in the shared input owner, so a saved product is
+  recovered without running this stage. Recovery runs them through the same
+  shared proposal operation without source. The in-memory retained product
+  encodes no separate native authority record.
 - [native_execution_scope.rs](src/native_execution_scope.rs) is the complete
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input
@@ -103,6 +105,9 @@ established public names.
   Builtin integer comparisons need no provider row.
 - `lowering` walks operations in order for scalar, Unit and structural
   results. Optimization selection does not change this projection.
+- [Entry admission](src/entry_receiver.rs) compares the lowered entry with its
+  exact selected Psi member, receiver and parameter declarations before object
+  construction. It retains the checked receiver settlement for publication.
 
 [Module lowering](src/lowering.rs) checks the entry and structural block
 bindings, then calls [machine lowering](src/lowering.rs) directly. It

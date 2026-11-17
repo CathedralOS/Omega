@@ -15,6 +15,12 @@ effects = { path = "../../../backend/plans/effects" }
 installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
 provider-admission = { path = "../../../realization/provider-admission" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+arena = { path = "../../../../../psi/foundation/arena" }
+compiler-storage = { path = "../../../../../psi/foundation/compiler-storage" }
+language-core = { path = "../../../../../psi/foundation/language-core" }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+source = { path = "../../../../../psi/foundation/source" }
+symbols = { path = "../../../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

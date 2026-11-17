@@ -58,15 +58,15 @@ pub(crate) fn prepare(
 
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
-            // A bare range observes the actual collection's elements,
-            // not one element. Retain its shared view before ordinary callers
-            // and borrow formations ask for its type. A selected user operator
-            // must supply its own result instead of acquiring a builtin type.
             let Some(collection) =
                 crate::typing_queries::declared_expression_type(program, caller, collection)
             else {
                 continue;
             };
+            // A bare range observes the actual collection's elements,
+            // not one element. Retain its shared view before ordinary callers
+            // and borrow formations ask for its type. A selected user operator
+            // must supply its own result instead of acquiring a builtin type.
             let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
                 continue;
             };
@@ -272,6 +272,40 @@ pub(crate) fn prepare(
         }
     }
     Ok(())
+}
+
+/// Index and range lookup consumes the operand's complete declared type, not
+/// its storage carrier. Run after application views and casts are normalized:
+/// a template field has no applied type to retain during constructor inference.
+pub(crate) fn retain_indexed_operand_types(program: &mut TypedTrees, frontier: usize) {
+    let operands = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(expression, node)| {
+            if expression.arena_index() as usize <= frontier {
+                return None;
+            }
+            let ExpressionNode::Indexed(indexed) = node else {
+                return None;
+            };
+            Some((expression, indexed.collection))
+        })
+        .collect::<Vec<_>>();
+    let owners = typed_trees::references::collect_program_operand_owners(program);
+    let mut declared = crate::typing_queries::DeclaredExpressionTypes::default();
+    for (expression, collection) in operands {
+        let Some(owner) = expression_owner(program, &owners, expression) else {
+            continue;
+        };
+        let Some(reference) = declared.get(program, owner, collection) else {
+            continue;
+        };
+        // Keep the original reference, qualifiers and applied arguments. This
+        // supplies neither implicit borrowing nor an operator-selection result.
+        program
+            .expression_table
+            .set_constructed_value_type_reference(collection, reference);
+    }
 }
 
 fn expression_owner(
@@ -1257,6 +1291,162 @@ mod tests {
     use crate::qualified_operator_home_tests::checked;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    #[test]
+    fn indexed_operands_keep_qualified_field_and_borrowed_formal_types() {
+        let program = checked(&[(
+            "main.omg",
+            r#"
+            domain [u8; 4]::Marked;
+            data Buffer { storage: [u8; 4] in Marked; }
+            machine ranged(buffer: &Buffer) {
+                let view: &[u8] = &buffer.storage[..];
+            }
+            machine indexed(buffer: &Buffer) -> u8 { buffer.storage[0u64] }
+            machine direct(items: &mut [u8; 4] in Marked) {
+                let view: &[u8] = &items[..];
+            }
+        "#,
+        )])
+        .unwrap();
+        let owners = typed_trees::references::collect_program_operand_owners(&program);
+        let buffer = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Buffer")
+            .unwrap();
+        let field = program
+            .data_members(buffer)
+            .iter()
+            .filter_map(typed_trees::data::DataMember::as_field)
+            .next()
+            .unwrap();
+        let mut observed = Vec::new();
+        for (expression, node) in program.expression_table.expression_entries() {
+            let ExpressionNode::Indexed(indexed) = node else {
+                continue;
+            };
+            let owner = expression_owner(&program, &owners, expression).unwrap();
+            let declaration = program
+                .machine_by_symbol(owner)
+                .or_else(|| program.machine_holding_state(owner))
+                .unwrap();
+            let actual = program
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            assert!(
+                program.type_reference_table.contains_type_reference(actual),
+                "the actual indexed operand retains a declared reference"
+            );
+            if declaration.name.as_str() == "direct" {
+                let state = program.machine_states(declaration).first().unwrap();
+                let expected = program.state_parameters(state)[0].type_reference;
+                assert_eq!(
+                    actual, expected,
+                    "a borrowed formal keeps its original full reference"
+                );
+                assert!(matches!(
+                    program.type_reference_table.type_reference(actual),
+                    TypeReferenceNode::Reference {
+                        access: language_core::ReferenceAccess::Mutable,
+                        ..
+                    }
+                ));
+            } else {
+                assert_eq!(
+                    program.normalized_type_identity(actual),
+                    program.normalized_type_identity(field.type_reference)
+                );
+                assert!(
+                    matches!(
+                        program.type_reference_table.type_reference(actual),
+                        TypeReferenceNode::Constrained { .. }
+                    ),
+                    "the field's Marked domain remains in operator lookup"
+                );
+            }
+            observed.push(declaration.name.as_str());
+        }
+        observed.sort_unstable();
+        assert_eq!(observed, ["direct", "indexed", "ranged"]);
+    }
+
+    #[test]
+    fn indexed_operands_keep_applied_field_carriers_distinct() {
+        use typed_trees::types::PrimitiveType;
+        let program = checked(&[(
+            "main.omg",
+            r#"
+            data Buffer<T> { storage: [T; 4]; }
+            machine bytes(buffer: &Buffer<u8>) -> u8 { buffer.storage[0u64] }
+            machine words(buffer: &Buffer<u16>) -> u16 { buffer.storage[0u64] }
+        "#,
+        )])
+        .unwrap();
+        let owners = typed_trees::references::collect_program_operand_owners(&program);
+        let mut observed = Vec::new();
+        for (expression, node) in program.expression_table.expression_entries() {
+            let ExpressionNode::Indexed(indexed) = node else {
+                continue;
+            };
+            let owner = expression_owner(&program, &owners, expression).unwrap();
+            let declaration = program
+                .machine_by_symbol(owner)
+                .or_else(|| program.machine_holding_state(owner))
+                .unwrap();
+            let state = program.machine_states(declaration).first().unwrap();
+            let parameter = program.state_parameters(state)[0].type_reference;
+            let data = program
+                .closed_data_field_definition(
+                    program
+                        .type_reference_table
+                        .peeled_type_reference(parameter),
+                )
+                .unwrap();
+            let field = program
+                .data_members(data)
+                .iter()
+                .filter_map(typed_trees::data::DataMember::as_field)
+                .next()
+                .unwrap();
+            let expected =
+                typed_trees::type_system::source_projections::SourceTypeCursor::new(parameter)
+                    .field(&program, field.symbol)
+                    .unwrap();
+            let actual = program
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            assert!(program.type_reference_table.contains_type_reference(actual));
+            assert_eq!(
+                program.normalized_type_identity(actual),
+                program.normalized_type_identity(expected),
+                "the actual source field application supplies its retained type"
+            );
+            let TypeReferenceNode::FixedArray { element_type, .. } =
+                program.type_reference_table.type_reference(actual)
+            else {
+                panic!("a closed applied fixed array")
+            };
+            let wanted = if declaration.name.as_str() == "bytes" {
+                PrimitiveType::U8
+            } else {
+                PrimitiveType::Integer(
+                    numerics::integer_carrier::FixedInteger::new(
+                        numerics::integer_carrier::IntegerSign::Unsigned,
+                        16,
+                    )
+                    .unwrap(),
+                )
+            };
+            assert_eq!(
+                program.primitive_type_reference(*element_type),
+                Some(wanted)
+            );
+            observed.push(declaration.name.as_str());
+        }
+        observed.sort_unstable();
+        assert_eq!(observed, ["bytes", "words"]);
+    }
 
     #[test]
     fn recasts_retain_their_written_reference_type_and_lifetime_owner() {

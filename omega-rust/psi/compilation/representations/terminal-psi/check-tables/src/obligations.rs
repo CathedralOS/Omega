@@ -94,7 +94,7 @@ pub enum ObligationKind {
     /// `wiki/spec/terminal-psi/control_flow.md`: "Each partial operation still
     /// proves its own safety from facts available before it executes".
     OperationSafety { site: ExecutionSite },
-    /// One clause of a data type's `requires`, owed by one operation that
+    /// One type-default or declared named-domain clause owed by one operation that
     /// forms or changes a value of that type: a record or case construction,
     /// a zero establishment, or a store into a field of a place of that type
     /// or of a type that contains it. `wiki/spec/language/data_and_literals.md`:
@@ -111,7 +111,11 @@ pub enum ObligationKind {
     /// position in the operation's whole list: the types that own the
     /// written path from the innermost outward, or for a zero establishment
     /// the data-typed places of the zero value in declaration order, parent
-    /// first; within one type its clauses in authored order.
+    /// first. At each owner, type clauses remain in authored order, followed
+    /// by predicate-bearing named domains and their required-membership
+    /// closure in canonical domain-identity order. Additional input facts and
+    /// result placeholders contribute no storage default. The shared
+    /// `DefaultRequirements` query reconstructs this exact ordinal roster.
     DataDomain { operation: OperationId, clause: u32 },
     /// A block invariant on one incoming edge. control_flow.md: "A scalar
     /// block invariant is a semantic row identifying a machine, destination
