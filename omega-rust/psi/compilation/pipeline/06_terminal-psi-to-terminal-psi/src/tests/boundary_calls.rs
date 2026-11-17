@@ -133,6 +133,155 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
     );
 }
 
+const STRUCTURAL_BOUNDARY_SOURCE: &str = r#"
+data Ticket [copy] { number: u32; }
+domain Ticket::Stamped;
+domain Ticket::Other;
+data Envelope [copy] { left: Ticket in Stamped; right: Ticket in Other; }
+domain Envelope::Ready;
+domain Envelope::OtherReady;
+boundary trait Probe {
+    machine read(ordinal: u32, packet: Envelope in Ready) -> u32 reaches none crashes none;
+}
+machine entry(packet: Envelope in Ready, bare: Envelope,
+    other: Envelope in OtherReady) -> u32 {
+    Probe::read(0u32, packet)
+}
+"#;
+
+fn structural_boundary() -> typed_trees_to_terminal_psi::Elaboration {
+    invocation(typed(STRUCTURAL_BOUNDARY_SOURCE)).unwrap()
+}
+
+#[test]
+fn boundary_formal_domains_reuse_the_exact_input_type() {
+    for projected in [false, true] {
+        let mut elaboration = structural_boundary();
+        let [boundary] = elaboration.module.boundary_machines.as_mut_slice() else {
+            panic!("the source calls one boundary");
+        };
+        let [formal] = boundary.structural_parameters.as_slice() else {
+            panic!("the boundary has one structural formal");
+        };
+        assert_eq!(
+            boundary.parameter_order,
+            [
+                terminal_psi::BoundaryParameterKind::Scalar,
+                terminal_psi::BoundaryParameterKind::Structural
+            ]
+        );
+        assert_eq!(boundary.requires.len(), 1);
+        assert_eq!(boundary.requires[0].argument_index, 0);
+        assert_eq!(boundary.requires[0].domain, formal.qualifications[0]);
+        assert!(boundary.requires[0].path.is_empty());
+        assert_eq!(formal.projected_qualifications.len(), 2);
+        if projected {
+            // A field's declared membership is already part of this exact
+            // input type, just as the root's Ready membership is.
+            let field = &formal.projected_qualifications[0];
+            boundary
+                .requires
+                .push(terminal_psi::StructuralDomainRequirement {
+                    argument_index: formal.position,
+                    path: field.path.clone(),
+                    domain: field.domain,
+                });
+        }
+        let verdict = judge(Ok(elaboration)).unwrap();
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("the actual delivers the formal's exact domains: {verdict:?}");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+}
+
+#[test]
+fn boundary_formal_domains_require_the_exact_actual_memberships() {
+    for position in [1, 2] {
+        let mut elaboration = structural_boundary();
+        let caller = elaboration
+            .module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::BoundaryCall { .. }
+                    )
+                })
+            })
+            .unwrap();
+        // These three formals have the same storage type. The second has no
+        // root domain and the third carries a different nominal domain.
+        assert_eq!(caller.structural_parameters.len(), 3);
+        assert!(caller.structural_parameters.iter().all(|parameter| {
+            parameter.structural_type == caller.structural_parameters[0].structural_type
+        }));
+        let replacement = caller.structural_parameters[position].place;
+        let call = caller
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments),
+                _ => None,
+            })
+            .unwrap();
+        call[0].place = replacement;
+        let refusal = judge(Ok(elaboration)).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+        assert!(
+            refusal
+                .detail
+                .contains("a structural call argument does not deliver its formal's exact domains"),
+            "actual {position}: {refusal:?}"
+        );
+    }
+}
+
+#[test]
+fn boundary_formal_domains_cannot_cover_extra_requirements() {
+    for fault in 0..3 {
+        let mut elaboration = structural_boundary();
+        let other = elaboration
+            .module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                (machine.structural_parameters.len() == 3)
+                    .then(|| machine.structural_parameters[2].qualifications[0])
+            })
+            .unwrap();
+        let boundary = &mut elaboration.module.boundary_machines[0];
+        match fault {
+            0 => boundary.requires[0].domain = other,
+            1 => {
+                let fields = &boundary.structural_parameters[0].projected_qualifications;
+                // Both fields hold Ticket, but the sibling's different
+                // membership cannot supply this domain at that path.
+                boundary
+                    .requires
+                    .push(terminal_psi::StructuralDomainRequirement {
+                        argument_index: 0,
+                        path: fields[1].path.clone(),
+                        domain: fields[0].domain,
+                    });
+            }
+            2 => boundary.requires[0].argument_index = 1,
+            _ => unreachable!(),
+        }
+        let verdict = judge(Ok(elaboration));
+        assert!(
+            !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "forged boundary requirement {fault} accepted"
+        );
+    }
+}
+
 fn source_service_signature(typed: &typed_trees::TypedTrees, owner: &str) -> [u8; 32] {
     use typed_trees::service_declarations::{
         projection::from_typed, provider_declarations::ProviderPlanningContext,
