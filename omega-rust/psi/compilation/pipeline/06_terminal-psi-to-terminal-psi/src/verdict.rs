@@ -134,6 +134,7 @@ impl AcceptedClosure {
     /// uninhabited values use the same continuation rule (state_contracts.md,
     /// "Published no-return").
     pub fn advisories(&self) -> Vec<Diagnostic> {
+        let mut activity = crate::ProofSearchActivity::default();
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
@@ -159,8 +160,12 @@ impl AcceptedClosure {
         // premises").
         for (machine, branch) in self.elaboration.authored_branches() {
             let Some(impossible) = self.discharge.machines.get(machine).and_then(|discharge| {
+                let tables = self.elaboration.tables.machines.get(machine)?;
+                let lowered = self.elaboration.module.machine(machine)?;
+                let branches = &self.elaboration.sources.get(machine)?.branches;
                 discharge
-                    .impossible
+                    .branch_warnings
+                    .materialize(lowered, tables, branches, &mut activity)
                     .iter()
                     .find(|arm| arm.block == branch.block)
             }) else {
@@ -953,7 +958,7 @@ pub(crate) fn judge_owing(
     )
 }
 
-fn judge_owing_with_activity(
+pub(super) fn judge_owing_with_activity(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
     activity: &mut crate::ProofSearchActivity,
