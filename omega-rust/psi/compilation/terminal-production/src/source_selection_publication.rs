@@ -1,11 +1,12 @@
 //! Normalize the exact selections of every accepted source form. The output
 //! is a question packet; only receiving execution admission grants permission.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
 use compiler_storage::Record;
 use diagnostics::Diagnostic;
+use language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
@@ -1181,6 +1182,12 @@ impl<'source> Questions<'source> {
                 symbol,
                 owner,
             )?,
+            RawSelectionTarget::CoreIntegerOperator(application) => {
+                SelectionReference::Declaration(
+                    self.declarations
+                        .core_integer_operator(&mut self.output, application)?,
+                )
+            }
             RawSelectionTarget::Intrinsic(intrinsic) => SelectionReference::Intrinsic {
                 identity: intrinsic_identity(&intrinsic, "authored-intrinsic-v1:")?,
             },
@@ -1340,6 +1347,7 @@ struct Declarations<'source> {
     identities: SymbolRows<String>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
     sources: Vec<(SelectionDeclarationId, source::SourceSpan)>,
+    core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
 }
 
 impl<'source> Declarations<'source> {
@@ -1441,7 +1449,33 @@ impl<'source> Declarations<'source> {
             identities,
             contracts,
             sources: Vec::new(),
+            core_operators: BTreeMap::new(),
         })
+    }
+
+    fn core_integer_operator(
+        &mut self,
+        output: &mut SelectionQuestions,
+        application: CoreIntegerOperatorSignature,
+    ) -> Result<SelectionDeclarationId, Diagnostic> {
+        if !application.is_valid() {
+            return Err(refused(
+                "core integer operator has an invalid catalog application",
+            ));
+        }
+        if let Some(id) = self.core_operators.get(&application) {
+            return Ok(*id);
+        }
+        let identity = intrinsic_identity(&application, "core-integer-policy-operator-v1:")?;
+        let id = output.declarations.push(SelectionDeclaration {
+            identity: identity.clone(),
+            callable_identity: Some(identity),
+            name: format!("Core integer {:?}", application.operation()),
+            custody: DeclarationCustody::Toolchain,
+            purpose: SelectionPurpose::Product,
+        });
+        self.core_operators.insert(application, id);
+        Ok(id)
     }
 
     fn source_span(
@@ -1798,6 +1832,7 @@ mod symbol_rows_tests {
             identities: SymbolRows::new(count),
             contracts: SymbolRows::new(count),
             sources: Vec::new(),
+            core_operators: BTreeMap::new(),
         };
         let mut output = SelectionQuestions::default();
         let mut identities = std::collections::BTreeSet::new();
@@ -2939,5 +2974,66 @@ machine entry() reaches Input {}
                 "{error:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod core_catalog_tests {
+    use super::*;
+    use language_semantics::numeric_intrinsics::{CoreIntegerOperand, ScalarBinaryOperation};
+
+    #[test]
+    fn core_operator_declarations_keep_their_actual_applied_signatures() {
+        let typed = TypedTrees::default();
+        let mut declarations = Declarations {
+            typed: &typed,
+            build_entry_source: None,
+            ids: SymbolRows::new(0),
+            identities: SymbolRows::new(0),
+            contracts: SymbolRows::new(0),
+            sources: Vec::new(),
+            core_operators: BTreeMap::new(),
+        };
+        let mut output = SelectionQuestions::default();
+        let carrier = numerics::integer_carrier::FixedInteger::signed(64);
+        let plain = CoreIntegerOperand {
+            carrier,
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+        };
+        let qualified = CoreIntegerOperand {
+            policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+            ..plain
+        };
+        let selected = CoreIntegerOperatorSignature::select(
+            ScalarBinaryOperation::GreaterOrEqual,
+            [qualified, plain],
+        )
+        .unwrap();
+        let reversed = CoreIntegerOperatorSignature::select(
+            ScalarBinaryOperation::GreaterOrEqual,
+            [plain, qualified],
+        )
+        .unwrap();
+        let first = declarations
+            .core_integer_operator(&mut output, selected)
+            .unwrap();
+        assert_eq!(
+            declarations
+                .core_integer_operator(&mut output, selected)
+                .unwrap(),
+            first
+        );
+        let second = declarations
+            .core_integer_operator(&mut output, reversed)
+            .unwrap();
+        assert_ne!(first, second);
+        let row = output.declarations.get(first).unwrap();
+        assert_eq!(row.custody, DeclarationCustody::Toolchain);
+        assert!(row.identity.starts_with("core-integer-policy-operator-v1:"));
+        assert_eq!(row.callable_identity.as_ref(), Some(&row.identity));
+        assert_ne!(
+            row.identity,
+            output.declarations.get(second).unwrap().identity
+        );
     }
 }

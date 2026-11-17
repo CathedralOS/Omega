@@ -1323,6 +1323,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     QuotientLift,
     BuildParameterDescription,
     BuildFieldDescription,
+    CoreIntegerOperator(crate::numeric_intrinsics::CoreIntegerOperatorSignature),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

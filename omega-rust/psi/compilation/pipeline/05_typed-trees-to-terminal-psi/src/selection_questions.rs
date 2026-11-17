@@ -156,6 +156,7 @@ pub enum RawSelectionRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawSelectionTarget {
     Declaration(SymbolHandle),
+    CoreIntegerOperator(language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature),
     LocalBinding {
         symbol: SymbolHandle,
         owner: SymbolHandle,
@@ -922,6 +923,9 @@ impl TypedReferences for Capture<'_> {
                     };
                     target
                 }
+                AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::CoreIntegerOperator(application),
+                ) => RawSelectionTarget::CoreIntegerOperator(application),
                 AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => {
                     RawSelectionTarget::Intrinsic(intrinsic)
                 }

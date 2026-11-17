@@ -362,6 +362,14 @@ impl Program<'_> {
             match selection.target() {
                 Target::LateBound(Binding::CheckedOperator) => pending = true,
                 Target::Intrinsic(Intrinsic::BuiltinOperator) => {}
+                Target::Intrinsic(Intrinsic::CoreIntegerOperator(application)) => {
+                    self.validate_core_operator_application(
+                        machine,
+                        expression,
+                        operands,
+                        application,
+                    )?;
+                }
                 _ => {
                     return Err(refuse(format!(
                         "primitive operation {expression:?} conflicts with its authored selection {:?}",
@@ -423,6 +431,56 @@ impl Program<'_> {
             .record_builtin(typed, owner, expression)
             .map_err(|error| refuse(error.to_string()))
     }
+    /// Check the already selected catalog application against the operands
+    /// this reader formed. This never searches for another operator.
+    fn validate_core_operator_application(
+        &self,
+        machine: MachineId,
+        expression: ExpressionHandle,
+        operands: &[Option<TypeReferenceHandle>],
+        selected: language_semantics::numeric_intrinsics::CoreIntegerOperatorSignature,
+    ) -> Checked<()> {
+        use language_semantics::numeric_intrinsics::{
+            CoreIntegerOperand, CoreIntegerOperatorSignature,
+        };
+        let mismatch = || {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression(
+                    "core operator application differs from its checked operand signature",
+                ),
+            )
+        };
+        let ExpressionNode::Binary(binary) = self.typed.expression_table.expression(expression)
+        else {
+            return Err(mismatch());
+        };
+        let [Some(left), Some(right)] = operands else {
+            return Err(mismatch());
+        };
+        let operand = |reference| {
+            let (_, BuiltinTypeAtom::Integer(carrier), policy) =
+                typed_trees::operator::core_integer_operand(self.typed, reference)?
+            else {
+                return None;
+            };
+            Some(CoreIntegerOperand { carrier, policy })
+        };
+        let actual = binary
+            .operator
+            .scalar_operation()
+            .zip(operand(*left).zip(operand(*right)))
+            .and_then(|(operation, (left, right))| {
+                CoreIntegerOperatorSignature::select(operation, [left, right])
+            });
+        if selected.is_valid() && actual == Some(selected) {
+            Ok(())
+        } else {
+            Err(mismatch())
+        }
+    }
+
     /// Select only a successfully formed pure source operator. The canonical
     /// guarantee remains separate; this is not a semantic-call evaluator.
     pub(super) fn complete_typed_contract_operator(

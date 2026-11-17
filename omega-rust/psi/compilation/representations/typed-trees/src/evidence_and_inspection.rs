@@ -5562,6 +5562,9 @@ pub mod inspection {
                 Intrinsic::BuildNativeBinding => ("build_native_binding", None),
                 Intrinsic::StorageAddress => ("storage_address", None),
                 Intrinsic::BuiltinOperator => ("builtin_operator", None),
+                Intrinsic::CoreIntegerOperator(application) => {
+                    ("core_integer_operator", Some(format!("{application:?}")))
+                }
                 Intrinsic::CarryPermission(permission) => {
                     ("carry_permission", Some(format!("{permission:?}")))
                 }
