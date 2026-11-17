@@ -2378,11 +2378,38 @@ impl Program<'_> {
                     let mut calls = PartitionCalls::default();
                     typed_trees::references::visit_machine(self.typed, &mut calls, current);
                     for (target, application) in calls.calls {
-                        let Some((callee, arguments)) =
-                            self.type_argument_references(id, owner, target, application)?
-                        else {
+                        let Some(callee) = self.entered_machine(target) else {
                             continue;
                         };
+                        if !application.is_valid() {
+                            continue;
+                        }
+                        let (declaration, _) = self.declaration(id, callee)?;
+                        let parameters = self.typed.machine_type_parameters(declaration);
+                        if parameters.is_empty()
+                            || parameters.iter().any(|parameter| {
+                                parameter.kind != typed_trees::data::TypeParameterKind::Type
+                            })
+                        {
+                            continue;
+                        }
+                        let prepared =
+                            self.application_bindings(id, owner, callee, application, &[])?;
+                        if prepared.inherited {
+                            continue;
+                        }
+                        let arguments = prepared.parameters.iter().map(|parameter| {
+                            let binding = prepared.bindings.get(&parameter.symbol).ok_or_else(|| {
+                                refuse(id, Construct::Machine, Unserved::Call("static partition lost a declared binder"))
+                            })?;
+                            let typed_trees::static_applications::StaticMachineBindingValue::Type(reference) = binding.value else {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition type has another argument kind")));
+                            };
+                            if !types.contains_type_reference(reference) {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition has a stale type argument")));
+                            }
+                            Ok(reference)
+                        }).collect::<Checked<Vec<_>>>()?;
                         let mut forwarded = Vec::with_capacity(arguments.len());
                         for argument in arguments {
                             if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =

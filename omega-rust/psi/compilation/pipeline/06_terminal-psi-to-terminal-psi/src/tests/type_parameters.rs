@@ -1216,7 +1216,7 @@ fn an_open_record_call_requires_its_actual_source_owner() {
     assert!(
         refusal
             .detail
-            .contains("type application has another source owner or declaration"),
+            .contains("generic application has another source owner or declaration"),
         "{refusal:?}"
     );
 }
@@ -1800,7 +1800,7 @@ fn a_forwarded_partition_refuses_another_calls_source_application() {
     assert!(
         refused
             .detail
-            .contains("type application has another source owner or declaration"),
+            .contains("generic application has another source owner or declaration"),
         "{refused:?}"
     );
 }
