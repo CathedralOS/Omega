@@ -1150,6 +1150,7 @@ impl TerminalExecution<'_> {
             &self.program.structural_types(),
             &self.structural_values,
             self.reference_referents.as_map(),
+            self.structural_cases.as_map(),
             &mut self.live_affine_frontier,
             &mut self.live_claims,
             subject,

@@ -2088,7 +2088,9 @@ fn copy_declarations(
             "a copied body has an embedded type expression without a retained static operand",
         ));
     }
-    let type_start = program.type_reference_table.type_reference_count() + 1;
+    // Type-row iteration takes a storage offset; expression iteration takes
+    // an arena identity. Keep the first copied type in the prepared range.
+    let type_start = program.type_reference_table.type_reference_count();
     let expression_start = program.expression_table.expression_count() + 1;
     let spelled = operands
         .iter()
