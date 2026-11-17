@@ -95,13 +95,13 @@ Second satisfies AccessPolicy {
         access::new_plan(&schema, Issuance::Unrestricted)
     }
 }
-trait ForeignPolicy { machine identity(value: u32) -> u32; }
-Different satisfies ForeignPolicy { machine identity(value: u32) -> u32 { value } }
+trait ForeignPolicy<T> { machine identity(value: T) -> T; }
+Different satisfies ForeignPolicy<u32> { machine identity(value: u32) -> u32 { value } }
 boundary machine retain<const P: AccessPolicy, T>(value: T) -> T
 reaches none crashes none terminates requires true ensures true;
 machine first(value: u32) -> u32 { retain<First, u32>(value) }
 machine second(value: bool) -> bool { retain<Second, bool>(value) }
-boundary machine foreign_retain<const P: ForeignPolicy, T>(value: T) -> T
+boundary machine foreign_retain<const P: ForeignPolicy<T>, T>(value: T) -> T
 reaches none crashes none terminates requires true ensures true;
 machine different(value: u32) -> u32 { foreign_retain<Different, u32>(value) }
 boundary machine unsealed<T>(value: T) -> T;
@@ -245,7 +245,7 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
             wrong_type
                 .prepare_bodyless_callable_application(first, target, &sources)
                 .unwrap_err(),
-            "bodyless call needs its complete implementation value schema"
+            "a static record operand has no named record declaration"
         );
     }
     {
@@ -254,14 +254,18 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
             .expression_table
             .static_machine_application_arguments(first)
             .to_vec();
-        let StaticMachineBindingValue::Conformance(foreign_argument) = &program
+        let StaticMachineBindingValue::Const(foreign_reference) = program
             .expression_table
             .static_machine_application_bindings(foreign)[0]
             .value
         else {
-            panic!("the valid foreign call retained its implementation operand");
+            panic!("the valid foreign call retained its const record operand");
         };
-        arguments[0] = foreign_argument.clone();
+        arguments[0] = program
+            .expression_table
+            .static_machine_application_arguments(foreign)[0]
+            .clone();
+        arguments[0].type_reference = foreign_reference;
         wrong_schema
             .expression_table
             .set_static_machine_application_arguments(first, &arguments);
@@ -269,7 +273,7 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
             wrong_schema
                 .prepare_bodyless_callable_application(first, target, &sources)
                 .unwrap_err(),
-            "bodyless call implementation has another declared schema"
+            "a static record operand has another declared schema"
         );
     }
     for (application, target) in [(first, target), (second, second_target)] {
@@ -280,6 +284,20 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
         );
     }
     let source = program.bodyless_declaration(target).unwrap().unwrap().1;
+    let parameters = program.state_signature_type_parameters(&source);
+    let typed_trees::data::TypeParameterKind::Const {
+        type_reference: policy_type,
+    } = parameters[0].kind
+    else {
+        panic!("the authored policy remains a const value binder");
+    };
+    let policy_schema = program
+        .static_record_schema(policy_type, source.symbol)
+        .unwrap();
+    assert_eq!(
+        program.core_vocabulary(policy_schema.declaration.symbol),
+        Some(language_core::core_vocabulary::CoreVocabulary::AccessPolicy)
+    );
     let signature = program
         .bodyless_callable_signature(first, target, &sources)
         .unwrap()
@@ -315,7 +333,7 @@ fn bodyless_policy_applications_keep_actual_bindings_and_refuse_changed_occurren
         .to_vec();
     assert!(matches!(
         bindings[0].value,
-        StaticMachineBindingValue::Conformance(_)
+        StaticMachineBindingValue::Const(_)
     ));
     assert!(matches!(
         bindings[1].value,

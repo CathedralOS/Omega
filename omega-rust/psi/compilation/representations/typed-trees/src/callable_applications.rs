@@ -4,6 +4,21 @@ applied machine instances, trait and conformance scopes, domain scopes, and
 requirement instances in `TypedTrees`.
 */
 
+/// Refusal while nominating a named const operation-record argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StaticRecordArgumentError {
+    Unserved(&'static str),
+    SchemaMismatch(&'static str),
+}
+
+impl StaticRecordArgumentError {
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::Unserved(reason) | Self::SchemaMismatch(reason) => reason,
+        }
+    }
+}
+
 impl crate::TypedTrees {
     /// Land a static scalar at its binder's carrier before either describing
     /// or specializing the application. Names arrive already resolved; only
@@ -143,6 +158,80 @@ impl crate::TypedTrees {
             return None;
         }
         crate::trait_definition::AppliedTraitScope::from_type_reference(self, reference, owner)
+    }
+
+    /// Nominate the actual named value for a const operation-record carrier.
+    /// The caller supplies the declared carrier after its ordinary substitutions.
+    /// Construction/refinement and canonical value identity keep their own checks.
+    pub fn named_static_record_argument(
+        &self,
+        declared_type: crate::types::TypeReferenceHandle,
+        owner: symbols::SymbolHandle,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> Result<symbols::SymbolHandle, StaticRecordArgumentError> {
+        use crate::types::TypeReferenceNode;
+        use StaticRecordArgumentError::{SchemaMismatch, Unserved};
+        let named_again = !argument.type_reference.is_valid()
+            || (self
+                .type_reference_table
+                .contains_type_reference(argument.type_reference)
+                && matches!(self.type_reference_table.type_reference(argument.type_reference),
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol));
+        if argument.application.is_some()
+            || argument.evidence_projection.is_some()
+            || !named_again
+            || argument.const_literal.is_some()
+            || !self.symbols.symbols().nodes().is_valid(argument.symbol)
+        {
+            return Err(Unserved(
+                "a static record operand needs its exact named value",
+            ));
+        }
+        let required = self
+            .static_record_schema(declared_type, owner)
+            .ok_or(Unserved(
+                "a static record parameter lost its exact declared schema",
+            ))?;
+        let symbol = argument.symbol;
+        if self.symbols.get(symbol).kind == symbols::SymbolKind::TypeParameter {
+            let declaration = self
+                .data_type_parameter_by_symbol(symbol)
+                .ok_or(Unserved("a forwarded static record has no declared binder"))?;
+            let crate::data::TypeParameterKind::Const { type_reference } = declaration.kind else {
+                return Err(Unserved("a forwarded static record is not a const value"));
+            };
+            let actual = self
+                .static_record_schema(type_reference, self.symbols.get(symbol).parent)
+                .ok_or(Unserved(
+                    "a forwarded static record lost its declared schema",
+                ))?;
+            if !required.same_application(self, &actual) {
+                return Err(SchemaMismatch(
+                    "a forwarded static record has another declared schema",
+                ));
+            }
+            return Ok(symbol);
+        }
+        let selected = self.conformance_by_symbol(symbol).ok_or(Unserved(
+            "a static record operand has no named record declaration",
+        ))?;
+        if !selected.lifetime_parameters.is_empty()
+            || !self.conformance_type_parameters(selected).is_empty()
+        {
+            return Err(Unserved(
+                "a static record operand needs its complete closed application",
+            ));
+        }
+        let actual = crate::trait_definition::AppliedTraitScope::from_conformance(self, selected)
+            .ok_or(Unserved(
+            "a static record operand lost its complete schema application",
+        ))?;
+        if !required.same_application(self, &actual) {
+            return Err(SchemaMismatch(
+                "a static record operand has another declared schema",
+            ));
+        }
+        Ok(self.implementation_value_head(symbol))
     }
 
     /// The one canonical callable atom producer. Both named operation-record
@@ -4290,34 +4379,13 @@ mod declaration_invocations {
                 return Ok(true);
             }
             let parameters = self.state_signature_type_parameters(&source).to_vec();
-            let implementations = parameters
-                .iter()
-                .filter(|parameter| {
-                    parameter.kind == crate::data::TypeParameterKind::Implementation
-                })
-                .count();
             if parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
                     crate::data::TypeParameterKind::Type
-                        | crate::data::TypeParameterKind::Implementation
+                        | crate::data::TypeParameterKind::Const { .. }
                 ) || parameter.bounds != crate::data::DataProperties::default()
-                    || (parameter.kind == crate::data::TypeParameterKind::Implementation
-                        && source
-                            .conformance_bounds
-                            .iter()
-                            .filter(|bound| bound.binder == parameter.symbol)
-                            .count()
-                            != 1)
-            }) || source.conformance_bounds.len() != implementations
-                || source.conformance_bounds.iter().any(|bound| {
-                    !parameters.iter().any(|parameter| {
-                        parameter.symbol == bound.binder
-                            && parameter.kind == crate::data::TypeParameterKind::Implementation
-                    }) || self
-                        .trait_definition_by_symbol(bound.trait_symbol)
-                        .is_none()
-                })
+            }) || !source.conformance_bounds.is_empty()
             {
                 return Err(
                     "bodyless call needs its static value, evidence or eligibility judgment",
@@ -4332,20 +4400,18 @@ mod declaration_invocations {
             }
             let mut bindings = Vec::with_capacity(parameters.len());
             let mut types = Vec::with_capacity(parameters.len());
-            let mut static_arguments = Vec::with_capacity(implementations);
             for (parameter, argument) in parameters.iter().zip(&arguments) {
                 let actual = self
                     .static_operand_type_reference_in_scope(argument, invocation.lexical_owner)?;
                 if !self.type_reference_table.contains_type_reference(actual) {
                     return Err("bodyless call argument has no live retained occurrence");
                 }
-                let value = if parameter.kind == crate::data::TypeParameterKind::Implementation {
-                    let mut retained = argument.clone();
-                    retained.type_reference = actual;
-                    static_arguments.push((parameter.symbol, retained.clone()));
-                    StaticMachineBindingValue::Conformance(retained)
-                } else {
-                    StaticMachineBindingValue::Type(actual)
+                let value = match parameter.kind {
+                    crate::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(actual),
+                    crate::data::TypeParameterKind::Const { .. } => {
+                        StaticMachineBindingValue::Const(actual)
+                    }
+                    _ => unreachable!("the complete supported binder roster was checked above"),
                 };
                 types.push(actual);
                 bindings.push(StaticMachineBinding {
@@ -4433,47 +4499,18 @@ mod declaration_invocations {
                     .zip(types.iter().copied())
                     .map(|(parameter, actual)| (parameter.symbol, actual))
                     .collect(),
-                static_arguments,
                 static_argument_owner: invocation.lexical_owner,
                 ..Default::default()
             };
-            for bound in &source.conformance_bounds {
-                let ordinal = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == bound.binder)
-                    .ok_or("bodyless call bound has no exact static parameter")?;
-                let actual = types[ordinal];
-                let required_arguments = bound
-                    .arguments
-                    .iter()
-                    .map(|argument| substitutions.type_reference(self, *argument))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let required_lifetimes = bound
-                    .lifetime_arguments
-                    .iter()
-                    .map(|lifetime| substitutions.lifetime(lifetime))
-                    .collect::<Vec<_>>();
-                let supplying_owner = self.static_operand_region_supplier(
-                    &arguments[ordinal],
-                    invocation.lexical_owner,
-                )?;
-                let supplied = self
-                    .applied_requirement_scope(supplying_owner, actual)
-                    .ok_or("bodyless call needs its complete implementation value schema")?;
-                let required = crate::trait_definition::AppliedTraitScope::new(
-                    self,
-                    self.trait_definition_by_symbol(bound.trait_symbol)
-                        .ok_or("bodyless call bound has no declared schema")?,
-                    crate::trait_definition::TraitApplicationArguments {
-                        lexical_owner: invocation.lexical_owner,
-                        enclosing_data_applications: &[],
-                        arguments: &required_arguments,
-                        lifetimes: &required_lifetimes,
-                    },
-                )
-                .ok_or("bodyless call bound has no complete substituted schema")?;
-                if !required.same_application(self, &supplied) {
-                    return Err("bodyless call implementation has another declared schema");
+            for (parameter, argument) in parameters.iter().zip(&arguments) {
+                if let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind {
+                    let declared_type = substitutions.type_reference(self, type_reference)?;
+                    self.named_static_record_argument(
+                        declared_type,
+                        invocation.lexical_owner,
+                        argument,
+                    )
+                    .map_err(super::StaticRecordArgumentError::reason)?;
                 }
             }
             let signature = substitutions.signature(self, &declared)?;
@@ -6896,11 +6933,6 @@ pub(crate) mod signatures {
                         .iter()
                         .map(|argument| self.type_reference(program, *argument))
                         .collect::<Result<Vec<_>, _>>()?;
-                    bound.lifetime_arguments = bound
-                        .lifetime_arguments
-                        .iter()
-                        .map(|lifetime| self.lifetime(lifetime))
-                        .collect();
                 }
                 applied.parameters = self.parameters(program, (&parameters).into())?;
                 for (declared, applied_parameter) in program

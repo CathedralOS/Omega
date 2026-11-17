@@ -1410,63 +1410,18 @@ fn named_static_record(
     declared_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<SymbolHandle> {
-    if !only_a_name(program, argument)
-        || argument.const_literal.is_some()
-        || !program.symbols.symbols().nodes().is_valid(argument.symbol)
-    {
-        return Err(unserved(
-            "a static record operand needs its exact named value",
-        ));
-    }
-    let required = program
-        .static_record_schema(declared_type, program.symbols.get(parameter).parent)
-        .ok_or(unserved(
-            "a static record parameter lost its exact declared schema",
-        ))?;
-    let symbol = argument.symbol;
-    if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
-        let declaration = program
-            .data_type_parameter_by_symbol(symbol)
-            .ok_or(unserved("a forwarded static record has no declared binder"))?;
-        let typed_trees::data::TypeParameterKind::Const { type_reference } = declaration.kind
-        else {
-            return Err(unserved("a forwarded static record is not a const value"));
-        };
-        let actual = program
-            .static_record_schema(type_reference, program.symbols.get(symbol).parent)
-            .ok_or(unserved(
-                "a forwarded static record lost its declared schema",
-            ))?;
-        if !required.same_application(program, &actual) {
-            return Err(Stop::Rejected(
-                "a forwarded static record has another declared schema".into(),
-            ));
-        }
-        return Ok(symbol);
-    }
-    let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
-        "a static record operand has no named record declaration",
-    ))?;
-    if !selected.lifetime_parameters.is_empty()
-        || !program.conformance_type_parameters(selected).is_empty()
-    {
-        return Err(unserved(
-            "a static record operand needs its complete closed application",
-        ));
-    }
-    let actual =
-        typed_trees::trait_definition::AppliedTraitScope::from_conformance(program, selected)
-            .ok_or(unserved(
-                "a static record operand lost its complete schema application",
-            ))?;
-    if !required.same_application(program, &actual) {
-        return Err(Stop::Rejected(
-            "a static record operand has another declared schema".into(),
-        ));
-    }
-    // This nominates the exact value only. Ordinary named-record checking
-    // owns the complete schema, member refinement and construction obligations.
-    Ok(program.implementation_value_head(symbol))
+    program
+        .named_static_record_argument(
+            declared_type,
+            program.symbols.get(parameter).parent,
+            argument,
+        )
+        .map_err(|error| match error {
+            typed_trees::StaticRecordArgumentError::Unserved(reason) => unserved(reason),
+            typed_trees::StaticRecordArgumentError::SchemaMismatch(reason) => {
+                Stop::Rejected(reason.into())
+            }
+        })
 }
 
 /// One requirement of an implementation parameter as a generated machine
