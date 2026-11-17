@@ -95,6 +95,7 @@ pub(crate) struct Lowered {
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
     pub source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    pub static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     pub source_constructions: Vec<(
         MachineId,
         OperationId,
@@ -199,8 +200,11 @@ pub(crate) fn signature_header(
     boundaries: &crate::boundaries::BoundaryNamespace,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
+    // Standalone callable signatures have no published machine contract.
+    // Actual requirements supply their allocated contract ID instead.
     callable_header(
         context,
+        ContractId::new(context.get()).expect("a machine identity is nonzero"),
         signature,
         signatures,
         outcomes,
@@ -214,6 +218,7 @@ pub(crate) fn signature_header(
 
 pub(crate) fn static_signature_header(
     context: MachineId,
+    contract: ContractId,
     signature: &Signature,
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
@@ -229,6 +234,7 @@ pub(crate) fn static_signature_header(
     };
     callable_header(
         context,
+        contract,
         signature,
         signatures,
         outcomes,
@@ -242,6 +248,7 @@ pub(crate) fn static_signature_header(
 
 fn callable_header(
     context: MachineId,
+    contract: ContractId,
     signature: &Signature,
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
@@ -284,7 +291,7 @@ fn callable_header(
             );
         }
     };
-    let mut header = lowering.signature_header(formals, result, routes)?;
+    let mut header = lowering.signature_header(contract, formals, result, routes)?;
     header.crash_policy = crash_policy;
     Ok(header)
 }
@@ -484,6 +491,7 @@ impl<'a> Lowering<'a> {
             sources: MachineSources::default(),
             designated: Vec::new(),
             source_calls: Vec::new(),
+            static_reach_applications: Vec::new(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
             call_formations: Vec::new(),
@@ -786,6 +794,7 @@ struct Lowering<'a> {
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
     source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     source_constructions: Vec<(
         MachineId,
         OperationId,
@@ -1296,6 +1305,7 @@ impl<'a> Lowering<'a> {
 
     fn signature_header(
         &mut self,
+        contract: ContractId,
         formals: Formals,
         result: TerminalMachineResult,
         crash_routes: Vec<terminal_psi::CrashRouteBucket>,
@@ -1324,9 +1334,8 @@ impl<'a> Lowering<'a> {
                 crate::Ceiling::Inferred => Vec::new(),
             },
         };
-        let id =
-            ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?;
-        let mut proof = contract_header(id, self.signature, formals, result, ensures, &outcome);
+        let mut proof =
+            contract_header(contract, self.signature, formals, result, ensures, &outcome);
         self.qualify_contract(&mut proof)?;
         Ok(SignatureHeader {
             crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
@@ -1445,6 +1454,7 @@ impl<'a> Lowering<'a> {
             sources: self.sources,
             designated: self.designated,
             source_calls: self.source_calls,
+            static_reach_applications: self.static_reach_applications,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,

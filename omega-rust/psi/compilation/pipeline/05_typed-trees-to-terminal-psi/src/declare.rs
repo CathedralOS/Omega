@@ -77,6 +77,11 @@ pub(crate) struct PreparedApplication {
     telescope: Vec<PreparedParameter>,
 }
 
+enum PreparedDeclaration {
+    Runtime(CheckedMachineDeclaration, Option<PreparedApplication>),
+    Generic(terminal_check_tables::contracts::GenericCallableDeclaration),
+}
+
 enum PreparedParameter {
     Ready(ClosedReachParameter),
     Machine {
@@ -96,6 +101,10 @@ pub(crate) fn declare(
     program: &crate::read::Program<'_>,
     outcomes: &semantic_vocabulary::IdTable<MachineId, crate::outcome::Outcome>,
     binder_reach: &semantic_vocabulary::IdTable<MachineId, BinderReach>,
+    checking_envelopes: &IdTable<
+        MachineId,
+        Option<terminal_check_tables::contracts::StaticCallableEnvelope>,
+    >,
     elaboration: &mut Elaboration,
 ) -> Result<Vec<(MachineId, PreparedApplication)>, &'static str> {
     let machines = &program.symbols;
@@ -134,6 +143,34 @@ pub(crate) fn declare(
             })
             .collect::<Result<Vec<_>, _>>()
     };
+    if !elaboration.static_reach_parameters.is_empty()
+        || !elaboration.static_reach_applications.is_empty()
+    {
+        let mut requirements = elaboration.requirements.clone();
+        requirements.sort_unstable();
+        if requirements
+            .iter()
+            .any(|id| elaboration.requirement_ceilings.get(*id).is_none())
+        {
+            return Err("static reach lost an abstract requirement's exact bounds");
+        }
+        elaboration.static_reach_summaries = terminal_semantics::static_reach::derive(
+            &elaboration.module,
+            &elaboration.static_reach_parameters,
+            &elaboration.static_reach_applications,
+            |id| {
+                requirements.binary_search(&id).ok().and_then(|_| {
+                    elaboration
+                        .requirement_ceilings
+                        .get(id)
+                        .map(|row| match &row.reaches {
+                            crate::Ceiling::Inferred => None,
+                            crate::Ceiling::Authored(reach) => Some(reach.as_slice()),
+                        })
+                })
+            },
+        )?;
+    }
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
     // Anonymous invocation source has exact local declaration identities, not
     // portable toolchain ownership. Keep those declarations available to the
@@ -153,39 +190,146 @@ pub(crate) fn declare(
             machines.get(machine.id),
             signatures.get(machine.id),
         ) {
-            (Ok(sources), Some(symbol), Some(signature)) => {
-                identities_of(&machine.published_service_ceiling).and_then(|reach| {
-                    let entries = identities_of(&machine.published_synchronous_entries)?;
-                    let envelope = elaboration
-                        .module
-                        .callables
-                        .machine_envelope(machine.id)
-                        .ok_or("the machine has no completed operational envelope")?;
-                    declaration(
-                        typed,
-                        sources,
-                        *symbol,
-                        signature,
-                        machine,
-                        (
-                            Published {
-                                reach: &reach,
-                                entries: &entries,
-                                operational: [envelope.suspends, envelope.blocks],
-                            },
-                            binder_reach
-                                .get(machine.id)
-                                .ok_or("a machine has no prepared binder reach row")?,
-                        ),
-                        &mut identities,
+            (Ok(sources), Some(symbol), Some(signature)) => (|| {
+                let envelope = elaboration.module.callables.machine_envelope(machine.id);
+                let generic = if envelope.is_none()
+                    && program.is_generic_check_form()
+                    && typed
+                        .machine_by_symbol(*symbol)
+                        .is_some_and(|source| !typed.machine_type_parameters(source).is_empty())
+                {
+                    Some(
+                        elaboration
+                            .static_reach_summaries
+                            .binary_search_by_key(&machine.id, |row| row.machine)
+                            .ok()
+                            .map(|position| &elaboration.static_reach_summaries[position].term)
+                            .ok_or("generic template has no retained reach dependency")?,
                     )
-                })
-            }
+                } else {
+                    None
+                };
+                let reach = identities_of(
+                    generic.map_or(machine.published_service_ceiling.as_slice(), |term| {
+                        term.concrete.as_slice()
+                    }),
+                )?;
+                let entries = identities_of(&machine.published_synchronous_entries)?;
+                let operational = match (envelope, generic) {
+                    (Some(envelope), _) => [envelope.suspends, envelope.blocks],
+                    (None, Some(_)) => [
+                        signature
+                            .operational
+                            .suspension
+                            .ok_or("generic template has no suspension bound")?,
+                        signature
+                            .operational
+                            .blocking
+                            .ok_or("generic template has no blocking bound")?,
+                    ],
+                    (None, None) => {
+                        return Err("the machine has no completed operational envelope");
+                    }
+                };
+                let (mut declaration, application) = declaration(
+                    typed,
+                    sources,
+                    *symbol,
+                    signature,
+                    machine,
+                    (
+                        Published {
+                            reach: &reach,
+                            entries: &entries,
+                            operational,
+                        },
+                        binder_reach
+                            .get(machine.id)
+                            .ok_or("a machine has no prepared binder reach row")?,
+                    ),
+                    &mut identities,
+                )?;
+                let Some(term) = generic else {
+                    return Ok(PreparedDeclaration::Runtime(declaration, application));
+                };
+                if application.is_some() {
+                    return Err("an open generic application needs its retained template capture");
+                }
+                let mut projections = Vec::with_capacity(term.parameters.len());
+                for requirement in &term.parameters {
+                    let mut origins = elaboration
+                        .static_reach_parameters
+                        .iter()
+                        .filter(|row| row.owner == machine.id && row.requirement == *requirement);
+                    let origin = origins
+                        .next()
+                        .ok_or("generic reach escapes its originating static binder")?;
+                    if origins.next().is_some() {
+                        return Err("generic reach has multiple originating static binders");
+                    }
+                    if program
+                        .value_arguments
+                        .get(*requirement)
+                        .is_none_or(|arguments| !arguments.is_empty())
+                    {
+                        return Err(
+                            "generic reach member needs its retained static value substitutions",
+                        );
+                    }
+                    let member = *machines
+                        .get(*requirement)
+                        .ok_or("generic reach member lost its source declaration")?;
+                    projections.push(
+                        terminal_check_tables::contracts::GenericCallbackDependency {
+                            parameter: origin.parameter,
+                            requirement: *requirement,
+                            member: semantic_identity(typed, member, &mut identities)?,
+                        },
+                    );
+                }
+                let checking = checking_envelopes
+                    .get(machine.id)
+                    .and_then(Option::as_ref)
+                    .ok_or("generic template lost its known invocation and operational limits")?;
+                let base_contract = declaration.contract;
+                declaration.contract = terminal_semantics::static_reach::template_commitment(
+                    base_contract,
+                    &term.concrete,
+                    projections
+                        .iter()
+                        .map(|projection| {
+                            Ok((
+                                projection.parameter,
+                                identities
+                                    .text(projection.member)
+                                    .ok_or("generic reach member has no portable identity")?,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, &'static str>>()?,
+                    &checking.invocations,
+                    |id| {
+                        services
+                            .iter()
+                            .find(|(service, _)| *service == id)
+                            .map(|(_, identity)| identity.as_str())
+                    },
+                )?;
+                Ok(PreparedDeclaration::Generic(
+                    terminal_check_tables::contracts::GenericCallableDeclaration {
+                        machine: machine.id,
+                        envelope: checking.clone(),
+                        declaration,
+                        base_contract,
+                        reach: term.clone(),
+                        projections,
+                    },
+                ))
+            })(),
             (Err(_), _, _) => Err("a toolchain source has no exact identity"),
             _ => Err("the machine has no typed-tree declaration"),
         };
         match stated {
-            Ok((declaration, application)) => {
+            Ok(PreparedDeclaration::Runtime(declaration, application)) => {
                 machine.declaration = Some(declaration);
                 if let Some(mut application) = application {
                     application.fixed = outcomes
@@ -195,6 +339,9 @@ pub(crate) fn declare(
                         .clone();
                     prepared.push((machine.id, application));
                 }
+            }
+            Ok(PreparedDeclaration::Generic(declaration)) => {
+                elaboration.generic_callable_declarations.push(declaration);
             }
             Err(reason) => elaboration.undeclared.push((machine.id, reason)),
         }
@@ -1419,6 +1566,12 @@ pub(crate) fn template_commitment_for<'form>(
             .module
             .machine(entry)
             .and_then(|machine| machine.declaration.as_ref())
+            .or_else(|| {
+                form.generic_callable_declarations
+                    .binary_search_by_key(&entry, |row| row.machine)
+                    .ok()
+                    .map(|position| &form.generic_callable_declarations[position].declaration)
+            })
             .ok_or_else(|| {
                 form.undeclared
                     .iter()
