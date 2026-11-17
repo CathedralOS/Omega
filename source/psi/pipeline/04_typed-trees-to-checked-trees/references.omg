@@ -184,7 +184,7 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 256
     {
-        transition checker.reference_origins[index] {
+        transition checker.reference_origins[index as -Trapping] {
             ReferenceOrigin::Footprint { place } -> found(place)
             _ -> none()
         }
@@ -361,7 +361,7 @@ crashes Trap
     machine captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
     requires index < 256
     {
-        transition checker.reference_origins[index] {
+        transition checker.reference_origins[index as -Trapping] {
             ReferenceOrigin::Exact { place } -> viewed(checker, typing, place, type_handle)
             ReferenceOrigin::View { place, backing } -> viewed(checker, typing, place, type_handle)
             _ -> unknown()

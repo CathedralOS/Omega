@@ -212,7 +212,7 @@ crashes Trap
     }
 
     machine store(parser: &mut Parser, input: &TokenStream, handle: u64 in Trapping, literal: IntegerLiteral) -> u64 in Trapping {
-        parser.output.integer_literals[handle] = literal;
+        parser.output.integer_literals[handle as -Trapping] = literal;
         parser.output.integer_literal_count = parser.output.integer_literal_count + 1;
         take_current(parser, input);
         handle
@@ -514,7 +514,7 @@ crashes Trap
     }
 
     machine opened(input: &TokenStream, index: u64 in Trapping) -> bool {
-        let token: Token = input.tokens[index];
+        let token: Token = input.tokens[index as -Trapping];
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1u64 as +Trapping)
             _ -> absent()
@@ -529,7 +529,7 @@ crashes Trap
     }
 
     machine token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let token: Token = input.tokens[index];
+        let token: Token = input.tokens[index as -Trapping];
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
             TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
@@ -563,7 +563,7 @@ crashes Trap
     }
 
     machine satisfies(input: &TokenStream, index: u64 in Trapping) -> bool {
-        let token: Token = input.tokens[index];
+        let token: Token = input.tokens[index as -Trapping];
         transition token.kind {
             TokenKind::Identifier -> spelled(input, token.decoded_start, token.decoded_length)
             _ -> absent()
@@ -603,8 +603,8 @@ crashes Trap
     }
 
     machine compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) -> bool {
-        let decoded: u8 = input.decoded[cursor] as u8;
-        let expected: u8 = spelling[index];
+        let decoded: u8 = input.decoded[cursor as -Trapping] as u8;
+        let expected: u8 = spelling[index as -Trapping];
         transition decoded == expected {
             true -> compare(input, cursor + 1, spelling, index + 1)
             _ -> absent()

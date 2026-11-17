@@ -265,7 +265,7 @@ crashes Trap
         let span: SourceSpan = parser_source_span(parser, parser.member_start, parser.token_end);
         let field_end: u64 in Trapping = parser.token_end;
         record_erased(parser, ErasedBindingKind::Field, field, field_end);
-        parser.output.fields[field] = DataField {
+        parser.output.fields[field as -Trapping] = DataField {
             name: identifier_span(parser, parser.member_name_start, parser.member_name_end),
             has_identity: parser.member_has_identity,
             identity: parser_source_span(parser, parser.member_identity_start, parser.member_identity_end),
@@ -274,7 +274,7 @@ crashes Trap
             source_span: span
         };
         parser.output.field_count = (field + 1) as u64;
-        parser.output.data_members[member] = DataMember {
+        parser.output.data_members[member as -Trapping] = DataMember {
             kind: DataMemberKind::Field,
             item_index: field,
             source_span: span
@@ -524,7 +524,7 @@ crashes Trap
         // `payload` keeps the caller's guarded count across `record_erased`.
         let payload: u64 in Trapping = parser.output.payload_field_count as u64 in Trapping;
         record_erased(parser, ErasedBindingKind::PayloadField, payload, field_end);
-        parser.output.payload_fields[payload] = DataField {
+        parser.output.payload_fields[payload as -Trapping] = DataField {
             name: identifier_span(parser, start, end),
             has_identity: parser.identity_present,
             identity: parser_source_span(parser, parser.identity_start, parser.identity_end),
@@ -639,7 +639,7 @@ crashes Trap
             source_span: span
         };
         parser.output.data_count = parser.output.data_count + 1;
-        parser.output.roots[root] = RootItem {
+        parser.output.roots[root as -Trapping] = RootItem {
             kind: RootItemKind::Data,
             item_index: data_index,
             source_span: span

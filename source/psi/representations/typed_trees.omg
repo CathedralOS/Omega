@@ -230,7 +230,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping {
-        typing.reference_types[row] as u64 in Trapping
+        typing.reference_types[row as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -247,7 +247,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
-        typing.reference_types[row] = handle as u64;
+        typing.reference_types[row as -Trapping] = handle as u64;
     }
 
     machine invalid() {
@@ -264,7 +264,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.expression_types[index] as u64 in Trapping
+        typing.expression_types[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -281,7 +281,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
-        typing.expression_types[index] = handle as u64;
+        typing.expression_types[index as -Trapping] = handle as u64;
     }
 
     machine invalid() {
@@ -298,7 +298,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> Selection {
-        typing.selections[index]
+        typing.selections[index as -Trapping]
     }
 
     machine invalid() -> Selection {
@@ -315,7 +315,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, selection: Selection) {
-        typing.selections[index] = selection;
+        typing.selections[index as -Trapping] = selection;
     }
 
     machine invalid() {
@@ -332,7 +332,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> Adaptation {
-        typing.adaptations[index]
+        typing.adaptations[index as -Trapping]
     }
 
     machine invalid() -> Adaptation {
@@ -349,7 +349,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
-        typing.adaptations[index] = adaptation;
+        typing.adaptations[index as -Trapping] = adaptation;
     }
 
     machine invalid() {
@@ -366,7 +366,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> ExactInteger {
-        typing.values[index]
+        typing.values[index as -Trapping]
     }
 
     machine invalid() -> ExactInteger {
@@ -419,7 +419,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
-        let stored: u64 = typing.rosters[index];
+        let stored: u64 = typing.rosters[index as -Trapping];
         stored as u64 in Trapping
     }
 
@@ -437,7 +437,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
-        typing.rosters[index] = roster as u64;
+        typing.rosters[index as -Trapping] = roster as u64;
     }
 
     machine invalid() {
@@ -455,7 +455,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
-        let stored: u64 = typing.denominators[index];
+        let stored: u64 = typing.denominators[index as -Trapping];
         transition stored > 1 {
             true -> fraction(stored)
             _ -> integral()
@@ -484,7 +484,7 @@ crashes Trap
         _ -> invalid()
     }
     machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.fractional_origins[index] as u64 in Trapping
+        typing.fractional_origins[index as -Trapping] as u64 in Trapping
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
@@ -498,8 +498,8 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
-        typing.values[index] = value.numerator;
-        typing.denominators[index] = value.denominator as u64;
+        typing.values[index as -Trapping] = value.numerator;
+        typing.denominators[index as -Trapping] = value.denominator as u64;
         transition origin > 0 || value.denominator <= 1 {
             true -> inherited(typing, index, origin)
             _ -> fractional(typing, index)
@@ -507,11 +507,11 @@ crashes Trap
     }
 
     machine inherited(typing: &mut Typing, index: u64 in Trapping, origin: u64 in Trapping) {
-        typing.fractional_origins[index] = origin as u64;
+        typing.fractional_origins[index as -Trapping] = origin as u64;
     }
 
     machine fractional(typing: &mut Typing, index: u64 in Trapping) {
-        typing.fractional_origins[index] = (index + 1) as u64;
+        typing.fractional_origins[index as -Trapping] = (index + 1) as u64;
     }
 
     machine invalid() {
@@ -528,9 +528,9 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
-        typing.values[index] = value;
-        typing.denominators[index] = 0;
-        typing.fractional_origins[index] = 0;
+        typing.values[index as -Trapping] = value;
+        typing.denominators[index as -Trapping] = 0;
+        typing.fractional_origins[index as -Trapping] = 0;
     }
 
     machine invalid() {
@@ -547,7 +547,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
-        typing.construct_targets[field]
+        typing.construct_targets[field as -Trapping]
     }
 
     machine invalid() -> MemberTarget {
@@ -564,7 +564,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
-        typing.construct_targets[field] = target;
+        typing.construct_targets[field as -Trapping] = target;
     }
 
     machine invalid() {
@@ -581,7 +581,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
-        typing.binder_members[field]
+        typing.binder_members[field as -Trapping]
     }
 
     machine invalid() -> MemberTarget {
@@ -598,7 +598,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
-        typing.binder_members[field] = target;
+        typing.binder_members[field as -Trapping] = target;
     }
 
     machine invalid() {
@@ -615,7 +615,7 @@ crashes Trap
     }
 
     machine read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
-        typing.binder_types[field] as u64 in Trapping
+        typing.binder_types[field as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -632,7 +632,7 @@ crashes Trap
     }
 
     machine write(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
-        typing.binder_types[field] = handle as u64;
+        typing.binder_types[field as -Trapping] = handle as u64;
     }
 
     machine invalid() {
@@ -665,7 +665,7 @@ crashes Trap
     }
 
     machine read(table: &TypeTable, handle: u64 in Trapping) -> TypeRow {
-        table.rows[handle]
+        table.rows[handle as -Trapping]
     }
 
     machine invalid() -> TypeRow {
@@ -682,7 +682,7 @@ crashes Trap
     }
 
     machine read(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping {
-        table.arguments[index] as u64 in Trapping
+        table.arguments[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -760,7 +760,7 @@ crashes Trap
 
     machine store(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
         let handle: u64 in Trapping = table.row_count as u64 in Trapping;
-        table.rows[handle] = row;
+        table.rows[handle as -Trapping] = row;
         table.row_count = table.row_count + 1;
         transition { _ -> result(handle) }
     }

@@ -20,8 +20,8 @@ crashes Trap
     requires index < 65536
     {
         let reference: TypeReference = syntax_trees_type_reference(syntax, index);
-        let binding: TypeBinding = resolution.type_bindings[index];
-        let domain: DomainBinding = resolution.domain_bindings[index];
+        let binding: TypeBinding = resolution.type_bindings[index as -Trapping];
+        let domain: DomainBinding = resolution.domain_bindings[index as -Trapping];
         transition binding {
             TypeBinding::Builtin { builtin } -> builtin(typer, sources, syntax, resolution, index, reference, builtin, domain)
             TypeBinding::Data { item } -> data(typer, sources, syntax, resolution, index, reference, item, domain)

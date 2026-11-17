@@ -32,7 +32,7 @@ crashes Trap
     machine clear(arguments: &mut ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        arguments.values[offset] = value_unknown();
+        arguments.values[offset as -Trapping] = value_unknown();
         transition { _ -> next(arguments, offset + 1) }
     }
 }
@@ -81,7 +81,7 @@ crashes Trap
     machine capture(checker: &Checker, scope: &mut ArgumentScope, offset: u64 in Trapping)
     requires offset < 64
     {
-        scope.arguments.values[offset] = argument_value(checker, offset);
+        scope.arguments.values[offset as -Trapping] = argument_value(checker, offset);
         transition { _ -> next(checker, scope, offset + 1) }
     }
 }
@@ -105,7 +105,7 @@ crashes Trap
     machine restore(checker: &mut Checker, scope: &ArgumentScope, offset: u64 in Trapping)
     requires offset < 64
     {
-        checker.arguments[offset] = scope.arguments.values[offset];
+        checker.arguments[offset as -Trapping] = scope.arguments.values[offset as -Trapping];
         transition { _ -> next(checker, scope, offset + 1) }
     }
 }
@@ -127,7 +127,7 @@ crashes Trap
     requires offset < 64
     {
         let handle: u64 in Trapping = checker_operand(syntax, call, offset);
-        arguments.values[offset] = value_at(checker, handle);
+        arguments.values[offset as -Trapping] = value_at(checker, handle);
         transition { _ -> next(checker, syntax, call, arguments, offset + 1) }
     }
 }
@@ -180,7 +180,7 @@ crashes Trap
     machine install(checker: &mut Checker, arguments: &ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        checker.arguments[offset] = arguments.values[offset];
+        checker.arguments[offset as -Trapping] = arguments.values[offset as -Trapping];
         transition { _ -> next(checker, arguments, offset + 1) }
     }
 }

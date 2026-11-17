@@ -552,11 +552,11 @@ crashes Trap
     machine reset(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        checker.reached[offset] = false;
-        checker.queued[offset] = false;
-        checker.loosenings[offset] = 0;
-        checker.discovery[offset] = 0;
-        checker.path_counts[offset] = 0;
+        checker.reached[offset as -Trapping] = false;
+        checker.queued[offset as -Trapping] = false;
+        checker.loosenings[offset as -Trapping] = 0;
+        checker.discovery[offset as -Trapping] = 0;
+        checker.path_counts[offset as -Trapping] = 0;
     }
 
     machine invalid() {
@@ -575,7 +575,7 @@ crashes Trap
     machine read(checker: &Checker, offset: u64 in Trapping) -> bool
     requires offset < 128
     {
-        checker.reached[offset]
+        checker.reached[offset as -Trapping]
     }
 
     machine invalid() -> bool {
@@ -594,7 +594,7 @@ crashes Trap
     machine copy(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        checker.zone = checker.arrivals[offset];
+        checker.zone = checker.arrivals[offset as -Trapping];
     }
 
     machine invalid() {
@@ -651,7 +651,7 @@ crashes Trap
     machine candidate(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        let queued: bool = checker.queued[offset];
+        let queued: bool = checker.queued[offset as -Trapping];
         transition queued {
             true -> done()
             _ -> push(checker, offset, checker.queue_count)
@@ -672,7 +672,7 @@ crashes Trap
     {
         checker.queue[index] = offset as u64;
         checker.queue_count = index + 1;
-        checker.queued[offset] = true;
+        checker.queued[offset as -Trapping] = true;
     }
 
     machine done() {}
@@ -835,7 +835,7 @@ crashes Trap
     machine arrival(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        let reached: bool = checker.reached[offset];
+        let reached: bool = checker.reached[offset as -Trapping];
         transition reached {
             true -> loosen(checker, offset)
             _ -> first(checker, offset)
@@ -847,9 +847,9 @@ crashes Trap
     {
         let order: u64 in Trapping = checker.discovered as u64 in Trapping;
         let next: u64 in Trapping = order + 1;
-        checker.arrivals[offset] = checker.contribution;
-        checker.reached[offset] = true;
-        checker.discovery[offset] = order as u64;
+        checker.arrivals[offset as -Trapping] = checker.contribution;
+        checker.reached[offset as -Trapping] = true;
+        checker.discovery[offset as -Trapping] = order as u64;
         checker.discovered = next as u64;
         checker_enqueue(checker, offset);
     }
@@ -857,8 +857,8 @@ crashes Trap
     machine loosen(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        checker.previous = checker.arrivals[offset];
-        checker.merged = checker.arrivals[offset];
+        checker.previous = checker.arrivals[offset as -Trapping];
+        checker.merged = checker.arrivals[offset as -Trapping];
         let changed: bool = zone_join(&mut checker.merged, &checker.contribution);
         transition changed {
             true -> loosened(checker, offset)
@@ -869,9 +869,9 @@ crashes Trap
     machine loosened(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        let count: u64 in Trapping = checker.loosenings[offset] as u64 in Trapping;
+        let count: u64 in Trapping = checker.loosenings[offset as -Trapping] as u64 in Trapping;
         let next: u64 in Trapping = count + 1;
-        checker.loosenings[offset] = next as u64;
+        checker.loosenings[offset as -Trapping] = next as u64;
         let back: bool = back_edge(checker, offset);
         transition count >= 3 && back {
             true -> widen(checker, offset)
@@ -889,7 +889,7 @@ crashes Trap
     machine store(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        checker.arrivals[offset] = checker.merged;
+        checker.arrivals[offset as -Trapping] = checker.merged;
         checker_enqueue(checker, offset);
     }
 
@@ -911,7 +911,7 @@ crashes Trap
     machine write(checker: &mut Checker, subject: u64 in Trapping, value: Value)
     requires subject < 64
     {
-        checker.projection[subject] = value;
+        checker.projection[subject as -Trapping] = value;
     }
 
     machine invalid() {
@@ -930,7 +930,7 @@ crashes Trap
     machine read(checker: &Checker, subject: u64 in Trapping) -> Value
     requires subject < 64
     {
-        checker.projection[subject]
+        checker.projection[subject as -Trapping]
     }
 
     machine invalid() -> Value {
@@ -1357,7 +1357,7 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
-        checker.callers[index] as u64 in Trapping
+        checker.callers[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1376,7 +1376,7 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
-        checker.callees[index] as u64 in Trapping
+        checker.callees[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1398,8 +1398,8 @@ crashes Trap
     machine compared(checker: &Checker, offset: u64 in Trapping, source: u64 in Trapping) -> bool
     requires offset < 128, source < 128
     {
-        let target_order: u64 = checker.discovery[offset];
-        let source_order: u64 = checker.discovery[source];
+        let target_order: u64 = checker.discovery[offset as -Trapping];
+        let source_order: u64 = checker.discovery[source as -Trapping];
         target_order <= source_order
     }
 
@@ -1444,7 +1444,7 @@ crashes Trap
     machine bounded(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, slot: u64 in Trapping)
     requires slot < 128
     {
-        checker.bodies[slot] = index as u64;
+        checker.bodies[slot as -Trapping] = index as u64;
         checker.body_count = slot + 1;
         transition { _ -> candidate(checker, syntax, root, index + 1) }
     }
@@ -1456,7 +1456,7 @@ public machine body_handle(checker: &Checker, slot: u64 in Trapping) -> u64 in T
 crashes Trap
 {
     transition slot < checker.body_count && slot < 128 {
-        true -> checker.bodies[slot] as u64 in Trapping
+        true -> checker.bodies[slot as -Trapping] as u64 in Trapping
         false -> invalid()
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
@@ -1476,7 +1476,7 @@ crashes Trap
     machine compare(checker: &Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 128
     {
-        transition checker.bodies[slot] == handle {
+        transition checker.bodies[slot as -Trapping] == handle {
             true -> (slot + 1)
             false -> candidate(checker, handle, slot + 1)
         }

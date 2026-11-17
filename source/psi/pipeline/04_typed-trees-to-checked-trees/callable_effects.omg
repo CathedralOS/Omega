@@ -32,7 +32,7 @@ crashes Trap
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, root: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 10240
     {
-        checker.invocations.visited[index] = false;
+        checker.invocations.visited[index as -Trapping] = false;
         transition { _ -> clear(checker, syntax, resolution, required, root, index + 1) }
     }
     machine seed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, root: u64 in Trapping) -> bool {
@@ -52,7 +52,7 @@ crashes Trap
     machine node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, cursor: u64 in Trapping) -> bool
     requires cursor < 10240
     {
-        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as u64 in Trapping;
+        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor as -Trapping] as u64 in Trapping;
         transition owner < checker.invocations.node_count && owner < 10240 {
             true -> bounded(checker, syntax, resolution, required, cursor, owner)
             false -> false
@@ -63,7 +63,7 @@ crashes Trap
     {
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
         transition callable_clause_ceiling(syntax, required, clauses) {
-            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as u64 in Trapping)
+            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner as -Trapping] as u64 in Trapping)
             false -> false
         }
     }
@@ -82,7 +82,7 @@ crashes Trap
     machine row(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 32768
     {
-        let item: InvocationEdge = checker.invocations.edges[index];
+        let item: InvocationEdge = checker.invocations.edges[index as -Trapping];
         transition item.target {
             InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, required, cursor, item.next, machine)
             InvocationTarget::Binder { parameter } -> opaque(checker, syntax, resolution, required, cursor, item.next, parameter)
@@ -114,7 +114,7 @@ crashes Trap
     machine bounded(checker: &mut Checker, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        transition checker.invocations.visited[node] {
+        transition checker.invocations.visited[node as -Trapping] {
             true -> true
             false -> room(checker, node, checker.invocations.work_count)
         }
@@ -125,8 +125,8 @@ crashes Trap
     machine publish(checker: &mut Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
     requires node < 10240 && index < 10240
     {
-        checker.invocations.visited[node] = true;
-        checker.invocations.work_nodes[index] = node as u64;
+        checker.invocations.visited[node as -Trapping] = true;
+        checker.invocations.work_nodes[index as -Trapping] = node as u64;
         checker.invocations.work_count = index + 1;
         true
     }

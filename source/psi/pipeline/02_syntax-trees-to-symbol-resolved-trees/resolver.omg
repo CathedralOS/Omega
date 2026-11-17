@@ -1204,9 +1204,9 @@ crashes Trap
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        resolver.output.type_bindings[row] = binding;
-        resolver.output.domain_bindings[row] = DomainBinding::Unqualified;
-        resolver.output.domain_items[row] = 0;
+        resolver.output.type_bindings[row as -Trapping] = binding;
+        resolver.output.domain_bindings[row as -Trapping] = DomainBinding::Unqualified;
+        resolver.output.domain_items[row as -Trapping] = 0;
         transition type_reference.has_domain {
             true -> qualified(resolver, sources, syntax, scope, row, type_reference)
             _ -> done()
@@ -1474,8 +1474,8 @@ crashes Trap
     }
 
     machine bind(resolver: &mut Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
-        resolver.output.domain_bindings[reference] = binding;
-        resolver.output.domain_items[reference] = item as u64;
+        resolver.output.domain_bindings[reference as -Trapping] = binding;
+        resolver.output.domain_items[reference as -Trapping] = item as u64;
     }
 
     machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
@@ -2253,12 +2253,12 @@ crashes Trap
     }
 
     machine compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
-        let left_domain: DomainBinding = resolver.output.domain_bindings[left];
-        let right_domain: DomainBinding = resolver.output.domain_bindings[right];
-        let left_item: u64 = resolver.output.domain_items[left];
-        let right_item: u64 = resolver.output.domain_items[right];
+        let left_domain: DomainBinding = resolver.output.domain_bindings[left as -Trapping];
+        let right_domain: DomainBinding = resolver.output.domain_bindings[right as -Trapping];
+        let left_item: u64 = resolver.output.domain_items[left as -Trapping];
+        let right_item: u64 = resolver.output.domain_items[right as -Trapping];
         transition left_domain == right_domain && left_item == right_item {
-            true -> same_binding(left_scope, resolver.output.type_bindings[left], right_scope, resolver.output.type_bindings[right])
+            true -> same_binding(left_scope, resolver.output.type_bindings[left as -Trapping], right_scope, resolver.output.type_bindings[right as -Trapping])
             _ -> different()
         }
     }

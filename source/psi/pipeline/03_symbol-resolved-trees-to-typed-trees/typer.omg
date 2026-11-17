@@ -313,7 +313,7 @@ crashes Trap
     }
 
     machine read(typer: &Typer, index: u64 in Trapping) -> bool {
-        typer.typed[index]
+        typer.typed[index as -Trapping]
     }
 
     machine invalid() -> bool {
@@ -330,7 +330,7 @@ crashes Trap
     }
 
     machine write(typer: &mut Typer, index: u64 in Trapping, typed: bool) {
-        typer.typed[index] = typed;
+        typer.typed[index as -Trapping] = typed;
     }
 
     machine invalid() {

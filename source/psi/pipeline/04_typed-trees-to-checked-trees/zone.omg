@@ -135,14 +135,14 @@ crashes Trap
     machine diagonal(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        zone.bounds[index as -Trapping] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
     machine unbounded(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        zone.bounds[index as -Trapping] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
@@ -172,7 +172,7 @@ crashes Trap
     machine read(zone: &Zone, index: u64 in Trapping) -> Bound
     requires index < 4096
     {
-        zone.bounds[index]
+        zone.bounds[index as -Trapping]
     }
 
     machine invalid() -> Bound {
@@ -201,7 +201,7 @@ crashes Trap
     machine write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
-        zone.bounds[index] = bound;
+        zone.bounds[index as -Trapping] = bound;
     }
 
     machine done() {}
@@ -359,7 +359,7 @@ crashes Trap
     machine write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
-        zone.bounds[index] = bound;
+        zone.bounds[index as -Trapping] = bound;
     }
 
     machine invalid() {
@@ -402,7 +402,7 @@ crashes Trap
     machine copy_entry(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool
     requires index < 4096
     {
-        zone.bounds[index] = other.bounds[index];
+        zone.bounds[index as -Trapping] = other.bounds[index as -Trapping];
         transition { _ -> copy(zone, other, index + 1) }
     }
 
@@ -416,8 +416,8 @@ crashes Trap
     machine compare(zone: &mut Zone, other: &Zone, index: u64 in Trapping, loosened: bool) -> bool
     requires index < 4096
     {
-        let mine: Bound = zone.bounds[index];
-        let theirs: Bound = other.bounds[index];
+        let mine: Bound = zone.bounds[index as -Trapping];
+        let theirs: Bound = other.bounds[index as -Trapping];
         let covered: bool = bound_at_most(theirs, mine);
         transition covered {
             true -> entry(zone, other, index + 1, loosened)
@@ -428,7 +428,7 @@ crashes Trap
     machine loosen(zone: &mut Zone, other: &Zone, index: u64 in Trapping, theirs: Bound) -> bool
     requires index < 4096
     {
-        zone.bounds[index] = theirs;
+        zone.bounds[index as -Trapping] = theirs;
         transition { _ -> entry(zone, other, index + 1, true) }
     }
 
@@ -468,8 +468,8 @@ crashes Trap
     machine compare(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        let now: Bound = zone.bounds[index];
-        let then: Bound = before.bounds[index];
+        let now: Bound = zone.bounds[index as -Trapping];
+        let then: Bound = before.bounds[index as -Trapping];
         let stable: bool = bound_at_most(now, then);
         transition stable {
             true -> entry(zone, before, index + 1)
@@ -480,7 +480,7 @@ crashes Trap
     machine drop(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
+        zone.bounds[index as -Trapping] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0u64 as +Wrapping } };
         transition { _ -> entry(zone, before, index + 1) }
     }
 

@@ -2190,7 +2190,7 @@ crashes Trap
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 64, parser.output.match_arm_count < 1024
     {
-        parser.output.match_arms[parser.output.match_arm_count] = parser.pending_arms[cursor];
+        parser.output.match_arms[parser.output.match_arm_count] = parser.pending_arms[cursor as -Trapping];
         parser.output.match_arm_count = parser.output.match_arm_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
@@ -2313,7 +2313,7 @@ crashes Trap
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 256, parser.output.argument_count < 65536
     {
-        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64 in Trapping;
+        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor as -Trapping] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
@@ -2367,7 +2367,7 @@ crashes Trap
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 64, parser.output.construct_field_count < 4096
     {
-        parser.output.construct_fields[parser.output.construct_field_count] = parser.pending_fields[cursor];
+        parser.output.construct_fields[parser.output.construct_field_count] = parser.pending_fields[cursor as -Trapping];
         parser.output.construct_field_count = parser.output.construct_field_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
@@ -2450,7 +2450,7 @@ crashes Trap
     }
 
     machine token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let token: Token = input.tokens[index];
+        let token: Token = input.tokens[index as -Trapping];
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
             TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
@@ -2483,7 +2483,7 @@ crashes Trap
     }
 
     machine opens_call(input: &TokenStream, index: u64 in Trapping) -> bool {
-        let token: Token = input.tokens[index];
+        let token: Token = input.tokens[index as -Trapping];
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> present()
             _ -> absent()

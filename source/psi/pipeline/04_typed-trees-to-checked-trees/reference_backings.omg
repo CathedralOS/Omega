@@ -29,7 +29,7 @@ crashes Trap
     requires place > 0
     requires place <= 256
     {
-        checker.reference_views[index] = ReferenceView { first: checker.reference_backing_count, count: 0u64 as +Trapping };
+        checker.reference_views[index as -Trapping] = ReferenceView { first: checker.reference_backing_count, count: 0u64 as +Trapping };
         checker.reference_view_count = index + 1;
         transition { _ -> next(checker, syntax, resolution, typing, expression, place, index, 0u64 as +Trapping) }
     }
@@ -71,8 +71,8 @@ crashes Trap
         let origin: ReferenceOrigin = ReferenceOrigin::View { place: home + 1, backing: backing };
         // The call selects its newest publication; captured aliases name
         // the separate immutable home, not this mutable call-site record.
-        checker.reference_origins[index] = origin;
-        checker.reference_origins[home] = origin;
+        checker.reference_origins[index as -Trapping] = origin;
+        checker.reference_origins[home as -Trapping] = origin;
     }
     machine full(checker: &mut Checker, source_span: SourceSpan) {
         checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
@@ -174,11 +174,11 @@ crashes Trap
     requires group < 256
     requires index < 256
     {
-        checker.reference_backings[index] = origin;
+        checker.reference_backings[index as -Trapping] = origin;
         checker.reference_backing_count = index + 1;
-        let mut view: ReferenceView = checker.reference_views[group];
+        let mut view: ReferenceView = checker.reference_views[group as -Trapping];
         view.count = view.count + 1;
-        checker.reference_views[group] = view;
+        checker.reference_views[group as -Trapping] = view;
     }
     machine full(checker: &mut Checker, source_span: SourceSpan) {
         checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);

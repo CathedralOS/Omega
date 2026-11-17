@@ -416,7 +416,7 @@ machine token_equals(lexer: &mut Lexer, candidate: &[u8]) -> bool {
     machine compare(lexer: &mut Lexer, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = start + index;
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, at);
-        let candidate_byte: u8 = candidate[index];
+        let candidate_byte: u8 = candidate[index as -Trapping];
         transition source_byte == candidate_byte {
             true -> scan(lexer, start, candidate, index + 1)
             _ -> false

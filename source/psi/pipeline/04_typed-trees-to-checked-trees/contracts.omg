@@ -372,7 +372,7 @@ crashes Trap
     machine write(checker: &mut Checker, offset: u64 in Trapping, value: Value)
     requires offset < 64
     {
-        checker.arguments[offset] = value;
+        checker.arguments[offset as -Trapping] = value;
     }
 
     machine invalid() {
@@ -392,7 +392,7 @@ crashes Trap
     machine read(checker: &Checker, offset: u64 in Trapping) -> Value
     requires offset < 64
     {
-        checker.arguments[offset]
+        checker.arguments[offset as -Trapping]
     }
 
     machine invalid() -> Value {

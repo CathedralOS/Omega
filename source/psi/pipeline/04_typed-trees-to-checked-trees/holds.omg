@@ -574,7 +574,7 @@ crashes Trap
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
     requires index < 131072
     {
-        checker.terminal_calls[index] = false;
+        checker.terminal_calls[index as -Trapping] = false;
         transition { _ -> clear(checker, syntax, index + 1) }
     }
     machine arm(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -613,7 +613,7 @@ crashes Trap
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
     requires index < 131072
     {
-        transition checker.terminal_calls[index] {
+        transition checker.terminal_calls[index as -Trapping] {
             true -> expression(checker, syntax, index)
             false -> propagate(checker, syntax, index)
         }
@@ -664,7 +664,7 @@ crashes Trap
     machine bounded(checker: &mut Checker, target: u64 in Trapping)
     requires target < 131072
     {
-        checker.terminal_calls[target] = true;
+        checker.terminal_calls[target as -Trapping] = true;
     }
     machine done() {}
 }
@@ -673,7 +673,7 @@ machine terminal_call(checker: &Checker, expression: u64 in Trapping) -> bool
 crashes Trap
 {
     transition expression < 131072 {
-        true -> checker.terminal_calls[expression]
+        true -> checker.terminal_calls[expression as -Trapping]
         false -> false
     }
 }

@@ -25,7 +25,7 @@ crashes Trap
     requires index < 64
     {
         let value: Value = value_unknown();
-        rank.values[index] = value;
+        rank.values[index as -Trapping] = value;
         transition { _ -> next(rank, index + 1) }
     }
 }
@@ -141,7 +141,7 @@ crashes Trap
     requires index < 64
     {
         let value: Value = component_value(checker, syntax, resolution, typing, measure, first, index);
-        rank.values[index] = value;
+        rank.values[index as -Trapping] = value;
         transition { _ -> components(checker, syntax, resolution, typing, measure, first, rank, index + 1) }
     }
     machine complete(rank: &mut NormalizedRank, count: u64 in Trapping) { rank.count = count; rank.valid = count > 0 && count <= 64; }
@@ -170,11 +170,11 @@ crashes Trap
     machine retained(checker: &mut Checker, typing: &Typing, rank: &mut NormalizedRank, index: u64 in Trapping)
     requires index < 64
     {
-        let value: Value = rank.values[index];
+        let value: Value = rank.values[index as -Trapping];
         let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::RankEntry, index, 0u64 as +Trapping, 0u64 as +Trapping);
         initialize_place(checker, typing, place, value);
         let captured: Value = place_value(checker, place);
-        rank.values[index] = captured;
+        rank.values[index as -Trapping] = captured;
         rank.valid = rank.valid && place > 0;
         transition { _ -> component(checker, typing, rank, index + 1) }
     }
@@ -205,8 +205,8 @@ crashes Trap
     machine compared(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
-        let left: Value = before.values[index];
-        let right: Value = after.values[index];
+        let left: Value = before.values[index as -Trapping];
+        let right: Value = after.values[index as -Trapping];
         let strict: bool = proves_less(checker, right, left);
         let kept: bool = proves_at_most(checker, right, left);
         transition strict {
@@ -437,7 +437,7 @@ crashes Trap
     machine natural(checker: &Checker, rank: &mut NormalizedRank, index: u64 in Trapping)
     requires index < 64
     {
-        let value: Value = rank.values[index];
+        let value: Value = rank.values[index as -Trapping];
         let proven: bool = natural_rank_value(checker, value);
         transition proven { true -> component(checker, rank, index + 1) false -> invalid(rank) }
     }

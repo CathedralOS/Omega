@@ -497,7 +497,7 @@ crashes Trap
     machine captured(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 256
     {
-        reference_origin_place(checker.reference_origins[index])
+        reference_origin_place(checker.reference_origins[index as -Trapping])
     }
 
     machine none() -> u64 in Trapping {
@@ -646,7 +646,7 @@ crashes Trap
     machine loan(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
     requires index < 64, written < 64
     {
-        let source: u64 = ownership.loan_holders[index];
+        let source: u64 = ownership.loan_holders[index as -Trapping];
         transition source == holder && index < previous_count {
             true -> next(ownership, holder, previous_count, index + 1, written)
             _ -> keep(ownership, holder, previous_count, index, written)
@@ -656,10 +656,10 @@ crashes Trap
     machine keep(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
     requires index < 64, written < 64
     {
-        ownership.loan_holders[written] = ownership.loan_holders[index];
-        ownership.loan_places[written] = ownership.loan_places[index];
-        ownership.loan_exclusive[written] = ownership.loan_exclusive[index];
-        ownership.loan_owned[written] = ownership.loan_owned[index];
+        ownership.loan_holders[written as -Trapping] = ownership.loan_holders[index as -Trapping];
+        ownership.loan_places[written as -Trapping] = ownership.loan_places[index as -Trapping];
+        ownership.loan_exclusive[written as -Trapping] = ownership.loan_exclusive[index as -Trapping];
+        ownership.loan_owned[written as -Trapping] = ownership.loan_owned[index as -Trapping];
         transition { _ -> next(ownership, holder, previous_count, index + 1, written + 1) }
     }
 
@@ -769,8 +769,8 @@ crashes Trap
     machine visit(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
     requires depth < 9
     {
-        let handle: u64 in Trapping = handles[depth];
-        let offset: u64 in Trapping = offsets[depth];
+        let handle: u64 in Trapping = handles[depth as -Trapping];
+        let offset: u64 in Trapping = offsets[depth as -Trapping];
         let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind {
             TypeKind::Reference -> answer(true)
@@ -841,7 +841,7 @@ crashes Trap
     machine descend(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool
     requires depth < 8
     {
-        offsets[depth] = offset + 1;
+        offsets[depth as -Trapping] = offset + 1;
         handles[depth + 1] = handle;
         offsets[depth + 1] = 0;
         transition { _ -> visit(syntax, typing, handles, offsets, depth + 1) }
@@ -1083,7 +1083,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping, index: u64 in Trapping)
     requires slot < 128
     {
-        ownership.use_last[slot] = index as u64;
+        ownership.use_last[slot as -Trapping] = index as u64;
     }
 
     // A body with more locals than the table tracks forgets the rest, whose
@@ -1122,7 +1122,7 @@ crashes Trap
     machine entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 128
     {
-        let local: u64 = ownership.use_locals[index];
+        let local: u64 = ownership.use_locals[index as -Trapping];
         transition local == key {
             true -> answer(index + 1)
             _ -> next(ownership, key, index + 1)
@@ -1154,7 +1154,7 @@ crashes Trap
     machine indexed(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
     requires index < 128
     {
-        let last: u64 = ownership.use_last[index];
+        let last: u64 = ownership.use_last[index as -Trapping];
         let counted: u64 in Trapping = last as u64 in Trapping;
         transition { _ -> answer(counted) }
     }
@@ -1186,7 +1186,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping, last: u64 in Trapping)
     requires slot < 128
     {
-        ownership.use_last[slot] = last as u64;
+        ownership.use_last[slot as -Trapping] = last as u64;
     }
 
     machine done() {}
@@ -1241,7 +1241,7 @@ crashes Trap
     machine read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
-        let holder: u64 = ownership.loan_holders[index];
+        let holder: u64 = ownership.loan_holders[index as -Trapping];
         holder as u64 in Trapping
     }
 
@@ -1261,7 +1261,7 @@ crashes Trap
     machine read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
-        let place: u64 = ownership.loan_places[index];
+        let place: u64 = ownership.loan_places[index as -Trapping];
         place as u64 in Trapping
     }
 
@@ -1281,7 +1281,7 @@ crashes Trap
     machine read(ownership: &Ownership, index: u64 in Trapping) -> bool
     requires index < 64
     {
-        ownership.loan_exclusive[index]
+        ownership.loan_exclusive[index as -Trapping]
     }
 
     machine invalid() -> bool {
@@ -1300,7 +1300,7 @@ crashes Trap
     machine read(ownership: &Ownership, index: u64 in Trapping) -> bool
     requires index < 64
     {
-        ownership.loan_owned[index]
+        ownership.loan_owned[index as -Trapping]
     }
 
     machine invalid() -> bool {

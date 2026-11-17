@@ -150,7 +150,7 @@ crashes Trap
     }
 
     machine unbound(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        resolver.output.value_bindings[index] = ValueBinding::NotAName;
+        resolver.output.value_bindings[index as -Trapping] = ValueBinding::NotAName;
         transition { _ -> next(resolver, syntax, index + 1) }
     }
 
@@ -188,7 +188,7 @@ crashes Trap
     }
 
     machine store(resolver: &mut Resolver, index: u64 in Trapping, role: NameRole) {
-        resolver.name_roles[index] = role;
+        resolver.name_roles[index as -Trapping] = role;
     }
 
     machine invalid() {
@@ -205,7 +205,7 @@ crashes Trap
     }
 
     machine read(resolver: &Resolver, index: u64 in Trapping) -> NameRole {
-        resolver.name_roles[index]
+        resolver.name_roles[index as -Trapping]
     }
 
     machine invalid() -> NameRole {
@@ -561,7 +561,7 @@ crashes Trap
     }
 
     machine store(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
-        resolver.output.value_bindings[index] = binding;
+        resolver.output.value_bindings[index as -Trapping] = binding;
     }
 
     machine unresolved(resolver: &mut Resolver, expression: Expression) {
@@ -840,7 +840,7 @@ crashes Trap
     }
 
     machine store(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
-        resolver.output.value_bindings[index] = binding;
+        resolver.output.value_bindings[index as -Trapping] = binding;
     }
 
     machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {

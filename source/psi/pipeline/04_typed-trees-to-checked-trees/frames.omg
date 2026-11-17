@@ -35,7 +35,7 @@ crashes Trap
     machine parameter_cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
     requires index < 32768
     {
-        checker.whole_writes[index] = false;
+        checker.whole_writes[index as -Trapping] = false;
         transition { _ -> clear_parameter(checker, syntax, resolution, typing, index + 1) }
     }
 
@@ -50,7 +50,7 @@ crashes Trap
     requires index < 10240
     {
         let item: MachineItem = machine_item(syntax, index);
-        checker.unknown_writes[index] = !item.has_body;
+        checker.unknown_writes[index as -Trapping] = !item.has_body;
         clear_field_writes(checker, index);
         transition { _ -> clear_machine(checker, syntax, resolution, typing, index + 1) }
     }
@@ -481,7 +481,7 @@ public machine writes_unknown(checker: &Checker, machine: u64 in Trapping) -> bo
     machine read(checker: &Checker, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        checker.unknown_writes[callee]
+        checker.unknown_writes[callee as -Trapping]
     }
 
     machine unknown() -> bool {
@@ -500,7 +500,7 @@ machine mark_unknown(checker: &mut Checker, machine: u64 in Trapping, unknown: b
     machine mark(checker: &mut Checker, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        checker.unknown_writes[callee] = true;
+        checker.unknown_writes[callee as -Trapping] = true;
         true
     }
 
@@ -518,7 +518,7 @@ public machine writes_whole(checker: &Checker, parameter: u64 in Trapping) -> bo
     machine read(checker: &Checker, parameter: u64 in Trapping) -> bool
     requires parameter < 32768
     {
-        checker.whole_writes[parameter]
+        checker.whole_writes[parameter as -Trapping]
     }
 
     machine whole() -> bool {
@@ -536,7 +536,7 @@ machine mark_whole(checker: &mut Checker, parameter: u64 in Trapping) -> bool {
     machine mark(checker: &mut Checker, parameter: u64 in Trapping) -> bool
     requires parameter < 32768
     {
-        checker.whole_writes[parameter] = true;
+        checker.whole_writes[parameter as -Trapping] = true;
         true
     }
 
@@ -567,7 +567,7 @@ crashes Trap
     {
         let one: u64 = 1;
         let bit: u64 = one << shift;
-        (checker.field_writes[index] & bit) != 0
+        (checker.field_writes[index as -Trapping] & bit) != 0
     }
 
     machine written() -> bool {
@@ -597,8 +597,8 @@ crashes Trap
     {
         let one: u64 = 1;
         let bit: u64 = one << shift;
-        let previous: u64 = checker.field_writes[index];
-        checker.field_writes[index] = previous | bit;
+        let previous: u64 = checker.field_writes[index as -Trapping];
+        checker.field_writes[index as -Trapping] = previous | bit;
         (previous & bit) == 0
     }
 
@@ -658,7 +658,7 @@ crashes Trap
     machine cleared(checker: &mut Checker, base: u64 in Trapping, field: u64 in Trapping, index: u64 in Trapping)
     requires index < 163840
     {
-        checker.field_writes[index] = 0;
+        checker.field_writes[index as -Trapping] = 0;
         transition { _ -> next(checker, base, field + 1) }
     }
 

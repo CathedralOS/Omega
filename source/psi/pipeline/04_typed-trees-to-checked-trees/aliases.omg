@@ -137,8 +137,8 @@ crashes Trap
     machine entry(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 16
     {
-        let aliased: u64 = checker.aliases.places[index];
-        let condition: u64 = checker.aliases.conditions[index];
+        let aliased: u64 = checker.aliases.places[index as -Trapping];
+        let condition: u64 = checker.aliases.conditions[index as -Trapping];
         let found: u64 in Trapping = (condition as u64 in Trapping) + 1;
         transition aliased == place {
             true -> answer(found)
@@ -199,8 +199,8 @@ crashes Trap
     machine entry(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
     requires index < 16
     {
-        let aliased: u64 = checker.aliases.places[index];
-        let limit: u64 = checker.aliases.limits[index];
+        let aliased: u64 = checker.aliases.places[index as -Trapping];
+        let limit: u64 = checker.aliases.limits[index as -Trapping];
         let stale: bool = aliased == place || (older > 0 && older <= limit);
         transition stale {
             true -> removed(checker, place, older, index)
@@ -222,9 +222,9 @@ crashes Trap
         let last_place: u64 = checker.aliases.places[last];
         let last_condition: u64 = checker.aliases.conditions[last];
         let last_limit: u64 = checker.aliases.limits[last];
-        checker.aliases.places[index] = last_place;
-        checker.aliases.conditions[index] = last_condition;
-        checker.aliases.limits[index] = last_limit;
+        checker.aliases.places[index as -Trapping] = last_place;
+        checker.aliases.conditions[index as -Trapping] = last_condition;
+        checker.aliases.limits[index as -Trapping] = last_limit;
         checker.aliases.count = last;
         transition { _ -> next(checker, place, older, index) }
     }
@@ -280,8 +280,8 @@ crashes Trap
     machine candidate(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping)
     requires index < 16
     {
-        let place: u64 = table.places[index];
-        let condition: u64 = table.conditions[index];
+        let place: u64 = table.places[index as -Trapping];
+        let condition: u64 = table.conditions[index as -Trapping];
         transition { _ -> find(table, other, index, place, condition, 0u64 as +Trapping) }
     }
     machine find(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
@@ -293,7 +293,7 @@ crashes Trap
     machine compare(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping)
     requires offset < 16, index < 16
     {
-        let same: bool = other.places[offset] == place && other.conditions[offset] == condition;
+        let same: bool = other.places[offset as -Trapping] == place && other.conditions[offset as -Trapping] == condition;
         transition same {
             true -> kept(table, other, index, offset)
             _ -> find(table, other, index, place, condition, offset + 1)
@@ -302,8 +302,8 @@ crashes Trap
     machine kept(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, offset: u64 in Trapping)
     requires index < 16, offset < 16
     {
-        let limit: u64 = other.limits[offset];
-        transition limit > table.limits[index] {
+        let limit: u64 = other.limits[offset as -Trapping];
+        transition limit > table.limits[index as -Trapping] {
             true -> limited(table, other, index, limit)
             _ -> next(table, other, index + 1)
         }
@@ -311,7 +311,7 @@ crashes Trap
     machine limited(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, limit: u64)
     requires index < 16
     {
-        table.limits[index] = limit;
+        table.limits[index as -Trapping] = limit;
         transition { _ -> next(table, other, index + 1) }
     }
     machine removed(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
@@ -323,9 +323,9 @@ crashes Trap
     machine moved(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
-        table.places[index] = table.places[last];
-        table.conditions[index] = table.conditions[last];
-        table.limits[index] = table.limits[last];
+        table.places[index as -Trapping] = table.places[last];
+        table.conditions[index as -Trapping] = table.conditions[last];
+        table.limits[index as -Trapping] = table.limits[last];
         table.count = last;
         transition { _ -> next(table, other, index) }
     }

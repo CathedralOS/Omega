@@ -229,7 +229,7 @@ crashes Trap
     }
 
     machine append_clause(parser: &mut Parser, input: &TokenStream, index: u64 in Trapping) {
-        parser.output.clauses[parser.output.clause_count] = parser.header_clauses[index];
+        parser.output.clauses[parser.output.clause_count] = parser.header_clauses[index as -Trapping];
         parser.output.clause_count = parser.output.clause_count + 1;
         transition { _ -> publish_clause(parser, input, index + 1) }
     }
@@ -248,7 +248,7 @@ crashes Trap
     }
 
     machine contract_published(parser: &mut Parser, input: &TokenStream, index: u64 in Trapping) {
-        let contract: Contract = parser.header_contracts[index];
+        let contract: Contract = parser.header_contracts[index as -Trapping];
         retain_contract(parser, input, contract);
         transition parser.output.accepted {
             true -> publish_contract(parser, input, index + 1)

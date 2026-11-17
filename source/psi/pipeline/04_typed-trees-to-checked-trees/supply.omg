@@ -119,7 +119,7 @@ crashes Trap
     machine entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, caller: u64 in Trapping, index: u64 in Trapping)
     requires index < 1024
     {
-        let supplied: SuppliedCall = checker.supplied[index];
+        let supplied: SuppliedCall = checker.supplied[index as -Trapping];
         transition supplied.caller == caller as u64 {
             true -> call(checker, syntax, resolution, typing, caller, index, supplied)
             _ -> next(checker, syntax, resolution, typing, caller, index + 1)

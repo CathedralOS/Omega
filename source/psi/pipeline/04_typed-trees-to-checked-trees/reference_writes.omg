@@ -47,12 +47,12 @@ crashes Trap
     machine clear(writes: &mut ReferenceWrites, index: u64 in Trapping)
     requires index < 256
     {
-        writes.pending[index] = 0;
-        writes.seen[index] = false;
-        writes.written[index] = false;
-        writes.contents[index] = true;
-        writes.views[index] = 0;
-        writes.views_seen[index] = false;
+        writes.pending[index as -Trapping] = 0;
+        writes.seen[index as -Trapping] = false;
+        writes.written[index as -Trapping] = false;
+        writes.contents[index as -Trapping] = true;
+        writes.views[index as -Trapping] = 0;
+        writes.views_seen[index as -Trapping] = false;
         transition { _ -> next(writes, index + 1) }
     }
 }
@@ -67,7 +67,7 @@ crashes Trap
     machine candidate(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        transition !writes.seen[index] && writes.count < 256 {
+        transition !writes.seen[index as -Trapping] && writes.count < 256 {
             true -> enqueue(writes, place, index, writes.count)
             false -> {}
         }
@@ -76,8 +76,8 @@ crashes Trap
     requires index < 256
     requires tail < 256
     {
-        writes.seen[index] = true;
-        writes.pending[tail] = place;
+        writes.seen[index as -Trapping] = true;
+        writes.pending[tail as -Trapping] = place;
         writes.count = tail + 1;
     }
 }
@@ -103,7 +103,7 @@ crashes Trap
     machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
     requires head < 256
     {
-        let root: u64 in Trapping = writes.pending[head];
+        let root: u64 in Trapping = writes.pending[head as -Trapping];
         collect_reference_descriptor(checker, syntax, typing, writes, release, root, index);
         transition { _ -> scan(checker, syntax, typing, writes, release, head, index + 1) }
     }
@@ -116,7 +116,7 @@ crashes Trap
     machine view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        let backing: u64 in Trapping = writes.views[index];
+        let backing: u64 in Trapping = writes.views[index as -Trapping];
         writes.view_head = index + 1;
         collect_reference_view(checker, syntax, writes, release, backing);
         transition { _ -> next(checker, syntax, typing, writes, release, head) }
@@ -186,8 +186,8 @@ crashes Trap
     machine written(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, contents: bool)
     requires index < 256
     {
-        writes.written[index] = true;
-        writes.contents[index] = writes.contents[index] && contents;
+        writes.written[index as -Trapping] = true;
+        writes.contents[index as -Trapping] = writes.contents[index as -Trapping] && contents;
         enqueue_reference_write(writes, place);
     }
     machine view(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
@@ -200,7 +200,7 @@ crashes Trap
     machine candidate(writes: &mut ReferenceWrites, backing: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        transition !writes.views_seen[index] && writes.view_count < 256 {
+        transition !writes.views_seen[index as -Trapping] && writes.view_count < 256 {
             true -> enqueue(writes, backing, index, writes.view_count)
             false -> {}
         }
@@ -209,8 +209,8 @@ crashes Trap
     requires index < 256
     requires tail < 256
     {
-        writes.views_seen[index] = true;
-        writes.views[tail] = backing;
+        writes.views_seen[index as -Trapping] = true;
+        writes.views[tail as -Trapping] = backing;
         writes.view_count = tail + 1;
     }
     machine unknown(checker: &mut Checker, syntax: &SyntaxTrees, release: ReferenceRelease) {
@@ -239,7 +239,7 @@ crashes Trap
     machine read(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, index: u64 in Trapping)
     requires index < 256
     {
-        let view: ReferenceView = checker.reference_views[index];
+        let view: ReferenceView = checker.reference_views[index as -Trapping];
         transition view.count > 0 {
             true -> next(checker, syntax, writes, release, view, 0u64 as +Trapping)
             false -> unknown(checker, syntax, writes, release)
@@ -260,7 +260,7 @@ crashes Trap
     machine origin(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        let origin: ReferenceOrigin = checker.reference_backings[index];
+        let origin: ReferenceOrigin = checker.reference_backings[index as -Trapping];
         mark_reference_write(checker, syntax, writes, release, origin);
         transition { _ -> next(checker, syntax, writes, release, view, offset + 1) }
     }
@@ -300,7 +300,7 @@ machine apply_reference_write(checker: &mut Checker, syntax: &SyntaxTrees, typin
 requires index < 256
 crashes Trap
 {
-    transition writes.written[index] {
+    transition writes.written[index as -Trapping] {
         true -> apply(checker, syntax, typing, writes, release, snapshotting, index)
         false -> {}
     }
@@ -309,7 +309,7 @@ crashes Trap
     {
         transition snapshotting {
             true -> snapshot(checker, syntax, typing, release, index + 1)
-            false -> retire(checker, typing, index + 1, writes.contents[index])
+            false -> retire(checker, typing, index + 1, writes.contents[index as -Trapping])
         }
     }
     machine snapshot(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, release: ReferenceRelease, place: u64 in Trapping) {

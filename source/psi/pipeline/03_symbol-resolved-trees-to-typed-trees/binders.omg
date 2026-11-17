@@ -65,8 +65,8 @@ crashes Trap
     machine write(typer: &mut Typer, parameter: u64 in Trapping, argument: MachineArgument)
     requires parameter < 256
     {
-        typer.machine_bound[parameter] = argument;
-        typer.machine_stamps[parameter] = typer.binding_generation as u64;
+        typer.machine_bound[parameter as -Trapping] = argument;
+        typer.machine_stamps[parameter as -Trapping] = typer.binding_generation as u64;
     }
 
     machine invalid() {
@@ -86,7 +86,7 @@ crashes Trap
     machine read(typer: &Typer, parameter: u64 in Trapping) -> MachineArgument
     requires parameter < 256
     {
-        let stamp: u64 = typer.machine_stamps[parameter];
+        let stamp: u64 = typer.machine_stamps[parameter as -Trapping];
         transition stamp == typer.binding_generation {
             true -> live(typer, parameter)
             _ -> absent()
@@ -96,7 +96,7 @@ crashes Trap
     machine live(typer: &Typer, parameter: u64 in Trapping) -> MachineArgument
     requires parameter < 256
     {
-        typer.machine_bound[parameter]
+        typer.machine_bound[parameter as -Trapping]
     }
 
     machine absent() -> MachineArgument {

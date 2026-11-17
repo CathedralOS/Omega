@@ -1112,7 +1112,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RootItem {
-        syntax_trees.roots[handle]
+        syntax_trees.roots[handle as -Trapping]
     }
 
     machine invalid() -> RootItem {
@@ -1129,7 +1129,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataItem {
-        syntax_trees.data_items[handle]
+        syntax_trees.data_items[handle as -Trapping]
     }
 
     machine invalid() -> DataItem {
@@ -1146,7 +1146,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataMember {
-        syntax_trees.data_members[handle]
+        syntax_trees.data_members[handle as -Trapping]
     }
 
     machine invalid() -> DataMember {
@@ -1163,7 +1163,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity {
-        syntax_trees.retired_identities[handle]
+        syntax_trees.retired_identities[handle as -Trapping]
     }
 
     machine invalid() -> RetiredIdentity {
@@ -1180,7 +1180,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField {
-        syntax_trees.fields[handle]
+        syntax_trees.fields[handle as -Trapping]
     }
 
     machine invalid() -> DataField {
@@ -1197,7 +1197,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataCase {
-        syntax_trees.cases[handle]
+        syntax_trees.cases[handle as -Trapping]
     }
 
     machine invalid() -> DataCase {
@@ -1214,7 +1214,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField {
-        syntax_trees.payload_fields[handle]
+        syntax_trees.payload_fields[handle as -Trapping]
     }
 
     machine invalid() -> DataField {
@@ -1231,7 +1231,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> GenericParameter {
-        syntax_trees.generic_parameters[handle]
+        syntax_trees.generic_parameters[handle as -Trapping]
     }
 
     machine invalid() -> GenericParameter {
@@ -1268,7 +1268,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TypeReference {
-        syntax_trees.type_references[handle]
+        syntax_trees.type_references[handle as -Trapping]
     }
 
     machine invalid() -> TypeReference {
@@ -1286,7 +1286,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
-        syntax_trees.type_arguments[index] as u64 in Trapping
+        syntax_trees.type_arguments[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1303,7 +1303,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem {
-        syntax_trees.machines[handle]
+        syntax_trees.machines[handle as -Trapping]
     }
 
     machine invalid() -> MachineItem {
@@ -1320,7 +1320,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter {
-        syntax_trees.parameters[handle]
+        syntax_trees.parameters[handle as -Trapping]
     }
 
     machine invalid() -> Parameter {
@@ -1337,7 +1337,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression {
-        syntax_trees.expressions[handle]
+        syntax_trees.expressions[handle as -Trapping]
     }
 
     machine invalid() -> Expression {
@@ -1354,7 +1354,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral {
-        syntax_trees.integer_literals[handle]
+        syntax_trees.integer_literals[handle as -Trapping]
     }
 
     machine invalid() -> IntegerLiteral {
@@ -1371,7 +1371,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField {
-        syntax_trees.construct_fields[handle]
+        syntax_trees.construct_fields[handle as -Trapping]
     }
 
     machine invalid() -> ConstructField {
@@ -1388,7 +1388,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem {
-        syntax_trees.uses[handle]
+        syntax_trees.uses[handle as -Trapping]
     }
 
     machine invalid() -> UseItem {
@@ -1406,7 +1406,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
-        syntax_trees.members[handle]
+        syntax_trees.members[handle as -Trapping]
     }
 
     machine invalid() -> IdentifierSpan {
@@ -1423,7 +1423,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement {
-        syntax_trees.statements[handle]
+        syntax_trees.statements[handle as -Trapping]
     }
 
     machine invalid() -> Statement {
@@ -1440,7 +1440,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
-        syntax_trees.arguments[handle]
+        syntax_trees.arguments[handle as -Trapping]
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1457,7 +1457,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
-        syntax_trees.arms[handle]
+        syntax_trees.arms[handle as -Trapping]
     }
 
     machine invalid() -> TransitionArm {
@@ -1540,7 +1540,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
-        syntax_trees.match_arms[handle]
+        syntax_trees.match_arms[handle as -Trapping]
     }
 
     machine invalid() -> TransitionArm {
@@ -1557,7 +1557,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField {
-        syntax_trees.pattern_fields[handle]
+        syntax_trees.pattern_fields[handle as -Trapping]
     }
 
     machine invalid() -> PatternField {
@@ -1574,7 +1574,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause {
-        syntax_trees.clauses[handle]
+        syntax_trees.clauses[handle as -Trapping]
     }
 
     machine invalid() -> Clause {
@@ -1591,7 +1591,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> NamePath {
-        syntax_trees.name_paths[handle]
+        syntax_trees.name_paths[handle as -Trapping]
     }
 
     machine invalid() -> NamePath {
@@ -1608,7 +1608,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TraitItem {
-        syntax_trees.traits[handle]
+        syntax_trees.traits[handle as -Trapping]
     }
 
     machine invalid() -> TraitItem {
@@ -1625,7 +1625,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem {
-        syntax_trees.conformances[handle]
+        syntax_trees.conformances[handle as -Trapping]
     }
 
     machine invalid() -> ConformanceItem {
@@ -1642,7 +1642,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DomainItem {
-        syntax_trees.domains[handle]
+        syntax_trees.domains[handle as -Trapping]
     }
 
     machine invalid() -> DomainItem {
@@ -1659,7 +1659,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstantItem {
-        syntax_trees.constants[handle]
+        syntax_trees.constants[handle as -Trapping]
     }
 
     machine invalid() -> ConstantItem {
@@ -1676,7 +1676,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PropositionItem {
-        syntax_trees.propositions[handle]
+        syntax_trees.propositions[handle as -Trapping]
     }
 
     machine invalid() -> PropositionItem {
@@ -1693,7 +1693,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract {
-        syntax_trees.contracts[handle]
+        syntax_trees.contracts[handle as -Trapping]
     }
 
     machine invalid() -> Contract {
@@ -1710,7 +1710,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem {
-        syntax_trees.definitions[handle]
+        syntax_trees.definitions[handle as -Trapping]
     }
 
     machine invalid() -> DefinitionItem {
@@ -1728,7 +1728,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
-        syntax_trees.trait_parents[index] as u64 in Trapping
+        syntax_trees.trait_parents[index as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1766,7 +1766,7 @@ crashes Trap
     }
 
     machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding {
-        syntax_trees.erased_bindings[index]
+        syntax_trees.erased_bindings[index as -Trapping]
     }
 
     machine invalid() -> ErasedBinding {
@@ -1786,7 +1786,7 @@ crashes Trap
     machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
     requires index < 1024
     {
-        syntax_trees.type_lifetimes[index]
+        syntax_trees.type_lifetimes[index as -Trapping]
     }
 
     machine invalid() -> IdentifierSpan {

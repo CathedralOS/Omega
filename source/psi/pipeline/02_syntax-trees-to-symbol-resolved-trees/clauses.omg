@@ -409,7 +409,7 @@ crashes Trap
     machine store(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)
     requires clause < 2048
     {
-        resolver.output.requirements[clause] = binding;
+        resolver.output.requirements[clause as -Trapping] = binding;
     }
 
     machine invalid() {

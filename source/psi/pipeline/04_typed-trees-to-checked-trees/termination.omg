@@ -111,8 +111,8 @@ public machine reset_termination(checker: &mut Checker, machine: u64 in Trapping
     machine write(checker: &mut Checker, callee: u64 in Trapping)
     requires callee < 10240
     {
-        checker.binder_calls[callee] = false;
-        checker.terminating[callee] = false;
+        checker.binder_calls[callee as -Trapping] = false;
+        checker.terminating[callee as -Trapping] = false;
     }
 
     machine done() {}
@@ -131,7 +131,7 @@ crashes Trap
     machine write(checker: &mut Checker, callee: u64 in Trapping)
     requires callee < 10240
     {
-        checker.binder_calls[callee] = true;
+        checker.binder_calls[callee as -Trapping] = true;
     }
 
     machine done() {}
@@ -148,7 +148,7 @@ public machine settled_termination(checker: &Checker, machine: u64 in Trapping) 
     machine read(checker: &Checker, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        checker.terminating[callee]
+        checker.terminating[callee as -Trapping]
     }
 
     machine no() -> bool {
@@ -465,9 +465,9 @@ crashes Trap
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, certified: bool)
     requires index < 10240
     {
-        checker.components_done[index] = false;
-        checker.rank_reported[index] = false;
-        checker.terminating[index] = false;
+        checker.components_done[index as -Trapping] = false;
+        checker.rank_reported[index as -Trapping] = false;
+        checker.terminating[index as -Trapping] = false;
         transition { _ -> clear(checker, syntax, resolution, index + 1, certified) }
     }
     machine ordered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping) {
@@ -479,7 +479,7 @@ crashes Trap
     machine node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping)
     requires offset < 10240
     {
-        let node: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
+        let node: u64 in Trapping = checker.invocations.order[offset as -Trapping] as u64 in Trapping;
         let component: u64 in Trapping = invocation_graph_component(&checker.invocations, node);
         transition component > 0 && component <= 10240 {
             true -> component(checker, syntax, resolution, offset, component - 1)
@@ -489,7 +489,7 @@ crashes Trap
     machine component(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, index: u64 in Trapping)
     requires index < 10240
     {
-        transition checker.components_done[index] {
+        transition checker.components_done[index as -Trapping] {
             true -> ordered(checker, syntax, resolution, offset + 1)
             false -> start(checker, syntax, resolution, offset, index)
         }
@@ -497,8 +497,8 @@ crashes Trap
     machine start(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, index: u64 in Trapping)
     requires index < 10240
     {
-        let first: u64 in Trapping = checker.invocations.component_first[index] as u64 in Trapping;
-        let ranked: bool = checker.invocations.complete && checker.invocations.component_ranked[index];
+        let first: u64 in Trapping = checker.invocations.component_first[index as -Trapping] as u64 in Trapping;
+        let ranked: bool = checker.invocations.complete && checker.invocations.component_ranked[index as -Trapping];
         transition { _ -> member(checker, syntax, resolution, offset, index, first, ranked) }
     }
     machine member(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
@@ -513,7 +513,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, node);
         let termination: TerminationClause = checker_termination_clause(syntax, resolution, item);
         let complete: bool = ready && (item.has_body || termination.promised);
-        let first: u64 in Trapping = checker.invocations.first[node] as u64 in Trapping;
+        let first: u64 in Trapping = checker.invocations.first[node as -Trapping] as u64 in Trapping;
         transition { _ -> edge(checker, syntax, resolution, offset, component, node, first, complete) }
     }
     machine edge(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
@@ -525,7 +525,7 @@ crashes Trap
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, index: u64 in Trapping, ready: bool)
     requires index < 32768
     {
-        let selected: InvocationEdge = checker.invocations.edges[index];
+        let selected: InvocationEdge = checker.invocations.edges[index as -Trapping];
         transition selected.target {
             InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, offset, component, node, selected.next, machine, ready)
             InvocationTarget::Binder { parameter } -> binder(checker, syntax, resolution, offset, component, node, selected.next, parameter, ready)
@@ -541,7 +541,7 @@ crashes Trap
     requires target < 10240
     {
         let target_component: u64 in Trapping = invocation_graph_component(&checker.invocations, target);
-        let complete: bool = ready && (target_component == component + 1 || checker.terminating[target]);
+        let complete: bool = ready && (target_component == component + 1 || checker.terminating[target as -Trapping]);
         transition { _ -> edge(checker, syntax, resolution, offset, component, node, next, complete) }
     }
     machine binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, next: u64 in Trapping, parameter: u64 in Trapping, ready: bool) {
@@ -557,7 +557,7 @@ crashes Trap
     machine linked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, ready: bool)
     requires node < 10240
     {
-        let next: u64 in Trapping = checker.invocations.component_next[node] as u64 in Trapping;
+        let next: u64 in Trapping = checker.invocations.component_next[node as -Trapping] as u64 in Trapping;
         transition { _ -> member(checker, syntax, resolution, offset, component, next, ready) }
     }
     machine publish_start(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, ready: bool) {
@@ -569,8 +569,8 @@ crashes Trap
     machine completed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, component: u64 in Trapping, ready: bool)
     requires component < 10240
     {
-        checker.components_done[component] = true;
-        let first: u64 in Trapping = checker.invocations.component_first[component] as u64 in Trapping;
+        checker.components_done[component as -Trapping] = true;
+        let first: u64 in Trapping = checker.invocations.component_first[component as -Trapping] as u64 in Trapping;
         transition { _ -> publish(checker, syntax, resolution, offset, first, ready) }
     }
     machine publish(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
@@ -582,8 +582,8 @@ crashes Trap
     machine published(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping, node: u64 in Trapping, ready: bool)
     requires node < 10240
     {
-        checker.terminating[node] = ready;
-        let next: u64 in Trapping = checker.invocations.component_next[node] as u64 in Trapping;
+        checker.terminating[node as -Trapping] = ready;
+        let next: u64 in Trapping = checker.invocations.component_next[node as -Trapping] as u64 in Trapping;
         transition { _ -> publish(checker, syntax, resolution, offset, next, ready) }
     }
     machine validate(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
@@ -595,7 +595,7 @@ crashes Trap
     machine validate_edge(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
     requires index < 32768
     {
-        let edge: InvocationEdge = checker.invocations.edges[index];
+        let edge: InvocationEdge = checker.invocations.edges[index as -Trapping];
         validate_rank_component(checker, syntax, resolution, edge);
         transition { _ -> validate(checker, syntax, resolution, index + 1) }
     }
@@ -638,7 +638,7 @@ crashes Trap
     {
         let item: MachineItem = machine_item(syntax, edge.owner);
         let termination: TerminationClause = checker_termination_clause(syntax, resolution, item);
-        transition termination.ranked && !checker.invocations.component_ranked[component] {
+        transition termination.ranked && !checker.invocations.component_ranked[component as -Trapping] {
             true -> unproven(checker, syntax, edge)
             false -> {}
         }
@@ -649,12 +649,12 @@ crashes Trap
     machine first(checker: &mut Checker, syntax: &SyntaxTrees, edge: InvocationEdge, owner: u64 in Trapping)
     requires owner < 10240
     {
-        transition checker.rank_reported[owner] { true -> {} false -> reported(checker, syntax, edge, owner) }
+        transition checker.rank_reported[owner as -Trapping] { true -> {} false -> reported(checker, syntax, edge, owner) }
     }
     machine reported(checker: &mut Checker, syntax: &SyntaxTrees, edge: InvocationEdge, owner: u64 in Trapping)
     requires owner < 10240
     {
-        checker.rank_reported[owner] = true;
+        checker.rank_reported[owner as -Trapping] = true;
         open_machine(&mut checker.output);
         let expression: Expression = syntax_trees_expression(syntax, edge.expression);
         checks_reject(&mut checker.output, CheckDiagnosticCode::RankUnproven, expression.source_span);

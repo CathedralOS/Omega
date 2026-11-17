@@ -127,7 +127,7 @@ crashes Trap
     }
 
     machine store(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner) {
-        resolver.output.machine_owners[handle] = owner;
+        resolver.output.machine_owners[handle as -Trapping] = owner;
     }
 
     machine invalid() {
@@ -316,7 +316,7 @@ crashes Trap
     }
 
     machine store(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding) {
-        resolver.output.path_bindings[path] = binding;
+        resolver.output.path_bindings[path as -Trapping] = binding;
     }
 
     machine invalid() {

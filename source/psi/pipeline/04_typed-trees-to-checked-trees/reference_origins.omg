@@ -72,7 +72,7 @@ crashes Trap
     }
     machine read(checker: &Checker, index: u64 in Trapping) -> ReferenceOrigin
     requires index < 256
-    { checker.reference_origins[index] }
+    { checker.reference_origins[index as -Trapping] }
 }
 
 // Zone restore does not restore descriptor captures. An arm may preserve an
@@ -81,7 +81,7 @@ public machine record_reference_origin(checker: &mut Checker, index: u64 in Trap
 requires index < 256
 crashes Trap
 {
-    let previous: ReferenceOrigin = checker.reference_origins[index];
+    let previous: ReferenceOrigin = checker.reference_origins[index as -Trapping];
     let same: bool = same_reference_origin(previous, origin);
     transition checker.saved_count == 0 || same {
         true -> capture(checker, index, origin)
@@ -89,7 +89,7 @@ crashes Trap
     }
     machine capture(checker: &mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
     requires index < 256
-    { checker.reference_origins[index] = origin; }
+    { checker.reference_origins[index as -Trapping] = origin; }
 }
 
 machine same_reference_origin(left: ReferenceOrigin, right: ReferenceOrigin) -> bool {
@@ -255,7 +255,7 @@ crashes Trap
     }
     machine forget(checker: &mut Checker, index: u64 in Trapping)
     requires index < 256
-    { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
+    { checker.reference_origins[index as -Trapping] = ReferenceOrigin::Unknown; }
 }
 
 public machine clear_reference_origins(checker: &mut Checker)
@@ -275,7 +275,7 @@ crashes Trap
     machine clear(checker: &mut Checker, index: u64 in Trapping)
     requires index < 256
     {
-        checker.reference_origins[index] = ReferenceOrigin::Unrecorded;
+        checker.reference_origins[index as -Trapping] = ReferenceOrigin::Unrecorded;
         transition { _ -> next(checker, index + 1) }
     }
 

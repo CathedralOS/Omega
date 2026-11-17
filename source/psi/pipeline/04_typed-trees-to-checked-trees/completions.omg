@@ -28,7 +28,7 @@ crashes Trap
     requires index < 10240
     {
         let value: Value = value_unknown();
-        checker.completions[index] = NumericCompletion { available: false, builtin: BuiltinType::U8, value: value };
+        checker.completions[index as -Trapping] = NumericCompletion { available: false, builtin: BuiltinType::U8, value: value };
         transition { _ -> clear(checker, syntax, resolution, typing, index + 1) }
     }
     machine discover(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
@@ -65,7 +65,7 @@ crashes Trap
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping)
     requires offset < 10240
     {
-        let index: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
+        let index: u64 in Trapping = checker.invocations.order[offset as -Trapping] as u64 in Trapping;
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.has_return_type && index < 10240 {
             true -> typed(checker, syntax, resolution, typing, offset, index, item)
@@ -96,7 +96,7 @@ crashes Trap
     requires index < 10240
     {
         let value: Value = value_clamped(checker.completion_value, builtin);
-        checker.completions[index] = NumericCompletion { available: true, builtin: builtin, value: value };
+        checker.completions[index as -Trapping] = NumericCompletion { available: true, builtin: builtin, value: value };
         transition { _ -> ordered(checker, syntax, resolution, typing, offset + 1) }
     }
     machine done(checker: &mut Checker) { checker.collecting_completion = false; }
@@ -185,7 +185,7 @@ crashes Trap
     machine retained(checker: &mut Checker, typing: &Typing, expression: u64 in Trapping, target: u64 in Trapping, row: TypeRow) -> bool
     requires target < 10240
     {
-        let completion: NumericCompletion = checker.completions[target];
+        let completion: NumericCompletion = checker.completions[target as -Trapping];
         transition completion.available && completion.builtin == row.builtin {
             true -> materialized(checker, typing, expression, completion.value)
             false -> false

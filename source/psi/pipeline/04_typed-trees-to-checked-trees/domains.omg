@@ -26,7 +26,7 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> DomainMark
     requires index < 256
     {
-        checker.domains[index]
+        checker.domains[index as -Trapping]
     }
 
     machine invalid() -> DomainMark {
@@ -45,7 +45,7 @@ crashes Trap
     machine write(checker: &mut Checker, index: u64 in Trapping, mark: DomainMark)
     requires index < 256
     {
-        checker.domains[index] = mark;
+        checker.domains[index as -Trapping] = mark;
     }
 
     machine invalid() {
@@ -127,12 +127,12 @@ crashes Trap
     requires slot < 8
     {
         checker.stashed = checker.zone;
-        checker.zone = checker.saved[slot];
+        checker.zone = checker.saved[slot as -Trapping];
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
         let assumed: bool = decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
-        checker.saved[slot] = checker.zone;
+        checker.saved[slot as -Trapping] = checker.zone;
         checker.zone = checker.stashed;
         transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, slot + 1) }
     }

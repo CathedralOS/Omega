@@ -242,7 +242,7 @@ crashes Trap
         at: u64 in Trapping,
         byte: u8
     ) -> bool {
-        sources.bytes[at] = byte as u8 in Trapping;
+        sources.bytes[at as -Trapping] = byte as u8 in Trapping;
         transition { _ -> bytes(sources, unit, package, path, index + 1) }
     }
 
@@ -269,9 +269,9 @@ crashes Trap
     ) -> bool
     requires unit_count < 512, unit_end <= 4194304
     {
-        sources.units[unit_count] = SourceRange { start: unit_start, length: unit_length };
-        sources.paths[unit_count] = path;
-        sources.unit_packages[unit_count] = package as u64 in Trapping;
+        sources.units[unit_count as -Trapping] = SourceRange { start: unit_start, length: unit_length };
+        sources.paths[unit_count as -Trapping] = path;
+        sources.unit_packages[unit_count as -Trapping] = package as u64 in Trapping;
         sources.byte_count = unit_end as u64;
         sources.unit_count = (unit_count + 1) as u64;
         true
@@ -309,7 +309,7 @@ crashes Trap
     machine record(sources: &mut SourceSet, index: u64 in Trapping, range: SourceRange, toolchain: bool) -> bool
     requires index < 64
     {
-        sources.packages[index] = PackageRow { name: range, toolchain: toolchain };
+        sources.packages[index as -Trapping] = PackageRow { name: range, toolchain: toolchain };
         sources.package_count = (index + 1) as u64;
         true
     }
@@ -364,7 +364,7 @@ crashes Trap
     ) -> bool
     requires index < 256
     {
-        sources.dependencies[index] = DependencyRow { requester: requester, scope: scope, alias: range, target: target };
+        sources.dependencies[index as -Trapping] = DependencyRow { requester: requester, scope: scope, alias: range, target: target };
         sources.dependency_count = (index + 1) as u64;
         true
     }
@@ -400,7 +400,7 @@ crashes Trap
     requires index < 256
     {
         let byte: u8 = name.bytes[index as -Trapping];
-        sources.path_bytes[at] = byte as +Trapping;
+        sources.path_bytes[at as -Trapping] = byte as +Trapping;
         transition { _ -> next(sources, name, index + 1) }
     }
 
@@ -440,7 +440,7 @@ crashes Trap
 
     machine unit_range(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8 {
         transition unit < 512 {
-            true -> within(sources, sources.units[unit], index)
+            true -> within(sources, sources.units[unit as -Trapping], index)
             _ -> absent()
         }
     }
@@ -460,7 +460,7 @@ crashes Trap
     }
 
     machine read(sources: &SourceSet, at: u64 in Trapping) -> u8 {
-        sources.bytes[at] as u8
+        sources.bytes[at as -Trapping] as u8
     }
 
     machine absent() -> u8 {
@@ -522,7 +522,7 @@ crashes Trap
 
     machine compare(sources: &SourceSet, span: SourceSpan, spelling: &[u8], index: u64 in Trapping) -> bool {
         let source_byte: u8 = source_set_byte_or_nul(sources, span.source, span.span.start + index);
-        let spelling_byte: u8 = spelling[index];
+        let spelling_byte: u8 = spelling[index as -Trapping];
         transition source_byte == spelling_byte {
             true -> scan(sources, span, spelling, index + 1)
             _ -> different()
@@ -549,7 +549,7 @@ crashes Trap
 
     machine unit_range(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8 {
         transition unit < 512 {
-            true -> within(sources, sources.paths[unit], index)
+            true -> within(sources, sources.paths[unit as -Trapping], index)
             _ -> absent()
         }
     }
@@ -569,7 +569,7 @@ crashes Trap
     }
 
     machine read(sources: &SourceSet, at: u64 in Trapping) -> u8 {
-        sources.path_bytes[at] as u8
+        sources.path_bytes[at as -Trapping] as u8
     }
 
     machine absent() -> u8 {
@@ -585,7 +585,7 @@ public machine path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in
     }
 
     machine read(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
-        sources.paths[unit].length
+        sources.paths[unit as -Trapping].length
     }
 
     machine none() -> u64 in Trapping {
@@ -601,7 +601,7 @@ public machine unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 i
     }
 
     machine read(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
-        sources.unit_packages[unit]
+        sources.unit_packages[unit as -Trapping]
     }
 
     machine none() -> u64 in Trapping {
@@ -617,7 +617,7 @@ public machine package_row(sources: &SourceSet, package: u64 in Trapping) -> Pac
     }
 
     machine read(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
-        sources.packages[package]
+        sources.packages[package as -Trapping]
     }
 
     machine none() -> PackageRow {
@@ -634,7 +634,7 @@ public machine dependency_row(sources: &SourceSet, index: u64 in Trapping) -> De
     }
 
     machine read(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
-        sources.dependencies[index]
+        sources.dependencies[index as -Trapping]
     }
 
     machine none() -> DependencyRow {
@@ -690,7 +690,7 @@ machine name_byte_or_nul(sources: &SourceSet, at: u64 in Trapping) -> u8 {
     }
 
     machine read(sources: &SourceSet, at: u64 in Trapping) -> u8 {
-        sources.path_bytes[at] as u8
+        sources.path_bytes[at as -Trapping] as u8
     }
 
     machine absent() -> u8 {

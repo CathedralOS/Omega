@@ -329,7 +329,7 @@ crashes Trap
     machine store(resolver: &mut Resolver, handle: u64 in Trapping, binding: ValueBinding)
     requires handle < 131072
     {
-        resolver.output.value_bindings[handle] = binding;
+        resolver.output.value_bindings[handle as -Trapping] = binding;
     }
 
     machine unresolved(resolver: &mut Resolver, expression: Expression) {

@@ -345,7 +345,7 @@ crashes Trap
     requires current < 10240
     {
         let item: MachineItem = machine_item(&parser.output, current);
-        parser.output.machines[current].source_span.span.end = parser.token_end as u64 in Trapping;
+        parser.output.machines[current as -Trapping].source_span.span.end = parser.token_end as u64 in Trapping;
         transition { _ -> completed(parser, input, current, item.parent) }
     }
 
@@ -702,7 +702,7 @@ crashes Trap
         let parameter: u64 in Trapping = parser.output.parameter_count as u64 in Trapping;
         let type_end: u64 in Trapping = parser.type_end;
         record_erased(parser, ErasedBindingKind::Parameter, parameter, type_end);
-        parser.output.parameters[parameter] = Parameter {
+        parser.output.parameters[parameter as -Trapping] = Parameter {
             name: identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
             type_reference: parser.type_result,
             is_mutable: parser.parameter_mutable,

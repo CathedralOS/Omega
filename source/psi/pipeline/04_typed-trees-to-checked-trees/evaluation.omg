@@ -165,7 +165,7 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> Value
     requires index < 4096
     {
-        let stored: Value = checker.values[index];
+        let stored: Value = checker.values[index as -Trapping];
         transition stored.known && stored.subject > 0 {
             true -> current(checker, stored)
             _ -> kept(stored)
@@ -258,7 +258,7 @@ crashes Trap
     machine write(checker: &mut Checker, index: u64 in Trapping, value: Value)
     requires index < 4096
     {
-        checker.values[index] = value;
+        checker.values[index as -Trapping] = value;
     }
 
     machine invalid() {

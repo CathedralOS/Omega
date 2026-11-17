@@ -111,7 +111,7 @@ crashes Trap
     machine read(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
     requires offset < 128
     {
-        checker.path_counts[offset] as u64 in Trapping
+        checker.path_counts[offset as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -130,7 +130,7 @@ crashes Trap
     machine write(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
     requires offset < 128
     {
-        checker.path_counts[offset] = count as u64;
+        checker.path_counts[offset as -Trapping] = count as u64;
     }
 
     machine invalid() {
@@ -156,7 +156,7 @@ crashes Trap
     machine read(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath
     requires slot < 5120
     {
-        checker.paths[slot]
+        checker.paths[slot as -Trapping]
     }
 
     machine invalid() -> ArrivalPath {
@@ -182,7 +182,7 @@ crashes Trap
     machine write(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath)
     requires slot < 5120
     {
-        checker.paths[slot] = path;
+        checker.paths[slot as -Trapping] = path;
     }
 
     machine invalid() {

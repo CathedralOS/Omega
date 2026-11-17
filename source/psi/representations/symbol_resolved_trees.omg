@@ -335,7 +335,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
-        resolution.value_bindings[index]
+        resolution.value_bindings[index as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
@@ -388,7 +388,7 @@ public machine binder_contract(resolution: &NameResolution, parameter: u64 in Tr
     machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract
     requires parameter < 256
     {
-        resolution.binder_contracts[parameter]
+        resolution.binder_contracts[parameter as -Trapping]
     }
 
     machine none() -> BinderContract {
@@ -407,7 +407,7 @@ crashes Trap
     machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
     requires parameter < 256
     {
-        resolution.binder_contracts[parameter] = contract;
+        resolution.binder_contracts[parameter as -Trapping] = contract;
     }
 
     machine invalid() {
@@ -425,7 +425,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
-        resolution.requirements[index]
+        resolution.requirements[index as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
@@ -444,7 +444,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding {
-        resolution.operator_homes[handle]
+        resolution.operator_homes[handle as -Trapping]
     }
 
     machine invalid() -> TypeBinding {
@@ -462,7 +462,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner {
-        resolution.machine_owners[handle]
+        resolution.machine_owners[handle as -Trapping]
     }
 
     machine invalid() -> MachineOwner {
@@ -480,7 +480,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, row: u64 in Trapping) -> DomainBinding {
-        resolution.domain_bindings[row]
+        resolution.domain_bindings[row as -Trapping]
     }
 
     machine invalid() -> DomainBinding {
@@ -499,7 +499,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping {
-        resolution.domain_items[row] as u64 in Trapping
+        resolution.domain_items[row as -Trapping] as u64 in Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -517,7 +517,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
-        resolution.path_bindings[handle]
+        resolution.path_bindings[handle as -Trapping]
     }
 
     machine invalid() -> PathBinding {
@@ -536,7 +536,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding {
-        resolution.type_bindings[row]
+        resolution.type_bindings[row as -Trapping]
     }
 
     machine invalid() -> TypeBinding {
@@ -554,7 +554,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
-        resolution.path_bindings[handle]
+        resolution.path_bindings[handle as -Trapping]
     }
 
     machine invalid() -> PathBinding {
@@ -573,7 +573,7 @@ crashes Trap
     }
 
     machine read(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding {
-        resolution.value_bindings[handle]
+        resolution.value_bindings[handle as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
@@ -611,7 +611,7 @@ public machine ranking_view(resolution: &NameResolution, clause: u64 in Trapping
     machine read(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView
     requires clause < 2048
     {
-        resolution.ranking_views[clause]
+        resolution.ranking_views[clause as -Trapping]
     }
 
     machine none() -> RankingView {
@@ -630,7 +630,7 @@ crashes Trap
     machine write(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
     requires clause < 2048
     {
-        resolution.ranking_views[clause] = view;
+        resolution.ranking_views[clause as -Trapping] = view;
     }
 
     machine invalid() {
@@ -648,7 +648,7 @@ public machine ranking_measure(resolution: &NameResolution, clause: u64 in Trapp
     machine read(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping
     requires clause < 2048
     {
-        resolution.ranking_measures[clause] as u64 in Trapping
+        resolution.ranking_measures[clause as -Trapping] as u64 in Trapping
     }
 
     machine none() -> u64 in Trapping {
@@ -667,7 +667,7 @@ crashes Trap
     machine write(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
     requires clause < 2048
     {
-        resolution.ranking_measures[clause] = measure as u64;
+        resolution.ranking_measures[clause as -Trapping] = measure as u64;
     }
 
     machine invalid() {
@@ -684,7 +684,7 @@ public machine component_field(resolution: &NameResolution, member: u64 in Trapp
     machine read(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping
     requires member < 32000
     {
-        resolution.component_fields[member] as u64 in Trapping
+        resolution.component_fields[member as -Trapping] as u64 in Trapping
     }
 
     machine none() -> u64 in Trapping {
@@ -703,7 +703,7 @@ crashes Trap
     machine write(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
     requires member < 32000
     {
-        resolution.component_fields[member] = bound as u64;
+        resolution.component_fields[member as -Trapping] = bound as u64;
     }
 
     machine invalid() {

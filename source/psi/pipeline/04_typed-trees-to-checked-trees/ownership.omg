@@ -777,7 +777,7 @@ crashes Trap
     machine write(checker: &mut Checker, offset: u64 in Trapping, role: UseRole)
     requires offset < 4096
     {
-        checker.ownership.roles[offset] = role;
+        checker.ownership.roles[offset as -Trapping] = role;
     }
 
     machine done() {}
@@ -803,7 +803,7 @@ crashes Trap
     machine read(checker: &Checker, offset: u64 in Trapping) -> UseRole
     requires offset < 4096
     {
-        let role: UseRole = checker.ownership.roles[offset];
+        let role: UseRole = checker.ownership.roles[offset as -Trapping];
         transition { _ -> answer(role) }
     }
 
@@ -1571,7 +1571,7 @@ crashes Trap
     machine read(set: &MovedSet, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
-        let place: u64 = set.places[index];
+        let place: u64 = set.places[index as -Trapping];
         place as u64 in Trapping
     }
 
@@ -1622,7 +1622,7 @@ crashes Trap
     requires index < 64, final_index < 64
     {
         let place: u64 = set.places[final_index];
-        set.places[index] = place;
+        set.places[index as -Trapping] = place;
         set.count = final_index;
     }
 
@@ -1647,7 +1647,7 @@ crashes Trap
     machine entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 64
     {
-        let owed: u64 = ownership.owed[index];
+        let owed: u64 = ownership.owed[index as -Trapping];
         transition owed == key {
             true -> answer(true)
             _ -> next(ownership, key, index + 1)
@@ -1701,7 +1701,7 @@ crashes Trap
     machine read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
-        let key: u64 = ownership.owed[index];
+        let key: u64 = ownership.owed[index as -Trapping];
         key as u64 in Trapping
     }
 
@@ -1726,7 +1726,7 @@ crashes Trap
     machine entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 64
     {
-        let borrowed: u64 = ownership.borrowed[index];
+        let borrowed: u64 = ownership.borrowed[index as -Trapping];
         transition borrowed == key {
             true -> answer(true)
             _ -> next(ownership, key, index + 1)
@@ -1809,8 +1809,8 @@ crashes Trap
     machine entry(ownership: &Ownership, handle: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 32
     {
-        let start: u64 = ownership.conditional_starts[index];
-        let end: u64 = ownership.conditional_ends[index];
+        let start: u64 = ownership.conditional_starts[index as -Trapping];
+        let end: u64 = ownership.conditional_ends[index as -Trapping];
         let within: bool = start <= handle && handle <= end;
         transition within {
             true -> answer(true)
@@ -1859,7 +1859,7 @@ crashes Trap
     machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
-        let handle: u64 = ownership.matches[slot];
+        let handle: u64 = ownership.matches[slot as -Trapping];
         handle as u64 in Trapping
     }
 
@@ -1879,7 +1879,7 @@ crashes Trap
     machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
-        let arm: u64 = ownership.match_arms[slot];
+        let arm: u64 = ownership.match_arms[slot as -Trapping];
         arm as u64 in Trapping
     }
 
@@ -1899,7 +1899,7 @@ crashes Trap
     machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
-        let ended: u64 = ownership.match_ended[slot];
+        let ended: u64 = ownership.match_ended[slot as -Trapping];
         ended as u64 in Trapping
     }
 
@@ -1919,7 +1919,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping, arm: u64 in Trapping)
     requires slot < 8
     {
-        ownership.match_arms[slot] = arm as u64;
+        ownership.match_arms[slot as -Trapping] = arm as u64;
     }
 
     machine invalid() {
@@ -1940,11 +1940,11 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
-        ownership.before[slot] = ownership.moved;
+        ownership.before[slot as -Trapping] = ownership.moved;
         ownership.joining = ownership.moved;
         ownership.joining.count = 0;
-        ownership.joined[slot] = ownership.joining;
-        ownership.match_ended[slot] = 0;
+        ownership.joined[slot as -Trapping] = ownership.joining;
+        ownership.match_ended[slot as -Trapping] = 0;
     }
 
     machine invalid() {
@@ -1964,7 +1964,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
-        ownership.moved = ownership.before[slot];
+        ownership.moved = ownership.before[slot as -Trapping];
     }
 
     machine invalid() {
@@ -1983,7 +1983,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
-        ownership.joining = ownership.joined[slot];
+        ownership.joining = ownership.joined[slot as -Trapping];
     }
 
     machine invalid() {
@@ -2003,8 +2003,8 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
-        let ended: u64 = ownership.match_ended[slot];
-        ownership.joined[slot] = ownership.joining;
+        let ended: u64 = ownership.match_ended[slot as -Trapping];
+        ownership.joined[slot as -Trapping] = ownership.joining;
         transition ended < 1024 {
             true -> counted(ownership, slot, ended)
             _ -> invalid()
@@ -2015,7 +2015,7 @@ crashes Trap
     machine counted(ownership: &mut Ownership, slot: u64 in Trapping, ended: u64)
     requires slot < 8, ended < 1024
     {
-        ownership.match_ended[slot] = ended + 1;
+        ownership.match_ended[slot as -Trapping] = ended + 1;
     }
 
     machine invalid() {
@@ -2035,7 +2035,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
-        ownership.moved = ownership.joined[slot];
+        ownership.moved = ownership.joined[slot as -Trapping];
     }
 
     machine invalid() {
@@ -2063,7 +2063,7 @@ crashes Trap
     machine write(ownership: &mut Ownership, cell: u64 in Trapping, first: bool)
     requires cell < 512
     {
-        let votes: u64 = ownership.votes[cell];
+        let votes: u64 = ownership.votes[cell as -Trapping];
         transition first {
             true -> store(ownership, cell, 1)
             _ -> bounded(ownership, cell, votes)
@@ -2084,13 +2084,13 @@ crashes Trap
     machine counted(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
     requires cell < 512, votes < 1024
     {
-        ownership.votes[cell] = votes + 1;
+        ownership.votes[cell as -Trapping] = votes + 1;
     }
 
     machine store(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
     requires cell < 512
     {
-        ownership.votes[cell] = votes;
+        ownership.votes[cell as -Trapping] = votes;
     }
 
     machine invalid() {
@@ -2116,7 +2116,7 @@ crashes Trap
     machine read(ownership: &Ownership, cell: u64 in Trapping) -> u64 in Trapping
     requires cell < 512
     {
-        let votes: u64 = ownership.votes[cell];
+        let votes: u64 = ownership.votes[cell as -Trapping];
         votes as u64 in Trapping
     }
 

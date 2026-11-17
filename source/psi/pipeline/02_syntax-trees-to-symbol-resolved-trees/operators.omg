@@ -143,7 +143,7 @@ crashes Trap
     machine store(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
     requires handle < 10240
     {
-        resolver.output.operator_homes[handle] = home;
+        resolver.output.operator_homes[handle as -Trapping] = home;
     }
 
     machine invalid() {

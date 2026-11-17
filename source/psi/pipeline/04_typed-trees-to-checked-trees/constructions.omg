@@ -224,7 +224,7 @@ crashes Trap
     machine candidate(checker: &mut Checker, entry: Place, index: u64 in Trapping)
     requires index < 32
     {
-        let pending: PendingField = checker.pending[index];
+        let pending: PendingField = checker.pending[index as -Trapping];
         transition pending.parent == entry.parent && pending.field == entry.handle {
             true -> taken(checker, entry, index, pending.value)
             _ -> next(checker, entry, index + 1)
@@ -273,7 +273,7 @@ crashes Trap
     requires index < 32, last < 32
     {
         let entry: PendingField = checker.pending[last];
-        checker.pending[index] = entry;
+        checker.pending[index as -Trapping] = entry;
         checker.pending_count = last;
     }
 
@@ -297,7 +297,7 @@ crashes Trap
     machine candidate(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping)
     requires index < 32
     {
-        let pending: PendingField = checker.pending[index];
+        let pending: PendingField = checker.pending[index as -Trapping];
         let below: bool = checker_within(checker, pending.parent, place);
         transition below {
             true -> dropped(checker, typing, place, index)
@@ -371,7 +371,7 @@ crashes Trap
     machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64)
     requires index < 32
     {
-        let pending: PendingField = checker.pending[index];
+        let pending: PendingField = checker.pending[index as -Trapping];
         let path: ArrivalPath = path_below(checker, source, pending.parent, 0u64 as +Trapping);
         let parent: Place = place_at(checker, pending.parent - 1);
         let row: TypeRow = type_table_row(&typing.types, parent.type_handle);
@@ -430,7 +430,7 @@ crashes Trap
     machine candidate(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping)
     requires index < 32
     {
-        let pending: PendingField = checker.pending[index];
+        let pending: PendingField = checker.pending[index as -Trapping];
         let below: bool = pending.parent == parent || (written_only && checker_within(checker, pending.parent, parent));
         let selected: bool = !written_only || writes_field(checker, callee, pending.field);
         transition below && selected {
