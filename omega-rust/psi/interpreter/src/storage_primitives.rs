@@ -6055,12 +6055,24 @@ pub(crate) mod storage_addresses {
                     }
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => {
-                    let mut place = match array.home {
-                        ArrayStorageHome::Runtime => array.referent,
-                        ArrayStorageHome::Frame { depth, place, .. } => StructuralRuntimePlace {
-                            opaque_identity: self.array_storage_identity(depth, place)?,
-                            path: Vec::new(),
-                        },
+                    let (mut place, index) = match array.home {
+                        ArrayStorageHome::Runtime => (array.referent, index),
+                        ArrayStorageHome::Frame { depth, place, .. } => {
+                            // Nested frame arrays share packed storage, so include the
+                            // selected array's base just as direct element access does.
+                            let (start, end) = self.frame_byte_array_window(&array)?;
+                            let index = start
+                                .checked_add(index)
+                                .filter(|index| *index < end)
+                                .ok_or(malformed())?;
+                            (
+                                StructuralRuntimePlace {
+                                    opaque_identity: self.array_storage_identity(depth, place)?,
+                                    path: Vec::new(),
+                                },
+                                index,
+                            )
+                        }
                     };
                     place.path.push(StructuralPathSegment::FixedIndex(
                         u64::try_from(index).map_err(|_| exhausted())?,
@@ -6191,6 +6203,13 @@ pub(crate) mod storage_addresses {
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                             access: Some(StructuralAccess::MutableBorrow),
                         }),
+                    ),
+                    declaration(
+                        4,
+                        StructuralTypeShape::FixedArray {
+                            element: StructuralTypeId::new(2).unwrap(),
+                            length: ArrayExtent::Literal(2),
+                        },
                     ),
                 ]);
             TerminalExecution::start_with_program(
@@ -6398,6 +6417,62 @@ pub(crate) mod storage_addresses {
                     .unwrap(),
                 expected
             );
+        }
+
+        #[test]
+        fn shared_projected_frame_arrays_preserve_absolute_storage_coordinates() {
+            use crate::storage::primitive_storage::PrimitiveStorageHome;
+            use crate::storage::scalar_array::PackedScalarArrayValue;
+            use semantic_vocabulary::{MachineId, PlaceId};
+            let mut execution = execution();
+            let place = PlaceId::new(1).unwrap();
+            let structural_type = StructuralTypeId::new(4).unwrap();
+            execution
+                .scalar_array_values
+                .publish(
+                    place,
+                    PackedScalarArrayValue::from_bytes(
+                        structural_type,
+                        &[1, 2, 3, 4, 5, 6, 7, 8],
+                        None,
+                    )
+                    .unwrap()
+                    .snapshot()
+                    .unwrap(),
+                )
+                .unwrap();
+            let mut exposed = Vec::new();
+            for child in [0, 1] {
+                let array = ArrayStorage {
+                    referent: StructuralRuntimePlace {
+                        opaque_identity: 17,
+                        path: vec![StructuralPathSegment::FixedIndex(child)],
+                    },
+                    home: ArrayStorageHome::Frame {
+                        depth: 0,
+                        place,
+                        structural_type,
+                    },
+                };
+                let bytes = shared(&execution, &array).subslice(1, 4).unwrap();
+                let view_address = execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 1 })
+                    .unwrap();
+                let direct = execution
+                    .endpoint_identity(PrimitiveStorageEndpoint::OwnedArrayElement {
+                        home: PrimitiveStorageHome::captured_frame(
+                            0,
+                            MachineId::new(1).unwrap(),
+                            place,
+                            structural_type,
+                        ),
+                        index: child as usize * 4 + 2,
+                    })
+                    .unwrap();
+                assert_eq!(view_address, direct);
+                exposed.push(view_address);
+            }
+            assert_ne!(exposed[0], exposed[1]);
         }
 
         #[test]
