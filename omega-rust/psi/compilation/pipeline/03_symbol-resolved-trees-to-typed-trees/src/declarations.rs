@@ -1173,11 +1173,20 @@ pub(crate) mod machine {
                 .then(|| lower_expression_handle(lowerer, source.via_expression))
                 .transpose()?
                 .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
-            lowerer
+            let handle = typed_machine.satisfies.handle_at(ordinal as u32);
+            if lowerer
                 .typed_trees
                 .machine_trait_conformances
-                .get_mut(typed_machine.satisfies.handle_at(ordinal as u32))
-                .via_expression = via_expression;
+                .get(handle)
+                .via_expression
+                != via_expression
+            {
+                lowerer
+                    .typed_trees
+                    .machine_trait_conformances
+                    .get_mut(handle)
+                    .via_expression = via_expression;
+            }
         }
 
         let source_states = lowerer.source_trees.machine_state_handles(machine.states);
@@ -1290,22 +1299,27 @@ pub(crate) mod machine {
         for (span, ordinal, requirement_symbol, source_span, exposure, top_level_requirement) in
             updates
         {
-            if !program
+            let Some(current) = program
                 .machine_trait_conformances
                 .span(span)
-                .is_some_and(|rows| ordinal < rows.len())
-            {
+                .and_then(|rows| rows.get(ordinal))
+            else {
                 return Err(Diagnostic::error(
                     "failed to settle an exact machine `satisfies` declaration",
                 ));
+            };
+            if current.requirement_symbol != requirement_symbol
+                || (top_level_requirement && current.symbol != requirement_symbol)
+            {
+                let row = program
+                    .machine_trait_conformances
+                    .get_mut(span.handle_at(ordinal as u32));
+                row.requirement_symbol = requirement_symbol;
+                if top_level_requirement {
+                    row.symbol = requirement_symbol;
+                }
             }
-            let conformance = program
-                .machine_trait_conformances
-                .get_mut(span.handle_at(ordinal as u32));
-            conformance.requirement_symbol = requirement_symbol;
-            if top_level_requirement {
-                conformance.symbol = requirement_symbol;
-            }
+            // Selection custody still publishes when the resolved row is unchanged.
             if let Some(source_span) = source_span {
                 program
                 .record_resolved_authored_declaration_selection_once(
@@ -1323,6 +1337,87 @@ pub(crate) mod machine {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod conformance_storage_tests {
+        use super::*;
+
+        #[test]
+        fn body_completion_keeps_unchanged_conformances_shared_and_detaches_changed_rows() {
+            let mut source = resolved::SymbolResolvedTrees::default();
+            let value = source
+                .tables
+                .bodies
+                .expressions
+                .insert(resolved::expression::ExpressionNode::Boolean(true));
+            let source_rows = source
+                .tables
+                .declarations
+                .machine_trait_conformances
+                .insert_many([
+                    resolved::machine::TraitConformance::default(),
+                    resolved::machine::TraitConformance {
+                        via_expression: value,
+                        ..Default::default()
+                    },
+                ]);
+            let machine = resolved::machine::Machine {
+                storage: resolved::machine::MachineStorage {
+                    satisfies: source_rows,
+                    ..Default::default()
+                },
+                body_status: resolved::machine::MachineBodyStatus::Complete,
+                ..Default::default()
+            };
+            let mut program = typed::TypedTrees::default();
+            let rows = program.machine_trait_conformances.insert_many([
+                typed::machine::TraitConformance::default(),
+                typed::machine::TraitConformance::default(),
+            ]);
+            let predecessor = program.clone();
+            let mut typed_machine = typed::machine::Machine {
+                satisfies: rows,
+                body_status: typed::machine::MachineBodyStatus::Deferred,
+                ..Default::default()
+            };
+            let mut lowerer = Lowerer {
+                typed_trees: program,
+                source_trees: &source,
+                source_owner: SymbolHandle::invalid(),
+                type_reference_exposure: None,
+                admits_contract_policy_operators: false,
+            };
+            complete_machine_body(&mut lowerer, &machine, &mut typed_machine).unwrap();
+            assert!(std::ptr::eq(
+                predecessor.machine_trait_conformances.get(rows.start()),
+                lowerer
+                    .typed_trees
+                    .machine_trait_conformances
+                    .get(rows.start())
+            ));
+            let changed = rows.handle_at(1);
+            let via = lowerer
+                .typed_trees
+                .machine_trait_conformances
+                .get(changed)
+                .via_expression;
+            assert!(
+                !predecessor
+                    .machine_trait_conformances
+                    .get(changed)
+                    .via_expression
+                    .is_valid()
+            );
+            assert!(matches!(
+                lowerer.typed_trees.expression_table.expression(via),
+                typed::expression::ExpressionNode::Boolean(true)
+            ));
+            assert!(!std::ptr::eq(
+                predecessor.machine_trait_conformances.get(changed),
+                lowerer.typed_trees.machine_trait_conformances.get(changed)
+            ));
+        }
     }
 }
 pub(crate) mod mathematical {
