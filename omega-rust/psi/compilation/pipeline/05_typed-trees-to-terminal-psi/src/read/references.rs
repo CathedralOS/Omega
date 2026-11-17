@@ -135,6 +135,7 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: symbols::SymbolHandle::invalid(),
+            cleanup: None,
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),

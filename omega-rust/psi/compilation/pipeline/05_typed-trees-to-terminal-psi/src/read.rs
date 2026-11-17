@@ -762,6 +762,7 @@ mod tests {
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: SymbolHandle::invalid(),
+            cleanup: None,
             application: None,
             region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),
@@ -2536,6 +2537,7 @@ mod tests {
         program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            cleanup: None,
             application: None,
             region_owner: SymbolHandle::invalid(),
             fields: vec![a, b],

@@ -10154,6 +10154,8 @@ mod value_custody {
                 .ok_or_else(|| self.refusal(subject.place, "decomposition has no owned source"))?;
             if subject.access != StructuralAccess::Owned
                 || root.access != StructuralAccess::Owned
+                || root.has_decomposition_obligations()
+                || self.function.content_entry_claim_declared(subject.place)
                 || subject.path.contains(&StructuralPathSegment::Referent)
                 || subject
                     .path
@@ -10200,35 +10202,54 @@ mod value_custody {
             .ok_or_else(|| {
                 self.refusal(subject.place, "decomposition has no exact component type")
             })?;
-            let selection = selected.nominal_cleanup.as_ref().ok_or_else(|| {
-                self.refusal(subject.place, "decomposition has no selected cleanup")
-            })?;
-            if selection.declaration.identity() != selected.identity
-                || !matches!(&selected.shape, terminal_psi::StructuralTypeShape::Record { fields, .. }
+            if !matches!(&selected.shape, terminal_psi::StructuralTypeShape::Record { fields, .. }
                     if fields.iter().all(|field| !field.relevance.is_erased()))
-                || current.claims.values().any(|claim| {
-                    claim.input == Some(subject.place)
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &claim.path,
-                            &subject.path,
-                        )
-                })
+                || !selected.requires.is_empty()
             {
                 return Err(self.refusal(
                     subject.place,
-                    "decomposition needs its complete independent claim correspondence",
+                    "decomposition needs an unqualified complete record",
                 ));
             }
-            terminal_semantics::nominal_cleanup::decomposition_authorized(
-                identities,
-                selection,
-                self.function.machine,
-                self.function
-                    .verified_contract
-                    .as_ref()
-                    .and_then(|contract| contract.declaration.as_ref()),
-            )
-            .map_err(|reason| self.refusal(subject.place, reason))?;
+            if let Some(selection) = &selected.nominal_cleanup {
+                if selection.declaration.identity() != selected.identity {
+                    return Err(self.refusal(
+                        subject.place,
+                        "decomposition has another cleanup declaration",
+                    ));
+                }
+                terminal_semantics::nominal_cleanup::decomposition_authorized(
+                    identities,
+                    selection,
+                    self.function.machine,
+                    self.function
+                        .verified_contract
+                        .as_ref()
+                        .and_then(|contract| contract.declaration.as_ref()),
+                )
+                .map_err(|reason| self.refusal(subject.place, reason))?;
+            }
+            self.frontier(current, subject.place, selected.id, &subject.path)?;
+            let intrinsic_claim = if selected.owns_linear_claim {
+                let mut exact = current.claims.iter().filter(|(_, claim)| {
+                    claim.input == Some(subject.place) && claim.path == subject.path
+                });
+                let identity = exact.next().map(|(identity, _)| *identity).ok_or_else(|| {
+                    self.refusal(
+                        subject.place,
+                        "decomposition lost its intrinsic wrapper claim",
+                    )
+                })?;
+                if exact.next().is_some() {
+                    return Err(self.refusal(
+                        subject.place,
+                        "decomposition repeats its intrinsic wrapper claim",
+                    ));
+                }
+                Some(identity)
+            } else {
+                None
+            };
             super::references::check_region_access(
                 self.function,
                 self.block,
@@ -10243,7 +10264,10 @@ mod value_custody {
                 structural_type: selected.id,
             };
             if !current.nominal_partitions.insert(partition) {
-                return Err(self.refusal(subject.place, "nominal wrapper was already decomposed"));
+                return Err(self.refusal(subject.place, "wrapper was already decomposed"));
+            }
+            if let Some(identity) = intrinsic_claim {
+                current.claims.remove(&identity);
             }
             Ok(())
         }

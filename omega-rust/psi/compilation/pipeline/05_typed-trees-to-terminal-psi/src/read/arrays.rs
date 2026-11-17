@@ -1076,6 +1076,7 @@ impl Program<'_> {
 pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
     RecordSource {
         declaration: SymbolHandle::invalid(),
+        cleanup: None,
         application: Some(typed_trees::SourceTypeApplication {
             reference,
             substitutions: Vec::new(),

@@ -61,9 +61,6 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             rest = after_binding;
         }
     }
-    if fields.is_empty() {
-        return None;
-    }
     let rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
     let (value, rest) = parse_expression_handle(syntax_trees, rest).ok()?;
     let rest = rest
