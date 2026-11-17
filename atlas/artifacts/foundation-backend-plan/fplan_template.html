@@ -1,0 +1,115 @@
+<title>Foundation and Backend Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (68ch) for prose; wide tables scroll inside their own frame; a sticky contents rail on wide screens. Tokens from the Omega design system. */
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Omega Serif"; src: url("fonts/OmegaSerif-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+:root {
+  --ground: #e6e2d9; --surface: #f2efe8; --ink: #1c1d1f; --ink-muted: #55534e; --rule: #a9a49a;
+  --checked: #275f53; --on-checked: #f2efe8; --trap: #a63a24; --on-trap: #f2efe8;
+  --serif: "Omega Serif", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+  --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
+  --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719; color-scheme: dark; }
+
+body { background: var(--ground); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 28px; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 48px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; }
+@media (min-width: 1000px) { .page { grid-template-columns: 220px minmax(0, 1fr); } }
+header.top { grid-column: 1 / -1; display: grid; gap: 16px; border-bottom: 1px solid var(--rule); padding-bottom: 32px; }
+.eyebrow { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .02em; color: var(--ink-muted); }
+h1 { font-weight: 300; font-size: clamp(36px, 6vw, 56px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.lede { max-width: 68ch; margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.meta code { font-size: 12px; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0; border: 1px solid var(--rule); background: var(--surface); }
+.glance div { padding: 16px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: 0 -1px -1px 0; }
+.glance b { display: block; font-weight: 300; font-size: 32px; line-height: 40px; font-variant-numeric: tabular-nums; }
+.glance span { font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+.verdicts { display: grid; gap: 8px; max-width: 68ch; }
+.verdicts p { margin: 0; }
+nav.toc { font-size: 15px; line-height: 22px; }
+nav.toc .sticky { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); display: grid; gap: 8px; }
+nav.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+nav.toc a { color: var(--ink-muted); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); text-decoration: underline; }
+main { min-width: 0; }
+main h2 { font-weight: 500; font-size: 28px; line-height: 36px; margin: 64px 0 16px; padding-top: 16px; border-top: 1px solid var(--rule); text-wrap: balance; scroll-margin-top: 16px; }
+main h2:first-child { margin-top: 0; }
+main h3 { font-weight: 500; font-size: 20px; line-height: 28px; margin: 32px 0 8px; }
+main p, main li { max-width: 68ch; }
+main ul, main ol { padding-left: 24px; }
+main li { margin: 4px 0; }
+code { font-family: var(--mono); font-size: 0.82em; background: var(--surface); padding: 1px 4px; overflow-wrap: anywhere; }
+a { color: var(--checked); }
+a:focus-visible { outline: 2px solid var(--checked); outline-offset: 2px; }
+.scroll { overflow-x: auto; margin: 16px 0 24px; border: 1px solid var(--rule); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 15px; line-height: 22px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+th { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .02em; color: var(--ink-muted); background: var(--surface); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.chip { display: inline-block; font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .02em; padding: 1px 8px; border: 2px solid var(--ink-muted); color: var(--ink); white-space: normal; }
+.chip.infra { border-color: var(--ink-muted); }
+.chip.lang { border-color: var(--ink); background: var(--ink); color: var(--ground); }
+.chip.split { border-style: dashed; }
+.chip.move, .chip.out { border-color: var(--checked); color: var(--checked); }
+.flag { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: .02em; color: var(--ink-muted); border-bottom: 1px dotted var(--ink-muted); white-space: nowrap; }
+.flag.warn { color: var(--trap); border-bottom-color: var(--trap); }
+.note { border: 2px solid var(--ink-muted); padding: 16px; max-width: 68ch; background: var(--surface); }
+.note h3 { margin-top: 0; }
+.note p { margin: 8px 0 0; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div class="eyebrow">Draft for owner review · Omega compiler · 2026-11-17</div>
+    <h1>Foundation and backend plan</h1>
+    <p class="lede">Omega is one linear pipeline, yet about 318,000 lines sit beside it: 96,000 in <code>foundation/</code> and 222,000 in <code>omega/compilation/backend/</code>. This plan moves nearly all of it into the pipeline. Foundation keeps about 14,800 lines of primitives. The backend disappears: its emission, object and image work becomes numbered stages 10–14, the selected target's description and the provider plans become inputs that Omega 00 receives, and packaging moves to products. No step changes what the compiler accepts or emits.</p>
+    <div class="meta">
+      <span>Ruling, 2026-11-17: the least amount of code in foundation, primitives only; no <code>language/</code> layer</span>
+      <span>Drafted against <code>6de27da2</code> (main after #3800, plus the #3790 merge; no foundation changes)</span>
+    </div>
+    <div class="glance" role="list">
+      <div role="listitem"><b>96k → 15k</b><span>lines left in foundation; <code>omega/foundation/</code> is deleted</span></div>
+      <div role="listitem"><b>222k → 0</b><span>lines left in <code>backend/</code>; the directory is deleted</span></div>
+      <div role="listitem"><b>5</b><span>new numbered stages after Omega 09 (O10–O14)</span></div>
+      <div role="listitem"><b>14 + 14</b><span>ordered PR steps (part A, part B), each ending in a deletion</span></div>
+      <div role="listitem"><b>6</b><span>questions still open for you</span></div>
+    </div>
+    <div class="verdicts">
+      <p><span class="chip infra">primitive</span> stays in foundation: <code>arena</code>, <code>compiler-storage</code>, <code>diagnostics</code>, text positions in <code>source</code>, a merged <code>wire</code>, <code>bignum</code>, <code>execution-admission</code>.</p>
+      <p><span class="chip move">move into</span> a pipeline stage or representation: language tables and anything computed from a program, carried forward from the first stage that needs it.</p>
+      <p><span class="chip split">split</span> a mixed crate; its parts go to different places.</p>
+      <p><strong>move to</strong> an owner outside the pipeline (packages, products, Build, CLI, test tools), or <strong>delete</strong> when it's unused or a duplicate.</p>
+    </div>
+    <div class="note">
+      <h3>New representation packages</h3>
+      <p>Psi side: <code>terminal-psi/vocabulary</code> (tables the source stages use first but later stages also read, split by subject), <code>build-requests</code> and <code>source-files</code>. Omega side: <code>target-description</code> and <code>provider-plans</code> as inputs to Omega 00, and <code>function-fragments</code>, <code>text-section</code>, <code>object</code> and <code>image</code> for the new stages. All are pipeline representations, not shared libraries.</p>
+    </div>
+    <div class="note">
+      <h3>What still needs your answer</h3>
+      <p>Six questions remain (section 7): where the shared process runner goes (Q-A); whether the native side may read Build inputs and loaded-source data directly (Q-B); whether Build-time evaluation counts as a second front-end driver (Q-C); whether a representation may depend on any earlier form or only the one before it (Q-D); who encodes branches after stage 07, since stages 08, 09 and frame insertion all re-encode them (Q-F); and whether realization stays a separate producer of the provider plans or becomes a numbered step before Omega 00 (Q-G). Part A steps 1–7 and part B steps B1–B4 don't wait on any of them.</p>
+    </div>
+    <div class="note">
+      <h3>How far to trust it</h3>
+      <p>Crate edges come from <code>cargo metadata</code> and are exact. Type-level usage comes from a regular-expression scan, not a Rust resolver, so a glob import or a path inside a macro can be missed, and each "declared but unused" dependency needs a type check before it is deleted. The 14.8k and 40–45k figures are estimates from module line ranges; the backend split was traced in <code>native-compiler/src/pipeline.rs</code> and its module scan sums exactly to the 221,793-line total. <span class="flag">judgment</span> marks classification choices; <span class="flag warn">unverified</span> marks claims nobody checked. I spot-checked three claims myself: the wire helpers really are defined twice, <code>machine-code</code> declares <code>function-identity</code> without using it, and <code>pipeline.md</code> carries the 2026-09-26 sentence this ruling supersedes.</p>
+    </div>
+  </header>
+  <nav class="toc" aria-label="Contents"><div class="sticky"><div class="eyebrow">Contents</div><ol>
+%%TOC%%
+  </ol></div></nav>
+  <main>
+%%BODY%%
+  </main>
+</div>
