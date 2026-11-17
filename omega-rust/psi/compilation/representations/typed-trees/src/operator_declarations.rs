@@ -1978,6 +1978,7 @@ pub mod operator {
         use crate::operator::indexing;
         use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use language_core::operator_spelling::OperatorSpelling;
+        use numerics::arithmetic::ArithmeticDomain;
         use symbols::SymbolHandle;
 
         pub fn resolve_spelling<'program>(
@@ -2088,6 +2089,59 @@ pub mod operator {
             })
         }
 
+        /// Read the exact carrier and single core policy, without treating ordinary
+        /// domain membership as permission to use the core operator signatures.
+        pub fn core_integer_operand(
+            program: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Option<(
+            TypeReferenceHandle,
+            symbols::BuiltinTypeAtom,
+            ArithmeticDomain,
+        )> {
+            use crate::types::TypeConstraintNode;
+            let table = &program.type_reference_table;
+            if !table.contains_type_reference(reference) {
+                return None;
+            }
+            if let TypeReferenceNode::Reference { referee, .. } = table.type_reference(reference) {
+                let value = scalar_operand_read_type(program, reference, *referee);
+                return (value != reference)
+                    .then(|| core_integer_operand(program, value))
+                    .flatten();
+            }
+            let (bare, policy) = match table.type_reference(reference) {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    let mut policy = ArithmeticDomain::Exact;
+                    for constraint in table.constraint_span(*constraints)? {
+                        let TypeConstraintNode::ArithmeticDomain(current) = constraint else {
+                            return None;
+                        };
+                        if *current != ArithmeticDomain::Exact {
+                            if policy != ArithmeticDomain::Exact {
+                                return None;
+                            }
+                            policy = *current;
+                        }
+                    }
+                    (*base_type, policy)
+                }
+                _ => (reference, ArithmeticDomain::Exact),
+            };
+            let TypeReferenceNode::Named { symbol, .. } = table.type_reference(bare) else {
+                return None;
+            };
+            let atom @ symbols::BuiltinTypeAtom::Integer(_) =
+                program.symbols.builtin_type_atom(*symbol)?
+            else {
+                return None;
+            };
+            Some((bare, atom, policy))
+        }
+
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum OperandType {
             Reference(TypeReferenceHandle),
@@ -2132,10 +2186,10 @@ pub mod operator {
                 .collect()
         }
 
-        pub fn has_builtin_spelled_expression_meaning(
+        /// Scoped operator contracts take precedence over compiler scalar meanings.
+        pub fn has_scoped_operator_meaning(
             program: &TypedTrees,
             owner_symbol: SymbolHandle,
-            expression: crate::expression::ExpressionHandle,
             spelling: OperatorSpelling,
             operand_types: &[Option<TypeReferenceHandle>],
         ) -> bool {
@@ -2161,6 +2215,34 @@ pub mod operator {
                                 )
                         })
             };
+            abstract_trait_meaning
+                || selected_trait_operator_meaning_exists(
+                    program,
+                    machine_symbol,
+                    spelling,
+                    operand_types,
+                )
+                || !super::bound_trait_operator_meanings(
+                    program,
+                    machine_symbol,
+                    spelling,
+                    operand_types,
+                )
+                .is_empty()
+                || super::trait_operators::abstract_requirement_may_have_operator_bound(
+                    program,
+                    owner_symbol,
+                    spelling,
+                )
+        }
+
+        pub fn has_builtin_spelled_expression_meaning(
+            program: &TypedTrees,
+            owner_symbol: SymbolHandle,
+            expression: crate::expression::ExpressionHandle,
+            spelling: OperatorSpelling,
+            operand_types: &[Option<TypeReferenceHandle>],
+        ) -> bool {
             let anonymous_operands = operand_types.iter().all(Option::is_none)
                 && program
                     .expression_table
@@ -2183,25 +2265,7 @@ pub mod operator {
                         .collect::<Vec<_>>(),
                     program.expression_table.source_span(expression),
                 ))
-                && !abstract_trait_meaning
-                && !selected_trait_operator_meaning_exists(
-                    program,
-                    machine_symbol,
-                    spelling,
-                    operand_types,
-                )
-                && super::bound_trait_operator_meanings(
-                    program,
-                    machine_symbol,
-                    spelling,
-                    operand_types,
-                )
-                .is_empty()
-                && !super::trait_operators::abstract_requirement_may_have_operator_bound(
-                    program,
-                    owner_symbol,
-                    spelling,
-                )
+                && !has_scoped_operator_meaning(program, owner_symbol, spelling, operand_types)
                 && operand_types.iter().flatten().all(|reference| {
                     // Builtins require unqualified operands. Reuse the same
                     // complete identity as declaration matching, including a
@@ -4315,8 +4379,9 @@ pub mod operator {
     };
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,
-        binary_operator_spelling, comparison_operator_spelling, declared_domain_constraints,
-        has_builtin_spelled_expression_meaning, operator_operand_bindings, resolve_spelling,
+        binary_operator_spelling, comparison_operator_spelling, core_integer_operand,
+        declared_domain_constraints, has_builtin_spelled_expression_meaning,
+        has_scoped_operator_meaning, operator_operand_bindings, resolve_spelling,
         resolve_spelling_for_operand_types, resolve_spelling_for_operands,
         scalar_operand_read_type,
     };

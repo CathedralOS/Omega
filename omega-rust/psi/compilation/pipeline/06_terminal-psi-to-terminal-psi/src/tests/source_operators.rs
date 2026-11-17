@@ -502,3 +502,68 @@ fn stored_byte_view_reads_keep_the_declarations_lifetime() {
     );
     assert_operator_value(Ok(RouteVerdict::Accepted(accepted)), true);
 }
+
+#[test]
+fn core_policy_comparisons_keep_the_selected_mixed_operand_signature() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/core_policy_operator_selection/main.omg"
+    ));
+    let mut typed = super::boundary_calls::typed(source);
+    assert_operator_value(operator_program(&typed), true);
+    let comparison = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::GreaterOrEqual)
+            .then_some(handle)
+        })
+        .unwrap();
+    assert!(typed.expression_table.authored_selection_occurrences(comparison).any(|occurrence| {
+        matches!(typed.authored_declaration_selections().get(occurrence).unwrap().target(),
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CoreIntegerOperator(_)))
+    }));
+    // Changing the operation cannot reuse the earlier selected application.
+    let typed_trees::expression::ExpressionNode::Binary(binary) =
+        typed.expression_table.expression_mut(comparison)
+    else {
+        unreachable!()
+    };
+    binary.operator = typed_trees::expression::BinaryOperator::LessOrEqual;
+    let refused = operator_program(&typed).unwrap_err();
+    assert!(
+        refused.contains("core operator application differs from its checked operand signature"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn core_policy_selection_cannot_remove_an_additional_domain() {
+    let refused = enum_operator(
+        r#"
+        domain i64::Distance;
+        machine entry(value: i64 in Wrapping & Distance) -> bool { value >= 0i64 }
+    "#,
+    )
+    .unwrap_err();
+    assert!(
+        refused.contains("takes unqualified operands only") && refused.contains("Distance"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn core_policy_selection_cannot_combine_different_operand_policies() {
+    let refused = enum_operator(
+        r#"
+        machine entry(left: i64 in Wrapping, right: i64 in Saturating) -> bool { left >= right }
+    "#,
+    )
+    .unwrap_err();
+    assert!(
+        refused.contains("operands under two arithmetic policies"),
+        "{refused}"
+    );
+}
