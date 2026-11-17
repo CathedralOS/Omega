@@ -810,48 +810,41 @@ pub(crate) mod literal_folds {
     }
 
     impl StagedSelectedLoweringOptimizationRun {
-        pub(crate) fn into_completed(
-            self,
-        ) -> selected_instruction_analyses::CompletedSelectedOptimization<
-            SelectedLoweringOptimizationCompletionIdentity,
-        > {
-            let ledger = selected_instruction_analyses::SelectedOptimizationLedger {
-                identity: self.custody.identity,
-                phase_selections: self.custody.selected_lowering_selections,
-                source: self.custody.source,
-                transformations: self
-                    .custody
-                    .iterations
-                    .iter()
-                    .map(|iteration| {
-                        register_homes::PostAllocationSelectedTransformation::LiteralFold(
-                            iteration.fold(),
-                        )
-                    })
-                    .collect(),
-            };
-            let source = self.source;
-            let (current, liveness, ranges, legality) = match self.steps.into_iter().last() {
-                Some(step) => (
-                    crate::OwnedSelectedProgram::retain(&step.fold),
-                    step.liveness,
-                    step.ranges,
-                    step.legality,
-                ),
-                None => (
-                    crate::OwnedSelectedProgram::retain(source.selected()),
-                    source.liveness().clone(),
-                    source.ranges().clone(),
-                    source.legality().clone(),
-                ),
-            };
-            selected_instruction_analyses::CompletedSelectedOptimization {
-                source,
-                current,
-                liveness,
-                ranges,
-                legality,
-                ledger,
+        /// The program the run ended with and the analyses it validated for it.
+        pub(crate) fn current(&self) -> crate::selected_optimization::RewrittenProgram<'_> {
+            match self.steps.last() {
+                Some(step) => crate::selected_optimization::RewrittenProgram {
+                    selected: crate::SelectedProgramRef::new(&step.fold),
+                    liveness: &step.liveness,
+                    ranges: &step.ranges,
+                    legality: &step.legality,
+                },
+                None => crate::selected_optimization::RewrittenProgram {
+                    selected: crate::SelectedProgramRef::new(self.source.selected()),
+                    liveness: self.source.liveness(),
+                    ranges: self.source.ranges(),
+                    legality: self.source.legality(),
+                },
+            }
+        }
+
+        /// What this run did, as evidence the allocated program carries.
+        pub(crate) fn record(&self) -> selected_instruction_analyses::SelectedOptimizationRecord {
+            let applied = self
+                .custody
+                .iterations
+                .iter()
+                .map(|iteration| {
+                    register_homes::PostAllocationSelectedTransformation::LiteralFold(
+                        iteration.fold(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let source = self.source.record();
+            selected_instruction_analyses::SelectedOptimizationRecord {
+                selected_lowering_completion: Some(self.custody.identity),
+                pre_allocation_completion: source.pre_allocation_completion,
+                transformations: source.followed_by(&applied),
             }
         }
     }

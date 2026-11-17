@@ -1876,6 +1876,55 @@ pub(crate) mod static_targets_tests {
     use syntax_trees::{SyntaxTrees, expression::ExpressionNode, statement::StatementNode};
 
     #[test]
+    fn field_omission_is_one_final_standalone_marker_and_survives_copy() {
+        for (literal, omission, fields) in [
+            ("Item { left: 7u32, right: 0u32 }", false, 2),
+            ("Item { left: 7u32, .. }", true, 1),
+            ("Item { .. }", true, 0),
+            ("Item::Ready { left: 7u32, .., }", true, 1),
+        ] {
+            let text = format!("const VALUE: Item = {literal};");
+            let tokens = Lexer::new(&text).tokenize().unwrap();
+            let syntax = crate::parse_syntax_trees(&tokens).unwrap();
+            let (handle, literal) = syntax
+                .expressions
+                .iter_expressions()
+                .find_map(|(handle, node)| {
+                    if let ExpressionNode::StructLiteral(literal) = node {
+                        Some((handle, literal))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(literal.zero_omitted_fields, omission);
+            assert_eq!(
+                syntax.expressions.struct_fields(literal.fields).len(),
+                fields
+            );
+            let mut copied = SyntaxTrees::default();
+            let copied_handle = copied.copy_expression_from(&syntax, handle);
+            let ExpressionNode::StructLiteral(copied_literal) =
+                copied.expressions.expression(copied_handle)
+            else {
+                panic!("copied literal")
+            };
+            assert_eq!(copied_literal.zero_omitted_fields, omission);
+        }
+        for literal in [
+            "Item { .. other }",
+            "Item { .., left: 7u32 }",
+            "Item { .., .. }",
+            "Item { ... }",
+            "Item { left: 7u32, .. other }",
+        ] {
+            let text = format!("const VALUE: Item = {literal};");
+            let tokens = Lexer::new(&text).tokenize().unwrap();
+            assert!(crate::parse_syntax_trees(&tokens).is_err(), "{literal}");
+        }
+    }
+
+    #[test]
     fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
         let text = "const FIRST: u64 = outer(inner()); const SECOND: u64 = library::read(); const THIRD: u64 = receiver.read();";
         check_call_extents(

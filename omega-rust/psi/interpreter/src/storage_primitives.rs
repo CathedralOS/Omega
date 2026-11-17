@@ -1780,6 +1780,10 @@ pub(crate) mod primitive_storage {
             let width = reference_storage_byte_width(stored).ok_or(malformed())?;
             let bits = match scalar {
                 TerminalScalarValue::Callable { descriptor, .. } => u128::from(descriptor.get()),
+                // Byte storage would drop the address's host provenance.
+                TerminalScalarValue::HostAddress { .. } => {
+                    return Err(crate::boundary::errors::host_address_mixed());
+                }
                 TerminalScalarValue::Boolean(value) => u128::from(value),
                 TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(value),

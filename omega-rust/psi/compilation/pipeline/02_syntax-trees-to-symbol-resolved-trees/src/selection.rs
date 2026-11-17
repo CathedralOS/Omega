@@ -1949,7 +1949,6 @@ pub(crate) mod domain_establishment {
         SignatureFreeMachineResolutionError, SignatureFreeRequirementResolutionError,
         resolve_signature_free_machine, resolve_signature_free_requirement,
     };
-    use crate::symbols::prefer_module_local_domain;
     use language_core::ReferenceAccess;
     use symbol_resolved_trees::data::DataMember;
     use symbol_resolved_trees::expression::ExpressionHandle;
@@ -2515,9 +2514,7 @@ pub(crate) mod domain_establishment {
                 })
                 .map(|domain| domain.symbol)
                 .collect::<Vec<_>>();
-            for matching in
-                prefer_module_local_domain(&program.symbols, matched, name.name.source_span())
-            {
+            for matching in matched {
                 for atom in atomic_domain_symbols(program, matching) {
                     if !domains.contains(&atom) {
                         domains.push(atom);
@@ -2808,8 +2805,7 @@ pub(crate) mod domain_operator_homes {
             if authored.is_empty() {
                 return Vec::new();
             }
-            let candidates = self
-                .domains
+            self.domains
                 .iter()
                 .enumerate()
                 .filter_map(|(domain_position, symbol)| {
@@ -2821,26 +2817,6 @@ pub(crate) mod domain_operator_homes {
                             .domain_name_reaches(*symbol, authored, reference)
                         && accepts(domain_position))
                     .then_some(domain_position)
-                })
-                .collect::<Vec<_>>();
-            let mut preferred = crate::symbols::prefer_module_local_domain(
-                self.symbols,
-                candidates
-                    .iter()
-                    .map(|position| self.domains[*position])
-                    .collect(),
-                reference,
-            );
-            let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
-            preferred.sort_unstable_by_key(|symbol| symbol_key(*symbol));
-            candidates
-                .into_iter()
-                .filter(|position| {
-                    preferred
-                        .binary_search_by_key(&symbol_key(self.domains[*position]), |symbol| {
-                            symbol_key(*symbol)
-                        })
-                        .is_ok()
                 })
                 .collect()
         }

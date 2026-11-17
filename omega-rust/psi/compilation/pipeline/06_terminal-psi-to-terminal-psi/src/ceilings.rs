@@ -50,7 +50,7 @@ pub(crate) enum Permission {
 enum Envelope<'a> {
     Runtime(&'a TerminalCallableEnvelope),
     /// These source-only signatures are not encoded, sealed or executable.
-    /// An omitted clause remains Open, never a closed empty runtime row.
+    /// An unknown bound stays unknown when its other contract axes are known.
     Abstract(&'a terminal_check_tables::contracts::RequirementCeilings),
 }
 impl<'a> Envelope<'a> {
@@ -293,24 +293,30 @@ struct Contributions {
 }
 
 impl Contributions {
-    fn operational(
+    fn operational_from(
         &mut self,
         envelope: Envelope<'_>,
         ceiling: Envelope<'_>,
     ) -> Result<(), &'static str> {
-        match envelope.suspension() {
-            Some(allowed) => self.suspends |= allowed,
-            None if ceiling.suspension().is_some() => {
-                return Err("callee has no checked suspension bound");
-            }
-            None => {}
+        if (envelope.suspension().is_none() && ceiling.suspension().is_some())
+            || (envelope.blocking().is_none() && ceiling.blocking().is_some())
+        {
+            return Err(
+                "abstract callable has no closed suspension, blocking or progress envelope",
+            );
         }
-        match envelope.blocking() {
-            Some(allowed) => self.blocks |= allowed,
-            None if ceiling.blocking().is_some() => {
-                return Err("callee has no checked blocking bound");
-            }
-            None => {}
+        self.operational(envelope);
+        Ok(())
+    }
+
+    fn operational(&mut self, envelope: Envelope<'_>) {
+        // Unknown source bounds contribute no asserted boolean. The caller
+        // cannot use one to justify a known bound in operational_from.
+        if let Some(suspends) = envelope.suspension() {
+            self.suspends |= suspends;
+        }
+        if let Some(blocks) = envelope.blocking() {
+            self.blocks |= blocks;
         }
         match envelope.termination() {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => self.may_diverge = true,
@@ -318,7 +324,6 @@ impl Contributions {
                 self.conditional_progress |= !premises.is_empty();
             }
         }
-        Ok(())
     }
     fn row(&self, axis: Axis) -> Vec<Permission> {
         match axis {
@@ -370,7 +375,7 @@ impl Calls<'_> {
             .any(|axis| matches!(axis, Axis::Suspension | Axis::Blocking | Axis::Termination))
         {
             reached
-                .operational(envelope, self.ceiling)
+                .operational_from(envelope, self.ceiling)
                 .map_err(|reason| self.unsupported(reason))?;
         }
         Ok(())
@@ -1353,12 +1358,12 @@ mod abstract_bound_tests {
         }
         assert!(
             Contributions::default()
-                .operational(Envelope::Abstract(&unknown), Envelope::Abstract(&closed))
+                .operational_from(Envelope::Abstract(&unknown), Envelope::Abstract(&closed))
                 .is_err()
         );
         assert!(
             Contributions::default()
-                .operational(Envelope::Abstract(&unknown), Envelope::Abstract(&unknown))
+                .operational_from(Envelope::Abstract(&unknown), Envelope::Abstract(&unknown))
                 .is_ok()
         );
         let supplied = RequirementCeilings {
@@ -1373,7 +1378,7 @@ mod abstract_bound_tests {
         );
         let mut reached = Contributions::default();
         reached
-            .operational(Envelope::Abstract(&supplied), Envelope::Abstract(&closed))
+            .operational_from(Envelope::Abstract(&supplied), Envelope::Abstract(&closed))
             .unwrap();
         assert_eq!(reached.row(Axis::Suspension), vec![Permission::MaySuspend]);
         assert_eq!(reached.row(Axis::Blocking), vec![Permission::MayBlock]);
@@ -1384,8 +1389,8 @@ mod abstract_bound_tests {
         };
         assert_eq!(
             Contributions::default()
-                .operational(Envelope::Abstract(&no_suspend), Envelope::Abstract(&closed)),
-            Err("callee has no checked blocking bound")
+                .operational_from(Envelope::Abstract(&no_suspend), Envelope::Abstract(&closed)),
+            Err("abstract callable has no closed suspension, blocking or progress envelope")
         );
     }
 }

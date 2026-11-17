@@ -21,7 +21,7 @@ use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::iter::empty;
 #[path = "accepted_compilation_identity.rs"]
 mod identity;
-pub(crate) use identity::compiler_input_identity;
+pub(crate) use identity::{compiler_input_identity, require_current_compiler};
 
 use crate::build_session::{PackageBuildSession, dependency_first_package_order};
 use crate::declarations::PackageKey;

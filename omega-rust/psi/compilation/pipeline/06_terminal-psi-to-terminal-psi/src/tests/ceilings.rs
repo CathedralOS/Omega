@@ -563,3 +563,100 @@ fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings
     );
     assert_eq!(refused.detail, "published row names an undeclared service");
 }
+
+#[test]
+fn abstract_record_operations_keep_operational_bounds_through_private_helpers() {
+    const SOURCE: &str = r#"
+boundary trait Output {}
+trait Operations {
+    machine wait() -> u32
+    reaches Output
+    blocks
+    crashes none
+    terminates;
+}
+machine entry<const Selected: Operations>() -> u32
+reaches Output
+blocks
+crashes none
+terminates
+{
+    block helper()
+    machine helper() -> u32 {
+        block Selected::wait()
+    }
+}
+"#;
+    let source = typed(SOURCE);
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source))
+        .expect("form the source-only record requirement and private helper");
+    let instance = form
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.bindings)
+        .flat_map(|binding| &binding.members)
+        .flat_map(|member| &member.instances)
+        .next()
+        .expect("the actual record member retains its logical instance")
+        .machine;
+    assert!(form.requirements.contains(&instance));
+    let bounds = form.requirement_ceilings.get(instance).unwrap();
+    assert!(matches!(&bounds.reaches,
+        terminal_check_tables::contracts::Ceiling::Authored(row) if !row.is_empty()));
+    assert_eq!(bounds.suspension, Some(false));
+    assert_eq!(bounds.blocking, Some(true));
+    assert!(matches!(&bounds.termination,
+        terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty()));
+    let requirement = form.module.machine(instance).unwrap();
+    assert!(requirement.blocks.is_empty() && requirement.declaration.is_none());
+    assert!(
+        form.module.callables.machine_envelope(instance).is_none(),
+        "the abstract contract does not acquire a runtime envelope"
+    );
+    let helper = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "helper")
+        .unwrap()
+        .symbol;
+    let helper = form
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == helper).then_some(id))
+        .unwrap();
+    assert!(form.module.machine(helper).unwrap().published_may_block);
+    assert!(!form.module.machine(helper).unwrap().published_may_suspend);
+
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default())
+        .expect("the real calls retain their blocking acknowledgements");
+    for (machine, result) in discharged.machines.iter() {
+        if !form.requirements.contains(&machine) {
+            assert!(
+                result.verdicts.values().all(Result::is_ok),
+                "{:?}",
+                result.verdicts
+            );
+            assert!(result.conflicts.is_empty() && result.unestablished().next().is_none());
+        }
+    }
+    assert!(
+        crate::ceilings::judge(&form).unwrap().is_empty(),
+        "the complete abstract contract fits the real helper and generic entry"
+    );
+
+    // Remove only the caller's permission; both actual call acknowledgements
+    // and the originating record requirement remain unchanged.
+    let denied = SOURCE.replace(
+        "reaches Output\nblocks\ncrashes none\nterminates\n{",
+        "reaches Output\nblocks false\ncrashes none\nterminates\n{",
+    );
+    assert_ne!(denied, SOURCE);
+    let source = typed(&denied);
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source)).unwrap();
+    let refused = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Violation);
+    assert_eq!(
+        refused.detail,
+        "call may block but its caller's blocks ceiling is false"
+    );
+}

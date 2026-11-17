@@ -10,7 +10,8 @@
 use super::build_resolution::{BuildSourceAcquisition, PendingBuildSource};
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_source_request,
+    CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_build_activation,
+    admit_locked_source_request,
 };
 use source_acquisition::{GitSourceRequest, SourceResolver};
 
@@ -33,6 +34,9 @@ pub struct BuildSourceAcquisitions<'operation> {
     pub(super) options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
+    // Compilation also holds every Build activation, the root's included, to
+    // the lock's exact source content. Inspection leaves the root mutable.
+    locked_activations: bool,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
     sources: Vec<AcquiredBuildSource>,
     cache_directories: std::sync::OnceLock<Option<super::custody::SourceCacheDirectories>>,
@@ -67,6 +71,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             options,
             root_request,
             locked_source: None,
+            locked_activations: false,
             git_sources: Vec::new(),
             sources: Vec::new(),
             cache_directories: std::sync::OnceLock::new(),
@@ -79,6 +84,27 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         source: &'operation CanonicalSourceClosureSubject,
     ) {
         self.locked_source = Some(source);
+    }
+
+    /// Hold every request edge and every Build activation to the lock, so a
+    /// stale or unreviewed Build never runs on the compile route.
+    pub(crate) fn require_locked_activations(
+        &mut self,
+        source: &'operation CanonicalSourceClosureSubject,
+    ) {
+        self.locked_source = Some(source);
+        self.locked_activations = true;
+    }
+
+    /// Admit a package's Build activation only when the lock accepted its
+    /// exact source. Call this before the Build is scheduled to run.
+    pub fn admit_locked_activation(&self, acquired: &AcquiredBuildSource) -> Result<(), String> {
+        match self.locked_source {
+            Some(subject) if self.locked_activations => {
+                admit_locked_build_activation(subject, acquired.acquisition_origin())
+            }
+            _ => Ok(()),
+        }
     }
 
     pub fn retain_root(

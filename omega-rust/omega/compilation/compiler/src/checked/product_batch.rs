@@ -57,7 +57,18 @@ impl CompilationSession {
                 .built
                 .computed_build_config
                 .independent_components();
+            // Each test root is checked again from the unprepared source with
+            // its own roster, so keep a copy when the Build registered groups
+            // that will run.
+            let mut unprepared = None;
             let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
+                let config = &source.computed_build_config.config;
+                if !config.test_groups.is_empty() && !config.settings.tests_disabled {
+                    unprepared = Some(std::sync::Arc::new(UnpreparedTestSource {
+                        source: source.clone(),
+                        rollback: rollback.clone(),
+                    }));
+                }
                 check_product_source(
                     source,
                     Some(&inputs),
@@ -84,6 +95,7 @@ impl CompilationSession {
                         source.clone(),
                         target,
                         inputs,
+                        unprepared.clone(),
                     ));
                     for (position, owner, member) in members {
                         let (_, target, inputs, _, prepared) = member.into_continuation();
@@ -116,7 +128,14 @@ impl CompilationSession {
                         application.computed_build_config = std::sync::Arc::new(observed);
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);
-                        applications.push((position, owner, application, target, inputs));
+                        applications.push((
+                            position,
+                            owner,
+                            application,
+                            target,
+                            inputs,
+                            unprepared.clone(),
+                        ));
                     }
                 }
                 Err(diagnostics) => {
@@ -150,25 +169,34 @@ impl CompilationSession {
         // deferred until the application succeeds, as test execution requires.
         let prepared_applications = applications
             .into_iter()
-            .map(|(position, owner, source, target, inputs)| {
+            .map(|(position, owner, source, target, inputs, unprepared)| {
                 let prepared = PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
-                let tests = super::test_roots::select_test_roots(&source, target, &inputs).map(
-                    |selection| {
+                let tests =
+                    super::test_roots::select_test_roots(&source, target).map(|selection| {
                         let roots = selection
                             .roots
                             .into_iter()
                             .map(|root| {
-                                let prepared = PreparedProductTarget::capture(
-                                    &root.source,
-                                    Some(target),
-                                    Some(&inputs),
-                                );
-                                (root, prepared)
+                                let checked = check_test_root(
+                                    unprepared.as_deref(),
+                                    &root,
+                                    &source,
+                                    target,
+                                    &inputs,
+                                )
+                                .map(|checked| {
+                                    let prepared = PreparedProductTarget::capture(
+                                        &checked,
+                                        Some(target),
+                                        Some(&inputs),
+                                    );
+                                    (checked, prepared)
+                                });
+                                (root.identity, checked)
                             })
                             .collect::<Vec<_>>();
                         (selection.notes, roots)
-                    },
-                );
+                    });
                 (position, owner, source, prepared, tests)
             })
             .collect::<Vec<_>>();
@@ -178,12 +206,14 @@ impl CompilationSession {
                 match tests {
                     Ok((notes, roots)) => {
                         outcome.test_notes = notes;
-                        for (root, prepared) in roots {
-                            let selected = crate::execution_settlement::select_product_target(
-                                &root.source,
-                                prepared,
-                            );
-                            outcome.tests.push((root.identity, selected.result));
+                        for (identity, checked) in roots {
+                            let result = checked.and_then(|(checked, prepared)| {
+                                crate::execution_settlement::select_product_target(
+                                    &checked, prepared,
+                                )
+                                .result
+                            });
+                            outcome.tests.push((identity, result));
                         }
                     }
                     Err(diagnostics) => outcome.result = Err(CompileFailure::from(diagnostics)),
@@ -197,4 +227,39 @@ impl CompilationSession {
             .map(|(_, owner, outcome)| (owner, outcome))
             .collect()
     }
+}
+
+/// The application's source before preparation, kept to check its test roots.
+struct UnpreparedTestSource {
+    source: products::PreparedProductSource,
+    rollback: crate::OptimizationRollback,
+}
+
+/// Check one test root as its own Product: the application's unprepared
+/// source with the test machine as its only program entry, judged on the one
+/// target it runs for. Its Build history and admission are the application's.
+fn check_test_root(
+    unprepared: Option<&UnpreparedTestSource>,
+    root: &super::test_roots::TestRootSource,
+    application: &products::CheckedProductSource,
+    target: target::TargetProfile,
+    inputs: &package_compilation::PackageCompilationInputs,
+) -> Result<products::CheckedProductSource, CompileFailure> {
+    let unprepared = unprepared.ok_or_else(|| {
+        CompileFailure::from(vec![diagnostics::Diagnostic::error(
+            "test root lost the unprepared source its group was registered in",
+        )])
+    })?;
+    let mut source = unprepared.source.clone();
+    source.computed_build_config = std::sync::Arc::clone(&root.build);
+    source.admission = application.admission.clone();
+    source.timings = Default::default();
+    check_product_source(
+        source,
+        Some(inputs),
+        &[target],
+        &unprepared.rollback,
+        None,
+        None,
+    )
 }

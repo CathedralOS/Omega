@@ -553,6 +553,14 @@ fn decode_target_parameter(
     })
 }
 
+pub(super) fn decode_abi_parameter(
+    cursor: &mut Cursor<'_>,
+) -> Result<TargetStructuralParameter, FixedViewCopyDecodeError> {
+    let mut parameter = decode_target_parameter(cursor)?;
+    parameter.projected_qualifications = decode_projected(cursor, true)?;
+    Ok(parameter)
+}
+
 pub(super) fn encode_semantic_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_path(bytes, &argument.path);

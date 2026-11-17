@@ -204,11 +204,13 @@ pub(crate) mod progress {
             return None;
         }
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
-        let subject = match custody.subjects.as_slice() {
-            [_, _] => return Some(RankingViewId::NAT_BOUNDED_DISTANCE),
-            [subject] => *subject,
-            _ => return None,
+        // A tuple of subjects is not a carrier, so it declares no default
+        // (termination.md, "Ranking"). Bounded distance and a lexicographic
+        // product both rank a pair; the author names the one they mean.
+        let [subject] = custody.subjects.as_slice() else {
+            return None;
         };
+        let subject = *subject;
         // Only the selected builtin length observation is nat-like. A field
         // named `len` does not acquire a ranking theory from that spelling.
         // All defaults are settled here, after typed subject custody exists;

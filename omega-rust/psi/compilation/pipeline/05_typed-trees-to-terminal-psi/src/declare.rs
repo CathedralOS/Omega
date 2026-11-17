@@ -84,6 +84,7 @@ enum PreparedParameter {
         upper_bound: Option<Vec<semantic_vocabulary::ServiceId>>,
         upper_bound_may_suspend: bool,
         upper_bound_may_block: bool,
+        upper_bound_crashes_none: bool,
     },
 }
 
@@ -858,6 +859,7 @@ fn application_bindings_commitment(
                         upper_bound: upper_bound.clone(),
                         upper_bound_may_suspend: contract.signature().suspends,
                         upper_bound_may_block: contract.signature().blocks,
+                        upper_bound_crashes_none: contract.signature().declares_no_crash_route,
                     });
                 }
             }
@@ -1144,6 +1146,7 @@ pub(crate) fn close_specializations(
                         reach: machine.published_service_ceiling.clone(),
                         may_suspend: declaration.published_may_suspend,
                         may_block: declaration.published_may_block,
+                        may_crash: !machine.crash_routes.is_empty(),
                     },
                 ))
             })
@@ -1288,6 +1291,7 @@ struct ReachSelection {
     reach: Vec<semantic_vocabulary::ServiceId>,
     may_suspend: bool,
     may_block: bool,
+    may_crash: bool,
 }
 
 impl PreparedParameter {
@@ -1295,18 +1299,26 @@ impl PreparedParameter {
         self,
         selections: &[(terminal_psi::TerminalIdentityIndex, ReachSelection)],
     ) -> Result<ClosedReachParameter, &'static str> {
-        let (selected, upper_bound, upper_bound_may_suspend, upper_bound_may_block) = match self {
+        let (
+            selected,
+            upper_bound,
+            upper_bound_may_suspend,
+            upper_bound_may_block,
+            upper_bound_crashes_none,
+        ) = match self {
             Self::Ready(parameter) => return Ok(parameter),
             Self::Machine {
                 selected,
                 upper_bound,
                 upper_bound_may_suspend,
                 upper_bound_may_block,
+                upper_bound_crashes_none,
             } => (
                 selected,
                 upper_bound,
                 upper_bound_may_suspend,
                 upper_bound_may_block,
+                upper_bound_crashes_none,
             ),
         };
         let first = selections.partition_point(|(identity, _)| *identity < selected);
@@ -1335,6 +1347,13 @@ impl PreparedParameter {
         {
             return Err("a selected static callback exceeds its operational bound");
         }
+        // effects.md: `crashes none` admits only crash-free selections. A
+        // private callback's inferred routes count as much as authored ones.
+        if callee.may_crash && upper_bound_crashes_none {
+            return Err(
+                "a selected static callback may crash, and its binder declares `crashes none`",
+            );
+        }
         Ok(ClosedReachParameter::Machine(
             terminal_psi::ClosedReachMachineBinding {
                 nominal_requirement: None,
@@ -1343,8 +1362,10 @@ impl PreparedParameter {
                 upper_bound,
                 upper_bound_may_suspend,
                 upper_bound_may_block,
+                upper_bound_crashes_none,
                 selected_may_suspend: callee.may_suspend,
                 selected_may_block: callee.may_block,
+                selected_may_crash: callee.may_crash,
                 selected_identity: selected,
                 selected_contract_commitment: callee.contract,
                 selected_reach: callee.reach.clone(),
@@ -2552,4 +2573,53 @@ pub(crate) fn intrinsic_boundary_source(
         may_block: false,
         application: None,
     })
+}
+
+#[cfg(test)]
+mod crash_bound_tests {
+    use super::{PreparedParameter, ReachSelection};
+    use semantic_vocabulary::MachineId;
+    use terminal_psi::{ClosedReachParameter, TerminalIdentityIndex};
+
+    /// effects.md: "`crashes none` admits only crash-free selections". The
+    /// callee's published routes include inferred ones, so a private body
+    /// with no `crashes` clause that can trap is refused too. Without the
+    /// bound, the binder defers to whatever the selection publishes.
+    fn close(bound: bool, may_crash: bool) -> Result<ClosedReachParameter, &'static str> {
+        let selected = TerminalIdentityIndex(5);
+        PreparedParameter::Machine {
+            selected,
+            upper_bound: None,
+            upper_bound_may_suspend: false,
+            upper_bound_may_block: false,
+            upper_bound_crashes_none: bound,
+        }
+        .close(&[(
+            selected,
+            ReachSelection {
+                callee: MachineId::new(2).unwrap(),
+                contract: [1; 32],
+                reach: Vec::new(),
+                may_suspend: false,
+                may_block: false,
+                may_crash,
+            },
+        )])
+    }
+
+    #[test]
+    fn a_crashes_none_binder_refuses_a_callee_with_a_crash_route() {
+        assert_eq!(
+            close(true, true).unwrap_err(),
+            "a selected static callback may crash, and its binder declares `crashes none`"
+        );
+        let Ok(ClosedReachParameter::Machine(binding)) = close(true, false) else {
+            panic!("a crash-free callee satisfies `crashes none`");
+        };
+        assert!(binding.upper_bound_crashes_none && !binding.selected_may_crash);
+        let Ok(ClosedReachParameter::Machine(binding)) = close(false, true) else {
+            panic!("an omitted crash bound defers to the selected callee");
+        };
+        assert!(!binding.upper_bound_crashes_none && binding.selected_may_crash);
+    }
 }

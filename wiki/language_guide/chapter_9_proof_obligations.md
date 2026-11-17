@@ -124,8 +124,15 @@ see [Chapter 11](chapter_11_invariant_windows.md).
 
 ## Termination
 
-`ensures` describes the result if the machine returns. `terminates` promises
-that it does:
+`terminates` promises that the machine finishes. It may finish by returning,
+by crashing on a route its contracts allow, or by calling something that never
+returns, such as [process exit](../spec/language/process_exit.md). The
+[termination spec](../spec/language/termination.md) lists these endpoints.
+`ensures` describes the result only when the machine returns, so `terminates`
+plus `ensures` does not mean the result always holds: a branch that exits the
+process never reaches the `ensures` clause.
+
+Here the machine always returns:
 
 ```omega
 machine countdown(remaining: u32)

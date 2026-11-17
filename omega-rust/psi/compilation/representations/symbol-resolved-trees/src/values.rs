@@ -1920,6 +1920,7 @@ pub mod expression {
                         let fields =
                             self.copy_struct_literal_fields(source, literal.fields, copies);
                         self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            zero_omitted_fields: literal.zero_omitted_fields,
                             application_type: literal.application_type,
                             type_name: literal.type_name,
                             type_symbol: literal.type_symbol,
@@ -2412,6 +2413,7 @@ pub mod expression {
                 },
             ]);
             let root = source.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: DiagnosticName::generated("Room"),
                 type_symbol: SymbolHandle::from_arena_index(5),
@@ -2826,6 +2828,7 @@ pub mod expression {
                 },
             ]);
             let literal = table.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: DiagnosticName::generated("Room"),
                 type_symbol: SymbolHandle::from_arena_index(11),
@@ -2934,7 +2937,7 @@ expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right:
 expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #45 = StructLiteral(TableStructLiteral { application_type: #0@0, type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
+expression #45 = StructLiteral(TableStructLiteral { zero_omitted_fields: false, application_type: #0@0, type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
 expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -4019,6 +4022,8 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
     pub struct TableStructLiteral {
+        /// A final source `..` requests ordinary zero values for missing runtime fields.
+        pub zero_omitted_fields: bool,
         pub application_type: Handle<crate::types::TypeReference>,
         pub type_name: DiagnosticName,
         pub type_symbol: SymbolHandle,

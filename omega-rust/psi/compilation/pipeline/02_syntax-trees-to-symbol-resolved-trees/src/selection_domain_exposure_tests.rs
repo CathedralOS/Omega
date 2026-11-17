@@ -205,28 +205,28 @@ fn domain_exposure_operator_home_rejects_foreign_unimported_root() {
     );
 }
 
+/*
+    Distinct visible domains competing for one spelling reject; the referencing
+    module's own declaration does not outrank an imported one
+    (`wiki/spec/language/modules.md#resolution`).
+*/
 #[test]
-fn domain_exposure_operator_home_preserves_ambiguity_and_local_precedence() {
+fn domain_exposure_operator_home_rejects_competing_visible_domains() {
     let domains = [
         ("app/one.omg", "module one; public domain u64::Mark;"),
         ("app/two.omg", "module two; public domain u64::Mark;"),
     ];
-    let error = select_home(
-        &[
-            domains[0],
-            domains[1],
-            (
-                "app/main.omg",
-                "use one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
-            ),
-        ],
-        None,
-    )
-    .unwrap_err();
-    assert!(
-        error.contains("more than one possible domain home"),
-        "{error}"
-    );
+    for caller in [
+        "use one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
+        "module one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
+    ] {
+        let error =
+            select_home(&[domains[0], domains[1], ("app/main.omg", caller)], None).unwrap_err();
+        assert!(
+            error.contains("more than one possible domain home"),
+            "{caller}: {error}"
+        );
+    }
     assert_eq!(
         select_home(
             &[
@@ -234,7 +234,7 @@ fn domain_exposure_operator_home_preserves_ambiguity_and_local_precedence() {
                 domains[1],
                 (
                     "app/main.omg",
-                    "module one; use two; machine probe(value: u64 in Mark) -> u64 { 0 }"
+                    "module one; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
                 ),
             ],
             None

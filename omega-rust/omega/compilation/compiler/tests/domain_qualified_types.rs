@@ -841,20 +841,19 @@ fn adding_a_governed_domain_is_refused_by_name() {
     );
 }
 
-/// A record with a governed field is gated: zero is not a value somebody
-/// issued, so the record is constructed with that field supplied.
+/// Zero construction still needs a declared issuer. An unevaluated access
+/// plan establishes no authority to issue the governed field.
 #[test]
 fn zero_establishing_a_record_with_a_governed_field_is_refused_by_name() {
     refused_with(
         "governed_zero",
         "machine wrong() -> i32 {\n    let sealed: Sealed;\n    sealed.count\n}\n",
-        "zero-established value in a domain that must be established",
+        "cast that adds a domain whose issuers are in an access plan",
     );
 }
 
-/// The parser has no `..` yet, so a literal names every field or is not
-/// one; when `..` arrives it zero-establishes the fields it omits and meets
-/// the same gate as `let sealed: Sealed;`.
+/// Without `..`, a literal must supply every runtime field, including a
+/// field whose declared qualification governs its contents.
 #[test]
 fn omitting_a_governed_field_from_a_literal_is_not_accepted() {
     refused_with(
@@ -947,5 +946,53 @@ fn rebuilding_a_record_from_a_lent_governed_field_is_not_accepted() {
         "governed_rebuilt",
         "machine wrong(sealed: &Sealed) -> Sealed {\n    Sealed { seal: sealed.seal, count: 1 }\n}\n",
         "owned extraction from borrowed storage",
+    );
+}
+
+#[test]
+fn omitted_zero_payloads_prove_predicates_and_require_the_actual_issuer() {
+    let source = r#"
+domain u32::ZeroOnly requires self == 0u32;
+domain u32::IssuedZero established by mint_zero;
+data ZeroChoice {
+    case First(value: u32 in ZeroOnly);
+    case Other(value: u32 in IssuedZero);
+}
+data ZeroHolder { choice: ZeroChoice; }
+data IssuedLeaf { value: u32 in IssuedZero; }
+data IssuedHolder { leaf: IssuedLeaf; }
+machine make_zero() -> ZeroHolder { ZeroHolder { .. } }
+machine mint_zero() -> IssuedHolder { IssuedHolder { .. } }
+"#;
+    let accepted = verdicts("omitted-qualified-zero", source);
+    assert!(!accepted.is_empty());
+    assert!(
+        accepted.iter().all(|result| result == "accepted"),
+        "{accepted:?}"
+    );
+
+    // Zero must establish the first case's actual predicate, rather than
+    // finding another case or assuming the new membership as a premise.
+    let nonzero = source.replace("self == 0u32", "self != 0u32");
+    let rejected = verdicts("omitted-nonzero-first-payload", &nonzero);
+    assert!(
+        rejected
+            .iter()
+            .any(|result| result.starts_with(
+                "rejected: 0 unestablished; cannot prove the value of this cast is in the domain it adds in machine `make_zero` state `entry` return value: domain `u32::ZeroOnly` requires `self != 0`"
+            )),
+        "{rejected:?}"
+    );
+
+    // The same bits are not authority. The declaring issuer can construct
+    // this value; an unrelated machine cannot issue the nested field.
+    let unauthorized =
+        format!("{source}\nmachine not_issuer() -> IssuedHolder {{ IssuedHolder {{ .. }} }}");
+    let rejected = verdicts("omitted-nested-issuer", &unauthorized);
+    assert!(
+        rejected
+            .iter()
+            .any(|result| result.contains("not one of the domain's establishment routes")),
+        "{rejected:?}"
     );
 }

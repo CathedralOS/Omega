@@ -66,6 +66,7 @@ image = { path = "../backend/images/image" }
 isa-aarch64 = { path = "../backend/isa/isa-aarch64" }
 isa-x86_64 = { path = "../backend/isa/isa-x86_64" }
 machine-emission = { path = "../backend/machine-emission" }
+register-homes = { path = "../representations/register-homes" }
 machine-code = { path = "../representations/machine-code" }
 selected-instructions = { path = "../representations/selected-instructions" }
 register-model = { path = "../backend/register-model" }
@@ -243,6 +244,11 @@ path = "tests/lowered_route_float_contracts.rs"
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"
 
+# `==` against a case is a tag test only on a payload-free sum.
+[[test]]
+name = "lowered_route_case_equality"
+path = "tests/lowered_route_case_equality.rs"
+
 # A store into one field keeps a `requires` clause over several fields when
 # the unwritten fields still hold the values the record arrived with.
 [[test]]
@@ -256,6 +262,11 @@ path = "tests/package_review.rs"
 [[test]]
 name = "executed_fixture_discovery"
 path = "tests/executed_fixture_discovery.rs"
+
+# Omega 05 allocates after every Omega 04 history through one entrance.
+[[test]]
+name = "selected_allocation_handoff"
+path = "tests/selected_allocation_handoff.rs"
 
 # Independent receiver admission of the existing Windows filesystem customer.
 [[test]]

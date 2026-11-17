@@ -1,9 +1,9 @@
 // Typed integer literal suffixes select the literal's primitive
-// type: `100i64`, `7u32`, `9usize`. Each value round-trips through
+// type: `100i64`, `7u32`, `9u64`. Each value round-trips through
 // storage and compares equal to the same suffixed literal.
 //
-//   * `usize` is its own primitive — `9usize` lands in a `u64`
-//     field.
+//   * A suffix is a carrier's own spelling: a sign letter and a
+//     width. `usize`, `isize` and `nat` are not suffixes.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -20,9 +20,9 @@ machine Main::main(main: &mut Main) {
     main.hits = 0;
     main.wide = 100i64;
     main.small = 7u32;
-    main.size = 9usize;
+    main.size = 9u64;
     transition main.wide == 100i64 && main.small == 7u32
-        && main.size == 9usize {
+        && main.size == 9u64 {
         true -> pass(main)
         _ -> fail(main)
     }

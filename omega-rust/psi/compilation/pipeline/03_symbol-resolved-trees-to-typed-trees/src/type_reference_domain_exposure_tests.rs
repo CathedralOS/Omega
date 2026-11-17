@@ -8,14 +8,17 @@ fn reference(source: usize) -> SourceSpan {
     SourceSpan::new(SourceId(source), Span::new(0, 4))
 }
 
-fn fixture(
-    imports: &[&str],
-    modules: bool,
-) -> (
+type Fixture = (
     symbol_resolved_trees::SymbolResolvedTrees,
     typed_trees::TypedTrees,
     Vec<SymbolHandle>,
-) {
+);
+
+fn fixture(imports: &[&str], modules: bool) -> Fixture {
+    fixture_importing_into(0, imports, modules)
+}
+
+fn fixture_importing_into(importer: usize, imports: &[&str], modules: bool) -> Fixture {
     let mut sources = source::SourceMap::default();
     for ordinal in 0..3 {
         sources.add_with_metadata(
@@ -59,7 +62,7 @@ fn fixture(
             .unwrap();
     }
     for import in imports {
-        symbols.register_source_import(SourceId(0), import);
+        symbols.register_source_import(SourceId(importer), import);
     }
     let source = symbol_resolved_trees::SymbolResolvedTrees {
         symbols: symbols.clone(),
@@ -149,4 +152,32 @@ fn domain_exposure_typed_pool_does_not_expose_loaded_modules() {
         )
         .is_empty()
     );
+}
+
+/*
+    Module `one` declares `u64::Mark` and imports `two`, which declares one
+    too. The referencing module's own declaration does not outrank the
+    imported one: both stay candidates and the spelling is ambiguous
+    (`wiki/spec/language/modules.md#resolution`). Without the import, the
+    module's own domain is the only one visible.
+*/
+#[test]
+fn domain_exposure_typed_pool_keeps_the_local_domain_competing_with_an_import() {
+    let candidates = |imports: &[&str]| {
+        let (source, typed, _) = fixture_importing_into(1, imports, true);
+        select_domain_candidates_where(
+            &source,
+            &typed,
+            "u64::Mark",
+            Some(reference(1)),
+            SymbolHandle::invalid(),
+            |_| true,
+        )
+        .iter()
+        .map(|domain| domain.symbol)
+        .collect::<Vec<_>>()
+    };
+    let (_, _, symbols) = fixture(&[], true);
+    assert_eq!(candidates(&["two"]), symbols);
+    assert_eq!(candidates(&[]), symbols[..1]);
 }

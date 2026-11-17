@@ -2,9 +2,12 @@
 Application-sponsored completion of canonical Terminal scalar applications
 (`scalar_completion::complete`).
 
-Both post-Terminal source checking and native preparation call `complete` to
-evaluate `ScalarApplicationId` demands against the retained
-`TerminalTargetProviderProposal` companions without reopening source trees. Any
+Both post-Terminal source checking and native compilation's inputs call
+`complete` to evaluate `ScalarApplicationId` demands against the retained
+`TerminalTargetProviderProposal` companions without reopening source trees.
+`complete_native` and `complete_native_demand` finish the values a native
+compile needs before `native_compiler::compile` starts, so the native pipeline
+runs once with them as input and never pauses for evaluation. Any
 attempted evaluation usage is recorded in `accounting` even when a condition
 refuses. Each deployed scope also receives `TargetRealizedIntrinsics`, so a
 constant that reaches a canonical float operation executes the realization its
@@ -16,6 +19,50 @@ use backend_plan::TerminalTargetProviderProposal;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
 use terminal_installation::terminal_target_context;
+
+/// The scalar values native compilation of `retained`'s program entry reads,
+/// evaluated for its deployment, or `None` when it needs none.
+pub fn complete_native(
+    retained: &products::RetainedTerminalArtifact,
+    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+    let proposal = retained
+        .native_realization_proposal()
+        .ok_or("native constant completion needs the retained native proposal")?;
+    let demand = proposal
+        .entry_scalar_demand(retained.authorization())
+        .map_err(diagnostic_text)?;
+    complete_native_demand(retained.shared_artifact(), proposal, demand, accounting)
+}
+
+/// Evaluate a native scalar demand (such as an independent component's
+/// `ComponentNativeInputs::scalar_demand`) for `proposal`'s deployment.
+pub fn complete_native_demand(
+    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+    proposal: &products::TerminalNativeRealizationProposal,
+    demand: Option<Vec<semantic_vocabulary::ScalarApplicationId>>,
+    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+    let Some(demand) = demand else {
+        return Ok(None);
+    };
+    complete(
+        artifact,
+        proposal.target_profile().target_name(),
+        &demand,
+        proposal.target_provider_proposals(),
+        accounting,
+    )
+    .map(Some)
+}
+
+fn diagnostic_text(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
 
 pub fn complete<'scope>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,

@@ -300,15 +300,17 @@ impl Program<'_> {
     ) -> Checked<()> {
         self.prepare_envelope_policies()?;
         let declaration_policies = self.declaration_policies()?;
-        // An abstract requirement can defer its operational contract to a
-        // later application. The generic witness retains that open Signature;
-        // it cannot publish a complete callable envelope or supply descriptors.
-        if let Some(requirement) = self
-            .requirements
-            .iter()
-            .copied()
-            .find(|id| !matches!(self.callables.envelopes.get(*id), Some(Some(_))))
-        {
+        // Unknown bounds cannot be inferred from an unread requirement body.
+        // Keep them in the generic witness; complete retained bounds can seed
+        // the ordinary inference loop without reading that body.
+        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
+            !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+                && !self
+                    .declared_envelope_policies
+                    .get(*id)
+                    .and_then(Option::as_ref)
+                    .is_some_and(Policy::is_complete)
+        }) {
             if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
                 return Err(unavailable(
                     requirement,
@@ -803,6 +805,13 @@ pub(super) struct Policy {
     termination: TerminalCallableTermination,
 }
 impl Policy {
+    fn is_complete(&self) -> bool {
+        self.reach.is_some()
+            && self.invokes.is_some()
+            && self.suspends.is_some()
+            && self.blocks.is_some()
+    }
+
     fn initial(&self) -> SourceEnvelope {
         SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or_default(),
@@ -975,6 +984,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             }
         }
         E::SavedSubject(_)
+        | E::Zero
         | E::Float(_)
         | E::ScalarApplication { .. }
         | E::ByteLiteral(_)

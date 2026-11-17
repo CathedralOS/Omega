@@ -1,0 +1,14 @@
+data Cell { value: u32; }
+machine observe(view: &Cell) -> u32 { view.value }
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 7 };
+    let view: &Cell = &cell;
+    cell = Cell { value: 9 };
+    let seen: u32 = observe(view);
+    transition seen == 9 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() crashes Trap { crash Trap; }
+}

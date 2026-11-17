@@ -489,23 +489,53 @@ fn admit_permissions(
         declarations,
         checked,
     );
-    let evaluated_rows = if runtime_product
-        && permissions.is_none()
-        && checked.sources().package_identity().is_some()
-        && !checked.execution().plans().assumed_bindings().is_empty()
-    {
-        Some(
-            TerminalPermissionAcceptance::from_public_build(&input)
-                .map_err(CompilationProductError::TrustAdmission)?,
-        )
-    } else {
-        None
+    let permissions = match permissions {
+        Some(permissions) => permissions,
+        None => {
+            return refuse_unaccepted_assumed_bindings(
+                runtime_product,
+                checked.execution().plans().assumed_bindings().len(),
+            );
+        }
     };
-    let permissions = evaluated_rows.as_ref().or(permissions);
-    if let Some(permissions) = permissions {
-        permissions
-            .validate(&input)
-            .map_err(CompilationProductError::TrustAdmission)?;
+    permissions
+        .validate(&input)
+        .map_err(CompilationProductError::TrustAdmission)
+}
+
+/// Without a lock nobody has accepted anything, so a runtime product cannot
+/// use an assumed binding: root authorization in `Build` is not acceptance,
+/// and an absent lock supplies no accepted bindings (packages/acceptance.md,
+/// "Assumed binding contract acceptance"; packages/locks.md).
+fn refuse_unaccepted_assumed_bindings(
+    runtime_product: bool,
+    assumed_bindings: usize,
+) -> Result<(), CompilationProductError> {
+    if !runtime_product || assumed_bindings == 0 {
+        return Ok(());
     }
-    Ok(())
+    Err(CompilationProductError::TrustAdmission(vec![
+        Diagnostic::error(format!(
+            "{assumed_bindings} assumed binding contract(s) have no accepted Product risk row because no omega.lock exists; review and accept them with omega packages update"
+        )),
+    ]))
+}
+
+#[cfg(test)]
+mod lockless_assumed_binding_tests {
+    use super::{CompilationProductError, refuse_unaccepted_assumed_bindings};
+
+    #[test]
+    fn runtime_product_without_lock_refuses_assumed_bindings() {
+        let error = refuse_unaccepted_assumed_bindings(true, 1).unwrap_err();
+        let CompilationProductError::TrustAdmission(diagnostics) = error else {
+            panic!("expected a trust admission refusal");
+        };
+        assert!(diagnostics[0].message.contains("omega packages update"));
+    }
+
+    #[test]
+    fn runtime_product_without_lock_or_assumed_bindings_is_admitted() {
+        assert!(refuse_unaccepted_assumed_bindings(true, 0).is_ok());
+    }
 }

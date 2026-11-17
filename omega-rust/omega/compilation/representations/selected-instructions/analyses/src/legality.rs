@@ -1,11 +1,14 @@
 /*
   Staged allocation-legality custody entrances (`stage_optimized_allocation_legality`,
-  `StagedOptimizedAllocationLegality`,
+  `admit_optimized_allocation_legality`, `StagedOptimizedAllocationLegality`,
   `StagedOptimizedAllocationLegalityCustodyReceipt`).
 
-  Chains `StagedOptimizedLiveRanges` through explicit allocator-availability
-  policies (`FullEnvironment`, `FramelessLeaf`, and active-resident immediate
-  rematerialization policies) to produce sealed allocation-legality stages.
+  `stage_optimized_allocation_legality` chains `StagedOptimizedLiveRanges`
+  through one explicit `AllocatorAvailabilityRequirement` and computes the
+  legality analysis. `admit_optimized_allocation_legality` stages a legality a
+  rewrite already validated for the same program instead of computing it
+  again; it accepts the analysis only when its receipt names those exact live
+  ranges, register environment and allocator availability.
 */
 
 mod compute {
@@ -203,26 +206,67 @@ use selected_instructions::StagedOptimizedCustodyCore;
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
 
+/// Which physical register views a legality analysis lets allocation use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllocatorAvailabilityRequirement {
+    /// Every view the register environment marks allocatable.
+    AllEnvironmentAllocatableViews,
+    /// Only views whose units the target convention leaves caller-saved, so a
+    /// leaf needs no callee-saved preservation.
+    FramelessLeafCallerSavedViews,
+    /// The two fixed views the active-resident rematerialization rule reasons about.
+    ActiveResidentImmediateU64MultiUseRematerializationV1,
+}
+
+fn materialize_availability(
+    ranges: &StagedOptimizedLiveRanges,
+    requirement: AllocatorAvailabilityRequirement,
+) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
+    match requirement {
+        AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews => {
+            policies::all_environment_allocatable_views(ranges)
+        }
+        AllocatorAvailabilityRequirement::FramelessLeafCallerSavedViews => {
+            policies::frameless_leaf_caller_saved_views(ranges)
+        }
+        AllocatorAvailabilityRequirement::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
+            policies::active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+        }
+    }
+}
+
 pub fn stage_optimized_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
+    requirement: AllocatorAvailabilityRequirement,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let availability = policies::all_environment_allocatable_views(&ranges)?;
+    let availability = materialize_availability(&ranges, requirement)?;
     stage_optimized_allocation_legality_with_availability(ranges, availability)
 }
 
-pub fn stage_optimized_allocation_legality_for_frameless_leaf(
+/// Stage a legality analysis a rewrite already validated for `ranges`' program.
+/// Nothing is recomputed; the analysis must name these exact live ranges, this
+/// register environment and this allocator availability.
+pub fn admit_optimized_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
+    availability: ValidatedAllocatorAvailability,
+    legality: ValidatedAllocationLegality,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let availability = policies::frameless_leaf_caller_saved_views(&ranges)?;
-    stage_optimized_allocation_legality_with_availability(ranges, availability)
-}
-
-pub fn stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(
-    ranges: StagedOptimizedLiveRanges,
-) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let availability =
-        policies::active_resident_immediate_u64_multi_use_rematerialization_v1(&ranges)?;
-    stage_optimized_allocation_legality_with_availability(ranges, availability)
+    let receipt = legality.receipt();
+    if receipt.ranges() != ranges.ranges().receipt().identity()
+        || receipt.register_environment() != ranges.register_environment().identity()
+        || receipt.allocator_availability() != availability.receipt().identity()
+        || availability.receipt().register_environment() != ranges.register_environment().identity()
+    {
+        return Err(OptimizedAllocationLegalityCustodyError::AnalysisMismatch);
+    }
+    let custody =
+        custody::custody_receipt(ranges.custody(), availability.receipt().identity(), receipt);
+    Ok(StagedOptimizedAllocationLegality {
+        ranges,
+        availability,
+        legality,
+        custody,
+    })
 }
 
 pub(crate) fn stage_optimized_allocation_legality_with_availability(
@@ -242,8 +286,21 @@ pub struct StagedOptimizedAllocationLegality {
 
 impl StagedOptimizedAllocationLegality {
     staged_producer_accessors!(
-        ranges; ranges, liveness, selected, register_environment, selections, budget_per_pass
+        ranges; ranges, liveness, selected, record, register_environment, selections, budget_per_pass
     );
+
+    /// Keep this analysis for a rule that requires `requirement`, refusing
+    /// when the analysis was staged under different allocator availability.
+    pub(crate) fn require_availability(
+        self,
+        requirement: AllocatorAvailabilityRequirement,
+    ) -> Result<Self, OptimizedAllocationLegalityCustodyError> {
+        let required = materialize_availability(&self.ranges, requirement)?;
+        if required.receipt().identity() != self.availability.receipt().identity() {
+            return Err(OptimizedAllocationLegalityCustodyError::AvailabilityConflict);
+        }
+        Ok(self)
+    }
 
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         &self.legality
@@ -284,6 +341,10 @@ pub enum OptimizedAllocationLegalityCustodyError {
     Analysis(AllocationLegalityError),
     UnsupportedFramelessLeafConvention,
     MissingRequiredActiveResidentRematerializationView(&'static str),
+    /// An admitted analysis names other live ranges, registers or availability.
+    AnalysisMismatch,
+    /// A rule requires other allocator availability than the analysis it was handed.
+    AvailabilityConflict,
 }
 
 failed_display!(
