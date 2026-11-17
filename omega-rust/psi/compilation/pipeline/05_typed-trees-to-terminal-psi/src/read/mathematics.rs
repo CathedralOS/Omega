@@ -19,6 +19,34 @@ use super::{
 };
 use crate::{Unserved, refuse};
 
+/// Embedding reads an integer's value without invoking a carrier operator.
+/// Domain qualifications do not change that value. The term reader and checker
+/// still enforce formation of the operand before this total projection.
+pub(super) fn integer_embedding(
+    id: MachineId,
+    term: semantic_vocabulary::ScalarTerm,
+    value_type: crate::body::ValueType,
+) -> Checked<IntegerMathTerm> {
+    let unavailable = || {
+        refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("non-integer mathematical embedding"),
+        )
+    };
+    let crate::body::ValueType::Scalar(ScalarType::Integer(carrier), _) = value_type else {
+        return Err(unavailable());
+    };
+    if term.scalar_type() != ScalarType::Integer(carrier) {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("mathematical embedding changed its source carrier"),
+        ));
+    }
+    IntegerMathTerm::embed(term).ok_or_else(unavailable)
+}
+
 impl<'t> Program<'t> {
     fn mathematical_definition(
         &self,
@@ -181,7 +209,6 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in a mathematical predicate"),
             subject: None,
             formal_fields: true,
-            mathematical: scope.mathematical,
             logical: Some(actual_inputs.scope(id, address, &expanding)),
         };
         self.clause(id, &scope, expression)
@@ -245,7 +272,6 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in a mathematical predicate"),
             subject: None,
             formal_fields: true,
-            mathematical: super::contracts::MathematicalTerms::Served,
             logical: Some(formal_inputs.scope(id, address, &expanding)),
         };
         let formed = self.clause(id, &declaration_scope, expression)?;
@@ -385,14 +411,7 @@ impl<'t> Program<'t> {
                     return Err(unserved("integer embedding argument correspondence"));
                 };
                 let (term, carrier) = self.term(id, scope, *argument, None)?;
-                if !matches!(
-                    carrier,
-                    crate::body::ValueType::Scalar(ScalarType::Integer(_), _)
-                ) {
-                    return Err(unserved("non-integer mathematical embedding"));
-                }
-                IntegerMathTerm::embed(term)
-                    .ok_or_else(|| unserved("integer embedding without its carrier"))
+                integer_embedding(id, term, carrier)
             }
             ExpressionNode::Binary(binary) => {
                 // Only explicit mathematical arithmetic is total here. A
@@ -430,7 +449,7 @@ impl<'t> Program<'t> {
 mod address_context_tests {
     use super::*;
     use crate::body::ValueType;
-    use crate::read::{Slot, contracts::MathematicalTerms};
+    use crate::read::Slot;
     use numerics::literals::IntegerLiteral;
     use semantic_vocabulary::{ClosedIntegerType, IntegerSign, ScalarAddressModel, ValueId};
     use symbols::{
@@ -683,7 +702,6 @@ mod address_context_tests {
             result: ResultTerm::Absent("entry"),
             subject: None,
             formal_fields: true,
-            mathematical: MathematicalTerms::Served,
             logical: None,
         };
         let mut program = Program::new(&typed, false);
@@ -748,7 +766,6 @@ mod address_context_tests {
                 result: ResultTerm::Absent("entry"),
                 subject: None,
                 formal_fields: true,
-                mathematical: MathematicalTerms::Served,
                 logical: Some(inputs.scope(id, context, &[])),
             };
             let mut program = Program::new(&typed, false);
@@ -775,7 +792,6 @@ mod address_context_tests {
             result: ResultTerm::Absent("entry"),
             subject: None,
             formal_fields: true,
-            mathematical: MathematicalTerms::Served,
             logical: Some(inputs.scope(id, context, &[])),
         };
         let mut program = Program::new(&typed, false);

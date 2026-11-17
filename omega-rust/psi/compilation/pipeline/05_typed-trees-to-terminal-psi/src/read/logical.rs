@@ -503,7 +503,6 @@ impl LogicalScope<'_> {
             result: ResultTerm::Absent("result of a Unit logical callable"),
             subject: None,
             formal_fields: true,
-            mathematical: super::contracts::MathematicalTerms::Served,
             logical: Some(logical),
         };
         let mut requires = Vec::new();

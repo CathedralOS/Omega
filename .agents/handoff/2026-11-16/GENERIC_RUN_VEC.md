@@ -26,7 +26,7 @@ The fresh optimized CLI digest is `373c4fdf2cedc9799edc00d8b8e401a22029fe4caa28a
 
 The portable source-identity control compares the supplied digest with retained toolchain source and refuses source with neither package nor toolchain ownership. Fixed-view artifact version 116 distinguishes the three-way multiplicity layout from main’s version 115 copy-bit layout; both old-header refusal controls pass at their recorded source. No production changes to those mechanisms followed their passing checks.
 
-Only GitHub admission, squash merge and remote verification remain for this milestone. Full Run/Vec remains this session’s next work.
+Admission passed at `66c8b29d8c6`, but main changed during that check and GitHub then reported a merge conflict. The next integration takes `29b2a6588ff`: main independently generalized mathematical domains and data predicates and removed the old feature flag; its implementation replaces this branch’s duplicate domain helper. Both domain test groups remain. Main’s private-field inference change also joins this tree. The ownership, interpreter and native changes are untouched. The focused domain/contract controls and the two affected crates’ lint must pass on this integration. The recorded runtime observations remain at `99ed232d072`; rerun the original on landed source after merge. Full Run/Vec remains this session’s next work.
 
 ## Retained evidence
 

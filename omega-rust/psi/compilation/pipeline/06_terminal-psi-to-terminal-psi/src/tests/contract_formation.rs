@@ -620,3 +620,110 @@ machine build_entry() {}
         "{violations:?}",
     );
 }
+
+#[test]
+fn mathematical_domains_retain_scalar_record_and_nested_field_subjects() {
+    const SOURCE: &str = r#"
+data Reading [copy] requires embed(value) <= 8 { value: u32; }
+domain Reading::Small requires embed(self.value) <= 4;
+domain u32::Small requires embed(self) <= 4;
+data Envelope { reading: Reading in Small; scalar: u32 in Small; neighbor: u32; }
+machine observe(value: &Envelope)
+requires embed(value.reading.value) <= 4, embed(value.scalar) <= 4, embed(value.neighbor) == 7
+{ }
+machine build_entry() {
+    let reading: Reading = Reading { value: 3 };
+    let checked: Reading in Small = reading as +Small;
+    let scalar: u32 in Small = 4 as +Small;
+    let value: Envelope = Envelope { reading: checked, scalar: scalar, neighbor: 7 };
+    observe(&value);
+}
+"#;
+    let accepted = accepted_source(SOURCE);
+    let module = &accepted.elaboration.module;
+    let [record_domain] = module.structural_domains.as_slice() else {
+        panic!("the exact named record domain must remain in the catalog");
+    };
+    let predicate = record_domain.predicate.as_ref().unwrap();
+    let reading = module
+        .structural_types
+        .iter()
+        .find(|row| row.id == record_domain.carrier)
+        .unwrap();
+    let [field] = reading.shape.record_fields().unwrap() else {
+        panic!("Reading has one exact declared field");
+    };
+    let embedded_field = |root| {
+        semantic_vocabulary::IntegerMathTerm::embed(ScalarTerm::integer_field_path(
+            root,
+            vec![CanonicalStructuralPathSegment::Field(field.id)],
+            integer_type(IntegerSign::Unsigned),
+        ))
+        .unwrap()
+    };
+    let limit =
+        |value| semantic_vocabulary::IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+    assert_eq!(
+        predicate.proposition,
+        Proposition::IntegerMathLessOrEqual(embedded_field(predicate.subject), limit(4)),
+    );
+    assert_eq!(
+        reading.requires,
+        [Proposition::IntegerMathLessOrEqual(
+            embedded_field(id(1)),
+            limit(8)
+        )],
+    );
+    let [scalar_domain] = module.scalar_qualifications.domains.as_slice() else {
+        panic!("the exact named scalar domain must remain in the catalog");
+    };
+    let predicate = scalar_domain.predicate.as_ref().unwrap();
+    assert_eq!(
+        predicate.proposition,
+        Proposition::IntegerMathLessOrEqual(
+            semantic_vocabulary::IntegerMathTerm::embed(ScalarTerm::Value {
+                id: predicate.subject,
+                scalar_type: scalar_domain.carrier,
+            })
+            .unwrap(),
+            limit(4),
+        ),
+    );
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit,
+        ),
+    );
+    // Each changes one value so an establishment or call requirement fails.
+    // Missing predicates, wrong field substitution and ignored casts remain observable.
+    rejected_source(&SOURCE.replace(
+        "let scalar: u32 in Small = 4",
+        "let scalar: u32 in Small = 5",
+    ));
+    rejected_source(&SOURCE.replace("Reading { value: 3 }", "Reading { value: 5 }"));
+    rejected_source(&SOURCE.replace("neighbor: 7 }", "neighbor: 6 }"));
+}
+
+#[test]
+fn mathematical_domain_and_data_predicates_form_their_embedded_partial_operands() {
+    const SCALAR: &str = r#"
+domain u32::Nonzero requires self >= 1, embed(self - 1) <= 4294967295;
+machine build_entry() { let value: u32 in Nonzero = 7 as +Nonzero; }
+"#;
+    const RECORD: &str = r#"
+data Count [copy] requires value >= 1, embed(value - 1) <= 4294967295 { value: u32; }
+machine build_entry() { let value: Count = Count { value: 7 }; }
+"#;
+    executed_source(SCALAR);
+    executed_source(RECORD);
+    // The actual value 7 and the outer unbounded arithmetic cannot justify
+    // partial subtraction for an arbitrary declaration input.
+    rejected_source(&SCALAR.replace("self >= 1, ", ""));
+    rejected_source(&RECORD.replace("value >= 1, ", ""));
+}
