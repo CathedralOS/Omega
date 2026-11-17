@@ -43,6 +43,7 @@
   root.classList.add('connected-enhanced');
   svg.setAttribute('role','group');
   root.querySelector('.connected-tools').hidden=false;
+  root.querySelector('.camera-tools').hidden=false;
   root.querySelector('.connected-views').hidden=false;
   root.querySelector('.connected-minimap').hidden=false;
   svg.removeAttribute('viewBox');

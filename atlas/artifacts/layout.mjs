@@ -13,6 +13,13 @@ function stack(first,last,x){
     const n=nodes.get(id);
     const height=n.role==='transform'?24:n.role==='owner'?34:23;
     place(id,x,y,height);
+    // A form is the value passed between operations. Size it to its name;
+    // the existing port calculation then lands every arrow on its new edge.
+    if(n.role==='artifact'){
+      const label=id==='optimized-abstract'?'Optimized abstract ops':n.title;
+      n.width=Math.min(width-12,Math.max(76,28+label.length*7.5));
+      n.x=x+(width-n.width)/2;
+    }
     y+=height+10;
   }
 }
@@ -78,7 +85,7 @@ connect('objects','callbacks','l','r',0,0);
 connect('callbacks','compose','b','l',0,0,(a,b)=>[{x:a.x,y:b.y}],{text:'private objects',x:1219,y:yOf('compose')+4});
 connect('selected','admit','t','b',0,0,null,{text:'runtime inputs',x:682,y:(yOf('admit')+yOf('selected'))/2+18});
 connect('admit','runtime-host','r','r',0,0,viaX(790));
-connect('build','closure','r','l',0,-10,viaX(253),{text:'Build choices',x:259,y:455});
+connect('build','closure','r','l',0,-10,viaX(253),{text:'Build choices',x:270,y:455});
 connect('accepted','runtime-host','b','b',0,-84,(a,b)=>[
   {x:a.x,y:a.y+26},{x:551,y:a.y+26},{x:551,y:b.y+44},{x:b.x,y:b.y+44}],
   {text:'publication identity',x:482,y:yOf('accepted')+47});
@@ -93,7 +100,7 @@ const edges=model.edges.map(e=>{
   const a=nodes.get(e.start),b=nodes.get(e.end);
   let points=routes.get(key);
   if(!points){
-    if(!e.main||a.x!==b.x||a.y>=b.y)throw Error('Missing handoff layout: '+key);
+    if(!e.main||a.x+a.width/2!==b.x+b.width/2||a.y>=b.y)throw Error('Missing handoff layout: '+key);
     points=[port(a,'b'),port(b,'t')];
   }
   const label=captions.get(key);
@@ -106,4 +113,13 @@ const groups=[
   ['native','Native code · 00–07',838,202],
   ['encoding','Layout & publication',1282,202],
 ].map(([id,title,x,w])=>({id,title,x:x-8,y:12,width:w+16,height:bottom-38,caption:{x,y:37,lines:[title]}}));
-process.stdout.write(JSON.stringify({width:1508,height:bottom,nodes:[...nodes.values()],edges,groups,startLabel:{x:22,y:44}}));
+// Leave the type at its natural size. Compress only the vertical geometry so
+// the four groups can fill a laptop canvas without shrinking their labels.
+const pitch=.88;
+for(const n of nodes.values()){n.y*=pitch;n.height*=pitch;}
+for(const e of edges){
+  for(const section of e.sections)for(const point of section.points)point.y*=pitch;
+  for(const label of e.labels)label.y*=pitch;
+}
+for(const group of groups){group.y*=pitch;group.height*=pitch;group.caption.y=group.y+23;}
+process.stdout.write(JSON.stringify({width:1508,height:bottom*pitch,nodes:[...nodes.values()],edges,groups,startLabel:{x:22,y:34}}));
