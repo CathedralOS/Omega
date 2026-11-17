@@ -393,7 +393,7 @@ machine build_entry(owner: &mut Item, replacement: Item) {
     };
     assert_eq!(
         violation.statement,
-        "whole-value replacement requires discardable incoming custody without conserved claims"
+        "whole-value replacement cannot implicitly discard a linear value"
     );
     let start = source.find("owner = replacement;").unwrap();
     assert_eq!(

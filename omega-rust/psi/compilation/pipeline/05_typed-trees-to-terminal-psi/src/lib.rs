@@ -1914,14 +1914,24 @@ fn finish_storage(
                 source_span: None,
                 detail: format!("replacement input {place:?} has no unique source declaration"),
             },
-            terminal_semantics::StructuralStoreValueError::CannotDiscard(operation) => Refusal {
-                reason: RefusalReason::Violation,
-                machine: machine.id,
-                concerns: Construct::Operation(operation),
-                source_span: sources.get(machine.id)
-                    .and_then(|source| source.operations.get(operation))
-                    .and_then(|origin| origin.span()),
-                detail: "whole-value replacement requires discardable incoming custody without conserved claims".into(),
+            terminal_semantics::StructuralStoreValueError::CannotDiscard {
+                operation,
+                multiplicity,
+            } => {
+                let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
+                Refusal {
+                    reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
+                    machine: machine.id,
+                    concerns: Construct::Operation(operation),
+                    source_span: sources.get(machine.id)
+                        .and_then(|source| source.operations.get(operation))
+                        .and_then(|origin| origin.span()),
+                    detail: if linear {
+                        "whole-value replacement cannot implicitly discard a linear value"
+                    } else {
+                        "replacement input does not have the checked discardability required by this store"
+                    }.into(),
+                }
             },
         })?;
         let machine = &mut module.machines[ordinal];

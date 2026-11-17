@@ -6646,7 +6646,10 @@ pub(crate) mod structural_store {
                 multiplicity,
                 entry_claims || result_claims,
             ) {
-                return Err(StructuralStoreValueError::CannotDiscard(operation));
+                return Err(StructuralStoreValueError::CannotDiscard {
+                    operation,
+                    multiplicity,
+                });
             }
         }
         Ok(())
@@ -6655,7 +6658,10 @@ pub(crate) mod structural_store {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum StructuralStoreValueError {
         SourceDeclaration(PlaceId),
-        CannotDiscard(OperationId),
+        CannotDiscard {
+            operation: OperationId,
+            multiplicity: StructuralMultiplicity,
+        },
     }
 
     pub fn discardable_store_value<'types>(
