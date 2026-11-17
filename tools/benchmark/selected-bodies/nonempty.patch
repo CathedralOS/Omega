@@ -2,7 +2,7 @@
 +++ b/omega-rust/psi/compilation/source-compiler/Cargo.toml
 @@ -37,4 +37,5 @@
  flow-effects = { path = "../../foundation/flow-effects" }
- 
+
  [dev-dependencies]
 +selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
  layout-plans = { path = "../../foundation/layout-plans" }

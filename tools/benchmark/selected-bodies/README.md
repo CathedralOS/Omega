@@ -150,8 +150,8 @@ Neither patch belongs in the ordinary compiler configuration.
 
 | Artifact | SHA256 |
 | --- | --- |
-| `side_records.patch` | `d764a276a05bf70ceda26bb9e0743dbac71e0926e0823ee8ceca27edb1f7bd56` |
-| `nonempty.patch` | `6f3a74a29a4fb4300709370607c9edf0ff890cf12c0fef2f87655590408d5d0c` |
+| `side_records.patch` | `7a22b37be34f8a814724781e31efb0252a16e7155c2abc8ae6ac48efe304ff6e` |
+| `nonempty.patch` | `425702a8f07d718ad0669e1d609c196cda1011c168861b2cd605f4953cac3f53` |
 | Common `nonempty.rs` | `317a36f43ef327193a086eccb37dd84eaf01125212acd4d86e9d6ee19a28b170` |
 
 For the Build routes, freeze byte copies of both fixtures in the measurement

@@ -271,6 +271,67 @@ impl<'a, T> IntoIterator for &'a RetainedRows<T> {
     }
 }
 
+impl<T: compiler_storage::Record> compiler_storage::Record for RetainedRows<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        // This is the previous Vec<T> encoding, not the internal optional rows
+        // or logical handles. Neither is another semantic authority on ingress.
+        output.record(|output| {
+            output.sequence(self.len())?;
+            for value in self {
+                value.write(output)?;
+            }
+            Ok(())
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            // Decode straight into the adopted batch. Charging Option<T> here
+            // covers its real allocation without a transient old Vec<T>.
+            let length = input.sequence::<Option<T>>()?;
+            if length > u32::MAX as usize {
+                return Err(input.error("retained row count exceeds slot identity"));
+            }
+            std::alloc::Layout::array::<Option<T>>(length)
+                .map_err(|_| input.error("retained row payload layout overflow"))?;
+            std::alloc::Layout::array::<Row<T>>(length)
+                .map_err(|_| input.error("retained row roster layout overflow"))?;
+            let metadata = RootedArena::<Option<T>>::decoded_record_metadata_bytes(length)
+                .and_then(|bytes| {
+                    length
+                        .checked_mul(std::mem::size_of::<Row<T>>())
+                        .and_then(|roster| bytes.checked_add(roster))
+                })
+                .and_then(|bytes| {
+                    compiler_storage::shared_allocation_bytes(
+                        std::alloc::Layout::new::<Vec<Row<T>>>(),
+                    )
+                    .and_then(|roster| bytes.checked_add(roster))
+                })
+                .ok_or_else(|| input.error("retained row metadata allocation overflow"))?;
+            input.allocate(metadata)?;
+            let mut values = Vec::with_capacity(length);
+            for _ in 0..length {
+                values.push(Some(T::read(input)?));
+            }
+            let records = Arena::from_storage(None, values, None, 1, true)
+                .map_err(|reason| input.error(reason))?
+                .into();
+            let order = (0..length)
+                .map(|position| Row::from_parts((position + 1) as u32, 1))
+                .collect();
+            Ok(Self {
+                records,
+                order: Arc::new(order),
+            })
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,66 +453,5 @@ mod tests {
         assert!(predecessor.records.is_valid(stale));
         Arc::make_mut(&mut rows.order)[0] = retired;
         let _ = &rows[0];
-    }
-}
-
-impl<T: compiler_storage::Record> compiler_storage::Record for RetainedRows<T> {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        // This is the previous Vec<T> encoding, not the internal optional rows
-        // or logical handles. Neither is another semantic authority on ingress.
-        output.record(|output| {
-            output.sequence(self.len())?;
-            for value in self {
-                value.write(output)?;
-            }
-            Ok(())
-        })
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        input.record(|input| {
-            // Decode straight into the adopted batch. Charging Option<T> here
-            // covers its real allocation without a transient old Vec<T>.
-            let length = input.sequence::<Option<T>>()?;
-            if length > u32::MAX as usize {
-                return Err(input.error("retained row count exceeds slot identity"));
-            }
-            std::alloc::Layout::array::<Option<T>>(length)
-                .map_err(|_| input.error("retained row payload layout overflow"))?;
-            std::alloc::Layout::array::<Row<T>>(length)
-                .map_err(|_| input.error("retained row roster layout overflow"))?;
-            let metadata = RootedArena::<Option<T>>::decoded_record_metadata_bytes(length)
-                .and_then(|bytes| {
-                    length
-                        .checked_mul(std::mem::size_of::<Row<T>>())
-                        .and_then(|roster| bytes.checked_add(roster))
-                })
-                .and_then(|bytes| {
-                    compiler_storage::shared_allocation_bytes(
-                        std::alloc::Layout::new::<Vec<Row<T>>>(),
-                    )
-                    .and_then(|roster| bytes.checked_add(roster))
-                })
-                .ok_or_else(|| input.error("retained row metadata allocation overflow"))?;
-            input.allocate(metadata)?;
-            let mut values = Vec::with_capacity(length);
-            for _ in 0..length {
-                values.push(Some(T::read(input)?));
-            }
-            let records = Arena::from_storage(None, values, None, 1, true)
-                .map_err(|reason| input.error(reason))?
-                .into();
-            let order = (0..length)
-                .map(|position| Row::from_parts((position + 1) as u32, 1))
-                .collect();
-            Ok(Self {
-                records,
-                order: Arc::new(order),
-            })
-        })
     }
 }

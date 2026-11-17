@@ -2,7 +2,7 @@
 +++ b/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
 @@ -9,6 +9,7 @@
  path = "src/lib.rs"
- 
+
  [dependencies]
 +selected-body-allocation-trace = { path = "../../../../../tools/benchmark/selected-bodies/allocation-trace" }
  compiler-storage = { path = "../../../foundation/compiler-storage" }
@@ -12,7 +12,7 @@
 +++ b/omega-rust/psi/compilation/source-compiler/Cargo.toml
 @@ -10,6 +10,7 @@
  harness = false
- 
+
  [dependencies]
 +selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
  compiler-storage = { path = "../../foundation/compiler-storage" }
@@ -22,7 +22,7 @@
 +++ b/omega-rust/omega/compilation/compiler/Cargo.toml
 @@ -58,6 +58,7 @@
  optimization-core = { path = "../../foundation/optimization-core" }
- 
+
  [dev-dependencies]
 +selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
  syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
@@ -33,7 +33,7 @@
 @@ -1343,6 +1343,21 @@
      pub type_identities: crate::type_identity::TypeIdentityTable,
  }
- 
+
 +fn profile_clone_payload<T>(field: &'static str, clone: impl FnOnce() -> T) -> T {
 +    // The table directory's children have their own disjoint windows. Do not
 +    // count the enclosing directory again or include logging in a window.
@@ -77,13 +77,13 @@
 @@ -1463,5 +1484,5 @@
      pub source_span: source::SourceSpan,
  }
- 
+
 -#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 +#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
  pub struct TypedTreeTables {
 @@ -1528,5 +1549,64 @@
  }
- 
+
 +impl Clone for TypedTreeTables {
 +    fn clone(&self) -> Self {
 +        Self {
