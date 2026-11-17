@@ -1283,19 +1283,6 @@ pub(super) enum Step {
     },
 }
 
-impl Step {
-    /// The type of the value this step goes into: the record, sum, array or
-    /// reference that holds what the step reaches.
-    pub(super) fn owner(&self) -> StructuralTypeId {
-        match self {
-            Self::Field { owner, .. }
-            | Self::Payload { owner, .. }
-            | Self::Index { owner, .. }
-            | Self::Referent { owner } => *owner,
-        }
-    }
-}
-
 /// One dispatch arm the open block lies in. For a case arm: the sum place
 /// the dispatch selected on, the case, and for each payload field in
 /// declaration order the block parameter it arrived as, `None` for a data

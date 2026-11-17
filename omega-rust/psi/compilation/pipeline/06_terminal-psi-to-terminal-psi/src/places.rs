@@ -219,6 +219,20 @@ fn is_stored_view(field_type: &StructuralFieldType) -> bool {
     }
 }
 
+// A shared view is one established descriptor. Its backing is supplied by
+// construction or borrowing; checking a whole value does not project elements
+// or invent a fixed extent. Mutable views still need their separate custody.
+fn is_shared_view(shape: &StructuralTypeShape) -> bool {
+    shape.is_shared_readable_byte_view()
+        || matches!(
+            shape,
+            StructuralTypeShape::ElementView {
+                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                ..
+            }
+        )
+}
+
 fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
