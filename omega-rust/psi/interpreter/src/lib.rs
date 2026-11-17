@@ -84,7 +84,7 @@ pub use boundary::effects::original_storage::{
 };
 pub use boundary::effects::results::{
     TerminalByteSequenceValue, TerminalEffectResult, TerminalReferencePayload,
-    TerminalReferenceResult,
+    TerminalReferenceResult, TerminalReferenceScalarBacking,
 };
 pub use boundary::effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use boundary::effects::storage_inputs::{
@@ -167,3 +167,6 @@ impl TerminalExecution<'_> {
         )
     }
 }
+
+#[cfg(test)]
+mod reference_completion_tests;
