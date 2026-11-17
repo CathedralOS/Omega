@@ -556,7 +556,7 @@ impl<'t> Program<'t> {
                     )
                     && ((self.is_plain_readable_bytes(id, left.result)?
                         && self.is_plain_readable_bytes(id, right.result)?)
-                        || self.intrinsic_enum_equality(id, handle, &left, &right, source)?)
+                        || self.intrinsic_enum_equality(id, &left, &right, source)?)
                 {
                     let boolean = Some(ValueType::plain(ScalarType::Boolean));
                     let equal = Expression {
@@ -743,7 +743,6 @@ impl<'t> Program<'t> {
     fn intrinsic_enum_equality(
         &self,
         id: MachineId,
-        handle: ExpressionHandle,
         left: &Expression,
         right: &Expression,
         source: SourceOrigin,
@@ -770,58 +769,6 @@ impl<'t> Program<'t> {
         }
         self.require_intrinsic_tag_equality(id, left_record)?;
         self.require_intrinsic_tag_equality(id, right_record)?;
-        // Generated comparisons can reach this reader before earlier typing
-        // could select an operator. Shape alone cannot choose the intrinsic:
-        // consult the ordinary source selection with both exact applications.
-        let operands = [left.result, right.result]
-            .map(|value| value.and_then(|value| self.operator_operand_reference(value)));
-        let owner = self.symbols.get(id).copied().unwrap_or_default();
-        if operands.iter().any(Option::is_none)
-            || !owner.is_valid()
-            || !self.typed.symbols.symbols().nodes().is_valid(owner)
-        {
-            return Err(crate::reject(
-                id,
-                source,
-                "enum equality has no exact source operand and owner identities",
-            ));
-        }
-        let ExpressionNode::Binary(binary) = self.node(id, handle)? else {
-            return Err(crate::reject(
-                id,
-                source,
-                "enum equality has no binary source",
-            ));
-        };
-        let operators = match binary.operator {
-            BinaryOperator::Equal => &[BinaryOperator::Equal][..],
-            BinaryOperator::NotEqual => &[BinaryOperator::NotEqual, BinaryOperator::Equal][..],
-            _ => {
-                return Err(crate::reject(
-                    id,
-                    source,
-                    "enum equality has another source operator",
-                ));
-            }
-        };
-        for operator in operators {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(*operator) else {
-                return Err(crate::reject(
-                    id,
-                    source,
-                    "enum equality has no operator spelling",
-                ));
-            };
-            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                self.typed, owner, handle, spelling, &operands,
-            ) {
-                return Err(crate::reject(
-                    id,
-                    source,
-                    "enum equality requires its selected operator call",
-                ));
-            }
-        }
         Ok(true)
     }
 

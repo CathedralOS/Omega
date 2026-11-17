@@ -36,13 +36,14 @@ machine main() crashes Trap {
     let computed: bool = (match true { true -> ready, false -> waiting }) == ready;
     let message: Message = Message::Number { value: 17 };
     let selected: bool = message == message;
+    let selected_different: bool = message != message;
     let key: Key = Key::A;
     let operator_selected: bool = key == key;
     transition same(ready, ready) && same(waiting, waiting)
         && different(ready, waiting) && different(waiting, Signal::Done)
         && borrowed(&ready, &ready) && computed && snapshot == false && ordered
         && context.signal == Signal::Done && context.calls == 3u32
-        && selected == false && operator_selected == false {
+        && selected == false && selected_different && operator_selected == false {
         true -> done()
         false -> bad()
     }

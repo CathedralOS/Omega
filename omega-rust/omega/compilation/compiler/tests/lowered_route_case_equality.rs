@@ -163,7 +163,6 @@ fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
 #[test]
 fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
     use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
-    use typed_trees::statement::StatementNode;
 
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
@@ -179,54 +178,46 @@ fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
     ));
     let mut typed = frontier.typed.clone().into_inner();
     let target = unbuilt_frontier::program_machine(&typed, "key_equal").unwrap();
-    let (handle, call) = typed
+    let calls = typed
         .expression_table
         .iter_expressions()
-        .find_map(|(handle, node)| match node {
+        .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) if call.target_symbol == target => {
                 Some((handle, call.clone()))
             }
             _ => None,
         })
-        .expect("the authored operator must first become its selected call");
-    let [left, right] = *typed.expression_table.expression_handles(call.arguments) else {
-        panic!("equality has exactly two arguments");
-    };
-    let span = typed.expression_table.source_span(handle);
-    // Model a broken producer that drops both the selected call and its
-    // occurrence attachment while retaining the same operand identities.
-    let bare = typed
-        .expression_table
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left,
-            right,
-            operator: BinaryOperator::Equal,
-            policy: numerics::arithmetic::ArithmeticDomain::Exact,
-        }));
-    typed.expression_table.set_source_span(bare, span);
-    assert_eq!(
-        typed
-            .expression_table
-            .authored_selection_occurrences(bare)
-            .len(),
-        0
+        .collect::<Vec<_>>();
+    assert!(
+        !calls.is_empty(),
+        "the authored operator must become its selected call"
     );
-    let same = unbuilt_frontier::program_machine(&typed, "same").unwrap();
-    let body = typed.machine_states(typed.machine_by_symbol(same).unwrap())[0].statement_nodes;
-    let statement = typed
-        .statement_table
-        .iter_statements(body)
-        .find_map(|(statement, node)| {
-            matches!(node, StatementNode::Expression(value) if *value == handle)
-                .then_some(statement)
-        })
-        .expect("the comparison is the machine's result expression");
-    *typed.statement_table.statement_mut(statement) = StatementNode::Expression(bare);
+    // A broken producer cannot replace a selected call by a primitive while
+    // retaining the source occurrence that selected the user declaration.
+    for (handle, call) in calls {
+        let [left, right] = *typed.expression_table.expression_handles(call.arguments) else {
+            panic!("equality has exactly two arguments");
+        };
+        assert!(
+            typed
+                .expression_table
+                .authored_selection_occurrences(handle)
+                .len()
+                > 0
+        );
+        *typed.expression_table.expression_mut(handle) =
+            ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                right,
+                operator: BinaryOperator::Equal,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            });
+    }
     frontier.typed = typed.into();
     let found = frontier_verdict("lost_selected_enum_comparison", &frontier);
     assert!(!matches!(found, RouteVerdict::Accepted(_)), "{found:?}");
     assert!(
-        format!("{found:?}").contains("selected operator call"),
+        format!("{found:?}").contains("conflicts with its authored selection"),
         "{found:?}"
     );
 }
