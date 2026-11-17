@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How the Rust reference compiler, Omega source, bootstrap, tools, and library fit together.">
+  <title>Codebase map</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+</style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 1 of 13</div>
+      <h1>Codebase map</h1>
+      <p class="lede">How the Rust reference compiler, Omega source, bootstrap, tools, and library fit together.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/subsystems/repository.md">Page source</a></span></div>
+<div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div>
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+    </header>
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html" aria-current="page"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Pipeline diagrams</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">11</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">12</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">13</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#owners-and-boundaries">Owners and boundaries</a></li>
+<li><a href="#one-concrete-route-materializing-the-omega-compilers-source">One concrete route: materializing the Omega compiler's source</a></li>
+<li><a href="#what-the-full-atlas-should-preserve">What the full atlas should preserve</a></li>
+</ul>
+</div>
+</details><p>The full codebase contains a Rust reference producer, a compiler being written
+in Omega, libraries used by programs, and several ways to construct that compiler
+from a small seed. A Rust crate graph covers the first implementation; it cannot
+stand in for the whole repository. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/AGENTS.md#L11-L19">AGENTS.md</a> names these owners explicitly.</p>
+<p>This map reads source at <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>.
+Links below pin that revision. <em>Current</em> means present in the source;
+runtime success is <span class="flag warn">unverified</span> unless an observation is identified explicitly.
+The grouping and proposed atlas coverage are <span class="flag">judgment</span>.</p>
+<h2 id="owners-and-boundaries">Owners and boundaries</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Owner</th>
+<th>Entrance and result</th>
+<th>Authority and status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rust reference producer, <code>omega-rust/</code></td>
+<td>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95"><code>omega</code> application</a> routes compilation, execution, inspection and package commands. See <a href="psi.html">Psi</a>, <a href="omega.html">Omega</a>, <a href="cli.html">CLI</a>, <a href="interpreter.html">interpreter</a>, and <a href="build-and-packages.html">Build/packages</a>.</td>
+<td>Maintained reference producer and differential comparator. Its output is implementation evidence; the specification owns required language behavior. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/AGENTS.md#L11-L19">Repository roles</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/wiki/README.md#L3-L24">specification status</a>.</td>
+</tr>
+<tr>
+<td>Omega-written product, <code>source/psi/</code> and <code>source/omega/</code></td>
+<td>Psi owns target-neutral source processing. Omega's construction application calls a shared compilation library and currently emits Alpha tapes for its supported subset.</td>
+<td>One product split by responsibility, outside the bootstrap variants. Self-compilation is unfinished; its source exceeds its own supported backend. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/psi/README.md#L3-L19">Psi status</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/README.md#L47-L53">Omega status</a>.</td>
+</tr>
+<tr>
+<td>Bundled library, <code>source/library/</code></td>
+<td>Core declarations, ordinary package dependencies, checked helpers, target providers and sealed compiler operations. See <a href="library.html">library</a>.</td>
+<td>Inclusion in this tree does not admit a package or prove support on a target. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/README.md#L3-L25">Library contract</a>.</td>
+</tr>
+<tr>
+<td>Bootstrap construction, <code>bootstrap/</code></td>
+<td>Peer interpreted, compiled-VM and independent native paths construct successors from declared seeds. See <a href="bootstrap.html">bootstrap</a>.</td>
+<td>Governed by <code>MINIMIZATION.md</code>; no peer is selected. A completed path must construct the actual Omega compiler and reproduce its self-rebuild. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/bootstrap/MINIMIZATION.md#L18-L38">Architecture mandate</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/bootstrap/MINIMIZATION.md#L106-L117">completion rule</a>.</td>
+</tr>
+<tr>
+<td>Tests, <code>tests/</code> and crate-local tests</td>
+<td>An owning test selects a program, observes its specified result, or requires the intended refusal.</td>
+<td><code>tests/fixtures/</code> supplies Rust-owned programs; <code>tests/psi/</code> and <code>tests/product/</code> exercise Omega-written source. <code>tests/omega/</code> and its corpus runner are retired. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tests/README.md#L3-L31">Test ownership</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tests/README.md#L46-L56">retirement</a>.</td>
+</tr>
+<tr>
+<td>Samples, <code>samples/</code></td>
+<td>Miniature projects with Build entries and authored output/exit expectations enter <code>sample-gate</code>.</td>
+<td>Discovery roles control test selection, not package trust. A library-only sample is exercised through a consumer. A directory is not automatically one executable. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/samples/README.md#L3-L10">Sample rules</a>.</td>
+</tr>
+<tr>
+<td>Documentation, <code>wiki/</code>, root guidance and <code>atlas/</code></td>
+<td>Specification, guide, proposals, drafts, operating instructions and planning pages.</td>
+<td><code>wiki/spec/</code> states current contracts; proposals are not current rules. Atlas is a planning workspace, not a compiler input. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/wiki/README.md#L3-L24">Documentation roles</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/atlas/README.md#L3-L10">Atlas rules</a>.</td>
+</tr>
+<tr>
+<td>Product tools and repository tools</td>
+<td>Inspection/package commands ship in <code>omega</code>; <code>tools/xtask</code>, CI, benchmarking, bootstrap helpers and agent coordination maintain or assess the repository. See <a href="tools.html">tools</a>.</td>
+<td>A diagnostic, benchmark, source packer or claim has its own limited authority; none substitutes for language checking. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95">Product dispatch</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/README.md#L18-L30">repository tools</a>.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="one-concrete-route-materializing-the-omega-compilers-source">One concrete route: materializing the Omega compiler's source</h2>
+<p><code>source/omega/construct.py</code> is a useful entrance because it names exactly what
+the Omega-written compiler must eventually compile. Its package list contains
+the construction application, compilation library, Psi, std and core. Its
+dependency edges and toolchain roles are explicit invocation inputs. It records
+Build files but <strong>does not execute them</strong>. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/construct.py#L17-L30">Inputs</a>.</p>
+<p>The current mechanism is:</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild."><svg viewBox="0.00 0.00 1855.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild." style="min-width:1855px">
+<title>Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.</title><defs><marker id="repository-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="repository-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="repository-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="repository-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
+<title>atlas</title>
+
+<g id="repository-diagram-1-node1" class="node around">
+<title>A</title>
+<polygon points="165,-50 0,-50 0,0 165,0 165,-50" />
+<text text-anchor="middle" x="82.5" y="-28.6">Explicit package roots</text>
+<text text-anchor="middle" x="82.5" y="-14.6">and edges</text>
+</g>
+
+<g id="repository-diagram-1-node2" class="node around">
+<title>B</title>
+<polygon points="515,-50 331,-50 331,0 515,0 515,-50" />
+<text text-anchor="middle" x="423" y="-28.6">construct.py copies exact</text>
+<text text-anchor="middle" x="423" y="-14.6">source bytes</text>
+</g>
+
+<g id="repository-diagram-1-edge1" class="edge handoff">
+<title>A-&gt;B</title>
+<path d="M165.01,-25C214.99,-25 279.09,-25 330.76,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="248" y="-28.4">select source roots</text>
+</g>
+
+<g id="repository-diagram-1-node3" class="node psi">
+<title>C</title>
+<polygon points="834,-50 667,-50 667,0 834,0 834,-50" />
+<text text-anchor="middle" x="750.5" y="-28.6">Closed source set and</text>
+<text text-anchor="middle" x="750.5" y="-14.6">manifest</text>
+</g>
+
+<g id="repository-diagram-1-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M515.1,-25C562.69,-25 620.48,-25 666.77,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="591" y="-28.4">copy exact bytes</text>
+</g>
+
+<g id="repository-diagram-1-node4" class="node native">
+<title>D</title>
+<polygon points="1162,-50 1003,-50 1003,0 1162,0 1162,-50" />
+<text text-anchor="middle" x="1082.5" y="-28.6">Supplied constructor</text>
+<text text-anchor="middle" x="1082.5" y="-14.6">executable</text>
+</g>
+
+<g id="repository-diagram-1-edge3" class="edge handoff">
+<title>C-&gt;D</title>
+<path d="M834.35,-25C885.99,-25 952.05,-25 1002.88,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="918.5" y="-28.4">supply closed input</text>
+</g>
+
+<g id="repository-diagram-1-node5" class="node native">
+<title>E</title>
+<polygon points="1503,-50 1329,-50 1329,0 1503,0 1503,-50" />
+<text text-anchor="middle" x="1416" y="-28.6">Compilation status and</text>
+<text text-anchor="middle" x="1416" y="-14.6">Alpha output</text>
+</g>
+
+<g id="repository-diagram-1-edge4" class="edge handoff">
+<title>D-&gt;E</title>
+<path d="M1162.06,-25C1212.22,-25 1277.28,-25 1328.86,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1245.5" y="-41.4">compile supported</text>
+<text text-anchor="middle" x="1245.5" y="-28.4">subset</text>
+</g>
+
+<g id="repository-diagram-1-node6" class="node around">
+<title>F</title>
+<polygon points="1838,-50 1679,-50 1679,0 1838,0 1838,-50" />
+<text text-anchor="middle" x="1758.5" y="-28.6">Publish after identity</text>
+<text text-anchor="middle" x="1758.5" y="-14.6">and success checks</text>
+</g>
+
+<g id="repository-diagram-1-edge5" class="edge handoff">
+<title>E-&gt;F</title>
+<path d="M1503.36,-25C1557.35,-25 1626.33,-25 1678.81,-25" marker-end="url(#repository-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1591" y="-28.4">check before writing</text>
+</g>
+</g>
+</svg></div><figcaption>Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[Explicit package roots and edges] --&gt; B[construct.py copies exact source bytes]
+  B --&gt; C[Closed source set and manifest]
+  C --&gt; D[Supplied constructor executable]
+  D --&gt; E[Compilation status and Alpha output]
+  E --&gt; F[Publish after identity and success checks]</code></pre></details></figure>
+<p><em>Current route from source; the arrow through a constructor is conditional on
+supplying an executable. This diagram is not a completed self-rebuild claim.</em></p>
+<ol>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/construct.py#L64-L101"><code>compiler_input</code></a> collects sorted <code>.omg</code> sources from the explicit
+   roots, excluding Build declarations and invocation build directories. It
+   preserves package ownership and unit bytes, selects the declared entry and
+   records byte intervals and hashes. Filenames do not synthesize modules.</li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/application/construction/main.omg#L325-L339"><code>entry_start</code></a> reads the framed source set, retains packages, edges and
+   units, selects the entry name, then calls <code>compilation_finish</code>. The shared
+   <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/compilation/pipeline.omg#L99-L176"><code>Compilation</code> pipeline</a> resolves, types, checks and lowers before the
+   Alpha emitter. This is an early closed-input interface; it neither acquires
+   packages nor authenticates an untrusted graph. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/README.md#L17-L23">Interface limit</a>.</li>
+<li>The application <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/application/construction/main.omg#L297-L322"><code>publish</code></a> writes bytes only after a successful
+   compilation status and an output-capacity check. The host wrapper separately
+   requires exit zero, nonempty output and unchanged source/producer identities
+   before replacing the requested output artifact. It retains the actual
+   result even when publication fails. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/construct.py#L119-L143">Wrapper publication</a>.</li>
+</ol>
+<p>Fresh validation for this map ran:</p>
+<pre><code class="language-sh">python3 source/omega/construct.py --input /tmp/omega-atlas-worker5-construction/input.bin
+</code></pre>
+<p>That command completed and wrote the input and manifest at the pinned revision.
+No <code>--compiler</code> was supplied, so no compiler execution or self-compilation was
+tested. The observed input SHA-256 was
+<code>49db8b2280bb8a963d9425f8c5ef2e0aacfb2a73b5965a5a5d624d84d9cd1b2d</code>.
+The corresponding execution and rejection cases live in the
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tests/product/alpha/README.md#L1-L37">Alpha product gate</a>; their current pass status is <span class="flag warn">unverified</span> here.</p>
+<h2 id="what-the-full-atlas-should-preserve">What the full atlas should preserve</h2>
+<p><em>Judgment:</em> put this repository map above the subsystem pages. Show the Rust
+product's numbered pipeline within its own map, then show the Omega-written
+implementation's correspondence and missing coverage separately. Bootstrap
+construction is another view over inputs, producers and trust assumptions, not
+another numbered product stage. This follows the product ownership split and
+bootstrap's explicit permission to change construction topology. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/AGENTS.md#L11-L19">Roles</a>;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/bootstrap/MINIMIZATION.md#L18-L38">bootstrap authority</a>.</p>
+<p>The source itself supplies two cautions for future updates. The diagram in
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/README.md#L12-L19"><code>source/README.md</code></a> presents bootstrap and self-rebuild without their status;
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/omega/README.md#L47-L53"><code>source/omega/README.md</code></a> explicitly says neither works yet. Likewise,
+the bootstrap index says the independent implementation has not started, but
+its <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/bootstrap/independent/README.md#L25-L61">implementation and evidence</a> exist. The detailed subsystem pages mark
+these contradictions; this mapping change does not rewrite those owners.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+</script>
+</body>
+</html>

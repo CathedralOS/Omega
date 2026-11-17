@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.">
+  <title>Omega stages and realization</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+</style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 3 of 13</div>
+      <h1>Omega stages and realization</h1>
+      <p class="lede">Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/subsystems/omega.md">Page source</a></span></div>
+
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+    </header>
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html" aria-current="page"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Pipeline diagrams</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">11</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">12</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">13</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#the-input-boundary">The input boundary</a></li>
+<li><a href="#current-route-order-within-one-native-body">Current route: order within one native body</a></li>
+<li><a href="#realization-closes-demand-admission-checks-choices">Realization closes demand; admission checks choices</a><ul>
+<li><a href="#a-concrete-boundary-console-on-linux-x86-64">A concrete boundary: Console on Linux x86-64</a></li>
+</ul>
+</li>
+<li><a href="#numbered-stages-and-their-current-representations">Numbered stages and their current representations</a></li>
+<li><a href="#after-o09-functions-objects-images-and-publication">After O09: functions, objects, images and publication</a></li>
+<li><a href="#current-bypass-emissionfacts">Current bypass: EmissionFacts</a></li>
+<li><a href="#explicit-verification-is-a-separate-route">Explicit verification is a separate route</a></li>
+<li><a href="#runtime-use-is-another-consumer">Runtime use is another consumer</a></li>
+<li><a href="#proposed-route-and-migration-dependencies">Proposed route and migration dependencies</a></li>
+</ul>
+</div>
+</details><p>Omega turns a checked portable program into code for one target. It selects and
+admits outside providers, lowers the program to instructions, assigns registers,
+encodes and lays out bytes, builds objects and images, then hands a retained
+product to publication. Today several of these operations sit outside the
+numbered stages. The map below shows that current route before the proposed
+linear pipeline.</p>
+<p><strong>Evidence:</strong> source revision
+<code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>; pinned source links below and the
+<a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/graph.json">dependency graph</a>.
+This is a source review, not a fresh native execution test. Stage destination
+names and migration recommendations are <strong>judgment</strong>. The six
+<a href="rulings.html">owner rulings</a> are unchanged.</p>
+<h2 id="the-input-boundary">The input boundary</h2>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/compile.rs#L14">native facade</a> accepts <code>RetainedTerminalArtifact</code> and
+<code>NativeCompileRequest</code>; Build has supplied completed scalar applications.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/preparation.rs#L26"><code>prepare</code></a> joins the retained proposal, installation assumptions,
+component inputs and private-entry memory recipes, then checks the required
+scalar values are present. Its errors preserve the image request alongside
+diagnostics so the caller retains the failed request's context.</p>
+<p>This facade is source-free, but the entire path to it is not. The compiler's
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L202">provider settlement</a> still works with accepted source publication and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14">policy preparation</a> still takes checked source custody. The
+Psi/Omega firewall must be assessed at both boundaries, not inferred from the
+facade's signature alone.</p>
+<p>An outside call has several kinds of identity: which program requested it,
+which declaration/body was chosen, and which target plan implements it. The
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs#L14">selected execution</a> checks target agreement; later installation
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">binding</a> checks program, target, entry and admitted placement. Moving
+these records must preserve their checked construction, not just their fields.</p>
+<h2 id="current-route-order-within-one-native-body">Current route: order within one native body</h2>
+<p>Solid arrows below show the main transformations. The handler branch matters:
+the root can pause after O02 while another native body is compiled. This is a
+per-body route with a driver coordinating dependent bodies, not one whole-program
+pass through every box.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication."><svg viewBox="0.00 0.00 5090.28 113.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication." style="min-width:5090px">
+<title>Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication.</title><defs><marker id="omega-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 104.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-1-node1" class="node hub">
+<title>A</title>
+<polygon points="171,-88 0,-88 0,-38 171,-38 171,-88" />
+<text text-anchor="middle" x="85.5" y="-66.6">Accepted Psi and Build</text>
+<text text-anchor="middle" x="85.5" y="-52.6">supplies</text>
+</g>
+
+<g id="omega-diagram-1-node2" class="node around">
+<title>B</title>
+<polygon points="501,-88 327,-88 327,-38 501,-38 501,-88" />
+<text text-anchor="middle" x="414" y="-66.6">Close reached provider</text>
+<text text-anchor="middle" x="414" y="-52.6">requirements</text>
+</g>
+
+<g id="omega-diagram-1-edge1" class="edge handoff">
+<title>A-&gt;B</title>
+<path d="M171.01,-63C218.9,-63 278.69,-63 326.86,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="249" y="-66.4">discover demand</text>
+</g>
+
+<g id="omega-diagram-1-node3" class="node native">
+<title>C</title>
+<polygon points="823,-88 649,-88 649,-38 823,-38 823,-88" />
+<text text-anchor="middle" x="736" y="-66.6">Prepare native request</text>
+<text text-anchor="middle" x="736" y="-52.6">and admit at O00</text>
+</g>
+
+<g id="omega-diagram-1-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M501.18,-63C546.99,-63 603.15,-63 648.95,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="575" y="-79.4">settled provider</text>
+<text text-anchor="middle" x="575" y="-66.4">closure</text>
+</g>
+
+<g id="omega-diagram-1-node4" class="node native">
+<title>D</title>
+<polygon points="1150,-88 983,-88 983,-38 1150,-38 1150,-88" />
+<text text-anchor="middle" x="1066.5" y="-66.6">O01 optimize abstract</text>
+<text text-anchor="middle" x="1066.5" y="-52.6">operations</text>
+</g>
+
+<g id="omega-diagram-1-edge3" class="edge handoff">
+<title>C-&gt;D</title>
+<path d="M823.31,-63C872.64,-63 934.18,-63 982.88,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="903" y="-79.4">admitted abstract</text>
+<text text-anchor="middle" x="903" y="-66.4">plan</text>
+</g>
+
+<g id="omega-diagram-1-node5" class="node native">
+<title>E</title>
+<polygon points="1489,-88 1293,-88 1293,-38 1489,-38 1489,-88" />
+<text text-anchor="middle" x="1391" y="-66.6">O02 target operations and</text>
+<text text-anchor="middle" x="1391" y="-52.6">prepared execution plan</text>
+</g>
+
+<g id="omega-diagram-1-edge4" class="edge handoff">
+<title>D-&gt;E</title>
+<path d="M1150.13,-63C1193.71,-63 1247.43,-63 1292.98,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1221.5" y="-66.4">optimized plan</text>
+</g>
+
+<g id="omega-diagram-1-node6" class="node around">
+<title>F</title>
+<polygon points="2145,-87 2019,-87 2019,-37 2145,-37 2145,-87" />
+<text text-anchor="middle" x="2082" y="-65.6">Bind measured</text>
+<text text-anchor="middle" x="2082" y="-51.6">installations</text>
+</g>
+
+<g id="omega-diagram-1-edge5" class="edge handoff">
+<title>E-&gt;F</title>
+<path d="M1489.2,-77.44C1498.92,-78.48 1508.64,-79.37 1518,-80 1618.43,-86.74 1765.44,-84.77 1990,-71 1999.35,-70.43 2009.22,-69.64 2018.88,-68.77" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1737.5" y="-86.4">prepared obligations</text>
+</g>
+
+<g id="omega-diagram-1-node7" class="node around">
+<title>H</title>
+<polygon points="1833,-50 1642,-50 1642,0 1833,0 1833,-50" />
+<text text-anchor="middle" x="1737.5" y="-28.6">Compile required handler</text>
+<text text-anchor="middle" x="1737.5" y="-14.6">bodies to objects</text>
+</g>
+
+<g id="omega-diagram-1-edge6" class="edge handoff">
+<title>E-&gt;H</title>
+<path d="M1489.34,-52.26C1537.09,-47 1594.38,-40.68 1641.78,-35.45" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1565.5" y="-64.4">request required</text>
+<text text-anchor="middle" x="1565.5" y="-51.4">handlers</text>
+</g>
+
+<g id="omega-diagram-1-node8" class="node native">
+<title>G</title>
+<polygon points="2478,-87 2307,-87 2307,-37 2478,-37 2478,-87" />
+<text text-anchor="middle" x="2392.5" y="-58.6">O03 select instructions</text>
+</g>
+
+<g id="omega-diagram-1-edge8" class="edge handoff">
+<title>F-&gt;G</title>
+<path d="M2145.06,-62C2191.51,-62 2255.58,-62 2306.75,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2226" y="-78.4">bound installation</text>
+<text text-anchor="middle" x="2226" y="-65.4">facts</text>
+</g>
+
+<g id="omega-diagram-1-edge7" class="edge handoff">
+<title>H-&gt;F</title>
+<path d="M1833.45,-35.26C1892.64,-41.65 1967.12,-49.7 2018.85,-55.29" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1926" y="-55.4">measured stack needs</text>
+</g>
+
+<g id="omega-diagram-1-node9" class="node native">
+<title>I</title>
+<polygon points="2773,-87 2605,-87 2605,-37 2773,-37 2773,-87" />
+<text text-anchor="middle" x="2689" y="-65.6">O04 optimize selected</text>
+<text text-anchor="middle" x="2689" y="-51.6">instructions</text>
+</g>
+
+<g id="omega-diagram-1-edge9" class="edge handoff">
+<title>G-&gt;I</title>
+<path d="M2478.29,-62C2518.05,-62 2565.27,-62 2604.83,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2541.5" y="-78.4">selected</text>
+<text text-anchor="middle" x="2541.5" y="-65.4">instructions</text>
+</g>
+
+<g id="omega-diagram-1-node10" class="node native">
+<title>J</title>
+<polygon points="3117,-87 2920,-87 2920,-37 3117,-37 3117,-87" />
+<text text-anchor="middle" x="3018.5" y="-58.6">O05 assign register homes</text>
+</g>
+
+<g id="omega-diagram-1-edge10" class="edge handoff">
+<title>I-&gt;J</title>
+<path d="M2773.07,-62C2817.79,-62 2873.22,-62 2919.98,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2846.5" y="-65.4">allocation input</text>
+</g>
+
+<g id="omega-diagram-1-node11" class="node native">
+<title>K</title>
+<polygon points="3419,-87 3262,-87 3262,-37 3419,-37 3419,-87" />
+<text text-anchor="middle" x="3340.5" y="-65.6">O06 choose physical</text>
+<text text-anchor="middle" x="3340.5" y="-51.6">machine operations</text>
+</g>
+
+<g id="omega-diagram-1-edge11" class="edge handoff">
+<title>J-&gt;K</title>
+<path d="M3117.25,-62C3163.66,-62 3218.35,-62 3261.86,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3189.5" y="-65.4">register homes</text>
+</g>
+
+<g id="omega-diagram-1-node12" class="node native">
+<title>L</title>
+<polygon points="3755,-87 3588,-87 3588,-37 3755,-37 3755,-87" />
+<text text-anchor="middle" x="3671.5" y="-65.6">Plan frames then O07</text>
+<text text-anchor="middle" x="3671.5" y="-51.6">encode</text>
+</g>
+
+<g id="omega-diagram-1-edge12" class="edge handoff">
+<title>K-&gt;L</title>
+<path d="M3419.05,-62C3469.77,-62 3535.98,-62 3587.72,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3503.5" y="-65.4">physical operations</text>
+</g>
+
+<g id="omega-diagram-1-node13" class="node native">
+<title>M</title>
+<polygon points="4093,-87 3901,-87 3901,-37 4093,-37 4093,-87" />
+<text text-anchor="middle" x="3997" y="-65.6">O08 place bytes then O09</text>
+<text text-anchor="middle" x="3997" y="-51.6">optimize layout</text>
+</g>
+
+<g id="omega-diagram-1-edge13" class="edge handoff">
+<title>L-&gt;M</title>
+<path d="M3755.39,-62C3799.76,-62 3854.6,-62 3900.72,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3828" y="-65.4">encoded forms</text>
+</g>
+
+<g id="omega-diagram-1-node14" class="node native">
+<title>N</title>
+<polygon points="4428,-87 4251,-87 4251,-37 4428,-37 4428,-87" />
+<text text-anchor="middle" x="4339.5" y="-65.6">Fragments then frames</text>
+<text text-anchor="middle" x="4339.5" y="-51.6">then text then object</text>
+</g>
+
+<g id="omega-diagram-1-edge14" class="edge handoff">
+<title>M-&gt;N</title>
+<path d="M4093.3,-62C4142.68,-62 4202.58,-62 4250.81,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4172" y="-78.4">resolved machine</text>
+<text text-anchor="middle" x="4172" y="-65.4">program</text>
+</g>
+
+<g id="omega-diagram-1-node15" class="node native">
+<title>O</title>
+<polygon points="4758,-87 4578,-87 4578,-37 4758,-37 4758,-87" />
+<text text-anchor="middle" x="4668" y="-65.6">Compose private bodies</text>
+<text text-anchor="middle" x="4668" y="-51.6">and emit image</text>
+</g>
+
+<g id="omega-diagram-1-edge15" class="edge handoff">
+<title>N-&gt;O</title>
+<path d="M4428.43,-62C4474.7,-62 4531.32,-62 4577.78,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4503" y="-65.4">fragment object</text>
+</g>
+
+<g id="omega-diagram-1-node16" class="node around">
+<title>P</title>
+<polygon points="5073,-87 4902,-87 4902,-37 5073,-37 5073,-87" />
+<text text-anchor="middle" x="4987.5" y="-65.6">Retained product then</text>
+<text text-anchor="middle" x="4987.5" y="-51.6">publication</text>
+</g>
+
+<g id="omega-diagram-1-edge16" class="edge handoff">
+<title>O-&gt;P</title>
+<path d="M4758.29,-62C4803.31,-62 4857.63,-62 4901.98,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4830" y="-65.4">retained image</text>
+</g>
+</g>
+</svg></div><figcaption>Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart TD
+  A[Accepted Psi and Build supplies] --&gt; B[Close reached provider requirements]
+  B --&gt; C[Prepare native request and admit at O00]
+  C --&gt; D[O01 optimize abstract operations]
+  D --&gt; E[O02 target operations and prepared execution plan]
+  E --&gt; F[Bind measured installations]
+  E --&gt; H[Compile required handler bodies to objects]
+  H --&gt; F
+  F --&gt; G[O03 select instructions]
+  G --&gt; I[O04 optimize selected instructions]
+  I --&gt; J[O05 assign register homes]
+  J --&gt; K[O06 choose physical machine operations]
+  K --&gt; L[Plan frames then O07 encode]
+  L --&gt; M[O08 place bytes then O09 optimize layout]
+  M --&gt; N[Fragments then frames then text then object]
+  N --&gt; O[Compose private bodies and emit image]
+  O --&gt; P[Retained product then publication]</code></pre></details></figure>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">native pipeline driver</a> orders O01–O09. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L57">object coordinator</a>
+prepares handlers, binds installations, emits the root, then lowers remaining
+referenced callback thunks and composes private objects. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs#L167">fragment wrapper</a>
+orders the transformations after O09. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L95">Image realization</a> returns the
+retained artifact; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L26">products</a> owns the call that writes it.</p>
+<h2 id="realization-closes-demand-admission-checks-choices">Realization closes demand; admission checks choices</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Owner</th>
+<th style="text-align: right;">Rust lines</th>
+<th>What its result means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provider-planning</code></td>
+<td style="text-align: right;">7,231</td>
+<td>A selected target's supply for reached requirements, including calling-policy results.</td>
+</tr>
+<tr>
+<td><code>provider-admission</code></td>
+<td style="text-align: right;">26,491</td>
+<td>Checked provider, entry and installation records; late binding of measured installation facts.</td>
+</tr>
+<tr>
+<td><code>provider-selection</code></td>
+<td style="text-align: right;">1,874</td>
+<td>Selected instances, exact bodies and applications joined to the retained declarations.</td>
+</tr>
+<tr>
+<td><code>trust-model</code></td>
+<td style="text-align: right;">708</td>
+<td>Obligations reconstructed from declarations, grants and selected provider evidence.</td>
+</tr>
+<tr>
+<td><code>selected-dispatch</code></td>
+<td style="text-align: right;">105</td>
+<td>One target-matched realized provider closure, retained for native and Psi consumers.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The total is 36,409 lines, including tests. These are ownership units, not five
+successive stages.</p>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260">closure loop</a> starts from the actual entry's reached
+requirements and explicit Build selections. Chosen bodies can introduce more
+requirements. The loop reruns policy-input preparation when the reached set
+changes, realizes supply, and joins the resulting exact bodies. It terminates
+when the binding set is unchanged and refuses replacement of a prior choice.
+Available but unused code does not independently demand a provider.</p>
+<p>Calling policies are executable programs: <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L45">Build supplies their evaluator</a>,
+and preparation retains the program artifacts and selection authority. The
+native <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/native_proposal.rs#L240">proposal constructor</a> also closes provider specializations,
+realizes task activations and checks selected provider ownership. These are
+producers despite the constructor living under <code>representations/</code>.</p>
+<p>Admission is not finished at early provider selection. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L44">O00 realization</a>
+admits native providers and the executable entry and captures provisions for
+Psi execution. Later, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L117">installed handlers</a> are emitted before
+their installer needs a numeric stack guard. The coordinator caches those
+objects for this compilation, rejects cyclic executable resource dependencies,
+and derives requirements from the emitted objects. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">Binding</a> joins them
+to the admitted cohort and current program before instruction selection.</p>
+<p><code>SelectedExecution::settle</code> is a convenience route, not the only constructor.
+The compiler uses public <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs#L14"><code>from_realization</code></a> after it closes demand.</p>
+<h3 id="a-concrete-boundary-console-on-linux-x86-64">A concrete boundary: Console on Linux x86-64</h3>
+<p>The library's <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/build.omg#L677">Build declaration</a> selects <code>LinuxX86Console</code>
+for <code>Console</code>, then binds <code>LinuxX86ConsoleIo::write</code> to <code>Syscall { number: 1 }</code>.
+The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/console.omg#L139">provider methods</a> call console helpers; the
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/console.omg#L223">raw implementation</a> reaches the I/O boundary. Terminal Psi keeps
+the program's required operations; provider settlement connects reached
+requirements to this target selection and calling plans. Native lowering uses
+the admitted realization to produce target operations.</p>
+<p>This trace establishes who declares and chooses the binding. It does not assert
+that every Console method is one syscall, that all available Console code is
+reached, or that this review executed a Console sample.</p>
+<h2 id="numbered-stages-and-their-current-representations">Numbered stages and their current representations</h2>
+<p>The table describes ordinary native production. Admission tokens, optimization
+receipts and explicitly retained replay inputs are related evidence; they are
+not interchangeable with the current executable program.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Current operation</th>
+<th>Declared input → produced form</th>
+<th>Fact established for the next operation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O00: Terminal Psi to abstract operations</td>
+<td>Retained canonical Psi, selected execution and completed native inputs → <code>VerifiedNativeArtifactInput</code> / <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/src/lib.rs#L29"><code>AbstractOperationPlan</code></a> with admitted facts</td>
+<td>Bind native lowering and provider/entry evidence to this program and target. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/compile.rs#L14">Facade sequence</a> <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L44">admission</a></td>
+</tr>
+<tr>
+<td>O01: abstract optimization</td>
+<td>Verified input → optimized abstract plan</td>
+<td>Apply selected abstract rewrites and carry projection/work identities. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">Driver</a></td>
+</tr>
+<tr>
+<td>O02: target lowering and preparation</td>
+<td>Optimized abstract plan, lowering facts and target/provider request → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/target-operations/src/lib.rs#L28"><code>TargetOperationPlan</code></a> and <code>PreparedExecutionPlan</code></td>
+<td>Resolve concrete operation, call, storage and proof facts needed for selection. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">Driver</a></td>
+</tr>
+<tr>
+<td>Later installation binding</td>
+<td>Prepared plan plus measured handler requirements and admitted cohorts → <code>BoundInstallationAuthority</code></td>
+<td>Bound facts name the same program, target and entries; selection receives plain facts, not authority constructors. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">Binding</a></td>
+</tr>
+<tr>
+<td>O03: instruction selection</td>
+<td>Prepared execution plan, bound installations and register environment → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/selected-instructions/src/lib.rs#L181"><code>SelectedInstructionPlan</code></a></td>
+<td>Choose instruction/register constraints without reading an abstract program or source module. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/README.md#L1">Contract</a></td>
+</tr>
+<tr>
+<td>O04: selected optimization</td>
+<td>Selected program and carried analysis/custody → selected allocation input</td>
+<td>Publish current instructions, analyses and optimization record; retain full rewrite run only on request. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L145">Driver</a></td>
+</tr>
+<tr>
+<td>O05: register allocation</td>
+<td>Selected allocation input → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/register-homes/src/lib.rs#L301"><code>AllocatedProgram</code></a></td>
+<td>Assign register homes needed for physical lowering. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L145">Driver</a></td>
+</tr>
+<tr>
+<td>O06: physical planning</td>
+<td>Current allocation facts → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/post-allocation-machine/src/program.rs#L18"><code>PostAllocationMachineProgram</code></a></td>
+<td>Choose physical operations and preservation requirements before frames and encoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>Unnumbered frame planning</td>
+<td>Current physical program plus frame policy → <code>FramedMachineProgram</code></td>
+<td>Fix frame geometry and protocol for encoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>O07: layout-independent encoding</td>
+<td>Framed machine program → <code>EncodedMachineProgram</code></td>
+<td>Produce actual instruction bytes/encoding rows while keeping required instruction and frame columns. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/layout.rs#L261">Forms</a></td>
+</tr>
+<tr>
+<td>O08: resolved layout</td>
+<td>Current encoding → <code>ResolvedMachineProgram</code></td>
+<td>Choose exact function-relative placements and resolve their encodings. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>O09: layout optimization</td>
+<td>Current resolved layout → same form</td>
+<td>Rewrite layout under its carried selection/budget contract. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>machine-code</code> is a family with several roots, not one representation whose
+name explains every operation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/layout.rs#L261">The root definitions</a> distinguish
+framed, encoded and resolved programs. Stable native vocabulary lets these
+forms name common identities without granting access to an earlier program.</p>
+<h2 id="after-o09-functions-objects-images-and-publication">After O09: functions, objects, images and publication</h2>
+<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs#L167">fragment route</a> exposes the work that the backend
+name hides:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Output and consumer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Assemble fixed-frame realization</td>
+<td>Current resolved program and whole-function exit contract for fragment emission. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>Emit function fragments</td>
+<td>Unplaced <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/fragments.rs#L41"><code>FunctionFragmentEmissionPlan</code></a> records and fixups.</td>
+</tr>
+<tr>
+<td>Apply function frames</td>
+<td>Prologue/epilogue insertion, byte reflow and repaired branch displacements.</td>
+</tr>
+<tr>
+<td>Place text</td>
+<td>One text section with function/block/instruction spans and internal-call resolution.</td>
+</tr>
+<tr>
+<td>Build relocation-free object container and <code>ObjectArtifact</code></td>
+<td>Current bytes plus object layout, semantic attribution and evidence for later composition.</td>
+</tr>
+<tr>
+<td>Compose private functions and entry receiver</td>
+<td>Root and referenced callback objects joined into the published object. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L115">Coordinator</a></td>
+</tr>
+<tr>
+<td>Emit requested image</td>
+<td>Executable/component image construction and target format writers. Direct executable dispatch chooses ELF, Mach-O or PE from the target's object format. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1823">Format dispatch</a></td>
+</tr>
+<tr>
+<td>Retain native product</td>
+<td><code>RealizedNativeProduct</code> holds a requested artifact and optional runtime provisions. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L95">Return</a></td>
+</tr>
+<tr>
+<td>Publish product</td>
+<td><code>products::publish_compilation</code> chooses the publication route, stages exact bytes and records receipts. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L26">Entry</a> <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L70">native publication</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>“Object publication” in this route does not necessarily write a filesystem
+product. <code>PublishedFragmentObject</code> is an internal completed object. Actual
+product publication runs in <code>products</code>; some implementation, including
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/package_publication.rs#L280">macOS application package writing</a>, still lives under backend
+<code>native-artifact</code>. The migration should move that implementation to its product
+owner while keeping image construction in the compilation route.</p>
+<p>Components and private callbacks are separately lowered bodies under the same
+native driver; the diagram is not a claim that the entire application consists
+of one machine function. The compiler uses reached object references to avoid
+emitting unused callback bodies. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L115">Composition</a></p>
+<h2 id="current-bypass-emissionfacts">Current bypass: EmissionFacts</h2>
+<p>The driver extracts <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L261"><code>EmissionFacts</code></a> from O02's result. It keeps
+admitted lowering facts, a shared <strong>whole optimized abstract program</strong>, and
+projection/Terminal/final-unit identities. Emission later receives those beside
+the resolved machine program and installation authority. That is a genuine
+bypass around the representations between selection and emission.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission."><svg viewBox="0.00 0.00 794.28 135.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission." style="min-width:794px">
+<title>Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission.</title><defs><marker id="omega-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 126.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-2-node1" class="node native">
+<title>A</title>
+<polygon points="144,-50 0,-50 0,0 144,0 144,-50" />
+<text text-anchor="middle" x="72" y="-21.6">O02 target output</text>
+</g>
+
+<g id="omega-diagram-2-node2" class="node native">
+<title>B</title>
+<polygon points="475,-118 285,-118 285,-68 475,-68 475,-118" />
+<text text-anchor="middle" x="380" y="-96.6">O03 through O09 current</text>
+<text text-anchor="middle" x="380" y="-82.6">forms</text>
+</g>
+
+<g id="omega-diagram-2-edge1" class="edge handoff">
+<title>A-&gt;B</title>
+<path d="M144.36,-40.86C186.21,-50.16 239.59,-62.02 284.87,-72.08" marker-end="url(#omega-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="214.5" y="-81.4">select through</text>
+<text text-anchor="middle" x="214.5" y="-68.4">layout</text>
+</g>
+
+<g id="omega-diagram-2-node3" class="node native">
+<title>C</title>
+<polygon points="777,-50 627,-50 627,0 777,0 777,-50" />
+<text text-anchor="middle" x="702" y="-21.6">Fragment emission</text>
+</g>
+
+<g id="omega-diagram-2-edge3" class="edge bypass">
+<title>A-&gt;C</title>
+<path stroke-dasharray="5,2" d="M144.13,-21.65C185.28,-19.87 238.05,-17.89 285,-17 369.43,-15.41 390.57,-15.51 475,-17 525.74,-17.9 582.85,-19.93 626.97,-21.72" marker-end="url(#omega-diagram-2-arrow-bypass)" />
+<text text-anchor="middle" x="380" y="-46.4">EmissionFacts</text>
+<text text-anchor="middle" x="380" y="-33.4">retains abstract</text>
+<text text-anchor="middle" x="380" y="-20.4">program</text>
+</g>
+
+<g id="omega-diagram-2-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M475.28,-72.97C523.67,-62.68 581.78,-50.33 626.91,-40.74" marker-end="url(#omega-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="551" y="-81.4">current machine</text>
+<text text-anchor="middle" x="551" y="-68.4">program</text>
+</g>
+</g>
+</svg></div><figcaption>Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[O02 target output] --&gt; B[O03 through O09 current forms]
+  B --&gt; C[Fragment emission]
+  A -.-&gt;|EmissionFacts retains abstract program| C</code></pre></details></figure>
+<p><strong>Judgment:</strong> inventory every emission consumer and materialize the needed
+records in the current forms. Moving the same <code>Arc</code> into <code>machine-code</code> would
+change packaging without removing earlier-program access. Exact fields and
+retention cost remain <strong>unverified</strong> until the inventory and implementation are
+complete; this review claims no memory or performance improvement.</p>
+<p>The declaration-selection ledger in Psi is different: its definition is
+misplaced in foundation but the value already travels through typed trees.
+Definition location, stored value and producer must be mapped separately.</p>
+<h2 id="explicit-verification-is-a-separate-route">Explicit verification is a separate route</h2>
+<p>When <code>retain_native_stage_inputs</code> is false, the driver drops the original
+target, allocation, encoding and layout inputs as they become unnecessary.
+When requested, it retains those originals for correspondence audits.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L173">Retention logic</a> This does not remove the ordinary <code>EmissionFacts</code>
+bypass described above.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit."><svg viewBox="0.00 0.00 873.28 142.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit." style="min-width:873px">
+<title>An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit.</title><defs><marker id="omega-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 133.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-3-node1" class="node native">
+<title>A</title>
+<polygon points="174,-125 6,-125 6,-75 174,-75 174,-125" />
+<text text-anchor="middle" x="90" y="-96.6">Current native artifact</text>
+</g>
+
+<g id="omega-diagram-3-node2" class="node around">
+<title>C</title>
+<polygon points="479,-87 347,-87 347,-37 479,-37 479,-87" />
+<text text-anchor="middle" x="413" y="-58.6">Explicit validator</text>
+</g>
+
+<g id="omega-diagram-3-edge1" class="edge handoff">
+<title>A-&gt;C</title>
+<path d="M174.08,-90.16C227.95,-83.79 297.13,-75.6 346.98,-69.7" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="263.5" y="-101.4">artifact under</text>
+<text text-anchor="middle" x="263.5" y="-88.4">review</text>
+</g>
+
+<g id="omega-diagram-3-node4" class="node around">
+<title>D</title>
+<polygon points="856,-87 667,-87 667,-37 856,-37 856,-87" />
+<text text-anchor="middle" x="761.5" y="-65.6">Correspondence result or</text>
+<text text-anchor="middle" x="761.5" y="-51.6">diagnostic</text>
+</g>
+
+<g id="omega-diagram-3-edge3" class="edge handoff">
+<title>C-&gt;D</title>
+<path d="M479.17,-62C532.1,-62 607.44,-62 666.84,-62" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="573" y="-65.4">check correspondence</text>
+</g>
+
+<g id="omega-diagram-3-node3" class="node native">
+<title>B</title>
+<polygon points="180,-50 0,-50 0,0 180,0 180,-50" />
+<text text-anchor="middle" x="90" y="-28.6">Original stages retained</text>
+<text text-anchor="middle" x="90" y="-14.6">on request</text>
+</g>
+
+<g id="omega-diagram-3-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M180.21,-29.59C222.16,-32.38 272.78,-36.66 318,-43 327.4,-44.32 337.27,-45.99 346.94,-47.79" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="263.5" y="-59.4">requested retained</text>
+<text text-anchor="middle" x="263.5" y="-46.4">inputs</text>
+</g>
+</g>
+</svg></div><figcaption>An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[Current native artifact] --&gt; C[Explicit validator]
+  B[Original stages retained on request] --&gt; C
+  C --&gt; D[Correspondence result or diagnostic]</code></pre></details></figure>
+<p><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L71">Target-operation verification</a> requires the retained target input and
+calls the preparation verifier plus a borrowed-storage reconstruction routine.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L7">Fixed-frame verification</a> compares current output with retained
+allocation, machine, encoding and baseline layout. These functions refuse when
+required custody is missing. They are not evidence that every default compile
+replays O02/O03.</p>
+<p>Production still performs checks at admission, foreign/import boundaries and
+object/image handoffs. Distinguishing explicit replay from ordinary production
+does not mean ordinary production performs no validation.</p>
+<p><strong>Judgment:</strong> move explicit validators beside the representation they check,
+with independent checking APIs and an explicit retained-evidence input. Merely
+moving a file preserves its dependency on producer stages. Remove each
+stage-call allowance only after that call is gone; preserve independent checks
+rather than sharing the producer's logic by default.</p>
+<h2 id="runtime-use-is-another-consumer">Runtime use is another consumer</h2>
+<p><code>admit_runtime</code> shares native provider/entry admission and returns provisions
+for Psi execution. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L152">runtime-admission route</a> also performs
+abstract optimization and captures borrowed-storage layouts, then stops before
+machine emission. It is not equivalent to compiling and running a native image.</p>
+<p>The native runtimes read admitted carriers and image/provision records. Some
+carrier definitions currently live in a producing crate, for example the
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports.rs#L365">admitted intrinsic type used by terminal-runtime</a>. A move of
+admission into numbered stages must split that interface so runtimes do not
+start importing or executing a stage merely to read a record.</p>
+<h2 id="proposed-route-and-migration-dependencies">Proposed route and migration dependencies</h2>
+<p>The <a href="foundation-backend-plan.html#b7-pr-sequence-for-part-b">full plan</a>
+orders the implementation. The following diagram is <strong>judgment</strong>, not the
+current implementation. Numbers must be assigned after inserting settlement
+and binding; today's O00–O09 names remain useful migration references.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Proposed whole-program route: carry body and installation demands until current-form measurements can bind them. The numeric-consumer contract remains unverified."><svg viewBox="0.00 0.00 2964.28 77.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proposed whole-program route: carry body and installation demands until current-form measurements can bind them. The numeric-consumer contract remains unverified." style="min-width:2964px">
+<title>Proposed whole-program route: carry body and installation demands until current-form measurements can bind them. The numeric-consumer contract remains unverified.</title><defs><marker id="omega-diagram-4-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-4-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-4-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-4-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 68.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-4-node1" class="node proposed">
+<title>A</title>
+<polygon points="180,-55 0,-55 0,-5 180,-5 180,-55" />
+<text text-anchor="middle" x="90" y="-33.6">Admitted Psi plus target</text>
+<text text-anchor="middle" x="90" y="-19.6">and policy input bundle</text>
+</g>
+
+<g id="omega-diagram-4-node2" class="node proposed">
+<title>B</title>
+<polygon points="531,-55 329,-55 329,-5 531,-5 531,-55" />
+<text text-anchor="middle" x="430" y="-33.6">Numbered provider closure</text>
+<text text-anchor="middle" x="430" y="-19.6">and native admission</text>
+</g>
+
+<g id="omega-diagram-4-edge1" class="edge handoff">
+<title>A-&gt;B</title>
+<path d="M180.25,-30C225.92,-30 281.67,-30 328.81,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="254.5" y="-46.4">close and admit</text>
+<text text-anchor="middle" x="254.5" y="-33.4">demand</text>
+</g>
+
+<g id="omega-diagram-4-node3" class="node proposed">
+<title>C</title>
+<polygon points="895,-60 707,-60 707,0 895,0 895,-60" />
+<text text-anchor="middle" x="801" y="-40.6">Current program with</text>
+<text text-anchor="middle" x="801" y="-26.6">complete reachable body</text>
+<text text-anchor="middle" x="801" y="-12.6">roster</text>
+</g>
+
+<g id="omega-diagram-4-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M531.34,-30C586.08,-30 653.4,-30 706.96,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="619" y="-46.4">carry complete body</text>
+<text text-anchor="middle" x="619" y="-33.4">roster</text>
+</g>
+
+<g id="omega-diagram-4-node4" class="node proposed">
+<title>D</title>
+<polygon points="1216,-60 1030,-60 1030,0 1216,0 1216,-60" />
+<text text-anchor="middle" x="1123" y="-40.6">Abstract and target</text>
+<text text-anchor="middle" x="1123" y="-26.6">lowering then instruction</text>
+<text text-anchor="middle" x="1123" y="-12.6">selection</text>
+</g>
+
+<g id="omega-diagram-4-edge3" class="edge handoff">
+<title>C-&gt;D</title>
+<path d="M895.42,-30C937.76,-30 987.66,-30 1029.85,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="962.5" y="-46.4">lower current</text>
+<text text-anchor="middle" x="962.5" y="-33.4">program</text>
+</g>
+
+<g id="omega-diagram-4-node5" class="node proposed">
+<title>E</title>
+<polygon points="1531,-60 1357,-60 1357,0 1531,0 1531,-60" />
+<text text-anchor="middle" x="1444" y="-40.6">Allocation and frame</text>
+<text text-anchor="middle" x="1444" y="-26.6">planning with symbolic</text>
+<text text-anchor="middle" x="1444" y="-12.6">installation demands</text>
+</g>
+
+<g id="omega-diagram-4-edge4" class="edge handoff">
+<title>D-&gt;E</title>
+<path d="M1216.27,-30C1260.61,-30 1313.45,-30 1356.95,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="1286.5" y="-46.4">carry symbolic</text>
+<text text-anchor="middle" x="1286.5" y="-33.4">demands</text>
+</g>
+
+<g id="omega-diagram-4-node6" class="node proposed">
+<title>F</title>
+<polygon points="1903,-55 1707,-55 1707,-5 1903,-5 1903,-55" />
+<text text-anchor="middle" x="1805" y="-33.6">Derive measurements and</text>
+<text text-anchor="middle" x="1805" y="-19.6">bind installation facts</text>
+</g>
+
+<g id="omega-diagram-4-edge5" class="edge handoff">
+<title>E-&gt;F</title>
+<path d="M1531.45,-30C1584.35,-30 1652.17,-30 1706.92,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="1619" y="-46.4">derive current frame</text>
+<text text-anchor="middle" x="1619" y="-33.4">facts</text>
+</g>
+
+<g id="omega-diagram-4-node7" class="node proposed">
+<title>G</title>
+<polygon points="2270,-55 2079,-55 2079,-5 2270,-5 2270,-55" />
+<text text-anchor="middle" x="2174.5" y="-33.6">Encoding then layout and</text>
+<text text-anchor="middle" x="2174.5" y="-19.6">relaxation</text>
+</g>
+
+<g id="omega-diagram-4-edge6" class="edge handoff">
+<title>F-&gt;G</title>
+<path d="M1903.04,-30C1957.37,-30 2024.83,-30 2078.78,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="1991" y="-33.4">supply bound values</text>
+</g>
+
+<g id="omega-diagram-4-node8" class="node proposed">
+<title>H</title>
+<polygon points="2632,-55 2443,-55 2443,-5 2632,-5 2632,-55" />
+<text text-anchor="middle" x="2537.5" y="-33.6">Fragments then text then</text>
+<text text-anchor="middle" x="2537.5" y="-19.6">object then image</text>
+</g>
+
+<g id="omega-diagram-4-edge7" class="edge handoff">
+<title>G-&gt;H</title>
+<path d="M2270.35,-30C2323.62,-30 2389.85,-30 2442.91,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="2356.5" y="-33.4">carry resolved bytes</text>
+</g>
+
+<g id="omega-diagram-4-node9" class="node proposed">
+<title>I</title>
+<polygon points="2947,-55 2796,-55 2796,-5 2947,-5 2947,-55" />
+<text text-anchor="middle" x="2871.5" y="-26.6">Product publication</text>
+</g>
+
+<g id="omega-diagram-4-edge8" class="edge handoff">
+<title>H-&gt;I</title>
+<path d="M2632.31,-30C2684.08,-30 2747.49,-30 2795.86,-30" marker-end="url(#omega-diagram-4-arrow-handoff)" />
+<text text-anchor="middle" x="2714" y="-46.4">publish completed</text>
+<text text-anchor="middle" x="2714" y="-33.4">image</text>
+</g>
+</g>
+</svg></div><figcaption>Proposed whole-program route: carry body and installation demands until current-form measurements can bind them. The numeric-consumer contract remains unverified.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart TD
+  A[Admitted Psi plus target and policy input bundle] --&gt; B[Numbered provider closure and native admission]
+  B --&gt; C[Current program with complete reachable body roster]
+  C --&gt; D[Abstract and target lowering then instruction selection]
+  D --&gt; E[Allocation and frame planning with symbolic installation demands]
+  E --&gt; F[Derive measurements and bind installation facts]
+  F --&gt; G[Encoding then layout and relaxation]
+  G --&gt; H[Fragments then text then object then image]
+  H --&gt; I[Product publication]</code></pre></details></figure>
+<p>The symbolic installation path is a proposed dependency repair, not a completed
+design. O03 currently needs bound facts before selecting instructions. Its
+numeric consumers must be classified: carry deferred operands where possible,
+and move any measurement-dependent choice to a later owner where necessary.
+Existing refusal of cyclic resource demand must remain. Until that contract is
+proved, the observed per-body route above is the truthful map.</p>
+<p>Four changes can be assessed separately while that contract is developed:</p>
+<ol>
+<li>Split primitive bytes from semantic encoders. <code>identity_encoding</code> reads
+   <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/semantic-vocabulary/src/identity_encoding.rs#L5">scalar/callable/float types</a>; <code>structural_path_encoding</code> reads
+   <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/semantic-vocabulary/src/structural_path_encoding.rs#L3">language field/case paths</a>. They belong with semantic
+   vocabulary, not a generic wire package.</li>
+<li>Separate target descriptions from program work. A register catalog is
+   target-only data; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L25"><code>evaluate_call_plan(policy, signature)</code></a>
+   allocates argument/result locations for a particular signature. Its result
+   belongs in a carried plan, and its computation has a producer.</li>
+<li>Establish O07's encoding/fixup contract before moving all ISA encoders.
+   O08 still <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676">re-encodes callback materializations</a>, as well
+   as resolving branches. Encoding alternatives must cover those uses and
+   frame-induced displacement changes.</li>
+<li>Move the late transformation route in order. Fragment/text stages can move
+   before image bridges, but <code>machine-emission</code> cannot be deleted until its
+   bridges move too. Move validator calls to independent APIs before removing
+   their stage allowances. Enforce each migrated dependency immediately.</li>
+</ol>
+<p>The open design choices are recorded as <a href="questions.html">Q-A/B/C/D/F/G</a>.
+Nothing here changes provider authority, accepted language semantics or the
+owner's rulings; it makes the remaining implementation work concrete.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+</script>
+</body>
+</html>

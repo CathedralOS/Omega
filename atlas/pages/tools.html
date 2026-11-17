@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Repository commands, gates, and the difference between a source check and an execution result.">
+  <title>Tools and verification</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+</style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 8 of 13</div>
+      <h1>Tools and verification</h1>
+      <p class="lede">Repository commands, gates, and the difference between a source check and an execution result.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/subsystems/tools.md">Page source</a></span></div>
+
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+    </header>
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html" aria-current="page"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Pipeline diagrams</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">11</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">12</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">13</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#responsibilities-and-authority">Responsibilities and authority</a></li>
+<li><a href="#one-shipped-route-inspecting-a-saved-psi-artifact">One shipped route: inspecting a saved Psi artifact</a></li>
+<li><a href="#one-repository-route-qualifying-an-exact-customer">One repository route: qualifying an exact customer</a></li>
+<li><a href="#planning-implications">Planning implications</a></li>
+</ul>
+</div>
+</details><p>The shipped <code>omega</code> command and the repository's tools have different jobs.
+<code>omega</code> compiles, runs, inspects and manages packages; repository tools build it,
+check changes, select test customers and retain evidence. A tool's location does
+not tell us what authority its output carries. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95">application dispatch</a>
+and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/main.rs#L72-L125"><code>xtask</code> dispatch</a> are the concrete entrances.</p>
+<p>This page maps source at <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>.
+It records implementations and test definitions, not fresh compiler or tool
+execution results. Those runs are <span class="flag warn">unverified</span> here. Grouping tools by what
+their results establish is <span class="flag">judgment</span>.</p>
+<h2 id="responsibilities-and-authority">Responsibilities and authority</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Tool family</th>
+<th>Input and output</th>
+<th>What the result establishes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shipped <code>omega</code> commands</td>
+<td>CLI requests enter compilation, <code>run</code>, <code>psi inspect</code>, package and audit owners.</td>
+<td>Each command follows its subsystem's checks. Inspection alone grants no installation, execution or native authority. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95">Dispatch</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/README.md#L3-L27">inspection contract</a>; <a href="cli.html">CLI map</a>.</td>
+</tr>
+<tr>
+<td>Shared host support</td>
+<td><code>bounded-process</code>, <code>platform-custody</code> and <code>artifacts</code> provide child-process control, filesystem identity/retained operations, and output/measurement support.</td>
+<td>Mechanisms shared by product owners, not independent commands or evidence that every host works. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/foundation/README.md#L3-L23">Foundation owners</a>.</td>
+</tr>
+<tr>
+<td>Repository rules and CI</td>
+<td><code>xtask check-rules</code>, <code>fmt</code>, <code>check-boundary</code>; workflow events supply a diff, title/body or merge tree.</td>
+<td>A pass establishes only those rules/checks. Admission conditionally type-checks Rust/Cargo changes; it is not the complete release matrix. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/main.rs#L72-L125">Commands</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/.github/workflows/admission.yml#L72-L108">actual admission workflow</a>.</td>
+</tr>
+<tr>
+<td>Sample verification and qualification</td>
+<td>Explicit sample selections, authored outcomes, a producer and host target become observations and retained records.</td>
+<td>Expected native/Psi behavior for those customers and that producer; source-meaning bugs shared by both engines remain possible. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/qualification.rs#L36-L118">Qualification implementation</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/wiki/README.md#L55-L61">limits of agreement</a>.</td>
+</tr>
+<tr>
+<td>Benchmarking</td>
+<td><code>omega-bench</code> takes fixed workloads and candidate executables, retaining observations and validating completed runs.</td>
+<td>Measurements about named workloads and hosts, not language acceptance or bootstrap correctness. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/benchmark/README.md#L3-L43">Benchmark entrance</a>.</td>
+</tr>
+<tr>
+<td>Bootstrap helpers</td>
+<td>Source manifests, declared bytes, seeds and process invocations become successor artifacts or observations.</td>
+<td>Packing is transport; a semantic producer or accelerator adds a trust dependency. See <a href="bootstrap.html">bootstrap</a> and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/bootstrap/MINIMIZATION.md#L93-L104">the distinction</a>.</td>
+</tr>
+<tr>
+<td>Agent/repository coordination</td>
+<td><code>doctor</code>, <code>claims</code>, <code>worktree</code>, <code>provenance</code>, branch cleanup and <code>tools/swarm/</code> support host readiness and ownership.</td>
+<td>A claim identifies an owner, not a live worker or a verified result. Provenance audits the active transcript. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/swarm/README.md#L27-L49">Coordination</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/provenance.rs#L1-L39">provenance source</a>.</td>
+</tr>
+<tr>
+<td>Editor support</td>
+<td><code>tools/vscode-omega/</code> packages a TextMate grammar and editor configuration.</td>
+<td>Syntax highlighting only; no language server, compiler dependency or background process. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/vscode-omega/README.md#L1-L6">Extension scope</a>.</td>
+</tr>
+<tr>
+<td>Release support</td>
+<td><code>tools/release/</code> retains the bundle contract, supplemental licenses and historical host records.</td>
+<td>A matching executable/library layout is a distribution requirement. Old release records are not current qualification; standalone release scripts and draft-release workflows are retired. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/release/README.md#L3-L26">Release status</a>.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The generic statement that developer tools live in <code>foundation/</code> should not be
+read as an inventory of shipped commands. The current inspection implementation
+lives under <code>application/src/inspection/</code>, while <code>foundation/</code> contains the
+shared mechanisms named above. Follow the command's actual dispatcher and owner.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/README.md#L3-L6">Tooling index</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/README.md#L3-L27">inspection ownership</a>.</p>
+<h2 id="one-shipped-route-inspecting-a-saved-psi-artifact">One shipped route: inspecting a saved Psi artifact</h2>
+<pre><code class="language-sh">omega psi inspect --artifact program.psi &lt; /dev/null
+</code></pre>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority."><svg viewBox="0.00 0.00 1131.28 67.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority." style="min-width:1131px">
+<title>Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.</title><defs><marker id="tools-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="tools-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="tools-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="tools-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 58.64)">
+<title>atlas</title>
+
+<g id="tools-diagram-1-node1" class="node around">
+<title>A</title>
+<polygon points="150,-50 0,-50 0,0 150,0 150,-50" />
+<text text-anchor="middle" x="75" y="-21.6">CLI artifact request</text>
+</g>
+
+<g id="tools-diagram-1-node2" class="node around">
+<title>B</title>
+<polygon points="439,-50 296,-50 296,0 439,0 439,-50" />
+<text text-anchor="middle" x="367.5" y="-21.6">Bounded file read</text>
+</g>
+
+<g id="tools-diagram-1-edge1" class="edge handoff">
+<title>A-&gt;B</title>
+<path d="M150.06,-25C194.77,-25 251.45,-25 295.58,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="223" y="-28.4">request artifact</text>
+</g>
+
+<g id="tools-diagram-1-node3" class="node psi">
+<title>C</title>
+<polygon points="721,-50 583,-50 583,0 721,0 721,-50" />
+<text text-anchor="middle" x="652" y="-28.6">Canonical artifact</text>
+<text text-anchor="middle" x="652" y="-14.6">decoder</text>
+</g>
+
+<g id="tools-diagram-1-edge2" class="edge handoff">
+<title>B-&gt;C</title>
+<path d="M439.06,-25C483.02,-25 539.29,-25 582.8,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="511" y="-28.4">bounded bytes</text>
+</g>
+
+<g id="tools-diagram-1-node4" class="node psi">
+<title>D</title>
+<polygon points="1114,-50 913,-50 913,0 1114,0 1114,-50" />
+<text text-anchor="middle" x="1013.5" y="-28.6">Semantic module summary</text>
+<text text-anchor="middle" x="1013.5" y="-14.6">and fingerprint</text>
+</g>
+
+<g id="tools-diagram-1-edge3" class="edge handoff">
+<title>C-&gt;D</title>
+<path d="M721.04,-25C775.19,-25 851.74,-25 912.8,-25" marker-end="url(#tools-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="817" y="-28.4">decode and summarize</text>
+</g>
+</g>
+</svg></div><figcaption>Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[CLI artifact request] --&gt; B[Bounded file read]
+  B --&gt; C[Canonical artifact decoder]
+  C --&gt; D[Semantic module summary and fingerprint]</code></pre></details></figure>
+<p><em>Current route from source. It renders an artifact; no execution grant is
+created by this path.</em></p>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/inspect.rs#L81-L97">argument parser</a> rejects <code>--artifact</code> combined with source-selection
+arguments. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/inspect.rs#L28-L102"><code>commands::inspect</code></a> bounds file reading, calls
+<code>inspect_terminal_artifact</code>, reports a failure with exit 1, and prints the
+summary and fingerprint only after success. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L97-L103">inspection operation</a>
+uses <code>CanonicalTerminalArtifact::from_bytes</code>, the external artifact decoder.
+An invalid artifact therefore cannot pass merely because it has the right
+filename.</p>
+<p>The alternative source mode requests a named machine through
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L56-L81"><code>orchestration::build</code></a> with <code>ProjectProduct::Inspection</code>; it does not
+maintain a second source compiler. Optional <code>--output</code> writes the resulting
+artifact. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/named_psi_inspection.rs#L106-L141">focused CLI test</a> requires missing or ambiguous names to
+fail without writing one, while the <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/named_psi_inspection.rs#L25-L55">round-trip test</a> reopens a published
+artifact and compares its fingerprint. These are validation entrances, not
+fresh pass claims.</p>
+<h2 id="one-repository-route-qualifying-an-exact-customer">One repository route: qualifying an exact customer</h2>
+<p><code>mbx xtask qualify --samples &lt;exact-sample-path&gt; --output &lt;new-directory&gt;</code> is
+deliberately narrower than a repository-wide sweep. Its <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/qualification.rs#L15-L33">path parser</a>
+rejects duplicate or escaping paths; its <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/qualification.rs#L150-L192">request checks</a> reject an
+unsupported host target, missing authored outcomes and an output directory
+that already exists. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/xtask/src/qualification.rs#L36-L118"><code>execute</code></a> then:</p>
+<ol>
+<li>requires a clean committed tree and retains its exact source archive;</li>
+<li>prepares and verifies the producer before observing each selected sample;</li>
+<li>saves the sample outcomes, verifies the producer again and compares source
+   identities after execution;</li>
+<li>returns failure for an unexecuted selection, incorrect outcome or changed
+   source/producer instead of relabeling it as a pass.</li>
+</ol>
+<p>The executable samples and deliberate rejection controls remain ordinary
+customers. Discovery metadata is a runner's instruction, not package admission
+or language meaning. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/samples/README.md#L52-L105">Sample-role contract</a>. This distinction matters when
+interpreting an old pass stamp or a directory-wide count.</p>
+<h2 id="planning-implications">Planning implications</h2>
+<p><em>Judgment:</em> give product tools the same input/owner/output treatment as compiler
+subsystems, and give repository tools an explicit statement of what their
+result proves. Keep benchmark records, bootstrap evidence, CI admission and
+runtime qualification separately labeled rather than collapsing them to a
+single “verified” badge.</p>
+<p>There is a concrete documentation mismatch to preserve in the map:
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/tools/ci/README.md#L7-L12"><code>tools/ci/README.md</code></a> describes admission as rules and formatting with no
+compiler build, but <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/.github/workflows/admission.yml#L72-L108">the workflow</a> now conditionally runs a type check on
+the merge tree. This page follows the executable workflow; repairing that
+owner's README is outside this documentation slice.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+</script>
+</body>
+</html>
