@@ -951,7 +951,16 @@ fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
             );
         } else {
             assert!(
-                !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                matches!(&verdict, Ok(RouteVerdict::Rejected {
+                    formations, violations, unproved, unestablished, conflicts, exceeded,
+                }) if formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty()
+                    && unproved.len() == 1
+                    && matches!(unproved[0].kind, ObligationKind::CallRequirement { clause: 0, .. })
+                    && unproved[0].statement.contains("cannot prove requires contract for call keep from entry")),
                 "the const requirement remains owed: {verdict:?}"
             );
         }
@@ -969,6 +978,11 @@ fn generic_callback_applications_keep_the_selected_contract() {
         "#
         );
         let source = super::boundary_calls::typed(&text);
+        let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the real preparation stage retains each open callback tuple");
         let form = typed_trees_to_terminal_psi::elaborate_generic(
             &source,
             super::boundary_calls::entry(&source),
@@ -981,7 +995,9 @@ fn generic_callback_applications_keep_the_selected_contract() {
             );
         } else {
             assert!(
-                !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                matches!(&verdict, Err(refusal)
+                    if refusal.reason == RefusalReason::ForeignIdentity
+                        && refusal.detail == "refinement structural formal has another carrier, access or identity"),
                 "a selected callable requiring exclusive access cannot satisfy a shared-input contract: {verdict:?}"
             );
         }

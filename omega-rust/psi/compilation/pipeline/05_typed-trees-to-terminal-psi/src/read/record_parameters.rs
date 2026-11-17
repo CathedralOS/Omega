@@ -975,7 +975,19 @@ mod tests {
                     .find(|machine| machine.id == requirement)
                     .unwrap();
                 assert!(machine.declaration.is_none());
-                assert!(machine.declared_service_reach.is_none());
+                assert_eq!(
+                    machine.declared_service_reach.as_ref(),
+                    Some(&entry.published_service_ceiling)
+                );
+                assert!(
+                    prepared
+                        .program
+                        .module
+                        .callables
+                        .machine_envelope(requirement)
+                        .is_none(),
+                    "retaining a source bound does not publish an executable requirement"
+                );
                 assert_eq!(
                     machine.published_service_ceiling,
                     entry.published_service_ceiling

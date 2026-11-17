@@ -2013,7 +2013,6 @@ impl<'t> Program<'t> {
                     Unserved::Call("callable argument lost its receiving type scope"),
                 )
             })?;
-            let outer = std::mem::replace(&mut self.scope, scope);
             let source_scope = self.source_scopes.get(callee).cloned().ok_or_else(|| {
                 refuse(
                     caller,
@@ -2021,6 +2020,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("callable argument lost its receiving source scope"),
                 )
             })?;
+            let outer = std::mem::replace(&mut self.scope, scope);
             let outer_source = std::mem::replace(&mut self.source_scope, source_scope);
             let read = self.requirement(required, &[]);
             self.source_scope = outer_source;
