@@ -2492,6 +2492,20 @@ pub mod borrowed_storage {
             Self::new(&[]).with_window(start, end, position)
         }
 
+        /// A captured contiguous window of the whole original descriptor.
+        /// A forgotten address, erased selector, field projection or indirect
+        /// region cannot establish this correspondence.
+        pub fn is_captured_whole_descriptor_window(&self) -> bool {
+            !self.indirect
+                && self.original_descriptor_path() == Some(&[][..])
+                && self.address.as_ref().is_some_and(|steps| {
+                    !steps.is_empty()
+                        && steps
+                            .iter()
+                            .all(|step| matches!(step, AddressStep::Window { .. }))
+                })
+        }
+
         pub fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
             if self.original_descriptor_path().is_none() {
                 self.descriptor = DescriptorPrefix::Unknown;

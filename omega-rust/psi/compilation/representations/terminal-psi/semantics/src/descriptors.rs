@@ -9641,6 +9641,7 @@ pub mod descriptor_results {
                 VersionStart::Completed(producer),
                 observation,
                 payload,
+                None,
             )
         }
 
@@ -9657,7 +9658,38 @@ pub mod descriptor_results {
             }
             let machine =
                 descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
-            require_unchanged_from(machine, analysis, VersionStart::Entry, observation, payload)
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Entry,
+                observation,
+                payload,
+                None,
+            )
+        }
+
+        pub(crate) fn require_unchanged_entry_storage_with_incoming(
+            types: &[StructuralTypeDeclaration],
+            graph: &[DescriptorMachine],
+            analysis: &mut DescriptorAnalysis<'_>,
+            identity: MachineId,
+            observation: DescriptorPosition,
+            payload: &DescriptorPayloadTarget,
+            incoming: &super::payload_reachability::IncomingFlow,
+        ) -> Result<(), &'static str> {
+            if !analysis.uses_source_graph(types, graph) {
+                return Err("entry storage analysis belongs to another immutable source graph");
+            }
+            let machine =
+                descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Entry,
+                observation,
+                payload,
+                Some(incoming),
+            )
         }
 
         #[derive(Clone, Copy)]
@@ -9672,10 +9704,18 @@ pub mod descriptor_results {
             start: VersionStart,
             observation: DescriptorPosition,
             payload: &DescriptorPayloadTarget,
+            incoming: Option<&super::payload_reachability::IncomingFlow>,
         ) -> Result<(), &'static str> {
             let identity = machine.id;
-            let relevant = super::payload_reachability::predecessors(machine, observation)
-                .ok_or("produced payload observation has unresolved control flow")?;
+            let relevant = match incoming {
+                Some(incoming) => super::payload_reachability::predecessors_with_incoming(
+                    machine,
+                    incoming,
+                    observation,
+                ),
+                None => super::payload_reachability::predecessors(machine, observation),
+            }
+            .ok_or("produced payload observation has unresolved control flow")?;
             let home = match payload {
                 DescriptorPayloadTarget::Storage {
                     location,

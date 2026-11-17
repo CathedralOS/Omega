@@ -99,9 +99,20 @@ pub(crate) mod analysis {
         machines: Vec<MachineStorageQueries>,
     }
 
+    type IncomingSources = Option<Vec<DescriptorSourceOrigin>>;
+    type IncomingTopology =
+        std::sync::Arc<crate::descriptor_results::payload_reachability::IncomingFlow>;
+
+    #[derive(Default)]
+    struct StorageQuery {
+        storage: LocationMap<Option<StorageResolution>>,
+        incoming: LocationMap<IncomingSources>,
+    }
+
     struct MachineStorageQueries {
         identity: MachineId,
-        positions: Vec<(DescriptorPosition, LocationMap<Option<StorageResolution>>)>,
+        positions: Vec<(DescriptorPosition, StorageQuery)>,
+        incoming: Option<Option<IncomingTopology>>,
     }
 
     impl StorageQueries {
@@ -119,14 +130,10 @@ pub(crate) mod analysis {
             let position = positions
                 .binary_search_by_key(&position, |(position, _)| *position)
                 .ok()?;
-            positions[position].1.get(location)
+            positions[position].1.storage.get(location)
         }
 
-        fn at(
-            &mut self,
-            machine: &DescriptorMachine,
-            position: DescriptorPosition,
-        ) -> Option<&mut LocationMap<Option<StorageResolution>>> {
+        fn machine(&mut self, machine: &DescriptorMachine) -> &mut MachineStorageQueries {
             let index = match self
                 .machines
                 .binary_search_by_key(&machine.id, |row| row.identity)
@@ -137,21 +144,52 @@ pub(crate) mod analysis {
                         index,
                         MachineStorageQueries {
                             identity: machine.id,
+                            incoming: None,
                             positions: machine
                                 .flow
                                 .keys()
-                                .map(|position| (*position, LocationMap::new()))
+                                .map(|position| (*position, StorageQuery::default()))
                                 .collect(),
                         },
                     );
                     index
                 }
             };
-            let positions = &mut self.machines[index].positions;
+            &mut self.machines[index]
+        }
+
+        fn at(
+            &mut self,
+            machine: &DescriptorMachine,
+            position: DescriptorPosition,
+        ) -> Option<&mut LocationMap<Option<StorageResolution>>> {
+            let positions = &mut self.machine(machine).positions;
             let index = positions
                 .binary_search_by_key(&position, |(position, _)| *position)
                 .ok()?;
-            Some(&mut positions[index].1)
+            Some(&mut positions[index].1.storage)
+        }
+
+        fn incoming_at(
+            &mut self,
+            machine: &DescriptorMachine,
+            position: DescriptorPosition,
+        ) -> Option<&mut LocationMap<IncomingSources>> {
+            let positions = &mut self.machine(machine).positions;
+            let index = positions
+                .binary_search_by_key(&position, |(position, _)| *position)
+                .ok()?;
+            Some(&mut positions[index].1.incoming)
+        }
+
+        fn incoming(&mut self, machine: &DescriptorMachine) -> Option<IncomingTopology> {
+            self.machine(machine)
+                .incoming
+                .get_or_insert_with(|| {
+                    crate::descriptor_results::payload_reachability::incoming_flow(&machine.flow)
+                        .map(std::sync::Arc::new)
+                })
+                .clone()
         }
     }
 
@@ -737,6 +775,85 @@ pub(crate) mod analysis {
                 self.replay
                     .read(machine, states.get(&position)?, location)?,
             )
+        }
+
+        /// Recover incoming contents only when their entry version still
+        /// reaches this exact observation on every path. Descriptor custody
+        /// alone does not establish that the borrowed bytes are unchanged.
+        pub fn unchanged_incoming_source_origins(
+            &mut self,
+            types: &[StructuralTypeDeclaration],
+            identity: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> Option<Vec<DescriptorSourceOrigin>> {
+            if !std::ptr::eq(types, self.replay.types)
+                || self.replay.slot_kind != DescriptorSlotKind::BorrowedStorage
+            {
+                return None;
+            }
+            let machine = self.replay.machine(identity)?;
+            if let Some(cached) = self
+                .storage_queries
+                .incoming_at(machine, position)?
+                .get(location)
+            {
+                return cached.clone();
+            }
+            let result = (|| {
+                let incoming = self.storage_queries.incoming(machine)?;
+                let origins = self.symbolic_source_origins(identity, position, location)?;
+                if origins.is_empty() {
+                    return None;
+                }
+                for origin in &origins {
+                    let query = match origin {
+                        DescriptorSourceOrigin::IncomingSlot(slot) => {
+                            DescriptorContentsQuery::from_location(slot)
+                        }
+                        DescriptorSourceOrigin::IncomingContents { query, .. } => query.clone(),
+                        // A view parameter already is the descriptor value;
+                        // reference parameters instead carry IncomingSlot.
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                            source,
+                            ..
+                        }) => {
+                            let DescriptorDefinition::Parameter {
+                                structural_type,
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            } = machine.place_definition(*source)?
+                            else {
+                                return None;
+                            };
+                            if !terminal_psi::find_structural_type(types, *structural_type)?
+                                .shape
+                                .is_shared_readable_byte_view()
+                            {
+                                return None;
+                            }
+                            DescriptorContentsQuery::from_location(&DescriptorLocation::whole(
+                                *source,
+                            ))
+                        }
+                        _ => return None,
+                    };
+                    crate::descriptor_results::payload_versions::require_unchanged_entry_storage_with_incoming(
+                        self.replay.types,
+                        self.replay.machines,
+                        self,
+                        identity,
+                        position,
+                        &DescriptorPayloadTarget::Incoming(query),
+                        &incoming,
+                    ).ok()?;
+                }
+                Some(origins)
+            })();
+            self.storage_queries
+                .incoming_at(machine, position)?
+                .insert(location.clone(), result.clone());
+            result
         }
 
         /// Preserve the failing stage when an operation requires an exact

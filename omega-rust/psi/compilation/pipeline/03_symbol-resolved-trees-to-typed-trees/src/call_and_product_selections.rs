@@ -1467,9 +1467,22 @@ pub(crate) mod construction_destinations {
                 for (statement_index, statement) in statements.iter().enumerate() {
                     match statement {
                         StatementNode::Assembly(_) => {}
+                        // An inferred Unit placeholder is not a written
+                        // destination for its initializer's domain entries.
+                        // That initializer still owns its actual type.
                         StatementNode::LocalData(local)
                             if local.initial_value.is_valid()
-                                && local.type_reference.is_valid() =>
+                                && local.type_reference.is_valid()
+                                && !(local.type_is_inferred
+                                    && program
+                                        .type_reference_table
+                                        .contains_type_reference(local.type_reference)
+                                    && matches!(
+                                        program
+                                            .type_reference_table
+                                            .type_reference(local.type_reference,),
+                                        TypeReferenceNode::Unit
+                                    )) =>
                         {
                             destinations.push((
                                 local.initial_value,

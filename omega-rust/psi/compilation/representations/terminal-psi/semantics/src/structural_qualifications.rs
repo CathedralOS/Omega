@@ -1173,6 +1173,10 @@ fn validate_change(
     source: &StructuralArgument,
     destination: &Memberships,
     target: BlockId,
+    mut incoming: Option<(
+        &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        crate::descriptor_results::DescriptorPosition,
+    )>,
 ) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -1391,11 +1395,26 @@ fn validate_change(
         })?;
         let mut argument = source.clone();
         argument.path.extend_from_slice(path);
-        let supplied = crate::byte_sequence_argument_predicates(module, places.machine, &argument)
-            .ok_or(StructuralQualificationError {
-                machine,
-                detail: "a byte qualification change has no reconstructed source predicates",
-            })?;
+        let mut supplied =
+            crate::byte_sequence_argument_predicates(module, places.machine, &argument).ok_or(
+                StructuralQualificationError {
+                    machine,
+                    detail: "a byte qualification change has no reconstructed source predicates",
+                },
+            )?;
+        if let Some((analysis, position)) = incoming.as_mut()
+            && let Some(facts) = crate::incoming_byte_sequence_argument_predicates(
+                module,
+                places.machine,
+                analysis,
+                *position,
+                &argument,
+            )
+        {
+            for predicate in facts.predicates() {
+                supplied.insert(predicate);
+            }
+        }
         byte_domain = true;
         established &= supplied.implies(predicates);
     }
@@ -1405,6 +1424,7 @@ fn validate_change(
 fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    mut incoming: Option<&mut crate::descriptor_results::DescriptorAnalysis<'_>>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
@@ -1454,6 +1474,12 @@ fn validate_machine(
                                 "a structural qualification change names another destination",
                             );
                         }
+                        let position = u32::try_from(block.operations.len()).map_err(|_| {
+                            StructuralQualificationError {
+                                machine: id,
+                                detail: "a byte qualification use exceeds its descriptor graph",
+                            }
+                        })?;
                         if let Some(established) = validate_change(
                             module,
                             &places,
@@ -1461,6 +1487,9 @@ fn validate_machine(
                             argument,
                             &expected,
                             target.id,
+                            incoming
+                                .as_deref_mut()
+                                .map(|analysis| (analysis, (block.id, position))),
                         )? {
                             byte_establishments.push((edge, established));
                         }
@@ -3169,7 +3198,7 @@ fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
 pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
     for machine in &module.machines {
-        validate_machine(module, machine)?;
+        validate_machine(module, machine, None)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
@@ -3196,7 +3225,25 @@ pub fn byte_qualification_change_judgments(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Judged<Vec<(EdgeId, bool)>> {
-    validate_machine(module, machine)
+    let Ok(graph) =
+        crate::descriptor_results::terminal_borrowed_storage_graph_from(module, [machine.id], &[])
+    else {
+        return validate_machine(module, machine, None);
+    };
+    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.structural_types,
+        &graph,
+    );
+    byte_qualification_change_judgments_in(module, machine, &mut analysis)
+}
+
+/// Reuse the checker owner's already prepared descriptor and storage history.
+pub fn byte_qualification_change_judgments_in(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+) -> Judged<Vec<(EdgeId, bool)>> {
+    validate_machine(module, machine, Some(analysis))
 }
 
 /// The complete structural membership judgment required at artifact ingress.

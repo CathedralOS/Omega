@@ -4268,12 +4268,14 @@ impl<'a> Storage<'a> {
     pub(crate) fn byte_predicate_establishments(
         &self,
         module: &terminal_psi::TerminalModule,
+        references: &mut DescriptorAnalysis<'a>,
     ) -> Checked<Vec<StorageUse>> {
         let mut verdicts = Vec::new();
         let changes =
-            terminal_semantics::structural_qualifications::byte_qualification_change_judgments(
+            terminal_semantics::structural_qualifications::byte_qualification_change_judgments_in(
                 module,
                 self.lowered,
+                references,
             )
             .map_err(|error| self.unsupported(Construct::Machine, error.detail))?;
         for (edge, established) in changes {
@@ -4521,6 +4523,32 @@ impl<'a> Storage<'a> {
     /// Resolve the predicate from the exact immutable descriptor source.
     /// Shared inputs remain symbolic entry requirements; a produced view may
     /// use only reconstructed source facts or its authenticated callee contract.
+    fn byte_source_at(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        actual: &Lineage,
+        concerns: Construct,
+        position: (BlockId, usize),
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        required.insert(predicate);
+        if actual.segments.is_empty()
+            && let Ok(before) = u32::try_from(position.1)
+            && terminal_semantics::incoming_byte_sequence_argument_predicates(
+                self.module,
+                self.lowered,
+                references,
+                (position.0, before),
+                &StructuralArgument::whole(actual.root, StructuralAccess::SharedBorrow),
+            )
+            .is_some_and(|facts| facts.implies(required))
+        {
+            return Ok(ScalarTerm::Boolean(true));
+        }
+        self.byte_source(predicate, actual, concerns)
+    }
+
     fn byte_source(
         &self,
         predicate: semantic_vocabulary::ByteSequencePredicate,
@@ -4685,6 +4713,7 @@ impl<'a> Storage<'a> {
     /// Keep the source condition in the proof: an annotation grants no fact.
     pub(crate) fn subslice_predicate_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
         use semantic_vocabulary::ByteSequencePredicate;
@@ -4706,12 +4735,24 @@ impl<'a> Storage<'a> {
         }
         let whole = terminal_semantics::byte_subslice_is_whole(self.lowered, operation);
         let source = self.argument(source, concerns)?;
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let before = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no producer position"))?;
         let mut known = Vec::new();
         for predicate in ByteSequencePredicate::ALL {
             if !whole && !predicate.is_subslice_preserving() {
                 continue;
             }
-            let term = match self.byte_source(predicate, &source, concerns) {
+            let term = match self.byte_source_at(
+                references,
+                predicate,
+                &source,
+                concerns,
+                (block, before),
+            ) {
                 Ok(term) => term,
                 Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
                 Err(_) => continue,
@@ -6348,7 +6389,13 @@ impl crate::Bindings for AtCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = self.actual(root, path)?;
-        self.storage.byte_source(predicate, &actual, self.concerns)
+        self.storage.byte_source_at(
+            self.references,
+            predicate,
+            &actual,
+            self.concerns,
+            (self.block, self.up_to),
+        )
     }
 
     fn case(
@@ -6823,7 +6870,13 @@ impl crate::Bindings for Held<'_, '_> {
         // Membership selects a debt, never its proof. Only the existing byte
         // source judgment may supply a fact about these actual contents.
         let actual = self.beneath(root, path)?;
-        self.storage.byte_source(predicate, &actual, self.concerns)
+        self.storage.byte_source_at(
+            self.references,
+            predicate,
+            &actual,
+            self.concerns,
+            (self.block, self.up_to),
+        )
     }
 
     fn case(

@@ -1478,10 +1478,31 @@ impl DeclaredExpressionTypes {
                 let receiver = self.get(program, owner, member.receiver)?;
                 collection_field_type(program, receiver, member.selection.field_symbol()).ok()
             }
+            ExpressionNode::Name(path) => {
+                let declared = declared_callable_value_type(program, owner, expression).ok()?;
+                if matches!(
+                    program.type_reference_table.type_reference(declared),
+                    TypeReferenceNode::Unit
+                ) && let Some(symbol) = path.resolved_symbol()
+                    && program.symbols.get(symbol).kind == SymbolKind::Local
+                {
+                    let state = program.state_by_symbol(program.symbols.get(symbol).parent)?;
+                    let (_, local) = program.state_local_declaration(state, symbol)?;
+                    if local.type_reference == declared && local.type_is_inferred {
+                        // Resolution's captured operands retain an inferred Unit
+                        // placeholder. Read their actual initializer's type through
+                        // this same owner/cycle cache; the placeholder supplies no
+                        // carrier, domain, lifetime or access information.
+                        return local
+                            .ordinary_value_initializer()
+                            .and_then(|initializer| self.get(program, owner, initializer));
+                    }
+                }
+                Some(declared)
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
-            | ExpressionNode::Name(_)
             | ExpressionNode::Indexed(_)
             | ExpressionNode::Call(_) => {
                 declared_callable_value_type(program, owner, expression).ok()
@@ -1627,6 +1648,102 @@ fn core_integer_result(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn inferred_binding_placeholders_follow_exact_initializers_without_inventing_types() {
+        use typed_trees::statement::StatementNode;
+        let mut program = crate::qualified_operator_home_tests::checked(&[(
+            "main.omg",
+            "machine owner(value: u64) -> u64 { let captured: u64 = value; captured } machine other(value: u64) -> u64 { value }",
+        )])
+        .unwrap();
+        let symbol = |name: &str| {
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap()
+                .symbol
+        };
+        let owner = symbol("owner");
+        let other = symbol("other");
+        let state = program.machine_states(program.machine_by_symbol(owner).unwrap())[0].clone();
+        let expected = program.state_parameters(&state)[0].type_reference;
+        let local_handle = state
+            .statement_nodes
+            .handles()
+            .find(|handle| {
+                program
+                    .statement_table
+                    .statement(*handle)
+                    .as_local_data()
+                    .is_some()
+            })
+            .unwrap();
+        let local = program
+            .statement_table
+            .statement(local_handle)
+            .as_local_data()
+            .unwrap();
+        let binder = local.symbol;
+        let initializer = local.initial_value;
+        let name = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| {
+                matches!(node, ExpressionNode::Name(path) if path.resolved_symbol() == Some(binder))
+                    .then_some(handle)
+            })
+            .unwrap();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let update = |program: &mut TypedTrees, inferred: bool, initial_value| {
+            let StatementNode::LocalData(local) =
+                program.statement_table.statement_mut(local_handle)
+            else {
+                unreachable!()
+            };
+            local.type_reference = unit;
+            local.type_is_inferred = inferred;
+            local.initial_value = initial_value;
+        };
+        update(&mut program, true, initializer);
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, owner, name),
+            Some(expected)
+        );
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, other, name),
+            None
+        );
+
+        update(&mut program, false, initializer);
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, owner, name),
+            Some(unit)
+        );
+        let formed_unit = program
+            .expression_table
+            .insert(ExpressionNode::ZeroValue(unit));
+        program
+            .expression_table
+            .set_constructed_value_type_reference(formed_unit, unit);
+        update(&mut program, true, formed_unit);
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, owner, name),
+            Some(unit)
+        );
+
+        update(&mut program, true, name);
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, owner, name),
+            None
+        );
+        update(&mut program, true, ExpressionHandle::invalid());
+        assert_eq!(
+            DeclaredExpressionTypes::default().get(&program, owner, name),
+            None
+        );
+    }
+
     #[test]
     fn exact_constructor_fields_keep_case_and_constructor_owners() {
         use symbols::{SymbolNameRef, SymbolTableBuilder};

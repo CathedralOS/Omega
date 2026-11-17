@@ -625,6 +625,115 @@ fn an_explicit_domain_cast_permits_the_builtin_byte_range_and_keeps_its_bounds()
     assert_eq!(verdict(&outside), "rejected");
 }
 
+const QUALIFIED_PREFIX_CAST: &str = r#"
+    domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+    machine prefix_length(path: &[u8] in Path, position: u64) -> u64
+    requires position <= path.len {
+        let selected: &[u8] in Path = path[0..position] as +Path;
+        selected.len
+    }
+    machine build_entry() {
+        let length: u64 = prefix_length("foo/bar" as +Path, 3);
+    }
+"#;
+
+#[test]
+fn prefix_domain_cast_cannot_supply_a_missing_qualified_range_type() {
+    let actual = verdict(QUALIFIED_PREFIX_CAST);
+    assert!(
+        actual.contains("domain cast whose operand's declared type typing does not read yet"),
+        "an outer qualification cannot select a range of qualified operands: {actual}"
+    );
+}
+
+#[test]
+fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
+    let source = QUALIFIED_PREFIX_CAST.replace(
+        "path[0..position] as +Path",
+        "(path as -Path)[0..position] as +Path",
+    );
+    let typed = super::build_purpose::frontier_with_core(
+        "machine product_entry() {}",
+        &format!("use omega::language::core::byte_observation;\n{source}"),
+        source::DependencyScope::Build,
+        &[(
+            "byte_observation.omg",
+            "byte_observation",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/byte_observation.omg"
+            )),
+        )],
+    );
+    let prefix_symbol = super::build_purpose::symbol(&typed, "prefix_length");
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let verdicts = crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[Some(super::build_purpose::package())],
+                source::DependencyScope::Build,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    );
+    match super::entryless::whole_subject_result(verdicts).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            let prefix = accepted
+                .elaboration
+                .machines
+                .iter()
+                .find_map(|(id, symbol)| (*symbol == prefix_symbol).then_some(id))
+                .unwrap();
+            let machine = accepted
+                .elaboration
+                .module
+                .machines
+                .iter()
+                .find(|machine| machine.id == prefix)
+                .unwrap();
+            let mut ranges = 0;
+            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                if matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. }) {
+                    let result = operation.result.as_structural().unwrap();
+                    assert!(result.qualifications.is_empty());
+                    assert!(result.projected_qualifications.is_empty());
+                    assert!(result.qualification_establishments.is_empty());
+                    ranges += 1;
+                }
+            }
+            assert_eq!(ranges, 1, "prefix_length keeps its own raw range producer");
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("the prefix must prove Path on its raw borrowed bytes: {other:?}"),
+    }
+    let outside = source.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
+    match judge_build(&outside).unwrap() {
+        RouteVerdict::Rejected {
+            violations,
+            unproved,
+            ..
+        } => {
+            let reasons = violations
+                .iter()
+                .map(|row| row.message())
+                .chain(unproved.iter().map(|row| row.statement.clone()))
+                .collect::<Vec<_>>();
+            eprintln!("outside-prefix rejection: {reasons:?}");
+            assert!(
+                reasons.iter().any(|reason| {
+                    reason.contains("cannot prove requires clause 1")
+                        || reason.contains("cannot prove requires contract for call prefix_length")
+                }),
+                "the caller must still prove position <= path.len: {reasons:?}"
+            );
+        }
+        other => panic!("an eight-byte prefix of seven bytes must fail its bound: {other:?}"),
+    }
+}
+
 #[test]
 fn adding_a_domain_back_does_not_acquire_a_builtin_byte_range() {
     let program = QUALIFIED_BYTE_RANGE.replace(

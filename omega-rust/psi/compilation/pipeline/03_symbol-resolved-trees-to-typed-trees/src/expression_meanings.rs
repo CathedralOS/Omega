@@ -15,6 +15,7 @@ pub(crate) fn prepare(
         Cast(usize),
         Operator(typed_trees::expression::TableBinaryExpression),
         Member(typed_trees::expression::TableMemberExpression),
+        Range,
     }
     let casts = crate::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
     let mut sites = casts
@@ -25,6 +26,20 @@ pub(crate) fn prepare(
         crate::operator_calls::sites(program, frontier)
             .into_iter()
             .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
+    );
+    sites.extend(
+        program
+            .expression_table
+            .iter_backing_expressions()
+            .filter_map(|(handle, node)| match node {
+                typed_trees::expression::ExpressionNode::Indexed(indexed)
+                    if handle.arena_index() as usize > frontier
+                        && program.expression_table.range_node(indexed.index).is_some() =>
+                {
+                    Some((handle, Meaning::Range))
+                }
+                _ => None,
+            }),
     );
     sites.extend(
         program
@@ -75,6 +90,11 @@ pub(crate) fn prepare(
             }
             Meaning::Operator(binary) => {
                 crate::operator_calls::prepare_site(program, &owners, &mut types, handle, binary)?
+            }
+            Meaning::Range => {
+                crate::constructor_applications::retain_indexed_operand_type(
+                    program, &owners, &mut types, handle,
+                )?;
             }
         }
     }
