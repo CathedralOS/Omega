@@ -14,7 +14,6 @@
 // shared file-handle signal. Do not widen the class/length contract silently.
 use omega::language::core::FilesystemContentRead;
 use omega::language::core::FilesystemContentWrite;
-use omega::language::core::widen_i32_to_i64;
 use omega::language::core::widen_u32_to_i64;
 use omega::language::core::narrow_u64_to_i64_wrapping;
 use omega::language::core::narrow_i64_to_u64_wrapping;
@@ -112,15 +111,6 @@ reaches FilesystemContentRead {
     }
 }
 
-// Capture the transfer's error before cleanup. A successful transfer still
-// reports a failed release; cleanup must never overwrite an earlier failure.
-machine windows_transfer_completion(result: i64, closed: i32) -> i64 {
-    transition result < 0 { true -> (result) _ -> release(result, closed) }
-    machine release(result: i64, closed: i32) -> i64 {
-        transition closed < 0 { true -> (widen_i32_to_i64(closed)) _ -> (result) }
-    }
-}
-
 machine windows_write_pinned(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8]) -> i64
 requires (handle as -WindowsSynchronousFileOrAbsent) != 0
 reaches FilesystemContentWrite
@@ -131,8 +121,9 @@ reaches FilesystemContentWrite
     }
     machine sized(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8]) -> i64
     requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.len <= 4294967295 {
+        let count: u64 = windows_transfer_count(bytes.len, bytes.len);
         let mut written: u32 = 0;
-        let ok: i32 = block WindowsFilesystemTransferIo::write_file(handle, bytes, &mut written, 0);
+        let ok: i32 = block WindowsFilesystemTransferIo::write_file(handle, bytes[0..count], &mut written, 0);
         transition ok == 0 {
             true -> failed()
             _ -> wrote(written)
@@ -155,7 +146,8 @@ reaches FilesystemContentRead {
     }
     machine bounded(handle: i64 in WindowsSynchronousFileOrAbsent, buffer: &mut [u8], count: u64) -> i64
     requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && count <= buffer.len && count <= 4294967295 {
-        block windows_read_window(handle, &mut buffer[0..count])
+        let prefix: u64 = windows_transfer_count(count, buffer.len);
+        block windows_read_window(handle, &mut buffer[0..prefix])
     }
 }
 

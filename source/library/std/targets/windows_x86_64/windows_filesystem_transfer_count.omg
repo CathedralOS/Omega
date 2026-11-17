@@ -1,0 +1,20 @@
+// Keep the original buffer bound separate from the native call's count width.
+// This extracted gate still rejects requests above DWORD_MAX; the transfer
+// callers retain their existing guards until the prefix repair is qualified.
+use omega::language::core::widen_i32_to_i64;
+
+machine windows_transfer_count(requested: u64, available: u64) -> u64
+requires requested <= available && requested <= 4294967295
+ensures result == requested && result <= available && result <= 4294967295
+{
+    requested
+}
+
+// Capture the transfer's error before cleanup. A successful transfer still
+// reports a failed release; cleanup must never overwrite an earlier failure.
+machine windows_transfer_completion(result: i64, closed: i32) -> i64 {
+    transition result < 0 { true -> (result) _ -> release(result, closed) }
+    machine release(result: i64, closed: i32) -> i64 {
+        transition closed < 0 { true -> (widen_i32_to_i64(closed)) _ -> (result) }
+    }
+}

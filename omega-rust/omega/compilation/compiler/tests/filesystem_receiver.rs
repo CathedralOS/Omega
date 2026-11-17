@@ -30,6 +30,122 @@ use terminal_psi_to_abstract_operations::provider_admission;
 const FIXTURE: &str = "tests/fixtures/pass/filesystem/windows_canonicalize_exit/main.omg";
 const TARGET: &str = "windows_x86_64";
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/joined_product_execution.rs"]
+mod joined_product_execution;
+
+// These are library unit programs, not a replacement Windows provider. Stage
+// the complete production helper unchanged so scalar endpoints do not need a
+// fabricated four-gigabyte view or an OS handle on the host running the test.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+struct TransferCountProject(PathBuf);
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+impl TransferCountProject {
+    fn stage(kind: &str) -> Self {
+        let repository = repo_root();
+        let projects = repository.join("build/windows-transfer-count");
+        std::fs::create_dir_all(&projects).unwrap();
+        let root = (0u64..)
+            .find_map(|sequence| {
+                let root = projects.join(format!("{kind}-{}-{sequence}", std::process::id()));
+                match std::fs::create_dir(&root) {
+                    Ok(()) => Some(root),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(error) => panic!("create private transfer project: {error}"),
+                }
+            })
+            .unwrap();
+        let project = Self(root);
+        copy_tree(
+            &repository.join(format!(
+                "tests/fixtures/{kind}/filesystem/windows_transfer_count"
+            )),
+            &project.0,
+        );
+        std::fs::copy(
+            repository.join(
+                "source/library/std/targets/windows_x86_64/windows_filesystem_transfer_count.omg",
+            ),
+            project.0.join("windows_filesystem_transfer_count.omg"),
+        )
+        .unwrap();
+        project
+    }
+
+    fn main(&self) -> PathBuf {
+        self.0.join("main.omg")
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+impl Drop for TransferCountProject {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn windows_transfer_count_runs_in_native_and_psi() {
+    let project = TransferCountProject::stage("run");
+    let discovered =
+        fixture_package_inputs::discover_fixture(&project.main(), Default::default()).unwrap();
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::LinuxX64],
+        compiler::CompilationProduct::Native(products::NativeProductRequest {
+            retain_native_inputs: false,
+            retain_native_stage_inputs: false,
+            installation_assumptions: Vec::new(),
+            image: Default::default(),
+            private_entry_ram: Vec::new(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
+            terminal_authority_permission_policy: None,
+            optimization_rollback: Default::default(),
+        }),
+    )
+    .unwrap();
+    let produced = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .unwrap_or_else(|diagnostics| panic!("transfer endpoint production: {diagnostics:#?}"));
+    let report = orchestration::complete_product(produced)
+        .and_then(compiler::CompilationOutput::into_report)
+        .unwrap_or_else(|error| panic!("transfer endpoint completion: {error:?}"));
+    let output = TemporaryDirectory::create("windows-transfer-count-execution", false).unwrap();
+    joined_product_execution::execute_report(report, &output.path().join("native"));
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn windows_transfer_count_refuses_original_request_beyond_available() {
+    let project = TransferCountProject::stage("fail");
+    let discovered =
+        fixture_package_inputs::discover_fixture(&project.main(), Default::default()).unwrap();
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::LinuxX64],
+        compiler::CompilationProduct::Check,
+    )
+    .unwrap();
+    let diagnostics = match fixture_package_inputs::check_fixture(
+        &mut prepared,
+        "linux_x86_64",
+        Default::default(),
+    ) {
+        Ok(_) => panic!("clamping must not admit an original request beyond its available bytes"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .starts_with("cannot prove requires clause 1 of the called machine.")),
+        "{diagnostics:#?}"
+    );
+}
+
 #[test]
 fn windows_canonicalize_receiver() {
     // The ordinary application route must establish project acceptance. The
