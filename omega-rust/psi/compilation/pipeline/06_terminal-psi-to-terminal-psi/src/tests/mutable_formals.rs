@@ -394,6 +394,12 @@ machine build_entry(owner: &mut Item, replacement: Item) {
         refusal.detail,
         "type data with custody while reading the signature of `build_entry`"
     );
+    let site = refusal
+        .source_span
+        .expect("the refused data declaration is located");
+    assert_eq!(site.source_id, source::SourceId(1));
+    assert!(site.span.start < source.find("machine build_entry").unwrap());
+    assert!(source[site.span.start..site.span.end].contains("Item"));
 }
 
 #[test]

@@ -262,7 +262,18 @@ impl Program<'_> {
             self.type_purpose,
             members,
             |variant| typed.data_payload_fields(variant),
-        )?;
+        )
+        .map_err(|mut refusal| {
+            // The caller may not yet have a machine body to locate this
+            // refusal. Keep the declaration whose shape was actually read.
+            if refusal.source_span.is_none() {
+                refusal.source_span = typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .filter(|span| *span != source::SourceSpan::default());
+            }
+            refusal
+        })?;
         let known = self.record_sources.iter().find_map(|(record, source)| {
             same(source.declaration, &source.application).then_some(record)
         });
