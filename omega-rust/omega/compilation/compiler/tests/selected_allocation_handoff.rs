@@ -142,6 +142,24 @@ fn identity_input_allocates_with_and_without_pressure() {
 }
 
 #[test]
+fn omega_04_rewrites_preserve_default_allocator_availability() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let available = |keep: &[&str]| {
+        compile(LOW_PRESSURE, keep, false, |object| {
+            let object = object.unwrap_or_else(|error| panic!("{keep:?}: {error}"));
+            manifest(object).allocator_availability
+        })
+    };
+    let baseline = available(&[]);
+    // Omega 04 may use caller-saved views while deciding a rewrite. Those
+    // private constraints must not restrict mandatory allocation afterward.
+    assert_eq!(available(&[SELECTED_LOWERING]), baseline);
+    assert_eq!(available(&[PRE_ALLOCATION]), baseline);
+}
+
+#[test]
 fn pre_allocation_output_allocates_with_and_without_pressure() {
     let _compilation = COMPILATIONS
         .lock()
