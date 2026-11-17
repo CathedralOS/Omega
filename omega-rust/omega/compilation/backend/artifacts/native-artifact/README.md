@@ -87,6 +87,14 @@ This crate takes inputs that no longer reference source. It does not select
 source providers, install an artifact or publish executable files, and it
 grants no publication, installation, provider or runtime authority.
 
+Runtime provision capture reads
+[`AdmittedRuntimeInput`](../../../representations/abstract-operations/verified-optimization-input/src/runtime_input.rs):
+the authorized artifact, selected entry and target, admitted boundary roster,
+and completed scalar applications. The verified input lends those exact rows
+without lending its executable abstract graph. The initial lowering stage owns
+the [entry correspondence check](../../../pipeline/00_terminal-psi-to-abstract-operations/src/entry_receiver.rs)
+before object construction; this crate consumes the resulting entry settlement.
+
 ## Physical evidence scope
 
 Physical evidence covers a deliberately narrow set: an unoptimized handoff;

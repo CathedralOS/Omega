@@ -50,7 +50,7 @@ fn admit_realization<'request>(
     let AdmittedNativeRealization {
         input, providers, ..
     } = &admitted;
-    let entry_settlement = native_artifact::admit_executable_entry(
+    let entry_settlement = terminal_psi_to_abstract_operations::admit_executable_entry(
         input,
         artifact,
         request.program_entry,
@@ -62,7 +62,7 @@ fn admit_realization<'request>(
         .map(|_| {
             native_artifact::TerminalRuntimeProvisions::capture_native_admission(
                 entry,
-                input,
+                input.optimization_input().runtime_input(),
                 providers
                     .installation
                     .as_ref()

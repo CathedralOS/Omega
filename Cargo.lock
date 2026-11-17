@@ -1138,6 +1138,7 @@ name = "native-artifact"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1171,8 +1172,8 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
+ "verified-optimization-input",
  "x86_64-encoding",
 ]
 

@@ -114,11 +114,6 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
 /// edge goes; the stale-allowance check refuses a row whose edge is gone, so
 /// the list can only shrink. Never add a row.
 const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
-    // Runtime provisions and the entry receiver read Omega 00's admitted input.
-    Allowance {
-        owner: "omega-rust/omega/compilation/backend/artifacts/native-artifact",
-        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-    },
     // Object replay and validation rerun stage 02 preparation and stage 03
     // geometry helpers on the earlier program an audit request retains.
     Allowance {

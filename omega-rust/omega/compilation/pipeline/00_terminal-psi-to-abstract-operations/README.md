@@ -105,6 +105,9 @@ established public names.
   Builtin integer comparisons need no provider row.
 - `lowering` walks operations in order for scalar, Unit and structural
   results. Optimization selection does not change this projection.
+- [Entry admission](src/entry_receiver.rs) compares the lowered entry with its
+  exact selected Psi member, receiver and parameter declarations before object
+  construction. It retains the checked receiver settlement for publication.
 
 [Module lowering](src/lowering.rs) checks the entry and structural block
 bindings, then calls [machine lowering](src/lowering.rs) directly. It
