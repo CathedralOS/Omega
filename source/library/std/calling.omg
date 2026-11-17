@@ -49,6 +49,8 @@ public data CallbackBinderIdentity [copy] {
 
 public data AbiValueClass {
     case Integer;
+    // Darwin non-HFA composites retain whole eight-byte stack slots.
+    case IntegerAggregate;
     case Float;
     case HomogeneousFloatAggregate(members: u64);
     case SystemVAggregate(

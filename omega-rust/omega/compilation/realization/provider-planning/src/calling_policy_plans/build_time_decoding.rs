@@ -199,6 +199,7 @@ fn decode_value_shape(value: &BuildTimeValue) -> Result<ValueShape, String> {
     let (variant, payload) = case_parts(field(fields, "class", "AbiValueShape")?, "AbiValueClass")?;
     let class = match variant {
         "Integer" => ValueClass::Integer,
+        "IntegerAggregate" => ValueClass::IntegerAggregate,
         "Float" => ValueClass::Float,
         "HomogeneousFloatAggregate" => ValueClass::HomogeneousFloatAggregate {
             members: u8_value(
@@ -559,5 +560,31 @@ pub(crate) fn case(variant: &str, payload: Vec<(String, BuildTimeValue)>) -> Bui
     BuildTimeValue::Case {
         variant: variant.to_owned(),
         payload,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authored_darwin_integer_aggregate_shape_keeps_its_class_and_geometry() {
+        let value = |class| BuildTimeValue::Struct {
+            type_name: "AbiValueShape".into(),
+            fields: vec![
+                ("class".into(), case(class, vec![])),
+                ("byte_size".into(), BuildTimeValue::Int(4)),
+                ("alignment".into(), BuildTimeValue::Int(2)),
+            ],
+        };
+        assert_eq!(
+            decode_value_shape(&value("IntegerAggregate")).unwrap(),
+            ValueShape::integer_aggregate(4, 2)
+        );
+        assert_eq!(
+            decode_value_shape(&value("Integer")).unwrap(),
+            ValueShape::integer(4, 2)
+        );
+        assert!(decode_value_shape(&value("UnrecognizedComposite")).is_err());
     }
 }

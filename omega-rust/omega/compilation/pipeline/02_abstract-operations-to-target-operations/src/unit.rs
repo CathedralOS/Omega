@@ -1459,7 +1459,7 @@ mod projected_result {
     use terminal_psi::StructuralMultiplicity;
 
     pub(crate) fn has_store_fragments(placement: &ValuePlacement) -> bool {
-        placement.shape.class == ValueClass::Integer
+        placement.shape.class.is_integer()
             && placement.shape.byte_size != 0
             && placement
                 .locations

@@ -601,6 +601,7 @@ pub(super) fn decode_shape(
 ) -> Result<ValueShape, FixedViewCopyDecodeError> {
     let class = match cursor.byte()? {
         1 => ValueClass::Integer,
+        7 => ValueClass::IntegerAggregate,
         2 => ValueClass::Float,
         5 => ValueClass::BorrowedReference,
         6 => ValueClass::BorrowedScalarReference,
@@ -1738,6 +1739,26 @@ mod tests {
         );
         assert_ne!(aggregate, local);
         assert_ne!(aggregate, first);
+    }
+
+    #[test]
+    fn darwin_integer_aggregate_shape_round_trip_preserves_composite_identity() {
+        let mut encoded = Vec::new();
+        for shape in [
+            ValueShape::integer(4, 2),
+            ValueShape::integer_aggregate(4, 2),
+        ] {
+            let mut bytes = Vec::new();
+            encode_shape(&mut bytes, shape);
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_shape(&mut cursor).unwrap(), shape);
+            assert_eq!(cursor.remaining(), 0);
+            for end in 0..bytes.len() {
+                assert!(decode_shape(&mut Cursor::new(&bytes[..end])).is_err());
+            }
+            encoded.push(bytes);
+        }
+        assert_ne!(encoded[0], encoded[1]);
     }
 
     #[test]

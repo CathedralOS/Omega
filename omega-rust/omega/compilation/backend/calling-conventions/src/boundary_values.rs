@@ -132,6 +132,9 @@ fn classify_boundary_aggregate(
             return Ok(ValueClass::Float);
         }
     }
+    if policy == CallingPolicy::DarwinAapcs64 {
+        return Ok(ValueClass::IntegerAggregate);
+    }
     if policy != CallingPolicy::SystemVAMD64 || shape.byte_size > 16 {
         return Ok(ValueClass::Integer);
     }
@@ -293,6 +296,176 @@ mod tests {
                 4,
             ),
         ]
+    }
+
+    #[test]
+    fn darwin_scalar_and_integer_composite_contracts_keep_distinct_identity_in_registers() {
+        let plan = |shape| {
+            crate::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::DarwinAapcs64,
+                &crate::CallSignature {
+                    parameters: vec![shape],
+                    result: None,
+                },
+            )
+            .unwrap()
+        };
+        let scalar = plan(ValueShape::integer(4, 2));
+        let record = plan(ValueShape::integer_aggregate(4, 2));
+        assert_eq!(
+            scalar.call.parameters[0].locations,
+            record.call.parameters[0].locations
+        );
+        assert_ne!(
+            scalar.contract_commitment_digest(),
+            record.contract_commitment_digest()
+        );
+    }
+
+    #[test]
+    fn darwin_integer_records_keep_composite_stack_slots_between_packed_scalars() {
+        let shapes = [
+            shape(BoundaryValueClass::Integer, 1, 1),
+            shape(BoundaryValueClass::Integer, 2, 2),
+            shape(
+                BoundaryValueClass::Record {
+                    first_field: 0,
+                    field_count: 2,
+                },
+                4,
+                2,
+            ),
+        ];
+        let fields = [
+            BoundaryValueField {
+                shape: 1,
+                byte_offset: 0,
+            },
+            BoundaryValueField {
+                shape: 0,
+                byte_offset: 2,
+            },
+        ];
+        let graph = value_graph(&shapes, &fields);
+        let scalar = graph.classify(0, CallingPolicy::DarwinAapcs64).unwrap();
+        let record = graph.classify(2, CallingPolicy::DarwinAapcs64).unwrap();
+        assert_eq!(record, ValueShape::integer_aggregate(4, 2));
+        assert_eq!(
+            graph.classify(2, CallingPolicy::Aapcs64).unwrap(),
+            ValueShape::integer(4, 2)
+        );
+        assert!(
+            graph
+                .validate_abi_shape(2, ValueShape::integer(4, 2), CallingPolicy::DarwinAapcs64)
+                .is_err()
+        );
+        assert!(
+            graph
+                .validate_abi_shape(
+                    0,
+                    ValueShape::integer_aggregate(1, 1),
+                    CallingPolicy::DarwinAapcs64
+                )
+                .is_err()
+        );
+        let mut parameters = vec![ValueShape::integer(8, 8); 8];
+        parameters.extend([scalar, scalar, record, scalar, record]);
+        let signature = crate::CallSignature {
+            parameters,
+            result: Some(record),
+        };
+        let plan = crate::evaluate_call_plan(CallingPolicy::DarwinAapcs64, &signature).unwrap();
+        for (placement, offset) in plan.parameters[8..].iter().zip([0, 1, 8, 16, 24]) {
+            assert!(
+                matches!(placement.locations.as_slice(), [crate::ValueLocation::Stack {stack_byte_offset, ..}] if *stack_byte_offset == offset)
+            );
+        }
+        assert_eq!(
+            plan.result.unwrap().locations,
+            [crate::ValueLocation::register(
+                crate::MachineRegister::Aarch64X(0),
+                0,
+                4
+            )]
+        );
+    }
+
+    #[test]
+    fn darwin_integer_composites_preserve_register_exhaustion_and_large_result_rules() {
+        let record = ValueShape::integer_aggregate(16, 16);
+        for count in [1, 6, 7] {
+            let mut parameters = vec![ValueShape::integer(8, 8); count];
+            parameters.extend([record, ValueShape::integer(1, 1)]);
+            let plan = crate::evaluate_call_plan(
+                CallingPolicy::DarwinAapcs64,
+                &crate::CallSignature {
+                    parameters,
+                    result: Some(ValueShape::integer_aggregate(24, 8)),
+                },
+            )
+            .unwrap();
+            if count < 7 {
+                assert_eq!(
+                    plan.parameters[count].locations,
+                    [
+                        crate::ValueLocation::register(
+                            crate::MachineRegister::Aarch64X(count as u8),
+                            0,
+                            8
+                        ),
+                        crate::ValueLocation::register(
+                            crate::MachineRegister::Aarch64X(count as u8 + 1),
+                            8,
+                            8
+                        ),
+                    ]
+                );
+            } else {
+                assert_eq!(
+                    plan.parameters[count].locations,
+                    [
+                        crate::ValueLocation::stack(0, 0, 8, 8),
+                        crate::ValueLocation::stack(8, 8, 8, 8),
+                    ]
+                );
+                assert_eq!(
+                    plan.parameters[count + 1].locations,
+                    [crate::ValueLocation::stack(16, 0, 1, 1)]
+                );
+            }
+            assert!(matches!(
+                plan.result.unwrap().locations.as_slice(),
+                [crate::ValueLocation::Indirect {
+                    pointer: crate::IndirectPointerLocation::Register(
+                        crate::MachineRegister::Aarch64X(8)
+                    ),
+                    byte_size: 24,
+                    ..
+                }]
+            ));
+        }
+    }
+
+    #[test]
+    fn darwin_stacked_float_aggregates_keep_natural_packing() {
+        let mut parameters = vec![ValueShape::float(4); 8];
+        parameters.extend([
+            ValueShape::homogeneous_float_aggregate(4, 3),
+            ValueShape::float(4),
+        ]);
+        let signature = crate::CallSignature {
+            parameters,
+            result: None,
+        };
+        let plan = crate::evaluate_call_plan(CallingPolicy::DarwinAapcs64, &signature).unwrap();
+        assert_eq!(
+            plan.parameters[8].locations,
+            [crate::ValueLocation::stack(0, 0, 12, 4)]
+        );
+        assert_eq!(
+            plan.parameters[9].locations,
+            [crate::ValueLocation::stack(12, 0, 4, 4)]
+        );
     }
 
     #[test]

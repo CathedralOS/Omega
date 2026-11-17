@@ -102,6 +102,11 @@ fn validate_signature_shapes(
             ));
         }
         match shape.class {
+            ValueClass::IntegerAggregate if policy != CallingPolicy::DarwinAapcs64 => {
+                return Err(PlanDiagnostic(
+                    "integer-aggregate class requires the Darwin arm64 policy".into(),
+                ));
+            }
             ValueClass::Float if !matches!(shape.byte_size, 4 | 8) => {
                 return Err(PlanDiagnostic(
                     "scalar floating-point call values must be f32 or f64 sized".into(),
@@ -544,7 +549,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         CallingPolicy::SystemVAMD64.ordinary_clobbers(),
     )?;
     if let Some(result) = plan.result.as_mut()
-        && matches!(result.shape.class, ValueClass::Integer)
+        && result.shape.class.is_integer()
         && result.shape.byte_size > 8
     {
         result.locations = if result.shape.byte_size > 16 {
@@ -588,7 +593,7 @@ fn evaluate_aapcs64(
         policy.ordinary_clobbers(),
     )?;
     if let Some(result) = plan.result.as_mut()
-        && matches!(result.shape.class, ValueClass::Integer)
+        && result.shape.class.is_integer()
     {
         if result.shape.byte_size > 16 {
             result.locations = vec![ValueLocation::indirect(
@@ -685,7 +690,7 @@ fn evaluate_split_bank_call(
         let float_members = match shape.class {
             ValueClass::Float => Some(1),
             ValueClass::HomogeneousFloatAggregate { members } => Some(members),
-            ValueClass::Integer => None,
+            ValueClass::Integer | ValueClass::IntegerAggregate => None,
             ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference => {
                 unreachable!("handled above")
             }
@@ -767,7 +772,8 @@ fn evaluate_split_bank_call(
             if float_members.is_some() {
                 float_index = float_register_count;
             }
-            if policy == CallingPolicy::DarwinAapcs64 {
+            if policy == CallingPolicy::DarwinAapcs64 && shape.class != ValueClass::IntegerAggregate
+            {
                 // Apple arm64 packs a stack scalar or float record at its
                 // natural alignment with no 8-byte minimum slot.
                 stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
@@ -996,7 +1002,7 @@ fn result_placement(
         return Ok(None);
     };
     let locations = match shape.class {
-        ValueClass::Integer => vec![register_location(
+        ValueClass::Integer | ValueClass::IntegerAggregate => vec![register_location(
             *integer_registers.first().ok_or_else(|| {
                 PlanDiagnostic("calling policy has no integer result register".into())
             })?,

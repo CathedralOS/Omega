@@ -157,6 +157,7 @@ pub fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLoca
 pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     match shape.class {
         ValueClass::Integer => bytes.push(1),
+        ValueClass::IntegerAggregate => bytes.push(7),
         ValueClass::Float => bytes.push(2),
         ValueClass::BorrowedReference => bytes.push(5),
         ValueClass::BorrowedScalarReference => bytes.push(6),

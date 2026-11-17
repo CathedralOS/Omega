@@ -2645,7 +2645,7 @@ pub mod structural_unit_input {
         placement: &ValuePlacement,
     ) -> Option<IndirectPointerLocation> {
         if parameter.access != StructuralAccess::Owned
-            || placement.shape.class != ValueClass::Integer
+            || !placement.shape.class.is_integer()
             || placement.shape.byte_size == 0
         {
             return None;
