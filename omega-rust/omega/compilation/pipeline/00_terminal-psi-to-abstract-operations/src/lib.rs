@@ -12,6 +12,8 @@
   enter through `artifact_admission`; an existing canonical artifact is reused.
 */
 mod artifact_admission;
+mod entry_receiver;
+pub use entry_receiver::admit_executable_entry;
 mod lowering;
 mod native_execution_scope;
 use ::provider_admission as providers;

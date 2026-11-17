@@ -29,6 +29,7 @@ pub use component_inputs::{
     RetainedComponentNativeInputs,
 };
 mod native_execution;
+mod runtime_input;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
@@ -45,6 +46,7 @@ pub use native_proposal::{
 pub use provider_admission::{
     InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,
 };
+pub use runtime_input::AdmittedRuntimeInput;
 pub use settlement::boundary_application_settlement::BoundaryApplicationSettlement;
 
 // Saved native inputs are read and written beside the retained artifact they

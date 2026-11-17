@@ -7,13 +7,13 @@ access-view establishments or private entry RAM recipes are accompanied by a
 hosted receiver or physical entry settlement.
 */
 
-use diagnostics::Diagnostic;
-use terminal_installation::terminal_target_context;
-use terminal_psi_to_abstract_operations::{
+use crate::{
     NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
     ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
     validate_native_program_entry_settlement,
 };
+use diagnostics::Diagnostic;
+use terminal_installation::terminal_target_context;
 
 pub fn admit_executable_entry(
     input: &VerifiedNativeArtifactInput,
@@ -25,7 +25,7 @@ pub fn admit_executable_entry(
     let terminal = input.context().module();
     let source_profile = program_entry.source().target_slot().owner;
     if source_profile.native_realization() != Some(native_target) {
-        return Err(crate::native_artifact_error(
+        return Err(entry_error(
             "ProgramEntry installed arguments",
             "source-selected entry deployment does not own the native target",
         ));
@@ -37,7 +37,7 @@ pub fn admit_executable_entry(
             terminal,
             terminal_psi::TargetMachineCallable::Machine(plan.entry),
         )
-        .map_err(|error| crate::native_artifact_error("ProgramEntry installed arguments", error))?;
+        .map_err(|error| entry_error("ProgramEntry installed arguments", error))?;
     if selected_entry != plan.entry
         || plan.psi != artifact.view().identity()
         || terminal != artifact.semantic_module()
@@ -57,7 +57,7 @@ pub fn admit_executable_entry(
                 || receipt.terminal_psi_identity() != artifact.view().identity()
         })
     {
-        return Err(crate::native_artifact_error(
+        return Err(entry_error(
             "ProgramEntry installed arguments",
             "native entry lost its exact source-selected Terminal member",
         ));
@@ -74,7 +74,7 @@ pub fn admit_executable_entry(
         _ => false,
     };
     if lowered_attachment != terminal_attachment || !parameters_preserved {
-        return Err(crate::native_artifact_error(
+        return Err(entry_error(
             "ProgramEntry installed arguments",
             "lowered entry does not preserve the source-selected receiver identity",
         ));
@@ -86,7 +86,7 @@ pub fn admit_executable_entry(
         return entry_boundary_without_receiver(access_view_establishments);
     }
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
-        crate::native_artifact_error(
+        entry_error(
             "ProgramEntry installed arguments",
             "executable entry bridge requires exact checked entry custody",
         )
@@ -97,7 +97,7 @@ pub fn admit_executable_entry(
         program_entry,
         native_target,
     )
-    .map_err(|error| crate::native_artifact_error("ProgramEntry receiver custody", error))?;
+    .map_err(|error| entry_error("ProgramEntry receiver custody", error))?;
     Ok(Some(
         settled
             .with_access_view_establishments(access_view_establishments)
@@ -111,8 +111,14 @@ fn entry_boundary_without_receiver(
     if access_view_establishments.is_empty() {
         return Ok(None);
     }
-    Err(crate::native_artifact_error(
+    Err(entry_error(
         "ProgramEntry access-view custody",
         "bound access-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
     ))
+}
+
+fn entry_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "native artifact {context} failed: {error}"
+    ))]
 }
