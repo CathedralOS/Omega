@@ -9321,6 +9321,9 @@ impl TypedTrees {
                     &path, &callable,
                 )
             }
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
+                self.domain_declaration_path(symbol, path)?
+            }
             None => path,
         };
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
@@ -9340,6 +9343,32 @@ impl TypedTrees {
                 "declaration `{path}` has no retained source/package provenance"
             )),
         }
+    }
+
+    fn domain_declaration_path(
+        &self,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> Result<String, String> {
+        let declaration = self
+            .domain_definition(symbol)
+            .ok_or("a domain identity has no retained declaration")?;
+        let subject = crate::reflection::construction::schema_type_identity(
+            self,
+            declaration.target_type,
+            declaration.symbol,
+        )
+        .map_err(|detail| format!("a domain identity lost its declared subject: {detail}"))?;
+        // One predicate meaning can apply across capacities. Both the source
+        // dictionary and portable domain catalog still name the declaration's
+        // complete subject rather than its shared family display path.
+        Ok(compound(
+            CoordinateTag::Declaration,
+            [
+                atom(CoordinateTag::Path, &path),
+                compound(CoordinateTag::Owner, [subject]),
+            ],
+        ))
     }
 
     fn closed_requirement_declaration_identity(
@@ -9739,13 +9768,18 @@ impl TypedTrees {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Option<NormalizedTypeIdentity> {
-        if !symbol.is_valid() {
+        if !symbol.is_valid() || !self.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
         let path = self.symbols.display_path(symbol, "::");
         if path.is_empty() {
             return None;
         }
+        let path = if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain {
+            self.domain_declaration_path(symbol, path).ok()?
+        } else {
+            path
+        };
         let missing_exact_nominal_owner = Cell::new(false);
         let identity = program_intern_type_identity(
             self,

@@ -342,6 +342,7 @@ fn lower_records(
         signatures,
         outcomes,
         &declared.records,
+        &declared.structural_types,
         &crate::callables::CallableNamespace::default(),
         &crate::boundaries::BoundaryNamespace::default(),
         false,

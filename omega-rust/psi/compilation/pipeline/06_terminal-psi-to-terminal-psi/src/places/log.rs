@@ -562,8 +562,10 @@ impl<'a> Storage<'a> {
             // A checked decomposition ends the wrapper role, not its bytes.
             // Shared affine replay authenticates the complete component roster.
             OperationKind::DecomposeStructuralValue { .. } => {}
-            // A comparison observes both views and stores nothing.
-            OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
+            // These operations observe their exact operands and store nothing;
+            // readability and same-view measurements remain independently checked.
+            OperationKind::ByteSequenceEqual { .. }
+            | OperationKind::ByteSequencePredicate { .. } => self.observed_byte_views(operation)?,
             // A fence orders observations without replacing any stored value.
             OperationKind::AtomicFence { .. } => {}
             // The operations that only observe storage.

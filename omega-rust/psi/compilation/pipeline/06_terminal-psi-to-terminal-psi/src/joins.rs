@@ -425,10 +425,7 @@ pub(crate) fn infer<'a>(
                 "a join snapshot is not rooted at its exact destination formal",
             ));
         }
-        if matches!(
-            row.scalar_type,
-            ScalarType::Boolean | ScalarType::Integer(_)
-        ) {
+        if !matches!(row.scalar_type, ScalarType::Callable(_)) {
             snapshots[position].push((value, row.scalar_type));
         }
     }
@@ -931,14 +928,15 @@ pub(crate) fn arrival_goal<'a>(
         );
         refused
     };
-    let stated = crate::substitute(predicate, &mut bindings).map_err(explain)?;
+    let stated = crate::sufficient_goal(predicate, &mut bindings).map_err(explain)?;
     // The original contract remains an arrival goal after its header's
     // storage observations have been stated over exact logical values.
     let original = invariants
         .iter()
         .find(|row| row.machine == id && row.header == target);
     if let Some(original) = original {
-        let original = crate::substitute(&original.predicate, &mut bindings).map_err(explain)?;
+        let original =
+            crate::sufficient_goal(&original.predicate, &mut bindings).map_err(explain)?;
         Ok(connective(vec![stated, original], true))
     } else {
         Ok(stated)
@@ -1088,6 +1086,107 @@ pub(crate) fn check<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structural_only_join_snapshots_keep_every_distinct_arrival() {
+        fn judged(text: &str) -> Vec<crate::RouteVerdict> {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add_checked_instance(
+                    "package/main.omg".into(),
+                    text.to_owned(),
+                    "package".into(),
+                    None,
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    source::DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(std::sync::Arc::new(sources));
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
+                    declaration_metadata: &[],
+                    entries: &[],
+                    subjects: &[None],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            );
+            let verdicts = crate::judge_compilation(prepared.program);
+            assert!(!verdicts.is_empty(), "the real source must be checked");
+            verdicts.into_iter().map(Result::unwrap).collect()
+        }
+        let source = r#"
+            data Cell [copy] requires value <= 2u8 { value: u8; }
+            public machine main(flag: bool) -> u8
+            ensures result == 1u8 || result == 2u8 {
+                let cell: Cell = match flag {
+                    true -> Cell { value: 1u8 },
+                    false -> Cell { value: 2u8 }
+                };
+                cell.value
+            }
+        "#;
+        let positive = judged(source);
+        assert!(
+            positive
+                .iter()
+                .all(|verdict| matches!(verdict, crate::RouteVerdict::Accepted(_))),
+            "{positive:?}"
+        );
+        let changed = source.replace("result == 1u8 || result == 2u8", "result == 1u8");
+        assert_ne!(source, changed);
+        let negative = judged(&changed);
+        let mut guarantee_refused = false;
+        for verdict in negative {
+            match verdict {
+                crate::RouteVerdict::Accepted(_) => {}
+                crate::RouteVerdict::Rejected {
+                    formations,
+                    violations,
+                    unproved,
+                    unestablished,
+                    conflicts,
+                    exceeded,
+                } => {
+                    assert!(
+                        formations.is_empty()
+                            && violations.is_empty()
+                            && unestablished.is_empty()
+                            && conflicts.is_empty()
+                            && exceeded.is_empty(),
+                        "the twin must fail only its actual result guarantee"
+                    );
+                    assert!(!unproved.is_empty());
+                    assert!(
+                        unproved.iter().all(|failure| matches!(
+                            failure.kind,
+                            ObligationKind::NormalGuarantee { .. }
+                                | ObligationKind::PublishedGuarantee { .. }
+                        )),
+                        "an unrelated proof refusal is not the intended twin: {unproved:?}"
+                    );
+                    guarantee_refused = true;
+                }
+                other => panic!("an unserved or malformed program is not the twin: {other:?}"),
+            }
+        }
+        assert!(guarantee_refused, "both real arrivals must remain possible");
+    }
 
     #[test]
     fn renaming_preserves_local_storage_subjects_and_swaps_values_simultaneously() {

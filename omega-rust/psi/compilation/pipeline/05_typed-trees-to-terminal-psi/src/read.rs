@@ -27,6 +27,7 @@ mod atomics;
 mod authority;
 mod boundaries;
 pub(crate) use authority::has_predicates;
+mod byte_observations;
 mod bytes;
 mod callables;
 pub(crate) mod calling;

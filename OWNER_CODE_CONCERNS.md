@@ -75,6 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Claim verification hides an already identified restoration error
+- Category: Re-deriving
+- Where: [verdict.rs:939](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/verdict.rs#L939), [minted.rs:754](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L754), and [plain_affine.rs:786](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L786).
+- Saw: `examine` reconstructs the exact unavailable borrowed storage and its restoration flag. Later, `minted` calls `verify_claims_in`, which converts that same unavailable row into a blanket Unsupported before the ordinary restoration diagnostic is returned. In `a_whole_local_owned_home_is_repaired_before_its_reference_ends`, the restored positive passes and removing only `local = next;` gets this generic refusal.
+- Cost: The invalid program still refuses, but its strict restoration regression test fails and callers cannot distinguish a broken restoration obligation from missing compiler support. Keep one availability owner and carry its actual reason through claim validation.
+- Reported: 2026-11-16, Codex, while carrying Room A1 and the multiplication table through byte-observer checking.
 ### Saved native inputs do not reproduce the product they were saved from
 - Category: tests that pin the bug
 - Where: [round-trip check](omega-rust/omega/build-system/orchestration/examples/installation_assumption_review/saved_project.rs#L88), [recovery](omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs#L1876), [evidence attachment](omega-rust/omega/compilation/native-compiler/src/application.rs#L44)

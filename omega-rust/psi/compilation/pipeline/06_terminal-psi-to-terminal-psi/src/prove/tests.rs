@@ -286,6 +286,141 @@ fn policy_translation_maps_bounds_only_with_the_required_headroom() {
 }
 
 #[test]
+fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let axioms = [Proposition::Equal(
+        result.clone(),
+        ScalarTerm::wrapping_integer_add(integer, input.clone(), literal(2)).unwrap(),
+    )];
+    // Searching this relation reaches the result's wrapping definition while
+    // the input bound is unfinished. The later direct endpoint is already a
+    // complete proof and must remain available to that headroom query.
+    let assumptions = [
+        Proposition::LessOrEqual(input.clone(), result.clone()),
+        Proposition::LessOrEqual(input.clone(), literal(9)),
+    ];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    let ScalarTerm::Value { id, .. } = input else {
+        unreachable!()
+    };
+    let bound = prover.bound(id, Direction::Upper).unwrap();
+    assert_eq!(bound.literal, IntegerValue::Unsigned(9));
+    proof_admission::accept_certificate(
+        &context,
+        &bound.proof.conclusion,
+        &assumptions,
+        &axioms,
+        &bound.proof,
+    )
+    .unwrap();
+    let goal = Proposition::LessOrEqual(literal(2), result.clone());
+    let proof = prover.prove(&goal).unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof).unwrap();
+    assert!(prover.activity.in_progress_bound_reuses > 0);
+
+    // With no headroom premise, 254 + 2 wraps to 0. A pending attempt to
+    // bound that same operand must never serve as evidence for its own guard.
+    assert!(
+        Prover::new(&context, &[], &axioms, &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+    // A headroom proof may genuinely require both alternatives. Keep that
+    // search, and refuse it when one actual alternative permits wrapping.
+    for (alternative, valid) in [
+        (
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(5)),
+            true,
+        ),
+        (
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(254)),
+            false,
+        ),
+    ] {
+        let assumptions = [Proposition::Disjunction(vec![
+            Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(3)),
+            alternative,
+        ])];
+        let proof =
+            Prover::new(&context, &assumptions, &axioms, &values, &mut activity).prove(&goal);
+        if valid {
+            let proof = proof.unwrap();
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        } else {
+            assert!(proof.is_err(), "254 + 2 may produce zero");
+        }
+    }
+}
+
+#[test]
+fn case_search_does_not_materialize_exhausted_or_active_cuts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let input = ScalarTerm::value(id, scalar_type);
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let cut = Proposition::Disjunction(vec![
+        Proposition::LessThan(input.clone(), literal(10)),
+        Proposition::LessOrEqual(literal(20), input),
+    ]);
+    let context = PropositionContext::from_value_types([(id, scalar_type)]).unwrap();
+    let assumptions = [cut.clone()];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    prover.remaining_case_branches = 2;
+    let proof = prover.split(&Proposition::Truth).unwrap();
+    assert_eq!(prover.remaining_case_branches, 0);
+    proof_admission::accept_certificate(&context, &Proposition::Truth, &assumptions, &[], &proof)
+        .unwrap();
+    assert_eq!(prover.activity.disjunction_materializations, 1);
+    assert_eq!(prover.activity.started, 3);
+
+    let mut activity = ProofSearchActivity::default();
+    let mut exhausted = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    exhausted.remaining_case_branches = 0;
+    assert!(exhausted.split(&Proposition::Truth).is_none());
+    assert_eq!(exhausted.activity.disjunction_materializations, 0);
+    assert_eq!(exhausted.activity.started, 1);
+
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    active.active_cuts.push(cut);
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.activity.disjunction_materializations, 0);
+    assert_eq!(active.activity.started, 1);
+    let mut activity = ProofSearchActivity::default();
+    let mut failed = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
+    assert!(failed.split(&unknown).is_none());
+    assert_eq!(failed.activity.disjunction_materializations, 0);
+}
+
+#[test]
 fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
     let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
@@ -761,6 +896,59 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
 }
 
 #[test]
+fn numeric_conclusions_use_checked_implications_and_keep_their_premises() {
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let mut values = IdTable::default();
+    let condition = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let read = values.push(ValueRow {
+        scalar_type: ScalarType::Integer(byte),
+        origin: ValueOrigin::MachineParameter { position: 1 },
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let premise = Proposition::Equal(
+        ScalarTerm::value(condition, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    let goal = Proposition::LessOrEqual(
+        ScalarTerm::value(read, ScalarType::Integer(byte)),
+        ScalarTerm::integer(byte, IntegerValue::Unsigned(127)).unwrap(),
+    );
+    let implication = Proposition::Implication {
+        premise: Box::new(premise.clone()),
+        conclusion: Box::new(goal.clone()),
+    };
+    let assumptions = [premise.clone(), implication.clone()];
+    let mut activity = ProofSearchActivity::default();
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&goal)
+        .unwrap();
+    let accepted =
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+    for missing in [
+        vec![premise],
+        vec![implication],
+        vec![Proposition::Implication {
+            premise: Box::new(goal.clone()),
+            conclusion: Box::new(goal.clone()),
+        }],
+    ] {
+        assert!(
+            Prover::new(&context, &missing, &[], &values, &mut activity)
+                .prove(&goal)
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn irrelevant_subtraction_endpoints_do_not_start_sign_searches() {
     let integer = IntegerType::new(IntegerSign::Signed, 64).unwrap();
     let scalar = ScalarType::Integer(integer);
@@ -849,6 +1037,74 @@ fn unsigned_carrier_endpoint_uses_the_existing_checked_primitive() {
             .prove(&goal)
             .is_err()
     );
+}
+
+#[test]
+fn falsehood_implications_do_not_restart_the_same_contradiction_search() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let value = ScalarTerm::value(id, scalar);
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let premise = Proposition::LessOrEqual(value.clone(), literal(3));
+    let excludes = Proposition::Implication {
+        premise: Box::new(premise.clone()),
+        conclusion: Box::new(Proposition::Falsehood),
+    };
+    let mut activity = ProofSearchActivity::default();
+    assert!(
+        Prover::new(
+            &context,
+            std::slice::from_ref(&excludes),
+            &[],
+            &values,
+            &mut activity,
+        )
+        .prove(&Proposition::Falsehood)
+        .is_err()
+    );
+    assert_eq!(activity.contradiction_searches, 1);
+
+    // A proved antecedent still eliminates its implication, with both actual
+    // assumptions cited in the certificate.
+    let assumptions = [excludes.clone(), premise];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&Proposition::Falsehood)
+        .unwrap();
+    let accepted = proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &[],
+        &proof,
+    )
+    .unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+
+    // The outer contradiction pass remains available when a different pair
+    // of arithmetic assumptions contradicts. No antecedent proves itself.
+    let assumptions = [
+        excludes,
+        Proposition::LessOrEqual(value.clone(), literal(5)),
+        Proposition::LessOrEqual(literal(8), value),
+    ];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&Proposition::Falsehood)
+        .unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &assumptions,
+        &[],
+        &proof,
+    )
+    .unwrap();
 }
 
 #[test]

@@ -935,6 +935,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
+        | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
@@ -1293,19 +1294,6 @@ pub(super) enum Step {
         case: usize,
         field: usize,
     },
-}
-
-impl Step {
-    /// The type of the value this step goes into: the record, sum, array or
-    /// reference that holds what the step reaches.
-    pub(super) fn owner(&self) -> StructuralTypeId {
-        match self {
-            Self::Field { owner, .. }
-            | Self::Payload { owner, .. }
-            | Self::Index { owner, .. }
-            | Self::Referent { owner } => *owner,
-        }
-    }
 }
 
 /// One dispatch arm the open block lies in. For a case arm: the sum place
@@ -2602,6 +2590,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -3230,7 +3219,7 @@ impl<'a> Lowering<'a> {
             return self.establish_laid_out(record, roster, source);
         }
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
+
         let (root, exact) = self.produce(
             operation,
             ValueType::record(record),
@@ -3266,14 +3255,13 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let (root, exact) = self.establish_zeroed(ValueType::record(record), source)?;
-        let owed = self.record_type(record)?.requires.len();
         let fields = roster
             .into_iter()
             .map(|(field, operand)| (field.id, operand))
             .collect::<Vec<_>>();
         for (position, (field, operand)) in fields.into_iter().enumerate() {
             let operation = self.operation_identity(source);
-            self.owe_domains(operation, owed, source)?;
+
             let leaf = self.project(exact, Segment::Field(field))?;
             let at = ProgramPoint::AfterOperation(operation);
             match operand {
@@ -3485,7 +3473,6 @@ impl<'a> Lowering<'a> {
             }
         };
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(operation, ValueType::record(record), kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
@@ -3979,6 +3966,48 @@ impl<'a> Lowering<'a> {
         })
     }
 
+    /// A primitive observes the ordinary argument loan once. Its descriptor
+    /// capture and access remain the same as at a call; measuring the exact
+    /// view neither grants another loan nor substitutes its whole backing.
+    pub(super) fn byte_sequence_predicate(
+        &mut self,
+        base: &Expression,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let ExpressionKind::Borrow { access, place, .. } = &base.kind else {
+            return Err(self.internal("a byte observation has no formed argument loan"));
+        };
+        if *access != language_core::ReferenceAccess::Shared {
+            return Err(self.internal("a byte observation changed its shared argument access"));
+        }
+        let Some(ValueType::Record(record, _, _)) = place.result else {
+            return Err(self.internal("a byte observation has no structural argument"));
+        };
+        let lent = continuing!(self.lend(place, *access));
+        // This primitive only reads the captured view. Any reference or
+        // view formation in its argument already owns its real loan row;
+        // a byte read is neither another call nor a loan-forming operation.
+        let at = Located {
+            root: lent.argument.0,
+            place: lent.place,
+            path: lent.argument.1,
+            record,
+            fresh: false,
+        };
+        let operand = self.measured_byte_view(&at, source)?;
+        let operation = self.operation_identity(source);
+        let result = self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequencePredicate { operand, predicate },
+        )?;
+        if let Some(home) = lent.temporary {
+            self.retire_homes(&[home], source)?;
+        }
+        Ok(Reached::Value(result))
+    }
+
     pub(super) fn measure_collection(
         &mut self,
         base: &Expression,
@@ -4134,10 +4163,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("zero construction has no complete structural carrier"));
         };
         let mut zeros = Vec::new();
-        let mut owed = 0;
-        self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
+        self.zero_leaves(record, &mut Vec::new(), &mut zeros, source)?;
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, owed, source)?;
+
         let (root, exact) = self.produce(
             operation,
             value_type,
@@ -4239,10 +4267,6 @@ impl<'a> Lowering<'a> {
         let (root, steps, place, expected) = continuing!(self.capture_place(destination));
         let (root, steps, place) =
             self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
-        let mut owed = 0;
-        for step in &steps {
-            owed += self.record_type(step.owner())?.requires.len();
-        }
         self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
@@ -4252,7 +4276,7 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(..) => {
                 let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let kind = if let Some(Step::Field { .. }) = steps.last() {
                     let field = self
                         .declared(
@@ -4294,7 +4318,7 @@ impl<'a> Lowering<'a> {
             ValueType::Record(stored, _, _) => {
                 let constructed = continuing!(self.record(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let mut storage =
                     self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
                 let view_field = match steps.last() {
@@ -4515,9 +4539,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// Emits the zero constant of every scalar leaf of the zero value of
-    /// `record`, each with its path beneath the value, and counts the
-    /// `requires` clauses the zero value owes: the type's own, then those of
-    /// each data-typed field in declaration order, parent first. A sum's
+    /// `record`, each with its path beneath the value. A sum's
     /// zero value is its first declared case, so only that case's payload
     /// is walked.
     fn zero_leaves(
@@ -4525,11 +4547,9 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         prefix: &mut Vec<Segment>,
         zeros: &mut Vec<(Vec<Segment>, ValueId)>,
-        owed: &mut usize,
         source: SourceOrigin,
     ) -> Checked<()> {
         let data = self.record_type(record)?;
-        *owed += data.requires.len();
         match data.shape {
             StorageShape::AtomicCell(_) => return Ok(()),
             StorageShape::Opaque => {
@@ -4549,7 +4569,7 @@ impl<'a> Lowering<'a> {
             } => {
                 for index in 0..length {
                     prefix.push(Segment::FixedIndex(index));
-                    self.zero_leaves(element, prefix, zeros, owed, source)?;
+                    self.zero_leaves(element, prefix, zeros, source)?;
                     prefix.pop();
                 }
                 return Ok(());
@@ -4615,34 +4635,13 @@ impl<'a> Lowering<'a> {
                 // nothing").
                 ValueType::Record(nested, _, _) if self.is_stored_view(nested)? => {}
                 ValueType::Record(nested, _, _) => {
-                    self.zero_leaves(nested, prefix, zeros, owed, source)?;
+                    self.zero_leaves(nested, prefix, zeros, source)?;
                 }
             }
             prefix.pop();
         }
         if case.is_some() {
             prefix.pop();
-        }
-        Ok(())
-    }
-
-    /// Mints the `DataDomain` obligations of `operation`, one per clause it
-    /// owes, at the point before it. data_and_literals.md: "Construction and
-    /// every restoring write prove the owning default-domain clauses."
-    pub(super) fn owe_domains(
-        &mut self,
-        operation: OperationId,
-        clauses: usize,
-        source: SourceOrigin,
-    ) -> Checked<()> {
-        let before = self.here()?;
-        for clause in 0..clauses {
-            let clause = self.position(clause)?;
-            self.obligation(
-                ObligationKind::DataDomain { operation, clause },
-                before,
-                source,
-            );
         }
         Ok(())
     }

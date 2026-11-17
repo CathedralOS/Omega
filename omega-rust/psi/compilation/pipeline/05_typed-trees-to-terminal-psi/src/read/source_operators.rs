@@ -111,6 +111,67 @@ impl Program<'_> {
             )
     }
 
+    /// A structural operator keeps the exact source operand type, including
+    /// its domains. Physical record metadata describes the plain carrier and
+    /// cannot stand in for a qualified source during user-operator lookup.
+    pub(super) fn structural_operator_operand_reference(
+        &mut self,
+        machine: MachineId,
+        source: ExpressionHandle,
+        operand: ValueType,
+    ) -> Checked<Option<TypeReferenceHandle>> {
+        let reference = self
+            .typed
+            .expression_table
+            .constructed_value_type_reference(source);
+        if !reference.is_valid() {
+            return Ok(self.operator_operand_reference(operand));
+        }
+        let fail = |detail: &str| Refusal {
+            source_span: None,
+            machine,
+            concerns: Construct::Machine,
+            reason: RefusalReason::ForeignIdentity,
+            detail: detail.into(),
+        };
+        if !self
+            .typed
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return Err(fail("a formed operator retains a stale operand type"));
+        }
+        let declared = self.value_type(machine, reference)?;
+        let agrees = if declared.erased() == operand.erased() {
+            true
+        } else {
+            // A borrowed formal and an ordinary implicit reference read name
+            // the referent in the body. Normalize that same single layer for
+            // correspondence; lookup still receives the full original ref.
+            self.reference_referent(machine, declared)?
+                .is_some_and(|(referent, _)| referent.erased() == operand.erased())
+        };
+        if !agrees {
+            return Err(fail(
+                "a formed operator operand differs from its retained declared type",
+            ));
+        }
+        Ok(Some(reference))
+    }
+
+    /// Logical and executable range formation use the same actual collection
+    /// type and canonical count operands when completing source selection.
+    pub(super) fn complete_collection_range_operator(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        let count = self.collection_count_operand_type(machine);
+        self.complete_builtin_operator(machine, owner, expression, &[collection, count, count])
+    }
+
     /// Publish the operation this reader actually formed. Reads, writable
     /// places and explicit view adapters share the same source association.
     pub(super) fn complete_formed_operator(
@@ -133,49 +194,46 @@ impl Program<'_> {
             _ => value,
         };
         let owner = self.symbols.get(machine).copied().unwrap_or_default();
-        match &value.kind {
-            ExpressionKind::CollectionSubslice { base, .. }
-            | ExpressionKind::CollectionView { base, .. }
-                if matches!(
-                    self.typed.expression_table.expression(expression),
-                    ExpressionNode::Indexed(_)
-                ) =>
-            {
-                let Some(ValueType::Record(record, qualification, _)) = base.result else {
+        match (
+            &value.kind,
+            self.typed.expression_table.expression(expression),
+        ) {
+            (
+                ExpressionKind::CollectionSubslice { base, .. }
+                | ExpressionKind::CollectionView { base, .. },
+                ExpressionNode::Indexed(indexed),
+            ) => {
+                let Some(operand @ ValueType::Record(..)) = base.result else {
                     return Ok(());
                 };
-                if qualification != Qualification::NONE {
-                    // byte_subslice forms a qualified range only after typing
-                    // retained its exact builtin selection and this reader
-                    // validated the selected plain shared-view result. Keep
-                    // that selection; the storage row erases operand domains.
-                    let selected = self
-                        .typed
-                        .expression_table
-                        .constructed_value_type_reference(expression);
-                    let range = matches!(
-                        self.typed.expression_table.expression(expression),
-                        ExpressionNode::Indexed(indexed)
-                            if matches!(
-                                self.typed.expression_table.expression(indexed.index),
-                                ExpressionNode::Range(_)
-                            )
-                    );
-                    if range
-                        && matches!(value.kind, ExpressionKind::CollectionSubslice { .. })
-                        && self.is_readable_byte_view(machine, record)?
-                        && self
-                            .typed
-                            .type_reference_table
-                            .contains_type_reference(selected)
-                    {
-                        return self.complete_operator(machine, owner, expression, &[], true);
-                    }
+                let source = indexed.collection;
+                let Some(collection) =
+                    self.structural_operator_operand_reference(machine, source, operand)?
+                else {
                     return Ok(());
-                }
-                let [collection, count] = self.collection_index_operand_types(machine, record);
-                let operands = [collection, count, count];
-                self.complete_builtin_operator(machine, owner, expression, &operands)
+                };
+                self.complete_collection_range_operator(
+                    machine,
+                    owner,
+                    expression,
+                    Some(collection),
+                )
+            }
+            (
+                ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index },
+                ExpressionNode::Indexed(indexed),
+            ) => {
+                let source = indexed.collection;
+                let collection = match base.result {
+                    Some(operand) => {
+                        self.structural_operator_operand_reference(machine, source, operand)?
+                    }
+                    None => None,
+                };
+                let index = index
+                    .result
+                    .and_then(|operand| self.operator_operand_reference(operand));
+                self.complete_builtin_operator(machine, owner, expression, &[collection, index])
             }
             _ => {
                 // A case test has already resolved its case within the subject's

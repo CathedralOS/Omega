@@ -1747,10 +1747,32 @@ machine entry() -> u64 crashes none {
         accepted_source_with_core(text, metadata_names, &[])
     }
 
+    fn accepted_source_with_publication(
+        text: &str,
+        metadata_names: &[&str],
+        publication: terminal_codec::TerminalPublication,
+    ) -> AcceptedTerminalSource {
+        accepted_source_with_inputs(text, metadata_names, &[], publication)
+    }
+
     fn accepted_source_with_core(
         text: &str,
         metadata_names: &[&str],
         core: &[(&str, &str, &[u8])],
+    ) -> AcceptedTerminalSource {
+        accepted_source_with_inputs(
+            text,
+            metadata_names,
+            core,
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    }
+
+    fn accepted_source_with_inputs(
+        text: &str,
+        metadata_names: &[&str],
+        core: &[(&str, &str, &[u8])],
+        publication: terminal_codec::TerminalPublication,
     ) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
@@ -1845,9 +1867,182 @@ machine entry() -> u64 crashes none {
                 providers: None,
                 supplies: &[],
             },
-            terminal_codec::TerminalPublication::Invocation,
+            publication,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn recursive_declarations_keep_both_entry_and_folded_head_origins() {
+        let source = accepted_source(
+            r#"
+machine repeat(index: u64) {
+    transition index < 3 {
+        true -> repeat(index + 1)
+        _ -> {}
+    }
+}
+machine entry() { repeat(0); }
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        let validate = |questions: &SelectionQuestions| {
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, questions,
+            )
+        };
+        validate(&prepared.questions).unwrap();
+        let (machine, declaration, head) = prepared
+            .questions
+            .joins
+            .iter()
+            .find_map(|join| match join {
+                SelectionJoin::FoldedCall {
+                    machine,
+                    original_target,
+                    head,
+                    ..
+                } => Some((*machine, *original_target, *head)),
+                _ => None,
+            })
+            .expect("the real recursive call must retain its folded target");
+        let entry = module.machine(machine).unwrap().entry;
+        assert_ne!(entry, head);
+        let is_origin = |join: &SelectionJoin, expected| {
+            matches!(join, SelectionJoin::Machine {
+                declaration: source, machine: body, head,
+            } if *source == declaration && *body == machine && *head == expected)
+        };
+        assert!(
+            prepared
+                .questions
+                .joins
+                .iter()
+                .any(|join| is_origin(join, entry))
+        );
+        let origin = prepared
+            .questions
+            .joins
+            .iter()
+            .find(|join| is_origin(join, head))
+            .unwrap()
+            .clone();
+        let mut duplicate = prepared.questions.clone();
+        duplicate.joins.push(origin);
+        assert!(
+            validate(&duplicate)
+                .unwrap_err()
+                .contains("repeats a machine origin")
+        );
+        let mut missing_head = prepared.questions.clone();
+        missing_head.joins.retain(|join| !is_origin(join, head));
+        assert!(
+            validate(&missing_head)
+                .unwrap_err()
+                .contains("folded selection lost its original caller, target or actual head")
+        );
+    }
+
+    #[test]
+    fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
+        let source = accepted_source_with_publication(
+            r#"
+domain [u8; 2]::Ready requires true;
+domain [u8; 3]::Ready requires true;
+machine entry() {
+    let first: [u8; 2] in Ready = [1u8, 2u8] as +Ready;
+    let second: [u8; 3] in Ready = [3u8, 4u8, 5u8] as +Ready;
+}
+"#,
+            &[],
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let typed = source.source();
+        let domains = typed
+            .domain_definitions()
+            .iter()
+            .filter(|domain| domain.name.as_str().ends_with("::Ready"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            domains.len(),
+            2,
+            "the fixture must retain both qualified Ready declarations: {:?}",
+            typed
+                .domain_definitions()
+                .iter()
+                .map(|domain| domain.name.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            domains[0].semantic_id, domains[1].semantic_id,
+            "the same normalized predicate keeps its meaning across capacities"
+        );
+        let identities = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .normalized_hermetic_symbol_identity(domain.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(identities[0], identities[1]);
+        let exact_sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap();
+        let nominal = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .exact_owner_nominal_identity(domain.symbol, &exact_sources)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(nominal[0], nominal[1]);
+        let module = source.module();
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        let decoded = terminal_codec::decode_module(&bytes).unwrap();
+        assert_eq!(module.structural_domains, decoded.structural_domains);
+        assert_eq!(module.structural_domains.len(), 2);
+        let mut collapsed = module.clone();
+        collapsed.structural_domains[1].identity = collapsed.structural_domains[0].identity;
+        let invalid = terminal_codec::encode_module(&collapsed).unwrap();
+        assert!(matches!(
+            terminal_codec::decode_module(&invalid),
+            Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                "structural domain identity"
+            ))
+        ));
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let rows = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter_map(|(id, row)| identities.contains(&row.identity).then_some(id))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        let mut duplicate = prepared.questions.clone();
+        duplicate.declarations.get_mut(rows[1]).unwrap().identity = prepared
+            .questions
+            .declarations
+            .get(rows[0])
+            .unwrap()
+            .identity
+            .clone();
+        assert!(
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, &duplicate
+            )
+            .is_err(),
+            "different subjects must not bypass the duplicate declaration guard"
+        );
     }
 
     #[test]
