@@ -149,6 +149,14 @@ terminates by remaining
 server loop that is meant to run forever simply leaves the promise off.
 Termination says nothing about how long something takes.
 
+Machines that call one another can describe the same progress in different
+ways. A header parser might measure the length of an unread slice, while its
+payload parser measures the distance from a cursor to the end. Each can write
+its own `terminates by` clause. Their contracts or lemmas can show that a
+handoff preserves the count and that the return consumes a byte. Every call
+in the group must preserve or decrease the shared rank, and every complete
+cycle must decrease it. See [joint ranking](../spec/language/termination.md#mutual-ranking-source-contract).
+
 ## Where next
 
 [Chapter 10](chapter_10_compile_time_proofs.md) covers writing proofs

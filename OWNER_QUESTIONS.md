@@ -64,50 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="mutual-ranking-source-contract"></a>
-
-### 1. How do differently shaped mutually recursive machines state their joint rank?
-
-Decision name: `mutual-ranking-source-contract`.
-
-**Customer.** A finite-input parser alternates between header and payload
-machines in one package. One carries an unread view; another carries a cursor,
-payload length and accumulator. They share a decreasing amount of input, but
-not a parameter list. A phase transition may preserve rank while every complete
-cycle decreases it. Requiring strict decrease on every edge would reject that
-valid split. A single sum-shaped state can express the algorithm, but should not
-silently become the only source form for the specified joint ranking.
-
-**Gap.** [Ranking](wiki/spec/language/termination.md#ranking) requires a joint
-well-founded ranking for the recursive component, with strict descent on every
-complete cycle, but explicitly leaves the spelling for differently shaped
-participants undetermined. [Published guarantees and private witnesses](wiki/spec/language/termination.md#published-guarantees-and-private-witnesses)
-keeps the witness private. [Terminal control](wiki/spec/terminal-psi/control_flow.md#safety-and-progress)
-owns grouped evidence, not the source association of each participant's mapping.
-`TERMINATION-RANKING-CHECKS` in [TASKS.md](TASKS.md) already marks this exact
-source choice design-blocked.
-
-**Question.** Do existing `terminates by subject -> View` clauses on the
-participants supply local mappings into one common well-founded relation,
-joined by checking their calls? Or must the author explicitly name a shared
-private measure defining each participant's mapping? What establishes that the
-mappings use the same relation rather than unrelated well-founded orders?
-
-**Recommendation.** Reuse the existing per-machine clause and selected ranking
-views when their checked contracts establish the common relation. Require
-explicit evidence for conversions between rank domains; infer no measure or
-relation from a name. Add no keyword or mandatory state wrapper merely to group
-the declarations. This is a recommendation, not a settled source rule.
-
-**Until answered.** Preserve supported ranking forms and the joint-cycle semantic
-obligation. Do not treat independent conditional termination promises as a
-proof of a mutual cycle. Strict descent required for recursive proof citation
-and the existing cross-package recursion restriction are unchanged. Other
-termination and compiler work can proceed.
-
 <a id="final-artifact-validation-placement"></a>
 
-### 2. Does default compilation re-check the native image it just wrote?
+### 1. Does default compilation re-check the native image it just wrote?
 
 Decision name: `final-artifact-validation-placement`.
 
@@ -149,7 +108,7 @@ re-checks of other stage outputs on the strength of machine-state evidence.
 
 <a id="freestanding-machine-owner-authority"></a>
 
-### 3. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
+### 2. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
 
 **Context.** A program that uses machine-control assembly, such as `cli` or a
 control-register write, compiles only if the build grants machine-owner
@@ -193,7 +152,7 @@ assembly work can proceed.
 
 <a id="syscall-binding-calling-policy"></a>
 
-### 4. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
+### 3. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
 
 Decision name: `syscall-binding-calling-policy`.
 
@@ -248,7 +207,7 @@ policy and checks the locator against its entry control (a syscall needs
 `SupervisorCall`, an import `CallReturn`); that path is part of finishing calling
 policies under `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md).
 
-### 5. May a `module` declaration follow imports or other declarations in its file?
+### 4. May a `module` declaration follow imports or other declarations in its file?
 
 Decision name: `module-header-position`.
 
@@ -278,7 +237,7 @@ not check the position.
 
 <a id="test-runner-filesystem-slot"></a>
 
-### 6. How does the test runner identify std's `FilesystemService` slot?
+### 5. How does the test runner identify std's `FilesystemService` slot?
 
 Decision name: `test-runner-filesystem-slot`.
 

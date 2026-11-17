@@ -115,8 +115,23 @@ whether an edge is an ordinary call or terminal transfer. Edges may preserve
 rank only if every complete cycle contains strict descent. A DFS-selected
 subset of cycles is insufficient. There is no separate source-state ranking
 rule; lexical containment is not a recursion or induction boundary.
-The exact source spelling for differently shaped mutual participants remains
-undetermined; the joint-cycle semantic rule is settled.
+
+<a id="mutual-ranking-source-contract"></a>
+
+Each member can use its ordinary `terminates by subject -> View` clause
+(including the canonical short form) to map its own inputs into the joint
+ranking. A named package-private measure is optional. At each internal call,
+compare the caller's entry rank with the callee's rank on the actual arguments.
+The checked views must give a common well-founded order. When a conversion
+between rank domains is needed, ordinary checked evidence must establish that
+the conversion preserves the comparisons the proof uses. A shared name or
+result type alone establishes no such relationship.
+
+For example, a header parser can rank an unread slice by length and a payload
+parser can rank a cursor by its distance to the end. A checked contract or
+lemma can show that the handoff preserves the number of unread bytes and that
+the return consumes at least one. If a complete cycle can preserve that count
+on every handoff, the proposed ranking fails.
 
 One component cites its relation and well-foundedness evidence once, with a
 comparison proof for every internal edge and a global every-cycle descent check.
