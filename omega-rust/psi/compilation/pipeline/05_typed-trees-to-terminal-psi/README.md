@@ -843,19 +843,24 @@ refuses, by name, what the slice does not serve:
 
 ### Sums
 
-A `data` declaration marked `[copy]` whose members are all cases is a sum,
+A `data` declaration whose members are all cases is a sum,
 served wherever a record is: as a formal, a local, a result, a field or
 payload field, and an argument. A payload field is a builtin integer,
 `bool` or other such data. On sums the subset serves:
 
-- the case literal `S::C { p: x }`, `S::C {}` and `S::C`, and copying a sum
-  value;
-- the case test `s in S::C`, and `k == Kind::A` against a payload-free case,
-  which the typed trees hold as the same test;
+- the case literal `S::C { p: x }`, `S::C {}` and `S::C`, and copying a
+  `[copy]` sum value;
+- membership `s in S::C`, including on a sum with payload fields;
+- ordinary `==` and `!=` between the same complete, unqualified payload-free
+  sum types, through observed value expressions. Equality compares retained
+  case identities and observes the left operand before evaluating the right.
+  A selected user comparison remains a call; a named-case operand is only a
+  lowering optimization. Payload-bearing equality keeps its selected
+  comparison or conformance call;
 - `transition s { S::A { p } -> ..  S::B -> ..  _ -> .. }`, with payload
-  bindings, renames (`p as q`), waived fields (`p as _`) and `..`;
-- value-position `match` over a sum named by a slot or a path beneath one,
-  with scalar arms;
+  bindings, renames (`p as q`), waived fields (`p as _`), field-value tests
+  (`p: value`) and `..`, with repeated alternatives and an ordered fallback;
+- value-position `match` over a sum expression, with scalar arms;
 - a local of sum type declared without an initializer, which holds the
   first declared case with a zeroed payload.
 

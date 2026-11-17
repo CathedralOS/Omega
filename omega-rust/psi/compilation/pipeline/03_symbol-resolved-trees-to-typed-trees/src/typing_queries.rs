@@ -519,7 +519,7 @@ pub(crate) fn declared_projection_field<'program>(
     if selected != SymbolHandle::invalid() {
         let actual = program
             .data_constructor_field(carrier, data.symbol, selected)
-            .ok_or_else(|| crate::unavailable_judgment("collection field owner/type"))?;
+            .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
         if actual.symbol != field.symbol {
             return Err(crate::unavailable_judgment("assignment field identity"));
         }

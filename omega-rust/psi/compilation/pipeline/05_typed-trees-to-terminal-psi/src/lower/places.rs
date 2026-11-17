@@ -3573,10 +3573,11 @@ impl<'a> Lowering<'a> {
     /// after arms that name every declared case is an authored branch no
     /// arrival takes. state_contracts.md, "Unreachable branches": "This is
     /// an advisory diagnostic, not an inherent language error", and patterns
-    /// use "first-match order", so the program is accepted: no edge enters
-    /// the arm, no block is returned for it, and the arm is recorded in
-    /// `MachineSources::dead_wildcards` for its warning. A `_` arm that some
-    /// case reaches is lowered and checked like every other arm.
+    /// use "first-match order", so no tag edge enters that arm and no block
+    /// is returned for it. `case_decisions` accounts for failed field tests
+    /// before recording an unused authored wildcard; private selections do
+    /// not produce source advisories. A wildcard reached by an unnamed tag
+    /// receives a block like every other arm.
     ///
     /// Each scalar payload field of an arm's case is one parameter of the
     /// arm's block, in declaration order.
