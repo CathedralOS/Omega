@@ -744,6 +744,7 @@ mod selected_completion_contract_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),

@@ -363,6 +363,7 @@ fn validate_native_contract<'module>(
         .next()
         .filter(|_| methods.next().is_none())
         .ok_or_else(|| "full service schema has no unique exact requirement".to_owned())?;
+    terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
     if method.completion != boundary.completion {
         return Err("native requirement changes its declared completion".into());
     }

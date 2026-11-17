@@ -2000,8 +2000,10 @@ fn copied_parts(
         program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
             copied &= match node {
                 ExpressionNode::Call(call) => {
-                    call.layout_query.is_none()
-                        && call.native_code_layout.is_none()
+                    // The shared expression copier retains a layout query's
+                    // operand and view; callable application substitutes their
+                    // types with every other copied expression.
+                    call.native_code_layout.is_none()
                         && call.quotient_operation.is_none()
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()

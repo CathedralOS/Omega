@@ -348,6 +348,7 @@ mod tests {
                 structural_parameters: vec![],
                 result: terminal_psi::BoundaryMachineResult::Unit,
                 requires: vec![],
+                membership_ensures: Vec::new(),
                 normal_qualifications: vec![],
                 scalar_domain_requirements: vec![],
                 scalar_requires: vec![],

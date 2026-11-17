@@ -1449,6 +1449,7 @@ pub(crate) mod original_residence {
         identity_cursor: &mut Option<u64>,
         argument_index: usize,
         access: StructuralAccess,
+        membership_ensures: Vec::new(),
         normal_qualifications: &[crate::boundary::effects::normal_qualifications::CapturedNormalQualification],
         argument_path: Vec<Path>,
         active: &mut Vec<semantic_vocabulary::StructuralTypeId>,

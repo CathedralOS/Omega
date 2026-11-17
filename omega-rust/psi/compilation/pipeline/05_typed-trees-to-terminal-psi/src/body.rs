@@ -353,6 +353,7 @@ pub struct RecordType {
     /// every field term by the value a place holds, and every case test by
     /// whether the place is that case, before it states a goal
     /// (`terminal-psi-to-terminal-psi`).
+    pub membership_ensures: Vec<RuntimeMembership>,
     pub requires: Vec<Proposition>,
     /// The record is `LayoutStorage<T, Policy>` storage: its bytes follow a
     /// selected plan and a byte view can observe all of them, padding
@@ -507,6 +508,24 @@ impl OperationalCeilings {
 }
 
 /// A machine's published signature as lowering and its callers need it.
+/// An authored membership promise, separate from the subject's declared type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeMembership {
+    pub subject: RuntimeMembershipSubject,
+    pub domain: DomainInstance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeMembershipSubject {
+    Scalar(semantic_vocabulary::ScalarTerm),
+    Structural {
+        root: semantic_vocabulary::PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        carrier: semantic_vocabulary::StructuralTypeId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     /// Independent suspension and worker-blocking bounds.

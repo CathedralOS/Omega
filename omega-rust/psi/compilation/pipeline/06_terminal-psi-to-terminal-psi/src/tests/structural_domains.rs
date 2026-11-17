@@ -444,3 +444,178 @@ machine entry() -> u32 {
         "{refusal:?}"
     );
 }
+
+const NORMAL_MEMBERSHIP: &str = r#"// Expected exit: 0
+
+data Ticket { number: u32; }
+domain Ticket::Stamped requires self.number > 0u32 established by stamp;
+machine stamp(ticket: Ticket) -> Ticket
+requires ticket.number > 0u32
+ensures result in Stamped {
+    let tagged: Ticket in Stamped = Ticket { number: ticket.number } as +Stamped;
+    tagged as -Stamped
+}
+machine record_value(number: u32) -> u32 requires number > 0u32 {
+    let plain: Ticket = stamp(Ticket { number: number });
+    let tagged: Ticket in Stamped = plain as +Stamped;
+    tagged.number
+}
+machine other(ticket: Ticket) -> Ticket { ticket }
+domain u32::WordStamped established by stamp_word;
+machine stamp_word(number: u32) -> u32 ensures result in WordStamped {
+    let tagged: u32 in WordStamped = number as +WordStamped;
+    tagged as -WordStamped
+}
+machine scalar_value(number: u32) -> u32 {
+    let plain: u32 = stamp_word(number);
+    let tagged: u32 in WordStamped = plain as +WordStamped;
+    tagged as -WordStamped
+}
+machine entry() -> u32 crashes Trap {
+    let first: u32 = record_value(7u32);
+    let second: u32 = record_value(11u32);
+    let first_word: u32 = scalar_value(7u32);
+    let second_word: u32 = scalar_value(11u32);
+    transition first == 7u32 && second == 11u32 && first_word == 7u32 && second_word == 11u32 {
+        true -> 0u32
+        false -> wrong()
+    }
+    machine wrong() -> u32 crashes Trap { crash Trap; }
+}
+"#;
+
+#[test]
+fn normal_result_membership_is_a_fact_without_changing_the_declared_result() {
+    let elaboration = invocation(NORMAL_MEMBERSHIP).unwrap();
+    let contracts: Vec<_> = elaboration
+        .module
+        .machines
+        .iter()
+        .filter(|machine| !machine.contract.membership_ensures.is_empty())
+        .collect();
+    assert_eq!(contracts.len(), 2);
+    for machine in contracts {
+        match &machine.result {
+            terminal_psi::TerminalMachineResult::Structural(result) => {
+                assert!(result.qualifications.is_empty())
+            }
+            terminal_psi::TerminalMachineResult::Scalar(result) => {
+                assert_eq!(result.qualifications, Default::default())
+            }
+            _ => panic!("membership issuer has an actual runtime result"),
+        }
+    }
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
+    let base = invocation(NORMAL_MEMBERSHIP).unwrap();
+    let mut cases = Vec::new();
+    let mut missing = invocation(NORMAL_MEMBERSHIP).unwrap();
+    for machine in &mut missing.module.machines {
+        machine.contract.membership_ensures.retain(|row| {
+            !matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        });
+    }
+    cases.push(("missing guarantee", missing));
+    let mut wrong = base;
+    for machine in &mut wrong.module.machines {
+        for membership in &mut machine.contract.membership_ensures {
+            if let terminal_psi::RuntimeDomainMembership::Structural { root, .. } = membership {
+                *root = machine.structural_parameters[0].place;
+            }
+        }
+    }
+    cases.push(("input named as result", wrong));
+    let observed: Vec<_> = cases
+        .into_iter()
+        .map(|(name, elaboration)| (name, judge(Ok(elaboration))))
+        .collect();
+    for (name, verdict) in &observed {
+        eprintln!("{name}: {verdict:?}");
+    }
+    for (name, verdict) in observed {
+        let refusal = verdict.expect_err(name);
+        let expected = match name {
+            "input named as result" => "membership promise does not name its exact normal result",
+            _ => "lacks both an existing membership and an authorized issuer route",
+        };
+        assert!(refusal.detail.contains(expected), "{name}: {refusal:?}");
+    }
+}
+
+#[test]
+fn native_normal_membership_matches_the_authored_service_guarantee() {
+    let text = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by Seal::issue;
+boundary trait Seal {
+    machine issue(ticket: Ticket) -> Ticket
+    reaches none
+    ensures result in Stamped
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let ticket: Ticket = Seal::issue(Ticket { number: 7u32 });
+    let stamped: Ticket in Stamped = ticket as +Stamped;
+    stamped.number
+}
+"#;
+    let elaboration = invocation(text).unwrap();
+    let module = elaboration.module;
+    let boundary = &module.boundary_machines[0];
+    let method = &module.service_schemas[0].surface.methods[0];
+    assert_eq!(method.normal_result_memberships.len(), 1);
+    terminal_semantics::validate_boundary_normal_memberships(&module, boundary, method).unwrap();
+    let mut missing = boundary.clone();
+    missing.membership_ensures.clear();
+    let mut changed = module.clone();
+    let mut identities = changed.identities.clone().into_builder();
+    changed.structural_domains[0].identity = identities.intern("another-exact-domain-application");
+    changed.identities = identities.build();
+    let mut changed_commitment = changed.boundary_machines[0].clone();
+    changed_commitment
+        .declaration
+        .as_mut()
+        .unwrap()
+        .source
+        .contract = [9; 32];
+    let observed = [
+        (
+            "missing row",
+            terminal_semantics::validate_boundary_normal_memberships(&module, &missing, method),
+        ),
+        (
+            "changed domain",
+            terminal_semantics::validate_boundary_normal_memberships(
+                &changed,
+                &changed.boundary_machines[0],
+                method,
+            ),
+        ),
+        (
+            "changed domain and header commitment",
+            terminal_semantics::validate_boundary_normal_memberships(
+                &changed,
+                &changed_commitment,
+                method,
+            ),
+        ),
+    ];
+    for (name, result) in &observed {
+        eprintln!("{name}: {result:?}");
+    }
+    for (name, result) in observed {
+        assert!(
+            result
+                .unwrap_err()
+                .contains("authored normal-result membership guarantees"),
+            "{name}"
+        );
+    }
+}

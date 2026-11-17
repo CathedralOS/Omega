@@ -2475,6 +2475,7 @@ pub(crate) mod structural_encoding {
                 }],
                 result: BoundaryMachineResult::Unit,
                 requires: vec![requirement(Vec::new())],
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 scalar_requires: Vec::new(),

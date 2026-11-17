@@ -692,84 +692,12 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         domain: crate::body::DomainInstance,
-        source: SourceOrigin,
+        _source: SourceOrigin,
     ) -> Checked<()> {
-        use language_semantics::DomainEstablishmentRoute;
-        use typed_trees::domain::DomainIssuance;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let definition = self.domain_theory(id, domain)?;
-        match definition.issuance() {
-            DomainIssuance::Unrestricted => {}
-            DomainIssuance::Only(routes) => {
-                let machine =
-                    *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
-                // authority.md, "Requirement and exact-machine routes":
-                //
-                // | Trait requirement | An exact invocation through that
-                //   requirement and a valid selected conformance. This
-                //   includes a call by name to a machine that declares that
-                //   edge ... |
-                // | Plain machine declaration | That exact machine's direct
-                //   invocation. |
-                //
-                // A machine that declares the edge (`machine issue(..)
-                // satisfies Issues::issue`, or an inline member of a
-                // `satisfies` block) "has no separately callable direct
-                // entry" (conformances.md, "A conformer's name is its routed
-                // entry"), so every invocation of its body is through the
-                // requirement and the cast in it is authorized. A plain
-                // machine bound by a selection row or binding expression
-                // declares no edge and gets none: "its body was checked
-                // without that authority, and a machine that relies on it
-                // rejects at its own declaration".
-                let edges = match self.typed.machine_by_symbol(machine) {
-                    Some(declared) => self.typed.machine_trait_conformances(declared),
-                    None => arena::RootRows::from_slice(&[]),
-                };
-                let routed = routes.iter().any(|route| match route {
-                    DomainEstablishmentRoute::ExactMachine { machine: origin } => {
-                        *origin == machine
-                    }
-                    DomainEstablishmentRoute::CheckedRequirement {
-                        trait_definition,
-                        requirement,
-                    } => edges.iter().any(|edge| {
-                        edge.symbol == *trait_definition && edge.requirement_symbol == *requirement
-                    }),
-                    // A boundary requirement "additionally requires provider
-                    // selection and admission", which is not followed here.
-                    DomainEstablishmentRoute::BoundaryRequirement { .. } => false,
-                });
-                // "Naming a machine is neither trait sealing nor an implicit
-                // grant to other machines in its package." So when no route
-                // is a boundary requirement and none admits this machine,
-                // the cast is wrong in every program: "a cast cannot mint
-                // it". With a boundary route the machine may yet be an
-                // admitted provider, so that stays a refusal.
-                let exact = !routes.iter().any(|route| {
-                    matches!(route, DomainEstablishmentRoute::BoundaryRequirement { .. })
-                });
-                if !routed && exact {
-                    return Err(reject(
-                        id,
-                        source,
-                        format!(
-                            "this cast adds {} in a machine that is not one of the domain's \
-                             establishment routes: a domain with routes is added only inside a \
-                             machine its declaration names, and a cast anywhere else cannot \
-                             mint that evidence",
-                            self.domain_named(domain),
-                        ),
-                    ));
-                }
-                if !routed {
-                    return unserved("cast that adds a domain outside its establishment routes");
-                }
-            }
-            DomainIssuance::Planned(_) => {
-                return unserved("cast that adds a domain whose issuers are in an access plan");
-            }
-        }
+        // A cast may forward an existing fact or issue through an exact
+        // authorized route. That distinction is decided on the actual lowered
+        // operand, after call guarantees and storage writes are known.
+        self.domain_theory(id, domain)?;
         Ok(())
     }
 }

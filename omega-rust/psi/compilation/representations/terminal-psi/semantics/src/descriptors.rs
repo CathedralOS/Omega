@@ -716,6 +716,10 @@ pub mod descriptor_lifetimes {
         /// reference the parameter held.
         pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// Exact value copies, including whole records with no descriptor
+        /// slots. Backing-preserving projections and content transformations
+        /// remain ordinary derivations and cannot transport membership facts.
+        pub value_transfers: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub inputs: Vec<DescriptorFlowInput>,
         pub may_escape: bool,
@@ -723,6 +727,12 @@ pub mod descriptor_lifetimes {
     }
 
     impl DescriptorFlowStep {
+        fn copy_value(&mut self, source: DescriptorLocation, destination: DescriptorLocation) {
+            self.value_transfers
+                .push((source.clone(), destination.clone()));
+            self.derivations.push((source, destination));
+        }
+
         pub fn transport_authority(
             &self,
             before: &BTreeSet<DescriptorLocation>,
@@ -16557,7 +16567,12 @@ pub mod descriptor_results {
                             };
                             if let Some(source) = source {
                                 step.replace_value_inputs([source.clone()]);
-                                step.derivations.push((source, destination.clone()));
+                                if matches!(operation.kind, OperationKind::TransformContent { .. })
+                                {
+                                    step.derivations.push((source, destination.clone()));
+                                } else {
+                                    step.copy_value(source, destination.clone());
+                                }
                             } else {
                                 step.may_escape = true;
                             }
@@ -16621,7 +16636,7 @@ pub mod descriptor_results {
                                 let destination = DescriptorLocation::whole(result.place);
                                 step.replace_value_inputs([source.clone()]);
                                 step.definitions.push(source.clone());
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             } else {
                                 step.may_escape = true;
                             }
@@ -16665,7 +16680,7 @@ pub mod descriptor_results {
                                 location(value.place, &value.path, None),
                             ) {
                                 step.definitions.push(destination.clone());
-                                step.derivations.push((source, destination.clone()));
+                                step.copy_value(source, destination.clone());
                                 if destination.path.is_empty()
                                     && !is_descriptor(
                                         module.structural_types.iter(),
@@ -16802,7 +16817,7 @@ pub mod descriptor_results {
                                     )?
                                 };
                                 let source = location(source.place, &source.path, None)?;
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             }
                         }
                         OperationKind::ElementViewRead {
@@ -16911,7 +16926,7 @@ pub mod descriptor_results {
                                 if let Some(source) = field.value.as_structural() {
                                     if let Some(source) = location(source.place, &source.path, None)
                                     {
-                                        step.derivations.push((source, destination));
+                                        step.copy_value(source, destination);
                                     } else {
                                         step.may_escape = true;
                                     }

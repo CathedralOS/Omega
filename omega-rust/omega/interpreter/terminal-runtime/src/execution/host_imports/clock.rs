@@ -451,6 +451,7 @@ mod tests {
             result: BoundaryMachineResult::Unit,
             result_reference_regions: vec![],
             result_lifetimes: None,
+            membership_ensures: Vec::new(),
             normal_qualifications: vec![],
         }
     }

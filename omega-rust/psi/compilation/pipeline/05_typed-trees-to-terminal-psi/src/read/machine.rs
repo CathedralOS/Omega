@@ -3001,6 +3001,7 @@ impl<'t> Program<'t> {
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut membership_ensures = Vec::new();
         let mut requires_text = Vec::new();
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
@@ -3042,6 +3043,18 @@ impl<'t> Program<'t> {
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
+                        if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                            let (membership, clause) =
+                                self.runtime_membership(id, &exit, membership)?;
+                            if let Some(membership) = membership {
+                                membership_ensures.push(membership);
+                            }
+                            if let Some((clause, text)) = clause {
+                                ensures.push(clause);
+                                ensures_text.push(text);
+                            }
+                            continue;
+                        }
                         if let Some((clause, text)) =
                             self.contract_clause(id, &exit, fact, false)?
                         {
@@ -3213,6 +3226,7 @@ impl<'t> Program<'t> {
                 erased,
                 borrowed,
                 result,
+                membership_ensures,
                 requires,
                 ensures,
                 reaches,

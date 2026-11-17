@@ -415,6 +415,9 @@ impl ProviderPlan {
                         .text(method.result_type_identity),
                 );
             }
+            for membership in &method.normal_result_memberships {
+                rendered.push_str(&format!("\nnormal-membership:{membership:?}"));
+            }
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
             for claim in result_claims {
@@ -768,6 +771,21 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "{} result has no exact semantic type identity",
+                    context()
+                ));
+            }
+            if (!method.normal_result_memberships.is_empty() && !method.has_result)
+                || method
+                    .normal_result_memberships
+                    .iter()
+                    .any(|row| !row.has_exact_identity())
+                || method
+                    .normal_result_memberships
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+            {
+                errors.push(format!(
+                    "{} normal-result membership roster has no exact canonical meaning",
                     context()
                 ));
             }

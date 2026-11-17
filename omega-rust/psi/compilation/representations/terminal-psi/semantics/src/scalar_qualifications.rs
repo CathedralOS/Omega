@@ -1060,6 +1060,8 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
             return malformed("scalar qualification set names an absent domain");
         }
     }
+    let membership_facts = crate::membership_facts::analyze(module)
+        .map_err(|error| ScalarQualificationError::MalformedStructuralFoundation(error.detail))?;
     for coercion in &catalog.coercions {
         let machine = module
             .machines
@@ -1135,13 +1137,16 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
                     "scalar coercion domain is absent",
                 ),
             )?;
-            if domain
-                .missing_membership_requirements(&catalog.domains, source_domains)
-                .is_none_or(|missing| {
-                    missing
-                        .iter()
-                        .any(|node| !node.has_no_required_memberships())
-                })
+            let forwarded =
+                membership_facts.scalar_on_edge(machine.id, coercion.edge, source.id, *id);
+            if !forwarded
+                && domain
+                    .missing_membership_requirements(&catalog.domains, source_domains)
+                    .is_none_or(|missing| {
+                        missing
+                            .iter()
+                            .any(|node| !node.has_no_required_memberships())
+                    })
             {
                 return malformed("scalar coercion has unresolved prerequisite memberships");
             }
@@ -1294,12 +1299,20 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
                         && domain.establishment_routes.is_none()
                         && domain.has_no_required_memberships()
                 }
-                ScalarReturnOrigin::Forwarded => catalog.sets.iter().any(|set| {
-                    set.id == source.qualifications
-                        && domain
-                            .missing_membership_requirements(&catalog.domains, &set.domains)
-                            .is_some_and(|missing| missing.is_empty())
-                }),
+                ScalarReturnOrigin::Forwarded => {
+                    catalog.sets.iter().any(|set| {
+                        set.id == source.qualifications
+                            && domain
+                                .missing_membership_requirements(&catalog.domains, &set.domains)
+                                .is_some_and(|missing| missing.is_empty())
+                    }) || (matches!(returned.site, ScalarReturnSite::Completion { .. })
+                        && membership_facts.scalar_on_edge(
+                            machine.id,
+                            returned.edge,
+                            source.id,
+                            domain.id,
+                        ))
+                }
                 ScalarReturnOrigin::Established { route } => {
                     let declaration = machine.declaration.as_ref().ok_or(
                         ScalarQualificationError::MalformedStructuralFoundation(

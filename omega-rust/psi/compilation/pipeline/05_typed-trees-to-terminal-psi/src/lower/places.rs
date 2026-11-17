@@ -5021,6 +5021,7 @@ mod tests {
                 home: Some("plain-u32".into()),
             }],
             result: Some(plain),
+            membership_ensures: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             reaches: crate::Ceiling::Inferred,
