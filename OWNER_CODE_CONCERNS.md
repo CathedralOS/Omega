@@ -106,13 +106,6 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### A read through a runtime index gets a field equation the spec says it never supplies
-- Category: The documents disagree
-- Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
-- Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L556) says a runtime-element read "supplies no field equation", and such a store "publishes no field equation" (L639). The write log records a store at `[RuntimeIndex i]` as `Stored::Value(v)`, and `read_equation` gives a later read of the same path `r == v`, so `a[i] = 7; need7(a[i]);` is accepted. This is sound (same selector, overlap-based retirement), but contradicts the page.
-- Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
-
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
 - Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
