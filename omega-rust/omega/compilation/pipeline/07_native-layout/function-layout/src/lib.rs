@@ -45,7 +45,7 @@ pub use text_placement::{
 pub fn place_function_text(
     layout: machine_code::OptimizedMachineLayout,
     verification: native_verification::PhysicalVerificationEvidence,
-    facts: physical_planning::EmissionFacts,
+    facts: physical_program::EmissionFacts,
     installations: std::sync::Arc<installation_binding::BoundInstallationAuthority>,
     fragments_entered: &std::sync::atomic::AtomicU64,
 ) -> Result<StagedOptimizedFixedFrameTextSection, FunctionTextLayoutError> {

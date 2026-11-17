@@ -16,7 +16,7 @@ pub struct EmissionFacts {
     pub port_writes: Result<Vec<machine_code::function_metadata::PhysicalPortWrite>, &'static str>,
     pub temporary_stack: Vec<machine_code::function_metadata::FunctionTemporaryStack>,
     pub semantic: SemanticEmissionFacts,
-    pub stack: crate::stack_demand::PhysicalStackProgram,
+    pub stack: machine_code::physical_stack::PhysicalStackProgram,
     pub calls: machine_code::call_origins::PhysicalCallOrigins,
     pub image_origins: Result<machine_code::image_origins::ImageAddressOrigins, &'static str>,
     pub foreign_calls: Result<

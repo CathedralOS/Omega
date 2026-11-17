@@ -24,7 +24,6 @@ boundary-applications = { path = "../../compilation/representations/boundary-app
 compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 effects = { path = "../../compilation/representations/native-effects" }
-native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }
 review-evidence = { path = "../review-evidence" }
 source-acquisition = { path = "../source-acquisition" }
 package-compilation = { path = "../package-compilation" }

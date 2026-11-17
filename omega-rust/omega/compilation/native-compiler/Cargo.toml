@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+physical-program = { path = "../representations/physical-program" }
 native-runtime-provisions = { path = "../pipeline/03_native-program-planning/runtime-provisions" }
 provider-admission = { path = "../verification/provider-admission" }
 installation-binding = { path = "../pipeline/05_installation-binding" }

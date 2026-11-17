@@ -10,7 +10,7 @@ pub(crate) struct ObjectEmissionInput {
     pub allocation: register_homes::PostAllocationOptimizationManifest,
     pub readback: Arc<NativeBodyReadback>,
     publication: object_file::ObjectPublication,
-    facts: Arc<physical_planning::EmissionFacts>,
+    facts: Arc<physical_program::EmissionFacts>,
     authority: Arc<installation_binding::BoundInstallationAuthority>,
     pub frames: Vec<machine_code::FunctionAppliedFrameProtocol>,
     pub statistics: crate::function_fragments::reporting::FunctionPublicationStatistics,
@@ -41,7 +41,7 @@ impl ObjectEmissionInput {
     pub fn publication(&self) -> object_file::ObjectPublication {
         self.publication.clone()
     }
-    pub fn emission_facts(&self) -> &physical_planning::EmissionFacts {
+    pub fn emission_facts(&self) -> &physical_program::EmissionFacts {
         &self.facts
     }
     pub fn text_section(&self) -> &machine_code::RelocationFreeTextSectionPlacement {

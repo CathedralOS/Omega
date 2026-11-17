@@ -747,11 +747,10 @@ dependencies = [
  "layout-plans",
  "legalized-operations",
  "machine-code",
- "native-encoding",
  "native-verification",
  "native-vocabulary",
  "optimization-core",
- "physical-planning",
+ "physical-program",
  "post-allocation-machine",
  "provider-admission",
  "register-environment",
@@ -872,6 +871,7 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "physical-planning",
+ "physical-program",
  "post-allocation-machine",
  "program-entry-plan",
  "provider-admission",
@@ -1272,7 +1272,6 @@ dependencies = [
  "image",
  "image-emission",
  "image-macho",
- "image-pe",
  "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
@@ -1281,7 +1280,6 @@ dependencies = [
  "native-runtime-provisions",
  "object-file",
  "optimization-core",
- "physical-planning",
  "platform-custody",
  "post-allocation-machine",
  "program-entry-plan",
@@ -1333,6 +1331,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "physical-planning",
+ "physical-program",
  "post-allocation-machine",
  "provider-admission",
  "register-environment",
@@ -1601,7 +1600,7 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "optimization-core",
- "physical-planning",
+ "physical-program",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -1798,7 +1797,6 @@ dependencies = [
  "evaluation-accounting",
  "evaluation-contracts",
  "filesystem-authority",
- "native-artifact",
  "optimization-core",
  "package-compilation",
  "platform-custody",
@@ -1859,6 +1857,14 @@ dependencies = [
  "task-plans",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "physical-program"
+version = "0.1.0"
+dependencies = [
+ "machine-code",
+ "selected-instructions",
  "verified-optimization-input",
 ]
 
@@ -1954,7 +1960,6 @@ dependencies = [
  "effects",
  "evaluation-receipts",
  "image",
- "image-emission",
  "image-macho",
  "installation-evidence",
  "native-artifact",

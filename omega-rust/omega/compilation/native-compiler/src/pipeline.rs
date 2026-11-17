@@ -99,7 +99,7 @@ pub(crate) type BoundPhysicalBody = PhysicalBody<installation_binding::BoundInst
 pub(crate) struct PhysicalBody<Resources> {
     pub frame: physical_planning::PhysicalFrameProgram,
     pub private_references: Vec<function_identity::MachineFunctionIdentity>,
-    pub facts: physical_planning::EmissionFacts,
+    pub facts: physical_program::EmissionFacts,
     pub installations: std::sync::Arc<Resources>,
     imports: physical_planning::imports::PhysicalImportProgram,
     windows_internet: Option<physical_planning::windows_internet::WindowsInternetProgram>,
@@ -228,11 +228,11 @@ pub(crate) fn prepare_physical_body(
     let internal_calls = physical_planning::internal_call_plans::capture(
         &frame.instructions,
         frame.frame.plan(),
-        &facts,
+        &facts.program,
     );
     let cpu = image_emission::prepare_native_cpu_origins(&frame.instructions);
     let faults = image_emission::prepare_native_fault_origins(&frame.instructions);
-    let facts = physical_planning::EmissionFacts {
+    let facts = physical_program::EmissionFacts {
         termination: image_emission::prepare_privileged_termination(
             installations.installed_entry_execution(),
             &frame.instructions,
@@ -341,7 +341,7 @@ struct BodyObjectInputs {
 }
 
 pub(crate) struct EncodedBody {
-    facts: physical_planning::EmissionFacts,
+    facts: physical_program::EmissionFacts,
     installations: std::sync::Arc<installation_binding::BoundInstallationAuthority>,
     program: machine_code::EncodedMachineProgram,
     object: BodyObjectInputs,

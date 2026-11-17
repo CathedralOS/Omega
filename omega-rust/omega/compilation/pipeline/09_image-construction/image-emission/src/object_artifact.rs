@@ -1311,7 +1311,7 @@ pub(crate) mod installed_stack {
 
         pub(super) fn plan(
             frame: &physical_planning::PhysicalFrameProgram,
-            facts: &physical_planning::EmissionFacts,
+            facts: &physical_program::EmissionFacts,
             authority: &physical_planning::installation_resources::PlannedInstallationResources,
             cpu: &crate::NativeBodyCpuState,
         ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
@@ -1548,7 +1548,7 @@ pub(crate) mod installed_stack {
     pub fn plan_installed_interrupt_stack_requirement(
         identity: function_identity::MachineFunctionIdentity,
         frame: &physical_planning::PhysicalFrameProgram,
-        facts: &physical_planning::EmissionFacts,
+        facts: &physical_program::EmissionFacts,
         authority: &physical_planning::installation_resources::PlannedInstallationResources,
         bridge: &physical_planning::native_entry_bridge::NativeEntryBridgePlan,
         cpu: &crate::NativeBodyCpuState,

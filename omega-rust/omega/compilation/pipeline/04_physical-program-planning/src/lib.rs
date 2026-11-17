@@ -192,8 +192,6 @@ pub mod native_foreign_bridge;
 pub mod physical_stack_switch;
 pub mod windows_internet;
 
-mod emission_facts;
-pub use emission_facts::EmissionFacts;
 pub mod boundary_settlements;
 pub mod call_origins;
 pub mod foreign_call_plans;

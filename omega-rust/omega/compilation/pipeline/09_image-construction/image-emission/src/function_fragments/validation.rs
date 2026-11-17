@@ -452,7 +452,7 @@ fn validate_original(
             "original physical instructions were not retained (ReplayUnavailable)",
         ))?,
         physical.frame_layout(),
-        &source.emission_facts().semantic,
+        &source.emission_facts().program,
     ) != source.emission_facts().internal_calls
     {
         return Err(Error::Mismatch(

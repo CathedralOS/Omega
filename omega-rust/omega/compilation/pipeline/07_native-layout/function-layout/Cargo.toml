@@ -9,10 +9,9 @@ name = "function_layout"
 path = "src/lib.rs"
 
 [dependencies]
+physical-program = { path = "../../../representations/physical-program" }
 installation-binding = { path = "../../05_installation-binding" }
-native-encoding = { path = "../../06_native-encoding" }
 frame-admission = { path = "../../../verification/frame-admission" }
-physical-planning = { path = "../../04_physical-program-planning" }
 encoding-admission = { path = "../../../verification/encoding-admission" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 installation-evidence = { path = "../../../representations/installation-evidence" }

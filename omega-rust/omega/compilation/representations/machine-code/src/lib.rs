@@ -541,3 +541,5 @@ pub mod exit_requirements;
 pub mod program_context;
 
 pub mod hosted_entry;
+
+pub mod physical_stack;

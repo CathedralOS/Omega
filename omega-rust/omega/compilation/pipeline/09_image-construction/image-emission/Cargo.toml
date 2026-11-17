@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+physical-program = { path = "../../../representations/physical-program" }
 native-verification = { path = "../../../verification/native-verification" }
 installation-binding = { path = "../../05_installation-binding" }
 native-encoding = { path = "../../06_native-encoding" }

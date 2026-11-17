@@ -9,7 +9,6 @@ test-support = []
 
 [dependencies]
 function-identity = { path = "../../representations/function-identity" }
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 task-plans = { path = "../../representations/task-plans" }
 target-operations = { path = "../../representations/target-operations" }
 provider-admission = { path = "../../verification/provider-admission" }

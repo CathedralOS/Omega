@@ -350,240 +350,6 @@
     },
     {
       "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "use:verified_optimization_input :: publication :: SemanticEmissionFacts#1",
-      "kind": "definition",
-      "meaning": "Projected semantic emission facts for the retained body.",
-      "producer": "04 physical program planning",
-      "signature": "d3aea7c011a9c8673884b257e714d842dd4dc671e9bd6192606e79858ae03bf3"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "struct:EmissionFacts#1",
-      "kind": "carried_record",
-      "meaning": "Physical publication and verification facts carried beyond register allocation.",
-      "producer": "04 physical program planning",
-      "signature": "55bf8a2325a6ddc39fd211d17fc6adbb9497432ad0d4ddf215a1c152be81dc15"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:termination#1",
-      "kind": "carried_record",
-      "meaning": "Whether the retained body meets its termination obligations.",
-      "producer": "04 physical program planning",
-      "signature": "bfd113f5eebe61710c71e8db8fb601cfb5dab5a66c596d42b41b14bc5129889d"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:faults#1",
-      "kind": "carried_record",
-      "meaning": "Checked physical origins of potential faults, or the refusal to establish them.",
-      "producer": "04 physical program planning",
-      "signature": "2eb708320925f54d971495a5466808f02b8e07375496e3f92b7aa0bec024ae2d"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:cpu#1",
-      "kind": "carried_record",
-      "meaning": "Physical CPU operation origins retained for runtime and image checks.",
-      "producer": "04 physical program planning",
-      "signature": "95963cf372040b7553847ac507e28b5358547cf2aad5dc2d65b004f0e07ac30f"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:internal_calls#1",
-      "kind": "carried_record",
-      "meaning": "Internal call contracts and correspondence to physical call sites.",
-      "producer": "04 physical program planning",
-      "signature": "4120b82526a7d2d195ff5a0d3d01fd84c0744b2755f71eb75c8dadb5b55c06bf"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:boundary_settlements#1",
-      "kind": "carried_record",
-      "meaning": "Resolved boundary uses and the physical sites to which they apply.",
-      "producer": "04 physical program planning",
-      "signature": "4d040108b4f5c9d80d39cc2335fbeb1cac1f26986a348293ddcd1cb16b5d1d0e"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:contracts#1",
-      "kind": "carried_record",
-      "meaning": "Shared immutable contracts established at instruction selection.",
-      "producer": "04 physical program planning",
-      "signature": "d566aed204677fb39e77d7cd4b2487e4033ad820f1e9af17a558d1625ceb7552"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:port_writes#1",
-      "kind": "carried_record",
-      "meaning": "Authorized port-write correspondence or its unresolved error.",
-      "producer": "04 physical program planning",
-      "signature": "09cc84c0f0cb4efd888998c6ba154970105092e1fa2cc81a665b6fdbbfdf3b15"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:temporary_stack#1",
-      "kind": "carried_record",
-      "meaning": "Temporary stack use per physical function.",
-      "producer": "04 physical program planning",
-      "signature": "950924d1fc26f680af7227700c8e982ba37fc6a390c9c746fcae819088ed0326"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:semantic#1",
-      "kind": "carried_record",
-      "meaning": "Projected semantic emission facts for the retained body.",
-      "producer": "04 physical program planning",
-      "signature": "adeced9c113b3791e35ef6a156bcfdc43235e5103194c9f3bcda9f99c671cc83"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:stack#1",
-      "kind": "carried_record",
-      "meaning": "Frame and call contributions used to establish physical stack demand.",
-      "producer": "04 physical program planning",
-      "signature": "f055d057f028b77d7a9affa983fa02fff1c503a710f428b7f91bb520e54364c0"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:calls#1",
-      "kind": "carried_record",
-      "meaning": "Correspondence of physical calls with their semantic origins.",
-      "producer": "04 physical program planning",
-      "signature": "9adcadd25d029e98fb27b2cfa8ec787e5897bd571f5802ecf87f6cbeb6bdd3e8"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:image_origins#1",
-      "kind": "carried_record",
-      "meaning": "Image-address references and their provenance or the recorded refusal.",
-      "producer": "04 physical program planning",
-      "signature": "9a953d0bb78861d8fad3258ff56d71c94d0e029e5010a3ef261d265321c179e9"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "EmissionFacts::field:foreign_calls#1",
-      "kind": "carried_record",
-      "meaning": "Settled foreign-call plans and their correspondence to physical sites.",
-      "producer": "04 physical program planning",
-      "signature": "33d60978b08b2589ecbe8634aa7a7e7cb878b83fd14f02f174976c1f752d8ee0"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "impl:std :: ops :: Deref for EmissionFacts::implementation#1",
-      "kind": "carried_record",
-      "meaning": "Borrows the retained semantic facts from the physical emission record.",
-      "producer": "04 physical program planning",
-      "signature": "e798b603c76ce52746ae9e763791f045f6efdc99c5bb4c9fe46c68b51eaf5dfd"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "impl:std :: ops :: Deref for EmissionFacts::alias:Target#1",
-      "kind": "definition",
-      "meaning": "The projection exposes only the retained semantic emission facts.",
-      "producer": "04 physical program planning",
-      "signature": "1f926b3b26baf7e6a31d98539ca5566f2baa5d0a6deeeb85529a1bbe3db0dcfa"
-    },
-    {
-      "consumers": [
-        "installation binding",
-        "native encoding",
-        "image emission"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs",
-      "item": "impl:std :: ops :: Deref for EmissionFacts::method:deref#1",
-      "kind": "carried_record",
-      "meaning": "Borrows the retained semantic facts from the physical emission record.",
-      "producer": "04 physical program planning",
-      "signature": "69c210d06a79419d5352edf09a8833e48e95b027e38d75f09940ee92fd3cd3bc"
-    },
-    {
-      "consumers": [
         "native compiler callback planning"
       ],
       "file": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs",
@@ -647,16 +413,243 @@
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
       "producer": "04 physical program planning",
       "signature": "4b233793cb33731fd97c87a6aaf38a07e03ec3c7e8270564eadcda3cecd9f96a"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "use:verified_optimization_input :: publication :: SemanticEmissionFacts#1",
+      "kind": "definition",
+      "meaning": "Projected semantic emission facts for the retained body.",
+      "producer": "04 physical program planning",
+      "signature": "d3aea7c011a9c8673884b257e714d842dd4dc671e9bd6192606e79858ae03bf3"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "struct:EmissionFacts#1",
+      "kind": "carried_record",
+      "meaning": "Physical publication and verification facts carried beyond register allocation.",
+      "producer": "04 physical program planning",
+      "signature": "17a406c2f21d67b799a1fcf88dd12a2617454a3f867b92b3485e3a8cefe422ea"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:termination#1",
+      "kind": "carried_record",
+      "meaning": "Whether the retained body meets its termination obligations.",
+      "producer": "04 physical program planning",
+      "signature": "bfd113f5eebe61710c71e8db8fb601cfb5dab5a66c596d42b41b14bc5129889d"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:faults#1",
+      "kind": "carried_record",
+      "meaning": "Checked physical origins of potential faults, or the refusal to establish them.",
+      "producer": "04 physical program planning",
+      "signature": "2eb708320925f54d971495a5466808f02b8e07375496e3f92b7aa0bec024ae2d"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:cpu#1",
+      "kind": "carried_record",
+      "meaning": "Physical CPU operation origins retained for runtime and image checks.",
+      "producer": "04 physical program planning",
+      "signature": "95963cf372040b7553847ac507e28b5358547cf2aad5dc2d65b004f0e07ac30f"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:internal_calls#1",
+      "kind": "carried_record",
+      "meaning": "Internal call contracts and correspondence to physical call sites.",
+      "producer": "04 physical program planning",
+      "signature": "4120b82526a7d2d195ff5a0d3d01fd84c0744b2755f71eb75c8dadb5b55c06bf"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:boundary_settlements#1",
+      "kind": "carried_record",
+      "meaning": "Resolved boundary uses and the physical sites to which they apply.",
+      "producer": "04 physical program planning",
+      "signature": "4d040108b4f5c9d80d39cc2335fbeb1cac1f26986a348293ddcd1cb16b5d1d0e"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:contracts#1",
+      "kind": "carried_record",
+      "meaning": "Shared immutable contracts established at instruction selection.",
+      "producer": "04 physical program planning",
+      "signature": "d566aed204677fb39e77d7cd4b2487e4033ad820f1e9af17a558d1625ceb7552"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:port_writes#1",
+      "kind": "carried_record",
+      "meaning": "Authorized port-write correspondence or its unresolved error.",
+      "producer": "04 physical program planning",
+      "signature": "09cc84c0f0cb4efd888998c6ba154970105092e1fa2cc81a665b6fdbbfdf3b15"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:temporary_stack#1",
+      "kind": "carried_record",
+      "meaning": "Temporary stack use per physical function.",
+      "producer": "04 physical program planning",
+      "signature": "950924d1fc26f680af7227700c8e982ba37fc6a390c9c746fcae819088ed0326"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:semantic#1",
+      "kind": "carried_record",
+      "meaning": "Projected semantic emission facts for the retained body.",
+      "producer": "04 physical program planning",
+      "signature": "adeced9c113b3791e35ef6a156bcfdc43235e5103194c9f3bcda9f99c671cc83"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:stack#1",
+      "kind": "carried_record",
+      "meaning": "Frame and call contributions used to establish physical stack demand.",
+      "producer": "04 physical program planning",
+      "signature": "d893ac89cc4857e82d0d8152fea42783edbda0a633ce3f8174abe81e40b5bf40"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:calls#1",
+      "kind": "carried_record",
+      "meaning": "Correspondence of physical calls with their semantic origins.",
+      "producer": "04 physical program planning",
+      "signature": "9adcadd25d029e98fb27b2cfa8ec787e5897bd571f5802ecf87f6cbeb6bdd3e8"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:image_origins#1",
+      "kind": "carried_record",
+      "meaning": "Image-address references and their provenance or the recorded refusal.",
+      "producer": "04 physical program planning",
+      "signature": "9a953d0bb78861d8fad3258ff56d71c94d0e029e5010a3ef261d265321c179e9"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "EmissionFacts::field:foreign_calls#1",
+      "kind": "carried_record",
+      "meaning": "Settled foreign-call plans and their correspondence to physical sites.",
+      "producer": "04 physical program planning",
+      "signature": "33d60978b08b2589ecbe8634aa7a7e7cb878b83fd14f02f174976c1f752d8ee0"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::implementation#1",
+      "kind": "carried_record",
+      "meaning": "Borrows the retained semantic facts from the physical emission record.",
+      "producer": "04 physical program planning",
+      "signature": "e798b603c76ce52746ae9e763791f045f6efdc99c5bb4c9fe46c68b51eaf5dfd"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::alias:Target#1",
+      "kind": "definition",
+      "meaning": "The projection exposes only the retained semantic emission facts.",
+      "producer": "04 physical program planning",
+      "signature": "1f926b3b26baf7e6a31d98539ca5566f2baa5d0a6deeeb85529a1bbe3db0dcfa"
+    },
+    {
+      "consumers": [
+        "installation binding",
+        "native encoding",
+        "image emission"
+      ],
+      "file": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs",
+      "item": "impl:std :: ops :: Deref for EmissionFacts::method:deref#1",
+      "kind": "carried_record",
+      "meaning": "Borrows the retained semantic facts from the physical emission record.",
+      "producer": "04 physical program planning",
+      "signature": "69c210d06a79419d5352edf09a8833e48e95b027e38d75f09940ee92fd3cd3bc"
     }
   ],
   "roots": [
-    {
-      "allowed_kinds": [
-        "carried_record",
-        "definition"
-      ],
-      "path": "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/emission_facts.rs"
-    },
     {
       "allowed_kinds": [
         "carried_record",
@@ -664,6 +657,13 @@
         "producer"
       ],
       "path": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "definition"
+      ],
+      "path": "omega-rust/omega/compilation/representations/physical-program/src/lib.rs"
     },
     {
       "allowed_kinds": [

@@ -29,7 +29,6 @@ task-plans = { path = "../representations/task-plans" }
 artifacts = { path = "measurements" }
 backend-plan = { path = "../representations/provider-plans" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-image-emission = { path = "../pipeline/09_image-construction/image-emission" }
 native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 optimization-core = { path = "../representations/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }

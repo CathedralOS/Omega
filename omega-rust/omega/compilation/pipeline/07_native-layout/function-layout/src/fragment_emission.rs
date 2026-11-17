@@ -126,7 +126,7 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.custody
     }
 
-    pub fn facts(&self) -> &physical_planning::EmissionFacts {
+    pub fn facts(&self) -> &physical_program::EmissionFacts {
         self.source.facts()
     }
 
@@ -210,7 +210,7 @@ impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError 
 #[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
     realization: StagedFixedFrameFunctionRelativeRealization,
-    facts: physical_planning::EmissionFacts,
+    facts: physical_program::EmissionFacts,
     installation_authority: Arc<installation_binding::BoundInstallationAuthority>,
 }
 
@@ -266,7 +266,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 
     /// The facts settled before instruction selection that emission reads.
-    pub fn facts(&self) -> &physical_planning::EmissionFacts {
+    pub fn facts(&self) -> &physical_program::EmissionFacts {
         &self.facts
     }
 
@@ -318,7 +318,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     /// pre-physical manifest as those facts.
     pub fn new(
         realization: StagedFixedFrameFunctionRelativeRealization,
-        facts: physical_planning::EmissionFacts,
+        facts: physical_program::EmissionFacts,
         installation_authority: Arc<installation_binding::BoundInstallationAuthority>,
     ) -> Result<Self, FunctionFragmentEmissionError> {
         if !installation_authority.matches_admission(

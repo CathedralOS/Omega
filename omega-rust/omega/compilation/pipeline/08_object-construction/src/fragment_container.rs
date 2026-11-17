@@ -211,7 +211,7 @@ impl StagedOptimizedRelocationFreeObjectContainer {
     }
 
     /// The facts the native driver carried from before instruction selection.
-    pub fn emission_facts(&self) -> &physical_planning::EmissionFacts {
+    pub fn emission_facts(&self) -> &physical_program::EmissionFacts {
         self.source.source().source().facts()
     }
 }

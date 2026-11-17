@@ -112,6 +112,7 @@ members = [
     "omega-rust/omega/compilation/representations/selected-instructions",
     "omega-rust/omega/compilation/representations/selected-instructions/analyses",
     "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/representations/physical-program",
     "omega-rust/omega/compilation/representations/provider-plans",
     "omega-rust/omega/compilation/target-description/layout",
     "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout",

@@ -57,12 +57,12 @@ terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
 proof-admission = { path = "../../../psi/compilation/proof-admission" }
-native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 
 [build-dependencies]
 wire = { path = "../../../psi/foundation/wire" }
 
 [dev-dependencies]
+native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }
 physical-planning = { path = "../pipeline/04_physical-program-planning" }

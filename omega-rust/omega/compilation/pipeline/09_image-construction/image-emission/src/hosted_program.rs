@@ -11,7 +11,7 @@ use physical_planning::hosted_entry::ReceiverStorage;
 
 pub struct HostedProgramEntryRequest<'a> {
     pub frame: &'a physical_planning::PhysicalFrameProgram,
-    pub facts: &'a physical_planning::EmissionFacts,
+    pub facts: &'a physical_program::EmissionFacts,
     pub entry: Option<&'a verified_optimization_input::ValidatedNativeProgramEntrySettlement>,
     pub demand: crate::StackDemand,
 }
@@ -40,7 +40,7 @@ pub struct EncodedHostedProgramEntry {
 
 pub fn needs_hosted_entry(
     frame: &physical_planning::PhysicalFrameProgram,
-    facts: &physical_planning::EmissionFacts,
+    facts: &physical_program::EmissionFacts,
     entry: Option<&verified_optimization_input::ValidatedNativeProgramEntrySettlement>,
 ) -> bool {
     if let Some(entry) = entry {

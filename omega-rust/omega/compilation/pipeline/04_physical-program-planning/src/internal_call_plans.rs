@@ -15,13 +15,13 @@ use target_operations::CallSiteOwner;
 struct PlanningSource<'a> {
     program: &'a post_allocation_machine::PostAllocationMachineProgram,
     frames: &'a machine_code::TargetFrameLayoutPlan,
-    semantic: &'a verified_optimization_input::publication::SemanticEmissionFacts,
+    semantic: &'a native_vocabulary::emission::EmissionProgramFacts,
 }
 
 pub fn capture(
     program: &post_allocation_machine::PostAllocationMachineProgram,
     frames: &machine_code::TargetFrameLayoutPlan,
-    semantic: &verified_optimization_input::publication::SemanticEmissionFacts,
+    semantic: &native_vocabulary::emission::EmissionProgramFacts,
 ) -> PhysicalInternalCallPlans {
     let source = PlanningSource {
         program,
@@ -67,10 +67,9 @@ mod source {
     pub(super) fn function_facts<'a>(
         source: &'a PlanningSource<'_>,
         machine: MachineId,
-    ) -> Result<&'a verified_optimization_input::publication::EmissionFunctionFacts, Error> {
+    ) -> Result<&'a native_vocabulary::emission::EmissionFunctionFacts, Error> {
         let mut rows = source
             .semantic
-            .program
             .functions
             .iter()
             .filter(|row| row.machine == machine);
@@ -624,7 +623,7 @@ mod established_views {
             .filter(|row| row.operation == producer)
             .map(|row| &row.descriptor);
         match producers.next() {
-            Some(verified_optimization_input::publication::DescriptorProducer::ByteSubslice(result))
+            Some(native_vocabulary::emission::DescriptorProducer::ByteSubslice(result))
                 if result.place == argument.place
                     && result.structural_type == argument.root_structural_type
                     && matches!(
@@ -634,7 +633,7 @@ mod established_views {
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() => {}
-            Some(verified_optimization_input::publication::DescriptorProducer::ElementView(result))
+            Some(native_vocabulary::emission::DescriptorProducer::ElementView(result))
                 if result.place == argument.place
                     && result.structural_type == argument.root_structural_type
                     && matches!(
@@ -648,7 +647,7 @@ mod established_views {
                         &result.projected_qualifications,
                     )
                     && result.claims.is_empty() => {}
-            Some(verified_optimization_input::publication::DescriptorProducer::ByteLiteral {
+            Some(native_vocabulary::emission::DescriptorProducer::ByteLiteral {
                 place,
                 structural_type,
             }) if *place == argument.place && *structural_type == argument.root_structural_type => {
@@ -1187,11 +1186,11 @@ mod scalar_result {
                 return None;
             }
             let matches = match row.target {
-                verified_optimization_input::publication::ScalarCallOrigin::Authored(callee) => {
+                native_vocabulary::emission::ScalarCallOrigin::Authored(callee) => {
                     installed_boundary.is_none()
                         && source::call_target_matches(callee, contract.call.target)
                 }
-                verified_optimization_input::publication::ScalarCallOrigin::Boundary(boundary) => installed_boundary == Some(boundary),
+                native_vocabulary::emission::ScalarCallOrigin::Boundary(boundary) => installed_boundary == Some(boundary),
             };
             matches.then_some(row.result)
         });
