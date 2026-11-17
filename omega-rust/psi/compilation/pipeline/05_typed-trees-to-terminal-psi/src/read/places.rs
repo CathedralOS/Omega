@@ -31,7 +31,9 @@ use typed_trees::types::TypeReferenceNode;
 use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
-use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
+use crate::body::{
+    CaseSelector, CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType,
+};
 use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
@@ -1459,12 +1461,53 @@ impl Program<'_> {
         })
     }
 
+    /// Preserve the checked projected-equality condition as an ordinary
+    /// expression. It will execute only after lowering selects this case.
+    pub(super) fn case_selector(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        record: Opened,
+        pattern: &TableDestructurePattern,
+        subject: &Expression,
+        at: SourceOrigin,
+    ) -> Checked<CaseSelector> {
+        let case = self.case_pattern(id, record, pattern, at)?;
+        let condition = self.expression(
+            id,
+            slots,
+            pattern.condition,
+            Some(ValueType::plain(ScalarType::Boolean)),
+        )?;
+        let tests_fields = self
+            .typed
+            .expression_table
+            .match_fields(pattern.fields)
+            .iter()
+            .any(|field| matches!(field.action, MatchFieldAction::Equal(_)));
+        if !tests_fields
+            && !super::expressions::same_computation(
+                &condition,
+                &super::expressions::case_condition(subject, case),
+            )
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Transition("case pattern whose condition is not its case test"),
+            ));
+        }
+        Ok(CaseSelector {
+            case,
+            condition: tests_fields.then(|| Box::new(condition)),
+        })
+    }
+
     /// The case a destructuring pattern selects in the sum `record`, after
-    /// checking that the pattern is one this slice serves: a case head and
-    /// payload fields that are each bound or waived. patterns.md: "A pattern
-    /// that can fail rejects; a binding introduces no hidden branch, trap,
-    /// fallback or runtime assertion." A binding has no node of its own:
-    /// stage 01 replaces each use of it by the payload member it names. The
+    /// checking its nominal head and exact payload roster. A field may bind,
+    /// waive, or test its projected value. The condition is read separately
+    /// by `case_selector`; a binding has no node of its own because stage 01
+    /// replaces each use of it by the payload member it names. The
     /// pattern must name every payload field unless it ends in `..`;
     /// frozen typed trees retain the roster, not a coverage verdict, so
     /// this reader checks that rule before lowering the binding.
@@ -1506,10 +1549,9 @@ impl Program<'_> {
                 }
             }
             match &field.action {
-                MatchFieldAction::Bind(_) | MatchFieldAction::Waive => {}
-                MatchFieldAction::Equal(_) => {
-                    return Err(unserved("pattern field tested against a value"));
-                }
+                MatchFieldAction::Bind(_)
+                | MatchFieldAction::Waive
+                | MatchFieldAction::Equal(_) => {}
             }
             if !field.field_symbol.is_valid() {
                 return Err(refuse(

@@ -167,7 +167,7 @@ pub(crate) fn publish_write_frames(
                 let path = terminal_semantics::canonical_inline_region(
                     module.structural_types.iter(),
                     structural_type,
-                    &region.projection.path,
+                    &region.written_storage_path(),
                 )
                 .ok_or_else(|| {
                     problem(

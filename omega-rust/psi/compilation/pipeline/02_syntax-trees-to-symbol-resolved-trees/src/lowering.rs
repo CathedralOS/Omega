@@ -1129,6 +1129,15 @@ pub(crate) mod expression {
                             right: expected,
                         },
                     ));
+                    // A field-value pattern authors ordinary equality at the
+                    // field name. Keep its selection question just like a
+                    // written binary operator; only the tag/and scaffolding
+                    // is compiler-generated.
+                    super::retain_authored_expression(
+                        lowerer,
+                        equality,
+                        field.member.source_span(),
+                    );
                     condition = if condition.is_valid() {
                         expression_table(lowerer).insert(ExpressionNode::Binary(
                             TableBinaryExpression {
@@ -1191,6 +1200,18 @@ pub(crate) mod expression {
                 syntax_trees.expressions.expression(expression),
             )?
         };
+        retain_authored_expression(lowerer, lowered, source_span);
+        if let Some(sources) = &mut lowerer.equation_sources {
+            sources.expressions.push((expression, lowered));
+        }
+        Ok(lowered)
+    }
+
+    fn retain_authored_expression(
+        lowerer: &mut Lowerer,
+        lowered: ExpressionHandle,
+        source_span: source::SourceSpan,
+    ) {
         expression_table(lowerer).set_source_span(lowered, source_span);
         if let Some(exposure) = lowerer.current_authored_expression_exposure {
             expression_table(lowerer).set_authored_expression_exposure(lowered, exposure);
@@ -1204,10 +1225,6 @@ pub(crate) mod expression {
         if let Some(partition) = lowerer.current_compiler_selection_partition {
             expression_table(lowerer).set_compiler_selection_partition(lowered, partition);
         }
-        if let Some(sources) = &mut lowerer.equation_sources {
-            sources.expressions.push((expression, lowered));
-        }
-        Ok(lowered)
     }
 
     /*

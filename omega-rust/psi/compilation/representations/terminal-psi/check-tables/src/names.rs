@@ -69,6 +69,10 @@ pub struct MachineNames {
     /// the span of its value, which is how lowering knows the arm
     /// (`MachineSources::branches`).
     pub arms: Vec<(SourceSpan, String)>,
+    /// Checked pattern arms omitted because an earlier unconditional case
+    /// or wildcard already matches them: (later arm, earlier covering arm).
+    /// These source coordinates grant no proof or execution authority.
+    pub shadowed_patterns: Vec<(SourceSpan, SourceSpan)>,
 }
 
 /// What receives the value an operation computes.

@@ -14,7 +14,7 @@ use typed_trees::expression::{
 
 use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
@@ -925,16 +925,19 @@ impl<'t> Program<'t> {
         record: super::authority::Opened,
         subject: &Expression,
         expected: Option<ValueType>,
-    ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
+    ) -> Checked<(
+        Vec<(CaseSelector, Expression)>,
+        Option<Box<Expression>>,
+        ValueType,
+    )> {
         use typed_trees::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let mut arms: Vec<(usize, Expression)> = Vec::new();
+        let mut arms: Vec<(CaseSelector, Expression)> = Vec::new();
         let mut default = None;
         let mut result = expected;
+        let mut wildcard = None;
+        let mut full_cases = vec![None; self.data_type(id, record.record())?.cases().len()];
         for arm in self.typed.expression_table.match_arms(matched.arms) {
-            if default.is_some() {
-                return Err(unserved("match arm after the wildcard"));
-            }
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
                 MatchPattern::Value(head) => {
@@ -966,7 +969,7 @@ impl<'t> Program<'t> {
                         }
                         _ => Default::default(),
                     };
-                    Some(self.case_pattern(
+                    Some(CaseSelector::tag(self.case_pattern(
                         id,
                         record,
                         &typed_trees::expression::TableDestructurePattern {
@@ -975,34 +978,40 @@ impl<'t> Program<'t> {
                             ..Default::default()
                         },
                         SourceOrigin::of(arm.source_span),
-                    )?)
+                    )?))
                 }
-                MatchPattern::Destructure(pattern) => {
-                    let case =
-                        self.case_pattern(id, record, pattern, SourceOrigin::of(arm.source_span))?;
-                    // Stage 03 keeps the arm's test as the pattern's
-                    // condition, `subject in case && true`; it must read to
-                    // exactly that, or the arm tests something else.
-                    let condition = self.expression(
-                        id,
-                        slots,
-                        pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                    )?;
-                    if !same_computation(&condition, &case_condition(subject, case)) {
-                        return Err(unserved("match arm whose condition is not its case test"));
-                    }
-                    Some(case)
-                }
+                MatchPattern::Destructure(pattern) => Some(self.case_selector(
+                    id,
+                    slots,
+                    record,
+                    pattern,
+                    subject,
+                    SourceOrigin::of(arm.source_span),
+                )?),
             };
-            if case.is_some_and(|case| arms.iter().any(|(earlier, _)| *earlier == case)) {
-                return Err(unserved("match arm for a case an earlier arm selects"));
-            }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
             self.label_arm(id, &value, &arm.pattern);
+            // Read and type every authored arm before omitting a branch
+            // whose earlier unconditional pattern already selects its values.
+            if let Some(earlier) =
+                wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
+            {
+                if let Some(names) = self.names.get_mut(id) {
+                    names.shadowed_patterns.push((arm.source_span, earlier));
+                }
+                continue;
+            }
             match case {
-                Some(case) => arms.push((case, value)),
-                None => default = Some(Box::new(value)),
+                Some(case) => {
+                    if case.condition.is_none() {
+                        full_cases[case.case] = Some(arm.source_span);
+                    }
+                    arms.push((case, value));
+                }
+                None => {
+                    wildcard = Some(arm.source_span);
+                    default = Some(Box::new(value));
+                }
             }
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
@@ -1676,7 +1685,12 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                         .all(|((a_case, a), (b_case, b))| {
                             both(a, b)
                                 && match (a_case, b_case) {
-                                    (Selector::Case(a), Selector::Case(b)) => a == b,
+                                    (Selector::Case(a), Selector::Case(b)) => a.case == b.case
+                                        && match (&a.condition, &b.condition) {
+                                            (Some(a), Some(b)) => both(a,b),
+                                            (None, None) => true,
+                                            _ => false,
+                                        },
                                     (Selector::Value(a), Selector::Value(b)) => both(a, b),
                                     (Selector::Case(_), Selector::Value(_))
                                     | (Selector::Value(_), Selector::Case(_)) => false,

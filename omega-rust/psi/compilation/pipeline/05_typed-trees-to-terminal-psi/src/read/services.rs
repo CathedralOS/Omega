@@ -820,7 +820,10 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
             ..
         } => {
             collect_expression(subject, calls);
-            for (_, target, _) in arms {
+            for (selector, target, _) in arms {
+                if let Some(condition) = selector.condition.as_deref() {
+                    collect_expression(condition, calls);
+                }
                 collect_target(target, calls);
             }
             if let Some((target, _)) = default {
@@ -886,7 +889,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         } => {
             collect_expression(subject, calls);
             for (selector, arm) in arms {
-                if let crate::body::Selector::Value(pattern) = selector {
+                if let Some(pattern) = selector.test() {
                     collect_expression(pattern, calls);
                 }
                 collect_expression(arm, calls);
