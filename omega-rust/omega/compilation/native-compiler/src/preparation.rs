@@ -115,8 +115,8 @@ fn validate_installation_environment_inputs(
         ))]
     };
     let module = artifact.semantic_module();
-    let mut bootstrap = semantic_vocabulary::IdSet::default();
-    let mut delivery = semantic_vocabulary::IdSet::default();
+    let mut bootstrap = std::collections::BTreeSet::new();
+    let mut delivery = std::collections::BTreeSet::new();
     for assumption in assumptions {
         assumption.validate_description().map_err(fail)?;
         if assumption.psi() != artifact.view().identity()
@@ -147,7 +147,7 @@ fn validate_installation_environment_inputs(
             InstallationEnvironmentAssumption::Bootstrap(_) => &mut bootstrap,
             InstallationEnvironmentAssumption::InterruptDelivery(_) => &mut delivery,
         };
-        if !operations.insert(assumption.installation()) {
+        if !operations.insert((assumption.entry(), assumption.installation())) {
             return Err(fail("installation repeats one kind of platform assumption"));
         }
     }

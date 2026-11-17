@@ -376,6 +376,7 @@ pub(crate) mod callback_application_wire {
     wire_record! {
         Application: TerminalCallbackApplication {
             application_index: U32,
+            registrar_machine: Id,
             registrar: Id,
             static_machine_ordinal: U32,
             requirement: Text,
@@ -398,6 +399,7 @@ pub(crate) mod callback_application_wire {
         fn callback_application_wire_preserves_identity_and_rejects_truncation() {
             let application = TerminalCallbackApplication {
                 application_index: 17,
+                registrar_machine: semantic_vocabulary::MachineId::new(3).unwrap(),
                 registrar: OperationId::new(42).expect("nonzero operation"),
                 static_machine_ordinal: 2,
                 requirement: "Hooks::call(u64)".to_owned(),
@@ -431,6 +433,22 @@ pub(crate) mod callback_application_wire {
                 application
             );
             assert_eq!(reader.remaining(), 0);
+            let mut another_owner = application.clone();
+            another_owner.registrar_machine = semantic_vocabulary::MachineId::new(4).unwrap();
+            let mut changed_writer = Writer::default();
+            Application::write(&mut changed_writer, &another_owner).unwrap();
+            let changed_bytes = changed_writer.finish();
+            assert_ne!(
+                bytes, changed_bytes,
+                "the owner participates in the encoded occurrence"
+            );
+            assert_eq!(
+                Application::read(&mut Reader::new(&changed_bytes)).unwrap(),
+                another_owner
+            );
+            let mut absent_owner = bytes.clone();
+            absent_owner[4..12].fill(0);
+            assert!(Application::read(&mut Reader::new(&absent_owner)).is_err());
             for byte_count in 0..bytes.len() {
                 assert!(
                     Application::read(&mut Reader::new(&bytes[..byte_count])).is_err(),
@@ -1535,6 +1553,7 @@ pub(crate) mod installed_interrupt_wire {
 
     wire_record! {
         Registration: TerminalInstalledInterruptRegistration {
+            machine: Id,
             operation: Id,
             installer: Id,
             service: Id,
@@ -1550,6 +1569,61 @@ pub(crate) mod installed_interrupt_wire {
             slot_commitment: Digest,
             slot_encoding: Bytes,
             callbacks: List<super::callback_application_wire::Application>,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::sections::semantic_module::wire::{Reader, Writer};
+        use crate::sections::semantic_module::wire_fields::Field;
+        use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
+
+        #[test]
+        fn installed_interrupt_wire_retains_machine_local_operation_and_rejects_truncation() {
+            let nominal = terminal_psi::NominalDeclarationIdentity::new(
+                terminal_psi::TerminalIdentityIndex(1),
+            );
+            let registration = TerminalInstalledInterruptRegistration {
+                machine: MachineId::new(3).unwrap(),
+                operation: OperationId::new(7).unwrap(),
+                installer: BoundaryMachineId::new(1).unwrap(),
+                service: ServiceId::new(1).unwrap(),
+                registrar_boundary: BoundaryMachineId::new(2).unwrap(),
+                registrar: nominal.clone(),
+                registrar_owner: nominal.clone(),
+                registrar_application: "Registrar".into(),
+                registrar_declaring_application: "Registrar".into(),
+                registrar_arguments: Vec::new(),
+                registrar_lifetimes: Vec::new(),
+                registrar_requirement: "Registrar::install".into(),
+                slot_declaration: nominal,
+                slot_commitment: [3; 32],
+                slot_encoding: vec![1, 2],
+                callbacks: Vec::new(),
+            };
+            let mut writer = Writer::default();
+            Registration::write(&mut writer, &registration).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(Registration::read(&mut reader).unwrap(), registration);
+            assert_eq!(reader.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(Registration::read(&mut Reader::new(&bytes[..length])).is_err());
+            }
+            let mut another_owner = registration.clone();
+            another_owner.machine = MachineId::new(4).unwrap();
+            let mut writer = Writer::default();
+            Registration::write(&mut writer, &another_owner).unwrap();
+            let changed = writer.finish();
+            assert_ne!(bytes, changed);
+            assert_eq!(
+                Registration::read(&mut Reader::new(&changed)).unwrap(),
+                another_owner
+            );
+            let mut absent_owner = bytes;
+            absent_owner[..8].fill(0);
+            assert!(Registration::read(&mut Reader::new(&absent_owner)).is_err());
         }
     }
 }

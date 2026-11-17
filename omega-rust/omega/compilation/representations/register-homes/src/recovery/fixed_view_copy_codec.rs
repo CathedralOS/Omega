@@ -57,10 +57,11 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Recovery binds complete callable/numeric/installation contracts, saved domain
 // access policies and transparent scalar predicates with their exact identities.
 // Type rows now retain declared multiplicity instead of a copy-permission bit.
+// Callback materializations also retain their registrar machine.
 // Reject predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 116;
+pub(super) const VERSION: u32 = 117;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v63\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v64\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {

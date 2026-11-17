@@ -248,7 +248,7 @@ pub(crate) mod function {
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         selected_calls: &crate::selected_boundary_calls::SelectedCallsByCall,
         native_callbacks: &BTreeMap<
-            OperationId,
+            (semantic_vocabulary::MachineId, OperationId),
             Vec<target_operations::TargetNativeCallbackArgument>,
         >,
         installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,

@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use diagnostics::Diagnostic;
 use language_core::static_interrupts::StaticInterruptOperation;
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use terminal_psi::OperationKind;
 
 use super::{
@@ -29,6 +29,8 @@ use super::{
     TerminalAuthorityPolicy,
 };
 use crate::{AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry};
+
+type OperationSite = (MachineId, OperationId);
 
 #[path = "static_interrupts/arrival_helpers.rs"]
 mod arrival_helpers;
@@ -44,8 +46,14 @@ pub(super) fn require_helper_associations(
 ) -> Result<Vec<crate::AdmittedInstalledInterruptHelper>, Vec<Diagnostic>> {
     let mut operations: Vec<_> = input
         .plan()
-        .operations()
-        .filter_map(|row| row.psi_operation())
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function.operations().filter_map(move |row| {
+                row.psi_operation()
+                    .map(|operation| (function.machine, operation))
+            })
+        })
         .collect();
     operations.sort();
     operations.dedup();
@@ -68,11 +76,20 @@ pub(super) fn require_helper_associations(
             },
         )?
     };
-    let covered: BTreeSet<_> = uses.iter().map(|row| row.operation).collect();
-    for operation in input
+    let covered: BTreeSet<_> = uses
+        .iter()
+        .map(|row| (row.machine, row.operation))
+        .collect();
+    for (machine, operation) in input
         .module()
-        .operations()
-        .filter(|operation| operations.binary_search(&operation.id).is_ok())
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .operations()
+                .map(move |operation| (machine.id, operation))
+        })
+        .filter(|(machine, operation)| operations.binary_search(&(*machine, operation.id)).is_ok())
     {
         let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
             continue;
@@ -83,7 +100,7 @@ pub(super) fn require_helper_associations(
             .and_then(|boundary| boundary.declaration.as_ref())
             .and_then(|declaration| declaration.execution.static_interrupt_operation());
         if kind.is_some_and(|kind| kind != StaticInterruptOperation::Install)
-            && !covered.contains(&operation.id)
+            && !covered.contains(&(machine, operation.id))
         {
             return Err(vec![Diagnostic::error(format!(
                 "installed interrupt arrival: helper {:?} has no exact registered arrival association",
@@ -94,7 +111,9 @@ pub(super) fn require_helper_associations(
     Ok(uses
         .into_iter()
         .map(|row| crate::AdmittedInstalledInterruptHelper {
+            installation_machine: row.installation_machine,
             installation: row.installation,
+            machine: row.machine,
             callback_application: row.callback_application,
             operation: row.operation,
             kind: row.kind,
@@ -123,21 +142,33 @@ pub(super) fn admit(
     }
     let reached: BTreeSet<_> = input
         .plan()
-        .operations()
-        .filter_map(|op| op.psi_operation())
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function.operations().filter_map(move |operation| {
+                operation
+                    .psi_operation()
+                    .map(|operation| (function.machine, operation))
+            })
+        })
         .collect();
     if helpers.is_empty()
         && request.installed_interrupts.is_empty()
         && !module
             .installed_interrupt_registrations
             .iter()
-            .any(|row| reached.contains(&row.operation))
+            .any(|row| reached.contains(&(row.machine, row.operation)))
     {
         return Ok(AdmittedInstalledInterruptCohort::empty(input.plan().psi));
     }
     let mut operations = module
-        .operations()
-        .map(|operation| (operation.id, operation))
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .operations()
+                .map(move |operation| ((machine.id, operation.id), operation))
+        })
         .collect::<Vec<_>>();
     operations.sort_unstable_by_key(|(id, _)| *id);
     if operations.windows(2).any(|pair| pair[0].0 == pair[1].0) {
@@ -147,7 +178,7 @@ pub(super) fn admit(
     let mut callbacks = BTreeMap::new();
     for registration in &module.installed_interrupt_registrations {
         if registrations
-            .insert(registration.operation, registration)
+            .insert((registration.machine, registration.operation), registration)
             .is_some()
         {
             return Err(fail("checked installation occurrence is duplicated".into()));
@@ -155,7 +186,10 @@ pub(super) fn admit(
         for callback in &registration.callbacks {
             if callbacks
                 .insert(
-                    (registration.operation, callback.application_index),
+                    (
+                        (registration.machine, registration.operation),
+                        callback.application_index,
+                    ),
                     callback,
                 )
                 .is_some()
@@ -170,10 +204,10 @@ pub(super) fn admit(
     for proposal in request.installed_interrupts {
         let check = || -> Result<crate::AdmittedCallbackEntry, String> {
             let registration = registrations
-                .get(&proposal.operation)
+                .get(&(proposal.machine, proposal.operation))
                 .ok_or("entry has no checked installation occurrence")?;
             let operation = operations
-                .binary_search_by_key(&proposal.operation, |(id, _)| *id)
+                .binary_search_by_key(&(proposal.machine, proposal.operation), |(id, _)| *id)
                 .ok()
                 .map(|position| operations[position].1)
                 .ok_or("installation has no Terminal operation")?;
@@ -183,9 +217,13 @@ pub(super) fn admit(
                 return Err("installation changed its checked boundary occurrence".into());
             }
             let callback = callbacks
-                .get(&(proposal.operation, proposal.placement.application_index))
+                .get(&(
+                    (proposal.machine, proposal.operation),
+                    proposal.placement.application_index,
+                ))
                 .ok_or("entry is absent from the checked installation roster")?;
             if !callback.entry_admitted
+                || callback.registrar_machine != proposal.machine
                 || callback.registrar != proposal.operation
                 || callback.static_machine_ordinal != proposal.placement.static_machine_ordinal
                 || callback.requirement != proposal.placement.canonical_requirement_overload
@@ -209,7 +247,9 @@ pub(super) fn admit(
                 return Err("entry changed its retained body/placement association".into());
             }
             let thunk = occurrence.callback_thunk_artifact();
-            if !reached.contains(&proposal.operation) && thunk.entry() != input.plan().entry {
+            if !reached.contains(&(proposal.machine, proposal.operation))
+                && thunk.entry() != input.plan().entry
+            {
                 return Err(
                     "entry is neither at a reached installation nor this exact private body".into(),
                 );
@@ -283,7 +323,7 @@ pub(super) fn admit(
         ));
     }
     for registration in &module.installed_interrupt_registrations {
-        if reached.contains(&registration.operation)
+        if reached.contains(&(registration.machine, registration.operation))
             && registration
                 .callbacks
                 .iter()
@@ -334,7 +374,7 @@ pub(super) fn settle<'execution>(
     let mut scopes = cohort
         .scopes()
         .iter()
-        .map(|scope| (scope.operation(), scope))
+        .map(|scope| ((scope.machine(), scope.operation()), scope))
         .collect::<Vec<_>>();
     scopes.sort_unstable_by_key(|(operation, _)| *operation);
     if scopes.windows(2).any(|pair| pair[0].0 == pair[1].0) {
@@ -343,7 +383,7 @@ pub(super) fn settle<'execution>(
     let mut helpers = cohort
         .helpers()
         .iter()
-        .map(|helper| (helper.operation(), helper.kind()))
+        .map(|helper| ((helper.machine, helper.operation()), helper.kind()))
         .collect::<Vec<_>>();
     helpers.sort_unstable();
     if helpers
@@ -364,7 +404,11 @@ pub(super) fn settle<'execution>(
         return Err(fail("boundary declaration is duplicated"));
     }
     let mut executions: Vec<(BoundaryMachineId, StaticInterruptOperation)> = Vec::new();
-    for row in input.plan().operations() {
+    for (machine, row) in input.plan().functions.iter().flat_map(|function| {
+        function
+            .operations()
+            .map(move |row| (function.machine, row))
+    }) {
         let abstract_operations::AbstractOperation::BoundaryCall {
             psi_operation,
             boundary,
@@ -385,7 +429,7 @@ pub(super) fn settle<'execution>(
         match kind {
             StaticInterruptOperation::Install => {
                 let scope = scopes
-                    .binary_search_by_key(psi_operation, |(operation, _)| *operation)
+                    .binary_search_by_key(&(machine, *psi_operation), |(operation, _)| *operation)
                     .ok()
                     .map(|position| scopes[position].1)
                     .ok_or_else(|| fail("reached installation has no exact admitted scope"))?;
@@ -395,9 +439,7 @@ pub(super) fn settle<'execution>(
             }
             _ => {
                 let position = helpers
-                    .binary_search_by_key(psi_operation, |(operation, _): &(OperationId, _)| {
-                        *operation
-                    })
+                    .binary_search_by_key(&(machine, *psi_operation), |(operation, _)| *operation)
                     .map_err(|_| fail("reached helper has no admitted arrival association"))?;
                 if helpers[position].1 != kind {
                     return Err(fail("helper changed its admitted kind"));

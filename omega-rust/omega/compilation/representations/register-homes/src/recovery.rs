@@ -1154,7 +1154,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
-        b"omega.terminal-fixed-view-copies.v9\0",
+        b"omega.terminal-fixed-view-copies.v10\0",
         &bytes,
     ))
 }

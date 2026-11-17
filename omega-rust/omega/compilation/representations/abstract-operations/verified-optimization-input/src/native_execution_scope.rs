@@ -281,7 +281,9 @@ impl NativeExecutionScope {
                 for operation in &block.operations {
                     if let OperationKind::BoundaryCall { .. } = operation.kind {
                         if let Ok(position) = installed_helpers
-                            .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                            .binary_search_by_key(&(body.id, operation.id), |(operation, _)| {
+                                *operation
+                            })
                         {
                             pending.extend(
                                 installed_helpers[position]
@@ -296,12 +298,27 @@ impl NativeExecutionScope {
                                     .copied(),
                             );
                         }
-                        pending.extend(
-                            callbacks
-                                .iter()
-                                .filter(|callback| callback.terminal_operation() == operation.id)
-                                .map(|callback| callback.callback_thunk_artifact().entry()),
-                        );
+                        for callback in callbacks
+                            .iter()
+                            .filter(|callback| callback.terminal_operation() == operation.id)
+                        {
+                            let application = module
+                                .callback_application(callback.application_index())
+                                .ok_or_else(|| {
+                                    NativeExecutionScopeError::TargetContext(
+                                        "callback occurrence lost its canonical application".into(),
+                                    )
+                                })?;
+                            if application.registrar != callback.terminal_operation() {
+                                return Err(NativeExecutionScopeError::TargetContext(
+                                    "callback occurrence changed its canonical registrar operation"
+                                        .into(),
+                                ));
+                            }
+                            if application.registrar_machine == body.id {
+                                pending.push(callback.callback_thunk_artifact().entry());
+                            }
+                        }
                     }
                     if let Some(invocation) = operation.kind.module_invocation() {
                         pending.push(invocation.callee);
