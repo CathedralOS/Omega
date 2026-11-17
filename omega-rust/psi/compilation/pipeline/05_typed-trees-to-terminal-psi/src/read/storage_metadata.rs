@@ -53,6 +53,10 @@ impl Program<'_> {
         let previous_owner = self.lifetime_owner;
         let first_new_record = self.records.len();
         let result = (|| {
+            // Read headers after this property range starts, so their record
+            // types receive the same metadata properties as other ABI types.
+            // Reading a linear type establishes no value or ownership claim.
+            self.read_calling_requirement_headers(context, source)?;
             let mut descriptions = Vec::with_capacity(source.signatures.len());
             for signature in signatures {
                 let signature = signature?;
