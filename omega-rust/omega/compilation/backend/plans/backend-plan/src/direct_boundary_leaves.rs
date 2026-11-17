@@ -87,13 +87,13 @@ impl DirectBoundaryLeaf {
 
     /// Plain requirements owe their own full checked contract and a completed
     /// Build locator. No external conformance substitutes for this association.
-    pub fn validate_plain_execution(
+    pub fn validate_plain_execution<'module>(
         &self,
-        module: &terminal_psi::TerminalModule,
+        module: &'module terminal_psi::TerminalModule,
         evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
         identities: &terminal_psi::TerminalIdentityTable,
-    ) -> Result<(), String> {
-        self.validate_bound_calling_custody(module)?;
+    ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
+        let boundary = self.bound_calling_declaration(module)?;
         let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
             return Err("plain requirement has no completed foreign execution".into());
         };
@@ -137,7 +137,7 @@ impl DirectBoundaryLeaf {
             ) if syscall.number() == *number => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
-        Ok(())
+        Ok(boundary)
     }
 
     /// Bind the projected callable to its exact receiving declaration before
@@ -321,6 +321,15 @@ impl DirectBoundaryLeaf {
         &self,
         module: &terminal_psi::TerminalModule,
     ) -> Result<(), String> {
+        self.bound_calling_declaration(module).map(|_| ())
+    }
+
+    /// Return the checked declaration from the same validation used by
+    /// calling and native receipt consumers.
+    pub fn bound_calling_declaration<'module>(
+        &self,
+        module: &'module terminal_psi::TerminalModule,
+    ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
         self.validate_calling_custody()?;
         let route = self
             .plan
@@ -384,7 +393,7 @@ impl DirectBoundaryLeaf {
             return Err("a nonnumeric leaf carries a numeric target realization".into());
         }
         if numeric {
-            return Ok(());
+            return Ok(boundary);
         }
         if let Some(terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
             operation,
@@ -410,7 +419,7 @@ impl DirectBoundaryLeaf {
             {
                 return Err("hosted primitive changes its canonical contract or execution".into());
             }
-            return Ok(());
+            return Ok(boundary);
         }
         if let Some(signature) = self.plan.rows[0].calling_signature {
             let declaration = Self::declared_calling_abi(module, boundary.id)?;
@@ -450,6 +459,6 @@ impl DirectBoundaryLeaf {
                 return Err("direct foreign binding changes its Calling commitment".into());
             }
         }
-        Ok(())
+        Ok(boundary)
     }
 }

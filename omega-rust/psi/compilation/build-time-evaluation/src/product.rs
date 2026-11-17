@@ -9,6 +9,12 @@ use language_semantics::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
 };
 
+#[path = "product/authored_requests.rs"]
+mod authored_requests;
+
+#[path = "product/root_grants.rs"]
+mod root_grants;
+
 #[path = "product/provider_selections.rs"]
 mod provider_selection_requests;
 
@@ -87,17 +93,12 @@ pub mod product_policy {
         Ok(Vec::new())
     }
     pub fn collect_product_root_grants(
-        _typed: &TypedTrees,
-        _activation: Option<SymbolHandle>,
+        typed: &TypedTrees,
+        activation: Option<SymbolHandle>,
         declared: &[Arc<ProductDeclarationRequest>],
         executed: &[ExecutedProductSelection],
     ) -> Result<Vec<AuthoredRootGrant>, Vec<Diagnostic>> {
-        if super::build_requests_any(declared, executed, &[BuildOperation::BoundaryAcceptance]) {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: Build root grant admission",
-            )]);
-        }
-        Ok(Vec::new())
+        super::root_grants::collect(typed, activation, declared, executed)
     }
 }
 pub mod provider_declarations {
@@ -724,10 +725,6 @@ mod tests {
             (
                 BuildOperation::ServiceExclusion,
                 "Build behavior exclusion admission",
-            ),
-            (
-                BuildOperation::BoundaryAcceptance,
-                "Build root grant admission",
             ),
         ] {
             let asked = request(operation);

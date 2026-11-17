@@ -3429,6 +3429,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
+        let TerminalEffect::BoundaryCall { arguments, .. } = &effect else {
+            return Err(malformed());
+        };
+        crate::boundary::effects::boundary_predicates::validate_output_guarantees(
+            boundary_declaration,
+            arguments,
+            &returned,
+        )?;
         if matches!(&returned, TerminalEffectResult::Reference(_))
             && !boundary_declaration
                 .result_reference_regions

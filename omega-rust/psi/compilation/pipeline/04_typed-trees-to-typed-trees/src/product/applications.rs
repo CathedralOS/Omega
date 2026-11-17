@@ -512,6 +512,7 @@ pub(super) fn form(
     if !matches!(
         role,
         ProductOperandRole::BoundarySubject
+            | ProductOperandRole::RootGrantSubject
             | ProductOperandRole::Provider
             | ProductOperandRole::Requirement
     ) {
@@ -549,6 +550,11 @@ pub(super) fn form(
             operand.path
         ))
     })?;
+    let designated_role = role;
+    let role = program
+        .product_operand_declaration_role(Some(role), declaration)
+        .map_err(unserved)?
+        .ok_or(unserved("a Product application with no declaration role"))?;
     let (declaration_parameters, lifetimes) = match role {
         ProductOperandRole::Requirement => program
             .trait_machine_signature(declaration)
@@ -719,7 +725,7 @@ pub(super) fn form(
             operand: operand.clone(),
             environment: environment.cloned().map(std::sync::Arc::new),
             owner: author,
-            role: Some(role),
+            role: Some(designated_role),
             declaration: selected,
             declaration_parameters,
             declaration_lifetime_count: 0,

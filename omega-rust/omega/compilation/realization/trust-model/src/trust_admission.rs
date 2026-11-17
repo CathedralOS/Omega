@@ -1,8 +1,9 @@
 // We define `TrustAdmission` and its domain-separated collision-resistant
 // digest (`TrustAdmissionDigest`, domain `omega.trust-admission.v1\0`). The
 // human-readable commitment and subject domain (`provider-plan`,
-// `machine-template`, or `machine-contract`) define admission equality and
-// ordering, whereas compact report fingerprints do not.
+// `native-requirement`, `machine-template`, or `machine-contract`) define
+// admission equality and ordering. Native requirements bind the complete checked
+// promise and selected locator plan; report fingerprints supply no authority.
 
 use language_semantics::trust_declarations::{
     AcceptedContractDeclaration, AcceptedTemplateDeclaration,
@@ -38,6 +39,7 @@ impl fmt::Display for TrustAdmissionDigest {
 #[derive(Debug, Clone, Copy)]
 enum TrustAdmissionSubject {
     ProviderPlan,
+    NativeRequirement,
     MachineTemplate,
     MachineContract,
 }
@@ -46,6 +48,7 @@ impl TrustAdmissionSubject {
     const fn domain(self) -> &'static [u8] {
         match self {
             Self::ProviderPlan => b"provider-plan",
+            Self::NativeRequirement => b"native-requirement",
             Self::MachineTemplate => b"machine-template",
             Self::MachineContract => b"machine-contract",
         }
@@ -106,6 +109,28 @@ impl TrustAdmission {
             commitment,
             TrustAdmissionSubject::ProviderPlan,
             provider_plan_digest.as_bytes(),
+            Some(report_identity),
+        )
+    }
+
+    pub(crate) fn for_native_requirement(
+        commitment: String,
+        report_identity: u64,
+        contract: &[u8; 32],
+        plan: effects::provider_plan::ProviderPlanDigest,
+    ) -> Result<Self, &'static str> {
+        if *contract == [0; 32] {
+            return Err("native trust requires the complete checked requirement contract");
+        }
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.native-requirement-admission.v1\0",
+        );
+        digest.raw(contract);
+        digest.raw(plan.as_bytes());
+        Self::derived(
+            commitment,
+            TrustAdmissionSubject::NativeRequirement,
+            &digest.finish(),
             Some(report_identity),
         )
     }

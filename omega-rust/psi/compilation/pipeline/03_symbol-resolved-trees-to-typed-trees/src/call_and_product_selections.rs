@@ -3892,7 +3892,7 @@ pub(crate) mod product_selections {
         let first_designated = usize::from(requirement.is_some());
         let operands = operands.iter().enumerate().skip(first_designated).map(|(original_position, operand)| {
         let position = original_position - first_designated;
-        let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)) || operation == BuildOperation::NativeBinding);
+        let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider | ProductOperandRole::RootGrantSubject)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {

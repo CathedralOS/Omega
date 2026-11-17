@@ -129,13 +129,13 @@ impl CheckedCompilation {
     }
 
     pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
-        let grants = self.build().config.root_grant_selectors();
+        let grants = &self.build().config.grants;
         if grants.is_empty() {
             return Ok(());
         }
-        // A root grant names a provider this target selected, so the settled
-        // plans are the whole roster a grant can resolve against; the trust
-        // claims come from the source census the inventory already holds.
+        // Grants retain their resolved subject. Settlement joins that exact
+        // provider application or native requirement to this target's supply;
+        // accepted-machine claims use the existing source-owned census.
         let declarations = self
             .source_inspection()
             .inventory()
@@ -143,10 +143,34 @@ impl CheckedCompilation {
             .map_err(|error| vec![error])?;
         trust_model::reconstruct_trust_obligations(
             declarations,
-            &grants,
+            grants,
             &self.execution().plans().plans().iter().collect::<Vec<_>>(),
             self.execution().plans(),
-            self.sources.package_subject().is_some(),
+            trust_model::NativeTrustInputs {
+                module: &self
+                    .terminal_publication()
+                    .accepted()?
+                    .closure()
+                    .elaboration
+                    .module,
+                target: self.execution().realization().target(),
+                leaves: self.execution().realization().direct_boundary_leaves(),
+                evaluated: self.execution().realization().evaluated_native_bindings(),
+                identities: self
+                    .execution()
+                    .realization()
+                    .evaluated_binding_identities(),
+            },
+            match self.sources.package_subject() {
+                None => trust_model::RootTrustPolicy::Unpackaged,
+                Some(subject)
+                    if subject.root_role()
+                        == build_declarations::BuildDeclarationKind::Application =>
+                {
+                    trust_model::RootTrustPolicy::Application(subject.root())
+                }
+                Some(_) => trust_model::RootTrustPolicy::PackageReview,
+            },
         )
         .map(drop)
     }
