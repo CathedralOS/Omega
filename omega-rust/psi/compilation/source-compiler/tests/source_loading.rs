@@ -1,5 +1,5 @@
 use source::{DependencyScope, SourceFileSystem};
-use source_files_to_tokens::load_sources;
+use source_compiler::{UnmeasuredProduction, load_source_files};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -30,12 +30,13 @@ fn loading_preserves_order_and_distinct_scopes_and_reports_unreadable_paths() {
     let _temporary_source = TemporarySourceFile(path.clone());
     file.write_all(source.as_bytes()).unwrap();
     drop(file);
-    let loaded = load_sources(
+    let loaded = load_source_files(
         vec![
             (path.clone(), DependencyScope::Build),
             (path.clone(), DependencyScope::Product),
         ],
         &SourceFileSystem::new(),
+        &mut UnmeasuredProduction,
     )
     .unwrap();
     let batch = loaded.as_slice();
@@ -50,9 +51,10 @@ fn loading_preserves_order_and_distinct_scopes_and_reports_unreadable_paths() {
     }
 
     let unreadable = path.join("not-a-directory");
-    let errors = load_sources(
+    let errors = load_source_files(
         vec![(unreadable.clone(), DependencyScope::Product)],
         &SourceFileSystem::new(),
+        &mut UnmeasuredProduction,
     )
     .unwrap_err();
     assert_eq!(errors.len(), 1);

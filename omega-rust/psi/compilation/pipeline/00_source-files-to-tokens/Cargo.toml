@@ -6,7 +6,12 @@ version.workspace = true
 
 [lib]
 name = "source_files_to_tokens"
-path = "src/lib.rs"
+path = "lexer.rs"
+
+[[bench]]
+name = "lexer_timing"
+path = "benchmarks/lexer_timing.rs"
+harness = false
 
 [dependencies]
 memchr = "2"

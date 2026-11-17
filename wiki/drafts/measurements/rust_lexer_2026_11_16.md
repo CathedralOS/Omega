@@ -88,7 +88,7 @@ this session ran no builds during measurement. The workstation was shared, so
 paired intervals and observed variability matter. ARM64 and other operating
 systems remain unmeasured.
 
-The kept [timing example](../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens/examples/lexer_timing.rs)
+The kept [benchmark program](../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens/benchmarks/lexer_timing.rs)
 reads inputs and fingerprints every token before timing. The timed region includes
 source-retaining tokenization, output consumption and scratch recycling; `parse`
 also creates, consumes and drops syntax trees. File reads, token fingerprinting
@@ -96,7 +96,8 @@ and process startup are excluded from the reported phase time. The runner also
 captures process-wide resource observations. The checksum binds the complete
 untimed token observation and timed token/root counts.
 
-Build and run commands:
+Original measurement commands (before the timing program moved from `examples/`
+to `benchmarks/`):
 
 ```text
 mbx build --release -p source-files-to-tokens --example lexer_timing
@@ -104,6 +105,10 @@ mbx build --release -p omega-bench --bin omega-bench
 build/lexer-review/baseline.exe lex 148 <six frozen paths>
 target/release/omega-bench.exe compare build/lexer-review/plans/authored-lex-punctuation.json build/lexer-review/results/authored-lex-punctuation
 ```
+
+For the current layout, build with `mbx bench -p source-files-to-tokens
+--bench lexer_timing --no-run` and retain the executable at the printed path.
+This move does not refresh the measurements above.
 
 Each retained plan specifies the exact paths, repetition count, byte count and
 checksum. The experiment directory `build/lexer-review/` retains input copies,

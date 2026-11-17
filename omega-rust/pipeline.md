@@ -145,7 +145,7 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → tokens | [source-files-to-tokens](psi/compilation/pipeline/00_source-files-to-tokens/src/lib.rs) |
+| Source files → tokens | [source-files-to-tokens](psi/compilation/pipeline/00_source-files-to-tokens/lexer.rs) |
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |

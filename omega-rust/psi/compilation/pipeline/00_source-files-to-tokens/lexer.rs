@@ -1,22 +1,81 @@
-//! Scan one source into tokens, retaining exact source spans and decoded literal bytes.
-//! `fill_tokens` owns publication; `lex_next_token` dispatches spelling rules.
+//! Lex loaded sources into ordered token streams, preserving source spans and errors.
+//! `lex_sources` owns the batch; `Lexer::fill_tokens` scans one source and publishes
+//! tokens. Token dispatch leads into `literals` for numeric and quoted-byte rules.
 
-use crate::source_cursor::SourceCursor;
+#![forbid(unsafe_code)]
 
-use crate::LexError;
-use crate::quoted_literals::decode_string_literal;
-use source::Span;
-use tokens::{CommentKind, KeywordKind, PunctuationKind, TokenKind, TokenStream};
+mod literals {
+    mod numbers;
+    pub(super) mod quoted_bytes;
+}
+
+use arena::Arena;
+use diagnostics::Diagnostic;
+use literals::quoted_bytes::decode_string_literal;
+use rayon::prelude::*;
+use source::{LoadedSource, LoadedSources, SourcePosition, Span};
+use std::str::Chars;
+use tokens::{
+    CommentKind, KeywordKind, LexedSource, LexedSources, PunctuationKind, TokenKind, TokenStream,
+};
+
+pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
+    let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
+    let source_count = loaded_sources.len();
+    let mut lexed_sources = Arena::with_capacity(source_count);
+    let results: Vec<Result<LexedSource, Diagnostic>> = if source_count <= 1 {
+        loaded_sources.iter_mut().map(lex_source).collect()
+    } else {
+        execution_admission::within_budget(|| {
+            loaded_sources.par_iter_mut().map(lex_source).collect()
+        })
+    };
+    let lexed = results
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![error])?;
+
+    let batch = lexed_sources.insert_many(lexed);
+
+    Ok(LexedSources {
+        sources: lexed_sources,
+        batch,
+    })
+}
+
+fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnostic> {
+    let tokens = Lexer::new(loaded_source.source.as_ref())
+        .tokenize()
+        .map_err(|error| {
+            let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
+            Diagnostic::error(format!(
+                "{}:{}:{}: {}",
+                loaded_source.path.display(),
+                position.line,
+                position.column,
+                error.message
+            ))
+        })?;
+
+    Ok(LexedSource {
+        source_id: loaded_source.source_id,
+        path: std::mem::take(&mut loaded_source.path),
+        source: loaded_source.source.clone(),
+        origin: loaded_source.origin,
+        tokens: tokens.retain_source(loaded_source.source.clone()),
+        scope: loaded_source.scope,
+    })
+}
 
 pub struct Lexer<'source> {
-    pub(crate) source: &'source str,
-    pub(crate) chars: SourceCursor<'source>,
+    source: &'source str,
+    chars: SourceCursor<'source>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct LexedToken {
-    pub(crate) kind: TokenKind,
-    pub(crate) span: Span,
+struct LexedToken {
+    kind: TokenKind,
+    span: Span,
 }
 
 impl<'source> Lexer<'source> {
@@ -236,4 +295,76 @@ pub(crate) fn is_identifier_continue(character: char) -> bool {
 
 fn is_syntactic_whitespace(character: char) -> bool {
     matches!(character, ' ' | '\t' | '\r' | '\n')
+}
+
+const OUTSIDE_LEXICAL_PROFILE_MESSAGE: &str = "spelling is outside the current language profile";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexError {
+    pub message: String,
+    pub span: Span,
+}
+
+impl LexError {
+    pub fn new(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            message: message.into(),
+            span,
+        }
+    }
+
+    pub(crate) fn outside_lexical_profile(span: Span) -> Self {
+        Self::new(OUTSIDE_LEXICAL_PROFILE_MESSAGE, span)
+    }
+}
+
+#[derive(Clone)]
+struct SourceCursor<'source> {
+    source_length: usize,
+    chars: Chars<'source>,
+}
+
+impl<'source> SourceCursor<'source> {
+    fn new(source: &'source str) -> Self {
+        Self {
+            source_length: source.len(),
+            chars: source.chars(),
+        }
+    }
+
+    fn offset(&self) -> usize {
+        self.source_length - self.chars.as_str().len()
+    }
+
+    fn peek(&self) -> Option<(usize, char)> {
+        self.chars
+            .clone()
+            .next()
+            .map(|character| (self.offset(), character))
+    }
+
+    // Callers search ASCII delimiters, whose byte positions are UTF-8 boundaries.
+    fn skip_until(&mut self, byte: u8) {
+        debug_assert!(byte.is_ascii());
+        let remaining = self.chars.as_str();
+        let offset = memchr::memchr(byte, remaining.as_bytes()).unwrap_or(remaining.len());
+        self.chars = remaining[offset..].chars();
+    }
+
+    fn skip_until_either(&mut self, first: u8, second: u8) {
+        debug_assert!(first.is_ascii() && second.is_ascii());
+        let remaining = self.chars.as_str();
+        let offset =
+            memchr::memchr2(first, second, remaining.as_bytes()).unwrap_or(remaining.len());
+        self.chars = remaining[offset..].chars();
+    }
+}
+
+impl Iterator for SourceCursor<'_> {
+    type Item = (usize, char);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let offset = self.offset();
+        self.chars.next().map(|character| (offset, character))
+    }
 }
