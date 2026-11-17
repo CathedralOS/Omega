@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>CLI</h1>
       <p class="lede">How commands reach compilation, execution, inspection, and package operations.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/cli.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/cli.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -673,157 +673,157 @@ uses an older spelling.</p>
 </tr>
 </tbody>
 </table></div>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile."><svg viewBox="0.00 0.00 1465.00 351.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile." style="min-width:1465px">
-<title>CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.</title><defs><marker id="cli-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="cli-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="cli-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="cli-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 342.04)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile."><svg viewBox="0.00 0.00 1560.28 336.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile." style="min-width:1560px">
+<title>CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.</title><defs><marker id="cli-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="cli-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="cli-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="cli-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 327.64)">
 <title>atlas</title>
 
 <g id="cli-diagram-1-node1" class="node around" data-node="args">
 <title>args</title>
-<polygon points="94.68,-178.4 0,-178.4 0,-128 94.68,-128 94.68,-178.4" />
-<text xml:space="preserve" text-anchor="middle" x="47.34" y="-149.1">Arguments</text>
+<polygon points="101,-169 0,-169 0,-119 101,-119 101,-169" />
+<text text-anchor="middle" x="50.5" y="-140.6">Arguments</text>
 </g>
 
 <g id="cli-diagram-1-node2" class="node around" data-node="invocation">
 <title>invocation</title>
-<polygon points="365.11,-178.4 232.18,-178.4 232.18,-128 365.11,-128 365.11,-178.4" />
-<text xml:space="preserve" text-anchor="middle" x="298.64" y="-149.1">Parsed Invocation</text>
+<polygon points="390,-169 248,-169 248,-119 390,-119 390,-169" />
+<text text-anchor="middle" x="319" y="-140.6">Parsed Invocation</text>
 </g>
 
 <g id="cli-diagram-1-edge1" class="edge handoff" data-from="args" data-to="invocation">
 <title>args-&gt;invocation</title>
-<path d="M94.94,-153.2C133.56,-153.2 188.89,-153.2 232,-153.2" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="163.43" y="-173.3">parse complete</text>
-<text xml:space="preserve" text-anchor="middle" x="163.43" y="-157.55">request</text>
+<path d="M101,-144C142.32,-144 201.71,-144 247.91,-144" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="174.5" y="-160.4">parse complete</text>
+<text text-anchor="middle" x="174.5" y="-147.4">request</text>
 </g>
 
 <g id="cli-diagram-1-node3" class="node around" data-node="compile">
 <title>compile</title>
-<polygon points="691.79,-333.4 519.86,-333.4 519.86,-283 691.79,-283 691.79,-333.4" />
-<text xml:space="preserve" text-anchor="middle" x="605.82" y="-304.1">Compile console adapter</text>
+<polygon points="739,-319 555,-319 555,-269 739,-269 739,-319" />
+<text text-anchor="middle" x="647" y="-290.6">Compile console adapter</text>
 </g>
 
 <g id="cli-diagram-1-edge2" class="edge handoff" data-from="invocation" data-to="compile">
 <title>invocation-&gt;compile</title>
-<path d="M329.78,-178.62C347.7,-192.93 371.31,-210.43 394.11,-223.2 436.61,-247.01 487.15,-267.63 528.07,-282.59" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="442.48" y="-272.27">compile</text>
+<path d="M354.14,-169.14C372.71,-182.1 396.45,-197.55 419,-209 466.19,-232.95 521.79,-253.88 566.15,-268.98" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-256.4">compile</text>
 </g>
 
 <g id="cli-diagram-1-node4" class="node around" data-node="run">
 <title>run</title>
-<polygon points="677.16,-178.4 534.48,-178.4 534.48,-128 677.16,-128 677.16,-178.4" />
-<text xml:space="preserve" text-anchor="middle" x="605.82" y="-149.1">Execution workflow</text>
+<polygon points="722.5,-169 571.5,-169 571.5,-119 722.5,-119 722.5,-169" />
+<text text-anchor="middle" x="647" y="-140.6">Execution workflow</text>
 </g>
 
 <g id="cli-diagram-1-edge3" class="edge handoff" data-from="invocation" data-to="run">
 <title>invocation-&gt;run</title>
-<path d="M365.49,-153.2C415.16,-153.2 483.21,-153.2 534.05,-153.2" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="442.48" y="-157.55">run</text>
+<path d="M390.34,-144C443.68,-144 516.86,-144 571.25,-144" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-147.4">run</text>
 </g>
 
 <g id="cli-diagram-1-node5" class="node around" data-node="source">
 <title>source</title>
-<polygon points="672.29,-256.4 539.36,-256.4 539.36,-206 672.29,-206 672.29,-256.4" />
-<text xml:space="preserve" text-anchor="middle" x="605.82" y="-227.1">Source inspection</text>
+<polygon points="717.5,-244 576.5,-244 576.5,-194 717.5,-194 717.5,-244" />
+<text text-anchor="middle" x="647" y="-215.6">Source inspection</text>
 </g>
 
 <g id="cli-diagram-1-edge4" class="edge handoff" data-from="invocation" data-to="source">
 <title>invocation-&gt;source</title>
-<path d="M365.49,-170.03C416.83,-183.15 487.79,-201.29 539.1,-214.4" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="442.48" y="-205.83">inspect source</text>
+<path d="M390.34,-160.18C445.37,-172.84 521.5,-190.36 576.35,-202.98" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-193.4">inspect source</text>
 </g>
 
 <g id="cli-diagram-1-node6" class="node around" data-node="encoded">
 <title>encoded</title>
-<polygon points="876.97,-109.06 752.29,-109.06 752.29,-57.34 876.97,-57.34 876.97,-109.06" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-87.35">Encoded artifact</text>
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-70.85">inspection</text>
+<polygon points="934.5,-107 802.5,-107 802.5,-57 934.5,-57 934.5,-107" />
+<text text-anchor="middle" x="868.5" y="-85.6">Encoded artifact</text>
+<text text-anchor="middle" x="868.5" y="-71.6">inspection</text>
 </g>
 
 <g id="cli-diagram-1-edge5" class="edge handoff" data-from="invocation" data-to="encoded">
 <title>invocation-&gt;encoded</title>
-<path d="M365.54,-137.16C375.1,-135.09 384.83,-133.11 394.11,-131.45 520.39,-108.81 670.07,-94.57 752.14,-87.83" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="442.48" y="-135.8">inspect bytes</text>
+<path d="M390.22,-130C399.87,-128.23 409.67,-126.51 419,-125 554.32,-103.08 714.55,-91.02 802.17,-85.59" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-128.4">inspect bytes</text>
 </g>
 
 <g id="cli-diagram-1-node7" class="node around" data-node="packages">
 <title>packages</title>
-<polygon points="908.47,-50.4 720.79,-50.4 720.79,0 908.47,0 908.47,-50.4" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-21.1">Package command or audit</text>
+<polygon points="969,-50 768,-50 768,0 969,0 969,-50" />
+<text text-anchor="middle" x="868.5" y="-21.6">Package command or audit</text>
 </g>
 
 <g id="cli-diagram-1-edge6" class="edge handoff" data-from="invocation" data-to="packages">
 <title>invocation-&gt;packages</title>
-<path d="M334.32,-127.57C351.5,-116.05 373.04,-103.32 394.11,-95.45 501.86,-55.22 633.79,-37.94 720.59,-30.57" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="442.48" y="-99.8">package operation</text>
+<path d="M359.53,-118.78C377.11,-108.65 398.45,-97.78 419,-91 535.03,-52.7 675.28,-36.58 767.69,-29.83" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-94.4">package operation</text>
 </g>
 
 <g id="cli-diagram-1-node8" class="node around" data-node="build">
 <title>build</title>
-<polygon points="1099.65,-271.4 937.47,-271.4 937.47,-221 1099.65,-221 1099.65,-271.4" />
-<text xml:space="preserve" text-anchor="middle" x="1018.56" y="-242.1">Shared Build operation</text>
+<polygon points="1172,-259 998,-259 998,-209 1172,-209 1172,-259" />
+<text text-anchor="middle" x="1085" y="-230.6">Shared Build operation</text>
 </g>
 
 <g id="cli-diagram-1-edge7" class="edge handoff" data-from="compile" data-to="build">
 <title>compile-&gt;build</title>
-<path d="M692.05,-296.2C752.5,-287.58 835.52,-275.54 908.47,-264.2 917.76,-262.76 927.5,-261.2 937.16,-259.64" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-296.29">BuildRequest</text>
+<path d="M739.13,-281.46C815.27,-270.98 923.08,-256.14 997.81,-245.86" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-279.4">BuildRequest</text>
 </g>
 
 <g id="cli-diagram-1-edge8" class="edge handoff" data-from="run" data-to="build">
 <title>run-&gt;build</title>
-<path d="M677.6,-165.34C691.88,-167.69 706.81,-170.09 720.79,-172.2 804.02,-184.79 827.49,-174.7 908.47,-197.7 928.51,-203.39 949.63,-212.09 967.89,-220.55" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-217.8">retained product</text>
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-202.05">request</text>
+<path d="M722.81,-157.62C737.76,-160.19 753.36,-162.77 768,-165 857.05,-178.54 881.57,-169.31 969,-191 987.52,-195.59 1007.14,-202.23 1024.84,-208.92" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-207.4">retained product</text>
+<text text-anchor="middle" x="868.5" y="-194.4">request</text>
 </g>
 
 <g id="cli-diagram-1-node9" class="node around" data-node="runtime">
 <title>runtime</title>
-<polygon points="1094.02,-179.06 943.09,-179.06 943.09,-127.34 1094.02,-127.34 1094.02,-179.06" />
-<text xml:space="preserve" text-anchor="middle" x="1018.56" y="-157.35">Native process or Psi</text>
-<text xml:space="preserve" text-anchor="middle" x="1018.56" y="-140.85">runtime</text>
+<polygon points="1164.5,-172 1005.5,-172 1005.5,-122 1164.5,-122 1164.5,-172" />
+<text text-anchor="middle" x="1085" y="-150.6">Native process or Psi</text>
+<text text-anchor="middle" x="1085" y="-136.6">runtime</text>
 </g>
 
 <g id="cli-diagram-1-edge11" class="edge handoff" data-from="run" data-to="runtime">
 <title>run-&gt;runtime</title>
-<path d="M677.52,-142.79C691.81,-141.09 706.76,-139.59 720.79,-138.7 804.04,-133.43 825.24,-133.19 908.47,-138.7 919.62,-139.44 931.37,-140.6 942.87,-141.94" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-158.8">execute admitted</text>
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-143.05">product</text>
+<path d="M722.55,-138.98C737.59,-138.15 753.29,-137.43 768,-137 857.3,-134.4 879.75,-133.13 969,-137 980.81,-137.51 993.29,-138.32 1005.5,-139.26" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-153.4">execute admitted</text>
+<text text-anchor="middle" x="868.5" y="-140.4">product</text>
 </g>
 
 <g id="cli-diagram-1-edge9" class="edge handoff" data-from="source" data-to="build">
 <title>source-&gt;build</title>
-<path d="M672.36,-233.59C744.27,-236.22 859.74,-240.44 937.09,-243.26" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="814.63" y="-246.53">inspection request</text>
+<path d="M717.57,-221.39C793.66,-224.01 915.7,-228.21 997.81,-231.03" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-232.4">inspection request</text>
 </g>
 
 <g id="cli-diagram-1-node10" class="node around" data-node="output">
 <title>output</title>
-<polygon points="1447.33,-132.4 1263.4,-132.4 1263.4,-82 1447.33,-82 1447.33,-132.4" />
-<text xml:space="preserve" text-anchor="middle" x="1355.37" y="-103.1">Output and process status</text>
+<polygon points="1543,-130 1348,-130 1348,-80 1543,-80 1543,-130" />
+<text text-anchor="middle" x="1445.5" y="-101.6">Output and process status</text>
 </g>
 
 <g id="cli-diagram-1-edge13" class="edge handoff" data-from="encoded" data-to="output">
 <title>encoded-&gt;output</title>
-<path d="M877.43,-85.95C972.09,-90.17 1153.53,-98.25 1263.29,-103.14" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1018.56" y="-100.06">artifact summary</text>
+<path d="M934.62,-84.6C1035.62,-88.64 1230.6,-96.44 1347.99,-101.14" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1085" y="-96.4">artifact summary</text>
 </g>
 
 <g id="cli-diagram-1-edge14" class="edge handoff" data-from="packages" data-to="output">
 <title>packages-&gt;output</title>
-<path d="M908.72,-38.88C964.18,-47.07 1035.95,-57.74 1099.65,-67.45 1153.85,-75.71 1214.5,-85.17 1263.02,-92.78" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1018.56" y="-71.8">policy outcome</text>
+<path d="M969,-38.84C1075.23,-53.62 1242.45,-76.89 1347.65,-91.53" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1085" y="-70.4">policy outcome</text>
 </g>
 
 <g id="cli-diagram-1-edge10" class="edge handoff" data-from="build" data-to="output">
 <title>build-&gt;output</title>
-<path d="M1084.12,-220.53C1126.87,-203.42 1184.11,-180.28 1234.4,-159.2 1254.5,-150.78 1276.39,-141.36 1295.91,-132.88" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1181.52" y="-206.87">target outcomes</text>
+<path d="M1158.29,-208.98C1204.37,-192.92 1265.29,-171.51 1319,-152 1338.35,-144.97 1359.32,-137.19 1378.48,-130.01" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1260" y="-195.4">target outcomes</text>
 </g>
 
 <g id="cli-diagram-1-edge12" class="edge handoff" data-from="runtime" data-to="output">
 <title>runtime-&gt;output</title>
-<path d="M1094.28,-142.93C1144.2,-136.08 1210.16,-127.01 1263.17,-119.73" marker-end="url(#cli-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1181.52" y="-141.36">runtime observation</text>
+<path d="M1164.67,-137.78C1218.57,-131.47 1290.41,-123.05 1347.8,-116.33" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1260" y="-136.4">runtime observation</text>
 </g>
 </g>
 </svg></div><figcaption>CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart TD
@@ -1094,7 +1094,7 @@ revision; runtime assertions remain <span class="flag warn">unverified</span> he
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
