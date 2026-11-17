@@ -200,7 +200,8 @@ machine main() reaches FilesystemContentRead + FilesystemContentWrite {
     )
     .unwrap();
     let profile = target::TargetProfile::WindowsX64;
-    accept_project(&project, profile);
+    // A fresh project uses the documented unlocked development route.
+    // The ordinary package build still checks the selected providers and imports.
     let mut outcomes = orchestration::build(orchestration::BuildRequest {
         stage_validators: Default::default(),
         root_path: project.join("main.omg"),
