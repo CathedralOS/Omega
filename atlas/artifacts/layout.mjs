@@ -10,7 +10,7 @@ const graph=await new ELK().layout({id:'spine',layoutOptions:{
   'elk.algorithm':'layered','elk.direction':'DOWN','elk.edgeRouting':'ORTHOGONAL',
   'elk.layered.spacing.nodeNodeBetweenLayers':'18','elk.spacing.nodeNode':'18',
   'elk.padding':'[top=50,left=0,bottom=20,right=0]',
-},children:model.spine.map(id=>{const n=records.get(id);return{id,width:n.role==='transform'?8:220,height:n.role==='transform'?8:60};}),
+},children:model.spine.map(id=>{const n=records.get(id);return{id,width:n.role==='transform'?8:220,height:n.role==='transform'?8:(model.view==='proposed'?n.height:60)};}),
  edges:model.edges.filter(e=>e.main).map(e=>({id:e.id,sources:[e.start],targets:[e.end]}))});
 const positions=new Map(graph.children.map(n=>[n.id,n]));
 const nodes=new Map();
@@ -79,6 +79,7 @@ for(const e of edges.filter(e=>e.main)){
 }
 // neato -n2 routes around the fixed boxes without rearranging the spine.
 // Text on the spine is also an obstacle, rather than a wire crossing a label.
+if(edges.some(e=>!e.main)){
 const height=Math.max(...[...nodes.values()].map(n=>n.y+n.height))+40;
 const quote=JSON.stringify;
 const dot=['digraph G {','graph [splines=ortho,overlap=true,margin=0,pad=0];','node [shape=box,fixedsize=true,label="",margin=0];'];
@@ -100,6 +101,7 @@ for(const e of edges.filter(e=>!e.main)){
   if(head)points.push(point(head.slice(2).split(',').map(Number)));
   e.sections=[{points:points.filter((p,i,a)=>i===0||p.x!==a[i-1].x||p.y!==a[i-1].y)}];
 }
+}
 const occupied=[...nodes.values(),...reserved].map(n=>({...n}));
 const overlap=(a,b)=>a.x<b.x+b.width+5&&a.x+a.width+5>b.x&&a.y<b.y+b.height+5&&a.y+a.height+5>b.y;
 for(const e of edges.filter(e=>!e.main&&e.label)){
@@ -108,17 +110,18 @@ for(const e of edges.filter(e=>!e.main&&e.label)){
   for(const s of e.sections)for(let i=1;i<s.points.length;i++){
     const a=s.points[i-1],b=s.points[i],length=Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
     if(length<12)continue;
-    for(const t of [0.5,0.3,0.7]){
+    for(const t of [0.5,0.3,0.7,0.1,0.9]){
       const x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
-      for(const gap of [8,20,36,60]){
+      for(const gap of [8,20,36,60,86,120,160,210,270]){
         const locations=a.y===b.y?[[x-l.width/2,y-l.height-gap],[x-l.width/2,y+gap]]:[[x-l.width-gap,y-l.height/2],[x+gap,y-l.height/2]];
-        for(const [lx,ly] of locations)candidates.push({...l,x:lx,y:ly,cost:1000/(length+1)+Math.abs(t-.5)*10+gap/8});
+        for(const [lx,ly] of locations)candidates.push({...l,x:lx,y:ly,anchor:{x,y},cost:1000/(length+1)+Math.abs(t-.5)*10+gap/8});
       }
     }
   }
   const chosen=candidates.sort((a,b)=>a.cost-b.cost).find(c=>!occupied.some(o=>overlap(c,o)));
   if(!chosen)throw Error('No clear label position: '+e.id);
-  // Supporting labels appear one at a time when their arrow is selected.
+  // Reserve each supporting label before placing the next one.
+  occupied.push(chosen);
   e.labels=[chosen];
 }
 const allLabels=[...reserved,...edges.flatMap(e=>e.labels)];
@@ -129,7 +132,7 @@ const sx=20-minX,sy=20-minY;
 for(const n of nodes.values()){n.x+=sx;n.y+=sy;for(const l of n.labels){l.x+=sx;l.y+=sy;}}
 for(const g of groups){g.x+=sx;g.y+=sy;g.caption.x+=sx;g.caption.y+=sy;}
 startLabel.x+=sx;startLabel.y+=sy;
-for(const e of edges){for(const s of e.sections)for(const p of s.points){p.x+=sx;p.y+=sy;}for(const l of e.labels){l.x+=sx;l.y+=sy;}}
+for(const e of edges){for(const s of e.sections)for(const p of s.points){p.x+=sx;p.y+=sy;}for(const l of e.labels){l.x+=sx;l.y+=sy;if(l.anchor){l.anchor.x+=sx;l.anchor.y+=sy;}}}
 const width=Math.max(...[...nodes.values()].map(n=>n.x+n.width),...allPoints.map(p=>p.x),...allLabels.map(l=>l.x+l.width))+30;
 const bottom=Math.max(...[...nodes.values()].map(n=>n.y+n.height),...allPoints.map(p=>p.y),...allLabels.map(l=>l.y+l.height))+30;
 process.stdout.write(JSON.stringify({width,height:bottom,nodes:[...nodes.values()],edges,groups,startLabel}));

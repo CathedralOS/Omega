@@ -2116,7 +2116,7 @@ pub(crate) mod declaration_tables {
                 .collect::<Vec<_>>();
             let mut applications = arena::Arena::new();
             applications.insert_many(selected);
-            self.data_implementation_applications = applications;
+            self.data_implementation_applications = applications.into();
             let known_live = self
                 .trait_implementation_applications
                 .iter()
@@ -2135,7 +2135,7 @@ pub(crate) mod declaration_tables {
                 .collect::<Vec<_>>();
             let mut applications = arena::Arena::default();
             applications.insert_many(known_live);
-            self.trait_implementation_applications = applications;
+            self.trait_implementation_applications = applications.into();
             if self.trait_implementation_applications.is_empty() {
                 return;
             }
@@ -2160,7 +2160,7 @@ pub(crate) mod declaration_tables {
                 .collect::<Vec<_>>();
             let mut applications = arena::Arena::default();
             applications.insert_many(selected);
-            self.trait_implementation_applications = applications;
+            self.trait_implementation_applications = applications.into();
         }
 
         pub fn specialization_binding(
@@ -2521,7 +2521,7 @@ pub(crate) mod declaration_tables {
             domain_type_parameters(domain: domain::DomainDefinition)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             proposition_binders(proposition: proposition::PropositionDefinition)
-                -> &[proposition::PropositionBinder] = proposition_binders.binders
+                -> rows[proposition::PropositionBinder] = proposition_binders.binders
                 [push_proposition_binder];
             proposition_parameters(proposition: proposition::PropositionDefinition)
                 -> rows[signature::StateParameter] = state_parameters.parameters
@@ -2687,7 +2687,7 @@ pub(crate) mod declaration_tables {
         pub fn mathematical_parameters(
             &self,
             span: HandleSpan<crate::mathematical::MathematicalParameter>,
-        ) -> &[crate::mathematical::MathematicalParameter] {
+        ) -> arena::RootRows<'_, crate::mathematical::MathematicalParameter> {
             self.tables.mathematical_parameters.span_or_empty(span)
         }
 
@@ -2705,11 +2705,17 @@ pub(crate) mod declaration_tables {
             self.tables.mathematical_types.get(handle)
         }
 
-        pub fn domain_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
+        pub fn domain_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> arena::RootRows<'_, Identifier> {
             self.domain_path_members.span_or_empty(span)
         }
 
-        pub fn measure_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
+        pub fn measure_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> arena::RootRows<'_, Identifier> {
             self.measure_path_members.span_or_empty(span)
         }
 
@@ -2755,7 +2761,10 @@ pub(crate) mod declaration_tables {
             )
         }
 
-        pub fn operator_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
+        pub fn operator_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> arena::RootRows<'_, Identifier> {
             self.operator_path_members.span_or_empty(span)
         }
 
@@ -3899,7 +3908,7 @@ pub(crate) mod trait_and_machine_tables {
             trait_type_parameters(trait_definition: trait_definition::TraitDefinition)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             trait_requirements(trait_definition: trait_definition::TraitDefinition)
-                -> &[trait_definition::TraitRequirement] = trait_requirements.requires
+                -> rows[trait_definition::TraitRequirement] = trait_requirements.requires
                 [push_trait_requirement];
             trait_machine_signatures(trait_definition: trait_definition::TraitDefinition)
                 -> rows[signature::StateSignature] = trait_machine_signatures.machines
@@ -3908,13 +3917,13 @@ pub(crate) mod trait_and_machine_tables {
             machine_type_parameters(machine: machine::Machine)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             machine_owned_data(machine: machine::Machine)
-                -> &[machine::OwnedData] = machine_owned_data.owned_data
+                -> rows[machine::OwnedData] = machine_owned_data.owned_data
                 [push_machine_owned_data];
             machine_trait_conformances(machine: machine::Machine)
                 -> rows[machine::TraitConformance] = machine_trait_conformances.satisfies
                 [push_machine_trait_conformance];
             machine_invokes(machine: machine::Machine)
-                -> &[signature::AuthoredInvocation] = signature_invokes.invokes
+                -> rows[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_machine_invoke];
             machine_contracts(machine: machine::Machine)
                 -> rows[signature::SignatureContract] = signature_contracts.contracts
@@ -3937,7 +3946,7 @@ pub(crate) mod trait_and_machine_tables {
             state_signature_type_parameters(signature: signature::StateSignature)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             state_signature_invokes(signature: signature::StateSignature)
-                -> &[signature::AuthoredInvocation] = signature_invokes.invokes
+                -> rows[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_state_signature_invoke];
             state_signature_contracts(signature: signature::StateSignature)
                 -> rows[signature::SignatureContract] = signature_contracts.contracts

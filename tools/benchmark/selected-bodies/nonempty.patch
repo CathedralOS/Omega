@@ -1,0 +1,40 @@
+--- a/omega-rust/psi/compilation/source-compiler/Cargo.toml
++++ b/omega-rust/psi/compilation/source-compiler/Cargo.toml
+@@ -37,4 +37,5 @@
+ flow-effects = { path = "../../foundation/flow-effects" }
+
+ [dev-dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ layout-plans = { path = "../../foundation/layout-plans" }
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2214,6 +2214,7 @@
+  "layout-plans",
+  "optimization",
+  "rayon",
++ "selected-body-allocation-trace",
+  "semantic-vocabulary",
+  "source",
+  "source-files-to-tokens",
+@@ -3111,3 +3112,7 @@
+ version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
++
++[[package]]
++name = "selected-body-allocation-trace"
++version = "0.1.0"
+--- /dev/null
++++ b/omega-rust/psi/compilation/source-compiler/examples/side_records_nonempty_profile.rs
+@@ -0,0 +1,4 @@
++#[global_allocator]
++static ALLOCATOR: selected_body_allocation_trace::Tracking<std::alloc::System> = selected_body_allocation_trace::Tracking(std::alloc::System);
++const MEASURE_COMPLETIONS: bool = true;
++include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../tools/benchmark/selected-bodies/nonempty.rs"));
+--- /dev/null
++++ b/omega-rust/psi/compilation/source-compiler/examples/side_records_nonempty_control.rs
+@@ -0,0 +1,4 @@
++#[global_allocator]
++static ALLOCATOR: std::alloc::System = std::alloc::System;
++const MEASURE_COMPLETIONS: bool = false;
++include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../tools/benchmark/selected-bodies/nonempty.rs"));

@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Typed conversion leaves operand formation as an implicit caller obligation
+- Category: A verdict with nothing behind it
+- Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
+- Saw: Conversion accepts raw term handles and checks their shared type; callers must separately establish the operands' types. A lambda annotation `((λ z:Empty. Two) TwoZero)` was accepted because reduction hid its ill-typed argument. The local lambda check is repaired here, but the conversion API still carries no evidence of those operand premises.
+- Cost: Another caller can repeat the same omission. Reviewers must trace operand formation through each conversion call instead of seeing the required premises at its interface.
+- Reported: 2026-11-17, Codex, while repairing the table's pair-certificate checking cost
+
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
@@ -135,13 +142,6 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. After integrating main `a2684962ce882`, 13 selected unit controls across six crates spent 15m49s building and 0.414s running on the same host and budget (`merge-a268-direct-controls-01`, with exact source patch and input records retained in the active claim). The source of this build cost has not been established.
 - Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
 - Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
-
-### Selected-body activation copies retained side records
-- Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L670), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1337), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
-- Saw: Empty selected-body activation still copies owned side records. The matched scalar and borrowed-root capture at `977465a3625923c98ce743cd9a2ca4ff90cf6fba` includes deferred-refusal rows (24,192 requested bytes), applied-domain applications (22,736), authored service-reach rows (20,680), and callable identities (9,768). Smaller raw row arenas request another 15,192 bytes in ten allocations. The derived composite cache separately copies on its first new key: 30,555 bytes in 433 allocations in the observed body-completion window. These are thread-local allocation requests at that source on Windows x86-64, not current-main or whole-process qualification; the [retained identity and conformance repair](https://github.com/CathedralOS/Omega/pull/3911) records the exact scopes, inputs and limits.
-- Cost: Share unchanged payload under its actual owner rather than copy it when selecting bodies. Distinguish record copies from ownership-directory metadata, derived-cache detachment and genuine new output; parent and child owner counters overlap. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Use the same [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary) for any follow-up comparison. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 ### Omega-written resolution compares integer type arguments by spelling
 - Category: Re-deriving

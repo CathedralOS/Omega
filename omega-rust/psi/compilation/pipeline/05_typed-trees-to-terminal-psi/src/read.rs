@@ -1722,12 +1722,12 @@ mod tests {
         let logical_inputs = logical::MathematicalInputs::new(
             &typed,
             machine(),
-            &[typed_trees::mathematical::MathematicalParameter {
+            arena::RootRows::from_slice(&[typed_trees::mathematical::MathematicalParameter {
                 symbol: formal,
                 name: Identifier::generated("x"),
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
-            }],
+            }]),
             logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();

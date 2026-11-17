@@ -21,14 +21,15 @@ button { cursor: pointer; }
 input { width: 100%; }
 .eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
 h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
-.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
-.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
-.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.lede { max-width: 68ch; font: var(--type-intro); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-reading-small); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-reading-small); color: var(--ink-muted); max-width: 68ch; }
 .glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
 .glance div { padding: var(--space-3); }
 .glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
 .glance span { color: var(--ink-muted); font: var(--type-label); }
 main { min-width: 0; }
+main strong,main b { font-weight: 600; }
 main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
 main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
 main p,main li { max-width: 68ch; }
@@ -45,11 +46,11 @@ th { font: var(--type-label); color: var(--ink-muted); }
 tr:last-child td { border-bottom: 0; }
 td code { background: transparent; padding: 0; }
 .flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
-.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-reading-small); background: var(--surface); }
 summary { cursor: pointer; }
 .contents ul { margin: var(--space-2) 0; }
 .diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
-.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-reading-small); }
 .diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
 .diagram svg { display: block; width: 100%; height: auto; }
 .diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
@@ -68,7 +69,7 @@ summary { cursor: pointer; }
 .diagram .arrow-handoff { fill: var(--ink); }
 .diagram .arrow-checked { fill: var(--checked); }
 .diagram .arrow-bypass { fill: var(--trap); }
-.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram figcaption { font: var(--type-reading-small); color: var(--ink-muted); max-width: 68ch; }
 .diagram details { font: var(--type-label); color: var(--ink-muted); }
 .diagram details pre { color: var(--ink); }
 .atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
@@ -165,7 +166,8 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
 .arch-header h2 { margin:0; padding:0; border:0; font:var(--type-heading); }
 .arch-badge,.connected-intro,.connected-help { font:var(--type-label); color:var(--ink-muted); }
-.connected-intro { max-width:none; }
+.connected-intro { max-width:none; font:var(--type-reading-small); }
+.connected-help { font:var(--type-reading-small); }
 .arch-reading { padding:8px 16px 16px; }
 .arch-overview-legend { display:flex; flex-wrap:wrap; gap:8px 20px; margin:12px 0; font:var(--type-label); color:var(--ink-muted); }
 .arch-attention { color:var(--trap); }
@@ -195,7 +197,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-detail { position:absolute; top:12px; right:12px; width:340px; max-width:calc(100% - 24px); max-height:calc(100% - 24px); overflow:auto; padding:16px; border:1px solid var(--ink-muted); background:var(--surface); z-index:2; }
 .connected-detail h3 { margin:8px 0 12px; font:var(--type-subheading); }
 .connected-detail h3:focus { outline:none; }
-.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-label); }
+.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-reading-small); }
 .connected-detail-close { float:right; }
 .connected-relations { padding:0; list-style:none; }
 .connected-relations li { padding:12px 0; border-top:1px solid var(--rule); }
@@ -214,7 +216,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-join { fill:var(--ink-muted); }
 .overview-node.operation text { font:400 17px var(--font-serif); }
 .overview-node.check text { fill:var(--checked); }
-.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.15; }
+.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.62; }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3; }
 .overview-node.is-selected rect { stroke-width:4; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
@@ -252,12 +254,33 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
+.overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
+.proposed-scene .overview-node .stage-title { font:500 17px var(--font-serif); }
+.proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
+.proposed-scene .overview-node rect { stroke-width:1; stroke-dasharray:none; }
+.proposed-scene .overview-node.owner rect { fill:var(--ink); stroke:var(--ink); }
+.proposed-scene .overview-node.owner text { fill:var(--ground); }
+#compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
+#compiler-overview[data-view="proposed"][data-whole="true"] .connected-minimap { display:none; }
+@media(min-width:800px){
+  #compiler-overview[data-view="proposed"] .connected-views,
+  #compiler-overview[data-view="proposed"] .connected-tools { display:inline-flex; vertical-align:middle; margin:0 12px 6px 0; padding:0; }
+  #compiler-overview[data-view="proposed"] .connected-intro { margin:0 0 6px; }
+  #compiler-overview[data-view="proposed"] { display:grid; grid-template-columns:auto 1fr; column-gap:8px; }
+  #compiler-overview[data-view="proposed"] > * { grid-column:1/-1; }
+  #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
+  #compiler-overview[data-view="proposed"] [data-legend="proposed"] { display:none; }
+  .architecture.is-expanded #compiler-overview[data-view="proposed"] .connected-viewport { height:calc(100dvh - 170px); min-height:300px; }
+}
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
 .overview-edge.request path { stroke-dasharray: 7 5; }
 .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke-dasharray:7 5; stroke-width:1.4; }
-.overview-edge:not(.main-path) > text { visibility:hidden; }
+.overview-edge:not(.main-path) > text { fill:var(--ink-muted); }
 .overview-edge:not(.main-path).is-selected > text { visibility:visible; }
 .overview-edge.main-path > path:not(.connected-hit) { stroke-width:2.8; stroke-dasharray:none; }
 .overview-edge.main-path:not(.check):not(.attention) > path:not(.connected-hit) { stroke:var(--ink); }
@@ -282,6 +305,52 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .legend-check { color: var(--checked); }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
+
+/* Keep the stage outline beside the route as the reader follows an arrow. */
+.stage-index[hidden],.stage-context[hidden] { display:none; }
+.stage-index,.stage-context { background:var(--surface); padding:16px; }
+.stage-index h3,.stage-context h3 { margin:0 0 12px; font:var(--type-subheading); }
+.stage-index button { display:flex; align-items:baseline; width:100%; gap:10px; border:0;
+  border-left:2px solid transparent; background:transparent; text-align:left; padding:6px 8px;
+  color:var(--ink-muted); font:var(--type-reading-small); }
+.stage-index button span,.stage-output-label { font:12px/1.5 var(--font-mono); }
+.stage-index button[aria-current="step"] { border-color:var(--family-psi); background:var(--ground); color:var(--ink); }
+.stage-index button:hover { background:var(--ground); }
+.stage-context { display:none; }
+.stage-context p { font:var(--type-reading-small); }
+.stage-result { display:block; font:var(--type-subheading); }
+.stage-output-label { color:var(--ink-muted); margin-top:24px; }
+.stage-context a { font:var(--type-reading-small); }
+#compiler-overview[data-view="proposed"] .connected-workspace { display:grid; grid-template-columns:208px minmax(0,1fr); }
+#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--ground); }
+.proposed-scene .connected-group rect { fill:var(--surface); stroke:var(--rule); stroke-dasharray:none; }
+.connected-enhanced[data-view="proposed"] .arch-overview-svg { background:transparent; }
+.proposed-scene .overview-node .stage-title { font:450 17px var(--font-reading); }
+.proposed-scene .overview-node.owner .stage-title { font:500 22px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { font:400 14px var(--font-reading); }
+.proposed-scene .overview-node[data-role="artifact"] rect { fill:var(--ground); stroke:var(--ink-muted); }
+.proposed-scene .overview-node[data-role="artifact"] text { fill:var(--ink); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="source"] rect { fill:var(--family-psi-surface); stroke:var(--family-psi); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="source"] text { fill:var(--family-psi); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="native"] rect { fill:var(--family-native-surface); stroke:var(--family-native); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="native"] text { fill:var(--family-native); }
+#compiler-overview[data-view="proposed"] .connected-minimap { display:none; }
+@media(min-width:1100px){
+  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:210px minmax(0,1fr) 250px; }
+  .stage-context:not([hidden]) { display:block; border-left:1px solid var(--rule); }
+  #compiler-overview[data-view="proposed"] .connected-detail { inset:0 0 0 auto; width:250px; max-width:none; max-height:100%; box-sizing:border-box; border:0; border-left:1px solid var(--rule); }
+}
+@media(max-width:700px){
+  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:minmax(0,1fr); }
+  .stage-index { display:flex; align-items:center; gap:4px; padding:4px; overflow-x:auto; border-bottom:1px solid var(--rule); }
+  .stage-index h3 { display:none; }
+  .stage-index button { flex:none; width:auto; white-space:nowrap; }
+}
+@media(prefers-reduced-motion:no-preference){
+  .overview-node,.overview-edge,.stage-index button { transition:opacity 140ms ease,background-color 140ms ease; }
+}
+
+.label-guide { stroke:var(--rule); stroke-width:1; pointer-events:none; }
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
@@ -317,7 +386,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .page-sections summary { color:var(--ink-muted); margin-bottom:var(--space-3); }
 .page-sections ul { list-style:none; padding:0; margin:0; }
 .page-sections ul ul { padding-left:var(--space-3); border-left:var(--border-hairline) solid var(--rule); }
-.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-serif); }
+.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-reading); }
 .page-sections a:hover,.page-sections a[aria-current="location"] { color:var(--ink); text-decoration:underline; }
 .home-page .page { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
 .home-page .top { border:0; padding:var(--space-4) 0 0; gap:var(--space-3); }
@@ -401,7 +470,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Build and packages</h1>
       <p class="lede">How package custody and Build evaluation become a compilation request and provider choices.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b96560a1a5e9e507549f167e78d6327806479dfa/atlas"><code>b96560a1a5e9</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/subsystems/build-and-packages.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas"><code>b6cbb698bcbc</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/subsystems/build-and-packages.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -1123,7 +1192,7 @@ ownership and control flow, not a fresh compiler capability certification.</p></
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1281,6 +1350,27 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
+  const stageIndex=root.querySelector('.stage-index');
+  const stageButtons=[...stageIndex.querySelectorAll('[data-stage]')];
+  const stageContext=root.querySelector('.stage-context');
+  let activeStage=null,flight=0;
+  function trackStage(transform){
+    if(view!=='proposed')return;
+    const top=(Math.min(80,viewport.clientHeight/5)-transform.y)/transform.k;
+    const group=model.groups.find(g=>top<=g.y+g.height)||model.groups.at(-1);
+    if(activeStage===group.id)return;
+    activeStage=group.id;
+    const phase=model.phases.find(([id])=>id===group.id);
+    const owner=nodes.get(phase[1]),output=nodes.get(phase[2]);
+    for(const b of stageButtons){
+      if(b.dataset.stage===owner.id)b.setAttribute('aria-current','step');
+      else b.removeAttribute('aria-current');
+    }
+    stageContext.querySelector('h3').textContent=owner.title;
+    stageContext.querySelector('.stage-result').textContent=output.title;
+    stageContext.querySelector('p').textContent=output.description;
+    stageContext.querySelector('a').href=output.source;
+  }
   let miniWindow;
   function drawMinimap(){
     mini.replaceChildren();mini.setAttribute('viewBox',`0 0 ${model.width} ${model.height}`);
@@ -1297,16 +1387,47 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   const camera=zoom().scaleExtent([0.02,2.5]).extent(()=>[[0,0],[viewport.clientWidth,viewport.clientHeight]])
-    .filter(event=>!event.button && (event.type==='wheel' || event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
+    .filter(event=>!event.button && (event.type==='wheel' ? view!=='proposed'||event.ctrlKey : event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
     .on('zoom',event=>{
-      current=event.transform;scene.setAttribute('transform',current.toString());
+      current=event.transform;trackStage(current);scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
       root.dataset.camera=`${current.x},${current.y},${current.k}`;
+      root.dataset.whole=String(current.x>=-1 && current.y>=-1 &&
+        current.x+model.width*current.k<=viewport.clientWidth+1 && current.y+model.height*current.k<=viewport.clientHeight+1);
       miniWindow.setAttribute('x',-current.x/current.k);miniWindow.setAttribute('y',-current.y/current.k);
       miniWindow.setAttribute('width',viewport.clientWidth/current.k);miniWindow.setAttribute('height',viewport.clientHeight/current.k);
     });
   select(svg).call(camera).on('dblclick.zoom',null);
   function move(x,y,k){select(svg).call(camera.transform,zoomIdentity.translate(x,y).scale(k));}
+  function stopFlight(){cancelAnimationFrame(flight);}
+  function stagePosition(node){
+    const k=Math.min(1.05,(viewport.clientWidth-12)/model.width);
+    return {x:(viewport.clientWidth-model.width*k)/2,y:node ? 22-node.y*k : 8,k};
+  }
+  function visitStage(id){
+    clear();stopFlight();
+    const from=current,to=stagePosition(nodes.get(id));
+    const draw=t=>move(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,from.k+(to.k-from.k)*t);
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){draw(1);return;}
+    const start=performance.now();
+    function step(now){
+      const t=Math.min(1,(now-start)/300);
+      draw(1-(1-t)**3);
+      if(t<1)flight=requestAnimationFrame(step);
+    }
+    flight=requestAnimationFrame(step);
+  }
+  for(const b of stageButtons)b.addEventListener('click',()=>visitStage(b.dataset.stage));
+  viewport.addEventListener('pointerdown',stopFlight);
+  viewport.addEventListener('wheel',event=>{
+    stopFlight();
+    if(view!=='proposed'||event.ctrlKey)return;
+    const factor=event.deltaMode===1?16:event.deltaMode===2?viewport.clientHeight:1;
+    const floor=Math.min(8,viewport.clientHeight-24-model.height*current.k);
+    const y=Math.max(floor,Math.min(8,current.y-event.deltaY*factor));
+    if(y===current.y)return;
+    event.preventDefault();move(current.x,y,current.k);
+  },{passive:false});
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
     const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
@@ -1325,7 +1446,7 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
   function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
   function inspect(id,isEdge=false,trigger=null){
-    clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
+    stopFlight();clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
     root.dataset.selection=id;root.classList.add('has-trace');
     const chosen=isEdge?edges.get(id):nodes.get(id);
@@ -1335,7 +1456,7 @@ ownership and control flow, not a fresh compiler capability certification.</p></
     for(const nodeId of activeNodes)root.querySelector(`[data-endpoint="${nodeId}"]`)?.classList.add('is-traced');
     root.querySelector(isEdge?`[data-edge="${id}"]`:`[data-endpoint="${id}"]`)?.classList.add('is-selected');
     detail.replaceChildren();detail.hidden=false;
-    button('Close ×',()=>{detail.hidden=true;selectionTrigger?.focus();}).className='connected-detail-close';
+    button('Close ×',()=>{clear();selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
@@ -1364,6 +1485,10 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
+    stageIndex.hidden=stageContext.hidden=view!=='proposed';
+    const help=view==='proposed'?'Scroll to follow the pipeline · pinch or use + and − to zoom · select an arrow to inspect its handoff.':'Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
+    root.querySelector('.connected-help').textContent=help;
+    viewport.setAttribute('aria-label',help+' Arrow keys pan. F fits all.');
     root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
     root.querySelector('.connected-intro').textContent=model.intro;
     root.closest('.architecture').querySelector('.arch-badge').textContent=model.badge;
@@ -1376,6 +1501,7 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   }
   function switchView(next){
     if(next===view)return;
+    stopFlight();activeStage=null;
     cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
     nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
     const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;
@@ -1390,13 +1516,18 @@ ownership and control flow, not a fresh compiler capability certification.</p></
   svg.addEventListener('click',event=>{if(!event.target.closest('.overview-node,.overview-edge'))clear();});
   jump.addEventListener('change',()=>{if(jump.value){const n=nodes.get(jump.value);frameConnections(n);inspect(n.id,false,jump);}});
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
-    const action=control.dataset.camera;
+    stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
     if(action==='fit')fit();
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
-    if(action==='expand'){expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);control.textContent=expanded?'Collapse':'Expand';}
+    if(action==='expand'){
+      const fitted=view==='proposed' && root.dataset.whole==='true';
+      expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
+      control.textContent=expanded?'Collapse':'Expand';
+      if(fitted)fit();
+    }
   }));
   viewport.addEventListener('keydown',event=>{
     if(event.target!==viewport)return;
@@ -1420,8 +1551,15 @@ ownership and control flow, not a fresh compiler capability certification.</p></
     svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);
     const t=responsiveCamera(current,cameraWidth);cameraWidth=viewport.clientWidth;move(t.x,t.y,t.k);
   }).observe(viewport);
-  function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
+  function start(){
+    if(view==='proposed'){
+      const t=stagePosition(null);move(t.x,t.y,t.k);
+      return;
+    }
+    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+  }
   start();
+  if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>
 </body>

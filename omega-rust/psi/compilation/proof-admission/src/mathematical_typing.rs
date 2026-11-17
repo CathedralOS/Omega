@@ -2144,6 +2144,13 @@ mod judgments {
             expected_domain: TermHandle,
             codomain: TermHandle,
         },
+        CheckLambdaAnnotation {
+            domain: TermHandle,
+            body: TermHandle,
+            expected_domain: TermHandle,
+            codomain: TermHandle,
+            shared_domain: TermHandle,
+        },
         ApplyPair {
             argument: TermHandle,
             codomain: TermHandle,
@@ -2205,6 +2212,14 @@ mod judgments {
         Check {
             term: TermHandle,
             expected: TermHandle,
+        },
+        // Only a completed expected-type check or a checked binder introduction
+        // constructs this state. Substitution preserves formation after the first
+        // pair component checks; it does not establish that component's type.
+        CheckFormed {
+            term: TermHandle,
+            expected: TermHandle,
+            sort: Option<Sort>,
         },
     }
 
@@ -2301,11 +2316,64 @@ mod judgments {
                     continue;
                 }
                 Operation::Check { term, expected } => {
+                    pending.push(Pending::CheckExpected { term, expected });
+                    current = Operation::Infer(expected);
+                    continue;
+                }
+                Operation::CheckFormed {
+                    term,
+                    expected,
+                    sort,
+                } => {
                     pending.push(Pending::CheckScope {
                         prefix: context.bindings.len(),
                     });
-                    pending.push(Pending::CheckExpected { term, expected });
-                    current = Operation::Infer(expected);
+                    if let Term::Pair { first, second } = arena.get(term) {
+                        let head =
+                            weak_head_normalize(arena, context.signature(), expected, budget)?;
+                        if let Term::Sigma { domain, codomain } = arena.get(head) {
+                            pending.push(Pending::CheckPairSecond {
+                                first,
+                                second,
+                                codomain,
+                                prefix: context.bindings.len(),
+                            });
+                            current = Operation::CheckFormed {
+                                term: first,
+                                expected: domain,
+                                sort: None,
+                            };
+                            continue;
+                        }
+                    }
+                    if let Term::Lambda { domain, body } = arena.get(term) {
+                        let head =
+                            weak_head_normalize(arena, context.signature(), expected, budget)?;
+                        if let Term::Pi {
+                            domain: expected_domain,
+                            codomain,
+                        } = arena.get(head)
+                        {
+                            pending.push(Pending::CheckLambdaDomain {
+                                domain,
+                                body,
+                                expected_domain,
+                                codomain,
+                            });
+                            current = Operation::Infer(expected_domain);
+                            continue;
+                        }
+                    }
+                    let Some(expected_sort) = sort else {
+                        current = Operation::Check { term, expected };
+                        continue;
+                    };
+                    let shared_type = arena.insert(Term::Sort(expected_sort));
+                    pending.push(Pending::CheckActual {
+                        expected,
+                        shared_type,
+                    });
+                    current = Operation::Infer(term);
                     continue;
                 }
                 Operation::Infer(term) => JudgmentValue::Inferred(match arena.get(term) {
@@ -2543,10 +2611,30 @@ mod judgments {
                     }) => {
                         value.require_checked();
                         context.bindings.truncate(prefix);
-                        current = Operation::Check {
+                        current = Operation::CheckFormed {
                             term: second,
                             expected: substitute(arena, codomain, first),
+                            sort: None,
                         };
+                        break;
+                    }
+                    Some(Pending::CheckLambdaAnnotation {
+                        domain,
+                        body,
+                        expected_domain,
+                        codomain,
+                        shared_domain,
+                    }) => {
+                        value.require_checked();
+                        let query =
+                            comparison::Query::ordinary(domain, expected_domain, shared_domain);
+                        pending.push(Pending::Compared(Compared::Annotation {
+                            domain,
+                            body,
+                            expected_domain,
+                            codomain,
+                        }));
+                        current = Operation::Convert(query);
                         break;
                     }
                     Some(Pending::ApplyPair { argument, codomain }) => {
@@ -3532,57 +3620,13 @@ mod judgments {
                                 break;
                             }
                             Pending::CheckExpected { term, expected } => {
-                                let expected_sort =
+                                let sort =
                                     inferred_sort(arena, &context, expected, inferred, budget)?;
-                                if let Term::Pair { first, second } = arena.get(term) {
-                                    let head = weak_head_normalize(
-                                        arena,
-                                        context.signature(),
-                                        expected,
-                                        budget,
-                                    )?;
-                                    if let Term::Sigma { domain, codomain } = arena.get(head) {
-                                        pending.push(Pending::CheckPairSecond {
-                                            first,
-                                            second,
-                                            codomain,
-                                            prefix: context.bindings.len(),
-                                        });
-                                        current = Operation::Check {
-                                            term: first,
-                                            expected: domain,
-                                        };
-                                        break;
-                                    }
-                                }
-                                if let Term::Lambda { domain, body } = arena.get(term) {
-                                    let head = weak_head_normalize(
-                                        arena,
-                                        context.signature(),
-                                        expected,
-                                        budget,
-                                    )?;
-                                    if let Term::Pi {
-                                        domain: expected_domain,
-                                        codomain,
-                                    } = arena.get(head)
-                                    {
-                                        pending.push(Pending::CheckLambdaDomain {
-                                            domain,
-                                            body,
-                                            expected_domain,
-                                            codomain,
-                                        });
-                                        current = Operation::Infer(expected_domain);
-                                        break;
-                                    }
-                                }
-                                let shared_type = arena.insert(Term::Sort(expected_sort));
-                                pending.push(Pending::CheckActual {
+                                current = Operation::CheckFormed {
+                                    term,
                                     expected,
-                                    shared_type,
-                                });
-                                current = Operation::Infer(term);
+                                    sort: Some(sort),
+                                };
                                 break;
                             }
                             Pending::CheckLambdaDomain {
@@ -3599,18 +3643,24 @@ mod judgments {
                                     budget,
                                 )?;
                                 let shared_domain = arena.insert(Term::Sort(domain_sort));
-                                let query = comparison::Query::ordinary(
-                                    domain,
-                                    expected_domain,
-                                    shared_domain,
-                                );
-                                pending.push(Pending::Compared(Compared::Annotation {
+                                pending.push(Pending::CheckLambdaAnnotation {
                                     domain,
                                     body,
                                     expected_domain,
                                     codomain,
-                                }));
-                                current = Operation::Convert(query);
+                                    shared_domain,
+                                });
+                                // The expected domain has already formed. Exact syntax
+                                // retains that premise; conversion alone cannot form a
+                                // different annotation whose reduction hides a bad argument.
+                                if arena.structurally_equal(domain, expected_domain) {
+                                    value = JudgmentValue::Checked;
+                                    continue;
+                                }
+                                current = Operation::Check {
+                                    term: domain,
+                                    expected: shared_domain,
+                                };
                                 break;
                             }
                             Pending::CheckActual {
@@ -3631,6 +3681,7 @@ mod judgments {
                             | Pending::Conversion(_)
                             | Pending::CheckScope { .. }
                             | Pending::CheckPairSecond { .. }
+                            | Pending::CheckLambdaAnnotation { .. }
                             | Pending::ApplyPair { .. }
                             | Pending::IdentityLeft { .. }
                             | Pending::IdentityRight { .. }

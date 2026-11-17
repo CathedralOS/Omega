@@ -21,14 +21,15 @@ button { cursor: pointer; }
 input { width: 100%; }
 .eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
 h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
-.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
-.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
-.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.lede { max-width: 68ch; font: var(--type-intro); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-reading-small); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-reading-small); color: var(--ink-muted); max-width: 68ch; }
 .glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
 .glance div { padding: var(--space-3); }
 .glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
 .glance span { color: var(--ink-muted); font: var(--type-label); }
 main { min-width: 0; }
+main strong,main b { font-weight: 600; }
 main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
 main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
 main p,main li { max-width: 68ch; }
@@ -45,11 +46,11 @@ th { font: var(--type-label); color: var(--ink-muted); }
 tr:last-child td { border-bottom: 0; }
 td code { background: transparent; padding: 0; }
 .flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
-.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-reading-small); background: var(--surface); }
 summary { cursor: pointer; }
 .contents ul { margin: var(--space-2) 0; }
 .diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
-.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-reading-small); }
 .diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
 .diagram svg { display: block; width: 100%; height: auto; }
 .diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
@@ -68,7 +69,7 @@ summary { cursor: pointer; }
 .diagram .arrow-handoff { fill: var(--ink); }
 .diagram .arrow-checked { fill: var(--checked); }
 .diagram .arrow-bypass { fill: var(--trap); }
-.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram figcaption { font: var(--type-reading-small); color: var(--ink-muted); max-width: 68ch; }
 .diagram details { font: var(--type-label); color: var(--ink-muted); }
 .diagram details pre { color: var(--ink); }
 .atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
@@ -165,7 +166,8 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
 .arch-header h2 { margin:0; padding:0; border:0; font:var(--type-heading); }
 .arch-badge,.connected-intro,.connected-help { font:var(--type-label); color:var(--ink-muted); }
-.connected-intro { max-width:none; }
+.connected-intro { max-width:none; font:var(--type-reading-small); }
+.connected-help { font:var(--type-reading-small); }
 .arch-reading { padding:8px 16px 16px; }
 .arch-overview-legend { display:flex; flex-wrap:wrap; gap:8px 20px; margin:12px 0; font:var(--type-label); color:var(--ink-muted); }
 .arch-attention { color:var(--trap); }
@@ -195,7 +197,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-detail { position:absolute; top:12px; right:12px; width:340px; max-width:calc(100% - 24px); max-height:calc(100% - 24px); overflow:auto; padding:16px; border:1px solid var(--ink-muted); background:var(--surface); z-index:2; }
 .connected-detail h3 { margin:8px 0 12px; font:var(--type-subheading); }
 .connected-detail h3:focus { outline:none; }
-.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-label); }
+.connected-detail p,.connected-detail a,.connected-detail button { font:var(--type-reading-small); }
 .connected-detail-close { float:right; }
 .connected-relations { padding:0; list-style:none; }
 .connected-relations li { padding:12px 0; border-top:1px solid var(--rule); }
@@ -214,7 +216,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-join { fill:var(--ink-muted); }
 .overview-node.operation text { font:400 17px var(--font-serif); }
 .overview-node.check text { fill:var(--checked); }
-.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.15; }
+.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.62; }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3; }
 .overview-node.is-selected rect { stroke-width:4; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
@@ -252,12 +254,33 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
+.overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
+.proposed-scene .overview-node .stage-title { font:500 17px var(--font-serif); }
+.proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
+.proposed-scene .overview-node rect { stroke-width:1; stroke-dasharray:none; }
+.proposed-scene .overview-node.owner rect { fill:var(--ink); stroke:var(--ink); }
+.proposed-scene .overview-node.owner text { fill:var(--ground); }
+#compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
+#compiler-overview[data-view="proposed"][data-whole="true"] .connected-minimap { display:none; }
+@media(min-width:800px){
+  #compiler-overview[data-view="proposed"] .connected-views,
+  #compiler-overview[data-view="proposed"] .connected-tools { display:inline-flex; vertical-align:middle; margin:0 12px 6px 0; padding:0; }
+  #compiler-overview[data-view="proposed"] .connected-intro { margin:0 0 6px; }
+  #compiler-overview[data-view="proposed"] { display:grid; grid-template-columns:auto 1fr; column-gap:8px; }
+  #compiler-overview[data-view="proposed"] > * { grid-column:1/-1; }
+  #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
+  #compiler-overview[data-view="proposed"] [data-legend="proposed"] { display:none; }
+  .architecture.is-expanded #compiler-overview[data-view="proposed"] .connected-viewport { height:calc(100dvh - 170px); min-height:300px; }
+}
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
 .overview-edge.request path { stroke-dasharray: 7 5; }
 .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke-dasharray:7 5; stroke-width:1.4; }
-.overview-edge:not(.main-path) > text { visibility:hidden; }
+.overview-edge:not(.main-path) > text { fill:var(--ink-muted); }
 .overview-edge:not(.main-path).is-selected > text { visibility:visible; }
 .overview-edge.main-path > path:not(.connected-hit) { stroke-width:2.8; stroke-dasharray:none; }
 .overview-edge.main-path:not(.check):not(.attention) > path:not(.connected-hit) { stroke:var(--ink); }
@@ -282,6 +305,52 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .legend-check { color: var(--checked); }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
+
+/* Keep the stage outline beside the route as the reader follows an arrow. */
+.stage-index[hidden],.stage-context[hidden] { display:none; }
+.stage-index,.stage-context { background:var(--surface); padding:16px; }
+.stage-index h3,.stage-context h3 { margin:0 0 12px; font:var(--type-subheading); }
+.stage-index button { display:flex; align-items:baseline; width:100%; gap:10px; border:0;
+  border-left:2px solid transparent; background:transparent; text-align:left; padding:6px 8px;
+  color:var(--ink-muted); font:var(--type-reading-small); }
+.stage-index button span,.stage-output-label { font:12px/1.5 var(--font-mono); }
+.stage-index button[aria-current="step"] { border-color:var(--family-psi); background:var(--ground); color:var(--ink); }
+.stage-index button:hover { background:var(--ground); }
+.stage-context { display:none; }
+.stage-context p { font:var(--type-reading-small); }
+.stage-result { display:block; font:var(--type-subheading); }
+.stage-output-label { color:var(--ink-muted); margin-top:24px; }
+.stage-context a { font:var(--type-reading-small); }
+#compiler-overview[data-view="proposed"] .connected-workspace { display:grid; grid-template-columns:208px minmax(0,1fr); }
+#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--ground); }
+.proposed-scene .connected-group rect { fill:var(--surface); stroke:var(--rule); stroke-dasharray:none; }
+.connected-enhanced[data-view="proposed"] .arch-overview-svg { background:transparent; }
+.proposed-scene .overview-node .stage-title { font:450 17px var(--font-reading); }
+.proposed-scene .overview-node.owner .stage-title { font:500 22px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { font:400 14px var(--font-reading); }
+.proposed-scene .overview-node[data-role="artifact"] rect { fill:var(--ground); stroke:var(--ink-muted); }
+.proposed-scene .overview-node[data-role="artifact"] text { fill:var(--ink); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="source"] rect { fill:var(--family-psi-surface); stroke:var(--family-psi); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="source"] text { fill:var(--family-psi); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="native"] rect { fill:var(--family-native-surface); stroke:var(--family-native); }
+.proposed-scene .overview-node[data-role="owner"][data-layer="native"] text { fill:var(--family-native); }
+#compiler-overview[data-view="proposed"] .connected-minimap { display:none; }
+@media(min-width:1100px){
+  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:210px minmax(0,1fr) 250px; }
+  .stage-context:not([hidden]) { display:block; border-left:1px solid var(--rule); }
+  #compiler-overview[data-view="proposed"] .connected-detail { inset:0 0 0 auto; width:250px; max-width:none; max-height:100%; box-sizing:border-box; border:0; border-left:1px solid var(--rule); }
+}
+@media(max-width:700px){
+  #compiler-overview[data-view="proposed"] .connected-workspace { grid-template-columns:minmax(0,1fr); }
+  .stage-index { display:flex; align-items:center; gap:4px; padding:4px; overflow-x:auto; border-bottom:1px solid var(--rule); }
+  .stage-index h3 { display:none; }
+  .stage-index button { flex:none; width:auto; white-space:nowrap; }
+}
+@media(prefers-reduced-motion:no-preference){
+  .overview-node,.overview-edge,.stage-index button { transition:opacity 140ms ease,background-color 140ms ease; }
+}
+
+.label-guide { stroke:var(--rule); stroke-width:1; pointer-events:none; }
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
@@ -317,7 +386,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .page-sections summary { color:var(--ink-muted); margin-bottom:var(--space-3); }
 .page-sections ul { list-style:none; padding:0; margin:0; }
 .page-sections ul ul { padding-left:var(--space-3); border-left:var(--border-hairline) solid var(--rule); }
-.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-serif); }
+.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-reading); }
 .page-sections a:hover,.page-sections a[aria-current="location"] { color:var(--ink); text-decoration:underline; }
 .home-page .page { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
 .home-page .top { border:0; padding:var(--space-4) 0 0; gap:var(--space-3); }
@@ -401,7 +470,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Compiler repair plan</h1>
       <p class="lede">The observed architecture problems, their proposed repairs, and the contracts the replacement must preserve.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b96560a1a5e9e507549f167e78d6327806479dfa/atlas"><code>b96560a1a5e9</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas"><code>b6cbb698bcbc</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -415,6 +484,7 @@ main h2,main h3 { scroll-margin-top:100px; }
 </li>
 <li><a href="#3-recommended-destination-and-stage-contracts">3. Recommended destination and stage contracts</a></li>
 <li><a href="#4-source-settlement-evaluation-and-provider-body-closure">4. Source settlement, evaluation and provider-body closure</a><ul>
+<li><a href="#keep-the-operations-visible">Keep the operations visible</a></li>
 <li><a href="#why-the-old-source-stage-boundaries-change">Why the old source stage boundaries change</a></li>
 <li><a href="#evaluation-is-an-explicit-operation-on-accepted-code">Evaluation is an explicit operation on accepted code</a></li>
 <li><a href="#close-logical-providers-without-violating-the-firewall">Close logical providers without violating the firewall</a></li>
@@ -505,9 +575,9 @@ commands and artifact contracts must still work after the Rust compiler cutover.
 </tr>
 </tbody>
 </table></div>
-<p><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/graph.json">graph</a>,
-<a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/usage_be.json">backend usage</a>
-are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
+<p><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/graph.json">graph</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/usage_be.json">backend usage</a>
+are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
 <code>src_rs_lines</code> is a path scope, not production-only code. The backend has 221,538
 lines under <code>src/</code>. Dependencies are declarations: 1,318 normal, 1 build and
 160 dev. Neither a Cargo edge nor a text reference proves a production call.
@@ -560,7 +630,7 @@ review did not run the compiler.</p>
 <tr>
 <td>Source compiler ↔ source evaluator</td>
 <td>Source preparation requests compile-time values. The evaluator also prepares an invocation and obtains its lowered-form verdict before execution. <a href="https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L598-L667">Preparation</a>, <a href="https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L403-L544">execution</a></td>
-<td>One source-settlement owner prepares/checks invocation code. The executor receives accepted code plus admitted inputs and returns values/status/work receipts. Delete the evaluator's source-preparation interface. See §4.</td>
+<td>One source-settlement owner prepares, checks and evaluates required invocations inside the stage. Carry values and receipts in its result. Delete both the evaluator's source-preparation interface and the external executor boundary. See §4.</td>
 </tr>
 <tr>
 <td>Provider closure ↔ policy preparation</td>
@@ -594,11 +664,12 @@ review did not run the compiler.</p>
 </tr>
 </tbody>
 </table></div>
-<p><strong>Keep real service boundaries explicit.</strong> The source, calling-policy and runtime
-callers use one Psi interpreter. Execution requests/results, external host calls,
-admitted Build inputs and product publication are not themselves evidence of
-compiler backtracking. The repair concerns source/stage work inside those services
-or missing information supplied outside the declared representation handoff.</p>
+<p><strong>Current calls are evidence, not the proposed topology.</strong> Source, calling-policy
+and runtime callers currently use one Psi interpreter. The replacement gives
+compiler evaluation to its requesting stage. Runtime execution consumes finished
+products after compilation. Neither becomes a service beside the proposed
+pipeline. Acquisition supplies the front input; publication consumes its final
+result. Required records travel through every intervening representation.</p>
 <p><strong>Correction to the earlier plan:</strong> the cited O08 callback routine compares
 carried bytes against a canonical encoding; it does not replace those bytes.
 <a href="https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L676-L769">Comparison</a>, <a href="https://github.com/CathedralOS/Omega/blob/fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f/omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/ordinary.rs#L456-L482">carried-byte output</a>
@@ -683,279 +754,272 @@ full snapshot walkthroughs. These observations determine the new contracts:</p>
 <p><strong>Proposed · unverified contracts.</strong> This figure states the intended whole-program
 handoffs for one coordinated cutover. The table below supplies their invariants;
 §8 names the feasibility work that must finish before implementation.</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented."><svg viewBox="0.00 0.00 3343.00 99.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented." style="min-width:3343px">
-<title>Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.</title><defs><marker id="foundation-backend-plan-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="foundation-backend-plan-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 90)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented."><svg viewBox="0.00 0.00 3169.00 90.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented." style="min-width:3169px">
+<title>Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.</title><defs><marker id="foundation-backend-plan-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="foundation-backend-plan-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="foundation-backend-plan-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 81.75)">
 <title>atlas</title>
 
 <g id="foundation-backend-plan-diagram-1-node1" class="node proposed" data-node="A">
 <title>A</title>
-<polygon points="186.18,-59.97 0,-59.97 0,-8.25 186.18,-8.25 186.18,-59.97" />
-<text xml:space="preserve" text-anchor="middle" x="93.09" y="-38.26">Admitted source bytes and</text>
-<text xml:space="preserve" text-anchor="middle" x="93.09" y="-21.76">requests</text>
+<polygon points="152.43,-51.72 0,-51.72 0,0 152.43,0 152.43,-51.72" />
+<text xml:space="preserve" text-anchor="middle" x="76.22" y="-30.01">00 Admit compilation</text>
+<text xml:space="preserve" text-anchor="middle" x="76.22" y="-13.51">inputs</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node2" class="node proposed" data-node="B">
 <title>B</title>
-<polygon points="506.86,-68.22 340.18,-68.22 340.18,0 506.86,0 506.86,-68.22" />
-<text xml:space="preserve" text-anchor="middle" x="423.52" y="-46.51">Source settlement: lazy</text>
-<text xml:space="preserve" text-anchor="middle" x="423.52" y="-30.01">source and evaluation</text>
-<text xml:space="preserve" text-anchor="middle" x="423.52" y="-13.51">closure</text>
+<polygon points="447.61,-51.72 286.18,-51.72 286.18,0 447.61,0 447.61,-51.72" />
+<text xml:space="preserve" text-anchor="middle" x="366.9" y="-30.01">01 Compile source and</text>
+<text xml:space="preserve" text-anchor="middle" x="366.9" y="-13.51">values</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
 <title>A-&gt;B</title>
-<path stroke-dasharray="5,2" d="M186.45,-34.11C234.64,-34.11 293.12,-34.11 339.81,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="263.18" y="-54.21">admit and activate</text>
-<text xml:space="preserve" text-anchor="middle" x="263.18" y="-38.46">on demand</text>
+<path d="M152.69,-25.86C193.61,-25.86 244.19,-25.86 285.81,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="219.31" y="-45.96">carry admitted</text>
+<text xml:space="preserve" text-anchor="middle" x="219.31" y="-30.21">inputs</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node3" class="node proposed" data-node="C">
 <title>C</title>
-<polygon points="829.04,-59.31 667.61,-59.31 667.61,-8.91 829.04,-8.91 829.04,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="748.33" y="-30.01">Accepted canonical Psi</text>
+<polygon points="784.79,-51.06 608.36,-51.06 608.36,-0.66 784.79,-0.66 784.79,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="696.58" y="-21.76">02 Seal portable program</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
 <title>B-&gt;C</title>
-<path stroke-dasharray="5,2" d="M507.23,-34.11C556.45,-34.11 618.6,-34.11 667.34,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="587.24" y="-38.46">seal accepted result</text>
+<path d="M448.05,-25.86C496.46,-25.86 558.2,-25.86 607.9,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="527.99" y="-30.21">seal accepted result</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node4" class="node proposed" data-node="D">
 <title>D</title>
-<polygon points="1154.97,-59.97 975.54,-59.97 975.54,-8.25 1154.97,-8.25 1154.97,-59.97" />
-<text xml:space="preserve" text-anchor="middle" x="1065.26" y="-38.26">Native program planning:</text>
-<text xml:space="preserve" text-anchor="middle" x="1065.26" y="-21.76">retained-body closure</text>
+<polygon points="1076.22,-51.06 932.79,-51.06 932.79,-0.66 1076.22,-0.66 1076.22,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="1004.51" y="-21.76">03 Plan native code</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
 <title>C-&gt;D</title>
-<path stroke-dasharray="5,2" d="M829.2,-34.11C873.76,-34.11 929.36,-34.11 975.3,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="902.29" y="-54.21">supply closed</text>
-<text xml:space="preserve" text-anchor="middle" x="902.29" y="-38.46">logical selections</text>
+<path d="M785.24,-25.86C831.86,-25.86 888.43,-25.86 932.3,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="858.79" y="-45.96">carry Psi, catalog</text>
+<text xml:space="preserve" text-anchor="middle" x="858.79" y="-30.21">and requests</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node5" class="node proposed" data-node="E">
 <title>E</title>
-<polygon points="1476.4,-68.22 1311.22,-68.22 1311.22,0 1476.4,0 1476.4,-68.22" />
-<text xml:space="preserve" text-anchor="middle" x="1393.81" y="-46.51">Physical program</text>
-<text xml:space="preserve" text-anchor="middle" x="1393.81" y="-30.01">planning: all generated</text>
-<text xml:space="preserve" text-anchor="middle" x="1393.81" y="-13.51">bodies</text>
+<polygon points="1412.65,-51.06 1232.47,-51.06 1232.47,-0.66 1412.65,-0.66 1412.65,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="1322.56" y="-21.76">04 Build physical program</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge4" class="edge handoff" data-from="D" data-to="E">
 <title>D-&gt;E</title>
-<path stroke-dasharray="5,2" d="M1155.06,-34.11C1203.59,-34.11 1263.31,-34.11 1310.75,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1233.1" y="-54.21">carry retained</text>
-<text xml:space="preserve" text-anchor="middle" x="1233.1" y="-38.46">bodies and recipes</text>
+<path d="M1076.43,-25.86C1122.48,-25.86 1182.87,-25.86 1232.19,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="1154.35" y="-45.96">carry retained</text>
+<text xml:space="preserve" text-anchor="middle" x="1154.35" y="-30.21">bodies and recipes</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node6" class="node proposed" data-node="F">
 <title>F</title>
-<polygon points="1813.58,-59.97 1640.15,-59.97 1640.15,-8.25 1813.58,-8.25 1813.58,-59.97" />
-<text xml:space="preserve" text-anchor="middle" x="1726.87" y="-38.26">Installation and resource</text>
-<text xml:space="preserve" text-anchor="middle" x="1726.87" y="-21.76">binding</text>
+<polygon points="1709.33,-51.06 1576.4,-51.06 1576.4,-0.66 1709.33,-0.66 1709.33,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="1642.87" y="-21.76">05 Bind resources</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge5" class="edge handoff" data-from="E" data-to="F">
 <title>E-&gt;F</title>
-<path stroke-dasharray="5,2" d="M1476.64,-34.11C1526.24,-34.11 1589.43,-34.11 1639.77,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1558.28" y="-69.96">supply complete</text>
-<text xml:space="preserve" text-anchor="middle" x="1558.28" y="-54.21">effects and resource</text>
-<text xml:space="preserve" text-anchor="middle" x="1558.28" y="-38.46">demands</text>
+<path d="M1413.07,-25.86C1464.84,-25.86 1528.84,-25.86 1575.98,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="1494.53" y="-61.71">supply complete</text>
+<text xml:space="preserve" text-anchor="middle" x="1494.53" y="-45.96">effects and resource</text>
+<text xml:space="preserve" text-anchor="middle" x="1494.53" y="-30.21">demands</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node7" class="node proposed" data-node="G">
 <title>G</title>
-<polygon points="2120.01,-59.31 1981.08,-59.31 1981.08,-8.91 2120.01,-8.91 2120.01,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="2050.55" y="-30.01">Common encoding</text>
+<polygon points="2015.01,-51.06 1876.83,-51.06 1876.83,-0.66 2015.01,-0.66 2015.01,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="1945.92" y="-21.76">06 Encode all code</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge6" class="edge handoff" data-from="F" data-to="G">
 <title>F-&gt;G</title>
-<path stroke-dasharray="5,2" d="M1814.07,-34.11C1866.27,-34.11 1931.95,-34.11 1980.67,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1897.33" y="-54.21">carry bound physical</text>
-<text xml:space="preserve" text-anchor="middle" x="1897.33" y="-38.46">program</text>
+<path d="M1709.56,-25.86C1758.96,-25.86 1826.45,-25.86 1876.49,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="1793.08" y="-45.96">carry bound physical</text>
+<text xml:space="preserve" text-anchor="middle" x="1793.08" y="-30.21">program</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node8" class="node proposed" data-node="H">
 <title>H</title>
-<polygon points="2440.69,-59.31 2284.51,-59.31 2284.51,-8.91 2440.69,-8.91 2440.69,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="2362.6" y="-30.01">Layout and relaxation</text>
+<polygon points="2301.94,-51.06 2179.51,-51.06 2179.51,-0.66 2301.94,-0.66 2301.94,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="2240.73" y="-21.76">07 Lay out code</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge7" class="edge handoff" data-from="G" data-to="H">
 <title>G-&gt;H</title>
-<path stroke-dasharray="5,2" d="M2120.36,-34.11C2168.88,-34.11 2233.94,-34.11 2284.26,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="2202.26" y="-54.21">carry encodings and</text>
-<text xml:space="preserve" text-anchor="middle" x="2202.26" y="-38.46">alternatives</text>
+<path d="M2015.2,-25.86C2064.88,-25.86 2131.54,-25.86 2179.3,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="2097.26" y="-45.96">carry encodings and</text>
+<text xml:space="preserve" text-anchor="middle" x="2097.26" y="-30.21">alternatives</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node9" class="node proposed" data-node="I">
 <title>I</title>
-<polygon points="2747.87,-59.31 2604.44,-59.31 2604.44,-8.91 2747.87,-8.91 2747.87,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="2676.16" y="-30.01">Object construction</text>
+<polygon points="2588.12,-51.06 2465.69,-51.06 2465.69,-0.66 2588.12,-0.66 2588.12,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="2526.91" y="-21.76">08 Build objects</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge8" class="edge handoff" data-from="H" data-to="I">
 <title>H-&gt;I</title>
-<path stroke-dasharray="5,2" d="M2441.01,-34.11C2490.93,-34.11 2555.37,-34.11 2604.01,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="2522.57" y="-54.21">supply resolved text</text>
-<text xml:space="preserve" text-anchor="middle" x="2522.57" y="-38.46">and references</text>
+<path d="M2302.34,-25.86C2350.43,-25.86 2417.32,-25.86 2465.38,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="2383.82" y="-45.96">supply resolved text</text>
+<text xml:space="preserve" text-anchor="middle" x="2383.82" y="-30.21">and references</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node10" class="node proposed" data-node="J">
 <title>J</title>
-<polygon points="3040.8,-59.31 2898.12,-59.31 2898.12,-8.91 3040.8,-8.91 3040.8,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="2969.46" y="-30.01">Image construction</text>
+<polygon points="2854.8,-51.06 2738.37,-51.06 2738.37,-0.66 2854.8,-0.66 2854.8,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="2796.59" y="-21.76">09 Build image</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge9" class="edge handoff" data-from="I" data-to="J">
 <title>I-&gt;J</title>
-<path stroke-dasharray="5,2" d="M2748.04,-34.11C2793.52,-34.11 2852.32,-34.11 2897.76,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="2823" y="-69.96">supply completed</text>
-<text xml:space="preserve" text-anchor="middle" x="2823" y="-54.21">objects and entry</text>
-<text xml:space="preserve" text-anchor="middle" x="2823" y="-38.46">plans</text>
+<path d="M2588.31,-25.86C2633.18,-25.86 2694,-25.86 2738.15,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="2663.25" y="-61.71">supply completed</text>
+<text xml:space="preserve" text-anchor="middle" x="2663.25" y="-45.96">objects and entry</text>
+<text xml:space="preserve" text-anchor="middle" x="2663.25" y="-30.21">plans</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-node11" class="node proposed" data-node="K">
 <title>K</title>
-<polygon points="3325.48,-59.31 3182.8,-59.31 3182.8,-8.91 3325.48,-8.91 3325.48,-59.31" />
-<text xml:space="preserve" text-anchor="middle" x="3254.14" y="-30.01">Product publication</text>
+<polygon points="3151.48,-51.06 3006.55,-51.06 3006.55,-0.66 3151.48,-0.66 3151.48,-51.06" />
+<text xml:space="preserve" text-anchor="middle" x="3079.02" y="-21.76">10 Publish products</text>
 </g>
 
 <g id="foundation-backend-plan-diagram-1-edge10" class="edge handoff" data-from="J" data-to="K">
 <title>J-&gt;K</title>
-<path stroke-dasharray="5,2" d="M3041.06,-34.11C3084.24,-34.11 3139.27,-34.11 3182.46,-34.11" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="3111.8" y="-54.21">write completed</text>
-<text xml:space="preserve" text-anchor="middle" x="3111.8" y="-38.46">product</text>
+<path d="M2855.01,-25.86C2898.76,-25.86 2959.25,-25.86 3006.2,-25.86" marker-end="url(#foundation-backend-plan-diagram-1-arrow-handoff)" />
+<text xml:space="preserve" text-anchor="middle" x="2930.68" y="-45.96">carry product and</text>
+<text xml:space="preserve" text-anchor="middle" x="2930.68" y="-30.21">output request</text>
 </g>
 </g>
 </svg></div><figcaption>Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
-  A[Admitted source bytes and requests]
-  B[Source settlement: lazy source and evaluation closure]
-  C[Accepted canonical Psi]
-  D[Native program planning: retained-body closure]
-  E[Physical program planning: all generated bodies]
-  F[Installation and resource binding]
-  G[Common encoding]
-  H[Layout and relaxation]
-  I[Object construction]
-  J[Image construction]
-  K[Product publication]
-  A -.-&gt; B
-  B -.-&gt; C
-  C -.-&gt; D
-  D -.-&gt; E
-  E -.-&gt; F
-  F -.-&gt; G
-  G -.-&gt; H
-  H -.-&gt; I
-  I -.-&gt; J
-  J -.-&gt; K</code></pre></details></figure>
-<p>Independent verification is a separate consumer of current forms and the
-originals its request explicitly retains. It does not produce program meaning.</p>
-<p><strong>Judgment:</strong> keep the public transformation boundaries where a complete output
-can be stated without asking a previous phase for more work. Coarsen the current
-boundaries that participate in an actual dependency loop. Keep their algorithms
-as named, separately testable private operations; do not preserve obsolete
-public stage APIs behind a coordinator wrapper.</p>
-<p>The names below describe contracts, not final directories or numbers. Assign
-numbers after the feasibility work in §8 establishes these boundaries. Current
-Psi/Omega numbers are used only to locate existing code.</p>
-<p>Every program representation contains its identity, provenance required by its
-consumers, selected target when applicable, current body membership and all
-facts needed next. Immutable leaf definitions may be shared. A phase receives
-its declared predecessor and admitted inputs, such as native planning's accepted
-code catalog. It must not retain an older executable graph beside its current
-input to recover missing facts, or receive a source lookup capability, mutable
-Build context or callback into another producer. Explicit verification may read
-the originals its request declares. Private worklists may contain intermediate
-forms while their owning phase runs; they are not hidden inter-stage products.</p>
+  A[00 Admit compilation inputs] --&gt; B[01 Compile source and values]
+  B --&gt; C[02 Seal portable program]
+  C --&gt; D[03 Plan native code]
+  D --&gt; E[04 Build physical program]
+  E --&gt; F[05 Bind resources]
+  F --&gt; G[06 Encode all code]
+  G --&gt; H[07 Lay out code]
+  H --&gt; I[08 Build objects]
+  I --&gt; J[09 Build image]
+  J --&gt; K[10 Publish products]</code></pre></details></figure>
+<p>Each arrow carries the complete next input, including records destined for later
+stages. Compiler evaluation stays inside its requesting stage. Runtime execution
+starts from a finished product; it is not a compiler stage or a side helper.</p>
+<p><strong>00–10 are proposed ordering numbers</strong>, not current crate numbers or a claim
+that these contracts are implemented. Current Psi/Omega numbers still locate
+existing code. Feasibility work in §8 may revise the proposed boundaries.</p>
+<p>Every representation carries the current program, its identity, needed provenance,
+unconsumed requests and established facts. Stage 00 admits external inputs;
+facts first computed later enter that producer's output. A later stage consumes
+these records from its immediate predecessor. It never asks an earlier owner to
+recover a fact or perform more work. A retained earlier executable graph, source
+lookup, mutable Build context or producer callback is not a carried record.</p>
+<p>This is a compilation record, not a proposal to put native configuration into
+portable Psi. The Psi-owned program and source operations remain target-neutral;
+they see only the neutral projection of carried requests. Native target/ABI data
+has an Omega-owned type. The exact acyclic record/type arrangement is an open
+gate, including how untouched inputs pass through Psi work without Psi importing
+Omega. Passing a callback or opaque source owner fails that gate.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
 <thead>
 <tr>
-<th>Phase / owner</th>
-<th>Complete input</th>
+<th>Proposed stage</th>
+<th>Complete input from predecessor</th>
 <th>Output</th>
 <th>Required invariant</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Source acquisition and admission — packages/Build, before the compiler</td>
-<td>Requested source/package roots, permissions and explicit Build input</td>
-<td>Immutable admitted source-byte/custody reservoir and requests</td>
-<td>Availability and authorization are recorded; acquisition does not imply semantic acceptance or activation of every file.</td>
+<td>00 Admit compilation inputs</td>
+<td>Acquired source/package bytes, scoped roots and explicit compilation request</td>
+<td>Admitted compilation inputs: source custody, Build/configuration requests, target/component/provider/loader/output records, selections, budgets and staged observation receipts</td>
+<td>Record availability and authority without activating every source file. Values that require source evaluation are produced by 01, not guessed here.</td>
 </tr>
 <tr>
-<td>Source settlement — Psi producer</td>
-<td>That reservoir, scoped roots, neutral Build selection records, admitted observations and budgets</td>
-<td>Accepted target-neutral program, closed logical provider/body selections, prepared application facts and narrow provenance</td>
-<td>All source and logical-body discovery for this result is closed; only the lowered-form checker can accept it; dormant availability is not a new obligation.</td>
+<td>01 Compile source and values</td>
+<td>Admitted compilation inputs</td>
+<td>Accepted program and computed values, checked body catalog, neutral selection records, provenance and carried requests</td>
+<td>Own lazy syntax, resolution, typing, preparation, lowering, invocation admission and hermetic evaluation. Only the lowered-form checker gives the semantic verdict; independent certificate admission stays independent.</td>
 </tr>
 <tr>
-<td>Portable sealing — Psi representation producer</td>
-<td>Accepted program and its publication policy</td>
-<td>Canonical Psi artifact, identity, acceptance/evidence and required summaries</td>
-<td>Encoding cannot confer semantic acceptance or host execution authority. No live source owner escapes in the artifact.</td>
+<td>02 Seal portable program</td>
+<td>Accepted program, evidence, publication policy and carried requests</td>
+<td>Canonical Psi plus the compilation record needed downstream</td>
+<td>Psi stays target-neutral. Sealing grants no new semantic acceptance or host authority. No live source owner escapes.</td>
 </tr>
 <tr>
-<td>Native program planning — Omega producer</td>
-<td>Canonical accepted code catalog, exact logical selections, selected target description, component admissions and native request</td>
-<td>Selected native program with explicit retained-body references, call/ABI plans, obligations and generated-body recipes</td>
-<td>Native work is source-free. It closes target demand and optimization-related body reach over already accepted code; it cannot select a new source body or silently change a logical provider.</td>
+<td>03 Plan native code</td>
+<td>Canonical checked body catalog and carried Build rows, target, component admissions and native request</td>
+<td>Selected native program, call/ABI plans, obligations, generated-body recipes and remaining requests</td>
+<td>Join exact Build selections to checked candidates without source lookup. Own calling-policy computation here. Close retained-body demand without changing logical choices.</td>
 </tr>
 <tr>
-<td>Physical program planning — Omega producer</td>
-<td>Selected native program and immutable target environment</td>
-<td>Complete physical program including ordinary bodies, required adapters/entries/handlers, register choices, frame recipes, effects and symbolic resource uses</td>
-<td>All executable bodies and their effects are represented. Generated code is program data, not a later writer's private byte sequence.</td>
+<td>04 Build physical program</td>
+<td>Selected native program and carried target/environment facts</td>
+<td>Complete physical program, effects, frames and symbolic resource uses</td>
+<td>Represent ordinary bodies, adapters, entries and handlers together. Register/frame choices and generated code have this owner, not a later writer.</td>
 </tr>
 <tr>
-<td>Installation/resource binding — Omega producer</td>
-<td>Complete physical program, admitted installations and complete resource summaries</td>
-<td>Bound physical program</td>
-<td>Transitive stack demands, bridge storage, call bias, fault premises and placement identities agree; binding cannot invalidate allocation, effects or frame choices.</td>
+<td>05 Bind resources</td>
+<td>Complete physical program, resource summaries and carried installations/limits</td>
+<td>Bound physical program and remaining requests</td>
+<td>Check transitive stack, bridge storage, call bias, fault premises and placement identities. Binding must not change allocation, effects, frames or body membership.</td>
 </tr>
 <tr>
-<td>Common encoding — Omega producer</td>
-<td>Bound physical program</td>
-<td>Encoded bodies/fragments, all legal alternatives, frame encodings and complete fixup descriptors</td>
-<td>Every executable byte generated by this compilation has this producer, including entry/foreign/writer helpers. Imported pre-encoded components remain explicit admitted inputs. No new body may appear downstream.</td>
+<td>06 Encode all code</td>
+<td>Bound physical program and carried encoding/format facts</td>
+<td>Encoded bodies, frames, legal alternatives, fixups and remaining requests</td>
+<td>Every executable byte produced here has a represented body. Imported pre-encoded components remain explicit admitted data. No new body downstream.</td>
 </tr>
 <tr>
-<td>Layout and relaxation — Omega producer</td>
-<td>Encoded program, target placement rules and relocations</td>
-<td>Laid-out text/fragments with resolved internal references</td>
-<td>Choose/patch carried alternatives only. Preserve existing body/frame relaxation semantics and checked range/alignment rules.</td>
+<td>07 Lay out code</td>
+<td>Encoded program and carried placement rules/relocations</td>
+<td>Laid-out program, resolved references and remaining requests</td>
+<td>Choose and patch carried alternatives only. Preserve body/frame relaxation, range and alignment rules.</td>
 </tr>
 <tr>
-<td>Object construction — Omega producer</td>
-<td>Laid-out program, symbols and object-format request</td>
-<td>Object plus attribution, entry and evidence records</td>
-<td>No source/ABI rediscovery or helper generation; composition uses declared, already encoded bodies or admitted component objects.</td>
+<td>08 Build objects</td>
+<td>Laid-out program, carried symbols and object-format request</td>
+<td>Objects with attribution, entry/evidence records and remaining requests</td>
+<td>No source/ABI rediscovery or private helper generation. Components are already encoded, admitted products.</td>
 </tr>
 <tr>
-<td>Image construction — Omega producer</td>
-<td>Objects, container request, external binding/loader inputs and carried entry plans</td>
-<td>Final image, regions, symbols, relocation evidence and runtime/provision carriers</td>
+<td>09 Build image</td>
+<td>Objects and carried container, binding, loader and entry records</td>
+<td>Completed image, regions, symbols, relocation evidence and provision records</td>
 <td>Container placement, relocation, signing/format metadata only; no fresh register, frame or instruction decisions.</td>
 </tr>
 <tr>
-<td>Publication — products/host support</td>
-<td>Completed retained product and output request</td>
-<td>Installed files/packages and receipts</td>
-<td>File installation does not invoke compiler stages; failure retains the existing publication guarantees.</td>
-</tr>
-<tr>
-<td>Independent verification — explicit consumer route</td>
-<td>Current form plus the exact optional originals/evidence required by that validator</td>
-<td>Verification result/diagnostics</td>
-<td>Does not choose providers or produce program meaning. Missing required replay inputs refuse the requested audit.</td>
+<td>10 Publish products</td>
+<td>Completed product and carried output request</td>
+<td>Installed products and publication receipts</td>
+<td>Filesystem publication performs no compiler transformations and preserves existing failure guarantees.</td>
 </tr>
 </tbody>
 </table></div>
+<p><strong>Validation remains independent.</strong> Admit explicit validator selections and
+evidence-retention requests at 00. Each requested checker receives the declared
+form/evidence at its phase or product boundary; its report travels forward.
+Keep trust-boundary checks and independent checking authority. No verifier
+callback lives in program data, and normal compilation does not replay its own
+outputs. Read the <a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/build/optimizations.md#L30-L108">optimization phase contract</a>.</p>
+<p>These macro stages do not erase the specification's private optimization phases,
+their exact selections or the required unoptimized/optimized checker order.
+Prove each operation's owner and order inside its macro stage; merely placing
+the old cross-stage APIs behind a new coordinator does not complete the change.</p>
+<p>A Psi-only request carries its completed portable artifact forward to publication.
+Native phases process only its requested native products, including any required
+auxiliary adapters; they do not demand a native main program. An empty native
+request carries the record through without native work. Retained portable bytes
+are a finished output, never an earlier executable graph used to recover facts.
+Specify these product/request variants in the input-custody gate before coding.</p>
 <p>Native planning absorbs the current early realization/Omega 00–04 operations
 that must cooperate to close retained-body demand. Physical planning owns
 allocation, physical alternatives, frames and generated-body construction.
@@ -963,6 +1027,80 @@ This is a recommended starting boundary, <strong>not a proved claim</strong> tha
 optimizations can close reach before encoding. The proof and adjustments are
 part of §8; a downstream discovery cannot be excused as “just a helper.”</p>
 <h2 id="4-source-settlement-evaluation-and-provider-body-closure">4. Source settlement, evaluation and provider-body closure</h2>
+<h3 id="keep-the-operations-visible">Keep the operations visible</h3>
+<p>The canvas unfolds each proposed owner into its operations and intermediate
+forms by default. A shared owner does not erase lexing, parsing, resolution,
+typing, preparation, lowering or checking. Decimal labels identify operations
+inside a proposed stage; they are not current crate numbers.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Proposed owner</th>
+<th>Visible operations, in dependency order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00 Inputs</td>
+<td>Record source custody; admit compilation requests and budgets.</td>
+</tr>
+<tr>
+<td>01 Source</td>
+<td>Lex → tokens; parse → syntax; resolve → bound names; type → typed trees; prepare applications and required values → prepared trees; lower → lowered Psi; check → accepted Psi; selected Psi optimizations → transformed Psi; check transformed Psi → accepted result.</td>
+</tr>
+<tr>
+<td>02 Portable publication</td>
+<td>Encode accepted Psi; seal identities, evidence and carried requests.</td>
+</tr>
+<tr>
+<td>03 Native planning</td>
+<td>Join Build selections to checked bodies; compute and validate calling policies; lower to abstract operations; optimize abstract operations; lower to target operations; select instructions; optimize selected instructions; close retained body demand and generated recipes.</td>
+</tr>
+<tr>
+<td>04 Physical planning</td>
+<td>Construct generated bodies and constraints; allocate registers; lower physical operations; plan frames and complete effects/resource dependencies.</td>
+</tr>
+<tr>
+<td>05 Resources</td>
+<td>Derive complete resource summaries; check installation limits and bind resources.</td>
+</tr>
+<tr>
+<td>06 Encoding</td>
+<td>Encode ordinary/generated bodies and frames; publish alternatives and fixups.</td>
+</tr>
+<tr>
+<td>07 Layout</td>
+<td>Place fragments; relax and patch carried alternatives; apply selected layout optimizations.</td>
+</tr>
+<tr>
+<td>08 Objects</td>
+<td>Construct sections/symbols/relocations; form object containers.</td>
+</tr>
+<tr>
+<td>09 Images</td>
+<td>Place objects; resolve image relocations and loader metadata; finish signatures/container metadata.</td>
+</tr>
+<tr>
+<td>10 Publication</td>
+<td>Install finished products; return publication receipts.</td>
+</tr>
+</tbody>
+</table></div>
+<p>This order shows dependencies, not a promise of one visit per operation. Source
+resolution, typing and preparation have demand-driven worklists. Required value
+evaluation privately prepares, lowers, checks and admits the exact invocation,
+then executes it and returns a value plus receipts to preparation. Display that
+sequence inside the preparation operation. Final program checking remains
+visible after lowering. Selected Psi passes run only after that check; the same
+checker runs again only for a nonempty selection. Native planning likewise
+closes its worklist before releasing its output. These iterations must remain
+visible in the map; hiding them would misrepresent the proposed design.</p>
+<p>The mapping preserves the operations documented by the
+<a href="https://github.com/CathedralOS/Omega/blob/e4563d45661cbbe0e45038dffe085cdc0367217c/omega-rust/pipeline.md#L143-L179">compiler route</a>
+and the <a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/build/optimizations.md#L30-L108">optimization ordering</a>. Their proposed
+grouping and exact private scheduling remain subject to §8, including generated
+body constraints and optimization-related reach. A diagram is not evidence that
+those ordering gates have closed.</p>
 <h3 id="why-the-old-source-stage-boundaries-change">Why the old source stage boundaries change</h3>
 <p>The recommendation is to replace the externally sequenced Psi 00–06 source
 route with one source-settlement transition. Source acquisition remains outside
@@ -997,34 +1135,45 @@ The scope is bounded by one target-neutral source result; package acquisition,
 process execution, native lowering and file publication are not absorbed into
 an all-purpose compiler stage.</p>
 <h3 id="evaluation-is-an-explicit-operation-on-accepted-code">Evaluation is an explicit operation on accepted code</h3>
-<p>The source compiler produces the program; the source evaluator runs computations
-needed while preparing it, such as constants and layout policies. These are
-different operations. The current evaluator also prepares and checks invocation
-programs, which entangles their ownership. The replacement keeps compilation in
-source settlement and gives the executor an already accepted invocation.</p>
-<p>Settlement constructs, lowers and checks the exact required invocation closure,
-then gives the executor immutable accepted code plus sealed invocation admission.
-That admission binds caller, entry, arguments, target/supplies, permitted
-observations and work account. It is the result of source-consent checks, not
-<code>InvocationSourceConsent</code>, a source owner or a lookup callback. The executor
-validates the binding, invokes the interpreter and returns values/status with
-invocation-bound observation and work receipts. Settlement alone decides how
-those values update source preparation.</p>
-<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">source-job preparation</a> and
-<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/product/retained_provider_selections.rs#L120">retained-product preparation</a> move to settlement.
-The actual <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L402">invocation engine</a> remains an execution service.
-Simply making <code>build-time-evaluation</code> depend on <code>source-compiler</code> creates a
-cycle because the reverse <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/Cargo.toml#L16">dependency already exists</a>. Both
-APIs must be replaced together in this migration.</p>
+<p>The source compiler currently requests values while preparing a program; the
+evaluator also prepares and checks invocations. <a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L115-L185">Source preparation</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">invocation preparation</a> show the mixed ownership. The spec requires
+checked, hermetic evaluation, not an external executor interface.</p>
+<p><strong>01 owns source evaluation; 03 owns calling-policy computation.</strong> In 01, private
+operations construct, lower and check the exact invocation, bind its caller,
+arguments, target/supplies, permitted observations and work account, execute it,
+and use the result to finish source preparation. Preserve termination, empty
+runtime-service reach, suspension/trap restrictions, executable dependencies and
+all other <a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/language/evaluation.md#L34-L82">invocation admission rules</a>. Each invocation
+uses fresh owned value storage; only permitted value snapshots and bound receipts
+leave it. No host/compiler reference escapes into a computed value.</p>
+<p>03 evaluates carried, accepted calling-policy code over the carried signature,
+target facts and admission record, then checks the returned ABI plan. The current
+<a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1-L92">CallingPolicyEvaluator callback</a> is a path to retire, not a
+proposed shared service. A private evaluator interprets the stage's accepted
+input; it cannot request source preparation or choose a different logical body.</p>
+<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">source-job preparation</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/product/retained_provider_selections.rs#L120">retained-product preparation</a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L402">invocation execution</a> must be assigned to these owners
+together. The reverse <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/source-compiler/Cargo.toml#L16">dependency already exists</a>; reversing
+one import is not the repair. Language execution is compiler-semantic work,
+not a generic primitive. Sharing an interpreter-shaped compiler service outside
+the stages would preserve the rejected topology. Any shared algorithm must
+actually be language-independent; otherwise assign it to the stage or revise
+the stage boundary. Keep runtime interpretation of finished Psi a separate
+product consumer, outside compilation.</p>
 <h3 id="close-logical-providers-without-violating-the-firewall">Close logical providers without violating the firewall</h3>
 <p>Available declarations are not roots. Settlement receives admitted Build
 selection/binding descriptions in Psi-neutral data: exact declaration IDs,
 source scope, target keys and language-level requirements. It owns discovery
-and preparation of each selected provider body and its transitive source
-dependencies. The output contains the exact logical selections, required body
-catalog and their acceptance/provenance. Nothing later can request another
+and preparation of the required checked candidate bodies and their transitive
+source dependencies. The output contains the checked catalog, neutral selection
+records and their acceptance/provenance. Nothing later can request another
 source file, activate a declaration or rejoin a source <code>SymbolTable</code>.</p>
-<p>Omega then evaluates/validates physical ABI plans over those closed identities.
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/terminal-psi/product.md#L68-L99">Psi product contract</a> keeps exact checked candidates
+portable; Omega joins the target's Build row to that catalog. Source settlement
+must not take over target-specific provider choice. Omega then evaluates and
+validates physical ABI plans over those closed identities.
 Failure cannot trigger an alternative logical provider or reopen settlement.
 The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260">closure loop</a> and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14">calling-policy inputs</a>
 must therefore be split by meaning, not moved wholesale before a renamed O00.
@@ -1317,7 +1466,7 @@ relocations. No stage after encoding may create a new executable body.</p>
 </tr>
 <tr>
 <td>Live host operation</td>
-<td>Packages, executor/runtime, products or host support</td>
+<td>Packages, runtime, products or host support</td>
 <td>Performs acquisition, execution or publication, not a compiler transformation.</td>
 </tr>
 </tbody>
@@ -1377,7 +1526,8 @@ production. Its request identifies which originals must be retained; absence
 refuses that audit. Moving a validator beside a representation does not remove
 its dependency on a producing stage or make it independent.</p>
 <p>The verifier route receives current data and retained evidence directly through
-a verification dispatcher. Program representations hold no callback into the
+its declared phase/product boundary. Its input and report are explicit records;
+its checking logic retains independent authority. Program representations hold no callback into the
 native driver or an earlier stage. Separate shared vocabulary/codecs from
 independent checking logic; do not deduplicate a verifier into the producer
 whose error it must catch. Proof search, certificate admission, source acceptance,
@@ -1420,7 +1570,7 @@ Each destination is <strong>judgment</strong> and requires a per-export classifi
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/build-time-values/Cargo.toml#L1">build-time-values</a></td>
 <td style="text-align: right;">91</td>
-<td>Put immutable evaluation result values beside the executor contract; source settlement interprets them. Move native-binding description production to Build.</td>
+<td>Carry immutable computed values in the producing stage result; source settlement interprets source values. Move native-binding description production to Build.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/compiler-storage/Cargo.toml#L1">compiler-storage</a></td>
@@ -1440,7 +1590,7 @@ Each destination is <strong>judgment</strong> and requires a per-export classifi
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/evaluation-accounting/Cargo.toml#L1">evaluation-accounting</a></td>
 <td style="text-align: right;">1,499</td>
-<td>Separate invocation/work records carried by accepted programs from evaluation sponsorship, limits and charging owned by source settlement/execution services.</td>
+<td>Separate invocation/work records carried by accepted programs from evaluation sponsorship, limits and charging private to the invocation-owning stage.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/foundation/execution-admission/Cargo.toml#L1">execution-admission</a></td>
@@ -1720,7 +1870,7 @@ bridges and all audit consumers have moved within the same integrated change.</p
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-selection/Cargo.toml#L1">provider-selection</a></td>
 <td style="text-align: right;">1,874</td>
-<td>Publish exact selected declaration/body/application identities during logical source settlement; native planning may validate these but may not activate source.</td>
+<td>Source settlement publishes the checked candidate catalog and neutral selection records; native planning joins each carried target Build row to exact checked declaration/body/application identities. It may not activate source.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/Cargo.toml#L1">selected-dispatch</a></td>
@@ -1745,7 +1895,7 @@ bridges and all audit consumers have moved within the same integrated change.</p
 <tbody>
 <tr>
 <td><code>declaration_selection</code></td>
-<td>Keep exact occurrence/body identities; preserve the existing resolved → typed → lowering ledger. Logical selection mutation belongs to source settlement.</td>
+<td>Keep exact occurrence/body identities; preserve the existing resolved → typed → lowering ledger. Source settlement owns source identity preparation; native planning joins carried target selections to the checked catalog.</td>
 </tr>
 <tr>
 <td><code>RetainedDeclaration</code>, <code>SourceFile</code>, source scopes/consent</td>
@@ -1815,6 +1965,16 @@ an ordering argument; a diagram alone does not close it.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>Numbered input custody</td>
+<td>Map every request/fact from admission or producer through each 00–10 handoff to its final consumer, with an acyclic type-ownership model preserving the Psi/Omega firewall.</td>
+<td>A mid-pipeline external input, side service, retained earlier program, callback or hidden compilation in a carrier.</td>
+</tr>
+<tr>
+<td>Evaluation ownership</td>
+<td>Assign source evaluation to 01 and target-policy computation to 03; inventory the private algorithms, admission/accounting/result records and deleted executor/callback APIs.</td>
+<td>Language execution relabeled as a primitive, stage work still dispatched outside the chain, or changed values/refusals/charging.</td>
+</tr>
 <tr>
 <td>Source activation and closure</td>
 <td>Exact lazy source activation, extension, evaluation and charging state transitions; preserve error order and checker verdicts. Show that private operations replace, rather than call, the old source stages.</td>
@@ -1888,7 +2048,7 @@ matrix and resolves conflicts across all packages.</p>
 </tr>
 <tr>
 <td>Source and evaluation replacement</td>
-<td>Neutral Build/provider and executor contracts</td>
+<td>Carried input/result records and private evaluation ownership</td>
 <td>Implement lazy source settlement, accepted invocation execution and closed logical body selection; replace old source stage APIs and facade continuations together.</td>
 </tr>
 <tr>
@@ -1942,7 +2102,7 @@ work-package completion, decides whether the compiler can switch.</p>
 </tr>
 <tr>
 <td>Old source stage entry APIs and split continuation/evaluation coordination</td>
-<td>Single source-settlement producer with demand-aware syntax, exact checker acceptance and artifact-only execution.</td>
+<td>Single source-settlement producer with demand-aware syntax, exact checker acceptance and private admitted evaluation; no external executor API.</td>
 </tr>
 <tr>
 <td>External provider-to-source completion and stage work in proposal constructors</td>
@@ -2045,7 +2205,7 @@ example does not establish that outcome.</p>
 <h2 id="11-decisions-still-to-settle">11. Decisions still to settle</h2>
 <p><a href="questions.html">Questions</a> keeps Q-A/B/C/D/F/G aligned with this design. The
 recommendation is explicit: narrow host support; no source custody in leaves;
-one source-settlement owner and artifact executor; shared definition leaves but
+stage-owned source and calling-policy evaluation; shared definition leaves but
 no earlier program access; one common encoding route; logical provider closure
 before native work and full resource binding before encoding. The open items
 are the concrete feasibility proofs in §8, not authorization to perform a
@@ -2071,7 +2231,7 @@ piecemeal migration.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b96560a1a5e9e507549f167e78d6327806479dfa/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/b6cbb698bcbc278765459cb30f7a07a4140c2ab6/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -2229,6 +2389,27 @@ piecemeal migration.</p></main>
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
+  const stageIndex=root.querySelector('.stage-index');
+  const stageButtons=[...stageIndex.querySelectorAll('[data-stage]')];
+  const stageContext=root.querySelector('.stage-context');
+  let activeStage=null,flight=0;
+  function trackStage(transform){
+    if(view!=='proposed')return;
+    const top=(Math.min(80,viewport.clientHeight/5)-transform.y)/transform.k;
+    const group=model.groups.find(g=>top<=g.y+g.height)||model.groups.at(-1);
+    if(activeStage===group.id)return;
+    activeStage=group.id;
+    const phase=model.phases.find(([id])=>id===group.id);
+    const owner=nodes.get(phase[1]),output=nodes.get(phase[2]);
+    for(const b of stageButtons){
+      if(b.dataset.stage===owner.id)b.setAttribute('aria-current','step');
+      else b.removeAttribute('aria-current');
+    }
+    stageContext.querySelector('h3').textContent=owner.title;
+    stageContext.querySelector('.stage-result').textContent=output.title;
+    stageContext.querySelector('p').textContent=output.description;
+    stageContext.querySelector('a').href=output.source;
+  }
   let miniWindow;
   function drawMinimap(){
     mini.replaceChildren();mini.setAttribute('viewBox',`0 0 ${model.width} ${model.height}`);
@@ -2245,16 +2426,47 @@ piecemeal migration.</p></main>
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   const camera=zoom().scaleExtent([0.02,2.5]).extent(()=>[[0,0],[viewport.clientWidth,viewport.clientHeight]])
-    .filter(event=>!event.button && (event.type==='wheel' || event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
+    .filter(event=>!event.button && (event.type==='wheel' ? view!=='proposed'||event.ctrlKey : event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
     .on('zoom',event=>{
-      current=event.transform;scene.setAttribute('transform',current.toString());
+      current=event.transform;trackStage(current);scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
       root.dataset.camera=`${current.x},${current.y},${current.k}`;
+      root.dataset.whole=String(current.x>=-1 && current.y>=-1 &&
+        current.x+model.width*current.k<=viewport.clientWidth+1 && current.y+model.height*current.k<=viewport.clientHeight+1);
       miniWindow.setAttribute('x',-current.x/current.k);miniWindow.setAttribute('y',-current.y/current.k);
       miniWindow.setAttribute('width',viewport.clientWidth/current.k);miniWindow.setAttribute('height',viewport.clientHeight/current.k);
     });
   select(svg).call(camera).on('dblclick.zoom',null);
   function move(x,y,k){select(svg).call(camera.transform,zoomIdentity.translate(x,y).scale(k));}
+  function stopFlight(){cancelAnimationFrame(flight);}
+  function stagePosition(node){
+    const k=Math.min(1.05,(viewport.clientWidth-12)/model.width);
+    return {x:(viewport.clientWidth-model.width*k)/2,y:node ? 22-node.y*k : 8,k};
+  }
+  function visitStage(id){
+    clear();stopFlight();
+    const from=current,to=stagePosition(nodes.get(id));
+    const draw=t=>move(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,from.k+(to.k-from.k)*t);
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){draw(1);return;}
+    const start=performance.now();
+    function step(now){
+      const t=Math.min(1,(now-start)/300);
+      draw(1-(1-t)**3);
+      if(t<1)flight=requestAnimationFrame(step);
+    }
+    flight=requestAnimationFrame(step);
+  }
+  for(const b of stageButtons)b.addEventListener('click',()=>visitStage(b.dataset.stage));
+  viewport.addEventListener('pointerdown',stopFlight);
+  viewport.addEventListener('wheel',event=>{
+    stopFlight();
+    if(view!=='proposed'||event.ctrlKey)return;
+    const factor=event.deltaMode===1?16:event.deltaMode===2?viewport.clientHeight:1;
+    const floor=Math.min(8,viewport.clientHeight-24-model.height*current.k);
+    const y=Math.max(floor,Math.min(8,current.y-event.deltaY*factor));
+    if(y===current.y)return;
+    event.preventDefault();move(current.x,y,current.k);
+  },{passive:false});
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
     const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
@@ -2273,7 +2485,7 @@ piecemeal migration.</p></main>
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
   function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
   function inspect(id,isEdge=false,trigger=null){
-    clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
+    stopFlight();clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
     root.dataset.selection=id;root.classList.add('has-trace');
     const chosen=isEdge?edges.get(id):nodes.get(id);
@@ -2283,7 +2495,7 @@ piecemeal migration.</p></main>
     for(const nodeId of activeNodes)root.querySelector(`[data-endpoint="${nodeId}"]`)?.classList.add('is-traced');
     root.querySelector(isEdge?`[data-edge="${id}"]`:`[data-endpoint="${id}"]`)?.classList.add('is-selected');
     detail.replaceChildren();detail.hidden=false;
-    button('Close ×',()=>{detail.hidden=true;selectionTrigger?.focus();}).className='connected-detail-close';
+    button('Close ×',()=>{clear();selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
@@ -2312,6 +2524,10 @@ piecemeal migration.</p></main>
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
+    stageIndex.hidden=stageContext.hidden=view!=='proposed';
+    const help=view==='proposed'?'Scroll to follow the pipeline · pinch or use + and − to zoom · select an arrow to inspect its handoff.':'Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
+    root.querySelector('.connected-help').textContent=help;
+    viewport.setAttribute('aria-label',help+' Arrow keys pan. F fits all.');
     root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
     root.querySelector('.connected-intro').textContent=model.intro;
     root.closest('.architecture').querySelector('.arch-badge').textContent=model.badge;
@@ -2324,6 +2540,7 @@ piecemeal migration.</p></main>
   }
   function switchView(next){
     if(next===view)return;
+    stopFlight();activeStage=null;
     cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
     nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
     const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;
@@ -2338,13 +2555,18 @@ piecemeal migration.</p></main>
   svg.addEventListener('click',event=>{if(!event.target.closest('.overview-node,.overview-edge'))clear();});
   jump.addEventListener('change',()=>{if(jump.value){const n=nodes.get(jump.value);frameConnections(n);inspect(n.id,false,jump);}});
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
-    const action=control.dataset.camera;
+    stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
     if(action==='fit')fit();
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
-    if(action==='expand'){expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);control.textContent=expanded?'Collapse':'Expand';}
+    if(action==='expand'){
+      const fitted=view==='proposed' && root.dataset.whole==='true';
+      expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
+      control.textContent=expanded?'Collapse':'Expand';
+      if(fitted)fit();
+    }
   }));
   viewport.addEventListener('keydown',event=>{
     if(event.target!==viewport)return;
@@ -2368,8 +2590,15 @@ piecemeal migration.</p></main>
     svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);
     const t=responsiveCamera(current,cameraWidth);cameraWidth=viewport.clientWidth;move(t.x,t.y,t.k);
   }).observe(viewport);
-  function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
+  function start(){
+    if(view==='proposed'){
+      const t=stagePosition(null);move(t.x,t.y,t.k);
+      return;
+    }
+    const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);
+  }
   start();
+  if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>
 </body>

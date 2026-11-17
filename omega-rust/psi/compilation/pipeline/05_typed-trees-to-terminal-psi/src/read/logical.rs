@@ -183,7 +183,7 @@ impl MathematicalInputs {
     pub(super) fn new(
         typed: &TypedTrees,
         machine: MachineId,
-        parameters: &[typed_trees::mathematical::MathematicalParameter],
+        parameters: arena::RootRows<'_, typed_trees::mathematical::MathematicalParameter>,
         address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
