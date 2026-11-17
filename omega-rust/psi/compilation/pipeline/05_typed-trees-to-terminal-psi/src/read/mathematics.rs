@@ -1,8 +1,9 @@
 //! Transparent source mathematics in callable premises. This only translates
 //! typed source expressions; the ordinary prover and kernel decide their truth.
-//! Address bounds come from the exact invocation's retained mathematical model.
+//! Ordinary clauses use Terminal Psi's address carrier. Bound invocations use
+//! their exact retained address model.
 
-use semantic_vocabulary::{IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType};
+use semantic_vocabulary::{IntegerMathTerm, MachineId, Proposition, ScalarType};
 use symbols::{BuiltinFunction, BuiltinTypeMember, SymbolHandle};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
@@ -14,7 +15,7 @@ use typed_trees::types::TypeReferenceNode;
 use super::{
     Program,
     contracts::{ClauseScope, ResultTerm},
-    logical::MathematicalInputs,
+    logical::{AddressInterpretation, MathematicalInputs},
 };
 use crate::{Unserved, refuse};
 
@@ -133,6 +134,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical premise argument correspondence"));
         }
+        let address = scope.address_interpretation();
         let mut bound = Vec::with_capacity(parameters.len());
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self.typed.mathematical_types.is_valid(parameter.ty) {
@@ -142,12 +144,7 @@ impl<'t> Program<'t> {
             else {
                 return Err(unserved("higher-order mathematical premise input"));
             };
-            let scalar = super::logical::scalar_type(
-                self.typed,
-                id,
-                *reference,
-                scope.logical.and_then(|logical| logical.model),
-            )?;
+            let scalar = address.scalar_type(self.typed, id, *reference)?;
             let (term, actual) = self.term(id, scope, *argument, Some(scalar))?;
             if actual != crate::body::ValueType::Scalar(scalar, crate::body::Qualification::NONE) {
                 return Err(unserved("mathematical premise input carrier differs"));
@@ -165,10 +162,10 @@ impl<'t> Program<'t> {
     ) -> Checked<Proposition> {
         let (definition_index, definition, bound) =
             self.mathematical_application(id, scope, call)?;
-        let model = scope.logical.and_then(|logical| logical.model);
+        let address = scope.address_interpretation();
         let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
         let expression =
-            self.mathematical_predicate_definition(id, definition_index, model, expanding)?;
+            self.mathematical_predicate_definition(id, definition_index, address, expanding)?;
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
         let actual_inputs = MathematicalInputs::empty();
@@ -181,7 +178,7 @@ impl<'t> Program<'t> {
             subject: None,
             formal_fields: true,
             mathematical: scope.mathematical,
-            logical: Some(actual_inputs.scope(id, model, &expanding)),
+            logical: Some(actual_inputs.scope(id, address, &expanding)),
         };
         self.clause(id, &scope, expression)
     }
@@ -193,7 +190,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         definition_index: usize,
-        model: Option<&typed_trees::callable_signature_shapes::CallableAddressModel>,
+        address: AddressInterpretation<'_>,
         expanding: &[SymbolHandle],
     ) -> Checked<ExpressionHandle> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
@@ -235,7 +232,7 @@ impl<'t> Program<'t> {
         expanding.push(definition.symbol);
         // This environment has only declaration formals. Actual argument terms
         // enter later by exact symbol substitution, without caller assumptions.
-        let formal_inputs = MathematicalInputs::new(self.typed, id, parameters, model)?;
+        let formal_inputs = MathematicalInputs::new(self.typed, id, parameters, address)?;
         let declaration_scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -245,7 +242,7 @@ impl<'t> Program<'t> {
             subject: None,
             formal_fields: true,
             mathematical: super::contracts::MathematicalTerms::Served,
-            logical: Some(formal_inputs.scope(id, model, &expanding)),
+            logical: Some(formal_inputs.scope(id, address, &expanding)),
         };
         let formed = self.clause(id, &declaration_scope, expression)?;
         let parameters = formal_inputs.validate(id, &formed)?;
@@ -339,16 +336,8 @@ impl<'t> Program<'t> {
             return Err(unserved("missing mathematical premise term"));
         }
         if self.address_bound(expression) {
-            let model = scope
-                .logical
-                .and_then(|logical| logical.model)
-                .ok_or_else(|| {
-                    unserved("address bound without the binding's mathematical model")
-                })?;
-            let bound = 1_u128
-                .checked_shl(u32::from(model.carrier.bits()))
-                .ok_or_else(|| unserved("address bound outside mathematical literal support"))?;
-            return Ok(IntegerMathTerm::literal(IntegerValue::Unsigned(bound)));
+            let address = scope.address_interpretation();
+            return address.bound(id);
         }
         match self.typed.expression_table.expression(expression) {
             ExpressionNode::Call(call)

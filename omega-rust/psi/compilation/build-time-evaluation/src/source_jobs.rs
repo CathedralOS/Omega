@@ -2200,12 +2200,42 @@ pub(crate) mod tests {
                 exact_toolchain_sources: sources,
             })
         };
-        assert!(
-            identity(&[]).is_none(),
-            "missing exact source ownership refuses"
-        );
         let retained = identity(&program.exact_toolchain_sources)
             .expect("the complete schema and selected callable retain exact source owners");
+        // Local operand comparisons need not carry portable source ownership.
+        // A portable record requires it, whether supplied or read from retained source.
+        let portable = source
+            .canonical_operation_record_value(operand.symbol, &program.exact_toolchain_sources)
+            .expect("the selected record has exact source owners");
+        assert_eq!(
+            source.canonical_operation_record_value(operand.symbol, &[]),
+            Ok(portable),
+            "retained toolchain source supplies the same portable record identity",
+        );
+
+        let ownerless = typed_with_custody(authored, source::SourceOrigin::User, None);
+        let (requester_without_owner, expression_without_owner) =
+            returned_source_call(&ownerless, "request");
+        let call_without_owner = ownerless
+            .expression_table
+            .call_node(expression_without_owner)
+            .unwrap();
+        let (operand_without_owner, _) = ownerless
+            .source_call_selected_operand(
+                requester_without_owner,
+                typed_trees::references::StaticArgumentCall::Expression(
+                    expression_without_owner,
+                    call_without_owner,
+                ),
+            )
+            .unwrap();
+        assert_eq!(
+            ownerless
+                .canonical_operation_record_value(operand_without_owner.symbol, &[])
+                .unwrap_err(),
+            "a canonical operation record lost its finite selected-value identity",
+            "source without package or toolchain ownership has no portable identity",
+        );
 
         let mut captured_source = source.clone();
         let mut captured = operand.clone().into_owned();

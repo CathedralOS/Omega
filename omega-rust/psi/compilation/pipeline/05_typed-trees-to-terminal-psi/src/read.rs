@@ -1705,7 +1705,7 @@ mod tests {
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
             }],
-            None,
+            logical::AddressInterpretation::BoundCallable(None),
         )
         .unwrap();
         let same_input =
@@ -2037,7 +2037,11 @@ mod tests {
         // A projected invocation keeps the same source input at normal
         // completion. Its guarantee is still an obligation of the ordinary
         // call/return body, rather than an entry premise or executable snapshot.
-        let logical = logical_inputs.scope(machine(), None, &[]);
+        let logical = logical_inputs.scope(
+            machine(),
+            logical::AddressInterpretation::BoundCallable(None),
+            &[],
+        );
         let completion_scope = ClauseScope {
             logical: Some(logical.normal_return()),
             slots: &[],

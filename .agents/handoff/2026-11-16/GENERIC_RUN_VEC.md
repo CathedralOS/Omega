@@ -2,7 +2,7 @@
 
 Root owns PR #3764 and the full Run/Vec outcome under claim `18e89b4f6d3691480000000018e98a76`, in `worker-2`. The current landing covers ordinary linear records and calls. Run/Vec acceptance remains open and stays with this session after that milestone lands.
 
-The fixed integrated base is `d3deb345653b9812607155ff4b51e17db35ca520`. Checkpoint `a9a15989799b2c8083f9966dae946c1a97c84de6` preserves all source before extraction, including the original Run fixture, unfinished native Run paths and the pending address-predicate repair. It is an ancestor of this work, not a completed implementation.
+Checkpoint `41867a04b2c` includes the tested source-context and proof-lookup fixes after merge `fbfa28c5048df86750d31039c2067a44921b9fb6` integrated main `a3c0c319802`. The earlier integrated base was `d3deb345653b9812607155ff4b51e17db35ca520`. Checkpoint `a9a15989799b2c8083f9966dae946c1a97c84de6` preserves all source before extraction, including the original Run fixture, unfinished native Run paths and the pending address-predicate repair. It is an ancestor of this work, not a completed implementation.
 
 ## Current landing
 
@@ -12,17 +12,23 @@ Bodyless requirements have no activation to walk, but their parameter claims sti
 
 The unfinished Run split/merge paths were removed from this landing, including their native operations and unwired source-identity validator. Existing empty-run release remains. General bodyless-header fixes and ordinary ownership code remain. No new Split/Merge capability is claimed.
 
-## Current failure and next checks
+## Current acceptance and remaining landing checks
 
-The unchanged ownership program still needs package setup; neither native execution nor Psi execution has run. The indexed-case repair passes four focused controls: receiving validates its exact selected type without granting cell facts, native preparation preserves its selector, the source interpreter executes both distinct cases and rejects an invalid index, and fixed-case behavior remains intact. All 34 affected crates pass Clippy with all targets and warnings denied.
+The unchanged ownership program now runs on macOS arm64: native exit 0 and Psi exit 0. The run took 52.96 seconds and peaked at 1.60 GB RSS. Its duplicate-transfer twin rejects the second use of `input` with ``claim transport observes unavailable owned storage in machine `main` `` at line 17. That check took 31.29 seconds. The negative previously stopped for an unrelated linear value left at a normal return; it now duplicates the call in `main`, where successful process exit permits the remaining values to be abandoned. This isolates the forbidden second transfer.
 
-The latest original package attempt was stopped after 360.27 seconds, before a verdict or review. A short stack sample placed 220 of 231 active samples in proof-value identity lookup. `Known::new` queries each row by position, while that lookup restarts an iterator each time, giving quadratic work. A later sample reached broader proof search, so this is a demonstrated cost, not the sole proven cause of the delay. The next repair provides direct bounded row lookup while retaining actual identity offsets. The byte-observation worker is testing the exact shared patch with its original table program; its two related proof-search repairs are also available for reuse.
+The actual run was `omega run --both --keep tests/fixtures/run/ownership/linear_sibling_call/main.omg`, without `--target`. Supplying `--target` makes this command compile only, even for the host target. Earlier compile-only success is not execution evidence. The kept program is `/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-65086-0`.
 
-Retry the original package setup after those repairs. If it produces a review, inspect the actual decisions and resume before running the original program. Keep its accepted lock as evidence. The duplicate-transfer twin must reject for using the same linear value twice. Finish admission, squash-merge the reviewed head and verify publication on main. Full Run/Vec remains this session's next work.
+Ordinary address predicates now use the ordinary source address representation. Installed callable bindings still require their valid address model. Named domains can use mathematical expressions, while their embedded executable operations must be proved valid before their conditions are assumed. Tests exercise scalar and record domains, writes to qualified fields, unchanged neighboring fields and refusal of a partial operation that tries to justify itself. The domain-write test passes; its tightened assertion naming the failed domain obligation awaits one focused rerun.
+
+The portable source-identity test now compares the supplied digest with the digest of retained toolchain source. Both match, and source with neither package nor toolchain ownership still refuses. The transparent address-predicate control also passes; its negative retains an actual unproved `no_wrap(base, length)` call requirement. The temporary proof tracing is removed. Fixed-view artifact version 116 distinguishes the new three-way multiplicity layout from main's version 115 copy-bit layout; both old-header refusal controls pass.
+
+Evidence is in `build/ownership/mathematical-domains-host-run/`. The optimized CLI digest is `1062f10d76d55b7606200d8f2048c747adac260591b93cf34e4220a922b0b0fa`. It was built from `41867a04b2ca08bf82813884efee8a4b843bab91` plus frozen patch `a4c7fcba39935efc54ed23576fd7f3138a7dfbcf2c9316047fcf22213d4c378f`; Cargo profile and fingerprint receipts are in `build/ownership/mathematical-domains-current-main/producer.json`. The later changes affect only test code and the negative input. `producer-applicability.json` records that comparison and the checked executable hashes.
+
+Finish the single tightened domain assertion, affected-crate Clippy, repository checks, admission, squash merge and remote verification. Earlier lint passed on `3710611a7d3`; integrated-candidate lint remains pending. Full Run/Vec remains this session's next work.
 
 ## Retained evidence
 
-Results below belong to their recorded source revisions. They are not fresh results on the untested indexed-case patch.
+Results below belong to their recorded source revisions. They do not establish acceptance on the latest integrated source.
 
 - Twenty focused ownership/header controls pass. They cover sibling transfers, altered or erased claim records, sparse IDs, active cases, constructors, returns, borrowed successors and bodyless signatures. The six records are `/tmp/omega-3764-{erasure-bounded,address-and-claims-retry,header-native,header-native-retry,extracted-native,extracted-native-retry}.json`.
 - Three empty-result controls pass, including Unit compatibility and refusal of an inhabited result. Four storage-lifetime controls pass: internal edges retain obligations, normal returns still owe them, incompatible joins refuse, and only empty unclaimed homes retire. See `/tmp/omega-3764-never-unit.json` and `/tmp/omega-3764-hosted-identity.json`.
@@ -32,13 +38,13 @@ Results below belong to their recorded source revisions. They are not fresh resu
 
 - The indexed-case chain passed four controls and affected-crate Clippy on producer `0bf6da5beb4f86c9f6941bd788cb34ea67a87b753ccf6c4d06acf99cef25b564`. `/tmp/omega-3764-indexed-case-retry.json` records the frozen patch, 183-second test build, 189-second CLI build, 67-second lint run and interrupted package attempt (2.48 GB peak RSS). The first attempt stopped at test compilation because its setup tried to clone a non-cloneable graph; the retry constructs that graph directly. No package or runtime success is claimed.
 
-The executable fixtures are `tests/fixtures/{run,fail}/ownership/linear_sibling_call`. Successful process exit explicitly abandons remaining obligations; this witness does not prove resource release. Source review found no blocker in the ordinary claims and empty-result repairs. Formatting, repository rules and dependency boundaries passed at their recorded checkpoints. Runtime acceptance, the duplicate-transfer refusal and admission remain open. The current ownership/indexed-case source has passed scoped lint; later source changes need their affected checks.
+The executable fixtures are `tests/fixtures/{run,fail}/ownership/linear_sibling_call`. Successful process exit explicitly abandons remaining obligations; this witness does not prove resource release. Source review found no blocker in the ordinary claims and empty-result repairs. Formatting, repository rules and dependency boundaries passed at their recorded checkpoints. Runtime acceptance and the intended duplicate-transfer refusal are now recorded above. Admission and lint on the integrated candidate remain open.
 
 ## Resume Run/Vec after the ownership milestone
 
-Reapply only the removed Run and address-predicate changes from `a9a15989799b2c8083f9966dae946c1a97c84de6`, keeping the landed ownership fixes, and continue the original Run source and contracts. The original fixture is `tests/fixtures/pass/collections/run_split_merge/main.omg` at that revision. Its missing-cut twin must reach and fail the actual call requirement.
+Reapply only the still-missing Run changes from `a9a15989799b2c8083f9966dae946c1a97c84de6`, keeping the landed ownership fixes, and continue the original Run source and contracts. The original fixture is `tests/fixtures/pass/collections/run_split_merge/main.omg` at that revision. Its missing-cut twin must reach and fail the actual call requirement.
 
-Both currently stop before that point. The address repair gets past the missing binding-model refusal, but a mathematical domain predicate remains unsupported. Its smaller transparent-predicate positive also reaches a proof operand-type mismatch. These are engineering gaps, not owner decisions. Do not weaken `Granted`, `no_wrap`, the caller contracts or the test oracle.
+The address and mathematical-domain prerequisites now pass their focused controls. The transparent predicate preserves its actual call requirement; the earlier reported operand-type failure came from the test misclassifying an incomplete negative proof. Retry the preserved Run fixture with the current producer before choosing its next repair. Do not weaken `Granted`, `no_wrap`, the caller contracts or the test oracle.
 
 Descriptor geometry does not establish custody of occupied cells. Split/merge still need the actual ordered values, their obligations, contained loans and carry permissions. Keep native and receiving paths from claiming that support until it exists. The interpreter still refused those operations in the preserved source.
 

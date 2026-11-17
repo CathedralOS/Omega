@@ -82,3 +82,37 @@ machine build_entry(base: addr, limit: addr) {{ let seen: bool = probe(base, lim
         "expression cast to or from an address while reading the body of `probe`"
     );
 }
+
+/// Transparent declarations use the same address carrier and exclusive bound
+/// as an ordinary clause. Removing the caller's geometry does not establish it.
+#[test]
+fn a_transparent_predicate_keeps_ordinary_address_geometry() {
+    let source = |input_contract: &str| {
+        format!(
+            "public let no_wrap(base: addr, length: u64): core::Strict<0> =
+    embed(base) + embed(length) <= addr::Bound;
+machine consume(base: addr, length: u64) requires no_wrap(base, length) {{ }}
+machine build_entry(base: addr, length: u64) {input_contract} {{ consume(base, length); }}"
+        )
+    };
+    assert_eq!(
+        verdict(&source(
+            "requires embed(base) + embed(length) <= addr::Bound"
+        )),
+        "accepted"
+    );
+    // Without the caller's bound, this call has an unproved requirement.
+    // The compiler need not prove the proposition false to refuse the call.
+    let unproved = match judge_build(&source("")) {
+        Ok(RouteVerdict::Incomplete(unproved)) | Ok(RouteVerdict::Rejected { unproved, .. }) => {
+            unproved
+        }
+        other => panic!("missing address geometry must refuse the call: {other:?}"),
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::CallRequirement { .. })
+            && unproved[0].statement.contains("no_wrap(base, length)"),
+        "{unproved:?}",
+    );
+}

@@ -64,6 +64,15 @@ pub(super) struct ClauseScope<'s> {
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }
 
+impl<'scope> ClauseScope<'scope> {
+    pub(super) fn address_interpretation(self) -> super::logical::AddressInterpretation<'scope> {
+        self.logical.map_or(
+            super::logical::AddressInterpretation::OrdinaryTerminal,
+            |logical| logical.address,
+        )
+    }
+}
+
 /// Whether a clause may compare mathematical integers. A machine's
 /// `requires`, `ensures` and crash guards may: elaboration and the checker
 /// restate them using the same checked semantic substitution. A data
@@ -1585,22 +1594,13 @@ impl Program<'_> {
             ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
             // counts_and_addresses.md: valid geometry proves `embed(base) +
             // embed(length) <= addr::Bound` "in unbounded proof integers".
-            // The bound is one past the largest address. Here an address is
-            // the one carrier the lowered form gives `addr`
-            // (`read/types.rs`), so the bound is that carrier's. A clause
-            // judged against a binding's own address model is read by
-            // `logical_mathematical_term` instead.
+            // The bound is one past the largest address. Its interpretation
+            // follows this clause: the ordinary lowered carrier, or the exact
+            // retained model of a bound callable.
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                let address =
-                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
-                match 1_u128.checked_shl(u32::from(address.bits())) {
-                    Some(bound) => Ok(IntegerMathTerm::literal(
-                        semantic_vocabulary::IntegerValue::Unsigned(bound),
-                    )),
-                    None => unserved("address bound outside mathematical literal support"),
-                }
+                scope.address_interpretation().bound(id)
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 unserved("runtime value in a mathematical term without embed")

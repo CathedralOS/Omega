@@ -66,6 +66,25 @@ struct Predicate {
     domain: String,
 }
 
+/// Read a domain's clauses over the plain scalar or structural subject that
+/// the caller binds below. Mathematical arithmetic stays in IntegerMathTerm;
+/// embedded carrier computations retain their exact operation and type.
+/// Declaration formation checks those computations before their clause becomes
+/// a premise, and construction/casts still owe the instantiated predicate.
+fn domain_predicate_scope() -> ClauseScope<'static> {
+    ClauseScope {
+        slots: &[],
+        values: &[],
+        bound: &[],
+        owner: SymbolHandle::invalid(),
+        result: ResultTerm::Absent("result in a domain predicate"),
+        subject: None,
+        formal_fields: false,
+        logical: None,
+        mathematical: MathematicalTerms::Served,
+    }
+}
+
 impl Program<'_> {
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
@@ -348,19 +367,7 @@ impl Program<'_> {
                 Unserved::Contract("cast subject identity"),
             ));
         };
-        let scope = ClauseScope {
-            slots: &[],
-            values: &[],
-            bound: &[],
-            owner: SymbolHandle::invalid(),
-            result: ResultTerm::Absent("result in a domain predicate"),
-            subject: None,
-            formal_fields: false,
-            logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
-        };
+        let scope = domain_predicate_scope();
         let subject = ScalarTerm::Value {
             id: subject,
             scalar_type: carrier,
@@ -407,19 +414,7 @@ impl Program<'_> {
         let value_type = result
             .qualified(added)
             .ok_or_else(|| unserved("cast of a rigid value into a domain with predicates"))?;
-        let scope = ClauseScope {
-            slots: &[],
-            values: &[],
-            bound: &[],
-            owner: SymbolHandle::invalid(),
-            result: ResultTerm::Absent("result in a domain predicate"),
-            subject: None,
-            formal_fields: false,
-            logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
-        };
+        let scope = domain_predicate_scope();
         let clauses = self
             .storage_predicates(id, &scope, value_type, root, &[])?
             .into_iter()
@@ -636,19 +631,7 @@ impl Program<'_> {
                 Unserved::Declaration("self place identity"),
             ));
         };
-        let scope = ClauseScope {
-            slots: &[],
-            values: &[],
-            bound: &[],
-            owner: SymbolHandle::invalid(),
-            result: ResultTerm::Absent("result in a domain predicate"),
-            formal_fields: false,
-            logical: None,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a domain predicate",
-            ),
-            subject: None,
-        };
+        let scope = domain_predicate_scope();
         Ok(self
             .storage_predicates(id, &scope, value_type, root, path)?
             .into_iter()

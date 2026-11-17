@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 284 combines explicit
+Marker 255 introduced term tables. Current marker 286 records each structural
+type's declared multiplicity: unrestricted values may be copied, affine values
+may be discarded, and linear values must be consumed. This replaces the old
+copy-permission bit; an earlier payload cannot supply the missing distinction.
+It combines explicit
 structural qualification changes and their issuer routes with normalized
 service contracts, selected provider coordinates,
 entry source commitments, sealed native execution meanings, typed dynamic-family
@@ -1070,7 +1074,7 @@ requirements at the cleanup edge and action ordinal.
 
 ## Machine rows
 
-Current marker 284 combines these public-call and observation records with
+Current marker 286 combines these public-call and observation records with
 explicit structural qualification changes, normalized service schemas, provider
 selections, entry commitments, complete callable catalogs and installation-bound
 service rows. Marker 266's float-conversion integer carriers remain intact.
@@ -1607,7 +1611,7 @@ uses `OMGNTI31`; `OMGNTI30` is retired. The mathematical certificate envelope
 and proof-system marker remain unchanged because this adds no proof rule.
 
 One predecessor marked 277 added whether a boundary requirement's service
-row is installation-bound; the combined marker 284 retains that distinction. A Boolean after its fixed service reach distinguishes
+row is installation-bound; the combined marker 286 retains that distinction. A Boolean after its fixed service reach distinguishes
 an abstract selected row from an ordinary pinned requirement ceiling, including
 when either is empty. An installation-bound requirement has no fixed service
 contribution; its published ceiling remains the selected row's finite upper
@@ -1619,9 +1623,9 @@ The float-conversion predecessor with semantic format marker 278 and vocabulary
 and width must match the exact `FloatSemantics::from_integer` catalog signature.
 Calls substitute this input with their other scalar actuals; it is not an IEEE
 projection or a new float source class. Receiving validates the full equation,
-including the integer carrier. Current marker 284 and vocabulary 142 combine
+including the integer carrier. Current marker 286 and vocabulary 142 combine
 these operands with complete callable and installation contracts. Native input
-record `OMGNTI36` retains the semantic module's strict current header. Earlier
+record `OMGNTI37` retains the semantic module's strict current header. Earlier
 semantic schemas reject before payload decoding. This adds no arithmetic proof
 rule or execution authority.
 
@@ -1629,7 +1633,7 @@ Semantic format marker 279 retains complete domain access rules and the exact
 declaration identities of their subjects, cases and fields. It also retains
 the initial-state identity of a closed callable's specialization template.
 
-The combined semantic format marker 284 retains transparent scalar predicate definitions
+The combined semantic format marker 286 retains transparent scalar predicate definitions
 beside the proposition-declaration table. Each row carries its exact declaration
 identity-table index, an ordered counted list of scalar input declarations, and
 the body proposition. Rows strictly increase by declaration identity; inputs
@@ -1641,7 +1645,7 @@ it discharges arithmetic through the ordinary scalar-operation proof rules.
 These rows are definitions, not callable machines or evidence of their bodies.
 Earlier semantic formats reject before table decoding.
 
-Semantic format marker 284 combines complete callable/service/provider contracts,
+Semantic format marker 286 combines complete callable/service/provider contracts,
 exact source/header/body and installation identities, and scalar predicate
 bodies with integer-result conversions, exact casts and integer-to-IEEE-float
 predicates (proposition tags 20, 21 and 22). It also retains by-value nominal
@@ -1649,12 +1653,12 @@ cleanup: an exact optional cleanup selection on each structural declaration,
 action tag 6 for owned invocation, operation tag 140 for consuming decomposition,
 and cleanup invocation sites identified by their edge and action ordinal.
 Stored callable selection and invocation retain operation tags 138 and 139.
-Neither candidate format 282 nor incoming format 283 supplies this combined
-schema; both reject before payload interpretation, along with older layouts.
+Formats 282 through 285 do not supply this combined schema; they reject before
+payload interpretation, along with older layouts.
 
 Vocabulary marker 142 distinguishes the combined semantics. The native
-terminal-input record uses `OMGNTI36` and rejects both predecessor schemas
-`OMGNTI33` and `OMGNTI35`, as well as other stale versions. Calling applications
+terminal-input record uses `OMGNTI37` and rejects predecessor schemas
+`OMGNTI33`, `OMGNTI35` and `OMGNTI36`, as well as other stale versions. Calling applications
 retain an optional exact semantic formal for dispatch-only table use rather
 than the retired omitted-prefix count. Proof-system marker 9 separately
 records the integer-to-float representability rule and fingerprint tag 32;
@@ -2026,7 +2030,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `u32` declaration identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + `bool` nominal cleanup presence + optional selected declaration identity (`u32`) and cleanup machine id + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `u32` declaration identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + structural multiplicity (`u8`: 1 unrestricted, 2 affine, 3 linear) + `bool` nominal cleanup presence + optional selected declaration identity (`u32`) and cleanup machine id + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + `u32` source declaration identity + binding relevance + structural field type |
 | structural case | `u32` source declaration identity + structural case id + identity string + counted payload structural fields |
@@ -2038,14 +2042,14 @@ producer state and rederives every ordering rule.
 | concrete root service reach | counted service ids |
 | installation reach dependency | requirement identity string + counted service-id upper bound |
 
-Semantic format marker 284 retains the structural qualification change table
+Semantic format marker 286 retains the structural qualification change table
 after the structural domains. Each row is one explicit `value as +D` or
 `value as -D` on a structural value: the successor edge and structural argument
 ordinal that carry it, the source place, and the fresh destination block
 parameter whose declared whole-value domains differ from the source's. Rows are
 strictly ordered by machine, edge and ordinal; each row's establishments are
 strictly ordered by domain and name only domains the change adds that have
-issuer routes. Marker 284 combines these rows and complete callable contracts
+issuer routes. Marker 286 combines these rows and complete callable contracts
 with marker 276's numeric clauses, marker 273's public result-lifetime groups,
 installation-bound service rows and optional machine-parameter upper bounds.
 The combined format also retains typed integer float-equation operands, complete
@@ -2053,10 +2057,10 @@ saved domain access policies, exact subject/type/case/field declaration identiti
 and the original template entry for specialized machines.
 An absent machine upper bound differs from an explicit empty bound. Vocabulary
 marker 142 describes this combined schema. The incompatible predecessor schemas
-marked 280 and 281, including independent layouts that shared marker 280, and
+marked 280 through 285, including independent layouts that shared marker 280, and
 every earlier semantic format reject before payload interpretation.
-The `OMGFCV\0\0` fixed-view recovery envelope uses version 110 for this semantic
-vocabulary; versions 103, 104, 105, 106, 107, 108 and 109 reject at the recovery header.
+The `OMGFCV\0\0` fixed-view recovery envelope uses version 116 for this semantic
+vocabulary; versions 103 through 115 reject at the recovery header.
 
 A present domain access policy carries the complete runtime schema image,
 optional issuance callers, counted reader and writer rules, observations and
@@ -3071,7 +3075,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 284 | yes |
+| semantic module | `PSITERM\0` | 286 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
