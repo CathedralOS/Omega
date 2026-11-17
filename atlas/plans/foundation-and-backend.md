@@ -84,6 +84,38 @@ full snapshot walkthroughs. These observations determine the new contracts:
 
 ## 3. Recommended destination and stage contracts
 
+**Proposed · unverified contracts.** This figure states the intended whole-program
+handoffs for one coordinated cutover. The table below supplies their invariants;
+§8 names the feasibility work that must finish before implementation.
+
+```mermaid
+flowchart LR
+  A[Admitted source bytes and requests]
+  B[Source settlement: lazy source and evaluation closure]
+  C[Accepted canonical Psi]
+  D[Native program planning: retained-body closure]
+  E[Physical program planning: all generated bodies]
+  F[Installation and resource binding]
+  G[Common encoding]
+  H[Layout and relaxation]
+  I[Object construction]
+  J[Image construction]
+  K[Product publication]
+  A -.-> B
+  B -.-> C
+  C -.-> D
+  D -.-> E
+  E -.-> F
+  F -.-> G
+  G -.-> H
+  H -.-> I
+  I -.-> J
+  J -.-> K
+```
+
+Independent verification is a separate consumer of current forms and the
+originals its request explicitly retains. It does not produce program meaning.
+
 **Judgment:** keep the public transformation boundaries where a complete output
 can be stated without asking a previous phase for more work. Coarsen the current
 boundaries that participate in an actual dependency loop. Keep their algorithms

@@ -17,7 +17,9 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Bootstrap](subsystems/bootstrap.md) | Construction routes and self-rebuild limits. |
 | [Tools](subsystems/tools.md) | Repository commands and verification. |
 | [Library](subsystems/library.md) | Bundled declarations and target providers. |
-| [Pipeline diagrams](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
+| [Original map](artifacts/pipeline-map/original.html) | Preserved authored presentation, clearly labeled historical. |
+| [Interactive architecture](artifacts/architecture.md) | Separate whole-system canvas with pan, zoom and source links. |
+| [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
 | [Questions](questions.md) | Open decisions and recommendations. |
 | [Owner rulings](rulings.md) | Dated decisions governing the destination. |
@@ -30,8 +32,12 @@ contracts and deletions. [Questions](questions.md) remain open;
 
 ## Pages and publication status
 
-The [atlas index](index.html) links all 13 subject pages, including the
-[pipeline diagrams](pages/pipeline-map.html), the
+The [atlas index](index.html) restores Claude's original authored pipeline map
+as the primary presentation. Its established [map URL](pages/pipeline-map.html)
+keeps the same drawing, layout and colors. A small historical label links the
+[reviewed current account](pages/pipeline-current.html), the separate
+[interactive architecture](pages/architecture.html), and all 15 subject pages,
+including the
 [plan](pages/foundation-backend-plan.html), questions and rulings. Navigation
 and page numbers come from one registry; counts come from generated evidence.
 The two established page URLs remain unchanged.
@@ -41,7 +47,7 @@ The publishing workflow copies only `index.html`, `pages/` and `design/` to
 review candidate; it does not update that site. The generated pages link
 Markdown sources and evidence on GitHub because those files are not deployed.
 
-Every page distinguishes two revisions. **Compiler snapshot** is the source
+Reviewed pages distinguish two revisions. **Compiler snapshot** is the source
 reviewed for the map: `3f9ce43f0c9d179048911d18faa91ba93f60176d`. **Atlas content**
 is the committed prose, evidence and rendering sources recorded in
 [content-revision.txt](content-revision.txt). Publishing newer atlas pages does
@@ -153,7 +159,31 @@ templates and build entrypoints have been removed.
 
 ## Explore locally
 
-The landing and repository pages include native and Psi walkthroughs. They
+The separate [interactive architecture page](pages/architecture.html) contains
+one full current architecture canvas. It joins the numbered source and native stages with Build, providers,
+runtimes, library, construction and supporting owners. Family color identifies
+ownership; the separate edge legend identifies data, invocation, dependency,
+construction, validation and normative relationships. Select a box for its
+handoffs and pinned evidence. Drag, scroll or use arrow keys to pan; Ctrl/Meta-scroll zooms. Fit all shows
+the overview; Reset returns to readable natural-scale labels. A minimap shows
+the viewport within the whole architecture and moves it on click. Fullscreen
+keeps the current camera. A grouped jump control makes every
+owner reachable without dragging. The map never starts motion automatically.
+Its complete text outline remains available without JavaScript.
+
+The immutable original HTML is `artifacts/pipeline-map/original.html`, copied
+from the recorded #3899 publication. The builder preserves every SVG byte and
+changes only local asset loading and the historical navigation strip. Its old
+claims and estimates are not refreshed observations; `artifacts/pipeline-map/map.md`
+owns the corrected current account.
+
+The model and static SVG fallback live in `artifacts/whole_map.py`; DPR-aware Canvas2D drawing, camera and selection
+behavior live in `artifacts/architecture.js`, with styles in
+`artifacts/architecture.css`. These use the categorical tokens documented in
+[the design kit](design/README.md). The current canvas does not claim that the
+proposed linear contracts already exist.
+
+The secondary disclosure contains native and Psi walkthroughs. They
 start paused; Next and Previous step through explanatory handoffs. Selecting
 a box shows its incoming and outgoing connections and pinned source. Play is
 a guided reading aid, not a measured execution trace. Reduced motion disables
@@ -173,6 +203,7 @@ publication is requested. Check the interaction paths against the running
 preview with:
 
 ```bash
+python3 atlas/artifacts/check_architecture.py --base-url http://127.0.0.1:8765/artifacts/out/
 python3 atlas/artifacts/check_interactions.py --base-url http://127.0.0.1:8765/artifacts/out/
 ```
 

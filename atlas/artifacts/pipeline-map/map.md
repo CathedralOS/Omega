@@ -134,38 +134,26 @@ states that distinction. A migration must decide who owns these checks and
 their retained inputs; moving their files alone does not remove the stage
 calls or Cargo dependencies.
 
-## Proposed ownership: contracts before numbering
+## Proposed ownership: one integrated migration
 
-**Judgment.** Make provider settlement an explicit step before Omega 00,
-and place program-derived data in the representations that carry it.
-Preserve later installation binding until the plan defines how measured
-handler requirements arrive. Extract the remaining emission work in a
-dependency-safe order. Exact stage numbers and the whole-program treatment
-of recursive handler compilation remain open in [Q-F and Q-G](../../questions.md).
+**Judgment.** The [complete proposed contract](../../plans/foundation-and-backend.md#3-recommended-destination-and-stage-contracts)
+replaces the old extraction sequence. Source settlement must close lazy source
+and logical provider discovery; native planning closes retained-body demand over
+accepted code. Physical planning must represent every generated body before
+resource binding and common encoding. Image construction then consumes carried
+plans rather than generating more code.
 
-```mermaid
-flowchart TD
-  C[Define input and output contracts]
-  P[Extract provider settlement and its closure]
-  M[Carry later facts in native representations]
-  I[Resolve measured installation requirements]
-  E[Extract emission steps and audit ownership]
-  D[Delete replaced paths after their users move]
-  C -.-> P
-  P -.-> M
-  M -.-> I
-  I -.-> E
-  E -.-> D
-```
-
-These arrows order planning dependencies. They are not implemented pipeline
-stages. The [migration plan](../../plans/foundation-and-backend.md) names the
-intermediate contracts and deletion conditions. The
-[owner rulings](../../rulings.md) remain the authority for the destination.
+This is one coordinated cutover, planned before compiler implementation. Its
+[feasibility gates](../../plans/foundation-and-backend.md#8-planning-completion-gates-before-implementation)
+must establish source/provider separation, demanded-body preservation and stable
+resource binding. The [execution plan](../../plans/foundation-and-backend.md#9-one-integrated-execution-plan)
+orders internal work and retirement conditions; it is not a rollout of separately
+adopted architectures. Exact stage numbers remain open. The
+[owner rulings](../../rulings.md) govern the destination.
 
 ## Size is evidence, ownership is a judgment
 
-The figures at the top are generated from
+The measurement panel is generated from
 [`counts.json`](../../evidence/data/counts.json). They count all tracked Rust
 source lines within Cargo package directories, including test files, under
 the counting rules in the [evidence manifest](../../evidence/data/manifest.json).

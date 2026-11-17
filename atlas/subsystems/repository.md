@@ -75,13 +75,12 @@ The corresponding execution and rejection cases live in the
 
 ## What the full atlas should preserve
 
-*Judgment:* put this repository map above the subsystem pages. Show the Rust
-product's numbered pipeline within its own map, then show the Omega-written
-implementation's correspondence and missing coverage separately. Bootstrap
-construction is another view over inputs, producers and trust assumptions, not
-another numbered product stage. This follows the product ownership split and
-bootstrap's explicit permission to change construction topology. [Roles][r01];
-[bootstrap authority][r07].
+*Judgment:* start with one full architecture map, then link to the subsystem
+pages for detail. Show the Rust product's numbered pipeline, runtime consumers,
+Omega-written implementation and bootstrap peers together. Label construction,
+implementation correspondence and unfinished work distinctly from program data
+flow. Bootstrap is not another numbered product stage: its mandate permits
+changes to construction topology. [Roles][r01]; [bootstrap authority][r07].
 
 The source itself supplies two cautions for future updates. The diagram in
 [`source/README.md`][r21] presents bootstrap and self-rebuild without their status;

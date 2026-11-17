@@ -38,7 +38,7 @@ class Page(HTMLParser):
             self.links.append(attrs['href'])
             self.current += attrs.get('aria-current') == 'page'
         if tag == 'h1': self.h1 += 1
-        if tag == 'svg':
+        if tag == 'svg' and attrs.get('aria-hidden') != 'true':
             self.diagrams += 1
             assert attrs.get('role') == 'img' and attrs.get('aria-label'), f'SVG needs its claim: {self.path}'
         if tag == 'link' and attrs.get('rel') == 'stylesheet': self.assets.append(attrs['href'])

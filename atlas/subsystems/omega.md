@@ -246,52 +246,27 @@ start importing or executing a stage merely to read a record.
 
 ## Proposed route and migration dependencies
 
-The [full plan](../plans/foundation-and-backend.md#b7-pr-sequence-for-part-b)
-orders the implementation. The following diagram is **judgment**, not the
-current implementation. Numbers must be assigned after inserting settlement
-and binding; today's O00–O09 names remain useful migration references.
+The [complete migration plan](../plans/foundation-and-backend.md#3-recommended-destination-and-stage-contracts)
+contains the proposed contract figure and phase table. **Judgment:** close source
+and logical providers before native planning, then carry demanded bodies through
+physical planning, resource binding and one encoding boundary. Image construction
+must consume completed executable bodies. This differs from today's per-body
+route and late bridge production shown above.
 
-```mermaid
-flowchart TD
-  A[Admitted Psi plus target and policy input bundle] --> B[Numbered provider closure and native admission]
-  B --> C[Current program with complete reachable body roster]
-  C --> D[Abstract and target lowering then instruction selection]
-  D --> E[Allocation and frame planning with symbolic installation demands]
-  E --> F[Derive measurements and bind installation facts]
-  F --> G[Encoding then layout and relaxation]
-  G --> H[Fragments then text then object then image]
-  H --> I[Product publication]
-```
+The [planning gates](../plans/foundation-and-backend.md#8-planning-completion-gates-before-implementation)
+must establish the unresolved ordering. O03 currently needs bound installation
+facts, while those facts depend on compiled handlers. Numeric consumers must be
+classified, generated body effects made explicit and resource binding shown to
+preserve prior register/frame choices. Cyclic resource demand must still be
+refused. The current code does not prove that this proposed separation works.
 
-The symbolic installation path is a proposed dependency repair, not a completed
-design. O03 currently needs bound facts before selecting instructions. Its
-numeric consumers must be classified: carry deferred operands where possible,
-and move any measurement-dependent choice to a later owner where necessary.
-Existing refusal of cyclic resource demand must remain. Until that contract is
-proved, the observed per-body route above is the truthful map.
-
-Four changes can be assessed separately while that contract is developed:
-
-1. Split primitive bytes from semantic encoders. `identity_encoding` reads
-   [scalar/callable/float types][byte-encoder]; `structural_path_encoding` reads
-   [language field/case paths][path-encoder]. They belong with semantic
-   vocabulary, not a generic wire package.
-2. Separate target descriptions from program work. A register catalog is
-   target-only data; [`evaluate_call_plan(policy, signature)`][call-plan]
-   allocates argument/result locations for a particular signature. Its result
-   belongs in a carried plan, and its computation has a producer.
-3. Establish O07's encoding/fixup contract before moving all ISA encoders.
-   O08 still [re-encodes callback materializations][callback-encoder], as well
-   as resolving branches. Encoding alternatives must cover those uses and
-   frame-induced displacement changes.
-4. Move the late transformation route in order. Fragment/text stages can move
-   before image bridges, but `machine-emission` cannot be deleted until its
-   bridges move too. Move validator calls to independent APIs before removing
-   their stage allowances. Enforce each migrated dependency immediately.
-
-The open design choices are recorded as [Q-A/B/C/D/F/G](../questions.md).
-Nothing here changes provider authority, accepted language semantics or the
-owner's rulings; it makes the remaining implementation work concrete.
+The [integrated execution plan](../plans/foundation-and-backend.md#9-one-integrated-execution-plan)
+orders one coordinated cutover, including semantic encoder ownership, carried
+ABI plans, O07/O08 encoding alternatives, emission facts, runtimes, independent
+checks and deletion of replaced paths. These are coupled obligations, not a set
+of separately adopted package moves. [Questions](../questions.md) retain the
+recommendations that still need a ruling. No compiler implementation or owner
+ruling changes in this atlas update.
 
 
 [abstract]: https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/src/lib.rs#L29
