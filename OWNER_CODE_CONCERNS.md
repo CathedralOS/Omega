@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Capture comparisons leave their time scope implicit
+- Category: A verdict with nothing behind it
+- Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
+- Saw: Captured paths record static `(BlockId, u32)` positions. `Backing::same_single_region` and `Backing::definitely_contains` compare those paths without receiving an entry version. Lifetime and whole-value consumption checks live elsewhere; a static position alone does not distinguish separate loop entries.
+- Cost: Reviewers must trace each caller to establish which execution the comparison covers. A loop that retires a binding and changes its index at the same capture point remains unverified; no accepted invalid program was observed. Make that time-scope premise explicit in the comparison API or establish one common caller rule.
+- Reported: 2026-11-17, Codex, while checking reference transport through nested-machine loops
+
 ### Typed conversion leaves operand formation as an implicit caller obligation
 - Category: A verdict with nothing behind it
 - Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
