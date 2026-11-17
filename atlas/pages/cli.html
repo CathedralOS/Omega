@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How commands reach compilation, execution, inspection, and package operations.">
+  <title>CLI</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
+
+.architecture { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); background: var(--surface); }
+.arch-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 16px 8px; }
+.arch-header h2 { font: var(--type-heading); margin: 0; }
+.arch-header a { font: var(--type-label); color: var(--family-native); }
+.arch-badge { font: var(--type-label); color: var(--ink-muted); }
+.arch-legend,.arch-relations { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 6px 16px; font: var(--type-label); }
+.arch-legend span { color: var(--family); display: inline-flex; align-items: center; gap: 6px; }
+.arch-legend i { width: 12px; height: 12px; display: inline-block; background: var(--family); }
+.family-psi { --family: var(--family-psi); --family-bg: var(--family-psi-surface); }
+.family-native { --family: var(--family-native); --family-bg: var(--family-native-surface); }
+.family-build { --family: var(--family-build); --family-bg: var(--family-build-surface); }
+.family-runtime { --family: var(--family-runtime); --family-bg: var(--family-runtime-surface); }
+.family-library { --family: var(--family-library); --family-bg: var(--family-library-surface); }
+.family-bootstrap { --family: var(--family-bootstrap); --family-bg: var(--family-bootstrap-surface); }
+.family-omega-source { --family: var(--family-omega-source); --family-bg: var(--family-omega-source-surface); }
+.family-support { --family: var(--family-support); --family-bg: var(--family-support-surface); }
+.arch-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px; border-block: 1px solid var(--rule); }
+.arch-zoom { display: flex; flex-wrap: wrap; gap: 6px; }
+.arch-toolbar button,.arch-toolbar select { min-height: 36px; border-width: 1px; }
+.arch-toolbar select { max-width: 260px; padding: 8px; color: var(--ink); background: var(--surface); border: 1px solid var(--ink-muted); font: var(--type-label); }
+.arch-jump { font: var(--type-label); display: flex; gap: 8px; align-items: center; }
+.arch-relations { color: var(--ink-muted); font-size: 12px; }
+.arch-relations span { display: inline-flex; align-items: center; gap: 6px; }
+.arch-relations svg { display: inline-block; width: 30px; height: 12px; overflow: visible; }
+.arch-relations path { stroke: var(--ink-muted); stroke-width: 1.5; fill: none; }
+.arch-workspace { position: relative; }
+.architecture-figure { margin: 0; }
+.arch-viewport { background: var(--ground); overflow: auto; position: relative; min-width: 0; }
+.arch-svg { display: block; width: 100%; min-width: 1100px; height: auto; }
+.arch-svg marker path { fill: var(--ink-muted); }
+.arch-row-label { fill: var(--ink-muted); font: 500 22px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+.arch-edge > path { fill: none; stroke: var(--ink-muted); stroke-width: 1.5; }
+.arch-edge > text { display: none; fill: var(--ink-muted); font: 400 16px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+
+.arch-edge.relation-invoke > path,.arch-relations .relation-invoke path { stroke-dasharray: 8 5; }
+.arch-edge.relation-dependency > path,.arch-relations .relation-dependency path { stroke-dasharray: 2 5; }
+.arch-edge.relation-construction > path,.arch-relations .relation-construction path { stroke-dasharray: 12 4 2 4; }
+.arch-edge.relation-validation > path,.arch-relations .relation-validation path { stroke-dasharray: 2 7; stroke-width: 2.5; }
+.arch-edge.relation-normative > path,.arch-relations .relation-normative path { stroke-dasharray: 12 7; stroke-width: 2.5; }
+.arch-edge.relation-bypass > path,.arch-relations .relation-bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.arch-edge.relation-bypass > text { fill: var(--trap); }
+.arch-node rect { fill: var(--family-bg); stroke: var(--family); stroke-width: 2; }
+.arch-node .family-stripe { fill: var(--family); }
+.arch-node text { fill: var(--ink); font: 500 20px var(--font-serif); }
+.arch-node[role="button"] { cursor: pointer; }
+.arch-node.is-selected rect { stroke: var(--ink); stroke-width: 4; }
+.arch-node.is-selected text { text-decoration: underline; text-underline-offset: 4px; }
+.arch-edge.is-related > path { stroke-width: 3.5; }
+.architecture.has-selection .arch-edge:not(.is-related) > path { stroke: var(--rule); marker-end: url(#arch-arrow-quiet); }
+.arch-node:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.architecture-figure figcaption,.arch-help { font: var(--type-label); color: var(--ink-muted); margin: 0; padding: 8px 16px; }
+.arch-outline { padding: 8px 16px; font: var(--type-label); }
+.arch-outline dt { font: var(--type-subheading); margin-top: 24px; }
+.arch-outline dd { margin-left: 0; max-width: 80ch; }
+.arch-detail { position: absolute; right: 16px; top: 16px; width: 330px; max-height: calc(100% - 64px); overflow: auto; background: var(--surface); border: 2px solid var(--family); padding: 16px; }
+.arch-detail h3 { font: var(--type-subheading); margin: 12px 0; }
+.arch-detail p,.arch-detail li { font: var(--type-label); }
+.arch-detail ul { padding-left: 16px; }
+.arch-detail li { margin-bottom: 12px; }
+.arch-detail button { min-height: 36px; }
+.arch-detail-close { float: right; }
+.arch-detail .relationship { color: var(--family); display: block; }
+.arch-detail a { text-underline-offset: 3px; }
+.architecture.is-enhanced .arch-viewport { overflow: hidden; height: max(500px,calc(100dvh - 300px)); touch-action: none; cursor: grab; }
+.architecture.is-enhanced .arch-svg { display: none; }
+.architecture.is-enhanced .arch-viewport.is-dragging { cursor: grabbing; }
+.architecture:fullscreen { width: 100%; height: 100%; overflow: auto; background: var(--surface); }
+.architecture:fullscreen .arch-viewport { height: calc(100dvh - 220px); }
+.overview-page .page { max-width: none; padding: 16px 24px 48px; gap: 16px; }
+.overview-page .top h1 { font-size: 28px; line-height: 34px; }
+.overview-page .top .publication { display: none; }
+.secondary-routes { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); padding: 12px 16px; }
+.secondary-routes > summary { font: var(--type-subheading); }
+.secondary-routes .flow-explorer { margin-top: 16px; }
+@media (max-width: 700px) {
+  .overview-page .page { padding: 12px; }
+  .arch-header { align-items: start; flex-direction: column; gap: 8px; }
+  .arch-header h2 { font-size: 26px; line-height: 32px; }
+  .arch-legend,.arch-relations { gap: 6px 12px; }
+  .arch-jump { width: 100%; } .arch-jump select { max-width: 100%; flex: 1; min-width: 0; }
+  .architecture.is-enhanced .arch-viewport { height: 620px; }
+  .arch-detail { top: auto; bottom: 48px; left: 12px; right: 12px; width: auto; max-height: 45%; }
+}
+
+.architecture :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.arch-canvas { display: block; width: 100%; height: 100%; }
+.arch-key { border-bottom: 1px solid var(--rule); padding: 4px 16px; font: var(--type-label); }
+.arch-key .arch-relations { padding-left: 0; }
+.arch-extra { display: flex; gap: 6px; align-items: center; font: var(--type-label); }
+.arch-minimap { position: absolute; right: 12px; bottom: 70px; width: 238px; padding: 6px; border: 1px solid var(--ink-muted); background: var(--surface); }
+.arch-minimap span { display: block; font: var(--type-label); margin-bottom: 4px; }
+.arch-minimap canvas { display: block; width: 224px; height: 121px; cursor: crosshair; }
+.architecture.has-selection .arch-minimap { right: auto; left: 12px; }
+.arch-detail { max-height: calc(100% - 40px); }
+@media (max-width: 700px) {
+  .arch-minimap { width: 170px; bottom: 80px; }
+  .arch-minimap canvas { width: 156px; height: 85px; }
+  .architecture.has-selection .arch-minimap { display: none; }
+}
+
+.arch-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.arch-header h2 { font-size: 28px; line-height: 34px; }
+.arch-extra input { width: auto; margin: 0; }
+.arch-extra { white-space: nowrap; }
+</style>
+</head>
+<body class="">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 5 of 15</div>
+      <h1>CLI</h1>
+      <p class="lede">How commands reach compilation, execution, inspection, and package operations.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas"><code>3c8dc4234c71</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/subsystems/cli.md">Page source</a></span></div>
+
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+    </header>
+
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 15 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html" aria-current="page"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
+<li><a href="pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
+<li><a href="architecture.html"><span class="number">12</span>Interactive architecture</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">13</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">14</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">15</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#startup-and-the-actual-command-surface">Startup and the actual command surface</a></li>
+<li><a href="#compile-requests-preserve-target-and-product-intent">Compile requests preserve target and product intent</a></li>
+<li><a href="#run-uses-the-exact-product-compilation-produced">Run uses the exact product compilation produced</a></li>
+<li><a href="#a-concrete-cli-trace-and-its-test">A concrete CLI trace and its test</a></li>
+<li><a href="#inspection-and-package-commands-have-different-effects">Inspection and package commands have different effects</a></li>
+<li><a href="#what-the-atlas-should-change">What the atlas should change</a></li>
+<li><a href="#existing-focused-tests">Existing focused tests</a></li>
+</ul>
+</div>
+</details><p>The <code>omega</code> executable parses a complete request, selects its owner and turns
+the result into console output and a process status. Build compilation belongs
+to <code>orchestration</code>; execution and inspection still have substantial application
+code. Calling the entire application “only a router” hides those operations.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95"><code>main.rs</code></a> is the router; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L189-L303"><code>execution/</code></a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L56-L103"><code>inspection/</code></a> are complete workflows below it.</p>
+<p><strong>Evidence revision:</strong> <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>.
+This page describes source at that revision. Tests are identified as existing
+assertions, not fresh passing results. <em>Unverified</em> marks execution not
+performed in this review; <span class="flag">judgment</span> marks proposals. See <a href="build-and-packages.html">Build and
+packages</a> for compilation coordination and
+<a href="interpreter.html">the interpreter</a> for Psi execution internals.</p>
+<h2 id="startup-and-the-actual-command-surface">Startup and the actual command surface</h2>
+<p>The Cargo package and binary are <code>omega</code>, under
+<code>omega-rust/omega/application/</code>. Startup first checks the internal native
+provider-worker protocol. A child launched for a foreign call can enter that
+worker before normal command parsing. Ordinary startup then removes the
+global <code>--verbose</code> flag, parses an <code>Invocation</code>, obtains one host execution
+budget, and dispatches on a compiler worker. Failure to parse exits 64;
+failure to start the worker budget reports an error. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95">Startup</a></p>
+<p>The parser selects <code>packages</code>, <code>psi</code>, <code>source</code> or <code>run</code> from the first token.
+Otherwise it puts the token back and parses the default compile invocation.
+The current default is <code>omega &lt;root.omg&gt;</code> or <code>omega --check &lt;root.omg&gt;</code>;
+the top-level dispatch has no separate <code>build</code> subcommand.
+Flat <code>install</code>, <code>update</code>, <code>audit</code> and <code>inspect-terminal</code> are explicitly retired.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/mod.rs#L29-L103"><code>Invocation</code> and parsing</a> are the source of truth when a README
+uses an older spelling.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Owner called from the console adapter</th>
+<th>Result boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>omega [--check] ... &lt;root.omg&gt;</code></td>
+<td><code>commands::compile</code> constructs <code>orchestration::BuildRequest</code></td>
+<td>Ordered target reports or compilation refusals; native products are published unless checking. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/compile.rs#L59-L139">Source</a></td>
+</tr>
+<tr>
+<td><code>omega run ... &lt;root.omg&gt;</code></td>
+<td><code>commands::run</code> calls <code>execution::run_project</code> or <code>run_project_cases</code></td>
+<td>Compiled product plus host/Psi outcome, captured output and optional comparison. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/run.rs#L1-L163">Source</a></td>
+</tr>
+<tr>
+<td><code>omega psi inspect --machine ... &lt;root.omg&gt;</code></td>
+<td><code>inspection::inspect_terminal</code> calls the shared Build operation</td>
+<td>Requested machine's checked artifact; no native image. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L56-L103">Source</a></td>
+</tr>
+<tr>
+<td><code>omega psi inspect --artifact ...</code></td>
+<td><code>inspection::inspect_terminal_artifact</code> admits encoded bytes</td>
+<td>Validated artifact and summary without Build, source acquisition or guest execution. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L56-L103">Source</a></td>
+</tr>
+<tr>
+<td><code>omega packages install ...</code> or <code>update ...</code>, including their <code>--resume</code>/<code>--discard</code> forms</td>
+<td><code>commands::packages</code> calls package/orchestration operations</td>
+<td>Published change, pending review, discarded review or failure. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L39-L99">Source</a></td>
+</tr>
+<tr>
+<td><code>omega packages audit --project ...</code></td>
+<td><code>orchestration::inspect_packages</code></td>
+<td>Read-only project policy report; target failures and decision requirements remain visible. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L102-L117">Source</a></td>
+</tr>
+<tr>
+<td><code>omega packages audit --kind local\|git ...</code></td>
+<td><code>package_manager::operations::inspect_package_source_locator</code></td>
+<td>Source acquisition/inspection report, without accepting that package into a project. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L120-L148">Source</a></td>
+</tr>
+<tr>
+<td><code>omega source rewrite ...</code></td>
+<td>Parser refusal</td>
+<td>Specified but not implemented; help can show its syntax. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/mod.rs#L197-L215">Source</a></td>
+</tr>
+</tbody>
+</table></div>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile."><svg viewBox="0.00 0.00 1560.28 336.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile." style="min-width:1560px">
+<title>CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.</title><defs><marker id="cli-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="cli-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="cli-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="cli-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 327.64)">
+<title>atlas</title>
+
+<g id="cli-diagram-1-node1" class="node around" data-node="args">
+<title>args</title>
+<polygon points="101,-169 0,-169 0,-119 101,-119 101,-169" />
+<text text-anchor="middle" x="50.5" y="-140.6">Arguments</text>
+</g>
+
+<g id="cli-diagram-1-node2" class="node around" data-node="invocation">
+<title>invocation</title>
+<polygon points="390,-169 248,-169 248,-119 390,-119 390,-169" />
+<text text-anchor="middle" x="319" y="-140.6">Parsed Invocation</text>
+</g>
+
+<g id="cli-diagram-1-edge1" class="edge handoff" data-from="args" data-to="invocation">
+<title>args-&gt;invocation</title>
+<path d="M101,-144C142.32,-144 201.71,-144 247.91,-144" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="174.5" y="-160.4">parse complete</text>
+<text text-anchor="middle" x="174.5" y="-147.4">request</text>
+</g>
+
+<g id="cli-diagram-1-node3" class="node around" data-node="compile">
+<title>compile</title>
+<polygon points="739,-319 555,-319 555,-269 739,-269 739,-319" />
+<text text-anchor="middle" x="647" y="-290.6">Compile console adapter</text>
+</g>
+
+<g id="cli-diagram-1-edge2" class="edge handoff" data-from="invocation" data-to="compile">
+<title>invocation-&gt;compile</title>
+<path d="M354.14,-169.14C372.71,-182.1 396.45,-197.55 419,-209 466.19,-232.95 521.79,-253.88 566.15,-268.98" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-256.4">compile</text>
+</g>
+
+<g id="cli-diagram-1-node4" class="node around" data-node="run">
+<title>run</title>
+<polygon points="722.5,-169 571.5,-169 571.5,-119 722.5,-119 722.5,-169" />
+<text text-anchor="middle" x="647" y="-140.6">Execution workflow</text>
+</g>
+
+<g id="cli-diagram-1-edge3" class="edge handoff" data-from="invocation" data-to="run">
+<title>invocation-&gt;run</title>
+<path d="M390.34,-144C443.68,-144 516.86,-144 571.25,-144" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-147.4">run</text>
+</g>
+
+<g id="cli-diagram-1-node5" class="node around" data-node="source">
+<title>source</title>
+<polygon points="717.5,-244 576.5,-244 576.5,-194 717.5,-194 717.5,-244" />
+<text text-anchor="middle" x="647" y="-215.6">Source inspection</text>
+</g>
+
+<g id="cli-diagram-1-edge4" class="edge handoff" data-from="invocation" data-to="source">
+<title>invocation-&gt;source</title>
+<path d="M390.34,-160.18C445.37,-172.84 521.5,-190.36 576.35,-202.98" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-193.4">inspect source</text>
+</g>
+
+<g id="cli-diagram-1-node6" class="node around" data-node="encoded">
+<title>encoded</title>
+<polygon points="934.5,-107 802.5,-107 802.5,-57 934.5,-57 934.5,-107" />
+<text text-anchor="middle" x="868.5" y="-85.6">Encoded artifact</text>
+<text text-anchor="middle" x="868.5" y="-71.6">inspection</text>
+</g>
+
+<g id="cli-diagram-1-edge5" class="edge handoff" data-from="invocation" data-to="encoded">
+<title>invocation-&gt;encoded</title>
+<path d="M390.22,-130C399.87,-128.23 409.67,-126.51 419,-125 554.32,-103.08 714.55,-91.02 802.17,-85.59" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-128.4">inspect bytes</text>
+</g>
+
+<g id="cli-diagram-1-node7" class="node around" data-node="packages">
+<title>packages</title>
+<polygon points="969,-50 768,-50 768,0 969,0 969,-50" />
+<text text-anchor="middle" x="868.5" y="-21.6">Package command or audit</text>
+</g>
+
+<g id="cli-diagram-1-edge6" class="edge handoff" data-from="invocation" data-to="packages">
+<title>invocation-&gt;packages</title>
+<path d="M359.53,-118.78C377.11,-108.65 398.45,-97.78 419,-91 535.03,-52.7 675.28,-36.58 767.69,-29.83" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="472.5" y="-94.4">package operation</text>
+</g>
+
+<g id="cli-diagram-1-node8" class="node around" data-node="build">
+<title>build</title>
+<polygon points="1172,-259 998,-259 998,-209 1172,-209 1172,-259" />
+<text text-anchor="middle" x="1085" y="-230.6">Shared Build operation</text>
+</g>
+
+<g id="cli-diagram-1-edge7" class="edge handoff" data-from="compile" data-to="build">
+<title>compile-&gt;build</title>
+<path d="M739.13,-281.46C815.27,-270.98 923.08,-256.14 997.81,-245.86" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-279.4">BuildRequest</text>
+</g>
+
+<g id="cli-diagram-1-edge8" class="edge handoff" data-from="run" data-to="build">
+<title>run-&gt;build</title>
+<path d="M722.81,-157.62C737.76,-160.19 753.36,-162.77 768,-165 857.05,-178.54 881.57,-169.31 969,-191 987.52,-195.59 1007.14,-202.23 1024.84,-208.92" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-207.4">retained product</text>
+<text text-anchor="middle" x="868.5" y="-194.4">request</text>
+</g>
+
+<g id="cli-diagram-1-node9" class="node around" data-node="runtime">
+<title>runtime</title>
+<polygon points="1164.5,-172 1005.5,-172 1005.5,-122 1164.5,-122 1164.5,-172" />
+<text text-anchor="middle" x="1085" y="-150.6">Native process or Psi</text>
+<text text-anchor="middle" x="1085" y="-136.6">runtime</text>
+</g>
+
+<g id="cli-diagram-1-edge11" class="edge handoff" data-from="run" data-to="runtime">
+<title>run-&gt;runtime</title>
+<path d="M722.55,-138.98C737.59,-138.15 753.29,-137.43 768,-137 857.3,-134.4 879.75,-133.13 969,-137 980.81,-137.51 993.29,-138.32 1005.5,-139.26" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-153.4">execute admitted</text>
+<text text-anchor="middle" x="868.5" y="-140.4">product</text>
+</g>
+
+<g id="cli-diagram-1-edge9" class="edge handoff" data-from="source" data-to="build">
+<title>source-&gt;build</title>
+<path d="M717.57,-221.39C793.66,-224.01 915.7,-228.21 997.81,-231.03" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="868.5" y="-232.4">inspection request</text>
+</g>
+
+<g id="cli-diagram-1-node10" class="node around" data-node="output">
+<title>output</title>
+<polygon points="1543,-130 1348,-130 1348,-80 1543,-80 1543,-130" />
+<text text-anchor="middle" x="1445.5" y="-101.6">Output and process status</text>
+</g>
+
+<g id="cli-diagram-1-edge13" class="edge handoff" data-from="encoded" data-to="output">
+<title>encoded-&gt;output</title>
+<path d="M934.62,-84.6C1035.62,-88.64 1230.6,-96.44 1347.99,-101.14" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1085" y="-96.4">artifact summary</text>
+</g>
+
+<g id="cli-diagram-1-edge14" class="edge handoff" data-from="packages" data-to="output">
+<title>packages-&gt;output</title>
+<path d="M969,-38.84C1075.23,-53.62 1242.45,-76.89 1347.65,-91.53" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1085" y="-70.4">policy outcome</text>
+</g>
+
+<g id="cli-diagram-1-edge10" class="edge handoff" data-from="build" data-to="output">
+<title>build-&gt;output</title>
+<path d="M1158.29,-208.98C1204.37,-192.92 1265.29,-171.51 1319,-152 1338.35,-144.97 1359.32,-137.19 1378.48,-130.01" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1260" y="-195.4">target outcomes</text>
+</g>
+
+<g id="cli-diagram-1-edge12" class="edge handoff" data-from="runtime" data-to="output">
+<title>runtime-&gt;output</title>
+<path d="M1164.67,-137.78C1218.57,-131.47 1290.41,-123.05 1347.8,-116.33" marker-end="url(#cli-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1260" y="-136.4">runtime observation</text>
+</g>
+</g>
+</svg></div><figcaption>CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart TD
+    args[Arguments]
+    invocation[Parsed Invocation]
+    compile[Compile console adapter]
+    run[Execution workflow]
+    source[Source inspection]
+    encoded[Encoded artifact inspection]
+    packages[Package command or audit]
+    build[Shared Build operation]
+    runtime[Native process or Psi runtime]
+    output[Output and process status]
+    args --&gt; invocation
+    invocation --&gt; compile
+    invocation --&gt; run
+    invocation --&gt; source
+    invocation --&gt; encoded
+    invocation --&gt; packages
+    compile --&gt; build
+    run --&gt; build
+    source --&gt; build
+    build --&gt; output
+    run --&gt; runtime
+    runtime --&gt; output
+    encoded --&gt; output
+    packages --&gt; output</code></pre></details></figure>
+<p>The graph shows operation ownership, not simultaneous execution. Package
+commands use their review coordinator, which can request compiler work; their
+edge to output does not imply they are parser-only operations.</p>
+<h2 id="compile-requests-preserve-target-and-product-intent">Compile requests preserve target and product intent</h2>
+<p><code>commands::compile::run</code> translates parsed arguments into a <code>BuildRequest</code>.
+No target names means <code>BuildTargets::Host</code>; one name becomes <code>Single</code>; several
+names become an explicit target set. <code>--check</code> chooses <code>ProjectProduct::Check</code>;
+the ordinary case chooses a published native product. Requested validators,
+optimization rollback, restricted-action verification and caller-named Build
+input capture travel in that same request. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/compile.rs#L59-L139">Translation</a></p>
+<p>The adapter formats single or batch outcomes and optional reports; it does
+not invoke Psi or Omega stages. Compilation status is distinct from CLI
+usage: the request contract uses 0 for complete, 1 for rejected, 2 for
+incomplete because private provisions ran out, and 3 for an internal failure.
+For a batch, an internal failure outranks rejection, and rejection outranks
+incompleteness. A report-write failure must also be handled by the console
+adapter. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/compile.rs#L1-L44">Compile status policy</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/mod.rs#L29-L103">usage status</a></p>
+<p>Explicit validators are not ordinary compilation checks. The current registry
+has <code>TargetOperationCorrespondence</code>, <code>FixedFrameCorrespondence</code> and
+<code>SelectedInstructionRewriteReplay</code>. Their requests make the producer retain
+the earlier inputs needed for independent validation. They run before
+published native output is written; default compilation runs none. A named
+validator that cannot apply is refused; <code>--every-validator</code> enumerates the
+registry and reports inapplicable entries. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/orchestration/src/project/stage_validators.rs#L1-L112">Registry</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/orchestration/src/project/publication.rs#L69-L120">publication boundary</a></p>
+<p>This also differs from <code>--verify</code>: that request rechecks under retained pins
+without exercising accepted restricted Build grants. It is not shorthand for
+the independent stage-validator roster. The distinctions are
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/orchestration/src/lib.rs#L134-L146">declared on <code>BuildRequest</code></a> and enforced by
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/packages/package-manager/src/operations/accepted_compilation.rs#L244-L261">package product admission</a>.</p>
+<h2 id="run-uses-the-exact-product-compilation-produced">Run uses the exact product compilation produced</h2>
+<p>The parser chooses <code>native</code> by default, <code>psi</code> for an explicit engine, or the
+two-engine comparison for <code>--both</code>. <code>--engine</code> and <code>--both</code> cannot be combined.
+Case inputs require an output directory, cannot use a target override, and
+currently refuse Psi-only execution. A Psi work budget is allowed only when
+Psi will actually execute. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/run.rs#L188-L239">Argument constraints</a></p>
+<p><code>run_project</code> allocates a temporary directory and calls the same
+<code>orchestration::build</code> as compilation. Native and comparison requests ask for
+<code>NativeDestination::Retained</code>; Psi-only requests ask for
+<code>RuntimeAdmission</code>. The compilation adapter requires exactly one target
+outcome and returns its <code>CompileReport</code>. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/compilation.rs#L39-L94">Build request</a></p>
+<p>For a comparison, <code>interpret_product</code> obtains the Psi artifact from that
+report's retained native program. For Psi-only execution, it obtains the
+artifact directly from the report. It refuses if the report has lost its
+artifact. The runtime request receives the same runtime provisions, target,
+work budget and private entry data produced by compilation; it does not
+recompile source or rerun Build. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/compilation.rs#L96-L132">Artifact and runtime request</a></p>
+<p>The application explicitly delegates a host filesystem namespace, matching-host
+native services, a host clock, target-specific x86 flags when applicable, a
+private sequential memory-ordering environment and an isolated domain exit.
+It also supplies a command for the native provider helper. Those are actual
+host capabilities in the request, not authority inferred from entry selection.
+Their eventual admission is the runtime's responsibility. The atlas must not
+repeat the older application README's broad “isolated hosted root” description
+as a statement of this current caller's filesystem delegation.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/compilation.rs#L96-L132">Runtime request fields</a></p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Run selection</th>
+<th>Behavior in the application source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Native, no target override</td>
+<td>Publish the retained executable, validate component process inputs, launch it with inherited stdin, capture its output and observe its process status.</td>
+</tr>
+<tr>
+<td>Native with <code>--target</code></td>
+<td>Compile and publish for that target; return <code>TargetOnly</code> without launching the image or reading stdin.</td>
+</tr>
+<tr>
+<td><code>--both</code>, host execution</td>
+<td>Interpret the report's Psi artifact before publication consumes the native payload, then publish/run native and compare the outcomes.</td>
+</tr>
+<tr>
+<td><code>--both --target ...</code></td>
+<td>Follow the target-only path; no host or Psi run is performed. The parser separately refuses a Psi work budget for this non-executing case.</td>
+</tr>
+<tr>
+<td><code>--engine psi</code></td>
+<td>Request runtime admission, interpret directly with caller stdin, and return a Psi outcome without emitting or launching a native image.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The control flow is in <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L189-L303"><code>run_project</code></a> and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L306-L353"><code>run_terminal</code></a>. Psi-only execution still uses native runtime
+admission for the selected target's entry/providers; “no emitted image” does
+not mean “skip target and provider admission.”</p>
+<p>When <code>--both</code> first reports a missing standard-input provision, the application
+captures stdin to a finite replay file, invokes Psi again with it, and later
+gives those same bytes to native. If Psi completes without a stdin request,
+the native child receives null stdin; ordinary native-only execution inherits
+the caller's input. The replay and publication order are explicit in
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L189-L303"><code>run_project</code></a>. Multi-case execution compiles once and uses
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L424-L520">one retained report for its inputs</a>.</p>
+<p>Comparison checks the host presentation of termination, including recognized
+crash causes, and separately checks private-entry backing observations when
+present. It does <strong>not</strong> generally compare stdout/stderr or full effect traces.
+Exhausted work, a pending host effect, unavailable host capability or a Psi exit
+argument that the host truncates can produce a <strong>declined comparison</strong>. A
+native exit of zero does not convert that decline into agreement.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L524-L615">Comparison</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L189-L303">private entry comparison</a></p>
+<p><code>commands::run</code> forwards stdout/stderr as raw bytes before its own diagnostics
+and flushes both streams. Its reserved harness/Psi statuses include 200 for
+execution/compilation or forwarding failure, 201 for divergence, 202 for
+incomplete compilation, 203 for a Psi guest crash and 204 for a declined
+single-run comparison. Case reporting has its own batch handling. These
+statuses are command-specific; package audit's status 3 is not the compiler
+request's internal-failure verdict. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/run.rs#L1-L163">Run status handling</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/run.rs#L305-L344">output forwarding</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L102-L117">package audit handling</a></p>
+<h2 id="a-concrete-cli-trace-and-its-test">A concrete CLI trace and its test</h2>
+<p>The integration test <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/both_exit_status_comparison.rs#L1-L61"><code>both_exit_status_comparison.rs</code></a>
+launches the real binary as
+<code>omega run --both main.omg</code> in
+<code>omega-rust/tests/fixtures/run/cli/both_comparison_verdict</code>. Its positive case
+expects native/Psi agreement. Its twin adds a small <code>--psi-work-budget</code>, expects
+the native program to exit zero, and still expects the command to report
+<code>DECLINED</code> and status 204.</p>
+<p>The traced route is:</p>
+<ol>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/mod.rs#L29-L103"><code>arguments::parse</code></a> produces <code>Invocation::Run</code>;
+   <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/main.rs#L47-L95"><code>main</code></a> selects <code>commands::run</code>.</li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/run.rs#L1-L163"><code>commands::run</code></a> constructs <code>RunRequest</code>, preserving the
+   engine choice, target, captured-input request and work budget.</li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/compilation.rs#L39-L94"><code>execution::compilation::compile</code></a> asks Build for a
+   retained native product. Build resolves source/package input, performs
+   compiler and provider admission, completes native work and returns the
+   report. The <a href="build-and-packages.html">Build page</a> follows those operations.</li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/compilation.rs#L96-L132"><code>interpret_product</code></a> passes the report's artifact and
+   provisions to the Psi runtime. Native publication and execution then use
+   that same report. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L189-L303">Run lifecycle</a></li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L524-L615"><code>compare_interpretation</code></a> keeps “no completed Psi result”
+   distinct from a matching exit. The console adapter maps the decline to</li>
+<li><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/run.rs#L1-L163">Status branch</a></li>
+</ol>
+<p><em>Unverified:</em> the command and its test were not run for this atlas review.
+The trace is source-backed; it is not a new cross-engine or cross-host result.</p>
+<h2 id="inspection-and-package-commands-have-different-effects">Inspection and package commands have different effects</h2>
+<p>Source inspection requests one named machine through Build with <code>verify: true</code>
+and an empty stage-validator request. Encoded-artifact inspection instead calls
+<code>CanonicalTerminalArtifact::from_bytes</code>. Decoding and validation do not run
+the guest or establish source package acceptance. These two routes should
+remain separate in the atlas even though one public command selects them.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/inspection/mod.rs#L56-L103">Inspection implementations</a></p>
+<p>The source form can write the checked artifact to the caller's <code>--output</code>
+path. The encoded-artifact form only reads and summarizes; its parser refuses
+source, target, machine or output arguments, and its reader enforces a byte
+limit before decoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/inspect.rs#L30-L101">Console adapter</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/inspect.rs#L81-L96">argument separation</a></p>
+<p>The package command adapter creates one retained <code>BuildSession</code> and passes it
+through the complete review operation. When the user explicitly requests
+<code>--dangerously-accept-all</code>, the adapter edits pending decisions and resumes
+for a bounded number of rounds, reporting that the decisions were accepted
+unread. Ordinary commands do not choose that flag for the user. Discard is a
+package-file operation; it does not run compilation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L39-L99">Package adapter</a></p>
+<p>Project package audit returns a report and indicates whether review remains
+necessary; source audit opens acquisition storage and reports the selected
+local/Git source. Neither is a compiler-stage validator. The project audit
+coordinator can run Build and checks, but verifies unchanged project/lock
+identity before it finishes. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L102-L117">Audit adapter</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/commands/packages.rs#L120-L148">source audit</a>, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/orchestration/src/package/package_inspection.rs#L1-L89">read-only coordinator</a></p>
+<h2 id="what-the-atlas-should-change">What the atlas should change</h2>
+<p><em>Judgment:</em> show the console adapter, execution coordinator and source/artifact
+inspection as distinct boxes within the application boundary. Keep compiler
+sequencing in the shared Build/compiler route. This makes the intended small
+CLI router visible without claiming the entire application crate is already
+that small.</p>
+<p><em>Judgment:</em> show four separate kinds of checks: source semantic acceptance,
+package policy review, artifact admission and explicitly requested independent
+stage validation. They have different inputs, effects and failure meanings.
+Combining them under an “audit” arrow would conceal both ordinary behavior and
+the work only an explicit request enables.</p>
+<p>The runtime's source is the authority for available host adapters. The
+application request and a selected provider do not prove every operation is
+executable; the runtime can refuse missing provisions and decline comparison.
+The <a href="interpreter.html">interpreter page</a> maps those capabilities. <em>Unverified:</em>
+this source review does not certify the hosted target matrix.</p>
+<h2 id="existing-focused-tests">Existing focused tests</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Existing check</th>
+<th>What its assertions cover</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/mod.rs#L330-L430">Argument parser tests</a> and <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/arguments/run.rs#L242-L330">run parser tests</a></td>
+<td>Public routing, retired spellings, option validation and preservation of caller source inputs.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/stage_validator_requests.rs#L57-L164">Stage validator requests</a></td>
+<td>Default no-validator route; named requests, fixed-frame retention, complete roster and inapplicable names.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/both_exit_status_comparison.rs#L1-L61">Two-engine exit comparison</a></td>
+<td>Agreement versus work-exhaustion decline with a successful native run.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/src/execution/mod.rs#L618-L678">Comparison unit tests</a></td>
+<td>Invalid native evidence fails comparison; absent capability declines; a truncated Unix exit argument is not agreement.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/named_psi_inspection.rs#L25-L135">Named Psi inspection</a></td>
+<td>Exact named-machine output and refusal of missing/ambiguous names before writing.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/psi_runtime_admission.rs#L166-L228">Psi runtime admission</a></td>
+<td>Psi-only route and retention of native borrowed-storage layout facts.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/application/tests/unlocked_std_entry.rs#L1-L38">Unlocked standard entry</a></td>
+<td>A default standard-library entry can run without a lock; absence of a lock is not a blanket refusal.</td>
+</tr>
+</tbody>
+</table></div>
+<p>No compiler tests were executed for this documentation-only work. Link and
+consistency checks establish that the cited source exists at the evidence
+revision; runtime assertions remain <span class="flag warn">unverified</span> here.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
+  });
+})();
+
+(() => {
+  const root = document.querySelector('.architecture');
+  if (!root) return;
+  const model = JSON.parse(root.querySelector('#architecture-model').textContent);
+  const viewport = root.querySelector('.arch-viewport'), svg = root.querySelector('.arch-svg');
+  const canvas = root.querySelector('.arch-canvas'), ctx = canvas.getContext('2d');
+  const mini = root.querySelector('.arch-minimap canvas'), miniCtx = mini.getContext('2d');
+  if (!ctx || !miniCtx) return;
+  const detail = root.querySelector('.arch-detail'), jump = root.querySelector('.arch-jump select');
+  const camera = {x:0, y:0, scale:1}, pointers = new Map();
+  const byId = new Map(model.nodes.map(n => [n.id,n]));
+  const paths = new Map([...svg.querySelectorAll('.arch-edge')].map(g => {
+    const p=g.querySelector('path'), length=p.getTotalLength();
+    return [g.dataset.edge, {path:new Path2D(p.getAttribute('d')), end:p.getPointAtLength(length), before:p.getPointAtLength(Math.max(0,length-2))}];
+  }));
+  const rows = [...svg.querySelectorAll('.arch-row-label')].map(t=>({x:+t.getAttribute('x'),y:+t.getAttribute('y'),text:t.textContent}));
+  const lines = new Map([...svg.querySelectorAll('.arch-node')].map(g=>[g.dataset.node,[...g.querySelectorAll('text')].map(t=>({y:+t.getAttribute('y'),text:t.textContent}))]));
+  const dashes = {data:[],invoke:[8,5],dependency:[2,5],construction:[12,4,2,4],validation:[2,7],normative:[12,7],bypass:[6,4]};
+  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false;
+  const make = (tag,text) => {const e=document.createElement(tag);if(text)e.textContent=text;return e;};
+  const dimensions = () => ({w:viewport.clientWidth,h:viewport.clientHeight});
+  const color = name => getComputedStyle(root).getPropertyValue('--'+name).trim();
+  const invalidate = () => {if(!frame)frame=requestAnimationFrame(draw);};
+  const cameraChanged = () => {root.querySelector('.arch-scale').textContent=Math.round(camera.scale*100)+'%';invalidate();};
+  const fit = () => {
+    const {w,h}=dimensions();camera.scale=Math.min(w/model.width,h/model.height)*.97;
+    camera.x=(model.width-w/camera.scale)/2;camera.y=(model.height-h/camera.scale)/2;cameraChanged();
+  };
+  const reset = () => {clear();camera.scale=1;camera.x=0;camera.y=0;cameraChanged();};
+  const zoom = (scale,px,py) => {
+    const {w,h}=dimensions();px??=w/2;py??=h/2;
+    const x=camera.x+px/camera.scale,y=camera.y+py/camera.scale;
+    camera.scale=Math.max(.15,Math.min(3,scale));camera.x=x-px/camera.scale;camera.y=y-py/camera.scale;cameraChanged();
+  };
+  function prepare(context,element,w,h) {
+    const dpr=devicePixelRatio||1, width=Math.round(w*dpr),height=Math.round(h*dpr);
+    if(element.width!==width||element.height!==height){element.width=width;element.height=height;}
+    context.setTransform(dpr,0,0,dpr,0,0);context.clearRect(0,0,w,h);
+  }
+  function draw() {
+    frame=0;const {w,h}=dimensions();if(!w||!h)return;
+    prepare(ctx,canvas,w,h);
+    const ink=color('ink'),muted=color('ink-muted'),ground=color('ground'),quiet=color('rule'),trap=color('trap');
+    const font=getComputedStyle(root).getPropertyValue('--font-serif').trim();
+    ctx.fillStyle=ground;ctx.fillRect(0,0,w,h);ctx.save();ctx.scale(camera.scale,camera.scale);ctx.translate(-camera.x,-camera.y);
+    for(const e of model.edges) {
+      const related=e.start===selected||e.end===selected;
+      if(!selected&&!allRelations&&!e.main)continue;
+      const shape=paths.get(e.id),tint=selected&&!related?quiet:e.kind==='bypass'?trap:muted;
+      ctx.strokeStyle=tint;ctx.lineWidth=related?3.5:['validation','normative'].includes(e.kind)?2.5:1.5;
+      ctx.setLineDash(dashes[e.kind]);ctx.stroke(shape.path);ctx.setLineDash([]);
+      const angle=Math.atan2(shape.end.y-shape.before.y,shape.end.x-shape.before.x);
+      ctx.save();ctx.translate(shape.end.x,shape.end.y);ctx.rotate(angle);ctx.fillStyle=tint;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-9,-4.5);ctx.lineTo(-9,4.5);ctx.closePath();ctx.fill();ctx.restore();
+    }
+    ctx.font='500 22px '+font;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    for(const row of rows) {
+      ctx.fillStyle=ground;ctx.fillRect(row.x-4,row.y-23,ctx.measureText(row.text).width+8,30);
+      ctx.fillStyle=muted;ctx.fillText(row.text,row.x,row.y);
+    }
+    ctx.font='500 20px '+font;ctx.textAlign='center';
+    for(const n of model.nodes) {
+      ctx.fillStyle=color('family-'+n.family+'-surface');ctx.fillRect(n.x,n.y,n.width,n.height);
+      ctx.strokeStyle=selected===n.id?ink:color('family-'+n.family);ctx.lineWidth=selected===n.id?4:2;
+      ctx.strokeRect(n.x,n.y,n.width,n.height);ctx.fillStyle=color('family-'+n.family);ctx.fillRect(n.x,n.y,n.width,7);
+      ctx.fillStyle=ink;for(const line of lines.get(n.id))ctx.fillText(line.text,n.x+n.width/2,n.y+line.y);
+    }
+    ctx.restore();
+    const mw=mini.clientWidth,mh=mini.clientHeight,scale=Math.min(mw/model.width,mh/model.height);
+    prepare(miniCtx,mini,mw,mh);miniCtx.fillStyle=color('surface');miniCtx.fillRect(0,0,mw,mh);
+    for(const n of model.nodes){miniCtx.fillStyle=color('family-'+n.family);miniCtx.fillRect(n.x*scale,n.y*scale,n.width*scale,n.height*scale);}
+    miniCtx.strokeStyle=ink;miniCtx.lineWidth=2;miniCtx.strokeRect(camera.x*scale,camera.y*scale,w/camera.scale*scale,h/camera.scale*scale);
+    root.dataset.scale=String(camera.scale);root.dataset.camera=JSON.stringify(camera);
+  }
+  function clear(restore=false) {
+    detail.hidden=true;jump.value='';root.classList.remove('has-selection');selected=null;
+    if(restore)jump.focus({preventScroll:true});invalidate();
+  }
+  function select(id,focus=false) {
+    const n=byId.get(id);if(!n)return;
+    selected=id;jump.value=id;detail.hidden=false;root.classList.add('has-selection');detail.className='arch-detail family-'+n.family;
+    const close=make('button','Close ×');close.type='button';close.className='arch-detail-close';close.addEventListener('click',()=>clear(true));
+    const badge=make('p',model.families[n.family]);badge.className='relationship';
+    const heading=make('h3',n.title.replaceAll('\n',' · '));heading.tabIndex=-1;
+    detail.replaceChildren(close,badge,heading,make('p',n.description));
+    const links=make('p'),page=make('a','Read subsystem'),source=make('a','Pinned source');
+    const prefix=location.pathname.endsWith('/')||location.pathname.endsWith('/index.html')?'pages/':'';
+    page.href=new URL(prefix+n.page+'.html',location.href).href;source.href=n.source;
+    links.append(page,document.createTextNode(' · '),source);detail.append(links);
+    for(const incoming of [true,false]) {
+      const relations=model.edges.filter(e=>(incoming?e.end:e.start)===id);if(!relations.length)continue;
+      detail.append(make('h4',incoming?'Incoming relationships':'Outgoing relationships'));const list=make('ul');
+      for(const e of relations) {
+        const target=byId.get(incoming?e.start:e.end),item=make('li'),button=make('button',target.title.replaceAll('\n',' · '));button.type='button';
+        button.addEventListener('click',()=>select(target.id,true));
+        const kind=make('span',model.relations[e.kind]);kind.className='relationship';
+        const evidence=make('a','Relationship source');evidence.href=e.source;
+        item.dataset.edge=e.id;item.append(kind,button,make('p',e.label),evidence);list.append(item);
+      }
+      detail.append(list);
+    }
+    const {w,h}=dimensions(),narrow=w<700;camera.scale=Math.max(camera.scale,1);
+    camera.x=n.x+n.width/2-(narrow?w/2:(w-370)/2)/camera.scale;
+    camera.y=n.y+n.height/2-(narrow?h*.23:h/2)/camera.scale;
+    cameraChanged();if(focus)heading.focus({preventScroll:true});
+  }
+  root.classList.add('is-enhanced');root.querySelector('.arch-toolbar').hidden=false;
+  canvas.hidden=false;svg.hidden=true;root.querySelector('.arch-minimap').hidden=false;
+  // The DOM outline and grouped selector expose every node without relying on
+  // canvas hit targets or a screen reader interpreting pixels.
+  root.querySelectorAll('.arch-outline dt').forEach((dt,i)=>{
+    const button=make('button','Focus on map');button.type='button';button.setAttribute('aria-label','Focus on '+model.nodes[i].title.replaceAll('\n',' '));
+    button.addEventListener('click',()=>{root.scrollIntoView({block:'start'});select(model.nodes[i].id,true);});dt.append(document.createTextNode(' '),button);
+  });
+  root.querySelectorAll('[data-map]').forEach(button=>button.addEventListener('click',async()=>{
+    const action=button.dataset.map;
+    if(action==='fit')fit();if(action==='reset')reset();if(action==='in')zoom(camera.scale*1.3);if(action==='out')zoom(camera.scale/1.3);if(action==='natural')zoom(1);
+    if(action==='fullscreen')try{if(document.fullscreenElement===root)await document.exitFullscreen();else await root.requestFullscreen();}catch{button.textContent='Fullscreen unavailable';}
+  }));
+  root.querySelector('.arch-all-relations').addEventListener('change',e=>{allRelations=e.target.checked;invalidate();});
+  jump.addEventListener('change',()=>{if(jump.value)select(jump.value,true);});
+  viewport.addEventListener('wheel',e=>{
+    e.preventDefault();const box=viewport.getBoundingClientRect();
+    if(e.ctrlKey||e.metaKey)zoom(camera.scale*Math.exp(-e.deltaY*.003),e.clientX-box.left,e.clientY-box.top);
+    else{camera.x+=(e.shiftKey?e.deltaY:e.deltaX)/camera.scale;camera.y+=(e.shiftKey?0:e.deltaY)/camera.scale;cameraChanged();}
+  },{passive:false});
+  viewport.addEventListener('pointerdown',e=>{if(e.button>0)return;moved=false;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});viewport.setPointerCapture(e.pointerId);if(pointers.size>1)moved=true;});
+  viewport.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;const before=[...pointers.values()],previous=pointers.get(e.pointerId),dx=e.clientX-previous.x,dy=e.clientY-previous.y;
+    if(Math.abs(dx)+Math.abs(dy)<2)return;moved=true;viewport.classList.add('is-dragging');pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){const after=[...pointers.values()],distance=p=>Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),box=viewport.getBoundingClientRect(),old=distance(before);if(old)zoom(camera.scale*distance(after)/old,(after[0].x+after[1].x)/2-box.left,(after[0].y+after[1].y)/2-box.top);}
+    else{camera.x-=dx/camera.scale;camera.y-=dy/camera.scale;cameraChanged();}
+  });
+  const release=e=>{
+    if(!pointers.has(e.pointerId))return;
+    pointers.delete(e.pointerId);if(pointers.size)return;viewport.classList.remove('is-dragging');
+    if(e.type==='pointerup'&&!moved){const b=viewport.getBoundingClientRect(),x=camera.x+(e.clientX-b.left)/camera.scale,y=camera.y+(e.clientY-b.top)/camera.scale;const n=model.nodes.find(n=>x>=n.x&&x<=n.x+n.width&&y>=n.y&&y<=n.y+n.height);if(n)select(n.id);}
+  };
+  viewport.addEventListener('pointerup',release);viewport.addEventListener('pointercancel',release);
+  mini.addEventListener('pointerdown',e=>{const b=mini.getBoundingClientRect(),s=Math.min(b.width/model.width,b.height/model.height),{w,h}=dimensions();camera.x=(e.clientX-b.left)/s-w/camera.scale/2;camera.y=(e.clientY-b.top)/s-h/camera.scale/2;cameraChanged();});
+  viewport.addEventListener('keydown',e=>{
+    const delta=80/camera.scale;
+    if(e.key==='Home'){e.preventDefault();reset();return;}if(e.key.toLowerCase()==='f'){e.preventDefault();fit();return;}
+    if(e.key==='+'||e.key==='='){e.preventDefault();zoom(camera.scale*1.3);return;}if(e.key==='-'){e.preventDefault();zoom(camera.scale/1.3);return;}
+    const actions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
+    if(actions[e.key]){e.preventDefault();camera.x+=actions[e.key][0];camera.y+=actions[e.key][1];cameraChanged();}
+  });
+  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);}});
+  new ResizeObserver(()=>{const next=dimensions();if(size.w&&size.h){camera.x+=(size.w-next.w)/2/camera.scale;camera.y+=(size.h-next.h)/2/camera.scale;}size=next;invalidate();}).observe(viewport);
+  new MutationObserver(invalidate).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',invalidate);
+  window.addEventListener('resize',invalidate);
+  const watchDpr=()=>matchMedia('(resolution: '+devicePixelRatio+'dppx)').addEventListener('change',()=>{invalidate();watchDpr();},{once:true});
+  watchDpr();
+  document.fonts.ready.then(invalidate);document.fonts.addEventListener('loadingdone',invalidate);
+  document.addEventListener('fullscreenchange',()=>{root.querySelector('[data-map="fullscreen"]').textContent=document.fullscreenElement===root?'Exit fullscreen':'Fullscreen';invalidate();});
+  reset();
+})();
+</script>
+</body>
+</html>

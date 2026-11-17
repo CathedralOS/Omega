@@ -536,6 +536,107 @@ pub mod projection {
         use crate::TypedTrees;
         use diagnostics::Diagnostic;
 
+        type SourceKey = (symbols::SymbolHandle, symbols::SymbolHandle);
+        // Include generations in source order: reusing a slot does not reuse
+        // the declaration that used to occupy it.
+        fn source_key(source: SourceKey) -> ((u32, u32), (u32, u32)) {
+            (
+                (source.0.arena_index(), source.0.generation()),
+                (source.1.arena_index(), source.1.generation()),
+            )
+        }
+        type RequirementKey = (
+            Option<semantic_vocabulary::PackageKeyIdentity>,
+            crate::type_identity::CallableIdentityId,
+        );
+
+        struct SourceRequirementIdentity {
+            source: SourceKey,
+            identity: RequirementKey,
+        }
+
+        struct InheritedRequirements {
+            rows: Vec<SourceRequirementIdentity>,
+            by_source: Vec<usize>,
+            by_identity: Vec<usize>,
+        }
+
+        impl InheritedRequirements {
+            fn new(
+                program: &TypedTrees,
+                declarations: &[&crate::trait_definition::TraitDefinition],
+            ) -> Self {
+                let capacity = declarations
+                    .iter()
+                    .map(|declaration| program.trait_machine_signatures(declaration).len())
+                    .sum();
+                let mut rows = Vec::with_capacity(capacity);
+                for declaration in declarations {
+                    let package = program.symbols.symbol_package_identity(declaration.symbol);
+                    for candidate in program.trait_machine_signatures(declaration) {
+                        if program.symbols.symbol_package_identity(candidate.symbol) == package {
+                            rows.push(SourceRequirementIdentity {
+                                source: (declaration.symbol, candidate.symbol),
+                                identity: (
+                                    package,
+                                    program.trait_requirement_callable_identity(
+                                        declaration,
+                                        candidate,
+                                    ),
+                                ),
+                            });
+                        }
+                    }
+                }
+                // Keep the first source signature when malformed input repeats
+                // its coordinates, as the ordinary source lookup does. Equal
+                // canonical keys stay separate so ambiguity still refuses.
+                let mut by_source = (0..rows.len()).collect::<Vec<_>>();
+                by_source.sort_unstable_by_key(|position| {
+                    (source_key(rows[*position].source), *position)
+                });
+                let mut by_identity = (0..rows.len()).collect::<Vec<_>>();
+                by_identity.sort_unstable_by_key(|position| rows[*position].identity);
+                Self {
+                    rows,
+                    by_source,
+                    by_identity,
+                }
+            }
+
+            fn source_identity(
+                &self,
+                source: super::ServiceRequirementSource,
+            ) -> Option<crate::type_identity::CallableIdentityId> {
+                let key = (source.declaring_trait, source.symbol);
+                let first = self.by_source.partition_point(|position| {
+                    source_key(self.rows[*position].source) < source_key(key)
+                });
+                let row = &self.rows[*self.by_source.get(first)?];
+                (row.source == key).then_some(row.identity.1)
+            }
+
+            fn has_unique_source(
+                &self,
+                key: RequirementKey,
+                symbol: symbols::SymbolHandle,
+            ) -> bool {
+                let first = self
+                    .by_identity
+                    .partition_point(|position| self.rows[*position].identity < key);
+                let Some(position) = self.by_identity.get(first) else {
+                    return false;
+                };
+                let row = &self.rows[*position];
+                row.identity == key
+                    && row.source.1 == symbol
+                    && self
+                        .by_identity
+                        .get(first + 1)
+                        .is_none_or(|position| self.rows[*position].identity != key)
+            }
+        }
+
         pub(crate) fn validate(
             program: &TypedTrees,
             projection: &ProjectedServiceSurface,
@@ -581,39 +682,61 @@ pub mod projection {
                         .map(|parent| parent.symbol),
                 );
             }
+            // A single row needs one scan. Repeated queries justify preparing
+            // the inherited family's exact keys once, without a program-wide
+            // cache or copies of the normalized identity text.
+            let inherited = (projection.requirements.len() > 1)
+                .then(|| InheritedRequirements::new(program, &declarations));
             for (method, source) in projection
                 .declaration
                 .methods
                 .iter()
                 .zip(&projection.requirements)
             {
-                let owner = program
-                    .trait_definition_by_symbol(source.declaring_trait)
-                    .ok_or_else(|| {
-                        Diagnostic::error("service row lost its exact declaring trait")
-                    })?;
-                let signature = program
-                    .trait_machine_signature_by_symbol(owner, source.symbol)
-                    .ok_or_else(|| {
-                        Diagnostic::error("service row lost its exact declared requirement")
-                    })?;
-                let identity = program.trait_requirement_callable_identity(owner, signature);
-                let mut matches = declarations.iter().flat_map(|declaration| {
-                    program
-                        .trait_machine_signatures(declaration)
-                        .iter()
-                        .filter_map(move |candidate| {
-                            (program.symbols.symbol_package_identity(declaration.symbol)
-                                == method.requirement_owner_package_identity
-                                && program.symbols.symbol_package_identity(candidate.symbol)
+                let identity = if let Some(identity) = inherited
+                    .as_ref()
+                    .and_then(|inherited| inherited.source_identity(*source))
+                {
+                    identity
+                } else {
+                    // Keep the source owner's lookup and its exact refusal for
+                    // coordinates absent from the inherited declaration rows,
+                    // including refined and closed requirement applications.
+                    let owner = program
+                        .trait_definition_by_symbol(source.declaring_trait)
+                        .ok_or_else(|| {
+                            Diagnostic::error("service row lost its exact declaring trait")
+                        })?;
+                    let signature = program
+                        .trait_machine_signature_by_symbol(owner, source.symbol)
+                        .ok_or_else(|| {
+                            Diagnostic::error("service row lost its exact declared requirement")
+                        })?;
+                    program.trait_requirement_callable_identity(owner, signature)
+                };
+                let is_exact = if let Some(inherited) = &inherited {
+                    let key = (method.requirement_owner_package_identity, identity);
+                    inherited.has_unique_source(key, source.symbol)
+                } else {
+                    let mut matches = declarations.iter().flat_map(|declaration| {
+                        program
+                            .trait_machine_signatures(declaration)
+                            .iter()
+                            .filter_map(move |candidate| {
+                                (program.symbols.symbol_package_identity(declaration.symbol)
                                     == method.requirement_owner_package_identity
-                                && program
-                                    .trait_requirement_callable_identity(declaration, candidate)
-                                    == identity)
-                                .then_some(candidate.symbol)
-                        })
-                });
-                if matches.next() != Some(source.symbol) || matches.next().is_some() {
+                                    && program.symbols.symbol_package_identity(candidate.symbol)
+                                        == method.requirement_owner_package_identity
+                                    && program.trait_requirement_callable_identity(
+                                        declaration,
+                                        candidate,
+                                    ) == identity)
+                                    .then_some(candidate.symbol)
+                            })
+                    });
+                    matches.next() == Some(source.symbol) && matches.next().is_none()
+                };
+                if !is_exact {
                     return Err(Diagnostic::error(
                         "service row has no unique exact inherited requirement",
                     ));

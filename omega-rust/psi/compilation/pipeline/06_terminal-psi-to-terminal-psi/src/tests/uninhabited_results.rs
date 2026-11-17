@@ -201,6 +201,7 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
              let unreachable_value: u32 = finish(0); \
          }",
         "machine build_entry() {}",
+        source::DependencyScope::Product,
         &[
             (
                 "never.omg",

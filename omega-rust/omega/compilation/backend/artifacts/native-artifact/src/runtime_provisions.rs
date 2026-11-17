@@ -8,6 +8,7 @@ and we validate component product rosters and adjacent publication receipts
 against root object imports.
 */
 
+use backend_plan::TerminalTargetProviderProposal;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
 use std::sync::Arc;
@@ -15,7 +16,7 @@ use target::NormalizedImportLocator;
 use terminal_installation::AdmittedScalarApplications;
 use terminal_installation::CheckedPrivateEntryRamRecipe;
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
-use terminal_psi_to_abstract_operations::TerminalTargetProviderProposal;
+use verified_optimization_input::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
 
 fn scalar_parameters(
     declaration: &BoundaryMachineDeclaration,
@@ -94,12 +95,12 @@ fn emit_native_adapter(
 }
 
 fn capture_scalar_applications(
-    input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    input: AdmittedRuntimeInput<'_>,
     identity: TerminalPsiIdentity,
     target: target::TargetProfile,
     installation: Option<&terminal_installation::AdmittedProviderSelections>,
 ) -> Result<Option<AdmittedScalarApplications>, &'static str> {
-    if input.plan().psi != identity
+    if input.identity() != identity
         || input.target_context().is_none_or(|selected| {
             selected.terminal_psi() != identity || selected.target() != target.target_name()
         })
@@ -145,8 +146,7 @@ struct RuntimeHostRequirement {
 /// an adapter; no nominal provider report is invented for a Build binding.
 #[derive(Clone, Copy)]
 pub struct NativeBindingRuntimeInputs<'a> {
-    pub bindings:
-        &'a terminal_psi_to_abstract_operations::provider_admission::RetainedNativeBindings,
+    pub bindings: &'a provider_admission::provider_admission::RetainedNativeBindings,
     pub calling: &'a [BoundaryCallingApplication],
 }
 
@@ -163,13 +163,13 @@ impl TerminalRuntimeHostProvisions {
     pub fn capture_native_admission(
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
-        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+        input: AdmittedRuntimeInput<'_>,
         selected: &effects::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
         native: NativeBindingRuntimeInputs<'_>,
     ) -> Result<Self, String> {
-        let boundaries = &input.plan().boundary_machines;
         let module = input.module();
+        let boundaries = input.boundary_machines();
         let identities = &module.identities;
         let mut host_requirements = Vec::new();
         for provision in &host {
@@ -187,9 +187,7 @@ impl TerminalRuntimeHostProvisions {
             if matching.next().is_some() {
                 return Err("runtime host provision repeats its boundary declaration".into());
             }
-            let abi = input
-                .optimization_input()
-                .selected_calling_abi_identity(provision.boundary)?;
+            let abi = module.calling_abi_identity(provision.boundary)?;
             let mut native_rows = native
                 .bindings
                 .rows
@@ -213,9 +211,14 @@ impl TerminalRuntimeHostProvisions {
                     .next()
                     .filter(|_| applications.next().is_none())
                     .ok_or("runtime native binding lost its unique calling application")?;
-                let execution = terminal_psi_to_abstract_operations::provider_admission::validate_native_binding_execution(
-                    row, &native.bindings.identities, module, profile, application,
-                )?;
+                let execution =
+                    provider_admission::provider_admission::validate_native_binding_execution(
+                        row,
+                        &native.bindings.identities,
+                        module,
+                        profile,
+                        application,
+                    )?;
                 if !binding.matches_execution(
                     target_operations::ExternalExecutionBinding::NativeBinding(execution),
                 ) {
@@ -386,13 +389,13 @@ pub struct TerminalCallableRuntimeProvisions {
 impl TerminalCallableRuntimeProvisions {
     pub fn capture_native_admission(
         artifact: terminal_codec::TerminalArtifactView<'_>,
-        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+        input: AdmittedRuntimeInput<'_>,
         entry: MachineId,
         target: target::TargetProfile,
         host: TerminalRuntimeHostProvisions,
     ) -> Result<Self, &'static str> {
         if artifact.module().machine(entry).is_none()
-            || input.plan().entry != entry
+            || input.entry() != entry
             || host
                 .installation()
                 .is_some_and(|selection| selection.terminal_psi() != artifact.identity())
@@ -639,8 +642,8 @@ impl TerminalRuntimeProvisions {
     }
 
     pub fn capture_native_admission(
-        program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'_>,
-        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+        program_entry: NativeProgramEntrySettlement<'_>,
+        input: AdmittedRuntimeInput<'_>,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         selected: &effects::SelectedProviderPlanFacts,
@@ -654,7 +657,7 @@ impl TerminalRuntimeProvisions {
         let native_entry = program_entry
             .physical_adapter()
             .map_or(checked.terminal_entry(), |adapter| adapter.machine());
-        if input.plan().entry != native_entry
+        if input.entry() != native_entry
             || checked.source_signature_identity() != program_entry.source().identity().bytes()
             || program_entry
                 .physical_adapter()

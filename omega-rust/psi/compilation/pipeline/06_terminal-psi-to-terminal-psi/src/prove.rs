@@ -299,7 +299,7 @@ struct Bound {
 #[derive(Debug, Clone)]
 enum Slot {
     Unknown,
-    InProgress,
+    InProgress(Option<Bound>),
     Done(Option<Bound>),
 }
 
@@ -310,6 +310,12 @@ pub struct ProofSearchActivity {
     started: usize,
     #[cfg(test)]
     sign_queries: usize,
+    #[cfg(test)]
+    contradiction_searches: usize,
+    #[cfg(test)]
+    in_progress_bound_reuses: usize,
+    #[cfg(test)]
+    disjunction_materializations: usize,
 }
 
 impl ProofSearchActivity {
@@ -322,6 +328,15 @@ impl ProofSearchActivity {
         #[cfg(test)]
         {
             self.sign_queries = self.sign_queries.saturating_add(other.sign_queries);
+            self.contradiction_searches = self
+                .contradiction_searches
+                .saturating_add(other.contradiction_searches);
+            self.in_progress_bound_reuses = self
+                .in_progress_bound_reuses
+                .saturating_add(other.in_progress_bound_reuses);
+            self.disjunction_materializations = self
+                .disjunction_materializations
+                .saturating_add(other.disjunction_materializations);
         }
     }
 }
@@ -333,6 +348,8 @@ pub(crate) struct Prover<'a> {
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
+    /// Actual implication facts, prepared once for goal-directed elimination.
+    implications: Vec<usize>,
     float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -358,10 +375,9 @@ pub(crate) struct Prover<'a> {
     /// An auxiliary sign query can revisit its parent through contradiction
     /// search. The same goal under these unchanged premises supplies no proof.
     active_goals: Vec<Proposition>,
-    /// Set while `unreachable` searches these premises for a contradiction.
-    /// The search does not depend on its goal, so a nested search under the
-    /// same premises finds nothing new; re-entering it only multiplies work
-    /// by the number of order facts at each level.
+    /// A direct Falsehood or unreachable query already searches these premises
+    /// for a contradiction. Repeating that search for another conclusion adds
+    /// no information and multiplies work by the order facts at each level.
     refuting: bool,
 }
 
@@ -571,6 +587,13 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
+        let implications = facts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, fact)| {
+                matches!(fact.proposition, Proposition::Implication { .. }).then_some(index)
+            })
+            .collect();
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::known::TransportInputs::new(equations.len());
         let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
@@ -581,6 +604,7 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            implications,
             float_integer_equalities,
             equations,
             definitions,
@@ -915,6 +939,10 @@ impl<'a> Prover<'a> {
         if std::mem::replace(&mut self.refuting, true) {
             return None;
         }
+        #[cfg(test)]
+        {
+            self.activity.contradiction_searches += 1;
+        }
         let absurd = self.contradiction(goal);
         self.refuting = false;
         absurd
@@ -1104,19 +1132,22 @@ impl<'a> Prover<'a> {
     /// `v < k or k < v`): each alternative either proves the goal as a local
     /// assumption or contradicts what is already known.
     fn split(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        let disjunctions: Vec<(Vec<Proposition>, ProofNode)> = self
-            .facts
-            .iter()
-            .filter_map(|fact| match &fact.proposition {
-                Proposition::Disjunction(parts) => Some((parts.clone(), fact.proof(&self.facts))),
-                _ => None,
-            })
-            .collect();
-        for (parts, proof) in disjunctions {
-            if self.active_cuts.contains(&proof.conclusion) {
+        for index in 0..self.facts.len() {
+            // No branch can start once the shared budget is exhausted. An
+            // active cut likewise supplies no new information. Check both
+            // before expanding its owned proof tree or cloning alternatives.
+            if self.remaining_case_branches == 0 {
+                return None;
+            }
+            let fact = &self.facts[index];
+            let Proposition::Disjunction(parts) = &fact.proposition else {
+                continue;
+            };
+            if self.active_cuts.contains(&fact.proposition) {
                 continue;
             }
-            self.active_cuts.push(proof.conclusion.clone());
+            let parts = parts.clone();
+            self.active_cuts.push(fact.proposition.clone());
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
@@ -1127,6 +1158,14 @@ impl<'a> Prover<'a> {
             self.active_cuts.pop();
             if branches.len() != parts.len() {
                 continue;
+            }
+            // Failed cuts need no owned derivation of the disjunction. Facts
+            // stay fixed while branches are checked, so expand this exact
+            // selected source only after every alternative has proved the goal.
+            let proof = self.facts[index].proof(&self.facts);
+            #[cfg(test)]
+            {
+                self.activity.disjunction_materializations += 1;
             }
             return Some(node(
                 goal.clone(),
@@ -1261,12 +1300,20 @@ impl<'a> Prover<'a> {
     }
 
     fn prove_direct(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
-        let structural = self.prove_structural(goal);
-        if structural.is_ok() {
-            return structural;
-        }
-        self.by_transport(goal)
-            .ok_or(structural.err().unwrap_or("no proof"))
+        // Proving Falsehood already asks whether these premises contradict.
+        // An implication's antecedent cannot usefully restart that same search;
+        // the outer goal still tries its ordinary cases and contradiction pass.
+        let refuting = self.refuting;
+        self.refuting |= matches!(goal, Proposition::Falsehood);
+        let result = match self.prove_structural(goal) {
+            Ok(proof) => Ok(proof),
+            Err(detail) => self
+                .by_implication(goal)
+                .or_else(|| self.by_transport(goal))
+                .ok_or(detail),
+        };
+        self.refuting = refuting;
+        result
     }
 
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -1347,11 +1394,6 @@ impl<'a> Prover<'a> {
                     return Ok(flipped);
                 }
                 if let Some(proof) = self.closed(goal.clone()) {
-                    return Ok(proof);
-                }
-                if byte_predicate_goal(left, right)
-                    && let Some(proof) = self.by_byte_implication(goal)
-                {
                     return Ok(proof);
                 }
                 if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
@@ -1441,8 +1483,9 @@ impl<'a> Prover<'a> {
         }
     }
 
-    fn by_byte_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        for index in 0..self.facts.len() {
+    fn by_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        for position in 0..self.implications.len() {
+            let index = self.implications[position];
             let Proposition::Implication {
                 premise,
                 conclusion,
@@ -1465,11 +1508,12 @@ impl<'a> Prover<'a> {
                     premise: Box::new(premise),
                 },
             );
-            return if result.conclusion == *goal {
-                Some(result)
-            } else {
-                flip(result).ok()
-            };
+            if result.conclusion == *goal {
+                return Some(result);
+            }
+            if let Ok(flipped) = flip(result) {
+                return Some(flipped);
+            }
         }
         None
     }
@@ -2577,12 +2621,19 @@ impl<'a> Prover<'a> {
         let slot = self.bounds.get(value)?.get(direction.index())?;
         match slot {
             Slot::Done(bound) => return bound.clone(),
-            // A relation cycle among hypotheses: this branch contributes
-            // nothing, the others still do.
-            Slot::InProgress => return None,
+            // A recursive candidate may reuse an already completed proof,
+            // never the candidate currently being derived. With no such
+            // proof this relation cycle contributes nothing.
+            Slot::InProgress(bound) => {
+                #[cfg(test)]
+                if bound.is_some() {
+                    self.activity.in_progress_bound_reuses += 1;
+                }
+                return bound.clone();
+            }
             Slot::Unknown => {}
         }
-        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress;
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(None);
         let best = self.search(value, direction);
         self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best.clone());
         best
@@ -2593,20 +2644,31 @@ impl<'a> Prover<'a> {
             return None;
         };
         let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
-        let mut candidates = Vec::new();
-        candidates.extend(self.carrier(&subject, integer, direction));
+        let mut best = self.carrier(&subject, integer, direction);
+        // Direct endpoints require no recursive search. Make their proofs
+        // available before following relations or arithmetic definitions:
+        // a wrapping step may need precisely this value's headroom.
         for index in 0..self.facts.len() {
-            if let Some(bound) = self.bound_from_fact(index, &subject, integer, direction) {
-                candidates.push(bound);
+            if let Some(next) = self.literal_bound_from_fact(index, &subject, integer, direction)
+                && best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                })
+            {
+                best = Some(next);
             }
         }
-        candidates.into_iter().reduce(|best, next| {
-            if direction.prefers(integer.compare(next.literal, best.literal)) {
-                next
-            } else {
-                best
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
+        for index in 0..self.facts.len() {
+            if let Some(next) = self.bound_from_fact(index, &subject, integer, direction)
+                && best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                })
+            {
+                best = Some(next);
+                self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
             }
-        })
+        }
+        best
     }
 
     fn oriented(subject: &ScalarTerm, literal: ScalarTerm, direction: Direction) -> Proposition {
@@ -2673,6 +2735,74 @@ impl<'a> Prover<'a> {
             ),
         };
         Some((value, restated.ok()?))
+    }
+
+    /// A fact with a closed endpoint supplies a bound without consulting
+    /// any unfinished value bound. The kernel still checks its actual proof.
+    fn literal_bound_from_fact(
+        &self,
+        index: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        direction: Direction,
+    ) -> Option<Bound> {
+        match (&self.facts[index].proposition, direction) {
+            // Direct bounds.
+            (Proposition::LessOrEqual(left, literal), Direction::Upper)
+            | (Proposition::LessOrEqual(literal, left), Direction::Lower)
+                if left == subject && literal.integer_value().is_some() =>
+            {
+                let (literal, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
+                Some(Bound { literal, proof })
+            }
+            (Proposition::LessThan(left, literal), Direction::Upper)
+            | (Proposition::LessThan(literal, left), Direction::Lower)
+                if left == subject && literal.integer_value().is_some() =>
+            {
+                let (value, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
+                let adjacent = step(value, direction == Direction::Lower)?;
+                let conclusion = Self::oriented(
+                    subject,
+                    ScalarTerm::integer(integer, adjacent).ok()?,
+                    direction,
+                );
+                Some(Bound {
+                    literal: adjacent,
+                    proof: node(
+                        conclusion,
+                        ProofRule::IntegerOrderDiscreteness {
+                            relation: Box::new(proof),
+                        },
+                    ),
+                })
+            }
+            (Proposition::Equal(left, right), _)
+                if (left == subject && right.integer_value().is_some())
+                    || (right == subject && left.integer_value().is_some()) =>
+            {
+                // Orient the equality so the weakened `<=` points the right way.
+                let proof = self.facts[index].proof(&self.facts);
+                let wanted_left_is_subject = direction == Direction::Upper;
+                let proof = if (left == subject) == wanted_left_is_subject {
+                    proof
+                } else {
+                    flip(proof).ok()?
+                };
+                let literal = if left == subject { right } else { left };
+                let (literal, proof) =
+                    self.literal_endpoint(weaken(proof).ok()?, literal, direction)?;
+                Some(Bound { literal, proof })
+            }
+            _ => None,
+        }
     }
 
     /// A bound on `subject` from one fact, or `None` when the fact says
@@ -2756,60 +2886,6 @@ impl<'a> Prover<'a> {
                     PrimitiveJudgment::ReflexiveEquality,
                 );
                 Self::carrier_bound_from_image(subject, chained, unchanged, direction)
-            }
-            // Direct bounds.
-            (Proposition::LessOrEqual(left, literal), Direction::Upper)
-            | (Proposition::LessOrEqual(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
-            {
-                let (literal, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
-                Some(Bound { literal, proof })
-            }
-            (Proposition::LessThan(left, literal), Direction::Upper)
-            | (Proposition::LessThan(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
-            {
-                let (value, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
-                let adjacent = step(value, direction == Direction::Lower)?;
-                let conclusion = Self::oriented(
-                    subject,
-                    ScalarTerm::integer(integer, adjacent).ok()?,
-                    direction,
-                );
-                Some(Bound {
-                    literal: adjacent,
-                    proof: node(
-                        conclusion,
-                        ProofRule::IntegerOrderDiscreteness {
-                            relation: Box::new(proof),
-                        },
-                    ),
-                })
-            }
-            (Proposition::Equal(left, right), _)
-                if (left == subject && right.integer_value().is_some())
-                    || (right == subject && left.integer_value().is_some()) =>
-            {
-                // Orient the equality so the weakened `<=` points the right way.
-                let proof = self.facts[index].proof(&self.facts);
-                let wanted_left_is_subject = direction == Direction::Upper;
-                let proof = if (left == subject) == wanted_left_is_subject {
-                    proof
-                } else {
-                    flip(proof).ok()?
-                };
-                let literal = if left == subject { right } else { left };
-                let (literal, proof) =
-                    self.literal_endpoint(weaken(proof).ok()?, literal, direction)?;
-                Some(Bound { literal, proof })
             }
             // Relations to another value: chain through its bound.
             (Proposition::LessOrEqual(near, far), _) | (Proposition::LessThan(near, far), _)

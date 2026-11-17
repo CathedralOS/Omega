@@ -5,25 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Omega Pipeline Map</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../design/tokens.css">
 <style>
 /* Layout: one wide figure per claim, read top to bottom: the whole pipeline, then the one leak the foundation split removes, then the size change. Tokens from the Omega design system. */
-@font-face { font-family: "Omega Serif"; src: url("../design/fonts/OmegaSerif-Light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
-@font-face { font-family: "Omega Serif"; src: url("../design/fonts/OmegaSerif-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Omega Serif"; src: url("../design/fonts/OmegaSerif-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
-:root {
-  --ground: #e6e2d9; --surface: #f2efe8; --ink: #1c1d1f; --ink-muted: #55534e; --rule: #a9a49a;
-  --checked: #275f53; --trap: #a63a24;
-  --serif: "Omega Serif", Georgia, serif;
-  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
-  --checked: #6fb8a4; --trap: #e0795f; color-scheme: dark; } }
-:root[data-theme="dark"] {
-  --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
-  --checked: #6fb8a4; --trap: #e0795f; color-scheme: dark; }
+:root { --serif: var(--font-serif); --mono: var(--font-mono); }
 
 body { background: var(--ground); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 28px; }
 .page { max-width: 1240px; margin: 0 auto; padding-block: 48px 96px;
@@ -90,9 +75,10 @@ svg.bars { min-width: 640px; }
 .bar-now { fill: var(--rule); }
 .bar-target { fill: var(--checked); }
 .num { font-variant-numeric: tabular-nums; }
+.original-status { border-bottom:1px solid var(--rule); padding-bottom:12px; font-size:13px; line-height:20px; } .original-status a { color:inherit; } .original-links { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:8px; } .original-status button { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--ink-muted); padding:2px 8px; } .atlas-directory { font-size:15px; } .atlas-directory ul { display:flex; flex-wrap:wrap; gap:8px 24px; list-style:none; padding:0; } .atlas-directory a { color:inherit; }
 </style>
 
-<div class="page">
+<div class="page"><aside class="original-status" aria-label="Historical design status"><strong>Original proposed design · 2026-11-17</strong> · Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas">3c8dc4234c71</a><br>Original drawing, labels and estimates preserved. The declaration-selection bypass was corrected in the <a href="pipeline-current.html">reviewed account</a>.<nav class="original-links" aria-label="Atlas views"><a href="pipeline-map.html" aria-current="page">Original map</a><a href="architecture.html">Interactive full architecture</a><a href="foundation-backend-plan.html">Complete migration plan</a><a href="repository.html">Codebase guide</a><a href="#atlas-directory">All pages</a><button id="original-theme" type="button">Light / dark</button></nav></aside>
   <header>
     <div class="eyebrow">Omega compiler · architecture · 2026-11-17</div>
     <h1>Omega pipeline map</h1>
@@ -320,6 +306,24 @@ svg.bars { min-width: 640px; }
       <figcaption>Counts are <code>.rs</code> lines from the current tree; the foundation target is the plan's estimate. Foundation keeps <code>arena</code>, <code>compiler-storage</code>, <code>diagnostics</code>, source text positions, a merged <code>wire</code>, <code>bignum</code> and <code>execution-admission</code>; <code>omega/foundation/</code> is deleted. The backend dissolves: emission, object and image code become stages, the target description becomes an input Omega 00 receives, program-derived plans move into the stages that compute them, and packaging moves to products.</figcaption>
     </figure>
   </section>
+<section class="atlas-directory" id="atlas-directory"><h2>Atlas pages</h2><nav aria-label="All atlas pages"><h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
+<li><a href="pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
+<li><a href="architecture.html"><span class="number">12</span>Interactive architecture</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">13</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">14</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">15</span>Owner rulings</a></li></ul></nav><p><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/artifacts/pipeline-map/original.html">Preserved HTML source</a> · <a href="https://github.com/CathedralOS/Omega/blob/4dcadfb359b143f87df4cda6d2b0c5b55203e7ef/atlas/pages/pipeline-map.html">Original publication revision</a></p></section>
 </div>
 
 <script>
@@ -327,10 +331,11 @@ svg.bars { min-width: 640px; }
   var box = document.getElementById('show-leaks');
   var g = document.getElementById('leaks');
   if (!box || !g) return;
-  function sync() { g.hidden = !box.checked; }
+  function sync() { g.toggleAttribute("hidden", !box.checked); }
   box.addEventListener('change', sync);
   sync();
 })();
 </script>
 
+<script>document.getElementById("original-theme").addEventListener("click",()=>{const r=document.documentElement,d=r.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");r.dataset.theme=d==="dark"?"light":"dark";});</script>
 </html>

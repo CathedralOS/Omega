@@ -650,15 +650,146 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             },
         });
     }
-    candidates.sort();
-    if candidates.windows(2).any(|pair| pair[0] == pair[1]) {
-        let machine = candidates[0].candidate;
-        return Err(fault(
-            machine,
-            "static provider publication repeats an exact candidate",
-        ));
-    }
+    order_provider_candidates(&identities, &mut candidates)?;
     module.identities = identities.build();
     module.provider_candidates = candidates;
     Ok(())
+}
+
+fn order_provider_candidates(
+    identities: &terminal_psi::TerminalIdentityTableBuilder,
+    candidates: &mut [terminal_psi::ProviderCandidateConformance],
+) -> Checked<()> {
+    // Portable order names the identities, not their insertion coordinates.
+    // Borrow the strings so sorting neither copies them nor builds a second
+    // identity index. Validate first; a missing identity is never an empty key.
+    let key = |row: &terminal_psi::ProviderCandidateConformance| {
+        Some((
+            row.boundary,
+            identities
+                .text(row.provider_identity)
+                .filter(|text| !text.is_empty())?,
+            identities
+                .text(row.provider_declaration.identity())
+                .filter(|text| !text.is_empty())?,
+            identities
+                .text(row.candidate_identity)
+                .filter(|text| !text.is_empty())?,
+            row.candidate,
+        ))
+    };
+    for candidate in candidates.iter() {
+        if key(candidate).is_none() {
+            return Err(fault(
+                candidate.candidate,
+                "static provider lost its canonical conformance identity",
+            ));
+        }
+    }
+    candidates.sort_unstable_by_key(&key);
+    if let Some(pair) = candidates
+        .windows(2)
+        .find(|pair| key(&pair[0]) == key(&pair[1]))
+    {
+        return Err(fault(
+            pair[0].candidate,
+            "static provider publication repeats an exact candidate",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod provider_order_tests {
+    use super::order_provider_candidates;
+    use terminal_psi::{
+        NominalDeclarationIdentity, ProviderCandidateConformance, ProviderRefinement,
+        ProviderSignature, TerminalIdentityIndex, TerminalIdentityTable,
+    };
+
+    fn candidate(
+        provider: TerminalIdentityIndex,
+        declaration: TerminalIdentityIndex,
+        callable: TerminalIdentityIndex,
+    ) -> ProviderCandidateConformance {
+        ProviderCandidateConformance {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            requirement_identity: callable,
+            source_requirement_identity: callable,
+            declaration_application: declaration,
+            receiving_application: declaration,
+            receiving_region_arguments: Vec::new(),
+            provider_identity: provider,
+            provider_declaration: NominalDeclarationIdentity::new(declaration),
+            candidate_identity: callable,
+            source_candidate_identity: callable,
+            source_candidate_package_identity: None,
+            candidate: semantic_vocabulary::MachineId::new(1).unwrap(),
+            signature: ProviderSignature::empty(),
+            refinement: ProviderRefinement::empty(),
+        }
+    }
+
+    #[test]
+    fn provider_order_uses_text_at_each_identity_coordinate() {
+        let mut identities = TerminalIdentityTable::default().into_builder();
+        let z = identities.intern("z");
+        let a = identities.intern("a");
+        let rows = [
+            candidate(a, z, a),
+            candidate(z, a, a),
+            candidate(a, a, z),
+            candidate(a, a, a),
+        ];
+        let expected = [
+            rows[3].clone(),
+            rows[2].clone(),
+            rows[0].clone(),
+            rows[1].clone(),
+        ];
+        let mut rows = rows;
+        order_provider_candidates(&identities, &mut rows).unwrap();
+        assert_eq!(rows, expected);
+        rows.reverse();
+        order_provider_candidates(&identities, &mut rows).unwrap();
+        assert_eq!(rows, expected);
+    }
+
+    #[test]
+    fn duplicate_provider_keys_refuse_even_when_other_metadata_differs() {
+        let mut identities = TerminalIdentityTable::default().into_builder();
+        let identity = identities.intern("provider");
+        let first = candidate(identity, identity, identity);
+        for change_metadata in [false, true] {
+            let mut second = first.clone();
+            if change_metadata {
+                second.source_requirement_identity = identities.intern("different source");
+            }
+            let refusal =
+                order_provider_candidates(&identities, &mut [first.clone(), second]).unwrap_err();
+            assert_eq!(
+                refusal.detail,
+                "static provider publication repeats an exact candidate"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_or_empty_provider_key_identities_refuse_before_sorting() {
+        let mut identities = TerminalIdentityTable::default().into_builder();
+        let identity = identities.intern("provider");
+        for absent in [TerminalIdentityIndex(0), TerminalIdentityIndex(u32::MAX)] {
+            for row in [
+                candidate(absent, identity, identity),
+                candidate(identity, absent, identity),
+                candidate(identity, identity, absent),
+            ] {
+                let refusal = order_provider_candidates(&identities, &mut [row]).unwrap_err();
+                assert_eq!(
+                    refusal.detail,
+                    "static provider lost its canonical conformance identity"
+                );
+            }
+        }
+    }
 }

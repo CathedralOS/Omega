@@ -536,6 +536,7 @@ fn hash_value_shape(
 ) {
     match shape.class {
         calling_conventions::ValueClass::Integer => digest.byte(1),
+        calling_conventions::ValueClass::IntegerAggregate => digest.byte(7),
         calling_conventions::ValueClass::Float => digest.byte(2),
         calling_conventions::ValueClass::BorrowedReference => digest.byte(3),
         calling_conventions::ValueClass::BorrowedScalarReference => digest.byte(6),

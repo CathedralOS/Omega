@@ -351,12 +351,24 @@ fn append_sized_memory(
     byte_size: u8,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
+    let naturally_aligned = offset_bytes.is_multiple_of(u64::from(byte_size.max(1)));
     if !matches!(byte_size, 1 | 2 | 4 | 8 | 16)
-        || !offset_bytes.is_multiple_of(u64::from(byte_size))
+        || (matches!(register, Register::Q(_)) && !naturally_aligned)
     {
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
-    let (base_register, displacement) = if offset_bytes / u64::from(byte_size) <= 4095 {
+    let (base_register, displacement) = if !naturally_aligned {
+        // A composite's internal carrier can have weaker alignment than a
+        // transfer word. Preserve its exact byte address instead of truncating
+        // the scaled displacement or refusing an otherwise valid copy. The
+        // caller reserves this scratch and rejects stores that would clobber
+        // their own source while forming the address.
+        let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
+        for word in crate::immediate_offset::address_words(scratch, base_register, offset_bytes) {
+            append_word(bytes, word);
+        }
+        (scratch, 0)
+    } else if offset_bytes / u64::from(byte_size) <= 4095 {
         (base_register, offset_bytes)
     } else {
         let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
@@ -444,6 +456,37 @@ mod tests {
                 expected.to_le_bytes()
             );
         }
+    }
+
+    #[test]
+    fn unaligned_scalar_frame_and_pointer_transfers_preserve_exact_byte_addresses() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let value = model.model().view_named("x0").unwrap().id;
+        let scratch = model.model().view_named("x17").unwrap().id;
+        for (load, opcode) in [(false, 0xb900_0220_u32), (true, 0xb940_0220)] {
+            assert_eq!(
+                super::encode_aarch64_frame_memory(&model, value, 2, 4, load, scratch).unwrap(),
+                [0x9100_0bf1_u32, opcode]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                super::encode_aarch64_pointer_memory(&model, value, scratch, 2, 4, load).unwrap(),
+                [0x9100_0a31_u32, opcode]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>()
+            );
+        }
+        assert!(super::encode_aarch64_frame_memory(&model, scratch, 2, 4, false, scratch).is_err());
+        assert!(
+            super::encode_aarch64_pointer_memory(&model, scratch, scratch, 2, 4, true).is_err()
+        );
+        // The reserved address scratch may also receive a frame load after
+        // its address has been consumed; a store must preserve its input.
+        assert!(super::encode_aarch64_frame_memory(&model, scratch, 2, 4, true, scratch).is_ok());
     }
 
     #[test]

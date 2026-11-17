@@ -4,7 +4,8 @@
 
 use super::{Shape, Storage};
 use semantic_vocabulary::{
-    IdTable, OperationId, PlaceId, Proposition, ScalarType, StructuralPlaceKind, ValueId,
+    IdTable, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+    ValueId,
 };
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
@@ -27,6 +28,141 @@ fn count_type() -> ScalarType {
 }
 
 impl<'a> Storage<'a> {
+    /// Retain a predicate result only when its subject has a stable meaning:
+    /// literal truth, or this activation's shared input bytes. Other current
+    /// contents cannot become a permanent equation across later writes.
+    pub(super) fn stable_byte_predicate_equation(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Option<Proposition>> {
+        let OperationKind::ByteSequencePredicate { operand, .. } = &operation.kind else {
+            return Ok(None);
+        };
+        let concerns = Construct::Operation(operation.id);
+        let Some(observation) = terminal_semantics::structural_effect_leaf_observation(operation)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+        else {
+            return Ok(None);
+        };
+        let root_type = self.root_type(operand.source(), concerns)?;
+        let Some(Proposition::Equal(result, ScalarTerm::ByteSequencePredicate { predicate, .. })) =
+            terminal_semantics::byte_predicate_equation(
+                &observation,
+                root_type,
+                &self.module.structural_types,
+            )
+        else {
+            return Ok(None);
+        };
+        let actual = self.argument(&self.byte_operand_argument(operand, concerns)?, concerns)?;
+        let subject = match self.byte_source(predicate, &actual, concerns) {
+            Ok(subject) => subject,
+            Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+            Err(crate::Unbound::Unsupported(_) | crate::Unbound::Unproved(_)) => return Ok(None),
+        };
+        let stable = match &subject {
+            ScalarTerm::Boolean(_) => true,
+            ScalarTerm::ByteSequencePredicate { root, path, .. } if path.is_empty() => {
+                terminal_psi::StructuralParameterDeclaration::find_by_place(
+                    &self.lowered.structural_parameters,
+                    *root,
+                )
+                .is_some_and(|formal| formal.access == StructuralAccess::SharedBorrow)
+            }
+            _ => false,
+        };
+        Ok(stable.then_some(Proposition::Equal(result, subject)))
+    }
+
+    /// A byte read instantiates only elementwise consequences of its source
+    /// predicate. UTF-8 alone supplies no bound of 127 on an individual byte.
+    pub(super) fn byte_read_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::{ByteSequencePredicate, IntegerSign, IntegerType, IntegerValue};
+        let source = match &operation.kind {
+            OperationKind::ByteSequenceRead { source, .. } => {
+                StructuralArgument::whole(*source, StructuralAccess::SharedBorrow)
+            }
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            } => {
+                let mut path = path.clone();
+                let root = self.root_type(*source, Construct::Operation(operation.id))?;
+                let declaration = terminal_semantics::projected_field_declaration(
+                    self.types.iter(),
+                    root,
+                    &path,
+                    *field,
+                )
+                .ok_or_else(|| {
+                    self.foreign(
+                        Construct::Operation(operation.id),
+                        "a byte read names no declared field",
+                    )
+                })?;
+                path.push(StructuralPathSegment::Field(declaration.identity));
+                StructuralArgument {
+                    place: *source,
+                    path,
+                    access: StructuralAccess::SharedBorrow,
+                }
+            }
+            _ => return Ok(Vec::new()),
+        };
+        let concerns = Construct::Operation(operation.id);
+        let byte = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+        let result = operation
+            .result
+            .scalar_ref()
+            .ok_or_else(|| self.foreign(concerns, "a byte read has no scalar result"))?;
+        if result.scalar_type != ScalarType::Integer(byte) {
+            return Err(self.foreign(concerns, "a byte read has another result carrier"));
+        }
+        let actual = self.argument(&source, concerns)?;
+        let mut premises = Vec::new();
+        for (predicate, bound, lower) in [
+            (ByteSequencePredicate::AsciiOnly, 127u8, false),
+            (ByteSequencePredicate::NoNul, 1u8, true),
+        ] {
+            let condition = match self.byte_source(predicate, &actual, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refused)) => return Err(refused),
+                Err(_) => {
+                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                    required.insert(predicate);
+                    if !terminal_semantics::byte_sequence_argument_predicates(
+                        self.module,
+                        self.lowered,
+                        &source,
+                    )
+                    .is_some_and(|known| known.implies(required))
+                    {
+                        continue;
+                    }
+                    ScalarTerm::Boolean(true)
+                }
+            };
+            let read = ScalarTerm::value(result.id, result.scalar_type);
+            let limit = ScalarTerm::integer(byte, IntegerValue::Unsigned(u128::from(bound)))
+                .expect("a byte bound is representable");
+            let consequence = if lower {
+                Proposition::LessOrEqual(limit, read)
+            } else {
+                Proposition::LessOrEqual(read, limit)
+            };
+            premises.push(Proposition::Implication {
+                premise: Box::new(Proposition::Equal(condition, ScalarTerm::Boolean(true))),
+                conclusion: Box::new(consequence),
+            });
+        }
+        Ok(premises)
+    }
+
     fn descriptor_access(
         &self,
         root: PlaceId,
@@ -305,13 +441,29 @@ impl<'a> Storage<'a> {
                 "a collection view cannot discard an enclosing qualification",
             )
         })?;
-        if !whole.is_empty()
+        // A shared byte view observes the qualified backing without moving
+        // its default or granting it to the descriptor. The storage windows
+        // still require that backing's predicates at this read. Keep routed,
+        // projected and mutable qualifications outside this admission.
+        let shared_predicate_backing = access == StructuralAccess::SharedBorrow
+            && !typed
+            && whole.iter().all(|id| {
+                self.module
+                    .structural_domains
+                    .binary_search_by_key(id, |domain| domain.id)
+                    .ok()
+                    .and_then(|index| self.module.structural_domains.get(index))
+                    .is_some_and(|domain| {
+                        domain.carrier == selected.id && domain.is_pure_predicate()
+                    })
+            });
+        if (!whole.is_empty() && !shared_predicate_backing)
             || !projected.is_empty()
             || !actual.additional_input_qualifications.is_empty()
         {
             return Err(self.unsupported(
                 concerns,
-                "collection view needs its whole plain backing without qualification loss",
+                "collection view needs plain backing or an exact pure predicate shared byte backing",
             ));
         }
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
@@ -580,74 +732,63 @@ impl<'a> Storage<'a> {
             })
     }
 
-    /// `left == right` over two byte views, a `ByteSequenceEqual`.
-    ///
-    /// structural_predicates.md: "Byte-sequence equality compares live
-    /// lengths and live byte prefixes." byte_views.md, of an evaluated
-    /// content predicate: "The operand retains its own dominating length
-    /// observation, readable access, and establishment." So each operand is
-    /// a complete selected view this machine may read, and the length it names is that
-    /// same view's measurement: the lowered form measures the left view,
-    /// then the right one, then compares, with nothing else between, so no
-    /// operation can have changed either extent. The result is a plain
-    /// `bool` and the comparison stores nothing.
-    pub(super) fn compared_byte_views(&self, operation: &Operation) -> Checked<()> {
+    /// The views observed by the two existing pure byte operations. This
+    /// roster drives both storage reads and their exact measurement checks.
+    pub(super) fn byte_observation_operands<'op>(
+        &self,
+        operation: &'op Operation,
+    ) -> Checked<[Option<&'op terminal_psi::control_flow::ByteSequenceOperand>; 2]> {
+        match &operation.kind {
+            OperationKind::ByteSequenceEqual { left, right } => Ok([Some(left), Some(right)]),
+            OperationKind::ByteSequencePredicate { operand, .. } => Ok([Some(operand), None]),
+            _ => Err(self.foreign(
+                Construct::Operation(operation.id),
+                "byte observations requested for another operation",
+            )),
+        }
+    }
+
+    /// Byte equality and predicates observe current bytes and store nothing.
+    /// Every operand still owes its own readable descriptor and directly
+    /// preceding length observation; a known Boolean never waives either.
+    pub(super) fn observed_byte_views(&self, operation: &Operation) -> Checked<()> {
         use terminal_psi::control_flow::ByteSequenceOperand;
         let concerns = Construct::Operation(operation.id);
-        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
-            return Err(self.foreign(
-                concerns,
-                "a byte comparison requested for another operation",
-            ));
-        };
+        let operands = self.byte_observation_operands(operation)?;
         if operation.result.scalar_ref().is_none_or(|result| {
             result.scalar_type != ScalarType::Boolean || result.qualifications != Default::default()
         }) {
-            return Err(self.foreign(concerns, "a byte comparison must produce a plain bool"));
+            return Err(self.foreign(concerns, "a byte observation must produce a plain bool"));
         }
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
         let operations = &self.block(block)?.operations;
-        // `after` counts the comparison itself: the right view's
-        // measurement is two back, the left view's three back.
-        for (operand, back) in [(left, 3), (right, 2)] {
-            let source = self.byte_operand_argument(operand, concerns)?;
-            self.readable_byte_view(operation, source.place, &source.path)?;
-            let measured = after
-                .checked_sub(back)
+        let count = operands.iter().flatten().count();
+        for (ordinal, operand) in operands.into_iter().flatten().enumerate() {
+            let actual = self.byte_operand_argument(operand, concerns)?;
+            if actual.access != StructuralAccess::SharedBorrow {
+                return Err(self.unsupported(concerns, "a byte observation without shared access"));
+            }
+            self.readable_byte_view(operation, actual.place, &actual.path)?;
+            // `after` counts this operation. There is one measurement per
+            // operand, in order, and no operation between them and the read.
+            let measured = after.checked_sub(count + 1 - ordinal)
                 .and_then(|position| operations.get(position))
                 .is_some_and(|measurement| {
-                    let same_descriptor = match (operand, &measurement.kind) {
-                        (
-                            ByteSequenceOperand::Whole { source, .. },
-                            OperationKind::ByteSequenceLength { source: measured },
-                        ) => measured == source,
-                        (
-                            ByteSequenceOperand::Field { source, field, .. },
-                            OperationKind::StructuralByteSequenceFieldLength {
-                                source: measured,
-                                path,
-                                field: measured_field,
-                            },
-                        ) => {
-                            *measured == source.place
-                                && path == &source.path
-                                && measured_field == field
-                        }
+                    let same = match (operand, &measurement.kind) {
+                        (ByteSequenceOperand::Whole { source, .. }, OperationKind::ByteSequenceLength { source: observed }) => source == observed,
+                        (ByteSequenceOperand::Field { source, field, .. }, OperationKind::StructuralByteSequenceFieldLength { source: root, path, field: observed }) => source.place == *root && source.path == *path && field == observed,
                         _ => false,
                     };
-                    same_descriptor
-                        && measurement
-                            .result
-                            .scalar_ref()
-                            .is_some_and(|result| result.id == operand.length())
+                    same && measurement.result.scalar_ref().is_some_and(|result| {
+                        result.id == operand.length()
+                            && matches!(result.scalar_type, ScalarType::Integer(integer)
+                                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+                    })
                 });
             if !measured {
-                return Err(self.unsupported(
-                    concerns,
-                    "a byte comparison whose length is not its view's measurement directly before it",
-                ));
+                return Err(self.unsupported(concerns, "a byte observation whose length is not its view's measurement directly before it"));
             }
         }
         Ok(())

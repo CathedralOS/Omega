@@ -260,10 +260,11 @@ impl Program<'_> {
         fact: &ProofFact,
         requirement: bool,
     ) -> Checked<Option<(Proposition, ClauseText)>> {
-        if let Some(logical) = scope.logical
-            && let ProofFact::Membership(membership) = fact
-        {
-            return logical.membership_clause(self, scope, membership).map(Some);
+        if let ProofFact::Membership(membership) = fact {
+            return match scope.logical {
+                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                None => self.runtime_membership_clause(id, scope, membership),
+            };
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
@@ -301,8 +302,8 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
-        if let Some((predicate, argument)) =
-            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
         {
             return self.byte_predicate_clause(id, scope, predicate, argument);
         }
@@ -572,13 +573,9 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<Proposition> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let Some((root, path, value_type)) = self.projected(id, scope, argument)? else {
-            return Err(unserved("byte predicate of something that is not storage"));
-        };
+        let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
-            return Err(unserved(
-                "byte predicate of something that is not a byte view or a byte array",
-            ));
+            unreachable!("validated byte carrier")
         };
         match self.data_type(id, row)?.shape {
             StorageShape::ByteSequence(_) => {}
@@ -598,6 +595,113 @@ impl Program<'_> {
             ScalarTerm::Boolean(true),
             id,
         )
+    }
+
+    fn byte_predicate_subject(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject =
+            typed_trees::byte_predicates::whole_byte_observation_subject(self.typed, argument)
+                .ok_or_else(|| {
+                    unserved("logical byte observation requires a shared exact whole view")
+                })?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte carrier",
+            ));
+        };
+        let explicit_loan = matches!(
+            self.typed.expression_table.expression(argument),
+            ExpressionNode::Borrow(_)
+        );
+        let valid = match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StorageShape::ByteSequence(_) if explicit_loan => true,
+            StorageShape::FixedArray { .. } if explicit_loan => {
+                let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                    return Err(unserved("byte array is not readable"));
+                };
+                let (element, qualification, _) = self.array_element(id, array)?;
+                matches!(self.storage_value_type(id, element, qualification)?,
+                    ValueType::Scalar(ScalarType::Integer(integer), _) if integer.bits() == Some(8)
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(unserved(
+                "byte predicate requires a byte view or fixed u8 array",
+            ));
+        }
+        let collection = if let ExpressionNode::Borrow(borrow) =
+            self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+        {
+            // A domain's `self` names the declared logical carrier, which
+            // may be unsized. Its actual source type is retained by that
+            // declaration; reading it is not executable slice materialization.
+            if let Some(subject) = scope.subject
+                && let Some(definition) = self.typed.domain_definition(scope.owner)
+                && subject.symbol == definition.subject_symbol
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(definition.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+                && typed_trees::domain::domain_subject_reference(
+                    self.typed,
+                    definition,
+                    indexed.collection,
+                )
+            {
+                Some(definition.target_type)
+            } else {
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            }
+        } else {
+            None
+        };
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_byte_observation_range(id, owner, argument, collection)?;
+        Ok((root, path, value_type))
+    }
+
+    /// Form the source range of a logical byte observation. The declaration
+    /// reader supplies its exact logical carrier; instantiated clauses supply
+    /// the actual checked structural operand. Neither call grants membership.
+    pub(super) fn complete_byte_observation_range(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        argument: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+            && matches!(
+                self.typed.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            return self.complete_collection_range_operator(id, owner, borrow.target, collection);
+        }
+        Ok(())
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its
@@ -796,6 +900,15 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            let (root, path, _) = self.byte_predicate_subject(id, scope, argument)?;
+            return Ok((
+                ScalarTerm::byte_sequence_predicate(predicate, root, path),
+                ValueType::plain(ScalarType::Boolean),
+            ));
         }
         if let Some(logical) = &scope.logical
             && let Some((term, scalar)) = logical.term(typed, expression)?
@@ -1630,7 +1743,7 @@ impl Program<'_> {
     /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
-    fn projected(
+    pub(super) fn projected(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
@@ -1781,6 +1894,9 @@ impl Program<'_> {
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
                 let value_type = self.storage_value_type(id, element, qualification)?;
+                let operands = self.collection_index_operand_types(id, array.record());
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.complete_builtin_operator(id, owner, expression, &operands)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)

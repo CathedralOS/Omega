@@ -924,7 +924,11 @@ fn machine(
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
             Ok(Discharged::Certificate(evidence)) if stores => {
-                restoring.push((storage.owner(operation, clause, concerns)?, operation));
+                let owner = storage.owner(operation, clause, concerns)?;
+                restoring.push((
+                    storage.capture_owner(&mut references, operation, owner, concerns)?,
+                    operation,
+                ));
                 Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
@@ -937,7 +941,12 @@ fn machine(
                     windows.push(places::Window {
                         obligation,
                         opened_by: operation,
-                        owner,
+                        owner: storage.capture_owner(
+                            &mut references,
+                            operation,
+                            owner,
+                            concerns,
+                        )?,
                         initial: zeroes,
                         restored: Vec::new(),
                     });
@@ -1620,6 +1629,7 @@ impl Unbound {
 
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
+    substitute_sufficient_clause as sufficient_goal,
 };
 
 /// States a clause the checker must prove: a goal, never a premise.
@@ -1641,7 +1651,7 @@ pub(crate) fn substitute_goal(
     let (parts, conjunction) = match clause {
         Proposition::Conjunction(parts) => (parts, true),
         Proposition::Disjunction(parts) => (parts, false),
-        _ => return substitute(clause, bindings),
+        _ => return sufficient_goal(clause, bindings),
     };
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
@@ -1753,6 +1763,18 @@ impl Bindings for ErasedTerms<'_> {
         Ok(supplied.clone())
     }
 
+    fn value_alternatives(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        if self.terms.iter().any(|(formal, _)| *formal == id) {
+            self.value(id, scalar_type).map(|value| vec![value])
+        } else {
+            self.runtime.value_alternatives(id, scalar_type)
+        }
+    }
+
     fn field(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,
@@ -1761,6 +1783,17 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.field(version, root, path, scalar_type)
+    }
+
+    fn field_alternatives(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        self.runtime
+            .field_alternatives(version, root, path, scalar_type)
     }
 
     fn extent(

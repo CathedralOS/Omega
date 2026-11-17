@@ -6,12 +6,8 @@ asks clang where every byte goes on each hosted target (`clang_mir.rs`), asks
 `evaluate_call_plan` the same, and compares the two byte by byte.
 
 The platform ABI documents are the answer key; clang is only a cross-check.
-A mismatch therefore counts only when a quoted ABI rule explains it, and each
-cause still open on `main` is one `KNOWN_MISMATCHES` entry naming its heading
-in OWNER_CODE_CONCERNS.md together with the rule. The test fails on a mismatch
-no entry explains, on an entry whose cause no longer reproduces (delete it when
-its fix lands), on an entry whose concern heading is gone, and on clang output
-the tracer cannot read.
+Every admitted signature must agree. A mismatch or unreadable clang output
+fails the test; refused signatures are reported separately.
 
 It needs clang with the AArch64 and X86 backends, so it is `#[ignore]`d and
 the post-merge workflow runs it:
@@ -30,7 +26,6 @@ use crate::{
 use clang_mir::{Placements, caller_bodies, clang_placements};
 use signatures::{GeneratedSignature, GeneratedValue, c_source, generated_signatures};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Fixed so every run compares the same signatures.
@@ -66,48 +61,6 @@ const TARGETS: [HostedTarget; 4] = [
     },
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Cause {
-    /// A 16-byte-aligned value starts one integer register later than clang.
-    AppleOddRegister,
-    /// A stack argument lands too early because a non-HFA record on the
-    /// stack (itself or an earlier one) was packed instead of taking an
-    /// 8-byte-aligned slot of whole 8-byte units.
-    DarwinRecordStackSlot,
-}
-
-struct KnownMismatch {
-    target: &'static str,
-    cause: Cause,
-    /// The `### ` heading in OWNER_CODE_CONCERNS.md that tracks the fix.
-    concern: &'static str,
-    /// The quoted ABI rule that makes clang right and Omega wrong.
-    rule: &'static str,
-}
-
-const KNOWN_MISMATCHES: &[KnownMismatch] = &[
-    KnownMismatch {
-        target: "macos_arm64",
-        cause: Cause::AppleOddRegister,
-        concern: "macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one",
-        rule: "Apple, Writing ARM64 code for Apple platforms: \"Apple platforms allow the \
-               argument to start in an odd-numbered xN register\" for a 16-byte-aligned \
-               argument passed in general-purpose registers (AAPCS64 C.10 rounds the NGRN \
-               up to even).",
-    },
-    KnownMismatch {
-        target: "macos_arm64",
-        cause: Cause::DarwinRecordStackSlot,
-        concern: "macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot",
-        rule: "AAPCS64 B.5: \"If the argument type is a Composite Type then the size of the \
-               argument is rounded up to the nearest multiple of 8 bytes.\" C.14: \"The NSAA \
-               is rounded up to the nearest multiple of the larger of 8 or the Natural \
-               Alignment of the argument's type.\" Apple's natural-alignment stack packing \
-               covers the scalars its document shows; clang keeps B.5 and C.14 for non-HFA \
-               records on Apple targets.",
-    },
-];
-
 #[test]
 #[ignore = "needs clang; the post-merge workflow runs it with --ignored"]
 fn clang_crosscheck() {
@@ -126,44 +79,20 @@ fn clang_crosscheck() {
     let signatures = generated_signatures(SEED, SIGNATURE_COUNT);
     let mir = clang_mir_by_target(&clang, &signatures);
 
-    let mut failures = known_list_failures();
-    let mut seen_causes = BTreeMap::new();
+    let mut failures = Vec::new();
     for target in &TARGETS {
         let report = compare_target(target, &signatures, &mir[target.name]);
         println!(
-            "{}: {} signatures, {} agree, {} known mismatches, {} unexplained, {} refused by Omega, {} unreadable clang output",
+            "{}: {} signatures, {} agree, {} unexplained, {} refused by Omega, {} unreadable clang output",
             target.name,
             signatures.len(),
             report.agree,
-            report.known.values().map(Vec::len).sum::<usize>(),
             report.unexplained.len(),
             report.refused,
             report.harness.len(),
         );
-        for (cause, ids) in &report.known {
-            let entry = KNOWN_MISMATCHES
-                .iter()
-                .find(|entry| entry.target == target.name && entry.cause == *cause)
-                .expect("only listed causes are counted as known");
-            println!(
-                "  known {cause:?}: {} signatures, e.g. {:?}\n    concern: {}\n    rule: {}",
-                ids.len(),
-                &ids[..ids.len().min(5)],
-                entry.concern,
-                entry.rule
-            );
-            seen_causes.insert((target.name, *cause), ids.len());
-        }
         for text in report.unexplained.iter().chain(&report.harness) {
             failures.push(format!("{}: {text}", target.name));
-        }
-    }
-    for entry in KNOWN_MISMATCHES {
-        if !seen_causes.contains_key(&(entry.target, entry.cause)) {
-            failures.push(format!(
-                "known mismatch {:?} on {} no longer reproduces; delete its KNOWN_MISMATCHES entry and the concern \"{}\"",
-                entry.cause, entry.target, entry.concern
-            ));
         }
     }
     println!("clang cross-check took {:.1?}", started.elapsed());
@@ -176,32 +105,6 @@ fn clang_crosscheck() {
             failures.len()
         );
     }
-}
-
-/// Each `KNOWN_MISMATCHES` entry must name a live OWNER_CODE_CONCERNS.md
-/// heading, so the list cannot outlive the concern that tracks the fix.
-fn known_list_failures() -> Vec<String> {
-    let concerns = repository_root().join("OWNER_CODE_CONCERNS.md");
-    let text = std::fs::read_to_string(&concerns)
-        .unwrap_or_else(|error| panic!("read {}: {error}", concerns.display()));
-    KNOWN_MISMATCHES
-        .iter()
-        .filter(|entry| !text.lines().any(|line| line.strip_prefix("### ") == Some(entry.concern)))
-        .map(|entry| {
-            format!(
-                "known mismatch {:?} names the concern \"{}\", which OWNER_CODE_CONCERNS.md no longer has",
-                entry.cause, entry.concern
-            )
-        })
-        .collect()
-}
-
-fn repository_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .find(|dir| dir.join("OWNER_CODE_CONCERNS.md").is_file())
-        .expect("the crate lives inside the repository")
-        .to_path_buf()
 }
 
 /// Lowers the generated callers with clang for every target at once.
@@ -245,7 +148,6 @@ fn clang_mir_by_target(
 struct TargetReport {
     agree: usize,
     refused: usize,
-    known: BTreeMap<Cause, Vec<usize>>,
     unexplained: Vec<String>,
     harness: Vec<String>,
 }
@@ -286,18 +188,7 @@ fn compare_target(
             report.agree += 1;
             continue;
         }
-        match cause_of(target.name, &rows) {
-            Some(cause)
-                if KNOWN_MISMATCHES
-                    .iter()
-                    .any(|entry| entry.target == target.name && entry.cause == cause) =>
-            {
-                report.known.entry(cause).or_default().push(k);
-            }
-            cause => report
-                .unexplained
-                .push(mismatch_text(k, signature, &rows, cause)),
-        }
+        report.unexplained.push(mismatch_text(k, signature, &rows));
     }
     report
 }
@@ -410,8 +301,6 @@ struct Row<'a> {
     name: String,
     value: &'a GeneratedValue,
     class: Option<ValueClass>,
-    clang_first: String,
-    omega_first: String,
     first_difference: Option<(u32, String, String)>,
     differs: bool,
 }
@@ -438,7 +327,6 @@ fn compared_rows<'a>(
                class,
                clang: &BTreeMap<u32, String>,
                omega: &BTreeMap<u32, String>| {
-        let first = value.leaves[0].0;
         let first_difference = value.value_bytes().find_map(|b| {
             let (c, w) = (
                 clang.get(&b).unwrap_or(&none),
@@ -450,8 +338,6 @@ fn compared_rows<'a>(
             name,
             value,
             class,
-            clang_first: comparable(clang.get(&first).unwrap_or(&none)).to_string(),
-            omega_first: comparable(omega.get(&first).unwrap_or(&none)).to_string(),
             differs: first_difference.is_some(),
             first_difference,
         }
@@ -482,75 +368,11 @@ fn compared_rows<'a>(
     rows
 }
 
-fn stack_offset(location: &str) -> Option<u32> {
-    location.strip_prefix("sp+")?.parse().ok()
-}
-
-fn x_register(location: &str) -> Option<u32> {
-    location
-        .strip_prefix("reg:x")?
-        .split('@')
-        .next()?
-        .parse()
-        .ok()
-}
-
-/// Names the ABI rule behind a mismatching signature from its first wrong
-/// parameter; later differences usually follow from that one.
-fn cause_of(target: &str, rows: &[Row<'_>]) -> Option<Cause> {
-    let index = rows
-        .iter()
-        .position(|row| row.differs && row.class.is_some())?;
-    let (earlier, row) = (&rows[..index], &rows[index]);
-    if target != "macos_arm64" {
-        return None;
-    }
-    if row.value.alignment == 16
-        && row.class == Some(ValueClass::Integer)
-        && let (Some(clang), Some(omega)) =
-            (x_register(&row.clang_first), x_register(&row.omega_first))
-        && omega == clang + 1
-    {
-        return Some(Cause::AppleOddRegister);
-    }
-    // A non-HFA record narrower than a whole 8-byte-aligned slot, which C
-    // gives one anyway (AAPCS64 B.5 and C.14).
-    let packed_record = |row: &Row<'_>| {
-        row.value.record
-            && !matches!(
-                row.class,
-                Some(ValueClass::HomogeneousFloatAggregate { .. })
-            )
-            && (row.value.alignment < 8 || !row.value.byte_size.is_multiple_of(8))
-            && row.clang_first.starts_with("sp+")
-    };
-    if (packed_record(row) || earlier.iter().any(packed_record))
-        && let (Some(clang), Some(omega)) = (
-            stack_offset(&row.clang_first),
-            stack_offset(&row.omega_first),
-        )
-        && clang > omega
-    {
-        return Some(Cause::DarwinRecordStackSlot);
-    }
-    None
-}
-
-fn mismatch_text(
-    k: usize,
-    signature: &GeneratedSignature,
-    rows: &[Row<'_>],
-    cause: Option<Cause>,
-) -> String {
+fn mismatch_text(k: usize, signature: &GeneratedSignature, rows: &[Row<'_>]) -> String {
     let mut text = format!(
         "signature {k} {} disagrees with clang",
         signature.describe()
     );
-    if let Some(cause) = cause {
-        text.push_str(&format!(
-            " (looks like {cause:?}, which has no entry for this target)"
-        ));
-    }
     for row in rows {
         if let Some((byte, clang, omega)) = &row.first_difference {
             text.push_str(&format!(

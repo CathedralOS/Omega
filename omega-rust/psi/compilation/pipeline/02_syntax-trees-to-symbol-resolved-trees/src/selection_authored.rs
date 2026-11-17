@@ -537,7 +537,7 @@ fn index_latest_call_selection(
     program: &SymbolResolvedTrees,
     index: &mut HashMap<CallSelectionKey, Vec<usize>>,
 ) {
-    let Some(selection) = program.authored_declaration_selections().as_slice().last() else {
+    let Some(selection) = program.authored_declaration_selections().rows().last() else {
         return;
     };
     if selection.kind() != Kind::Call {
@@ -575,7 +575,7 @@ fn existing_call_occurrence(
     };
     let mut retained = None;
     for &row in rows {
-        let selection = &program.authored_declaration_selections().as_slice()[row];
+        let selection = program.authored_declaration_selections().rows().at(row);
         if selection.exposure() != exposure {
             continue;
         }

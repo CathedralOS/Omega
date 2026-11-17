@@ -214,6 +214,49 @@ pub(crate) fn join_abi_declarations(
     Ok(joined)
 }
 
+fn policy_declaration(
+    context: MachineId,
+    scope: &terminal_psi::ProofApplicationScope,
+    callable: TargetMachineCallable,
+    actual: &terminal_psi::CheckedMachineDeclaration,
+) -> Checked<terminal_psi::ProofDeclarationId> {
+    let mut declaration = None;
+    for (_, association) in scope.callables.iter() {
+        if let ProofCallableAssociation::Callable {
+            declaration: candidate,
+            callable: associated,
+        } = association
+            && *associated == callable
+            && declaration.replace(*candidate).is_some()
+        {
+            return Err(services::unavailable(
+                context,
+                "calling policy has competing proof declaration associations",
+            ));
+        }
+    }
+    let declaration = declaration.ok_or_else(|| {
+        services::unavailable(
+            context,
+            "calling policy has no actual proof-scope declaration",
+        )
+    })?;
+    if !matches!(scope.declaration(declaration),
+        Some(terminal_psi::ProofScopeDeclaration::Callable(checked)) if checked == actual)
+        || !scope
+            .calls
+            .machines()
+            .iter()
+            .any(|(_, row)| row.machine == declaration)
+    {
+        return Err(services::unavailable(
+            context,
+            "calling policy has no exact callable declaration and body graph in its own proof scope",
+        ));
+    }
+    Ok(declaration)
+}
+
 pub(crate) fn publish(
     typed: &typed_trees::TypedTrees,
     context: MachineId,
@@ -287,33 +330,18 @@ pub(crate) fn publish(
                         "calling policy has no actual source-produced executable row",
                     ));
                 }
-                let mut declaration = None;
-                for (_, association) in scope.callables.iter() {
-                    if let ProofCallableAssociation::Callable {
-                        declaration: candidate,
-                        callable: actual,
-                    } = association
-                        && *actual == callable
-                        && declaration.replace(*candidate).is_some()
-                    {
-                        return Err(services::unavailable(
+                let actual = elaboration
+                    .module
+                    .machine(instance.policy)
+                    .filter(|machine| !machine.blocks.is_empty())
+                    .and_then(|machine| machine.declaration.as_ref())
+                    .ok_or_else(|| {
+                        services::unavailable(
                             context,
-                            "calling policy has competing proof declaration associations",
-                        ));
-                    }
-                }
-                let declaration = declaration.ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "calling policy has no actual proof-scope declaration",
-                    )
-                })?;
-                if scope.declaration(declaration).is_none() {
-                    return Err(services::unavailable(
-                        context,
-                        "calling policy proof declaration is stale",
-                    ));
-                }
+                            "calling policy has no actual source-produced callable body",
+                        )
+                    })?;
+                let declaration = policy_declaration(context, scope, callable, actual)?;
                 if instance.declaring_application.is_empty() {
                     return Err(services::unavailable(
                         context,
@@ -592,5 +620,71 @@ mod tests {
         }
         assert_eq!(existing, vec![selected.clone(), metadata_only]);
         assert_eq!(incoming, vec![selected]);
+    }
+}
+
+#[cfg(test)]
+mod policy_scope_tests {
+    use super::*;
+    use terminal_psi::{
+        CheckedMachineDeclaration, NominalDeclarationIdentity, ProofApplicationScope,
+        ProofDeclarationId, ProofScopeDeclaration, TerminalIdentityIndex,
+    };
+
+    #[test]
+    fn a_policy_joins_only_its_own_callable_declaration_and_body_graph() {
+        let context = MachineId::new(1).unwrap();
+        let callable = TargetMachineCallable::Machine(context);
+        let actual = CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            state: NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+            semantic_declaration: TerminalIdentityIndex(3),
+            parameter_types: Vec::new(),
+            callable: TerminalIdentityIndex(4),
+            result_type: TerminalIdentityIndex(5),
+            contract: [7; 32],
+            published_may_suspend: false,
+            published_may_block: false,
+            specialization: None,
+        };
+        let mut scope = ProofApplicationScope::default();
+        scope
+            .declarations
+            .insert(ProofScopeDeclaration::Callable(actual.clone()));
+        scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration: ProofDeclarationId(1),
+            callable,
+        });
+        scope
+            .calls
+            .insert_machine(semantic_vocabulary::proof_applications::ProofCallMachine {
+                machine: ProofDeclarationId(1),
+                calls: Default::default(),
+                cleanup: Default::default(),
+            });
+        assert_eq!(
+            policy_declaration(context, &scope, callable, &actual).unwrap(),
+            ProofDeclarationId(1)
+        );
+        let mut foreign = actual.clone();
+        foreign.contract = [8; 32];
+        assert!(policy_declaration(context, &scope, callable, &foreign).is_err());
+        let mut no_graph = scope.clone();
+        no_graph.calls = Default::default();
+        assert!(policy_declaration(context, &no_graph, callable, &actual).is_err());
+        let mut unavailable = ProofApplicationScope::default();
+        unavailable
+            .declarations
+            .insert(ProofScopeDeclaration::Unavailable(
+                "logical requirement".into(),
+            ));
+        unavailable
+            .callables
+            .insert(ProofCallableAssociation::Callable {
+                declaration: ProofDeclarationId(1),
+                callable,
+            });
+        unavailable.calls = scope.calls;
+        assert!(policy_declaration(context, &unavailable, callable, &actual).is_err());
     }
 }

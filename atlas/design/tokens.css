@@ -1,8 +1,8 @@
 /*
  * Omega design tokens, portable copy. Link this file from any page in
- * atlas/pages/ as ../design/tokens.css. The values match the Omega design
- * system (tokens.json beside this file is the source); change them there
- * first, then here.
+ * atlas/pages/ as ../design/tokens.css. Base values follow the Omega design
+ * system; family colors are the owner-requested atlas extension. tokens.json
+ * beside this file is the source; change values there first, then here.
  *
  * Two themes: Limestone (light, default) and Ink (dark). The dark values
  * apply when the reader's system prefers dark, unless the page sets
@@ -56,4 +56,38 @@
   --ground: #161719; --surface: #1f2023; --ink: #ece8df; --ink-muted: #a8a49a; --rule: #3a3b3f;
   --checked: #6fb8a4; --on-checked: #161719; --trap: #e0795f; --on-trap: #161719;
   color-scheme: dark;
+}
+
+/* User-requested categorical architecture colors, independent of verdicts. */
+:root {
+  --family-psi: #2355a3; --family-psi-surface: #edf3ff;
+  --family-native: #713fb0; --family-native-surface: #f5eeff;
+  --family-build: #80520b; --family-build-surface: #fff6dd;
+  --family-runtime: #086b82; --family-runtime-surface: #e4f6fb;
+  --family-library: #686010; --family-library-surface: #f9f6da;
+  --family-bootstrap: #953d70; --family-bootstrap-surface: #fff0f7;
+  --family-omega-source: #4b549b; --family-omega-source-surface: #eef0ff;
+  --family-support: #526275; --family-support-surface: #edf1f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --family-psi: #9fc1ff; --family-psi-surface: #182b45;
+    --family-native: #d3b1ff; --family-native-surface: #2b2041;
+    --family-build: #f0c577; --family-build-surface: #352b17;
+    --family-runtime: #83d5e4; --family-runtime-surface: #15323b;
+    --family-library: #e4d785; --family-library-surface: #302f18;
+    --family-bootstrap: #efa8cd; --family-bootstrap-surface: #392333;
+    --family-omega-source: #b9bfff; --family-omega-source-surface: #242841;
+    --family-support: #b5c3d6; --family-support-surface: #252e39;
+  }
+}
+:root[data-theme="dark"] {
+    --family-psi: #9fc1ff; --family-psi-surface: #182b45;
+    --family-native: #d3b1ff; --family-native-surface: #2b2041;
+    --family-build: #f0c577; --family-build-surface: #352b17;
+    --family-runtime: #83d5e4; --family-runtime-surface: #15323b;
+    --family-library: #e4d785; --family-library-surface: #302f18;
+    --family-bootstrap: #efa8cd; --family-bootstrap-surface: #392333;
+    --family-omega-source: #b9bfff; --family-omega-source-surface: #242841;
+    --family-support: #b5c3d6; --family-support-surface: #252e39;
 }

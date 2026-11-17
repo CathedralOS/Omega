@@ -863,6 +863,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         E::Field { base, .. }
         | E::CollectionView { base, .. }
         | E::CollectionMeasure { base, .. }
+        | E::ByteSequencePredicate { base, .. }
         | E::Establish { operand: base, .. }
         | E::Payload { base, .. }
         | E::IsCase { subject: base, .. }

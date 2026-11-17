@@ -1,84 +1,12 @@
 {
- "declared_unused": {
-  "arena": [
-   "image-macho",
-   "image-elf",
-   "image-pe",
-   "package-manager",
-   "compiler"
-  ],
-  "artifacts": [
-   "omega"
-  ],
-  "bounded-process": [
-   "orchestration"
-  ],
-  "compiler-storage": [
-   "target",
-   "products",
-   "compiler"
-  ],
-  "diagnostics": [
-   "abstract-operations-to-target-operations",
-   "ind19-spectrum-validation",
-   "target",
-   "layout"
-  ],
-  "flow-effects": [
-   "provider-planning",
-   "build-time-evaluation",
-   "package-compilation",
-   "source-compiler"
-  ],
-  "function-identity": [
-   "legalized-operations",
-   "terminal-psi-to-abstract-operations",
-   "target-operations",
-   "machine-code",
-   "machine-emission"
-  ],
-  "language-core": [
-   "build-settings",
-   "target"
-  ],
-  "language-semantics": [
-   "terminal-psi-to-terminal-psi"
-  ],
-  "layout-plans": [
-   "build-settings",
-   "target"
-  ],
-  "numerics": [
-   "provider-planning",
-   "layout"
-  ],
-  "optimization": [
-   "source-compiler",
-   "compiler"
-  ],
-  "optimization-core": [
-   "image-elf",
-   "ind19-spectrum-validation",
-   "target"
-  ],
-  "semantic-vocabulary": [
-   "post-allocation-machine-to-selected-form-encoding",
-   "resolved-layout-to-resolved-layout",
-   "terminal-codec",
-   "ind19-spectrum-validation",
-   "target"
-  ],
-  "source": [
-   "provider-admission",
-   "trust-model"
-  ],
-  "symbols": [
-   "abstract-operations-to-target-operations",
-   "register-homes",
-   "ind19-spectrum-validation",
-   "layout"
-  ]
- },
+ "limitations": [
+  "Textual observations, not Rust name resolution or a dependency-removal proof.",
+  "Normal and build dependencies include optional and target-conditional declarations; features and target cfg are not evaluated.",
+  "Tests, benches, examples, conventional test filenames and exact cfg(test) items are excluded from usage, but complex cfg expressions are not evaluated.",
+  "Macros are not expanded; generated and untracked source is excluded; reexports are credited to the named crate, not traced to their origin.",
+  "Import aliases and glob presence are observed, but shadowing, glob contents and fully qualified type paths are not resolved.",
+  "An unobserved dependency remains unverified until a suitable Cargo check and manual review establish whether it can be removed."
+ ],
  "pos": {
   "abstract-operations": "omega-repr abstract-operations",
   "abstract-operations-to-abstract-operations": "omega-stage 01",
@@ -191,6 +119,7 @@
   "syntax-trees": "psi-repr syntax-trees",
   "syntax-trees-derive": "psi-repr syntax-trees:derive",
   "syntax-trees-to-symbol-resolved-trees": "psi-stage 02",
+  "target": "backend target",
   "target-operations": "omega-repr target-operations",
   "target-operations-to-selected-instructions": "omega-stage 03",
   "target-vocabulary": "omega-repr target-operations:target-vocabulary",
@@ -218,6 +147,222 @@
   "wavelet-transient-validation": "samples cli/scientific/wavelet_transient_denoising/validation",
   "x86_64-encoding": "backend isa/x86_64-encoding",
   "xtask": "tools xtask"
+ },
+ "scanned_file_counts": {
+  "abstract-operations": 9,
+  "abstract-operations-to-abstract-operations": 18,
+  "abstract-operations-to-target-operations": 14,
+  "access-plans": 5,
+  "advection-terminal-validation": 1,
+  "arena": 6,
+  "artifacts": 3,
+  "backend-plan": 6,
+  "bound-installations": 1,
+  "boundary-applications": 5,
+  "bounded-process": 20,
+  "build-declarations": 10,
+  "build-output": 7,
+  "build-settings": 26,
+  "build-time-evaluation": 27,
+  "build-time-values": 1,
+  "calling-conventions": 15,
+  "compiler": 30,
+  "compiler-storage": 2,
+  "compiler-storage-derive": 1,
+  "component-description": 3,
+  "diagnostics": 1,
+  "effects": 13,
+  "encoded-scalar-plan": 2,
+  "evaluation-accounting": 2,
+  "execution-admission": 1,
+  "extents": 4,
+  "filesystem-authority": 4,
+  "flow-effects": 2,
+  "function-identity": 1,
+  "hmm-terminal-validation": 1,
+  "image": 6,
+  "image-elf": 11,
+  "image-emission": 12,
+  "image-macho": 5,
+  "image-pe": 5,
+  "ind11-terminal-validation": 1,
+  "ind19-spectrum-validation": 1,
+  "installation-evidence": 2,
+  "isa-aarch64": 12,
+  "isa-conformance": 4,
+  "isa-x86_64": 10,
+  "laminate-stiffness-response-validation": 1,
+  "language-core": 7,
+  "language-semantics": 9,
+  "layered-seismic-refraction-validation": 1,
+  "layout": 3,
+  "layout-plans": 4,
+  "legalized-operations": 10,
+  "machine-code": 15,
+  "machine-emission": 13,
+  "molecular-pair-distribution-validation": 1,
+  "mutation-matrix": 1,
+  "native-artifact": 26,
+  "native-compiler": 16,
+  "native-preparation": 15,
+  "native-provider-runtime": 12,
+  "native-vocabulary": 16,
+  "new031-terminal-validation": 1,
+  "new087-terminal-validation": 1,
+  "normalized-foreign-call-plan": 2,
+  "numerics": 5,
+  "object-file": 8,
+  "omega": 21,
+  "omega-bench": 23,
+  "optimization": 1,
+  "optimization-core": 45,
+  "optimization-unit": 13,
+  "optimization-unit-semantics": 9,
+  "orchestration": 21,
+  "package-compilation": 69,
+  "package-manager": 139,
+  "platform-custody": 7,
+  "post-allocation-machine": 10,
+  "post-allocation-machine-to-selected-form-encoding": 4,
+  "post-handoff-writer-plan": 1,
+  "products": 15,
+  "program-entry-plan": 4,
+  "proof-admission": 16,
+  "provider-admission": 47,
+  "provider-planning": 24,
+  "provider-selection": 8,
+  "register-environment": 2,
+  "register-homes": 14,
+  "register-homes-to-post-allocation-machine": 3,
+  "register-model": 6,
+  "resolved-layout-to-resolved-layout": 2,
+  "resolver-execution": 3,
+  "review-evidence": 227,
+  "runtime-abi": 10,
+  "sample-runner": 1,
+  "sci04-terminal-validation": 1,
+  "selected-dispatch": 2,
+  "selected-form-encoding-to-resolved-layout": 4,
+  "selected-instruction-analyses": 15,
+  "selected-instructions": 26,
+  "selected-instructions-to-register-homes": 11,
+  "selected-instructions-to-selected-instructions": 8,
+  "semantic-vocabulary": 14,
+  "source": 2,
+  "source-acquisition": 96,
+  "source-audit": 1,
+  "source-compiler": 5,
+  "source-files-to-tokens": 3,
+  "spectral-power-validation": 1,
+  "symbol-resolved-trees": 8,
+  "symbol-resolved-trees-to-typed-trees": 18,
+  "symbols": 8,
+  "syntax-trees": 6,
+  "syntax-trees-derive": 1,
+  "syntax-trees-to-symbol-resolved-trees": 32,
+  "target": 10,
+  "target-operations": 3,
+  "target-operations-to-selected-instructions": 11,
+  "target-vocabulary": 25,
+  "task-plans": 4,
+  "terminal-check-tables": 9,
+  "terminal-codec": 4,
+  "terminal-installation": 7,
+  "terminal-interpreter": 16,
+  "terminal-production": 7,
+  "terminal-psi": 15,
+  "terminal-psi-to-abstract-operations": 9,
+  "terminal-psi-to-terminal-psi": 40,
+  "terminal-runtime": 42,
+  "terminal-semantics": 38,
+  "terminal-wire": 18,
+  "terminal-work": 1,
+  "thin-film-reflectometry-validation": 1,
+  "tokens": 2,
+  "tokens-to-syntax-trees": 10,
+  "trust-model": 4,
+  "typed-trees": 33,
+  "typed-trees-to-terminal-psi": 80,
+  "typed-trees-to-typed-trees": 10,
+  "verified-optimization-input": 9,
+  "wavelet-transient-validation": 1,
+  "x86_64-encoding": 1,
+  "xtask": 29
+ },
+ "scope": "foundation",
+ "unobserved_dependencies": {
+  "arena": [
+   "compiler",
+   "image-elf",
+   "image-macho",
+   "image-pe",
+   "package-manager"
+  ],
+  "artifacts": [
+   "omega"
+  ],
+  "bounded-process": [
+   "orchestration"
+  ],
+  "compiler-storage": [
+   "compiler",
+   "products"
+  ],
+  "diagnostics": [
+   "abstract-operations-to-target-operations",
+   "ind19-spectrum-validation",
+   "layout"
+  ],
+  "flow-effects": [
+   "build-time-evaluation",
+   "package-compilation",
+   "provider-planning",
+   "source-compiler"
+  ],
+  "function-identity": [
+   "legalized-operations",
+   "machine-code",
+   "machine-emission",
+   "target-operations",
+   "terminal-psi-to-abstract-operations"
+  ],
+  "language-core": [
+   "build-settings"
+  ],
+  "language-semantics": [
+   "terminal-psi-to-terminal-psi"
+  ],
+  "layout-plans": [
+   "build-settings"
+  ],
+  "numerics": [
+   "layout",
+   "provider-planning"
+  ],
+  "optimization": [
+   "compiler",
+   "source-compiler"
+  ],
+  "optimization-core": [
+   "image-elf",
+   "ind19-spectrum-validation"
+  ],
+  "semantic-vocabulary": [
+   "ind19-spectrum-validation",
+   "post-allocation-machine-to-selected-form-encoding",
+   "resolved-layout-to-resolved-layout",
+   "terminal-codec"
+  ],
+  "source": [
+   "provider-admission",
+   "trust-model"
+  ],
+  "symbols": [
+   "abstract-operations-to-target-operations",
+   "ind19-spectrum-validation",
+   "layout",
+   "register-homes"
+  ]
  },
  "usage": {
   "access-plans": {
@@ -643,6 +788,7 @@
     "symbols",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
+    "target",
     "terminal-installation",
     "terminal-interpreter",
     "terminal-production",
@@ -767,6 +913,7 @@
     "source-files-to-tokens",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees-to-symbol-resolved-trees",
+    "target",
     "task-plans",
     "terminal-check-tables",
     "terminal-production",
@@ -1323,6 +1470,7 @@
    ],
    "PatternComponent": [
     "language-semantics",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
@@ -1349,6 +1497,7 @@
     "language-semantics",
     "legalized-operations",
     "optimization-unit",
+    "symbol-resolved-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
     "target-operations-to-selected-instructions",
@@ -1362,6 +1511,7 @@
    ],
    "cast_form": [
     "language-semantics",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees",
     "tokens-to-syntax-trees",
@@ -1394,6 +1544,7 @@
     "terminal-psi"
    ],
    "float_operations": [
+    "target",
     "terminal-semantics"
    ],
    "inline_assembly": [
@@ -1404,7 +1555,6 @@
     "source-compiler",
     "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
-    "symbols",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
     "terminal-psi",
@@ -1933,6 +2083,7 @@
    "LayoutTargetFacts": [
     "build-time-evaluation",
     "build-time-values",
+    "target",
     "terminal-installation",
     "terminal-semantics",
     "typed-trees"
@@ -2147,6 +2298,7 @@
     "language-semantics",
     "provider-admission",
     "review-evidence",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "symbols",
     "syntax-trees",
@@ -2623,6 +2775,7 @@
     "register-model",
     "selected-instruction-analyses",
     "selected-instructions",
+    "target",
     "target-vocabulary"
    ],
    "cursor": [
@@ -2660,6 +2813,7 @@
     "review-evidence",
     "selected-instructions",
     "source-acquisition",
+    "target",
     "target-vocabulary",
     "task-plans",
     "trust-model"
@@ -3054,6 +3208,7 @@
     "native-preparation",
     "register-homes",
     "runtime-abi",
+    "target",
     "target-operations-to-selected-instructions",
     "target-vocabulary",
     "terminal-interpreter",
@@ -3308,6 +3463,7 @@
     "layout-plans",
     "post-handoff-writer-plan",
     "provider-admission",
+    "target",
     "task-plans",
     "terminal-psi",
     "terminal-wire",
@@ -3316,7 +3472,8 @@
    "ForeignLocatorCandidate": [
     "language-semantics",
     "package-compilation",
-    "review-evidence"
+    "review-evidence",
+    "target"
    ],
    "IdSet": [
     "image-emission",
@@ -3522,6 +3679,7 @@
     "runtime-abi",
     "selected-instructions",
     "selected-instructions-to-register-homes",
+    "target",
     "target-operations",
     "target-operations-to-selected-instructions",
     "target-vocabulary",
@@ -3834,12 +3992,20 @@
    "ProfileDecisionId": [
     "terminal-psi"
    ],
+   "ProgramEntrySchema": [
+    "target"
+   ],
    "ProgramEntrySourceCatalog": [
-    "source-compiler"
+    "source-compiler",
+    "target"
+   ],
+   "ProgramEntrySourceContract": [
+    "target"
    ],
    "ProgramEntryVisibleParameters": [
     "compiler",
-    "program-entry-plan"
+    "program-entry-plan",
+    "target"
    ],
    "ProofFormalScope": [
     "terminal-wire"
@@ -4478,6 +4644,7 @@
     "source-files-to-tokens"
    ],
    "SourceBytes": [
+    "symbol-resolved-trees",
     "syntax-trees",
     "tokens",
     "tokens-to-syntax-trees",
@@ -4827,9 +4994,6 @@
     "syntax-trees-to-symbol-resolved-trees",
     "typed-trees"
    ],
-   "assign": [
-    "syntax-trees-to-symbol-resolved-trees"
-   ],
    "builtin_function_symbols": [
     "syntax-trees-to-symbol-resolved-trees"
    ],
@@ -4851,13 +5015,127 @@
    ],
    "sealed_intrinsic_at": [
     "syntax-trees-to-symbol-resolved-trees"
-   ],
-   "top_level": [
-    "syntax-trees-to-symbol-resolved-trees"
    ]
   }
  },
  "usage2": {
+  "access-plans": {
+   "AccessExposure::BindingPrivate": [
+    "terminal-wire"
+   ],
+   "AccessExposure::Exported": [
+    "build-time-evaluation",
+    "terminal-wire"
+   ],
+   "AccessOperation::Atomic": [
+    "terminal-psi"
+   ],
+   "AccessOperation::CompoundMutation": [
+    "terminal-psi"
+   ],
+   "AccessOperation::Read": [
+    "build-time-evaluation",
+    "terminal-psi"
+   ],
+   "AccessOperation::Take": [
+    "terminal-psi"
+   ],
+   "AccessOperation::Write": [
+    "terminal-psi"
+   ],
+   "BoundaryReach::from_services": [
+    "terminal-wire"
+   ],
+   "BoundaryServiceReachId::from_normalized_identity": [
+    "terminal-wire"
+   ],
+   "FieldAccess::Inaccessible": [
+    "terminal-semantics"
+   ],
+   "FieldAccess::Region": [
+    "typed-trees"
+   ],
+   "ObservationModel::Atomic": [
+    "terminal-wire"
+   ],
+   "ObservationModel::External": [
+    "terminal-wire"
+   ],
+   "ObservationModel::Stable": [
+    "build-time-evaluation",
+    "target-operations-to-selected-instructions",
+    "terminal-wire"
+   ]
+  },
+  "arena": {
+   "Arena::default": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Arena::new": [
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "Arena::with_capacity": [
+    "image-emission",
+    "provider-planning",
+    "selected-instruction-analyses"
+   ],
+   "Handle::default": [
+    "terminal-interpreter"
+   ],
+   "Handle::from_arena_index": [
+    "typed-trees"
+   ],
+   "Handle::from_parts": [
+    "image-emission",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "Handle::invalid": [
+    "image-emission",
+    "object-file",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "HandleSpan::empty": [
+    "build-settings",
+    "build-time-evaluation",
+    "provider-planning",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-typed-trees"
+   ],
+   "HandleSpan::from_parts": [
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees"
+   ],
+   "HandleSpan::from_parts_or_empty": [
+    "build-settings",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "PagedArenaSet::with_generation": [
+    "syntax-trees"
+   ],
+   "RootRows::default": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RootRows::from_slice": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RootedArena::from": [
+    "typed-trees"
+   ]
+  },
   "artifacts": {
    "compile_timings::BUILD_AND_CHECKED_CONTINUATION": [
     "compiler"
@@ -4887,12 +5165,142 @@
     "package-manager"
    ]
   },
+  "compiler-storage": {
+   "Record::read": [
+    "access-plans",
+    "build-time-evaluation",
+    "effects",
+    "extents",
+    "semantic-vocabulary",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "Record::write": [
+    "access-plans",
+    "build-time-evaluation",
+    "effects",
+    "extents",
+    "language-semantics",
+    "semantic-vocabulary",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "RecordLimits::default": [
+    "build-time-evaluation",
+    "package-compilation"
+   ]
+  },
   "diagnostics": {
+   "CoverageForm::from_resource": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "Diagnostic::error": [
+    "backend-plan",
+    "compiler",
+    "image",
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "omega",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "provider-admission",
+    "provider-planning",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "verified-optimization-input"
+   ],
+   "DiagnosticSeverity::Note": [
+    "terminal-production"
+   ],
    "parse_error::ParseError": [
     "tokens-to-syntax-trees"
    ]
   },
+  "evaluation-accounting": {
+   "BuildEvaluationSponsor::new_with_measurement": [
+    "build-time-evaluation"
+   ],
+   "BuildEvaluationSponsorLimits::new": [
+    "build-time-evaluation"
+   ],
+   "EvaluationAccountingError::UnsupportedMeasurementIdentity": [
+    "terminal-interpreter"
+   ],
+   "EvaluationMeasurementIdentity::TerminalPsi": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "provider-planning",
+    "terminal-interpreter"
+   ],
+   "TerminalStorageScheduleIdentity::CURRENT": [
+    "build-settings",
+    "build-time-evaluation"
+   ]
+  },
+  "execution-admission": {
+   "ExecutionBudget::for_host": [
+    "omega"
+   ]
+  },
+  "extents": {
+   "ActivationClaimBranch::trunk": [
+    "terminal-semantics"
+   ],
+   "ExtentContentInterpretation::from_sha256_commitment": [
+    "access-plans"
+   ],
+   "ExtentContentInterpretationId::from_normalized_identity": [
+    "access-plans"
+   ],
+   "LoanPolarity::Exclusive": [
+    "access-plans"
+   ],
+   "LoanPolarity::Shared": [
+    "access-plans"
+   ]
+  },
   "filesystem-authority": {
+   "BuildOutputObligationState::Completed": [
+    "package-compilation"
+   ],
+   "BuildOutputObligationState::Failed": [
+    "package-compilation"
+   ],
+   "BuildOutputObligationState::Pending": [
+    "package-compilation"
+   ],
+   "CanonicalFilesystemMetadataRowKind::Directory": [
+    "package-compilation"
+   ],
+   "CanonicalFilesystemMetadataRowKind::File": [
+    "package-compilation"
+   ],
+   "CanonicalFilesystemMetadataRowKind::Symlink": [
+    "package-compilation"
+   ],
+   "FilesystemGrantRefusal::new": [
+    "package-compilation"
+   ],
+   "FilesystemGrantRefusalReason::OutsideGrantedRoots": [
+    "package-compilation"
+   ],
+   "FilesystemLogicalHandleIdentity::new": [
+    "package-compilation"
+   ],
+   "FilesystemSponsorLimits::COMPILER_DEFAULT": [
+    "package-manager"
+   ],
+   "SourceCaptureRequest::entire_tree": [
+    "source-acquisition"
+   ],
    "observation_codec::ObservationCursor": [
     "package-compilation",
     "package-manager"
@@ -4906,6 +5314,27 @@
    ]
   },
   "flow-effects": {
+   "CapabilityFlowKind::Acquires": [
+    "review-evidence"
+   ],
+   "CapabilityFlowKind::Derives": [
+    "review-evidence"
+   ],
+   "CapabilityFlowKind::Returns": [
+    "review-evidence"
+   ],
+   "CapabilityFlowKind::Stores": [
+    "review-evidence"
+   ],
+   "CapabilityFlowKind::Uses": [
+    "review-evidence"
+   ],
+   "InvocationTarget::Parameter": [
+    "typed-trees"
+   ],
+   "InvocationTarget::Service": [
+    "typed-trees"
+   ],
    "installation_reach::ReachResolutionError": [
     "provider-selection",
     "terminal-installation"
@@ -4919,7 +5348,161 @@
     "terminal-installation"
    ]
   },
+  "function-identity": {
+   "MachineFunctionIdentity::callback_thunk": [
+    "backend-plan",
+    "image-emission",
+    "verified-optimization-input"
+   ],
+   "MachineFunctionIdentity::from_bytes": [
+    "object-file",
+    "register-homes",
+    "selected-instructions"
+   ]
+  },
   "language-core": {
+   "BindingRelevance::Erased": [
+    "review-evidence",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BindingRelevance::Relevant": [
+    "build-time-evaluation",
+    "review-evidence",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BindingRelevance::default": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "CallOperationalAcknowledgementOrigin::CompilerSynthesized": [
+    "syntax-trees"
+   ],
+   "CarryPermission::ALL": [
+    "tokens-to-syntax-trees"
+   ],
+   "CarryPermission::from_name": [
+    "tokens-to-syntax-trees"
+   ],
+   "CarrySuspension::Allowed": [
+    "terminal-psi-to-terminal-psi"
+   ],
+   "CastForm::Value": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "DataSupplyMode::BoundaryOpaque": [
+    "syntax-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "DataSupplyMode::CheckedShape": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees"
+   ],
+   "DomainClassification::ProgressProfile": [
+    "tokens-to-syntax-trees"
+   ],
+   "DomainPredicatePresence::Absent": [
+    "syntax-trees"
+   ],
+   "LocalBindingRole::ArmPattern": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "LocalBindingRole::AtomicObservedResult": [
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "LocalBindingRole::DispatchObservation": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "LocalBindingRole::DispatchSubject": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "LocalBindingRole::RecordPattern": [
+    "tokens-to-syntax-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "LocalBindingRole::Value": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Multiplicity::Affine": [
+    "tokens-to-syntax-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Multiplicity::Linear": [
+    "tokens-to-syntax-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Multiplicity::Unrestricted": [
+    "tokens-to-syntax-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "OperatorSpelling::Add": [
+    "typed-trees"
+   ],
+   "OperatorSpelling::Divide": [
+    "typed-trees"
+   ],
+   "OperatorSpelling::Modulo": [
+    "typed-trees"
+   ],
+   "OperatorSpelling::Multiply": [
+    "typed-trees"
+   ],
+   "OperatorSpelling::Range": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "OperatorSpelling::Subtract": [
+    "typed-trees"
+   ],
+   "PatternComponent::Case": [
+    "syntax-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PatternComponent::Fields": [
+    "symbol-resolved-trees-to-typed-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ReferenceAccess::Mutable": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ReferenceAccess::Shared": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ReferenceAccess::WriteOnly": [
+    "syntax-trees",
+    "tokens-to-syntax-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
    "atomic::ATOMIC_FENCE_NAME": [
     "syntax-trees-to-symbol-resolved-trees"
    ],
@@ -4959,6 +5542,7 @@
    "atomic::AtomicExpressionResultCustody": [
     "abstract-operations",
     "language-semantics",
+    "symbol-resolved-trees",
     "syntax-trees",
     "tokens-to-syntax-trees",
     "typed-trees",
@@ -4974,6 +5558,7 @@
     "abstract-operations",
     "access-plans",
     "language-semantics",
+    "symbol-resolved-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
     "terminal-psi",
@@ -5007,6 +5592,7 @@
    ],
    "cast_form::CastForm": [
     "language-semantics",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees",
     "tokens-to-syntax-trees",
@@ -5066,6 +5652,7 @@
     "terminal-psi"
    ],
    "float_operations::CANONICAL_FLOAT_OPERATIONS": [
+    "target",
     "terminal-semantics"
    ],
    "float_operations::FloatDeclarationForm": [
@@ -5253,6 +5840,303 @@
    ]
   },
   "language-semantics": {
+   "CallOperationalAcknowledgement::default": [
+    "build-time-evaluation"
+   ],
+   "CallOperationalAcknowledgementOrigin::CompilerSynthesized": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CallOperationalAcknowledgementOrigin::Source": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CarryAddress::Movable": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi"
+   ],
+   "CarryAddress::Stable": [
+    "package-manager",
+    "review-evidence"
+   ],
+   "CarryCpu::Any": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi"
+   ],
+   "CarryCpu::Origin": [
+    "package-manager",
+    "review-evidence"
+   ],
+   "CarryHostThread::Any": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi"
+   ],
+   "CarryHostThread::Origin": [
+    "package-manager",
+    "review-evidence"
+   ],
+   "CarryPermission::ALL": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "CarryPermission::AcrossSuspend": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "CarryPermission::AnyCpu": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "CarryPermission::AnyThread": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "CarryPermission::MovableAddress": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "CarryPermission::from_name": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "CarryPolicy::STRICT": [
+    "effects",
+    "typed-trees"
+   ],
+   "CarrySuspension::Allowed": [
+    "package-manager",
+    "review-evidence",
+    "terminal-psi"
+   ],
+   "CarrySuspension::Forbidden": [
+    "package-manager",
+    "review-evidence"
+   ],
+   "DataSupplyMode::BoundaryOpaque": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DataSupplyMode::CheckedShape": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainClassification::ProgressProfile": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "DomainEstablishmentRoute::BoundaryRequirement": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainEstablishmentRoute::CheckedRequirement": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainEstablishmentRoute::ExactMachine": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainPredicatePresence::Absent": [
+    "review-evidence",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DomainPredicatePresence::Present": [
+    "review-evidence"
+   ],
+   "DomainSemanticRoles::default": [
+    "typed-trees"
+   ],
+   "ExternalBindingIdentity::CompilerIntrinsic": [
+    "compiler",
+    "effects",
+    "provider-planning",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ExternalBindingIdentity::Syscall": [
+    "provider-planning",
+    "typed-trees"
+   ],
+   "ExternalBindingIdentity::TableFunction": [
+    "typed-trees"
+   ],
+   "ExternalBindingIdentity::VtableField": [
+    "typed-trees"
+   ],
+   "ExternalBindingIdentity::VtableSlot": [
+    "typed-trees"
+   ],
+   "ExternalBindingMechanism::CompilerIntrinsic": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ExternalBindingTable::default": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "MachineSupplyMode::AdmissionClaim": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "MachineSupplyMode::Boundary": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "MachineSupplyMode::CheckedBody": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "MachineSupplyMode::CompilerProvided": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "MachineSupplyMode::ExternalRealization": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "MachineSupplyMode::Requirement": [
+    "review-evidence",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "MachineSupplyMode::TopLevelRequirement": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "MachineTerminationPlan::default": [
+    "typed-trees"
+   ],
+   "Multiplicity::Affine": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "Multiplicity::Linear": [
+    "review-evidence",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Multiplicity::Unrestricted": [
+    "build-time-evaluation",
+    "review-evidence",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RankRange::default": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "RankingViewId::NULL": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankingViewId::canonical": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankingViewId::catalog_declaration": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankingViewId::from_catalog_declaration": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "RankingViewSelection::Builtin": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankingViewSelection::CanonicalDefault": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "RankingViewSelection::Declaration": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "ReferenceAccess::Mutable": [
+    "package-compilation",
+    "typed-trees"
+   ],
+   "ReferenceAccess::Shared": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ScopedPermissionClaimIdentity::Established": [
+    "terminal-wire"
+   ],
+   "ScopedPermissionProvenance::Established": [
+    "terminal-wire"
+   ],
+   "ScopedPermissionProvenance::Joined": [
+    "terminal-wire"
+   ],
+   "ScopedPermissionProvenance::Unknown": [
+    "terminal-wire"
+   ],
+   "SemanticDomainId::NULL": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SemanticDomainTable::default": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ServiceReachRowId::NULL": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ServiceReachRowId::default": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "ServiceReachRowTable::EMPTY_ROW": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ServiceReachRowTable::default": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "ServiceReachTable::default": [
+    "symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "TerminationGuarantee::NoGuarantee": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "TerminationGuarantee::Terminates": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "TerminationInterface::InternalDerived": [
+    "typed-trees"
+   ],
+   "TerminationInterface::Published": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
    "boundary_provider_review::BoundaryOperatorApplication": [
     "provider-selection"
    ],
@@ -5623,6 +6507,7 @@
     "build-settings"
    ],
    "declaration_selection::ResolvedAuthoredCallBinding": [
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees-to-symbol-resolved-trees",
     "typed-trees",
@@ -5659,6 +6544,15 @@
     "terminal-production",
     "typed-trees",
     "typed-trees-to-typed-trees"
+   ],
+   "native_bindings::NativeLocatorCase": [
+    "build-settings"
+   ],
+   "native_bindings::NativeLocatorValue": [
+    "build-settings"
+   ],
+   "native_bindings::decode_native_locator": [
+    "build-settings"
    ],
    "numeric_intrinsics::NamedNumericIntrinsic": [
     "typed-trees"
@@ -5750,6 +6644,9 @@
    "quotient_correspondence::QuotientRelationIdentity": [
     "terminal-psi",
     "terminal-wire"
+   ],
+   "reflection::*": [
+    "typed-trees"
    ],
    "reflection::CallableDescription": [
     "access-plans",
@@ -5925,6 +6822,32 @@
     "typed-trees-to-typed-trees"
    ]
   },
+  "layout-plans": {
+   "AggregateGeometryError::EmptyCaseSet": [
+    "calling-conventions"
+   ],
+   "AggregateGeometryError::SizeOverflow": [
+    "calling-conventions"
+   ],
+   "AggregateGeometryError::ZeroAlignment": [
+    "calling-conventions"
+   ],
+   "ByteOrder::LittleEndian": [
+    "terminal-interpreter"
+   ],
+   "LayoutPlacementReport::At": [
+    "normalized-foreign-call-plan",
+    "terminal-wire"
+   ],
+   "LayoutPlacementReport::Bits": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "terminal-wire"
+   ],
+   "LayoutPlacementReport::IntegerAt": [
+    "terminal-wire"
+   ]
+  },
   "numerics": {
    "arithmetic::ArithmeticDomain": [
     "effects",
@@ -5951,12 +6874,14 @@
     "terminal-installation",
     "terminal-psi",
     "terminal-runtime",
+    "terminal-semantics",
     "terminal-wire",
     "typed-trees",
     "typed-trees-to-terminal-psi"
    ],
    "bignum::BigRational": [
-    "syntax-trees-to-symbol-resolved-trees"
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
    ],
    "bignum::ExactFloat": [
     "typed-trees-to-terminal-psi"
@@ -6037,6 +6962,7 @@
    "integer_bounds::IntegerBoundStep": [
     "terminal-installation",
     "terminal-psi",
+    "terminal-semantics",
     "terminal-wire"
    ],
    "integer_bounds::evaluate": [
@@ -6069,6 +6995,18 @@
     "typed-trees-to-terminal-psi",
     "typed-trees-to-typed-trees"
    ],
+   "integer_policy::IntegerFormationCondition": [
+    "terminal-semantics"
+   ],
+   "integer_policy::IntegerPolicyBridge": [
+    "terminal-semantics"
+   ],
+   "integer_policy::IntegerPolicyPrimitive": [
+    "terminal-semantics"
+   ],
+   "integer_policy::integer_policy_bridge": [
+    "terminal-semantics"
+   ],
    "literals::FloatFormat": [
     "boundary-applications",
     "build-time-values",
@@ -6077,6 +7015,7 @@
     "language-semantics",
     "provider-admission",
     "review-evidence",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
@@ -6088,6 +7027,7 @@
    ],
    "literals::FloatLiteral": [
     "language-semantics",
+    "symbol-resolved-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
     "typed-trees",
@@ -6102,6 +7042,7 @@
    "literals::IntegerLiteral": [
     "build-time-evaluation",
     "language-semantics",
+    "symbol-resolved-trees",
     "symbol-resolved-trees-to-typed-trees",
     "syntax-trees",
     "syntax-trees-to-symbol-resolved-trees",
@@ -6147,6 +7088,21 @@
    ]
   },
   "optimization": {
+   "PsiOptimization::ControlFlowCleanup": [
+    "optimization-core"
+   ],
+   "PsiOptimization::CopyPropagation": [
+    "optimization-core"
+   ],
+   "PsiOptimization::ProofCheckElision": [
+    "optimization-core"
+   ],
+   "PsiOptimizationSelections::default": [
+    "terminal-psi-to-terminal-psi"
+   ],
+   "PsiOptimizationSelections::new": [
+    "optimization-core"
+   ],
    "cursor::Cursor": [
     "terminal-wire"
    ],
@@ -6158,6 +7114,107 @@
    ]
   },
   "optimization-core": {
+   "AcceptedObligationFactIdentity::from_bytes": [
+    "register-homes",
+    "selected-instructions"
+   ],
+   "AnalysisKind::CallGraph": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::ControlFlowGraph": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::Dominators": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::EffectSummaries": [
+    "abstract-operations-to-abstract-operations",
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::ExecutableEdges": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::LoopForest": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::OwnershipFrontiers": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::PostDominators": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::ScalarConstants": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::StronglyConnectedComponents": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::UseDefinition": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::ValueLiveness": [
+    "optimization-unit-semantics"
+   ],
+   "AnalysisKind::ValueRanges": [
+    "optimization-unit-semantics"
+   ],
+   "CompilerCheckSite::caller": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "Optimization::ALL": [
+    "selected-instructions"
+   ],
+   "Optimization::X86RelaxConditionalBranchesToRel8V1": [
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Optimization::X86SelectXorZeroI64MaterializationV1": [
+    "isa-x86_64"
+   ],
+   "OptimizationExecutionPhase::AllocationRecovery": [
+    "image-emission"
+   ],
+   "OptimizationExecutionPhase::PostAllocationMachine": [
+    "post-allocation-machine",
+    "selected-instructions"
+   ],
+   "OptimizationExecutionPhase::PreAllocation": [
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationExecutionPhase::Psi": [
+    "products"
+   ],
+   "OptimizationExecutionPhase::SelectedLowering": [
+    "selected-instructions-to-selected-instructions"
+   ],
+   "OptimizationFactReference::AcceptedObligation": [
+    "abstract-operations-to-abstract-operations"
+   ],
+   "OptimizationReportRequest::EmitHumanText": [
+    "package-compilation"
+   ],
+   "OptimizationReportRequest::Suppressed": [
+    "package-compilation"
+   ],
+   "OptimizationSafetyClass::ExactOperationSemantics": [
+    "optimization-unit-semantics"
+   ],
+   "OptimizationSafetyClass::StructuralIdentity": [
+    "optimization-unit-semantics"
+   ],
+   "OptimizationSelections::decode": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "OptimizationWorkBudget::decode": [
+    "register-homes"
+   ],
+   "OptimizationWorkUsage::decode": [
+    "register-homes"
+   ],
+   "PrePhysicalOptimizationManifestIdentity::from_canonical_bytes": [
+    "native-preparation"
+   ],
    "codec_bytes::push_encoded": [
     "machine-code",
     "native-vocabulary",
@@ -6202,6 +7259,9 @@
    ]
   },
   "platform-custody": {
+   "SymbolicLinkBehavior::InspectLink": [
+    "source-acquisition"
+   ],
    "file_publication::install_staged_files": [
     "products"
    ],
@@ -6240,6 +7300,937 @@
    ]
   },
   "semantic-vocabulary": {
+   "AtomicCellType::BoundedInteger": [
+    "terminal-psi"
+   ],
+   "AuthoredBitFragments::new": [
+    "register-homes",
+    "terminal-wire"
+   ],
+   "AuthoredFieldStorage::Fragmented": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "legalized-operations",
+    "target-operations-to-selected-instructions"
+   ],
+   "AuthoredFieldStorage::element_stride": [
+    "abstract-operations-to-target-operations",
+    "legalized-operations"
+   ],
+   "BlockId::new": [
+    "selected-instructions"
+   ],
+   "BoundaryCompletion::External": [
+    "abstract-operations-to-target-operations",
+    "language-semantics",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit-semantics",
+    "package-manager",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees"
+   ],
+   "BoundaryCompletion::NormalReturn": [
+    "language-semantics",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit-semantics",
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundaryMachineId::new": [
+    "native-preparation",
+    "register-homes",
+    "selected-instructions"
+   ],
+   "BoundaryRequirementKind::Machine": [
+    "native-preparation",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundaryRequirementKind::Operator": [
+    "backend-plan",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BoundaryRequirementKind::Trait": [
+    "backend-plan",
+    "provider-planning",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ByteSequencePredicate::AsciiOnly": [
+    "terminal-wire"
+   ],
+   "ByteSequencePredicate::NoNul": [
+    "terminal-wire"
+   ],
+   "ByteSequencePredicate::NonEmpty": [
+    "terminal-wire"
+   ],
+   "ByteSequencePredicate::ValidUtf8": [
+    "terminal-wire"
+   ],
+   "CallableContractId::new": [
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "terminal-wire"
+   ],
+   "CallableInvocationSite::Invocation": [
+    "terminal-installation"
+   ],
+   "CallingDeclarationOwner::TopLevelRequirement": [
+    "native-compiler"
+   ],
+   "CallingOperandKind::*": [
+    "terminal-wire"
+   ],
+   "CallingOperandKind::Machine": [
+    "terminal-wire"
+   ],
+   "CallingOperandKind::Proposition": [
+    "effects"
+   ],
+   "CallingSignatureId::for_application": [
+    "terminal-wire"
+   ],
+   "CallingSignatureId::new": [
+    "effects"
+   ],
+   "CanonicalStructuralPathSegment::Case": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-preparation",
+    "terminal-interpreter",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CanonicalStructuralPathSegment::Field": [
+    "optimization-unit-semantics",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-runtime",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CanonicalStructuralPathSegment::FixedIndex": [
+    "terminal-interpreter"
+   ],
+   "CanonicalStructuralPathSegment::Referent": [
+    "provider-admission",
+    "terminal-interpreter"
+   ],
+   "ClaimId::new": [
+    "native-preparation",
+    "register-homes"
+   ],
+   "ClosedIntegerType::as_checking": [
+    "target-vocabulary"
+   ],
+   "ClosedIntegerType::from_fixed": [
+    "build-time-evaluation"
+   ],
+   "ClosedIntegerType::new": [
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "ClosedIntegerType::supported_address_representation": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "ClosedIntegerType::try_from": [
+    "runtime-abi",
+    "target",
+    "target-vocabulary"
+   ],
+   "ClosedScalarType::Boolean": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "ClosedScalarType::Callable": [
+    "abstract-operations-to-target-operations",
+    "target-operations-to-selected-instructions"
+   ],
+   "ClosedScalarType::IeeeFloat": [
+    "abstract-operations-to-target-operations",
+    "target-operations-to-selected-instructions"
+   ],
+   "ClosedScalarType::Integer": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter"
+   ],
+   "ClosedScalarType::as_integer": [
+    "native-preparation"
+   ],
+   "ClosedScalarType::try_from": [
+    "native-preparation",
+    "register-homes",
+    "runtime-abi",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "ContentAlgebraKind::CountedQuantity": [
+    "language-semantics",
+    "native-artifact",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-psi"
+   ],
+   "ContentAlgebraKind::IntervalSet": [
+    "language-semantics",
+    "native-artifact",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "terminal-psi"
+   ],
+   "ContentConservation::new": [
+    "proof-admission",
+    "terminal-semantics"
+   ],
+   "ContentPlaceSegment::Case": [
+    "native-artifact"
+   ],
+   "ContentPlaceSegment::Field": [
+    "native-artifact",
+    "optimization-unit-semantics"
+   ],
+   "ContentPlaceSegment::FixedIndex": [
+    "native-artifact",
+    "optimization-unit-semantics"
+   ],
+   "ContentPlaceVersion::Current": [
+    "native-artifact",
+    "optimization-unit",
+    "provider-admission",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ContentPlaceVersion::Entry": [
+    "native-artifact",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ContentProjectionExpression::CountedQuantity": [
+    "language-semantics"
+   ],
+   "ContentProjectionExpression::IntervalSet": [
+    "language-semantics"
+   ],
+   "ContentTerm::Projection": [
+    "optimization-unit",
+    "terminal-psi"
+   ],
+   "ContentTerm::Separate": [
+    "terminal-psi"
+   ],
+   "ContractId::new": [
+    "native-compiler",
+    "typed-trees-to-terminal-psi"
+   ],
+   "CrashCause::Abort": [
+    "review-evidence",
+    "typed-trees"
+   ],
+   "CrashCause::Trap": [
+    "review-evidence",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "EdgeId::new": [
+    "native-compiler",
+    "object-file",
+    "post-allocation-machine",
+    "selected-instructions",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ExternalCompletionKind::ProcessExit": [
+    "language-semantics",
+    "legalized-operations",
+    "optimization-unit",
+    "package-manager",
+    "provider-admission",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "FloatIntegerConversion::new": [
+    "terminal-semantics"
+   ],
+   "FloatMeaningClause::conversion_roundtrip": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "FloatMeaningClause::result_equation": [
+    "terminal-semantics"
+   ],
+   "FloatMeaningClauseOperand::Integer": [
+    "proof-admission"
+   ],
+   "FloatMeaningClauseValue::Application": [
+    "proof-admission"
+   ],
+   "FloatMeaningClauseValue::Projection": [
+    "proof-admission"
+   ],
+   "Fnv1a::OFFSET_BASIS": [
+    "image",
+    "language-semantics",
+    "target"
+   ],
+   "Fnv1a::PRIME": [
+    "language-semantics",
+    "target"
+   ],
+   "Fnv1a::new": [
+    "access-plans",
+    "calling-conventions",
+    "effects",
+    "language-semantics",
+    "layout-plans",
+    "post-handoff-writer-plan",
+    "provider-admission",
+    "terminal-psi",
+    "terminal-wire",
+    "typed-trees"
+   ],
+   "Fnv1a::resume": [
+    "effects",
+    "image"
+   ],
+   "IdSet::default": [
+    "native-compiler"
+   ],
+   "IdTable::default": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "IdTable::from_rows": [
+    "native-vocabulary"
+   ],
+   "IeeeFloatComparisonOperation::ALL": [
+    "target-vocabulary"
+   ],
+   "IeeeFloatComparisonOperation::Equal": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatComparisonOperation::Greater": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatComparisonOperation::GreaterOrEqual": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatComparisonOperation::Less": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatComparisonOperation::LessOrEqual": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatComparisonOperation::NotEqual": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "IeeeFloatFormat::Binary32": [
+    "boundary-applications",
+    "image-emission",
+    "language-semantics",
+    "machine-code",
+    "native-artifact",
+    "native-preparation",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IeeeFloatFormat::Binary64": [
+    "boundary-applications",
+    "image-emission",
+    "language-semantics",
+    "machine-code",
+    "native-artifact",
+    "proof-admission",
+    "provider-admission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IeeeFloatValue::Binary32": [
+    "native-preparation",
+    "optimization-unit",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IeeeFloatValue::Binary64": [
+    "native-preparation",
+    "optimization-unit",
+    "register-homes",
+    "target-vocabulary",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerCarrier::Address": [
+    "native-artifact",
+    "selected-instructions",
+    "target-vocabulary"
+   ],
+   "IntegerCarrier::Fixed": [
+    "calling-conventions",
+    "image-emission",
+    "legalized-operations",
+    "native-artifact",
+    "native-preparation",
+    "proof-admission",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "IntegerMathTerm::Embed": [
+    "optimization-unit-semantics",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "IntegerMathTerm::MathValue": [
+    "terminal-semantics"
+   ],
+   "IntegerMathTerm::embed": [
+    "terminal-semantics"
+   ],
+   "IntegerSign::Signed": [
+    "build-time-evaluation",
+    "image-emission",
+    "native-artifact",
+    "optimization-unit",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "IntegerSign::Unsigned": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "image-emission",
+    "legalized-operations",
+    "native-artifact",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerType::address": [
+    "native-preparation",
+    "provider-admission",
+    "target",
+    "target-operations-to-selected-instructions"
+   ],
+   "IntegerType::new": [
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "native-vocabulary",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerType::supported_address_representation": [
+    "target"
+   ],
+   "IntegerValue::Signed": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit",
+    "provider-planning",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics"
+   ],
+   "IntegerValue::Unsigned": [
+    "build-settings",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-planning",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "IntegerWidth::Bits": [
+    "terminal-psi-to-terminal-psi"
+   ],
+   "IntegerWidth::Parameter": [
+    "terminal-check-tables",
+    "terminal-psi-to-terminal-psi",
+    "terminal-wire"
+   ],
+   "IntegerWidthClosureError::SignedAddress": [
+    "terminal-wire"
+   ],
+   "InvocationSite::Cleanup": [
+    "effects",
+    "image-emission",
+    "machine-emission",
+    "native-artifact",
+    "object-file",
+    "post-allocation-machine",
+    "provider-admission",
+    "selected-instructions",
+    "target-operations-to-selected-instructions",
+    "terminal-psi"
+   ],
+   "InvocationSite::ExternalCompletion": [
+    "abstract-operations-to-target-operations",
+    "effects",
+    "image-emission",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "object-file",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "InvocationSite::InvokeNoNormal": [
+    "abstract-operations",
+    "abstract-operations-to-target-operations",
+    "effects",
+    "image-emission",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "object-file",
+    "optimization-unit-semantics",
+    "target-operations-to-selected-instructions",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "InvocationSite::Operation": [
+    "abstract-operations-to-target-operations",
+    "effects",
+    "image-emission",
+    "machine-emission",
+    "native-artifact",
+    "native-preparation",
+    "object-file",
+    "optimization-unit-semantics",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "terminal-installation",
+    "terminal-psi",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics"
+   ],
+   "InvocationSite::from_tagged_identity": [
+    "object-file",
+    "post-allocation-machine",
+    "selected-instructions"
+   ],
+   "MachineDescriptorId::new": [
+    "register-homes",
+    "selected-instructions",
+    "terminal-interpreter"
+   ],
+   "MachineId::new": [
+    "normalized-foreign-call-plan",
+    "register-homes",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ObligationId::new": [
+    "native-preparation",
+    "register-homes"
+   ],
+   "PackageKeyIdentity::from_digest": [
+    "build-time-evaluation",
+    "register-homes",
+    "terminal-installation",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "PlaceId::new": [
+    "object-file",
+    "register-homes",
+    "selected-instructions",
+    "terminal-check-tables"
+   ],
+   "ProgramEntryVisibleParameters::ImageAndInitialStorage": [
+    "compiler"
+   ],
+   "ProgramEntryVisibleParameters::None": [
+    "compiler",
+    "program-entry-plan"
+   ],
+   "ProofFormalScope::Block": [
+    "terminal-wire"
+   ],
+   "ProofFormalScope::Invocation": [
+    "terminal-wire"
+   ],
+   "Proposition::Atom": [
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "Proposition::Conjunction": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::Disjunction": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::Equal": [
+    "optimization-unit-semantics",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::FloatMeaningEqual": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::IeeeFloatIntegerExact": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::IntegerIeeeFloatExact": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::StructuralCaseMembership": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "Proposition::Truth": [
+    "terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PropositionContext::from_value_types": [
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "PropositionContext::from_value_types_and_places": [
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "PropositionError::NonCanonicalScalarReadProjection": [
+    "terminal-wire"
+   ],
+   "PropositionId::new": [
+    "terminal-psi"
+   ],
+   "ReferenceOriginExtent::Projected": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ReferenceOriginExtent::WithinRegion": [
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-semantics",
+    "terminal-wire"
+   ],
+   "ScalarApplicationId::new": [
+    "register-homes",
+    "terminal-interpreter",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "ScalarConditionRole::Prerequisite": [
+    "terminal-wire"
+   ],
+   "ScalarConditionRole::Result": [
+    "terminal-wire"
+   ],
+   "ScalarQualificationSetId::ZERO": [
+    "optimization-unit-semantics",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarQualificationSetId::new": [
+    "terminal-wire"
+   ],
+   "ScalarReadProjection::Extent": [
+    "optimization-unit"
+   ],
+   "ScalarReadProjection::Index": [
+    "optimization-unit"
+   ],
+   "ScalarReadProjection::Referent": [
+    "optimization-unit"
+   ],
+   "ScalarReadProjection::Static": [
+    "optimization-unit"
+   ],
+   "ScalarReadProjection::from": [
+    "terminal-wire"
+   ],
+   "ScalarRefinement::new": [
+    "register-homes"
+   ],
+   "ScalarTerm::Boolean": [
+    "optimization-unit-semantics",
+    "terminal-installation",
+    "terminal-interpreter",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarTerm::ByteSequencePredicate": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarTerm::IeeeFloatLiteral": [
+    "terminal-installation"
+   ],
+   "ScalarTerm::Integer": [
+    "terminal-installation",
+    "terminal-interpreter"
+   ],
+   "ScalarTerm::Value": [
+    "terminal-semantics"
+   ],
+   "ScalarTerm::integer": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "target-operations-to-selected-instructions",
+    "terminal-semantics"
+   ],
+   "ScalarTerm::value": [
+    "image-emission",
+    "optimization-unit-semantics",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarType::Boolean": [
+    "abstract-operations-to-abstract-operations",
+    "image-emission",
+    "native-preparation",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarType::Callable": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-preparation",
+    "target-vocabulary",
+    "terminal-interpreter",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi",
+    "verified-optimization-input"
+   ],
+   "ScalarType::IeeeFloat": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "legalized-operations",
+    "machine-emission",
+    "native-preparation",
+    "proof-admission",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ScalarType::Integer": [
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "build-settings",
+    "image-emission",
+    "legalized-operations",
+    "native-preparation",
+    "optimization-unit-semantics",
+    "proof-admission",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "terminal-check-tables",
+    "terminal-interpreter",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ServiceId::new": [
+    "native-preparation",
+    "register-homes",
+    "selected-instructions"
+   ],
+   "StructuralCaseId::new": [
+    "register-homes",
+    "selected-instructions"
+   ],
+   "StructuralCaseSubject::new": [
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralDomainId::new": [
+    "register-homes"
+   ],
+   "StructuralFieldId::get": [
+    "legalized-operations",
+    "optimization-unit"
+   ],
+   "StructuralFieldId::new": [
+    "register-homes"
+   ],
+   "StructuralPlaceKind::BlockParameter": [
+    "native-preparation",
+    "optimization-unit-semantics",
+    "terminal-psi-to-terminal-psi",
+    "typed-trees-to-terminal-psi"
+   ],
+   "StructuralPlaceKind::ByteSequenceLiteral": [
+    "abstract-operations-to-target-operations",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "StructuralPlaceKind::OperationResult": [
+    "image-emission",
+    "native-preparation",
+    "optimization-unit-semantics",
+    "target-operations-to-selected-instructions",
+    "terminal-interpreter",
+    "terminal-semantics"
+   ],
+   "StructuralPlaceKind::Parameter": [
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "StructuralPlaceKind::ProviderAttachment": [
+    "optimization-unit-semantics"
+   ],
+   "StructuralPlaceKind::Result": [
+    "optimization-unit-semantics",
+    "terminal-psi",
+    "terminal-semantics"
+   ],
+   "StructuralPlaceKind::TrivialAffineLocal": [
+    "abstract-operations-to-target-operations",
+    "native-preparation",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "terminal-interpreter",
+    "terminal-psi-to-abstract-operations",
+    "terminal-semantics"
+   ],
+   "TargetMachineCallable::Boundary": [
+    "terminal-production",
+    "terminal-psi-to-terminal-psi",
+    "typed-trees-to-terminal-psi"
+   ],
+   "TargetMachineCallable::Machine": [
+    "build-time-evaluation",
+    "package-compilation",
+    "terminal-production",
+    "terminal-psi-to-terminal-psi",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Termination::NoGuarantee": [
+    "review-evidence",
+    "terminal-psi",
+    "typed-trees-to-terminal-psi"
+   ],
+   "Termination::Terminates": [
+    "review-evidence",
+    "terminal-psi-to-terminal-psi",
+    "terminal-semantics",
+    "typed-trees-to-terminal-psi"
+   ],
+   "ValueId::new": [
+    "register-homes",
+    "selected-instructions",
+    "typed-trees-to-terminal-psi"
+   ],
    "byte_predicates::ByteSequencePredicate": [
     "language-semantics"
    ],
@@ -6295,10 +8286,12 @@
     "terminal-installation"
    ],
    "identity_encoding::encode_integer_type": [
-    "native-vocabulary"
+    "native-vocabulary",
+    "runtime-abi"
    ],
    "identity_encoding::encode_scalar_type": [
-    "native-vocabulary"
+    "native-vocabulary",
+    "runtime-abi"
    ],
    "proof_applications::ProofApplicationCall": [
     "flow-effects",
@@ -6340,6 +8333,9 @@
    ],
    "proof_applications::ProofStaticBinding": [
     "terminal-wire"
+   ],
+   "source_selections::*": [
+    "terminal-installation"
    ],
    "source_selections::BuildCallSite": [
     "language-semantics",
@@ -6390,9 +8386,164 @@
    "structural_path_encoding::SegmentTag": [
     "runtime-abi",
     "terminal-psi"
+   ],
+   "structural_path_encoding::encode_canonical_structural_path_segment": [
+    "runtime-abi"
    ]
   },
   "source": {
+   "CapturedSourceNode::Directory": [
+    "package-compilation",
+    "package-manager",
+    "source-acquisition"
+   ],
+   "CapturedSourceNode::File": [
+    "package-compilation",
+    "package-manager",
+    "source-acquisition"
+   ],
+   "CapturedSourceNode::Symlink": [
+    "package-compilation",
+    "source-acquisition"
+   ],
+   "CapturedSourceTree::new": [
+    "package-manager",
+    "source-acquisition"
+   ],
+   "DependencyScope::Build": [
+    "build-settings",
+    "build-time-evaluation",
+    "package-compilation",
+    "package-manager",
+    "review-evidence",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DependencyScope::Product": [
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "package-manager",
+    "products",
+    "review-evidence",
+    "source-compiler",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-production",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "DependencyScope::default": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceBytes::from": [
+    "tokens"
+   ],
+   "SourceBytes::from_shared": [
+    "tokens"
+   ],
+   "SourceFileSystem::default": [
+    "package-compilation"
+   ],
+   "SourceFileSystem::new": [
+    "package-compilation"
+   ],
+   "SourceMap::captured_reference_can_see_stratum": [
+    "build-time-evaluation"
+   ],
+   "SourceMap::default": [
+    "build-time-evaluation"
+   ],
+   "SourceMap::from_files": [
+    "package-compilation"
+   ],
+   "SourceOrigin::Toolchain": [
+    "build-time-evaluation",
+    "language-semantics",
+    "package-compilation",
+    "source-compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees",
+    "terminal-semantics",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceOrigin::ToolchainContract": [
+    "build-time-evaluation",
+    "package-compilation",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceOrigin::User": [
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "symbols",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceOrigin::is_toolchain": [
+    "typed-trees"
+   ],
+   "SourcePosition::of": [
+    "compiler"
+   ],
+   "SourceResolutionStratum::Base": [
+    "package-compilation",
+    "terminal-semantics"
+   ],
+   "SourceResolutionStratum::CurrentActivationExtension": [
+    "package-compilation",
+    "symbols"
+   ],
+   "SourceResolutionStratum::DependencyActivationExtension": [
+    "package-compilation",
+    "symbols"
+   ],
+   "SourceSnapshot::new": [
+    "package-compilation"
+   ],
+   "SourceSnapshotEntry::Directory": [
+    "package-compilation"
+   ],
+   "SourceSnapshotEntry::File": [
+    "package-compilation"
+   ],
+   "SourceSnapshotEntry::Symlink": [
+    "package-compilation"
+   ],
+   "SourceSpan::default": [
+    "build-time-evaluation",
+    "compiler",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SourceSpan::new": [
+    "build-time-evaluation",
+    "compiler",
+    "package-compilation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "Span::default": [
+    "package-compilation",
+    "symbols"
+   ],
+   "Span::new": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
    "anonymous_owner::AnonymousSourceCapture": [
     "package-compilation"
    ],
@@ -6480,6 +8631,328 @@
    ],
    "source_snapshot::capture_scoped_source_input": [
     "package-compilation"
+   ]
+  },
+  "symbols": {
+   "BuiltinFunction::AddressOf": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "BuiltinFunction::CodeLayout": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "BuiltinFunction::ContentOld": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinFunction::IntegerEmbed": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinFunction::QuotientDefine": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "BuiltinFunction::QuotientLift": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "BuiltinFunction::from_name": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "BuiltinFunction::from_ordinal": [
+    "review-evidence"
+   ],
+   "BuiltinFunction::is_source_special_form": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "BuiltinType::Int": [
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom::Address": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinTypeAtom::Bool": [
+    "build-time-evaluation",
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinTypeAtom::F32": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom::F64": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom::Int": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom::Integer": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees"
+   ],
+   "BuiltinTypeAtom::U64": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "BuiltinTypeAtom::U8": [
+    "typed-trees"
+   ],
+   "BuiltinTypeAtom::UInt": [
+    "typed-trees"
+   ],
+   "BuiltinTypeMember::AddressBound": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "FixedCoreDeclaration::Strict": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "FixedCoreDeclaration::from_name": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "PrimitiveType::Addr": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::Bool": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::F32": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::F64": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::Integer": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::Selector": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "PrimitiveType::U8": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "PrimitiveType::from_builtin_atom": [
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "RetainedDeclaration::capture": [
+    "build-time-evaluation",
+    "compiler",
+    "review-evidence",
+    "source-compiler",
+    "terminal-production"
+   ],
+   "RetainedDeclaration::from_retained_parts": [
+    "build-time-evaluation"
+   ],
+   "SourceScopedTopLevelBinding::logical_module_import": [
+    "package-compilation"
+   ],
+   "SourceScopedTopLevelBinding::module_import": [
+    "package-compilation"
+   ],
+   "SourceScopedTopLevelBinding::new": [
+    "package-compilation"
+   ],
+   "SourceSpanCandidates::default": [
+    "package-compilation"
+   ],
+   "SymbolHandle::from_parts": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolHandle::invalid": [
+    "language-semantics",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKeyMap::default": [
+    "typed-trees"
+   ],
+   "SymbolKind::BuiltinFunction": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolKind::BuiltinType": [
+    "review-evidence",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::CallableContract": [
+    "typed-trees"
+   ],
+   "SymbolKind::Conformance": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::ConformanceParameter": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Const": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Data": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Domain": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Field": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Local": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Machine": [
+    "build-time-evaluation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::MachineParameter": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::MathematicalDefinition": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Measure": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolKind::Module": [
+    "package-compilation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Operator": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Parameter": [
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Proposition": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolKind::PropositionMachineParameter": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::PropositionParameter": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Root": [
+    "package-compilation",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolKind::State": [
+    "build-time-evaluation",
+    "package-compilation",
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Trait": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::TypeAlias": [
+    "symbol-resolved-trees-to-typed-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::TypeParameter": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::Unknown": [
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees"
+   ],
+   "SymbolKind::Variant": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees",
+    "typed-trees",
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolKind::WireSchema": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolLookup::Ambiguous": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolLookup::NotFound": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolLookup::Unique": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "SymbolMap::default": [
+    "typed-trees-to-terminal-psi"
+   ],
+   "SymbolNameRef::Borrowed": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "UnresolvedName::Ambiguous": [
+    "syntax-trees-to-symbol-resolved-trees"
+   ],
+   "UnresolvedName::NoVisibleDeclaration": [
+    "symbol-resolved-trees-to-typed-trees"
+   ],
+   "UnresolvedName::Unserved": [
+    "symbol-resolved-trees-to-typed-trees",
+    "syntax-trees-to-symbol-resolved-trees"
    ]
   }
  }

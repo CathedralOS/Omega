@@ -1,4 +1,4 @@
-//! `--validator` and `--every-validator` run independent stage validators
+//! `--validator` and `--every-validator` run stage-output checks
 //! inside one compilation and report a row for each; default compilation runs
 //! none (wiki/spec/build/command_line.md#independent-stage-validators).
 use std::path::{Path, PathBuf};
@@ -110,12 +110,12 @@ fn every_validator_reports_what_ran_and_what_was_inapplicable() {
         "{report}"
     );
     // This program selects no selected-instruction rewrite rule, so the
-    // replay validator has no run to check and says so instead of passing.
+    // determinism check has no run to check and says so instead of passing.
     assert!(
         report.lines().any(|line| line.starts_with(
             "stage validator SelectedInstructionRewriteReplay (target "
         ) && line.ends_with(
-            "stage selected-instruction rewrites): inapplicable: no selected-instruction rewrite rule ran"
+            "stage selected-instruction rewrite determinism): inapplicable: no selected-instruction rewrite rule ran"
         )),
         "{report}"
     );

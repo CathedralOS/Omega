@@ -43,7 +43,8 @@ terminal-codec = { path = "../../../../../psi/compilation/representations/termin
 sha2 = "0.10.9"
 program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
-terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
+backend-plan = { path = "../../plans/backend-plan" }
 provider-admission = { path = "../../../realization/provider-admission" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 

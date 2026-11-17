@@ -1,58 +1,12 @@
 {
- "declared_unused": {
-  "backend-plan": [
-   "products"
-  ],
-  "boundary-applications": [
-   "package-manager",
-   "compiler"
-  ],
-  "component-description": [
-   "terminal-psi-to-abstract-operations",
-   "compiler"
-  ],
-  "effects": [
-   "ind19-spectrum-validation"
-  ],
-  "image-emission": [
-   "products"
-  ],
-  "image-pe": [
-   "native-artifact"
-  ],
-  "installation-evidence": [
-   "target-operations"
-  ],
-  "native-artifact": [
-   "package-manager",
-   "compiler"
-  ],
-  "program-entry-plan": [
-   "terminal-psi-to-abstract-operations",
-   "native-artifact",
-   "products"
-  ],
-  "register-environment": [
-   "register-homes-to-post-allocation-machine"
-  ],
-  "register-model": [
-   "native-artifact"
-  ],
-  "runtime-abi": [
-   "compiler"
-  ],
-  "target": [
-   "selected-instructions-to-register-homes"
-  ],
-  "task-plans": [
-   "terminal-psi-to-abstract-operations",
-   "target-operations",
-   "products"
-  ],
-  "x86_64-encoding": [
-   "image-emission"
-  ]
- },
+ "limitations": [
+  "Textual observations, not Rust name resolution or a dependency-removal proof.",
+  "Normal and build dependencies include optional and target-conditional declarations; features and target cfg are not evaluated.",
+  "Tests, benches, examples, conventional test filenames and exact cfg(test) items are excluded from usage, but complex cfg expressions are not evaluated.",
+  "Macros are not expanded; generated and untracked source is excluded; reexports are credited to the named crate, not traced to their origin.",
+  "Import aliases and glob presence are observed, but shadowing, glob contents and fully qualified type paths are not resolved.",
+  "An unobserved dependency remains unverified until a suitable Cargo check and manual review establish whether it can be removed."
+ ],
  "pos": {
   "abstract-operations": "omega-repr abstract-operations",
   "abstract-operations-to-abstract-operations": "omega-stage 01",
@@ -165,6 +119,7 @@
   "syntax-trees": "psi-repr syntax-trees",
   "syntax-trees-derive": "psi-repr syntax-trees:derive",
   "syntax-trees-to-symbol-resolved-trees": "psi-stage 02",
+  "target": "backend target",
   "target-operations": "omega-repr target-operations",
   "target-operations-to-selected-instructions": "omega-stage 03",
   "target-vocabulary": "omega-repr target-operations:target-vocabulary",
@@ -192,6 +147,201 @@
   "wavelet-transient-validation": "samples cli/scientific/wavelet_transient_denoising/validation",
   "x86_64-encoding": "backend isa/x86_64-encoding",
   "xtask": "tools xtask"
+ },
+ "scanned_file_counts": {
+  "abstract-operations": 9,
+  "abstract-operations-to-abstract-operations": 18,
+  "abstract-operations-to-target-operations": 14,
+  "access-plans": 5,
+  "advection-terminal-validation": 1,
+  "arena": 6,
+  "artifacts": 3,
+  "backend-plan": 6,
+  "bound-installations": 1,
+  "boundary-applications": 5,
+  "bounded-process": 20,
+  "build-declarations": 10,
+  "build-output": 7,
+  "build-settings": 26,
+  "build-time-evaluation": 27,
+  "build-time-values": 1,
+  "calling-conventions": 15,
+  "compiler": 30,
+  "compiler-storage": 2,
+  "compiler-storage-derive": 1,
+  "component-description": 3,
+  "diagnostics": 1,
+  "effects": 13,
+  "encoded-scalar-plan": 2,
+  "evaluation-accounting": 2,
+  "execution-admission": 1,
+  "extents": 4,
+  "filesystem-authority": 4,
+  "flow-effects": 2,
+  "function-identity": 1,
+  "hmm-terminal-validation": 1,
+  "image": 6,
+  "image-elf": 11,
+  "image-emission": 12,
+  "image-macho": 5,
+  "image-pe": 5,
+  "ind11-terminal-validation": 1,
+  "ind19-spectrum-validation": 1,
+  "installation-evidence": 2,
+  "isa-aarch64": 12,
+  "isa-conformance": 4,
+  "isa-x86_64": 10,
+  "laminate-stiffness-response-validation": 1,
+  "language-core": 7,
+  "language-semantics": 9,
+  "layered-seismic-refraction-validation": 1,
+  "layout": 3,
+  "layout-plans": 4,
+  "legalized-operations": 10,
+  "machine-code": 15,
+  "machine-emission": 13,
+  "molecular-pair-distribution-validation": 1,
+  "mutation-matrix": 1,
+  "native-artifact": 26,
+  "native-compiler": 16,
+  "native-preparation": 15,
+  "native-provider-runtime": 12,
+  "native-vocabulary": 16,
+  "new031-terminal-validation": 1,
+  "new087-terminal-validation": 1,
+  "normalized-foreign-call-plan": 2,
+  "numerics": 5,
+  "object-file": 8,
+  "omega": 21,
+  "omega-bench": 23,
+  "optimization": 1,
+  "optimization-core": 45,
+  "optimization-unit": 13,
+  "optimization-unit-semantics": 9,
+  "orchestration": 21,
+  "package-compilation": 69,
+  "package-manager": 139,
+  "platform-custody": 7,
+  "post-allocation-machine": 10,
+  "post-allocation-machine-to-selected-form-encoding": 4,
+  "post-handoff-writer-plan": 1,
+  "products": 15,
+  "program-entry-plan": 4,
+  "proof-admission": 16,
+  "provider-admission": 47,
+  "provider-planning": 24,
+  "provider-selection": 8,
+  "register-environment": 2,
+  "register-homes": 14,
+  "register-homes-to-post-allocation-machine": 3,
+  "register-model": 6,
+  "resolved-layout-to-resolved-layout": 2,
+  "resolver-execution": 3,
+  "review-evidence": 227,
+  "runtime-abi": 10,
+  "sample-runner": 1,
+  "sci04-terminal-validation": 1,
+  "selected-dispatch": 2,
+  "selected-form-encoding-to-resolved-layout": 4,
+  "selected-instruction-analyses": 15,
+  "selected-instructions": 26,
+  "selected-instructions-to-register-homes": 11,
+  "selected-instructions-to-selected-instructions": 8,
+  "semantic-vocabulary": 14,
+  "source": 2,
+  "source-acquisition": 96,
+  "source-audit": 1,
+  "source-compiler": 5,
+  "source-files-to-tokens": 3,
+  "spectral-power-validation": 1,
+  "symbol-resolved-trees": 8,
+  "symbol-resolved-trees-to-typed-trees": 18,
+  "symbols": 8,
+  "syntax-trees": 6,
+  "syntax-trees-derive": 1,
+  "syntax-trees-to-symbol-resolved-trees": 32,
+  "target": 10,
+  "target-operations": 3,
+  "target-operations-to-selected-instructions": 11,
+  "target-vocabulary": 25,
+  "task-plans": 4,
+  "terminal-check-tables": 9,
+  "terminal-codec": 4,
+  "terminal-installation": 7,
+  "terminal-interpreter": 16,
+  "terminal-production": 7,
+  "terminal-psi": 15,
+  "terminal-psi-to-abstract-operations": 9,
+  "terminal-psi-to-terminal-psi": 40,
+  "terminal-runtime": 42,
+  "terminal-semantics": 38,
+  "terminal-wire": 18,
+  "terminal-work": 1,
+  "thin-film-reflectometry-validation": 1,
+  "tokens": 2,
+  "tokens-to-syntax-trees": 10,
+  "trust-model": 4,
+  "typed-trees": 33,
+  "typed-trees-to-terminal-psi": 80,
+  "typed-trees-to-typed-trees": 10,
+  "verified-optimization-input": 9,
+  "wavelet-transient-validation": 1,
+  "x86_64-encoding": 1,
+  "xtask": 29
+ },
+ "scope": "backend",
+ "unobserved_dependencies": {
+  "backend-plan": [
+   "products"
+  ],
+  "boundary-applications": [
+   "compiler",
+   "package-manager"
+  ],
+  "component-description": [
+   "compiler",
+   "terminal-psi-to-abstract-operations"
+  ],
+  "effects": [
+   "ind19-spectrum-validation"
+  ],
+  "image-emission": [
+   "products"
+  ],
+  "image-pe": [
+   "native-artifact"
+  ],
+  "installation-evidence": [
+   "target-operations"
+  ],
+  "native-artifact": [
+   "compiler",
+   "package-manager"
+  ],
+  "program-entry-plan": [
+   "native-artifact",
+   "products"
+  ],
+  "register-environment": [
+   "register-homes-to-post-allocation-machine"
+  ],
+  "register-model": [
+   "native-artifact"
+  ],
+  "runtime-abi": [
+   "compiler"
+  ],
+  "target": [
+   "selected-instructions-to-register-homes"
+  ],
+  "task-plans": [
+   "products",
+   "target-operations",
+   "terminal-psi-to-abstract-operations"
+  ],
+  "x86_64-encoding": [
+   "image-emission"
+  ]
  },
  "usage": {
   "backend-plan": {
@@ -296,6 +446,9 @@
    ]
   },
   "bound-installations": {
+   "<crate>": [
+    "provider-admission"
+   ],
    "BoundCallbackEntry": [
     "provider-admission"
    ],
@@ -314,7 +467,11 @@
     "provider-admission"
    ],
    "BoundInterruptEntry": [
+    "provider-admission",
     "target-operations-to-selected-instructions"
+   ],
+   "BoundInterruptHelper": [
+    "provider-admission"
    ],
    "BoundInterruptInstallation": [
     "provider-admission"
@@ -2794,6 +2951,9 @@
    ]
   },
   "program-entry-plan": {
+   "*": [
+    "terminal-psi-to-abstract-operations"
+   ],
    "LINUX_ARM64_I32_TYPE_IDENTITY": [
     "image-emission"
    ],
@@ -4319,10 +4479,6 @@
    "PackageReviewRepresentationTargetProfile": [
     "review-evidence"
    ],
-   "ProgramEntry": [
-    "build-settings",
-    "provider-planning"
-   ],
    "ProgramEntryCallingConvention": [
     "calling-conventions",
     "program-entry-plan"
@@ -4545,7 +4701,354 @@
   }
  },
  "usage2": {
+  "backend-plan": {
+   "DirectBoundaryExecution::Foreign": [
+    "provider-planning",
+    "verified-optimization-input"
+   ],
+   "DirectBoundaryExecution::Intrinsic": [
+    "compiler",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "verified-optimization-input"
+   ],
+   "DirectBoundaryLeaf::declared_schema": [
+    "compiler",
+    "provider-planning"
+   ],
+   "TerminalCallbackOccurrenceProposal::new": [
+    "native-compiler"
+   ],
+   "TerminalCallbackThunkArtifact::for_application": [
+    "native-compiler"
+   ],
+   "TerminalTargetProviderSelection::from_plans": [
+    "provider-planning",
+    "selected-dispatch"
+   ]
+  },
+  "boundary-applications": {
+   "BoundaryApplication::Empty": [
+    "verified-optimization-input"
+   ],
+   "BoundaryApplicationRealizationCompanion::native_binding": [
+    "verified-optimization-input"
+   ],
+   "BoundaryApplicationRealizationCompanion::new": [
+    "provider-selection"
+   ],
+   "BoundaryOpaqueRepresentationApplications::new": [
+    "verified-optimization-input"
+   ],
+   "TerminalBoundaryApplicationCoverage::new": [
+    "native-compiler",
+    "verified-optimization-input"
+   ],
+   "TerminalBoundaryApplicationDemands::new": [
+    "native-compiler",
+    "verified-optimization-input"
+   ],
+   "TerminalBoundaryApplicationRealizations::new": [
+    "native-compiler",
+    "provider-selection",
+    "verified-optimization-input"
+   ]
+  },
   "calling-conventions": {
+   "BoundaryNativeParameterOrigin::PrivateCallback": [
+    "provider-planning"
+   ],
+   "BoundaryNativeParameterOrigin::SemanticFormal": [
+    "native-compiler",
+    "terminal-runtime"
+   ],
+   "BoundaryNativeParameterShape::Semantic": [
+    "provider-planning",
+    "terminal-runtime"
+   ],
+   "BoundaryNativeParameterShape::TargetFunctionPointer": [
+    "provider-planning"
+   ],
+   "BoundaryValueClass::Reference": [
+    "terminal-runtime"
+   ],
+   "CallSignature::of_placements": [
+    "provider-admission",
+    "register-homes"
+   ],
+   "CallingPolicy::MicrosoftX64": [
+    "target-operations-to-selected-instructions"
+   ],
+   "CallingPolicy::SystemVAMD64": [
+    "target-operations-to-selected-instructions"
+   ],
+   "CallingPolicy::for_program_entry_convention": [
+    "verified-optimization-input"
+   ],
+   "CallingPolicy::native_for_target": [
+    "native-preparation",
+    "provider-admission",
+    "provider-planning",
+    "target-operations-to-selected-instructions",
+    "verified-optimization-input"
+   ],
+   "CallingPolicy::native_syscall_for_target": [
+    "provider-admission",
+    "provider-planning"
+   ],
+   "EntryControl::InterruptReturn": [
+    "image-emission",
+    "provider-admission"
+   ],
+   "EntryStack::Dedicated": [
+    "image-emission",
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "EntryStack::Interrupted": [
+    "image-emission",
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "EntryStack::ProviderSelected": [
+    "image-emission",
+    "target-operations-to-selected-instructions"
+   ],
+   "ExternalBindingKind::Import": [
+    "backend-plan",
+    "compiler",
+    "provider-admission",
+    "verified-optimization-input"
+   ],
+   "ExternalBindingKind::Syscall": [
+    "backend-plan",
+    "compiler",
+    "provider-planning"
+   ],
+   "ExternalBindingKind::TableFunction": [
+    "provider-admission"
+   ],
+   "ExternalBindingKind::VtableField": [
+    "provider-admission"
+   ],
+   "GeneratedEntryControl::Call": [
+    "image-emission"
+   ],
+   "IndirectPointerLocation::Register": [
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "IndirectPointerLocation::Stack": [
+    "native-artifact",
+    "review-evidence",
+    "target-operations-to-selected-instructions"
+   ],
+   "MachineRegister::*": [
+    "image-emission",
+    "isa-x86_64"
+   ],
+   "MachineRegister::Aarch64V": [
+    "target-operations-to-selected-instructions"
+   ],
+   "MachineRegister::Aarch64X": [
+    "image-emission",
+    "image-macho",
+    "isa-aarch64"
+   ],
+   "MachineRegister::X86R10": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R11": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R12": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R13": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R14": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R15": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R8": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86R9": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86Rax": [
+    "abstract-operations-to-target-operations",
+    "isa-x86_64",
+    "native-artifact"
+   ],
+   "MachineRegister::X86Rbx": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86Rcx": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86Rdi": [
+    "isa-x86_64",
+    "native-preparation"
+   ],
+   "MachineRegister::X86Rdx": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86Rsi": [
+    "isa-x86_64"
+   ],
+   "MachineRegister::X86Xmm": [
+    "target-operations-to-selected-instructions"
+   ],
+   "MachineState::InstructionPointer": [
+    "image-macho"
+   ],
+   "MachineStateSet::new": [
+    "image-macho"
+   ],
+   "NativeCallProjection::new": [
+    "provider-planning"
+   ],
+   "NativeParameterTelescope::close": [
+    "provider-planning"
+   ],
+   "NativePlace::Field": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "native-preparation",
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "NativePlace::Parameter": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "isa-aarch64",
+    "isa-x86_64",
+    "native-preparation",
+    "provider-planning",
+    "target-operations-to-selected-instructions"
+   ],
+   "PrivateCallbackPlacements::new": [
+    "layout",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "register-homes",
+    "verified-optimization-input"
+   ],
+   "RegisterSet::new": [
+    "image-macho"
+   ],
+   "StateEffectsEvidence::empty": [
+    "image-emission"
+   ],
+   "StaticMachineBinderId::new": [
+    "normalized-foreign-call-plan"
+   ],
+   "SystemVEightbyteClass::Integer": [
+    "native-artifact"
+   ],
+   "SystemVEightbyteClass::Sse": [
+    "native-artifact"
+   ],
+   "TerminalCallingTelescope::callback_bindings": [
+    "provider-planning"
+   ],
+   "TerminalCallingTelescope::for_application": [
+    "provider-admission"
+   ],
+   "ValueClass::BorrowedReference": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "native-provider-runtime",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueClass::BorrowedScalarReference": [
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueClass::Float": [
+    "native-artifact",
+    "provider-admission",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueClass::HomogeneousFloatAggregate": [
+    "native-artifact"
+   ],
+   "ValueClass::Integer": [
+    "image-emission",
+    "native-artifact",
+    "program-entry-plan",
+    "provider-admission",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "ValueClass::SystemVAggregate": [
+    "native-artifact"
+   ],
+   "ValueLocation::Indirect": [
+    "image-emission",
+    "isa-x86_64",
+    "native-artifact",
+    "review-evidence",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueLocation::Register": [
+    "isa-aarch64",
+    "isa-x86_64",
+    "native-artifact",
+    "review-evidence",
+    "target-operations-to-selected-instructions",
+    "terminal-runtime"
+   ],
+   "ValueLocation::Stack": [
+    "isa-x86_64",
+    "native-artifact",
+    "review-evidence",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueShape::borrowed_reference": [
+    "image-emission",
+    "target-operations-to-selected-instructions"
+   ],
+   "ValueShape::borrowed_scalar_reference": [
+    "image-emission"
+   ],
+   "ValueShape::for_closed_scalar": [
+    "native-preparation"
+   ],
+   "ValueShape::for_integer": [
+    "native-preparation"
+   ],
+   "ValueShape::for_scalar": [
+    "image-emission",
+    "legalized-operations",
+    "native-artifact"
+   ],
+   "ValueShape::integer": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-preparation",
+    "program-entry-plan",
+    "provider-planning",
+    "target-operations-to-selected-instructions",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
    "terminal_layout::NativeGeometry": [
     "image-emission",
     "legalized-operations",
@@ -4564,6 +5067,7 @@
    ],
    "terminal_layout::checked_align_up_u32": [
     "abstract-operations-to-target-operations",
+    "image-emission",
     "target-operations-to-selected-instructions"
    ],
    "terminal_layout::element_view_length_offset": [
@@ -4587,6 +5091,93 @@
    ]
   },
   "effects": {
+   "BehaviorExclusions::default": [
+    "native-compiler"
+   ],
+   "CompilerAccessorScalarOperation::Read": [
+    "provider-admission",
+    "review-evidence"
+   ],
+   "CompilerAccessorScalarOperation::Take": [
+    "provider-admission",
+    "review-evidence"
+   ],
+   "CompilerAccessorScalarOperation::Write": [
+    "provider-admission",
+    "review-evidence"
+   ],
+   "CompilerIntrinsicExecutionIdentity::AccessLifecycle": [
+    "provider-admission"
+   ],
+   "CompilerIntrinsicExecutionIdentity::EmptyRunRelease": [
+    "provider-admission"
+   ],
+   "CompilerIntrinsicExecutionIdentity::HostedExitProcessI32": [
+    "backend-plan",
+    "provider-admission",
+    "provider-planning"
+   ],
+   "CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary": [
+    "boundary-applications"
+   ],
+   "CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison": [
+    "boundary-applications",
+    "native-artifact"
+   ],
+   "CompilerIntrinsicExecutionIdentity::StaticInterrupt": [
+    "provider-admission"
+   ],
+   "CompilerIntrinsicExecutionIdentity::checked_register": [
+    "provider-admission"
+   ],
+   "CompilerIntrinsicExecutionIdentity::from": [
+    "provider-planning"
+   ],
+   "NormalizedForeignArgumentContract::AdmittedPlan": [
+    "provider-admission"
+   ],
+   "NormalizedForeignTerminalMechanismIdentity::from_normalized_locator": [
+    "provider-admission"
+   ],
+   "SelectedProviderPlanCandidate::read": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "SelectedProviderPlanFacts::default": [
+    "verified-optimization-input"
+   ],
+   "SelectedProviderPlanFacts::from_selected_plans": [
+    "backend-plan",
+    "build-settings",
+    "native-compiler",
+    "provider-planning"
+   ],
+   "ServiceTerminalAuthorityPermission::new": [
+    "compiler"
+   ],
+   "TerminalAuthorityClass::ProcessInput": [
+    "package-compilation"
+   ],
+   "TerminalAuthorityClass::ProcessOutput": [
+    "package-compilation"
+   ],
+   "TerminalAuthorityClosureCustody::NativeBinding": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClosureCustody::ProgramRoot": [
+    "provider-admission"
+   ],
+   "TerminalAuthorityClosureCustody::SelectedRequirement": [
+    "provider-admission"
+   ],
+   "TerminalMechanismIdentity::CompilerIntrinsic": [
+    "provider-admission"
+   ],
+   "TerminalMechanismIdentity::NormalizedForeign": [
+    "provider-admission"
+   ],
+   "TerminalMechanismIdentity::Table": [
+    "provider-admission"
+   ],
    "external_providers::canonical_external_execution": [
     "provider-planning",
     "provider-selection"
@@ -4857,6 +5448,26 @@
    ]
   },
   "image": {
+   "FinalExecutableRegionOrigin::CompilerFunction": [
+    "image-emission"
+   ],
+   "FinalExecutableRegionOrigin::ImportThunk": [
+    "image-emission"
+   ],
+   "FinalImageSection::Bss": [
+    "image-elf"
+   ],
+   "FinalImageSection::Data": [
+    "image-elf"
+   ],
+   "FinalImageSection::None": [
+    "image-elf"
+   ],
+   "FinalImageSection::Text": [
+    "image-elf",
+    "image-emission",
+    "image-macho"
+   ],
    "codec_bytes::write_u16": [
     "image-elf",
     "image-pe"
@@ -4908,6 +5519,94 @@
     "image-emission"
    ]
   },
+  "image-emission": {
+   "BoundaryExecutionRecord::AdmittedProvider": [
+    "native-artifact"
+   ],
+   "ExecutableImageEmissionRequest::direct": [
+    "native-compiler",
+    "orchestration"
+   ],
+   "InstalledPhysicalCpuRequirement::X86LongModeCpl0WithoutCet": [
+    "native-artifact"
+   ],
+   "PhysicalEntryStackRequirement::CheckedPrivateImage": [
+    "native-artifact"
+   ],
+   "RetainedTargetOperations::new": [
+    "native-compiler"
+   ]
+  },
+  "installation-evidence": {
+   "BootstrapAssumptionInterval::EntryUntilInstallationPublished": [
+    "native-artifact"
+   ],
+   "InstallationEnvironmentAssumption::Bootstrap": [
+    "native-artifact",
+    "provider-admission"
+   ],
+   "InstallationEnvironmentAssumption::InterruptDelivery": [
+    "native-artifact",
+    "provider-admission"
+   ],
+   "InterruptDeliveryInterval::InstalledScopeLifetime": [
+    "native-artifact"
+   ],
+   "ObjectEvidence::psi": [
+    "native-artifact"
+   ],
+   "X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs": [
+    "native-artifact"
+   ]
+  },
+  "isa-aarch64": {
+   "Aarch64CallbackMaterializationDestination::RecordField": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64CallbackMaterializationDestination::Register": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64ConditionalBranchForm::CanonicalWordV1": [
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "Aarch64ConditionalBranchForm::WidenedPairV1": [
+    "selected-form-encoding-to-resolved-layout"
+   ]
+  },
+  "isa-x86_64": {
+   "X86_64CallbackMaterializationDestination::OutgoingStack": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "X86_64CallbackMaterializationDestination::RecordField": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ],
+   "X86_64CallbackMaterializationDestination::Register": [
+    "machine-emission",
+    "selected-form-encoding-to-resolved-layout"
+   ]
+  },
+  "layout": {
+   "BoundaryValueLayout::new": [
+    "provider-admission"
+   ],
+   "LayoutTarget::for_profile": [
+    "provider-admission",
+    "provider-planning"
+   ],
+   "TerminalBoundaryRecipes::new": [
+    "provider-admission"
+   ],
+   "TerminalBoundaryRecipes::with_closed_scalars": [
+    "provider-planning"
+   ],
+   "TerminalCallbackLayouts::new": [
+    "provider-planning"
+   ]
+  },
   "machine-emission": {
    "code_layout::NativeCodeLayout": [
     "image-emission"
@@ -4955,7 +5654,158 @@
     "native-artifact"
    ]
   },
+  "native-artifact": {
+   "NativeArtifact::from_replayed_parts": [
+    "native-compiler"
+   ],
+   "NativeComponentProduct::from_emitted": [
+    "native-compiler"
+   ],
+   "NativeComponentPublicationReceipt::verify": [
+    "products"
+   ],
+   "RequestedNativeArtifact::Direct": [
+    "native-compiler",
+    "products"
+   ],
+   "RequestedNativeArtifact::DynamicElf": [
+    "products"
+   ],
+   "RequestedNativeArtifact::emit_admitted": [
+    "native-compiler"
+   ],
+   "TerminalCallableRuntimeProvisions::capture_native_admission": [
+    "native-compiler"
+   ],
+   "TerminalRuntimeHostProvisions::capture_native_admission": [
+    "native-compiler"
+   ],
+   "TerminalRuntimeProvisions::capture_native_admission": [
+    "native-compiler"
+   ]
+  },
+  "object-file": {
+   "RelocationKind::Aarch64Branch26": [
+    "image-emission"
+   ],
+   "RelocationKind::Aarch64Page21": [
+    "image-emission"
+   ],
+   "RelocationKind::Aarch64PageOffset12": [
+    "image-emission"
+   ],
+   "RelocationKind::X86_64Relative32": [
+    "image-emission"
+   ],
+   "RelocationOrigin::SemanticOperation": [
+    "image-emission"
+   ],
+   "SectionKind::Bss": [
+    "image-emission"
+   ],
+   "SectionKind::Text": [
+    "image-emission",
+    "native-artifact"
+   ],
+   "SymbolKind::Function": [
+    "image-emission",
+    "image-macho"
+   ],
+   "SymbolKind::Import": [
+    "image-emission"
+   ],
+   "SymbolSection::None": [
+    "image-emission"
+   ],
+   "SymbolSection::Section": [
+    "image",
+    "image-emission"
+   ]
+  },
+  "program-entry-plan": {
+   "SelectedProgramEntrySignature::from_checked_declaration": [
+    "provider-planning"
+   ]
+  },
+  "register-model": {
+   "RegisterConstraintFamily::Call": [
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterConstraintFamily::InlineAssembly": [
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "RegisterConstraintFamily::Instruction": [
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "RegisterConstraintFamily::Return": [
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions"
+   ],
+   "RegisterConstraintFamily::SystemCall": [
+    "machine-emission",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterOperandAccess::Def": [
+    "image-emission",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterOperandAccess::Use": [
+    "image-emission",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "target-operations-to-selected-instructions"
+   ],
+   "RegisterOperandAccess::UseDef": [
+    "selected-instructions"
+   ]
+  },
   "runtime-abi": {
+   "DescriptorAbi::DarwinLibSystem": [
+    "terminal-runtime"
+   ],
+   "NativeBorrowedStorageLayouts::decode": [
+    "register-homes"
+   ],
+   "NativeBorrowedStorageLayouts::seal": [
+    "abstract-operations-to-target-operations"
+   ],
+   "ScalarReferenceLayout::NATIVE": [
+    "calling-conventions",
+    "terminal-runtime"
+   ],
+   "ScalarStorageCodec::decode": [
+    "machine-emission",
+    "register-homes",
+    "selected-instructions",
+    "target-operations-to-selected-instructions"
+   ],
+   "ScalarStorageCodec::encode": [
+    "native-preparation",
+    "target-operations-to-selected-instructions"
+   ],
+   "ScalarStorageCodec::from_closed_scalar": [
+    "native-preparation"
+   ],
+   "ScalarStorageCodec::from_scalar": [
+    "abstract-operations-to-target-operations",
+    "calling-conventions",
+    "image-emission",
+    "legalized-operations",
+    "target-operations-to-selected-instructions",
+    "terminal-runtime"
+   ],
    "static_interrupts::ALIGNMENT": [
     "machine-emission"
    ],
@@ -4997,11 +5847,412 @@
    ]
   },
   "target": {
+   "AdmittedX86ScalarFmaProvider::from_deployment_claim": [
+    "package-compilation"
+   ],
+   "Architecture::Aarch64": [
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "isa-aarch64",
+    "native-artifact",
+    "native-provider-runtime",
+    "provider-admission",
+    "register-homes",
+    "review-evidence",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "Architecture::X86_64": [
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "installation-evidence",
+    "native-artifact",
+    "native-provider-runtime",
+    "package-compilation",
+    "provider-admission",
+    "register-homes",
+    "review-evidence",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-selected-instructions",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary"
+   ],
+   "CanonicalFloatRealization::CatalogIntrinsic": [
+    "backend-plan",
+    "provider-selection"
+   ],
+   "CanonicalFloatRealization::Unsupported": [
+    "provider-admission",
+    "provider-planning",
+    "provider-selection"
+   ],
+   "ExplicitTargetSet::from_caller_names": [
+    "omega"
+   ],
+   "FloatControlObligation::CanonicalControls": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "FloatControlObligation::DirectedRoundingRestored": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "FloatIsaAdmission::Baseline": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "FloatIsaAdmission::X86AvxFma3": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ForeignLocatorCandidate::ElfVersioned": [
+    "effects",
+    "terminal-runtime"
+   ],
+   "ForeignLocatorCandidate::MachODylibSymbol": [
+    "effects",
+    "image-macho",
+    "provider-admission",
+    "terminal-runtime"
+   ],
+   "ForeignLocatorCandidate::PeByName": [
+    "effects",
+    "image-emission",
+    "native-compiler",
+    "provider-admission",
+    "terminal-runtime"
+   ],
+   "ForeignLocatorCandidate::PeByOrdinal": [
+    "effects"
+   ],
+   "ForeignLocatorIdentityDigest::from_digest": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "HostedApplicationIntent::Gui": [
+    "products"
+   ],
+   "HostedIntrinsicBundle::from_native_target": [
+    "target-vocabulary"
+   ],
+   "HostedIntrinsicBundle::from_target_name": [
+    "effects"
+   ],
+   "NativeTarget::from_omega_target_name": [
+    "terminal-runtime"
+   ],
+   "NativeTarget::host": [
+    "native-provider-runtime",
+    "terminal-runtime"
+   ],
+   "NativeTarget::linux_arm64": [
+    "image-emission",
+    "isa-aarch64",
+    "native-artifact",
+    "native-preparation"
+   ],
+   "NativeTarget::linux_x64": [
+    "image-emission",
+    "native-artifact",
+    "native-preparation"
+   ],
+   "NativeTarget::macos_arm64": [
+    "image-emission",
+    "image-macho",
+    "isa-aarch64",
+    "native-artifact",
+    "native-preparation"
+   ],
+   "NativeTarget::macos_x64": [
+    "image-emission",
+    "image-macho",
+    "native-preparation"
+   ],
+   "NativeTarget::windows_x64": [
+    "image-emission",
+    "image-pe",
+    "native-artifact",
+    "products"
+   ],
+   "NormalizedComponentLocator::for_image": [
+    "native-artifact",
+    "native-compiler"
+   ],
+   "NormalizedImportLocator::Component": [
+    "image-macho",
+    "image-pe"
+   ],
+   "NormalizedImportLocator::Foreign": [
+    "image-macho",
+    "image-pe"
+   ],
+   "NormalizedImportLocatorRef::Component": [
+    "object-file",
+    "target-vocabulary"
+   ],
+   "NormalizedImportLocatorRef::Foreign": [
+    "object-file",
+    "target-vocabulary"
+   ],
+   "ObjectFormat::Coff": [
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-emission",
+    "native-provider-runtime",
+    "products",
+    "register-homes",
+    "review-evidence"
+   ],
+   "ObjectFormat::Elf": [
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-elf",
+    "image-emission",
+    "native-provider-runtime",
+    "register-homes",
+    "review-evidence"
+   ],
+   "ObjectFormat::MachO": [
+    "calling-conventions",
+    "effects",
+    "image",
+    "image-emission",
+    "image-macho",
+    "native-provider-runtime",
+    "products",
+    "register-homes",
+    "review-evidence"
+   ],
+   "ProgramEntryCallingConvention::Aapcs64": [
+    "calling-conventions",
+    "program-entry-plan"
+   ],
+   "ProgramEntryCallingConvention::MicrosoftX64": [
+    "calling-conventions",
+    "program-entry-plan"
+   ],
+   "ProgramEntryCallingConvention::SystemVAMD64": [
+    "calling-conventions",
+    "program-entry-plan"
+   ],
+   "ProgramEntryPhysicalContractPackage::LinuxArm64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::LinuxX86_64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::MacosArm64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::MacosX64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::UefiX64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::WindowsX64": [
+    "package-compilation"
+   ],
+   "ProgramEntryPhysicalContractPackage::manifest_identity": [
+    "program-entry-plan"
+   ],
+   "ProgramEntryPhysicalContractPackage::read": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "ProgramEntrySchema::HostedApplication": [
+    "image-emission",
+    "program-entry-plan",
+    "provider-admission",
+    "target-vocabulary",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "ProgramEntrySchema::ProgramStorageApplication": [
+    "native-artifact",
+    "program-entry-plan",
+    "verified-optimization-input"
+   ],
+   "ProgramEntryVisibleParameters::ImageAndInitialStorage": [
+    "program-entry-plan"
+   ],
+   "ProgramEntryVisibleParameters::None": [
+    "program-entry-plan",
+    "provider-planning"
+   ],
+   "TargetProfile::*": [
+    "package-compilation"
+   ],
+   "TargetProfile::ALL": [
+    "compiler",
+    "package-compilation",
+    "package-manager",
+    "register-homes",
+    "review-evidence"
+   ],
+   "TargetProfile::AlphaBootstrap": [
+    "package-compilation"
+   ],
+   "TargetProfile::CrossPlatformCli": [
+    "package-compilation",
+    "review-evidence"
+   ],
+   "TargetProfile::LinuxArm64": [
+    "image-elf",
+    "image-emission",
+    "package-compilation",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "TargetProfile::LinuxX64": [
+    "image-elf",
+    "image-emission",
+    "package-compilation",
+    "provider-admission",
+    "provider-planning",
+    "review-evidence",
+    "target-vocabulary",
+    "terminal-runtime"
+   ],
+   "TargetProfile::LocalUnchecked": [
+    "package-compilation",
+    "review-evidence"
+   ],
+   "TargetProfile::MacosArm64": [
+    "image-emission",
+    "image-macho",
+    "package-compilation",
+    "provider-admission",
+    "review-evidence",
+    "terminal-runtime"
+   ],
+   "TargetProfile::MacosX64": [
+    "image-emission",
+    "image-macho",
+    "package-compilation",
+    "review-evidence"
+   ],
+   "TargetProfile::UefiX64": [
+    "abstract-operations-to-target-operations",
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "package-compilation",
+    "provider-admission",
+    "review-evidence",
+    "verified-optimization-input"
+   ],
+   "TargetProfile::WindowsX64": [
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "package-compilation",
+    "provider-admission",
+    "review-evidence",
+    "terminal-runtime"
+   ],
+   "TargetProfile::from_canonical_target_name": [
+    "abstract-operations-to-target-operations",
+    "backend-plan",
+    "build-settings",
+    "compiler",
+    "image-emission",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "review-evidence",
+    "terminal-psi-to-abstract-operations",
+    "terminal-runtime",
+    "verified-optimization-input"
+   ],
+   "TargetProfile::from_omega_target_name": [
+    "compiler",
+    "ind19-spectrum-validation",
+    "new087-terminal-validation",
+    "omega",
+    "sample-runner"
+   ],
+   "TargetProfile::from_root_slot_owner": [
+    "compiler",
+    "provider-planning"
+   ],
+   "TargetProfile::host": [
+    "compiler",
+    "products"
+   ],
+   "TargetProfile::host_if_supported": [
+    "compiler",
+    "orchestration",
+    "package-manager",
+    "terminal-runtime"
+   ],
+   "TargetProfile::native_target": [
+    "selected-dispatch"
+   ],
+   "TargetProfile::read": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TargetProfile::target_name": [
+    "layout",
+    "package-compilation"
+   ],
+   "TargetSemantics::close_address_model": [
+    "build-settings",
+    "compiler",
+    "provider-planning",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "TargetSemantics::close_guaranteed_entry_stack": [
+    "program-entry-plan"
+   ],
+   "TargetSemantics::guaranteed_entry_stack": [
+    "program-entry-plan"
+   ],
+   "X86DeploymentFeatures::scalar_fma": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86FeatureRequirement::scalar_fma": [
+    "provider-admission",
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86ScalarFmaDifferentialReceipt::admit": [
+    "terminal-psi-to-abstract-operations"
+   ],
+   "X86ScalarFmaSlot::Binary32": [
+    "provider-admission"
+   ],
+   "X86ScalarFmaSlot::Binary64": [
+    "provider-admission"
+   ],
    "compatibility_fingerprint::Fnv1a": [
     "image-elf"
    ],
    "control_flow::sources": [
     "native-preparation"
+   ]
+  },
+  "task-plans": {
+   "SameStackContributionAdmissionReceiptId::from_normalized_identity": [
+    "normalized-foreign-call-plan"
+   ],
+   "SameStackProviderPlanCommitment::from_digest": [
+    "normalized-foreign-call-plan",
+    "provider-admission"
    ]
   }
  }

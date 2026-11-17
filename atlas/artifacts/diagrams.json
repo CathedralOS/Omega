@@ -1,0 +1,596 @@
+{
+  "repository-1": {
+    "claim": "Current source-construction route: explicit package bytes reach a supplied constructor, and publication requires identity and success checks. This is not a completed self-rebuild.",
+    "default_node": "around",
+    "nodes": {
+      "C": "psi",
+      "D": "native",
+      "E": "native"
+    },
+    "edges": {
+      "A->B": {
+        "label": "select source roots"
+      },
+      "B->C": {
+        "label": "copy exact bytes"
+      },
+      "C->D": {
+        "label": "supply closed input"
+      },
+      "D->E": {
+        "label": "compile supported subset"
+      },
+      "E->F": {
+        "label": "check before writing"
+      }
+    }
+  },
+  "bootstrap-1": {
+    "claim": "The native Gamma construction route rebuilds an intermediate compiler and exercises named customers. Full Omega compiler self-rebuild remains unverified.",
+    "default_node": "around",
+    "nodes": {
+      "A": "native",
+      "D": "native",
+      "E": "native"
+    },
+    "edges": {
+      "A->B": {
+        "label": "run declared seed route"
+      },
+      "B->C": {
+        "label": "supply Gamma evaluator"
+      },
+      "C->D": {
+        "label": "emit native compiler"
+      },
+      "D->E": {
+        "label": "compile same source"
+      },
+      "E->F": {
+        "label": "run required controls"
+      }
+    }
+  },
+  "tools-1": {
+    "claim": "Saved-artifact inspection reads bounded bytes and decodes a semantic summary; it grants no guest execution authority.",
+    "default_node": "around",
+    "nodes": {
+      "C": "psi",
+      "D": "psi"
+    },
+    "edges": {
+      "A->B": {
+        "label": "request artifact"
+      },
+      "B->C": {
+        "label": "bounded bytes"
+      },
+      "C->D": {
+        "label": "decode and summarize"
+      }
+    }
+  },
+  "library-1": {
+    "claim": "For Linux x86-64, std Build selects the Console provider and supplies syscall 1; realization checks the selected plans. This is a source trace, not a fresh run.",
+    "default_node": "around",
+    "nodes": {
+      "A": "psi",
+      "C": "psi",
+      "D": "psi",
+      "F": "native"
+    },
+    "edges": {
+      "A->B": {
+        "label": "require Console"
+      },
+      "B->C": {
+        "label": "select implementation"
+      },
+      "C->D": {
+        "label": "call raw boundary"
+      },
+      "D->E": {
+        "label": "resolve native supply"
+      },
+      "E->F": {
+        "label": "admit and lower"
+      }
+    }
+  },
+  "cli-1": {
+    "claim": "CLI parsing dispatches to distinct compilation, execution, inspection and package owners; source operations share Build while encoded-artifact inspection does not compile.",
+    "default_node": "around",
+    "nodes": {},
+    "edges": {
+      "args->invocation": {
+        "label": "parse complete request"
+      },
+      "invocation->compile": {
+        "label": "compile"
+      },
+      "invocation->run": {
+        "label": "run"
+      },
+      "invocation->source": {
+        "label": "inspect source"
+      },
+      "invocation->encoded": {
+        "label": "inspect bytes"
+      },
+      "invocation->packages": {
+        "label": "package operation"
+      },
+      "compile->build": {
+        "label": "BuildRequest"
+      },
+      "run->build": {
+        "label": "retained product request"
+      },
+      "source->build": {
+        "label": "inspection request"
+      },
+      "build->output": {
+        "label": "target outcomes"
+      },
+      "run->runtime": {
+        "label": "execute admitted product"
+      },
+      "runtime->output": {
+        "label": "runtime observation"
+      },
+      "encoded->output": {
+        "label": "artifact summary"
+      },
+      "packages->output": {
+        "label": "policy outcome"
+      }
+    }
+  },
+  "psi-1": {
+    "claim": "A prepared source request crosses Psi 00\u201306 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.",
+    "default_node": "psi",
+    "nodes": {
+      "A": "hub",
+      "O": "around"
+    },
+    "edges": {
+      "S->L": {
+        "label": "source text"
+      },
+      "C->A": {
+        "kind": "checked"
+      }
+    }
+  },
+  "psi-2": {
+    "claim": "Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question.",
+    "default_node": "psi",
+    "nodes": {},
+    "edges": {
+      "R->T": {
+        "label": "03 retain ledger"
+      },
+      "T->F": {
+        "label": "04 prepare and freeze"
+      },
+      "F->C": {
+        "label": "05 read occurrence"
+      },
+      "C->J": {
+        "label": "check selected identity"
+      }
+    }
+  },
+  "psi-3": {
+    "claim": "Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler.",
+    "default_node": "around",
+    "nodes": {
+      "F": "psi",
+      "C": "psi",
+      "R": "psi"
+    },
+    "edges": {
+      "S->E": {
+        "label": "request evaluation"
+      },
+      "S->F": {
+        "label": "prepare source"
+      },
+      "E->F": {
+        "label": "prepare invocation"
+      },
+      "E->P": {
+        "label": "publish invocation"
+      },
+      "P->C": {
+        "label": "lower and check"
+      },
+      "E->I": {
+        "label": "execute artifact"
+      },
+      "I->R": {
+        "label": "read current code"
+      }
+    }
+  },
+  "interpreter-1": {
+    "claim": "An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.",
+    "default_node": "around",
+    "nodes": {
+      "A": "hub",
+      "P": "psi"
+    },
+    "edges": {
+      "A->P": {
+        "label": "load or borrow"
+      },
+      "P->S": {
+        "label": "match code identity"
+      },
+      "S->I": {
+        "label": "supply admitted inputs"
+      },
+      "I->B": {
+        "label": "bind declared imports"
+      },
+      "B->E": {
+        "label": "invoke or resume"
+      },
+      "E->O": {
+        "label": "observe status"
+      }
+    }
+  },
+  "interpreter-2": {
+    "claim": "A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.",
+    "default_node": "around",
+    "nodes": {
+      "S": "psi",
+      "A": "hub",
+      "V": "psi",
+      "P": "native"
+    },
+    "edges": {
+      "S->I": {
+        "label": "encode signature"
+      },
+      "A->I": {
+        "label": "supply admitted policy"
+      },
+      "I->V": {
+        "label": "execute policy"
+      },
+      "V->C": {
+        "label": "decode proposed result"
+      },
+      "S->C": {
+        "label": "retain original contract"
+      },
+      "C->P": {
+        "label": "validate plan"
+      }
+    }
+  },
+  "interpreter-3": {
+    "claim": "Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.",
+    "default_node": "around",
+    "nodes": {
+      "N": "native"
+    },
+    "edges": {
+      "H->R": {
+        "label": "exact host provisions"
+      }
+    }
+  },
+  "build-and-packages-1": {
+    "claim": "One package-project request moves through discovery, package admission and compiler completion to ordered target outcomes. The requested product controls where work stops.",
+    "default_node": "around",
+    "nodes": {
+      "compiler": "hub",
+      "completion": "native"
+    },
+    "edges": {
+      "request->outputs": {
+        "label": "admit project request"
+      },
+      "outputs->discovery": {
+        "label": "open Build session"
+      },
+      "discovery->returned": {
+        "label": "execute and close sources"
+      },
+      "returned->admission": {
+        "label": "settle returned Builds"
+      },
+      "admission->compiler": {
+        "label": "admitted per-target input"
+      },
+      "completion->publication": {
+        "label": "completed retained product"
+      }
+    }
+  },
+  "build-and-packages-2": {
+    "claim": "Provider settlement joins checked source custody with executed Build choices; native compilation receives the completed narrower request.",
+    "default_node": "around",
+    "nodes": {
+      "source": "psi",
+      "pending": "native",
+      "scalars": "native",
+      "native": "native"
+    },
+    "edges": {
+      "build->join": {
+        "label": "executed choices"
+      },
+      "source->join": {
+        "label": "exact source authority"
+      },
+      "join->pending": {
+        "label": "settle reached requirements"
+      },
+      "pending->scalars": {
+        "label": "complete scalar demands"
+      },
+      "scalars->native": {
+        "label": "construct native inputs"
+      }
+    }
+  },
+  "build-and-packages-3": {
+    "claim": "Proposed ownership: one source sequencer prepares a checked invocation, delegates execution, and resumes with its value, effects and accounting.",
+    "default_node": "proposed",
+    "nodes": {},
+    "edges": {
+      "owner->stages": {
+        "label": "sequence source work"
+      },
+      "stages->invocation": {
+        "label": "publish checked code"
+      },
+      "invocation->execution": {
+        "label": "execute admitted input"
+      },
+      "execution->result": {
+        "label": "return observations"
+      },
+      "result->owner": {
+        "label": "resume source continuation"
+      }
+    }
+  },
+  "omega-1": {
+    "claim": "Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication.",
+    "default_node": "native",
+    "nodes": {
+      "A": "hub",
+      "B": "around",
+      "F": "around",
+      "H": "around",
+      "P": "around"
+    },
+    "edges": {
+      "A->B": {
+        "label": "discover demand"
+      },
+      "B->C": {
+        "label": "settled provider closure"
+      },
+      "C->D": {
+        "label": "admitted abstract plan"
+      },
+      "D->E": {
+        "label": "optimized plan"
+      },
+      "E->F": {
+        "label": "prepared obligations"
+      },
+      "E->H": {
+        "label": "request required handlers"
+      },
+      "H->F": {
+        "label": "measured stack needs"
+      },
+      "F->G": {
+        "label": "bound installation facts"
+      },
+      "G->I": {
+        "label": "selected instructions"
+      },
+      "I->J": {
+        "label": "allocation input"
+      },
+      "J->K": {
+        "label": "register homes"
+      },
+      "K->L": {
+        "label": "physical operations"
+      },
+      "L->M": {
+        "label": "encoded forms"
+      },
+      "M->N": {
+        "label": "resolved machine program"
+      },
+      "N->O": {
+        "label": "fragment object"
+      },
+      "O->P": {
+        "label": "retained image"
+      }
+    }
+  },
+  "omega-2": {
+    "claim": "Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission.",
+    "default_node": "native",
+    "nodes": {},
+    "edges": {
+      "A->B": {
+        "label": "select through layout"
+      },
+      "B->C": {
+        "label": "current machine program"
+      },
+      "A->C": {
+        "kind": "bypass"
+      }
+    }
+  },
+  "omega-3": {
+    "claim": "An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit.",
+    "default_node": "around",
+    "nodes": {
+      "A": "native",
+      "B": "native"
+    },
+    "edges": {
+      "A->C": {
+        "label": "artifact under review"
+      },
+      "B->C": {
+        "label": "requested retained inputs"
+      },
+      "C->D": {
+        "label": "check correspondence"
+      }
+    }
+  },
+  "map-1": {
+    "claim": "Current product routes share checked Terminal Psi and provider settlement. Native compilation emits code; runtime admission supplies provisions for Psi execution.",
+    "default_node": "around",
+    "nodes": {
+      "T": "hub",
+      "N": "native",
+      "P": "psi"
+    },
+    "edges": {
+      "B->P": {
+        "label": "source request"
+      },
+      "P->T": {
+        "label": "lower and check",
+        "kind": "checked"
+      },
+      "T->S": {
+        "label": "reached requirements"
+      },
+      "B->S": {
+        "label": "selected target supplies"
+      },
+      "S->N": {
+        "label": "settled native inputs"
+      },
+      "T->I": {
+        "label": "retained artifact"
+      }
+    }
+  },
+  "map-2": {
+    "claim": "Installation binding follows O02 because required handler objects supply measured stack requirements; bound facts then enter O03.",
+    "default_node": "native",
+    "nodes": {
+      "H": "around",
+      "B": "around"
+    },
+    "edges": {
+      "E->A": {
+        "label": "00 admit and lower"
+      },
+      "A->O": {
+        "label": "01 optimize, 02 lower"
+      },
+      "O->H": {
+        "label": "required handler demands"
+      },
+      "H->R": {
+        "label": "emit and measure"
+      },
+      "O->B": {
+        "label": "prepared obligations"
+      },
+      "R->B": {
+        "label": "measured requirements"
+      },
+      "B->S": {
+        "label": "03 select bound facts"
+      },
+      "S->F": {
+        "label": "emit resolved program"
+      }
+    }
+  },
+  "map-3": {
+    "claim": "Current bypass: O02 supplies EmissionFacts separately from the O03\u201309 machine forms. The optimized program is shared rather than copied.",
+    "default_node": "native",
+    "nodes": {},
+    "edges": {
+      "T->M": {
+        "label": "select through layout"
+      },
+      "M->E": {
+        "label": "current machine form"
+      },
+      "X->E": {
+        "label": "separate facts",
+        "kind": "bypass"
+      },
+      "T->X": {
+        "kind": "bypass"
+      }
+    }
+  },
+  "map-4": {
+    "claim": "Only an explicit validator request retains original native-stage inputs for replay or correspondence checks. This is not the ordinary emission route.",
+    "default_node": "around",
+    "nodes": {
+      "R": "native",
+      "A": "native"
+    },
+    "edges": {
+      "R->V": {
+        "label": "retained originals"
+      },
+      "A->V": {
+        "label": "artifact under review"
+      }
+    }
+  },
+  "foundation-and-backend-1": {
+    "claim": "Proposed end-to-end contract for one coordinated cutover. Source/provider separation, retained-body closure and resource-binding stability remain unverified planning gates; arrows do not claim those designs are proved or implemented.",
+    "default_node": "proposed",
+    "nodes": {},
+    "edges": {
+      "A->B": {
+        "label": "admit and activate on demand"
+      },
+      "B->C": {
+        "label": "seal accepted result"
+      },
+      "C->D": {
+        "label": "supply closed logical selections"
+      },
+      "D->E": {
+        "label": "carry retained bodies and recipes"
+      },
+      "E->F": {
+        "label": "supply complete effects and resource demands"
+      },
+      "F->G": {
+        "label": "carry bound physical program"
+      },
+      "G->H": {
+        "label": "carry encodings and alternatives"
+      },
+      "H->I": {
+        "label": "supply resolved text and references"
+      },
+      "I->J": {
+        "label": "supply completed objects and entry plans"
+      },
+      "J->K": {
+        "label": "write completed product"
+      }
+    }
+  }
+}

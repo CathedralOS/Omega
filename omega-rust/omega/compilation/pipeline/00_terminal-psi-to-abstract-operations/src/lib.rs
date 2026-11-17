@@ -12,6 +12,8 @@
   enter through `artifact_admission`; an existing canonical artifact is reused.
 */
 mod artifact_admission;
+mod entry_receiver;
+pub use entry_receiver::admit_executable_entry;
 mod lowering;
 mod native_execution_scope;
 use ::provider_admission as providers;
@@ -39,9 +41,8 @@ pub use retained_terminal::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
     TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
-    decode_installation_assumptions, encode_installation_assumptions, lower_native_callable,
-    lower_native_execution, prepare_native_providers, project_terminal_native_realization_proposal,
-    recover_native_derivation_inputs, retain_native_derivation_inputs,
+    lower_native_callable, lower_native_execution, prepare_native_providers,
+    project_terminal_native_realization_proposal,
 };
 
 pub(crate) use artifact_admission::ArtifactLoweringError;

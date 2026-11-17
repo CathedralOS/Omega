@@ -1272,7 +1272,7 @@ fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
         .iter()
         .find(|machine| machine.name.as_str() == "previous")
         .unwrap();
-    let [edge] = typed.machine_trait_conformances(member) else {
+    let Some([edge]) = typed.machine_trait_conformances(member).as_array() else {
         panic!("one declared edge")
     };
     let mut witness = typed_trees_to_terminal_psi::elaborate_witness(

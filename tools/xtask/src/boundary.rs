@@ -114,19 +114,6 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
 /// edge goes; the stale-allowance check refuses a row whose edge is gone, so
 /// the list can only shrink. Never add a row.
 const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
-    // Saved products recover their native inputs with the retained-input
-    // codec, which still lives in Omega 00 rather than beside
-    // `RetainedTerminalArtifact` in verified-optimization-input. The other
-    // names products takes from Omega 00 are re-exports of their owners.
-    Allowance {
-        owner: PRODUCTS,
-        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-    },
-    // Runtime provisions and the entry receiver read Omega 00's admitted input.
-    Allowance {
-        owner: "omega-rust/omega/compilation/backend/artifacts/native-artifact",
-        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-    },
     // Object replay and validation rerun stage 02 preparation and stage 03
     // geometry helpers on the earlier program an audit request retains.
     Allowance {

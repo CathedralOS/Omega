@@ -204,7 +204,9 @@ fn settle_execution(
     profile: Option<target::TargetProfile>,
     entry: Option<semantic_vocabulary::MachineId>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
-    use provider_planning::target_supply::{TargetSupplyRealizationRequest, realize_target_supply};
+    use provider_planning::target_supply::{
+        TargetSupplyRealizationError, TargetSupplyRealizationRequest, realize_target_supply,
+    };
     let accepted = source.terminal_publication.accepted()?;
     let declared = accepted
         .boundary_requirements_declared()
@@ -319,7 +321,27 @@ fn settle_execution(
                 &reached,
                 inputs,
             ))
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            .map_err(|error| match &error {
+                TargetSupplyRealizationError::MissingSupplies { target, boundaries } => {
+                    let mut labels = declared.iter().collect::<Vec<_>>();
+                    labels.sort_unstable_by_key(|row| row.boundary);
+                    boundaries.iter().map(|boundary| {
+                        let message = match labels.binary_search_by_key(boundary, |row| row.boundary) {
+                            Ok(label_position) => format!(
+                                "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
+                                labels[label_position].name,
+                            ),
+                            Err(_) => format!(
+                                "reached boundary {} has no normalized chosen provider or exact native leaf on target `{target}`",
+                                boundary.get(),
+                            ),
+                        };
+                        Diagnostic::error(message)
+                    })
+                    .collect()
+                },
+                _ => vec![Diagnostic::error(error.diagnostic(accepted.module()))],
+            })?;
         let next = selected_boundary_implementations(accepted.module(), &realization)?;
         if next == bindings {
             let realization = realization

@@ -1,7 +1,8 @@
+use omega::language::core::byte_observation;
 // Explicit buffer construction preserves Room A1 and live length 7.
 // Expected exit: 0. The entry checks the selected success result.
-domain [u8; 16]::Ascii requires ascii_only(self);
-domain [u8]::Ascii requires ascii_only(self);
+domain [u8; 16]::Ascii requires byte_observation::ascii_only(&self[..]);
+domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
 data TextBuffer requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
@@ -28,7 +29,7 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-domain [u8; 4]::Ascii requires ascii_only(self);
+domain [u8; 4]::Ascii requires byte_observation::ascii_only(&self[..]);
 data Label requires used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
 machine label_live(label: &Label) -> &[u8] in Ascii
 ensures result.len == label.used && result.len <= 4
@@ -40,18 +41,18 @@ data Main {
 }
 
 machine exercise(main: &mut Main) {
-    main.hits = 0;
-    main.label = Label { storage: [65u8, 49u8, 0u8, 0u8], used: 2 };
-    copy(&mut main.text.storage, "Room ", 0);
+    main.hits = 0 as +Wrapping;
+    main.label = Label { storage: [65u8, 49u8, 0u8, 0u8] as +Ascii, used: 2 };
+    copy(&mut main.text.storage, "Room " as +Ascii, 0);
     copy(&mut main.text.storage, label_live(&main.label), 5);
     main.text.used = 7;
     let view: &[u8] in Ascii = live(&main.text);
-    transition view == "Room A1" && view.len == 7 {
+    transition (view as -Ascii) == "Room A1" && view.len == 7 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1 as +Wrapping; }
+    machine fail(main: &mut Main) { main.hits = (-1) as +Wrapping; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

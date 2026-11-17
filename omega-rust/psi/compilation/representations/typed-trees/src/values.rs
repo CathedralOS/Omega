@@ -6366,6 +6366,61 @@ mod storage_ownership_tests {
     use source::{SourceId, SourceSpan, Span};
 
     #[test]
+    fn trait_conformance_forks_share_rows_and_only_detach_the_changed_record() {
+        use crate::machine::TraitConformance;
+        let mut original = crate::TypedTrees::default();
+        let rows = original.machine_trait_conformances.insert_many([
+            TraitConformance {
+                trait_lifetime_arguments: vec![1, 2],
+                ..Default::default()
+            },
+            TraitConformance {
+                trait_lifetime_arguments: vec![3],
+                ..Default::default()
+            },
+        ]);
+        let machine = crate::machine::Machine {
+            satisfies: rows,
+            ..Default::default()
+        };
+        let mut child = original.clone();
+        for ordinal in 0..2 {
+            assert!(std::ptr::eq(
+                original.machine_trait_conformances(&machine).at(ordinal),
+                child.machine_trait_conformances(&machine).at(ordinal)
+            ));
+        }
+        let appended = child
+            .machine_trait_conformances
+            .append(TraitConformance::default());
+        assert!(!original.machine_trait_conformances.is_valid(appended));
+        assert!(std::ptr::eq(
+            original.machine_trait_conformances(&machine).at(0),
+            child.machine_trait_conformances(&machine).at(0)
+        ));
+        child
+            .machine_trait_conformances
+            .get_mut(rows.start())
+            .trait_lifetime_arguments
+            .push(7);
+        assert_eq!(
+            original.machine_trait_conformances(&machine)[0].trait_lifetime_arguments,
+            [1, 2]
+        );
+        assert!(std::ptr::eq(
+            original.machine_trait_conformances(&machine).at(1),
+            child.machine_trait_conformances(&machine).at(1)
+        ));
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&child, limits).unwrap();
+        let decoded: crate::TypedTrees = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, child);
+        let stale =
+            arena::Handle::from_parts(rows.start().arena_index(), rows.start().generation() + 1);
+        assert!(!decoded.machine_trait_conformances.is_valid(stale));
+    }
+
+    #[test]
     fn input_row_merge_keeps_active_slots_generations_and_value_comparisons() {
         let mut original = arena::RetainedArena::new();
         let first = original.append(1u32);

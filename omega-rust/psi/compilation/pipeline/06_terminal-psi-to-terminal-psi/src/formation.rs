@@ -203,6 +203,12 @@ enum Observation {
     Input(ValueId),
     Field(Version, usize, Vec<Segment>),
     Extent(usize, Vec<Segment>),
+    BytePredicate(
+        Version,
+        usize,
+        Vec<Segment>,
+        semantic_vocabulary::ByteSequencePredicate,
+    ),
     Computed(ScalarTerm),
 }
 
@@ -390,10 +396,10 @@ impl Scope<'_, '_> {
                     Ok(formed) => self.facts.premises.push(formed),
                     Err(error) => {
                         self.facts = checkpoint;
-                        // A total clause that this scalar binding does not
-                        // serve supplies no premise here. Its ordinary
-                        // declaration checks still apply. A partial occurrence
-                        // must instead bind and discharge in this phase.
+                        // Other total clauses this scalar binding does not
+                        // serve supply no premise here. Arithmetic and byte
+                        // observations must bind completely in this phase;
+                        // byte carrier/path errors cannot be skipped.
                         if owes([clause]) {
                             failure = Some(self.error(error, owner));
                             rest.push(clause);
@@ -536,6 +542,85 @@ impl ClauseBindings for Scope<'_, '_> {
         )
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        place: PlaceId,
+        path: &[Segment],
+    ) -> Result<ScalarTerm, BindingError> {
+        let (index, root) = self.root(place)?;
+        let path = self.subject_path(path);
+        // A declaration shape does not establish a selected case or a view's
+        // runtime index. Those partial paths need their own observations.
+        for (depth, segment) in path.iter().enumerate() {
+            match segment {
+                Segment::Case(_) => {
+                    return Err("contract byte predicate needs an exact selected case".into());
+                }
+                Segment::FixedIndex(index) => {
+                    let prefix = terminal_semantics::canonical_structural_path_tip(
+                        self.module.structural_types.iter(),
+                        root.ty,
+                        &path[..depth],
+                    )
+                    .ok_or("contract byte predicate index has no exact declared collection")?;
+                    if !matches!(prefix.shape,
+                        terminal_psi::StructuralTypeShape::FixedArray { ref length, .. }
+                            if length.literal().is_some_and(|length| *index < length))
+                    {
+                        return Err(
+                            "contract byte predicate index needs a closed in-bounds array".into(),
+                        );
+                    }
+                }
+                Segment::Field(_) | Segment::Referent => {}
+            }
+        }
+        // Inline byte fields carry their descriptor on the actual field row;
+        // they need not have a separately materialized structural type row.
+        let inline = match path.split_last() {
+            Some((Segment::Field(field), prefix)) => {
+                terminal_semantics::observed_field_declaration(
+                    self.module.structural_types.iter(),
+                    root.ty,
+                    prefix,
+                    *field,
+                )
+                .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some())
+            }
+            _ => false,
+        };
+        let declared = terminal_semantics::canonical_structural_path_tip(
+            self.module.structural_types.iter(),
+            root.ty,
+            &path,
+        )
+        .is_some_and(|selected| {
+            terminal_semantics::byte_predicate_carrier(
+                self.module.structural_types.iter(),
+                selected.id,
+            )
+        });
+        if !inline && !declared {
+            return Err(
+                "contract byte predicate has no exact byte descriptor or u8 array carrier".into(),
+            );
+        }
+        // These are private logical observations, never a runtime read or a
+        // grant of access. Actual storage availability remains independently
+        // checked. Completion cannot reuse an entry predicate of live backing.
+        let live = root.borrowed || path.contains(&Segment::Referent);
+        let version = if root.has_entry && (!self.completion || !live) {
+            Version::Entry
+        } else {
+            Version::Current
+        };
+        self.observe(
+            Observation::BytePredicate(version, index, path.into_owned(), predicate),
+            ScalarType::Boolean,
+        )
+    }
+
     fn case(
         &mut self,
         _: PlaceId,
@@ -569,7 +654,10 @@ fn owes(clauses: impl IntoIterator<Item = impl std::borrow::Borrow<Proposition>>
     let mut owes = false;
     for clause in clauses {
         clause.borrow().visit_scalar_terms(|term| {
-            owes |= !matches!(CanonicalScalarGoal::for_term(term), Ok(None));
+            // A total byte observation still owes its exact carrier and path.
+            // Every declaration entrance must form it, even under Falsehood.
+            owes |= matches!(term, ScalarTerm::ByteSequencePredicate { .. })
+                || !matches!(CanonicalScalarGoal::for_term(term), Ok(None));
         });
     }
     owes
@@ -917,6 +1005,12 @@ impl DataSubject<'_> {
     fn inline_clause(&self, clause: &Proposition) -> bool {
         let mut inline = true;
         clause.visit_scalar_terms(|term| {
+            // A nested descriptor's type grants no facts about its borrowed
+            // contents. Form those in their own declaration scope instead of
+            // importing them as inline default premises.
+            if matches!(term, ScalarTerm::ByteSequencePredicate { .. }) {
+                inline = false;
+            }
             if let Some((version, place, path)) = clause_storage(term) {
                 // A nested carrier does not establish the contents of
                 // its borrowed backing or any case-local storage here.

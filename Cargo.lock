@@ -1138,6 +1138,7 @@ name = "native-artifact"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1171,8 +1172,8 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
+ "verified-optimization-input",
  "x86_64-encoding",
 ]
 
@@ -1609,6 +1610,7 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "backend-plan",
+ "boundary-applications",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -1620,6 +1622,7 @@ dependencies = [
  "image",
  "image-emission",
  "image-macho",
+ "installation-evidence",
  "language-semantics",
  "native-artifact",
  "object-file",
@@ -1627,6 +1630,7 @@ dependencies = [
  "package-compilation",
  "platform-custody",
  "program-entry-plan",
+ "provider-admission",
  "provider-planning",
  "provider-selection",
  "runtime-abi",
@@ -1641,9 +1645,9 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -2063,6 +2067,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "language-core",
  "numerics",
  "optimization",
 ]
@@ -2228,9 +2233,12 @@ dependencies = [
  "arena",
  "diagnostics",
  "execution-admission",
+ "memchr",
  "rayon",
  "source",
+ "syntax-trees",
  "tokens",
+ "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -2540,19 +2548,15 @@ name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
- "compiler-storage",
  "component-description",
  "diagnostics",
  "effects",
  "function-identity",
  "installation-evidence",
- "language-core",
  "language-semantics",
- "layout-plans",
  "numerics",
  "optimization-core",
  "optimization-unit-semantics",
@@ -2562,8 +2566,6 @@ dependencies = [
  "provider-selection",
  "runtime-abi",
  "semantic-vocabulary",
- "source",
- "symbols",
  "target",
  "target-operations",
  "task-plans",
@@ -2826,21 +2828,27 @@ name = "verified-optimization-input"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "compiler-storage",
  "component-description",
  "diagnostics",
  "effects",
  "function-identity",
  "installation-evidence",
+ "language-core",
  "language-semantics",
+ "layout-plans",
  "numerics",
  "optimization-core",
  "program-entry-plan",
  "provider-admission",
  "provider-selection",
  "semantic-vocabulary",
+ "source",
+ "symbols",
  "target",
  "target-operations",
  "task-plans",

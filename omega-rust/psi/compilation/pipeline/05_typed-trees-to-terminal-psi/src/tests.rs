@@ -23,6 +23,119 @@ use crate::body::{
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, StorageShape, Unpositioned};
 
+mod provider_source_identities {
+    use std::sync::Arc;
+
+    use source::{DependencyScope, SourceMap, SourceOrigin};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    fn typed_sources(bytes: &str, outside_root: bool) -> typed_trees::TypedTrees {
+        let mut sources = SourceMap::default();
+        let root = std::path::PathBuf::from("toolchain/core");
+        sources.add_with_metadata(
+            if outside_root {
+                "another-package/provider.omg".into()
+            } else {
+                root.join("provider.omg")
+            },
+            bytes.to_owned(),
+            root.clone(),
+            None,
+            SourceOrigin::Toolchain,
+        );
+        sources.add_with_metadata(
+            root.join("contract.omg"),
+            "contract bytes".into(),
+            root,
+            None,
+            SourceOrigin::ToolchainContract,
+        );
+        // User sources have no toolchain identity and need no toolchain hash.
+        sources.add_with_metadata(
+            "application/main.omg".into(),
+            "application bytes".into(),
+            "application".into(),
+            None,
+            SourceOrigin::User,
+        );
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn provider_source_identities_share_storage_but_not_source_revisions() {
+        let typed = typed_sources("first revision", false);
+        let shared = crate::shared_reading(&typed);
+        let product = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let witness = crate::read::Program::with_captures(
+            &typed,
+            true,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let build = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Build,
+            shared.clone(),
+        );
+        let sources = product.exact_toolchain_sources().unwrap();
+        assert_eq!(sources.len(), 2);
+        assert_eq!(sources[0].0, source::SourceId(0));
+        assert_eq!(sources[1].0, source::SourceId(1));
+        assert_eq!(
+            sources,
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap(),
+        );
+        for reading in [&product, &witness, &build] {
+            assert!(std::ptr::eq(
+                sources,
+                reading.exact_toolchain_sources().unwrap()
+            ));
+        }
+        let changed = typed_sources("second revision", false);
+        let changed = crate::read::Program::new(&changed, false);
+        let other = changed.exact_toolchain_sources().unwrap();
+        assert_ne!(sources[0].1, other[0].1);
+        assert_eq!(sources[1].1, other[1].1);
+    }
+
+    #[test]
+    fn provider_source_identities_keep_malformed_custody_refused() {
+        let typed = typed_sources("same bytes", true);
+        let shared = crate::shared_reading(&typed);
+        let first = crate::read::Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Product,
+            shared.clone(),
+        );
+        let second =
+            crate::read::Program::with_captures(&typed, true, DependencyScope::Product, shared);
+        let refusal = first.exact_toolchain_sources().unwrap_err();
+        assert!(refusal.contains("outside its canonical root"), "{refusal}");
+        assert_eq!(
+            refusal,
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap_err(),
+        );
+        assert!(std::ptr::eq(
+            refusal,
+            second.exact_toolchain_sources().unwrap_err()
+        ));
+    }
+}
+
 fn u32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
 }
@@ -229,6 +342,7 @@ fn lower_records(
         signatures,
         outcomes,
         &declared.records,
+        &declared.structural_types,
         &crate::callables::CallableNamespace::default(),
         &crate::boundaries::BoundaryNamespace::default(),
         false,

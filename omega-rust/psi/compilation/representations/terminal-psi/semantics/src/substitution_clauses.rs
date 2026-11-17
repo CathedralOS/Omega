@@ -15,6 +15,16 @@ pub trait ClauseBindings {
     type Error: From<&'static str>;
     /// The term a value of the clause's owner stands for.
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error>;
+    /// Goal-only alternatives for an owner-local logical name. A join may
+    /// bind a saved storage observation to the incoming actual's contents.
+    fn value_alternatives(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Self::Error> {
+        self.value(id, scalar_type).map(|value| vec![value])
+    }
+
     /// The value the scalar field at `path` beneath `root` holds. Entry
     /// observations keep the invocation input; current observations follow
     /// the consumer's cut and the formal's owned or borrowed meaning.
@@ -25,6 +35,20 @@ pub trait ClauseBindings {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Self::Error>;
+    /// A conservative set of values this same scalar cell may hold. Goal
+    /// substitution can require its predicate for every alternative; ordinary
+    /// substitution and knowledge publication never use this approximation.
+    fn field_alternatives(
+        &mut self,
+        version: ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Self::Error> {
+        self.field(version, root, path, scalar_type)
+            .map(|value| vec![value])
+    }
+
     /// The current extent of this exact descriptor at the consumer's point.
     /// Consumers without its version-bound observation must refuse it.
     fn extent(
@@ -98,6 +122,190 @@ pub trait ClauseBindings {
     /// formation can instead register it as a pending logical computation.
     fn computed(&mut self, term: ScalarTerm) -> Result<ScalarTerm, Self::Error> {
         Ok(term)
+    }
+}
+
+/// State a sufficient condition for a goal when one observation has several
+/// possible reaching values. Every alternative must satisfy the whole atom.
+/// Conjunctions split independently; an atom with two uncertain observations
+/// refuses instead of enumerating a product. This is never an assumption or a
+/// claim that any alternative equals the current cell.
+pub fn substitute_sufficient_clause<Error: From<&'static str>>(
+    proposition: &Proposition,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+) -> Result<Proposition, Error> {
+    if let Proposition::Conjunction(parts) = proposition {
+        let mut goals = Vec::with_capacity(parts.len());
+        for part in parts {
+            match substitute_sufficient_clause(part, bindings)? {
+                Proposition::Truth => {}
+                Proposition::Falsehood => return Ok(Proposition::Falsehood),
+                Proposition::Conjunction(parts) => goals.extend(parts),
+                goal => goals.push(goal),
+            }
+        }
+        goals.sort();
+        goals.dedup();
+        return Ok(match goals.len() {
+            0 => Proposition::Truth,
+            1 => goals.pop().expect("one goal"),
+            _ => Proposition::Conjunction(goals),
+        });
+    }
+    if let Ok(exact) = substitute_clause(proposition, bindings) {
+        return Ok(exact);
+    }
+    let mut alternatives = GoalAlternatives {
+        bindings,
+        observation: None,
+        selected: 0,
+    };
+    let first = substitute_clause(proposition, &mut alternatives)?;
+    let count = alternatives
+        .observation
+        .as_ref()
+        .map_or(1, |(_, values)| values.len());
+    let mut goals = vec![first];
+    for selected in 1..count {
+        alternatives.selected = selected;
+        goals.push(substitute_clause(proposition, &mut alternatives)?);
+    }
+    goals.sort();
+    goals.dedup();
+    Ok(match goals.len() {
+        1 => goals.pop().expect("one alternative"),
+        _ => Proposition::Conjunction(goals),
+    })
+}
+
+#[derive(PartialEq, Eq)]
+enum GoalObservation {
+    Value(ValueId, ScalarType),
+    Field(
+        ContentPlaceVersion,
+        PlaceId,
+        Vec<CanonicalStructuralPathSegment>,
+        ScalarType,
+    ),
+}
+
+struct GoalAlternatives<'a, Error> {
+    bindings: &'a mut dyn ClauseBindings<Error = Error>,
+    observation: Option<(GoalObservation, Vec<ScalarTerm>)>,
+    selected: usize,
+}
+
+impl<Error: From<&'static str>> GoalAlternatives<'_, Error> {
+    fn select(
+        &mut self,
+        key: GoalObservation,
+        scalar_type: ScalarType,
+        mut values: Vec<ScalarTerm>,
+    ) -> Result<ScalarTerm, Error> {
+        if values.is_empty()
+            || values
+                .iter()
+                .any(|value| value.scalar_type() != scalar_type)
+        {
+            return Err(Error::from(
+                "a scalar observation has no typed reaching alternatives",
+            ));
+        }
+        values.sort();
+        values.dedup();
+        if values.len() == 1 {
+            return Ok(values.pop().expect("one value"));
+        }
+        if self.observation.is_some() {
+            return Err(Error::from(
+                "a goal relates multiple uncertain storage observations",
+            ));
+        }
+        let result = values[self.selected].clone();
+        self.observation = Some((key, values));
+        Ok(result)
+    }
+}
+
+impl<Error: From<&'static str>> ClauseBindings for GoalAlternatives<'_, Error> {
+    type Error = Error;
+
+    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Error> {
+        let key = GoalObservation::Value(id, scalar_type);
+        if let Some((saved, values)) = &self.observation
+            && saved == &key
+        {
+            return Ok(values[self.selected].clone());
+        }
+        let values = self.bindings.value_alternatives(id, scalar_type)?;
+        self.select(key, scalar_type, values)
+    }
+
+    fn field(
+        &mut self,
+        version: ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Error> {
+        let key = GoalObservation::Field(version, root, path.to_vec(), scalar_type);
+        if let Some((saved, values)) = &self.observation
+            && saved == &key
+        {
+            return Ok(values[self.selected].clone());
+        }
+        let values = self
+            .bindings
+            .field_alternatives(version, root, path, scalar_type)?;
+        self.select(key, scalar_type, values)
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Error> {
+        self.bindings.extent(root, path, scalar_type)
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Error> {
+        self.bindings.byte_predicate(predicate, root, path)
+    }
+
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Error> {
+        self.bindings.case(root, path, case)
+    }
+
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Error> {
+        self.bindings.case_predicate(root, path, case)
+    }
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Error> {
+        self.bindings.validate_float_meaning_source(source)
+    }
+
+    fn requires_complete_terms(&self) -> bool {
+        self.bindings.requires_complete_terms()
+    }
+
+    fn computed(&mut self, term: ScalarTerm) -> Result<ScalarTerm, Error> {
+        self.bindings.computed(term)
     }
 }
 
@@ -1007,5 +1215,87 @@ mod meaning_template_tests {
             };
             assert!(clause.sources().any(|source| matches!(source, ScalarTerm::IeeeFloatField { version: actual, root, .. } if *actual==version && root.get()==5)));
         }
+    }
+}
+
+#[cfg(test)]
+mod sufficient_goal_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+
+    struct Alternatives;
+
+    impl ClauseBindings for Alternatives {
+        type Error = &'static str;
+        fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, Self::Error> {
+            Err("no scalar value")
+        }
+        fn field(
+            &mut self,
+            _: ContentPlaceVersion,
+            _: PlaceId,
+            _: &[CanonicalStructuralPathSegment],
+            _: ScalarType,
+        ) -> Result<ScalarTerm, Self::Error> {
+            Err("no single reaching identity")
+        }
+        fn field_alternatives(
+            &mut self,
+            _: ContentPlaceVersion,
+            _: PlaceId,
+            _: &[CanonicalStructuralPathSegment],
+            _: ScalarType,
+        ) -> Result<Vec<ScalarTerm>, Self::Error> {
+            Ok(vec![literal(1), literal(2)])
+        }
+        fn case(
+            &mut self,
+            _: PlaceId,
+            _: &[CanonicalStructuralPathSegment],
+            _: StructuralCaseId,
+        ) -> Result<bool, Self::Error> {
+            Err("no case")
+        }
+    }
+
+    fn byte() -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+    }
+    fn literal(value: u128) -> ScalarTerm {
+        ScalarTerm::integer(byte(), IntegerValue::Unsigned(value)).unwrap()
+    }
+    fn field(index: u64) -> ScalarTerm {
+        ScalarTerm::IntegerField {
+            version: ContentPlaceVersion::Current,
+            root: PlaceId::new(1).unwrap(),
+            path: vec![CanonicalStructuralPathSegment::FixedIndex(index)],
+            scalar_type: byte(),
+        }
+    }
+
+    #[test]
+    fn sufficient_goals_require_every_alternative_without_creating_read_equations() {
+        let goal = Proposition::LessOrEqual(field(0), literal(2));
+        assert!(substitute_clause(&goal, &mut Alternatives).is_err());
+        assert_eq!(
+            substitute_sufficient_clause(&goal, &mut Alternatives).unwrap(),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(1), literal(2)),
+                Proposition::LessOrEqual(literal(2), literal(2)),
+            ])
+        );
+        let unequal = Proposition::LessThan(field(0), field(0));
+        assert_eq!(
+            substitute_sufficient_clause(&unequal, &mut Alternatives).unwrap(),
+            Proposition::Conjunction(vec![
+                Proposition::LessThan(literal(1), literal(1)),
+                Proposition::LessThan(literal(2), literal(2)),
+            ])
+        );
+        let related_cells = Proposition::Disjunction(vec![
+            Proposition::Equal(field(0), literal(1)),
+            Proposition::Equal(field(1), literal(2)),
+        ]);
+        assert!(substitute_sufficient_clause(&related_cells, &mut Alternatives).is_err());
     }
 }

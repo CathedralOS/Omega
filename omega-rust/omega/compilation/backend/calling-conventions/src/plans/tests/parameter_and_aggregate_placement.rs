@@ -309,6 +309,72 @@ fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
 }
 
 #[test]
+fn darwin_aligned_arguments_start_in_the_next_integer_register_without_a_gap() {
+    for preceding in [1, 3, 5] {
+        let mut parameters = vec![ValueShape::integer(8, 8); preceding];
+        parameters.extend([ValueShape::integer(16, 16), ValueShape::integer(8, 8)]);
+        let signature = call_signature(parameters, None);
+        for (target, first) in [
+            (target::NativeTarget::macos_arm64(), preceding as u8),
+            (target::NativeTarget::linux_arm64(), preceding as u8 + 1),
+        ] {
+            let plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+                .expect("aligned argument plan");
+            validate_call_plan(&plan, &signature).expect("valid aligned argument plan");
+            assert_eq!(
+                plan.parameters[preceding].locations,
+                [
+                    ValueLocation::register(MachineRegister::Aarch64X(first), 0, 8),
+                    ValueLocation::register(MachineRegister::Aarch64X(first + 1), 8, 8),
+                ]
+            );
+            assert_eq!(
+                plan.parameters[preceding + 1].locations,
+                [if first + 2 < 8 {
+                    ValueLocation::register(MachineRegister::Aarch64X(first + 2), 0, 8)
+                } else {
+                    ValueLocation::stack(0, 0, 8, 8)
+                }]
+            );
+        }
+    }
+}
+
+#[test]
+fn arm64_aligned_arguments_fit_the_last_pair_or_spill_wholly_and_close_the_bank() {
+    for preceding in [6, 7] {
+        let mut parameters = vec![ValueShape::integer(8, 8); preceding];
+        parameters.extend([ValueShape::integer(16, 16), ValueShape::integer(8, 8)]);
+        let signature = call_signature(parameters, None);
+        for policy in [CallingPolicy::DarwinAapcs64, CallingPolicy::Aapcs64] {
+            let plan = evaluate_call_plan(policy, &signature).expect("register exhaustion plan");
+            validate_call_plan(&plan, &signature).expect("valid register exhaustion plan");
+            let expected = if preceding == 6 {
+                vec![
+                    ValueLocation::register(MachineRegister::Aarch64X(6), 0, 8),
+                    ValueLocation::register(MachineRegister::Aarch64X(7), 8, 8),
+                ]
+            } else {
+                vec![
+                    ValueLocation::stack(0, 0, 8, 8),
+                    ValueLocation::stack(8, 8, 8, 8),
+                ]
+            };
+            assert_eq!(plan.parameters[preceding].locations, expected);
+            assert_eq!(
+                plan.parameters[preceding + 1].locations,
+                [ValueLocation::stack(
+                    if preceding == 6 { 0 } else { 16 },
+                    0,
+                    8,
+                    8
+                )]
+            );
+        }
+    }
+}
+
+#[test]
 fn aapcs_small_aggregate_moves_wholly_to_stack_when_x_registers_run_out() {
     let signature = call_signature(
         vec![ValueShape::integer(8, 8); 7]

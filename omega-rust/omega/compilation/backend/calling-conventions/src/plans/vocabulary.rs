@@ -128,6 +128,9 @@ pub enum SystemVEightbyteClass {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueClass {
     Integer,
+    /// A non-HFA composite whose Darwin stack slot follows AAPCS64 B.5/C.14.
+    /// Its register movement is integer-like; it is not a scalar stack value.
+    IntegerAggregate,
     Float,
     BorrowedReference,
     BorrowedScalarReference,
@@ -138,6 +141,13 @@ pub enum ValueClass {
         first: SystemVEightbyteClass,
         second: SystemVEightbyteClass,
     },
+}
+
+impl ValueClass {
+    /// Integer register fragments, including a classified composite.
+    pub const fn is_integer(self) -> bool {
+        matches!(self, Self::Integer | Self::IntegerAggregate)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -215,6 +225,14 @@ impl ValueShape {
     pub const fn integer(byte_size: u32, alignment: u16) -> Self {
         Self {
             class: ValueClass::Integer,
+            byte_size,
+            alignment,
+        }
+    }
+
+    pub const fn integer_aggregate(byte_size: u32, alignment: u16) -> Self {
+        Self {
+            class: ValueClass::IntegerAggregate,
             byte_size,
             alignment,
         }
@@ -471,9 +489,10 @@ pub enum CallingPolicy {
     Aapcs64,
     LinuxSyscallX86_64,
     LinuxSyscallAarch64,
-    /// Apple's arm64 variant of AAPCS64: the same registers, but stack
-    /// arguments sit at their natural alignment with no eight-byte minimum
-    /// slot, so `f(x0..x7, b: u32, c: u32)` reads `c` at sp+4.
+    /// Apple's arm64 variant of AAPCS64 permits a 16-byte-aligned argument
+    /// to start in an odd x register. Stack scalars sit at their natural
+    /// alignment with no eight-byte minimum slot, so
+    /// `f(x0..x7, b: u32, c: u32)` reads `c` at sp+4.
     DarwinAapcs64,
 }
 

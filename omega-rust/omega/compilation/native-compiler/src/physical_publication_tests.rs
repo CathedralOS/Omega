@@ -667,6 +667,56 @@ fn check_publication(
         &admission,
     )
     .expect("canonical constant admits without provider authority");
+    let runtime_input = admitted.input.optimization_input().runtime_input();
+    assert!(std::ptr::eq(
+        runtime_input.module(),
+        artifact.semantic_module()
+    ));
+    assert!(std::ptr::eq(
+        runtime_input.boundary_machines(),
+        admitted.input.plan().boundary_machines.as_slice(),
+    ));
+    let runtime_host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(
+        admitted
+            .providers
+            .installation
+            .as_ref()
+            .map(|installation| installation.terminal_selection()),
+        Vec::new(),
+        runtime_input,
+        &selected,
+        &[],
+        native_artifact::NativeBindingRuntimeInputs {
+            bindings: &Default::default(),
+            calling: &[],
+        },
+    )
+    .expect("runtime capture borrows the same admitted boundary roster");
+    let capture_runtime = |artifact: &CanonicalTerminalArtifact, profile| {
+        native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
+            artifact.view(),
+            runtime_input,
+            bootstrap_entry,
+            profile,
+            runtime_host.clone(),
+        )
+    };
+    let runtime = capture_runtime(&artifact, profile).expect("exact runtime input is admitted");
+    assert_eq!(runtime.identity(), artifact.view().identity());
+    assert_eq!(runtime.entry(), bootstrap_entry);
+    assert_eq!(runtime.target(), profile);
+    assert_eq!(
+        capture_runtime(&artifact, target::TargetProfile::LinuxX64).unwrap_err(),
+        "runtime capture names another native artifact or target",
+    );
+    assert_eq!(
+        capture_runtime(&constant_artifact(!through_boundary), profile).unwrap_err(),
+        if runtime_host.installation().is_some() {
+            "callable runtime provisions name another artifact or absent entry"
+        } else {
+            "runtime capture names another native artifact or target"
+        },
+    );
     let (projection, providers) = emit_body(admitted, retain_native_stage_inputs, |target| {
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {

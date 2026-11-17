@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.">
+  <title>Omega stages and realization</title>
+  <link rel="stylesheet" href="../design/tokens.css">
+  <style>/* Layout only. The portable design kit owns color, type, space and shape. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: var(--type-body); }
+a { color: inherit; text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: var(--border-control); }
+:focus-visible { outline: var(--border-control) solid var(--checked); outline-offset: var(--space-1); }
+.skip { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); padding: var(--space-2); z-index: 2; }
+.skip:focus { top: var(--space-3); }
+.page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+.top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.brand { font: var(--type-subheading); text-decoration: none; }
+button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
+button { cursor: pointer; }
+input { width: 100%; }
+.eyebrow { color: var(--ink-muted); font: var(--type-label); letter-spacing: .02em; }
+h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.lede { max-width: 68ch; font: var(--type-subheading); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font: var(--type-label); color: var(--ink-muted); }
+.publication { margin: 0; font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.glance div { padding: var(--space-3); }
+.glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
+.glance span { color: var(--ink-muted); font: var(--type-label); }
+.atlas-nav { font: var(--type-label); }
+.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
+.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
+.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
+.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
+.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
+.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
+.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+main { min-width: 0; }
+main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
+main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
+main p,main li { max-width: 68ch; }
+main ul,main ol { padding-left: var(--space-4); }
+main li { margin: var(--space-1) 0; }
+main blockquote { border-left: var(--border-control) solid var(--ink-muted); padding-left: var(--space-3); margin-left: 0; color: var(--ink-muted); }
+code { font: var(--type-code); background: var(--surface); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+pre { overflow: auto; background: var(--surface); border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); font: var(--type-code); }
+pre code { padding: 0; }
+.table-scroll { overflow-x: auto; margin: var(--space-3) 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font: var(--type-body); }
+th,td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); }
+th { font: var(--type-label); color: var(--ink-muted); }
+tr:last-child td { border-bottom: 0; }
+td code { background: transparent; padding: 0; }
+.flag { color: var(--ink-muted); font: var(--type-label); border-bottom: var(--border-hairline) dotted var(--ink-muted); }
+.contents { border: var(--border-control) solid var(--ink-muted); padding: var(--space-2) var(--space-3); font: var(--type-label); background: var(--surface); }
+summary { cursor: pointer; }
+.contents ul { margin: var(--space-2) 0; }
+.diagram { margin: var(--space-4) 0; display: grid; gap: var(--space-2); }
+.diagram-hint { margin: 0; color: var(--ink-muted); font: var(--type-label); }
+.diagram-frame { overflow-x: auto; padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .node polygon,.diagram .node path,.diagram .node ellipse { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.diagram .node.native polygon,.diagram .node.native path { fill: var(--ink); stroke: var(--ink); }
+.diagram .node.hub polygon { stroke: var(--ink); stroke-width: 2.5; }
+.diagram .node.proposed polygon { stroke-dasharray: 6 4; }
+.diagram .node.around polygon { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.diagram text { fill: var(--ink); font: var(--type-label); }
+.diagram .node.native text { fill: var(--ground); }
+.diagram .edge path { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.diagram .edge text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.diagram .edge.checked path { stroke: var(--checked); }
+.diagram .edge.checked text { fill: var(--checked); }
+.diagram .edge.bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.diagram .edge.bypass text { fill: var(--trap); }
+.diagram .arrow-handoff { fill: var(--ink); }
+.diagram .arrow-checked { fill: var(--checked); }
+.diagram .arrow-bypass { fill: var(--trap); }
+.diagram figcaption { font: var(--type-label); color: var(--ink-muted); max-width: 68ch; }
+.diagram details { font: var(--type-label); color: var(--ink-muted); }
+.diagram details pre { color: var(--ink); }
+.atlas-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--space-3); }
+.atlas-card { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); display: grid; gap: var(--space-3); align-content: start; }
+.atlas-card h2 { border: 0; padding: 0; margin: 0; font: var(--type-subheading); }
+.atlas-card p { margin: 0; }
+footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
+[hidden] { display: none !important; }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
+@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
+
+.architecture { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); background: var(--surface); }
+.arch-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 16px 8px; }
+.arch-header h2 { font: var(--type-heading); margin: 0; }
+.arch-header a { font: var(--type-label); color: var(--family-native); }
+.arch-badge { font: var(--type-label); color: var(--ink-muted); }
+.arch-legend,.arch-relations { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 6px 16px; font: var(--type-label); }
+.arch-legend span { color: var(--family); display: inline-flex; align-items: center; gap: 6px; }
+.arch-legend i { width: 12px; height: 12px; display: inline-block; background: var(--family); }
+.family-psi { --family: var(--family-psi); --family-bg: var(--family-psi-surface); }
+.family-native { --family: var(--family-native); --family-bg: var(--family-native-surface); }
+.family-build { --family: var(--family-build); --family-bg: var(--family-build-surface); }
+.family-runtime { --family: var(--family-runtime); --family-bg: var(--family-runtime-surface); }
+.family-library { --family: var(--family-library); --family-bg: var(--family-library-surface); }
+.family-bootstrap { --family: var(--family-bootstrap); --family-bg: var(--family-bootstrap-surface); }
+.family-omega-source { --family: var(--family-omega-source); --family-bg: var(--family-omega-source-surface); }
+.family-support { --family: var(--family-support); --family-bg: var(--family-support-surface); }
+.arch-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px; border-block: 1px solid var(--rule); }
+.arch-zoom { display: flex; flex-wrap: wrap; gap: 6px; }
+.arch-toolbar button,.arch-toolbar select { min-height: 36px; border-width: 1px; }
+.arch-toolbar select { max-width: 260px; padding: 8px; color: var(--ink); background: var(--surface); border: 1px solid var(--ink-muted); font: var(--type-label); }
+.arch-jump { font: var(--type-label); display: flex; gap: 8px; align-items: center; }
+.arch-relations { color: var(--ink-muted); font-size: 12px; }
+.arch-relations span { display: inline-flex; align-items: center; gap: 6px; }
+.arch-relations svg { display: inline-block; width: 30px; height: 12px; overflow: visible; }
+.arch-relations path { stroke: var(--ink-muted); stroke-width: 1.5; fill: none; }
+.arch-workspace { position: relative; }
+.architecture-figure { margin: 0; }
+.arch-viewport { background: var(--ground); overflow: auto; position: relative; min-width: 0; }
+.arch-svg { display: block; width: 100%; min-width: 1100px; height: auto; }
+.arch-svg marker path { fill: var(--ink-muted); }
+.arch-row-label { fill: var(--ink-muted); font: 500 22px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+.arch-edge > path { fill: none; stroke: var(--ink-muted); stroke-width: 1.5; }
+.arch-edge > text { display: none; fill: var(--ink-muted); font: 400 16px var(--font-serif); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
+
+.arch-edge.relation-invoke > path,.arch-relations .relation-invoke path { stroke-dasharray: 8 5; }
+.arch-edge.relation-dependency > path,.arch-relations .relation-dependency path { stroke-dasharray: 2 5; }
+.arch-edge.relation-construction > path,.arch-relations .relation-construction path { stroke-dasharray: 12 4 2 4; }
+.arch-edge.relation-validation > path,.arch-relations .relation-validation path { stroke-dasharray: 2 7; stroke-width: 2.5; }
+.arch-edge.relation-normative > path,.arch-relations .relation-normative path { stroke-dasharray: 12 7; stroke-width: 2.5; }
+.arch-edge.relation-bypass > path,.arch-relations .relation-bypass path { stroke: var(--trap); stroke-dasharray: 6 4; }
+.arch-edge.relation-bypass > text { fill: var(--trap); }
+.arch-node rect { fill: var(--family-bg); stroke: var(--family); stroke-width: 2; }
+.arch-node .family-stripe { fill: var(--family); }
+.arch-node text { fill: var(--ink); font: 500 20px var(--font-serif); }
+.arch-node[role="button"] { cursor: pointer; }
+.arch-node.is-selected rect { stroke: var(--ink); stroke-width: 4; }
+.arch-node.is-selected text { text-decoration: underline; text-underline-offset: 4px; }
+.arch-edge.is-related > path { stroke-width: 3.5; }
+.architecture.has-selection .arch-edge:not(.is-related) > path { stroke: var(--rule); marker-end: url(#arch-arrow-quiet); }
+.arch-node:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.architecture-figure figcaption,.arch-help { font: var(--type-label); color: var(--ink-muted); margin: 0; padding: 8px 16px; }
+.arch-outline { padding: 8px 16px; font: var(--type-label); }
+.arch-outline dt { font: var(--type-subheading); margin-top: 24px; }
+.arch-outline dd { margin-left: 0; max-width: 80ch; }
+.arch-detail { position: absolute; right: 16px; top: 16px; width: 330px; max-height: calc(100% - 64px); overflow: auto; background: var(--surface); border: 2px solid var(--family); padding: 16px; }
+.arch-detail h3 { font: var(--type-subheading); margin: 12px 0; }
+.arch-detail p,.arch-detail li { font: var(--type-label); }
+.arch-detail ul { padding-left: 16px; }
+.arch-detail li { margin-bottom: 12px; }
+.arch-detail button { min-height: 36px; }
+.arch-detail-close { float: right; }
+.arch-detail .relationship { color: var(--family); display: block; }
+.arch-detail a { text-underline-offset: 3px; }
+.architecture.is-enhanced .arch-viewport { overflow: hidden; height: max(500px,calc(100dvh - 300px)); touch-action: none; cursor: grab; }
+.architecture.is-enhanced .arch-svg { display: none; }
+.architecture.is-enhanced .arch-viewport.is-dragging { cursor: grabbing; }
+.architecture:fullscreen { width: 100%; height: 100%; overflow: auto; background: var(--surface); }
+.architecture:fullscreen .arch-viewport { height: calc(100dvh - 220px); }
+.overview-page .page { max-width: none; padding: 16px 24px 48px; gap: 16px; }
+.overview-page .top h1 { font-size: 28px; line-height: 34px; }
+.overview-page .top .publication { display: none; }
+.secondary-routes { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); padding: 12px 16px; }
+.secondary-routes > summary { font: var(--type-subheading); }
+.secondary-routes .flow-explorer { margin-top: 16px; }
+@media (max-width: 700px) {
+  .overview-page .page { padding: 12px; }
+  .arch-header { align-items: start; flex-direction: column; gap: 8px; }
+  .arch-header h2 { font-size: 26px; line-height: 32px; }
+  .arch-legend,.arch-relations { gap: 6px 12px; }
+  .arch-jump { width: 100%; } .arch-jump select { max-width: 100%; flex: 1; min-width: 0; }
+  .architecture.is-enhanced .arch-viewport { height: 620px; }
+  .arch-detail { top: auto; bottom: 48px; left: 12px; right: 12px; width: auto; max-height: 45%; }
+}
+
+.architecture :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.arch-canvas { display: block; width: 100%; height: 100%; }
+.arch-key { border-bottom: 1px solid var(--rule); padding: 4px 16px; font: var(--type-label); }
+.arch-key .arch-relations { padding-left: 0; }
+.arch-extra { display: flex; gap: 6px; align-items: center; font: var(--type-label); }
+.arch-minimap { position: absolute; right: 12px; bottom: 70px; width: 238px; padding: 6px; border: 1px solid var(--ink-muted); background: var(--surface); }
+.arch-minimap span { display: block; font: var(--type-label); margin-bottom: 4px; }
+.arch-minimap canvas { display: block; width: 224px; height: 121px; cursor: crosshair; }
+.architecture.has-selection .arch-minimap { right: auto; left: 12px; }
+.arch-detail { max-height: calc(100% - 40px); }
+@media (max-width: 700px) {
+  .arch-minimap { width: 170px; bottom: 80px; }
+  .arch-minimap canvas { width: 156px; height: 85px; }
+  .architecture.has-selection .arch-minimap { display: none; }
+}
+
+.arch-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.arch-header h2 { font-size: 28px; line-height: 34px; }
+.arch-extra input { width: auto; margin: 0; }
+.arch-extra { white-space: nowrap; }
+</style>
+</head>
+<body class="">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header class="top">
+      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+      <div class="eyebrow">Observed source map · page 3 of 15</div>
+      <h1>Omega stages and realization</h1>
+      <p class="lede">Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.</p>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas"><code>3c8dc4234c71</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/subsystems/omega.md">Page source</a></span></div>
+
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+    </header>
+
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 15 pages</summary>
+      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
+      <h2>The codebase</h2><ul>
+<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
+<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
+<li><a href="omega.html" aria-current="page"><span class="number">03</span>Omega stages and realization</a></li>
+<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
+<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
+<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
+<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
+<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
+<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+</ul>
+<h2>Planning</h2><ul>
+<li><a href="pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
+<li><a href="pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
+<li><a href="architecture.html"><span class="number">12</span>Interactive architecture</a></li>
+<li><a href="foundation-backend-plan.html"><span class="number">13</span>Foundation and backend plan</a></li>
+<li><a href="questions.html"><span class="number">14</span>Open questions</a></li>
+<li><a href="rulings.html"><span class="number">15</span>Owner rulings</a></li></ul>
+      <p id="no-pages" hidden>No matching pages.</p>
+    </details></nav>
+    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#the-input-boundary">The input boundary</a></li>
+<li><a href="#current-route-order-within-one-native-body">Current route: order within one native body</a></li>
+<li><a href="#realization-closes-demand-admission-checks-choices">Realization closes demand; admission checks choices</a><ul>
+<li><a href="#a-concrete-boundary-console-on-linux-x86-64">A concrete boundary: Console on Linux x86-64</a></li>
+</ul>
+</li>
+<li><a href="#numbered-stages-and-their-current-representations">Numbered stages and their current representations</a></li>
+<li><a href="#after-o09-functions-objects-images-and-publication">After O09: functions, objects, images and publication</a></li>
+<li><a href="#current-bypass-emissionfacts">Current bypass: EmissionFacts</a></li>
+<li><a href="#explicit-verification-is-a-separate-route">Explicit verification is a separate route</a></li>
+<li><a href="#runtime-use-is-another-consumer">Runtime use is another consumer</a></li>
+<li><a href="#proposed-route-and-migration-dependencies">Proposed route and migration dependencies</a></li>
+</ul>
+</div>
+</details><p>Omega turns a checked portable program into code for one target. It selects and
+admits outside providers, lowers the program to instructions, assigns registers,
+encodes and lays out bytes, builds objects and images, then hands a retained
+product to publication. Today several of these operations sit outside the
+numbered stages. The map below shows that current route before the proposed
+linear pipeline.</p>
+<p><strong>Evidence:</strong> source revision
+<code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>; pinned source links below and the
+<a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/counts.json">generated counts</a> and <a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/graph.json">dependency graph</a>.
+This is a source review, not a fresh native execution test. Stage destination
+names and migration recommendations are <strong>judgment</strong>. The six
+<a href="rulings.html">owner rulings</a> are unchanged.</p>
+<h2 id="the-input-boundary">The input boundary</h2>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/compile.rs#L14">native facade</a> accepts <code>RetainedTerminalArtifact</code> and
+<code>NativeCompileRequest</code>; Build has supplied completed scalar applications.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/preparation.rs#L26"><code>prepare</code></a> joins the retained proposal, installation assumptions,
+component inputs and private-entry memory recipes, then checks the required
+scalar values are present. Its errors preserve the image request alongside
+diagnostics so the caller retains the failed request's context.</p>
+<p>This facade is source-free, but the entire path to it is not. The compiler's
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L202">provider settlement</a> still works with accepted source publication and
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs#L14">policy preparation</a> still takes checked source custody. The
+Psi/Omega firewall must be assessed at both boundaries, not inferred from the
+facade's signature alone.</p>
+<p>An outside call has several kinds of identity: which program requested it,
+which declaration/body was chosen, and which target plan implements it. The
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs#L14">selected execution</a> checks target agreement; later installation
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">binding</a> checks program, target, entry and admitted placement. Moving
+these records must preserve their checked construction, not just their fields.</p>
+<h2 id="current-route-order-within-one-native-body">Current route: order within one native body</h2>
+<p>Solid arrows below show the main transformations. The handler branch matters:
+the root can pause after O02 while another native body is compiled. This is a
+per-body route with a driver coordinating dependent bodies, not one whole-program
+pass through every box.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication."><svg viewBox="0.00 0.00 5090.28 113.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication." style="min-width:5090px">
+<title>Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication.</title><defs><marker id="omega-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 104.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-1-node1" class="node hub" data-node="A">
+<title>A</title>
+<polygon points="171,-88 0,-88 0,-38 171,-38 171,-88" />
+<text text-anchor="middle" x="85.5" y="-66.6">Accepted Psi and Build</text>
+<text text-anchor="middle" x="85.5" y="-52.6">supplies</text>
+</g>
+
+<g id="omega-diagram-1-node2" class="node around" data-node="B">
+<title>B</title>
+<polygon points="501,-88 327,-88 327,-38 501,-38 501,-88" />
+<text text-anchor="middle" x="414" y="-66.6">Close reached provider</text>
+<text text-anchor="middle" x="414" y="-52.6">requirements</text>
+</g>
+
+<g id="omega-diagram-1-edge1" class="edge handoff" data-from="A" data-to="B">
+<title>A-&gt;B</title>
+<path d="M171.01,-63C218.9,-63 278.69,-63 326.86,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="249" y="-66.4">discover demand</text>
+</g>
+
+<g id="omega-diagram-1-node3" class="node native" data-node="C">
+<title>C</title>
+<polygon points="823,-88 649,-88 649,-38 823,-38 823,-88" />
+<text text-anchor="middle" x="736" y="-66.6">Prepare native request</text>
+<text text-anchor="middle" x="736" y="-52.6">and admit at O00</text>
+</g>
+
+<g id="omega-diagram-1-edge2" class="edge handoff" data-from="B" data-to="C">
+<title>B-&gt;C</title>
+<path d="M501.18,-63C546.99,-63 603.15,-63 648.95,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="575" y="-79.4">settled provider</text>
+<text text-anchor="middle" x="575" y="-66.4">closure</text>
+</g>
+
+<g id="omega-diagram-1-node4" class="node native" data-node="D">
+<title>D</title>
+<polygon points="1150,-88 983,-88 983,-38 1150,-38 1150,-88" />
+<text text-anchor="middle" x="1066.5" y="-66.6">O01 optimize abstract</text>
+<text text-anchor="middle" x="1066.5" y="-52.6">operations</text>
+</g>
+
+<g id="omega-diagram-1-edge3" class="edge handoff" data-from="C" data-to="D">
+<title>C-&gt;D</title>
+<path d="M823.31,-63C872.64,-63 934.18,-63 982.88,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="903" y="-79.4">admitted abstract</text>
+<text text-anchor="middle" x="903" y="-66.4">plan</text>
+</g>
+
+<g id="omega-diagram-1-node5" class="node native" data-node="E">
+<title>E</title>
+<polygon points="1489,-88 1293,-88 1293,-38 1489,-38 1489,-88" />
+<text text-anchor="middle" x="1391" y="-66.6">O02 target operations and</text>
+<text text-anchor="middle" x="1391" y="-52.6">prepared execution plan</text>
+</g>
+
+<g id="omega-diagram-1-edge4" class="edge handoff" data-from="D" data-to="E">
+<title>D-&gt;E</title>
+<path d="M1150.13,-63C1193.71,-63 1247.43,-63 1292.98,-63" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1221.5" y="-66.4">optimized plan</text>
+</g>
+
+<g id="omega-diagram-1-node6" class="node around" data-node="F">
+<title>F</title>
+<polygon points="2145,-87 2019,-87 2019,-37 2145,-37 2145,-87" />
+<text text-anchor="middle" x="2082" y="-65.6">Bind measured</text>
+<text text-anchor="middle" x="2082" y="-51.6">installations</text>
+</g>
+
+<g id="omega-diagram-1-edge5" class="edge handoff" data-from="E" data-to="F">
+<title>E-&gt;F</title>
+<path d="M1489.2,-77.44C1498.92,-78.48 1508.64,-79.37 1518,-80 1618.43,-86.74 1765.44,-84.77 1990,-71 1999.35,-70.43 2009.22,-69.64 2018.88,-68.77" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1737.5" y="-86.4">prepared obligations</text>
+</g>
+
+<g id="omega-diagram-1-node7" class="node around" data-node="H">
+<title>H</title>
+<polygon points="1833,-50 1642,-50 1642,0 1833,0 1833,-50" />
+<text text-anchor="middle" x="1737.5" y="-28.6">Compile required handler</text>
+<text text-anchor="middle" x="1737.5" y="-14.6">bodies to objects</text>
+</g>
+
+<g id="omega-diagram-1-edge6" class="edge handoff" data-from="E" data-to="H">
+<title>E-&gt;H</title>
+<path d="M1489.34,-52.26C1537.09,-47 1594.38,-40.68 1641.78,-35.45" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1565.5" y="-64.4">request required</text>
+<text text-anchor="middle" x="1565.5" y="-51.4">handlers</text>
+</g>
+
+<g id="omega-diagram-1-node8" class="node native" data-node="G">
+<title>G</title>
+<polygon points="2478,-87 2307,-87 2307,-37 2478,-37 2478,-87" />
+<text text-anchor="middle" x="2392.5" y="-58.6">O03 select instructions</text>
+</g>
+
+<g id="omega-diagram-1-edge8" class="edge handoff" data-from="F" data-to="G">
+<title>F-&gt;G</title>
+<path d="M2145.06,-62C2191.51,-62 2255.58,-62 2306.75,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2226" y="-78.4">bound installation</text>
+<text text-anchor="middle" x="2226" y="-65.4">facts</text>
+</g>
+
+<g id="omega-diagram-1-edge7" class="edge handoff" data-from="H" data-to="F">
+<title>H-&gt;F</title>
+<path d="M1833.45,-35.26C1892.64,-41.65 1967.12,-49.7 2018.85,-55.29" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1926" y="-55.4">measured stack needs</text>
+</g>
+
+<g id="omega-diagram-1-node9" class="node native" data-node="I">
+<title>I</title>
+<polygon points="2773,-87 2605,-87 2605,-37 2773,-37 2773,-87" />
+<text text-anchor="middle" x="2689" y="-65.6">O04 optimize selected</text>
+<text text-anchor="middle" x="2689" y="-51.6">instructions</text>
+</g>
+
+<g id="omega-diagram-1-edge9" class="edge handoff" data-from="G" data-to="I">
+<title>G-&gt;I</title>
+<path d="M2478.29,-62C2518.05,-62 2565.27,-62 2604.83,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2541.5" y="-78.4">selected</text>
+<text text-anchor="middle" x="2541.5" y="-65.4">instructions</text>
+</g>
+
+<g id="omega-diagram-1-node10" class="node native" data-node="J">
+<title>J</title>
+<polygon points="3117,-87 2920,-87 2920,-37 3117,-37 3117,-87" />
+<text text-anchor="middle" x="3018.5" y="-58.6">O05 assign register homes</text>
+</g>
+
+<g id="omega-diagram-1-edge10" class="edge handoff" data-from="I" data-to="J">
+<title>I-&gt;J</title>
+<path d="M2773.07,-62C2817.79,-62 2873.22,-62 2919.98,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2846.5" y="-65.4">allocation input</text>
+</g>
+
+<g id="omega-diagram-1-node11" class="node native" data-node="K">
+<title>K</title>
+<polygon points="3419,-87 3262,-87 3262,-37 3419,-37 3419,-87" />
+<text text-anchor="middle" x="3340.5" y="-65.6">O06 choose physical</text>
+<text text-anchor="middle" x="3340.5" y="-51.6">machine operations</text>
+</g>
+
+<g id="omega-diagram-1-edge11" class="edge handoff" data-from="J" data-to="K">
+<title>J-&gt;K</title>
+<path d="M3117.25,-62C3163.66,-62 3218.35,-62 3261.86,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3189.5" y="-65.4">register homes</text>
+</g>
+
+<g id="omega-diagram-1-node12" class="node native" data-node="L">
+<title>L</title>
+<polygon points="3755,-87 3588,-87 3588,-37 3755,-37 3755,-87" />
+<text text-anchor="middle" x="3671.5" y="-65.6">Plan frames then O07</text>
+<text text-anchor="middle" x="3671.5" y="-51.6">encode</text>
+</g>
+
+<g id="omega-diagram-1-edge12" class="edge handoff" data-from="K" data-to="L">
+<title>K-&gt;L</title>
+<path d="M3419.05,-62C3469.77,-62 3535.98,-62 3587.72,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3503.5" y="-65.4">physical operations</text>
+</g>
+
+<g id="omega-diagram-1-node13" class="node native" data-node="M">
+<title>M</title>
+<polygon points="4093,-87 3901,-87 3901,-37 4093,-37 4093,-87" />
+<text text-anchor="middle" x="3997" y="-65.6">O08 place bytes then O09</text>
+<text text-anchor="middle" x="3997" y="-51.6">optimize layout</text>
+</g>
+
+<g id="omega-diagram-1-edge13" class="edge handoff" data-from="L" data-to="M">
+<title>L-&gt;M</title>
+<path d="M3755.39,-62C3799.76,-62 3854.6,-62 3900.72,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="3828" y="-65.4">encoded forms</text>
+</g>
+
+<g id="omega-diagram-1-node14" class="node native" data-node="N">
+<title>N</title>
+<polygon points="4428,-87 4251,-87 4251,-37 4428,-37 4428,-87" />
+<text text-anchor="middle" x="4339.5" y="-65.6">Fragments then frames</text>
+<text text-anchor="middle" x="4339.5" y="-51.6">then text then object</text>
+</g>
+
+<g id="omega-diagram-1-edge14" class="edge handoff" data-from="M" data-to="N">
+<title>M-&gt;N</title>
+<path d="M4093.3,-62C4142.68,-62 4202.58,-62 4250.81,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4172" y="-78.4">resolved machine</text>
+<text text-anchor="middle" x="4172" y="-65.4">program</text>
+</g>
+
+<g id="omega-diagram-1-node15" class="node native" data-node="O">
+<title>O</title>
+<polygon points="4758,-87 4578,-87 4578,-37 4758,-37 4758,-87" />
+<text text-anchor="middle" x="4668" y="-65.6">Compose private bodies</text>
+<text text-anchor="middle" x="4668" y="-51.6">and emit image</text>
+</g>
+
+<g id="omega-diagram-1-edge15" class="edge handoff" data-from="N" data-to="O">
+<title>N-&gt;O</title>
+<path d="M4428.43,-62C4474.7,-62 4531.32,-62 4577.78,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4503" y="-65.4">fragment object</text>
+</g>
+
+<g id="omega-diagram-1-node16" class="node around" data-node="P">
+<title>P</title>
+<polygon points="5073,-87 4902,-87 4902,-37 5073,-37 5073,-87" />
+<text text-anchor="middle" x="4987.5" y="-65.6">Retained product then</text>
+<text text-anchor="middle" x="4987.5" y="-51.6">publication</text>
+</g>
+
+<g id="omega-diagram-1-edge16" class="edge handoff" data-from="O" data-to="P">
+<title>O-&gt;P</title>
+<path d="M4758.29,-62C4803.31,-62 4857.63,-62 4901.98,-62" marker-end="url(#omega-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="4830" y="-65.4">retained image</text>
+</g>
+</g>
+</svg></div><figcaption>Current native order is per body: the root pauses after O02 for handler-object measurements, binds installations before O03, then completes emission and publication.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart TD
+  A[Accepted Psi and Build supplies] --&gt; B[Close reached provider requirements]
+  B --&gt; C[Prepare native request and admit at O00]
+  C --&gt; D[O01 optimize abstract operations]
+  D --&gt; E[O02 target operations and prepared execution plan]
+  E --&gt; F[Bind measured installations]
+  E --&gt; H[Compile required handler bodies to objects]
+  H --&gt; F
+  F --&gt; G[O03 select instructions]
+  G --&gt; I[O04 optimize selected instructions]
+  I --&gt; J[O05 assign register homes]
+  J --&gt; K[O06 choose physical machine operations]
+  K --&gt; L[Plan frames then O07 encode]
+  L --&gt; M[O08 place bytes then O09 optimize layout]
+  M --&gt; N[Fragments then frames then text then object]
+  N --&gt; O[Compose private bodies and emit image]
+  O --&gt; P[Retained product then publication]</code></pre></details></figure>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">native pipeline driver</a> orders O01–O09. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L57">object coordinator</a>
+prepares handlers, binds installations, emits the root, then lowers remaining
+referenced callback thunks and composes private objects. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs#L167">fragment wrapper</a>
+orders the transformations after O09. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L95">Image realization</a> returns the
+retained artifact; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L26">products</a> owns the call that writes it.</p>
+<h2 id="realization-closes-demand-admission-checks-choices">Realization closes demand; admission checks choices</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Owner</th>
+<th style="text-align: right;">Rust lines</th>
+<th>What its result means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provider-planning</code></td>
+<td style="text-align: right;">7,231</td>
+<td>A selected target's supply for reached requirements, including calling-policy results.</td>
+</tr>
+<tr>
+<td><code>provider-admission</code></td>
+<td style="text-align: right;">26,491</td>
+<td>Checked provider, entry and installation records; late binding of measured installation facts.</td>
+</tr>
+<tr>
+<td><code>provider-selection</code></td>
+<td style="text-align: right;">1,874</td>
+<td>Selected instances, exact bodies and applications joined to the retained declarations.</td>
+</tr>
+<tr>
+<td><code>trust-model</code></td>
+<td style="text-align: right;">708</td>
+<td>Obligations reconstructed from declarations, grants and selected provider evidence.</td>
+</tr>
+<tr>
+<td><code>selected-dispatch</code></td>
+<td style="text-align: right;">105</td>
+<td>One target-matched realized provider closure, retained for native and Psi consumers.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The total is 36,409 lines, including tests. These are ownership units, not five
+successive stages.</p>
+<p>The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L260">closure loop</a> starts from the actual entry's reached
+requirements and explicit Build selections. Chosen bodies can introduce more
+requirements. The loop reruns policy-input preparation when the reached set
+changes, realizes supply, and joins the resulting exact bodies. It terminates
+when the binding set is unchanged and refuses replacement of a prior choice.
+Available but unused code does not independently demand a provider.</p>
+<p>Calling policies are executable programs: <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L45">Build supplies their evaluator</a>,
+and preparation retains the program artifacts and selection authority. The
+native <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/native_proposal.rs#L240">proposal constructor</a> also closes provider specializations,
+realizes task activations and checks selected provider ownership. These are
+producers despite the constructor living under <code>representations/</code>.</p>
+<p>Admission is not finished at early provider selection. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L44">O00 realization</a>
+admits native providers and the executable entry and captures provisions for
+Psi execution. Later, <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L117">installed handlers</a> are emitted before
+their installer needs a numeric stack guard. The coordinator caches those
+objects for this compilation, rejects cyclic executable resource dependencies,
+and derives requirements from the emitted objects. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">Binding</a> joins them
+to the admitted cohort and current program before instruction selection.</p>
+<p><code>SelectedExecution::settle</code> is a convenience route, not the only constructor.
+The compiler uses public <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs#L14"><code>from_realization</code></a> after it closes demand.</p>
+<h3 id="a-concrete-boundary-console-on-linux-x86-64">A concrete boundary: Console on Linux x86-64</h3>
+<p>The library's <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/build.omg#L677">Build declaration</a> selects <code>LinuxX86Console</code>
+for <code>Console</code>, then binds <code>LinuxX86ConsoleIo::write</code> to <code>Syscall { number: 1 }</code>.
+The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/console.omg#L139">provider methods</a> call console helpers; the
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/source/library/std/console.omg#L223">raw implementation</a> reaches the I/O boundary. Terminal Psi keeps
+the program's required operations; provider settlement connects reached
+requirements to this target selection and calling plans. Native lowering uses
+the admitted realization to produce target operations.</p>
+<p>This trace establishes who declares and chooses the binding. It does not assert
+that every Console method is one syscall, that all available Console code is
+reached, or that this review executed a Console sample.</p>
+<h2 id="numbered-stages-and-their-current-representations">Numbered stages and their current representations</h2>
+<p>The table describes ordinary native production. Admission tokens, optimization
+receipts and explicitly retained replay inputs are related evidence; they are
+not interchangeable with the current executable program.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Current operation</th>
+<th>Declared input → produced form</th>
+<th>Fact established for the next operation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O00: Terminal Psi to abstract operations</td>
+<td>Retained canonical Psi, selected execution and completed native inputs → <code>VerifiedNativeArtifactInput</code> / <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/abstract-operations/src/lib.rs#L29"><code>AbstractOperationPlan</code></a> with admitted facts</td>
+<td>Bind native lowering and provider/entry evidence to this program and target. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/compile.rs#L14">Facade sequence</a> <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L44">admission</a></td>
+</tr>
+<tr>
+<td>O01: abstract optimization</td>
+<td>Verified input → optimized abstract plan</td>
+<td>Apply selected abstract rewrites and carry projection/work identities. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">Driver</a></td>
+</tr>
+<tr>
+<td>O02: target lowering and preparation</td>
+<td>Optimized abstract plan, lowering facts and target/provider request → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/target-operations/src/lib.rs#L28"><code>TargetOperationPlan</code></a> and <code>PreparedExecutionPlan</code></td>
+<td>Resolve concrete operation, call, storage and proof facts needed for selection. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L84">Driver</a></td>
+</tr>
+<tr>
+<td>Later installation binding</td>
+<td>Prepared plan plus measured handler requirements and admitted cohorts → <code>BoundInstallationAuthority</code></td>
+<td>Bound facts name the same program, target and entries; selection receives plain facts, not authority constructors. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/realization/provider-admission/src/installation_binding.rs#L60">Binding</a></td>
+</tr>
+<tr>
+<td>O03: instruction selection</td>
+<td>Prepared execution plan, bound installations and register environment → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/selected-instructions/src/lib.rs#L181"><code>SelectedInstructionPlan</code></a></td>
+<td>Choose instruction/register constraints without reading an abstract program or source module. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/README.md#L1">Contract</a></td>
+</tr>
+<tr>
+<td>O04: selected optimization</td>
+<td>Selected program and carried analysis/custody → selected allocation input</td>
+<td>Publish current instructions, analyses and optimization record; retain full rewrite run only on request. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L145">Driver</a></td>
+</tr>
+<tr>
+<td>O05: register allocation</td>
+<td>Selected allocation input → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/register-homes/src/lib.rs#L301"><code>AllocatedProgram</code></a></td>
+<td>Assign register homes needed for physical lowering. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L145">Driver</a></td>
+</tr>
+<tr>
+<td>O06: physical planning</td>
+<td>Current allocation facts → <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/post-allocation-machine/src/program.rs#L18"><code>PostAllocationMachineProgram</code></a></td>
+<td>Choose physical operations and preservation requirements before frames and encoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>Unnumbered frame planning</td>
+<td>Current physical program plus frame policy → <code>FramedMachineProgram</code></td>
+<td>Fix frame geometry and protocol for encoding. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>O07: layout-independent encoding</td>
+<td>Framed machine program → <code>EncodedMachineProgram</code></td>
+<td>Produce actual instruction bytes/encoding rows while keeping required instruction and frame columns. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/layout.rs#L261">Forms</a></td>
+</tr>
+<tr>
+<td>O08: resolved layout</td>
+<td>Current encoding → <code>ResolvedMachineProgram</code></td>
+<td>Choose exact function-relative placements and resolve their encodings. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>O09: layout optimization</td>
+<td>Current resolved layout → same form</td>
+<td>Rewrite layout under its carried selection/budget contract. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>machine-code</code> is a family with several roots, not one representation whose
+name explains every operation. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/layout.rs#L261">The root definitions</a> distinguish
+framed, encoded and resolved programs. Stable native vocabulary lets these
+forms name common identities without granting access to an earlier program.</p>
+<h2 id="after-o09-functions-objects-images-and-publication">After O09: functions, objects, images and publication</h2>
+<p>The current <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs#L167">fragment route</a> exposes the work that the backend
+name hides:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Output and consumer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Assemble fixed-frame realization</td>
+<td>Current resolved program and whole-function exit contract for fragment emission. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L200">Driver</a></td>
+</tr>
+<tr>
+<td>Emit function fragments</td>
+<td>Unplaced <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/representations/machine-code/src/fragments.rs#L41"><code>FunctionFragmentEmissionPlan</code></a> records and fixups.</td>
+</tr>
+<tr>
+<td>Apply function frames</td>
+<td>Prologue/epilogue insertion, byte reflow and repaired branch displacements.</td>
+</tr>
+<tr>
+<td>Place text</td>
+<td>One text section with function/block/instruction spans and internal-call resolution.</td>
+</tr>
+<tr>
+<td>Build relocation-free object container and <code>ObjectArtifact</code></td>
+<td>Current bytes plus object layout, semantic attribution and evidence for later composition.</td>
+</tr>
+<tr>
+<td>Compose private functions and entry receiver</td>
+<td>Root and referenced callback objects joined into the published object. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L115">Coordinator</a></td>
+</tr>
+<tr>
+<td>Emit requested image</td>
+<td>Executable/component image construction and target format writers. Direct executable dispatch chooses ELF, Mach-O or PE from the target's object format. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1823">Format dispatch</a></td>
+</tr>
+<tr>
+<td>Retain native product</td>
+<td><code>RealizedNativeProduct</code> holds a requested artifact and optional runtime provisions. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L95">Return</a></td>
+</tr>
+<tr>
+<td>Publish product</td>
+<td><code>products::publish_compilation</code> chooses the publication route, stages exact bytes and records receipts. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L26">Entry</a> <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/products/src/publication.rs#L70">native publication</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>“Object publication” in this route does not necessarily write a filesystem
+product. <code>PublishedFragmentObject</code> is an internal completed object. Actual
+product publication runs in <code>products</code>; some implementation, including
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/artifacts/native-artifact/src/package_publication.rs#L280">macOS application package writing</a>, still lives under backend
+<code>native-artifact</code>. The migration should move that implementation to its product
+owner while keeping image construction in the compilation route.</p>
+<p>Components and private callbacks are separately lowered bodies under the same
+native driver; the diagram is not a claim that the entire application consists
+of one machine function. The compiler uses reached object references to avoid
+emitting unused callback bodies. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L115">Composition</a></p>
+<h2 id="current-bypass-emissionfacts">Current bypass: EmissionFacts</h2>
+<p>The driver extracts <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L261"><code>EmissionFacts</code></a> from O02's result. It keeps
+admitted lowering facts, a shared <strong>whole optimized abstract program</strong>, and
+projection/Terminal/final-unit identities. Emission later receives those beside
+the resolved machine program and installation authority. That is a genuine
+bypass around the representations between selection and emission.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission."><svg viewBox="0.00 0.00 794.28 135.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission." style="min-width:794px">
+<title>Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission.</title><defs><marker id="omega-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 126.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-2-node1" class="node native" data-node="A">
+<title>A</title>
+<polygon points="144,-50 0,-50 0,0 144,0 144,-50" />
+<text text-anchor="middle" x="72" y="-21.6">O02 target output</text>
+</g>
+
+<g id="omega-diagram-2-node2" class="node native" data-node="B">
+<title>B</title>
+<polygon points="475,-118 285,-118 285,-68 475,-68 475,-118" />
+<text text-anchor="middle" x="380" y="-96.6">O03 through O09 current</text>
+<text text-anchor="middle" x="380" y="-82.6">forms</text>
+</g>
+
+<g id="omega-diagram-2-edge1" class="edge handoff" data-from="A" data-to="B">
+<title>A-&gt;B</title>
+<path d="M144.36,-40.86C186.21,-50.16 239.59,-62.02 284.87,-72.08" marker-end="url(#omega-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="214.5" y="-81.4">select through</text>
+<text text-anchor="middle" x="214.5" y="-68.4">layout</text>
+</g>
+
+<g id="omega-diagram-2-node3" class="node native" data-node="C">
+<title>C</title>
+<polygon points="777,-50 627,-50 627,0 777,0 777,-50" />
+<text text-anchor="middle" x="702" y="-21.6">Fragment emission</text>
+</g>
+
+<g id="omega-diagram-2-edge3" class="edge bypass" data-from="A" data-to="C">
+<title>A-&gt;C</title>
+<path stroke-dasharray="5,2" d="M144.13,-21.65C185.28,-19.87 238.05,-17.89 285,-17 369.43,-15.41 390.57,-15.51 475,-17 525.74,-17.9 582.85,-19.93 626.97,-21.72" marker-end="url(#omega-diagram-2-arrow-bypass)" />
+<text text-anchor="middle" x="380" y="-46.4">EmissionFacts</text>
+<text text-anchor="middle" x="380" y="-33.4">retains abstract</text>
+<text text-anchor="middle" x="380" y="-20.4">program</text>
+</g>
+
+<g id="omega-diagram-2-edge2" class="edge handoff" data-from="B" data-to="C">
+<title>B-&gt;C</title>
+<path d="M475.28,-72.97C523.67,-62.68 581.78,-50.33 626.91,-40.74" marker-end="url(#omega-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="551" y="-81.4">current machine</text>
+<text text-anchor="middle" x="551" y="-68.4">program</text>
+</g>
+</g>
+</svg></div><figcaption>Current bypass: EmissionFacts retains an optimized abstract program from O02 and supplies it beside the later machine forms to fragment emission.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[O02 target output] --&gt; B[O03 through O09 current forms]
+  B --&gt; C[Fragment emission]
+  A -.-&gt;|EmissionFacts retains abstract program| C</code></pre></details></figure>
+<p><strong>Judgment:</strong> inventory every emission consumer and materialize the needed
+records in the current forms. Moving the same <code>Arc</code> into <code>machine-code</code> would
+change packaging without removing earlier-program access. Exact fields and
+retention cost remain <strong>unverified</strong> until the inventory and implementation are
+complete; this review claims no memory or performance improvement.</p>
+<p>The declaration-selection ledger in Psi is different: its definition is
+misplaced in foundation but the value already travels through typed trees.
+Definition location, stored value and producer must be mapped separately.</p>
+<h2 id="explicit-verification-is-a-separate-route">Explicit verification is a separate route</h2>
+<p>When <code>retain_native_stage_inputs</code> is false, the driver drops the original
+target, allocation, encoding and layout inputs as they become unnecessary.
+When requested, it retains those originals for correspondence audits.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L173">Retention logic</a> This does not remove the ordinary <code>EmissionFacts</code>
+bypass described above.</p>
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit."><svg viewBox="0.00 0.00 873.28 142.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit." style="min-width:873px">
+<title>An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit.</title><defs><marker id="omega-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="omega-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="omega-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="omega-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 133.64)">
+<title>atlas</title>
+
+<g id="omega-diagram-3-node1" class="node native" data-node="A">
+<title>A</title>
+<polygon points="174,-125 6,-125 6,-75 174,-75 174,-125" />
+<text text-anchor="middle" x="90" y="-96.6">Current native artifact</text>
+</g>
+
+<g id="omega-diagram-3-node2" class="node around" data-node="C">
+<title>C</title>
+<polygon points="479,-87 347,-87 347,-37 479,-37 479,-87" />
+<text text-anchor="middle" x="413" y="-58.6">Explicit validator</text>
+</g>
+
+<g id="omega-diagram-3-edge1" class="edge handoff" data-from="A" data-to="C">
+<title>A-&gt;C</title>
+<path d="M174.08,-90.16C227.95,-83.79 297.13,-75.6 346.98,-69.7" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="263.5" y="-101.4">artifact under</text>
+<text text-anchor="middle" x="263.5" y="-88.4">review</text>
+</g>
+
+<g id="omega-diagram-3-node4" class="node around" data-node="D">
+<title>D</title>
+<polygon points="856,-87 667,-87 667,-37 856,-37 856,-87" />
+<text text-anchor="middle" x="761.5" y="-65.6">Correspondence result or</text>
+<text text-anchor="middle" x="761.5" y="-51.6">diagnostic</text>
+</g>
+
+<g id="omega-diagram-3-edge3" class="edge handoff" data-from="C" data-to="D">
+<title>C-&gt;D</title>
+<path d="M479.17,-62C532.1,-62 607.44,-62 666.84,-62" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="573" y="-65.4">check correspondence</text>
+</g>
+
+<g id="omega-diagram-3-node3" class="node native" data-node="B">
+<title>B</title>
+<polygon points="180,-50 0,-50 0,0 180,0 180,-50" />
+<text text-anchor="middle" x="90" y="-28.6">Original stages retained</text>
+<text text-anchor="middle" x="90" y="-14.6">on request</text>
+</g>
+
+<g id="omega-diagram-3-edge2" class="edge handoff" data-from="B" data-to="C">
+<title>B-&gt;C</title>
+<path d="M180.21,-29.59C222.16,-32.38 272.78,-36.66 318,-43 327.4,-44.32 337.27,-45.99 346.94,-47.79" marker-end="url(#omega-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="263.5" y="-59.4">requested retained</text>
+<text text-anchor="middle" x="263.5" y="-46.4">inputs</text>
+</g>
+</g>
+</svg></div><figcaption>An explicitly requested validator compares a current artifact with retained original inputs; missing retained evidence refuses the audit.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
+  A[Current native artifact] --&gt; C[Explicit validator]
+  B[Original stages retained on request] --&gt; C
+  C --&gt; D[Correspondence result or diagnostic]</code></pre></details></figure>
+<p><a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L71">Target-operation verification</a> requires the retained target input and
+calls the preparation verifier plus a borrowed-storage reconstruction routine.
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs#L7">Fixed-frame verification</a> compares current output with retained
+allocation, machine, encoding and baseline layout. These functions refuse when
+required custody is missing. They are not evidence that every default compile
+replays O02/O03.</p>
+<p>Production still performs checks at admission, foreign/import boundaries and
+object/image handoffs. Distinguishing explicit replay from ordinary production
+does not mean ordinary production performs no validation.</p>
+<p><strong>Judgment:</strong> move explicit validators beside the representation they check,
+with independent checking APIs and an explicit retained-evidence input. Merely
+moving a file preserves its dependency on producer stages. Remove each
+stage-call allowance only after that call is gone; preserve independent checks
+rather than sharing the producer's logic by default.</p>
+<h2 id="runtime-use-is-another-consumer">Runtime use is another consumer</h2>
+<p><code>admit_runtime</code> shares native provider/entry admission and returns provisions
+for Psi execution. The <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/compilation/native-compiler/src/realization.rs#L152">runtime-admission route</a> also performs
+abstract optimization and captures borrowed-storage layouts, then stops before
+machine emission. It is not equivalent to compiling and running a native image.</p>
+<p>The native runtimes read admitted carriers and image/provision records. Some
+carrier definitions currently live in a producing crate, for example the
+<a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports.rs#L365">admitted intrinsic type used by terminal-runtime</a>. A move of
+admission into numbered stages must split that interface so runtimes do not
+start importing or executing a stage merely to read a record.</p>
+<h2 id="proposed-route-and-migration-dependencies">Proposed route and migration dependencies</h2>
+<p>The <a href="foundation-backend-plan.html#3-recommended-destination-and-stage-contracts">complete migration plan</a>
+contains the proposed contract figure and phase table. <strong>Judgment:</strong> close source
+and logical providers before native planning, then carry demanded bodies through
+physical planning, resource binding and one encoding boundary. Image construction
+must consume completed executable bodies. This differs from today's per-body
+route and late bridge production shown above.</p>
+<p>The <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">planning gates</a>
+must establish the unresolved ordering. O03 currently needs bound installation
+facts, while those facts depend on compiled handlers. Numeric consumers must be
+classified, generated body effects made explicit and resource binding shown to
+preserve prior register/frame choices. Cyclic resource demand must still be
+refused. The current code does not prove that this proposed separation works.</p>
+<p>The <a href="foundation-backend-plan.html#9-one-integrated-execution-plan">integrated execution plan</a>
+orders one coordinated cutover, including semantic encoder ownership, carried
+ABI plans, O07/O08 encoding alternatives, emission facts, runtimes, independent
+checks and deletion of replaced paths. These are coupled obligations, not a set
+of separately adopted package moves. <a href="questions.html">Questions</a> retain the
+recommendations that still need a ruling. No compiler implementation or owner
+ruling changes in this atlas update.</p></main>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+  </div>
+  <script>(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('theme');
+  try {
+    const saved = localStorage.getItem('omega-atlas-theme');
+    if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+  } catch (_) { /* A file preview may disable browser storage. */ }
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const label = () => { button.textContent = dark() ? 'Ink → Limestone' : 'Limestone → Ink'; };
+  button.addEventListener('click', () => {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage.setItem('omega-atlas-theme', root.dataset.theme); } catch (_) {}
+    label();
+  });
+  label();
+  const wide = matchMedia('(min-width: 980px)');
+  const pageList = document.getElementById('page-list');
+  const fitNavigation = () => { pageList.open = wide.matches; };
+  wide.addEventListener('change', fitNavigation);
+  fitNavigation();
+  const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
+    const frame = figure.querySelector('.diagram-frame');
+    figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
+  });
+  new ResizeObserver(showDiagramHints).observe(document.body);
+  document.fonts.ready.then(showDiagramHints);
+  document.getElementById('page-filter').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    let count = 0;
+    document.querySelectorAll('.atlas-nav li').forEach(item => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+      if (!item.hidden) count++;
+    });
+    document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
+  });
+})();
+
+(() => {
+  const root = document.querySelector('.architecture');
+  if (!root) return;
+  const model = JSON.parse(root.querySelector('#architecture-model').textContent);
+  const viewport = root.querySelector('.arch-viewport'), svg = root.querySelector('.arch-svg');
+  const canvas = root.querySelector('.arch-canvas'), ctx = canvas.getContext('2d');
+  const mini = root.querySelector('.arch-minimap canvas'), miniCtx = mini.getContext('2d');
+  if (!ctx || !miniCtx) return;
+  const detail = root.querySelector('.arch-detail'), jump = root.querySelector('.arch-jump select');
+  const camera = {x:0, y:0, scale:1}, pointers = new Map();
+  const byId = new Map(model.nodes.map(n => [n.id,n]));
+  const paths = new Map([...svg.querySelectorAll('.arch-edge')].map(g => {
+    const p=g.querySelector('path'), length=p.getTotalLength();
+    return [g.dataset.edge, {path:new Path2D(p.getAttribute('d')), end:p.getPointAtLength(length), before:p.getPointAtLength(Math.max(0,length-2))}];
+  }));
+  const rows = [...svg.querySelectorAll('.arch-row-label')].map(t=>({x:+t.getAttribute('x'),y:+t.getAttribute('y'),text:t.textContent}));
+  const lines = new Map([...svg.querySelectorAll('.arch-node')].map(g=>[g.dataset.node,[...g.querySelectorAll('text')].map(t=>({y:+t.getAttribute('y'),text:t.textContent}))]));
+  const dashes = {data:[],invoke:[8,5],dependency:[2,5],construction:[12,4,2,4],validation:[2,7],normative:[12,7],bypass:[6,4]};
+  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false;
+  const make = (tag,text) => {const e=document.createElement(tag);if(text)e.textContent=text;return e;};
+  const dimensions = () => ({w:viewport.clientWidth,h:viewport.clientHeight});
+  const color = name => getComputedStyle(root).getPropertyValue('--'+name).trim();
+  const invalidate = () => {if(!frame)frame=requestAnimationFrame(draw);};
+  const cameraChanged = () => {root.querySelector('.arch-scale').textContent=Math.round(camera.scale*100)+'%';invalidate();};
+  const fit = () => {
+    const {w,h}=dimensions();camera.scale=Math.min(w/model.width,h/model.height)*.97;
+    camera.x=(model.width-w/camera.scale)/2;camera.y=(model.height-h/camera.scale)/2;cameraChanged();
+  };
+  const reset = () => {clear();camera.scale=1;camera.x=0;camera.y=0;cameraChanged();};
+  const zoom = (scale,px,py) => {
+    const {w,h}=dimensions();px??=w/2;py??=h/2;
+    const x=camera.x+px/camera.scale,y=camera.y+py/camera.scale;
+    camera.scale=Math.max(.15,Math.min(3,scale));camera.x=x-px/camera.scale;camera.y=y-py/camera.scale;cameraChanged();
+  };
+  function prepare(context,element,w,h) {
+    const dpr=devicePixelRatio||1, width=Math.round(w*dpr),height=Math.round(h*dpr);
+    if(element.width!==width||element.height!==height){element.width=width;element.height=height;}
+    context.setTransform(dpr,0,0,dpr,0,0);context.clearRect(0,0,w,h);
+  }
+  function draw() {
+    frame=0;const {w,h}=dimensions();if(!w||!h)return;
+    prepare(ctx,canvas,w,h);
+    const ink=color('ink'),muted=color('ink-muted'),ground=color('ground'),quiet=color('rule'),trap=color('trap');
+    const font=getComputedStyle(root).getPropertyValue('--font-serif').trim();
+    ctx.fillStyle=ground;ctx.fillRect(0,0,w,h);ctx.save();ctx.scale(camera.scale,camera.scale);ctx.translate(-camera.x,-camera.y);
+    for(const e of model.edges) {
+      const related=e.start===selected||e.end===selected;
+      if(!selected&&!allRelations&&!e.main)continue;
+      const shape=paths.get(e.id),tint=selected&&!related?quiet:e.kind==='bypass'?trap:muted;
+      ctx.strokeStyle=tint;ctx.lineWidth=related?3.5:['validation','normative'].includes(e.kind)?2.5:1.5;
+      ctx.setLineDash(dashes[e.kind]);ctx.stroke(shape.path);ctx.setLineDash([]);
+      const angle=Math.atan2(shape.end.y-shape.before.y,shape.end.x-shape.before.x);
+      ctx.save();ctx.translate(shape.end.x,shape.end.y);ctx.rotate(angle);ctx.fillStyle=tint;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-9,-4.5);ctx.lineTo(-9,4.5);ctx.closePath();ctx.fill();ctx.restore();
+    }
+    ctx.font='500 22px '+font;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    for(const row of rows) {
+      ctx.fillStyle=ground;ctx.fillRect(row.x-4,row.y-23,ctx.measureText(row.text).width+8,30);
+      ctx.fillStyle=muted;ctx.fillText(row.text,row.x,row.y);
+    }
+    ctx.font='500 20px '+font;ctx.textAlign='center';
+    for(const n of model.nodes) {
+      ctx.fillStyle=color('family-'+n.family+'-surface');ctx.fillRect(n.x,n.y,n.width,n.height);
+      ctx.strokeStyle=selected===n.id?ink:color('family-'+n.family);ctx.lineWidth=selected===n.id?4:2;
+      ctx.strokeRect(n.x,n.y,n.width,n.height);ctx.fillStyle=color('family-'+n.family);ctx.fillRect(n.x,n.y,n.width,7);
+      ctx.fillStyle=ink;for(const line of lines.get(n.id))ctx.fillText(line.text,n.x+n.width/2,n.y+line.y);
+    }
+    ctx.restore();
+    const mw=mini.clientWidth,mh=mini.clientHeight,scale=Math.min(mw/model.width,mh/model.height);
+    prepare(miniCtx,mini,mw,mh);miniCtx.fillStyle=color('surface');miniCtx.fillRect(0,0,mw,mh);
+    for(const n of model.nodes){miniCtx.fillStyle=color('family-'+n.family);miniCtx.fillRect(n.x*scale,n.y*scale,n.width*scale,n.height*scale);}
+    miniCtx.strokeStyle=ink;miniCtx.lineWidth=2;miniCtx.strokeRect(camera.x*scale,camera.y*scale,w/camera.scale*scale,h/camera.scale*scale);
+    root.dataset.scale=String(camera.scale);root.dataset.camera=JSON.stringify(camera);
+  }
+  function clear(restore=false) {
+    detail.hidden=true;jump.value='';root.classList.remove('has-selection');selected=null;
+    if(restore)jump.focus({preventScroll:true});invalidate();
+  }
+  function select(id,focus=false) {
+    const n=byId.get(id);if(!n)return;
+    selected=id;jump.value=id;detail.hidden=false;root.classList.add('has-selection');detail.className='arch-detail family-'+n.family;
+    const close=make('button','Close ×');close.type='button';close.className='arch-detail-close';close.addEventListener('click',()=>clear(true));
+    const badge=make('p',model.families[n.family]);badge.className='relationship';
+    const heading=make('h3',n.title.replaceAll('\n',' · '));heading.tabIndex=-1;
+    detail.replaceChildren(close,badge,heading,make('p',n.description));
+    const links=make('p'),page=make('a','Read subsystem'),source=make('a','Pinned source');
+    const prefix=location.pathname.endsWith('/')||location.pathname.endsWith('/index.html')?'pages/':'';
+    page.href=new URL(prefix+n.page+'.html',location.href).href;source.href=n.source;
+    links.append(page,document.createTextNode(' · '),source);detail.append(links);
+    for(const incoming of [true,false]) {
+      const relations=model.edges.filter(e=>(incoming?e.end:e.start)===id);if(!relations.length)continue;
+      detail.append(make('h4',incoming?'Incoming relationships':'Outgoing relationships'));const list=make('ul');
+      for(const e of relations) {
+        const target=byId.get(incoming?e.start:e.end),item=make('li'),button=make('button',target.title.replaceAll('\n',' · '));button.type='button';
+        button.addEventListener('click',()=>select(target.id,true));
+        const kind=make('span',model.relations[e.kind]);kind.className='relationship';
+        const evidence=make('a','Relationship source');evidence.href=e.source;
+        item.dataset.edge=e.id;item.append(kind,button,make('p',e.label),evidence);list.append(item);
+      }
+      detail.append(list);
+    }
+    const {w,h}=dimensions(),narrow=w<700;camera.scale=Math.max(camera.scale,1);
+    camera.x=n.x+n.width/2-(narrow?w/2:(w-370)/2)/camera.scale;
+    camera.y=n.y+n.height/2-(narrow?h*.23:h/2)/camera.scale;
+    cameraChanged();if(focus)heading.focus({preventScroll:true});
+  }
+  root.classList.add('is-enhanced');root.querySelector('.arch-toolbar').hidden=false;
+  canvas.hidden=false;svg.hidden=true;root.querySelector('.arch-minimap').hidden=false;
+  // The DOM outline and grouped selector expose every node without relying on
+  // canvas hit targets or a screen reader interpreting pixels.
+  root.querySelectorAll('.arch-outline dt').forEach((dt,i)=>{
+    const button=make('button','Focus on map');button.type='button';button.setAttribute('aria-label','Focus on '+model.nodes[i].title.replaceAll('\n',' '));
+    button.addEventListener('click',()=>{root.scrollIntoView({block:'start'});select(model.nodes[i].id,true);});dt.append(document.createTextNode(' '),button);
+  });
+  root.querySelectorAll('[data-map]').forEach(button=>button.addEventListener('click',async()=>{
+    const action=button.dataset.map;
+    if(action==='fit')fit();if(action==='reset')reset();if(action==='in')zoom(camera.scale*1.3);if(action==='out')zoom(camera.scale/1.3);if(action==='natural')zoom(1);
+    if(action==='fullscreen')try{if(document.fullscreenElement===root)await document.exitFullscreen();else await root.requestFullscreen();}catch{button.textContent='Fullscreen unavailable';}
+  }));
+  root.querySelector('.arch-all-relations').addEventListener('change',e=>{allRelations=e.target.checked;invalidate();});
+  jump.addEventListener('change',()=>{if(jump.value)select(jump.value,true);});
+  viewport.addEventListener('wheel',e=>{
+    e.preventDefault();const box=viewport.getBoundingClientRect();
+    if(e.ctrlKey||e.metaKey)zoom(camera.scale*Math.exp(-e.deltaY*.003),e.clientX-box.left,e.clientY-box.top);
+    else{camera.x+=(e.shiftKey?e.deltaY:e.deltaX)/camera.scale;camera.y+=(e.shiftKey?0:e.deltaY)/camera.scale;cameraChanged();}
+  },{passive:false});
+  viewport.addEventListener('pointerdown',e=>{if(e.button>0)return;moved=false;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});viewport.setPointerCapture(e.pointerId);if(pointers.size>1)moved=true;});
+  viewport.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;const before=[...pointers.values()],previous=pointers.get(e.pointerId),dx=e.clientX-previous.x,dy=e.clientY-previous.y;
+    if(Math.abs(dx)+Math.abs(dy)<2)return;moved=true;viewport.classList.add('is-dragging');pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){const after=[...pointers.values()],distance=p=>Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),box=viewport.getBoundingClientRect(),old=distance(before);if(old)zoom(camera.scale*distance(after)/old,(after[0].x+after[1].x)/2-box.left,(after[0].y+after[1].y)/2-box.top);}
+    else{camera.x-=dx/camera.scale;camera.y-=dy/camera.scale;cameraChanged();}
+  });
+  const release=e=>{
+    if(!pointers.has(e.pointerId))return;
+    pointers.delete(e.pointerId);if(pointers.size)return;viewport.classList.remove('is-dragging');
+    if(e.type==='pointerup'&&!moved){const b=viewport.getBoundingClientRect(),x=camera.x+(e.clientX-b.left)/camera.scale,y=camera.y+(e.clientY-b.top)/camera.scale;const n=model.nodes.find(n=>x>=n.x&&x<=n.x+n.width&&y>=n.y&&y<=n.y+n.height);if(n)select(n.id);}
+  };
+  viewport.addEventListener('pointerup',release);viewport.addEventListener('pointercancel',release);
+  mini.addEventListener('pointerdown',e=>{const b=mini.getBoundingClientRect(),s=Math.min(b.width/model.width,b.height/model.height),{w,h}=dimensions();camera.x=(e.clientX-b.left)/s-w/camera.scale/2;camera.y=(e.clientY-b.top)/s-h/camera.scale/2;cameraChanged();});
+  viewport.addEventListener('keydown',e=>{
+    const delta=80/camera.scale;
+    if(e.key==='Home'){e.preventDefault();reset();return;}if(e.key.toLowerCase()==='f'){e.preventDefault();fit();return;}
+    if(e.key==='+'||e.key==='='){e.preventDefault();zoom(camera.scale*1.3);return;}if(e.key==='-'){e.preventDefault();zoom(camera.scale/1.3);return;}
+    const actions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
+    if(actions[e.key]){e.preventDefault();camera.x+=actions[e.key][0];camera.y+=actions[e.key][1];cameraChanged();}
+  });
+  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);}});
+  new ResizeObserver(()=>{const next=dimensions();if(size.w&&size.h){camera.x+=(size.w-next.w)/2/camera.scale;camera.y+=(size.h-next.h)/2/camera.scale;}size=next;invalidate();}).observe(viewport);
+  new MutationObserver(invalidate).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',invalidate);
+  window.addEventListener('resize',invalidate);
+  const watchDpr=()=>matchMedia('(resolution: '+devicePixelRatio+'dppx)').addEventListener('change',()=>{invalidate();watchDpr();},{once:true});
+  watchDpr();
+  document.fonts.ready.then(invalidate);document.fonts.addEventListener('loadingdone',invalidate);
+  document.addEventListener('fullscreenchange',()=>{root.querySelector('[data-map="fullscreen"]').textContent=document.fullscreenElement===root?'Exit fullscreen':'Fullscreen';invalidate();});
+  reset();
+})();
+</script>
+</body>
+</html>

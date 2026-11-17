@@ -288,7 +288,7 @@ impl Program<'_> {
     /// A value pattern on a scalar subject is its condition. Stage 01 gives a
     /// value arm such as `true -> ...` one non-structural pattern with no head
     /// and no fields whose condition is `subject == value`
-    /// (`01_tokens-to-syntax-trees/src/bodies_and_transitions.rs`,
+    /// (`01_tokens-to-syntax-trees/transitions/guards.rs`,
     /// `retain_value_pattern`); the condition already names the captured
     /// subject, so it is the arm's whole guard. Any other pattern destructures
     /// and is refused.

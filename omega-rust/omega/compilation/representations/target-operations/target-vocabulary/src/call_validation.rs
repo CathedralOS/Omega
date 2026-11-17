@@ -265,7 +265,7 @@ fn direct_aggregate_registers(placement: &ValuePlacement) -> bool {
     if placement.shape == ValueShape::integer(0, 1) && placement.locations.is_empty() {
         return true;
     }
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if !placement.shape.class.is_integer()
         || placement.shape.byte_size == 0
         || placement.shape.byte_size > 16
         || placement.locations.is_empty()
@@ -335,7 +335,7 @@ fn direct_scalar_register(placement: &ValuePlacement) -> bool {
 }
 
 fn indirect_aggregate_result(placement: &ValuePlacement) -> bool {
-    placement.shape.class == calling_conventions::ValueClass::Integer
+    placement.shape.class.is_integer()
         && placement.shape.byte_size > 0
         && placement.shape.alignment.is_power_of_two()
         && matches!(placement.locations.as_slice(), [ValueLocation::Indirect {

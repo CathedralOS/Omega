@@ -377,7 +377,7 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
 }
 
 #[test]
-fn unserved_linear_data_cannot_gain_a_whole_borrowed_replacement() {
+fn a_whole_borrowed_replacement_cannot_discard_a_linear_resident() {
     let source = r#"
 data Item [linear] { value: u32; }
 machine build_entry(owner: &mut Item, replacement: Item) {
@@ -385,14 +385,23 @@ machine build_entry(owner: &mut Item, replacement: Item) {
 }
 "#;
     let verdict = super::build_purpose::judge_build(source).unwrap();
-    // This source form is refused before structural replacement: do not
-    // mistake that floor for proof that a linear resident was disposed.
-    let RouteVerdict::FallBack(refusal) = verdict else {
-        panic!("unserved linear custody must remain unavailable: {verdict:?}");
+    let RouteVerdict::Rejected { violations, .. } = &verdict else {
+        panic!("the replaced linear value still needs a disposition: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected the replacement's custody violation: {violations:?}");
     };
     assert_eq!(
-        refusal.detail,
-        "type data with custody while reading the signature of `build_entry`"
+        violation.statement,
+        "whole-value replacement cannot implicitly discard a linear value"
+    );
+    let start = source.find("owner = replacement;").unwrap();
+    assert_eq!(
+        violation.site,
+        Some(source::SourceSpan::new(
+            source::SourceId(1),
+            source::Span::new(start, start + "owner".len())
+        ))
     );
 }
 

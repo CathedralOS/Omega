@@ -5187,7 +5187,6 @@ mod tests {
             "an intact intrinsic wrapper still needs its explicit consuming pattern"
         );
 
-        let mut declarations = declarations;
         declarations[0].owns_linear_claim = false;
         declarations[1].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
         declarations[1].owns_linear_claim = true;

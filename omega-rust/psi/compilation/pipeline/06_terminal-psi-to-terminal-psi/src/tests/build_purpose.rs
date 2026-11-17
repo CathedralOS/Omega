@@ -28,20 +28,23 @@ fn frontier() -> typed_trees::TypedTrees {
 
 /// The same, for any pair of Product and Build texts.
 pub(super) fn frontier_of(product: &str, build: &str) -> typed_trees::TypedTrees {
-    frontier_with_core(product, build, &[])
+    frontier_with_core(product, build, DependencyScope::Product, &[])
 }
 
 /// Load the exact bundled declarations a focused source program imports.
 /// Their real toolchain origin and package-relative paths retain recognition;
-/// inserting a local declaration with the same spelling would not.
+/// inserting a local declaration with the same spelling would not. Each
+/// declaration is loaded under the program purpose of its actual importer.
 pub(super) fn frontier_with_core(
     product: &str,
     build: &str,
+    core_scope: DependencyScope,
     core: &[(&str, &str, &str)],
 ) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     let mut product_source = None;
+    let mut build_source = None;
     for (path, text, scope) in [
         ("package/main.omg", product, DependencyScope::Product),
         ("package/build.omg", build, DependencyScope::Build),
@@ -59,6 +62,8 @@ pub(super) fn frontier_with_core(
             .source_id;
         if scope == DependencyScope::Product {
             product_source = Some(id);
+        } else {
+            build_source = Some(id);
         }
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         match &mut syntax {
@@ -75,20 +80,26 @@ pub(super) fn frontier_with_core(
     let root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
     let mut bindings = Vec::with_capacity(core.len());
+    let importing_source = match core_scope {
+        DependencyScope::Product => product_source.unwrap(),
+        DependencyScope::Build => build_source.unwrap(),
+    };
     for &(file, declaration, text) in core {
         let id = sources
-            .add_with_metadata(
+            .add_checked_instance(
                 root.join(file),
-                text.to_owned(),
+                text,
                 root.clone(),
                 None,
                 source::SourceOrigin::Toolchain,
+                source::SourceResolutionStratum::Base,
+                core_scope,
             )
             .source_id;
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
         bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
-            product_source.unwrap(),
+            importing_source,
             id,
             &format!("omega::language::core::{declaration}"),
             3,
@@ -99,6 +110,44 @@ pub(super) fn frontier_with_core(
     request.top_level_bindings = bindings;
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+}
+
+#[test]
+fn bundled_core_imports_keep_the_callers_checked_purpose() {
+    let core = &[(
+        "byte_observation.omg",
+        "byte_observation",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/byte_observation.omg"
+        )),
+    )];
+    let imports = "use omega::language::core::byte_observation; machine importer() {}";
+    let empty = "machine other() {}";
+    for scope in [DependencyScope::Product, DependencyScope::Build] {
+        let (product, build) = match scope {
+            DependencyScope::Product => (imports, empty),
+            DependencyScope::Build => (empty, imports),
+        };
+        let typed = frontier_with_core(product, build, scope, core);
+        let sources = typed.symbols.source_map().unwrap();
+        let declaration = sources
+            .files()
+            .find(|file| file.origin.is_toolchain())
+            .unwrap();
+        assert_eq!(declaration.dependency_scope, scope);
+        let declaration_span = declaration.source_span(source::Span::new(0, 1));
+        for caller in sources.files().filter(|file| !file.origin.is_toolchain()) {
+            assert_eq!(
+                sources.reference_can_see_declaration(
+                    caller.source_span(source::Span::new(0, 1)),
+                    declaration_span
+                ),
+                caller.dependency_scope == scope,
+                "Core source cannot cross a checked program purpose",
+            );
+        }
+    }
 }
 
 pub(super) fn symbol(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandle {
@@ -171,7 +220,19 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 /// implementations gets is a further refusal of the same reading, which the
 /// closure's refusal already refuses the compilation for.
 pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-    let typed = frontier_of("machine product_entry() { }", build);
+    judge_build_with_core(build, &[])
+}
+
+pub(super) fn judge_build_with_core(
+    build: &str,
+    core: &[(&str, &str, &str)],
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let typed = frontier_with_core(
+        "machine product_entry() { }",
+        build,
+        DependencyScope::Build,
+        core,
+    );
     let entry = symbol(&typed, "build_entry");
     let mut verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(

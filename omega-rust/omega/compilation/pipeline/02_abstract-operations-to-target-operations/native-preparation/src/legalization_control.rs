@@ -262,9 +262,9 @@ pub(crate) fn project(
                 crash_continuations: crash_continuations.clone(),
             };
             call.validate_no_normal_shape()
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             call.validate_source(&metadata.ownership)
-                .map_err(|_| LegalizationError::custody())?;
+                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
             LegalizedScalarTerminator::InvokeNoNormal {
                 psi_edge: *psi_edge,
                 call,
@@ -355,8 +355,11 @@ pub(crate) fn project(
                                         definition_site:
                                             optimization_unit::ValueDefinitionSite::BlockParameter {
                                                 block: case.target,
-                                                position: u32::try_from(position)
-                                                    .map_err(|_| LegalizationError::custody())?,
+                                                position: u32::try_from(position).map_err(
+                                                    |cause| {
+                                                        LegalizationError::custody_with_cause(cause)
+                                                    },
+                                                )?,
                                             },
                                     },
                                 })

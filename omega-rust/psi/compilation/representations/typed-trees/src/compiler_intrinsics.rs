@@ -50,6 +50,13 @@ impl TypedTrees {
                 "sealed compiler primitive has a different supply mode or an authored body",
             ));
         }
+        if matches!(operation, CompilerPrimitive::ByteObservation(_))
+            && !byte_observation_header(self, machine)
+        {
+            return Err(Diagnostic::error(
+                "sealed byte observation differs from its complete pure shared-byte declaration",
+            ));
+        }
         normalized_schema(self, machine)
             .map(|schema| Some((operation, schema)))
             .ok_or_else(|| {
@@ -58,6 +65,109 @@ impl TypedTrees {
                 )
             })
     }
+}
+
+// Domain facts and executable calls must use the same checked function.
+// Each Core observation takes one shared byte slice with its own lifetime,
+// returns bool, and always completes without effects. Check the complete typed
+// declaration as well as its file.
+fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
+    use crate::types::TypeReferenceNode;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if !program.symbols.symbols().nodes().is_valid(machine.symbol)
+        || program.symbols.name(machine.symbol) != machine.name.as_str()
+        || !machine.is_public
+        || machine.interface_exposure != AuthoredDeclarationSelectionExposure::PublicInterface
+        || machine.purpose != crate::machine::MachinePurpose::Runtime
+        || machine.spelling.is_some()
+        || machine.admitted_same_stack_bytes != 0
+        || machine.assembly_target_requirement
+            != language_core::inline_assembly::AsmTargetApplicability::Any
+        || machine.type_parameters != arena::HandleSpan::empty()
+        || machine.lifetime_parameters.len() != 1
+        || machine.contracts != arena::HandleSpan::empty()
+        || !machine.declares_no_crash_route
+        || machine.suspends
+        || machine.blocks
+        || !machine.suspends_keyword_source_spans.is_empty()
+        || !machine.blocks_keyword_source_spans.is_empty()
+        || machine.service_reach_row != language_semantics::ServiceReachRowTable::EMPTY_ROW
+        || !matches!(&machine.termination_plan.interface, language_semantics::TerminationInterface::Published(
+            language_semantics::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+    {
+        return false;
+    }
+    let Some([entry]) = schema_span(|span| program.machine_states.span(span), machine.states)
+        .and_then(|rows| rows.as_array())
+    else {
+        return false;
+    };
+    if entry.statement_nodes != arena::HandleSpan::empty()
+        || entry.contracts != arena::HandleSpan::empty()
+    {
+        return false;
+    }
+    let Some([formal]) = schema_span(|span| program.state_parameters.span(span), entry.parameters)
+        .and_then(|rows| rows.as_array())
+    else {
+        return false;
+    };
+    if formal.is_const
+        || formal.is_mutable
+        || formal.relevance != language_core::BindingRelevance::Relevant
+    {
+        return false;
+    }
+    let table = &program.type_reference_table;
+    if !table.contains_type_reference(formal.type_reference)
+        || !table.contains_type_reference(entry.return_type)
+    {
+        return false;
+    }
+    let TypeReferenceNode::Reference {
+        referee,
+        access: language_core::ReferenceAccess::Shared,
+        lifetime: Some(lifetime),
+    } = table.type_reference(formal.type_reference)
+    else {
+        return false;
+    };
+    // A plain header owns its explicit lifetime through its declaration's
+    // telescope. Applied signatures may also retain a resolved roster; that
+    // roster must agree rather than overriding the declaration's binder.
+    let expected_region = LifetimeParameterIdentity {
+        declaration: machine.symbol,
+        ordinal: 0,
+    };
+    let retained_owner = table.operand_lifetime_owner(formal.type_reference);
+    if retained_owner.is_valid() && !program.symbols.symbols().nodes().is_valid(retained_owner) {
+        return false;
+    }
+    let owner = if retained_owner.is_valid() {
+        retained_owner
+    } else {
+        machine.symbol
+    };
+    let resolved =
+        crate::type_identity::lifetime_parameter_identity(program, owner, lifetime.as_str());
+    let supplied = table.operand_lifetimes(formal.type_reference);
+    if lifetime.as_str() != machine.lifetime_parameters[0].as_str()
+        || resolved != Some(expected_region)
+        || (!supplied.is_empty() && supplied != [expected_region])
+        || !table.contains_type_reference(*referee)
+    {
+        return false;
+    }
+    let TypeReferenceNode::Slice { element_type } = table.type_reference(*referee) else {
+        return false;
+    };
+    if !table.contains_type_reference(*element_type) {
+        return false;
+    }
+    matches!(table.type_reference(*element_type), TypeReferenceNode::Named { symbol, .. }
+        if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U8))
+        && matches!(table.type_reference(entry.return_type), TypeReferenceNode::Named { symbol, .. }
+        if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::Bool))
 }
 
 // Schema coordinates use the existing canonical identity interner. They are
@@ -81,6 +191,12 @@ enum Tag {
     Ensures,
     Crash,
     Envelope,
+    Termination,
+    Premises,
+    Premise,
+    Profile,
+    Subject,
+    Projection,
 }
 
 impl Spelled for Tag {
@@ -103,6 +219,12 @@ impl Spelled for Tag {
             Self::Ensures => "ensures",
             Self::Crash => "crash",
             Self::Envelope => "envelope",
+            Self::Termination => "termination",
+            Self::Premises => "premises",
+            Self::Premise => "progress-premise",
+            Self::Profile => "progress-profile",
+            Self::Subject => "progress-subject",
+            Self::Projection => "progress-projection",
         }
     }
 }
@@ -192,13 +314,6 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         // normalization before this query can describe them.
         return None;
     };
-    let termination = match &termination_plan.interface {
-        language_semantics::TerminationInterface::InternalDerived => "inferred",
-        language_semantics::TerminationInterface::Published(
-            language_semantics::TerminationGuarantee::NoGuarantee,
-        ) => "no-guarantee",
-        _ => return None,
-    };
     let [entry] =
         schema_span(|span| program.machine_states.span(span), machine.states)?.as_array()?;
     if !entry.symbol.is_valid() {
@@ -249,6 +364,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         encountered_elided_regions: Some(&invalid),
         ..Default::default()
     };
+    let termination = termination_schema(program, &termination_plan.interface, &context)?;
     let type_identity = |reference| {
         program
             .contains_type_reference(reference)
@@ -352,6 +468,69 @@ fn contracts<'a>(
             Some(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
         })
         .collect()
+}
+
+// This is an interface description, never termination evidence. The caller
+// still refuses implementation witnesses and checked body summaries; neither
+// may disappear from a source-only compiler primitive schema.
+fn termination_schema(
+    program: &TypedTrees,
+    interface: &language_semantics::TerminationInterface,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    use language_semantics::{TerminationGuarantee, TerminationInterface};
+    match interface {
+        TerminationInterface::InternalDerived => Some("inferred".to_owned()),
+        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
+            Some("no-guarantee".to_owned())
+        }
+        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
+            let premises = premises
+                .iter()
+                .map(|premise| {
+                    let language_semantics::ProgressPremise { profile, subject } = premise;
+                    let language_semantics::ProgressSubject { root, projections } = subject;
+                    let profile = program.semantic_domains.name(*profile)?;
+                    let mut roots = context.binders.iter().filter(|(symbol, _)| symbol == root);
+                    let (_, root) = roots.next()?;
+                    if roots.next().is_some() {
+                        return None;
+                    }
+                    let projections = projections
+                        .iter()
+                        .map(|symbol| {
+                            if !program.symbols.symbols().nodes().is_valid(*symbol)
+                                || program.symbols.get(*symbol).kind != symbols::SymbolKind::Field
+                            {
+                                return None;
+                            }
+                            Some(atom(
+                                Tag::Projection,
+                                &context.name(program, *symbol, program.symbols.name(*symbol)),
+                            ))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(compound(
+                        Tag::Premise,
+                        [
+                            atom(Tag::Profile, profile),
+                            compound(
+                                Tag::Subject,
+                                std::iter::once(atom(Tag::Subject, root)).chain(projections),
+                            ),
+                        ],
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(compound(
+                Tag::Termination,
+                [
+                    atom(Tag::Termination, "terminates"),
+                    compound(Tag::Premises, premises),
+                ],
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -612,6 +791,93 @@ mod tests {
         let mut ceiling = Fixture::ordinary();
         ceiling.program.machine_mut(0).declares_no_crash_route = true;
         assert_ne!(Some(&original), ceiling.text().as_ref());
+    }
+
+    #[test]
+    fn published_termination_keeps_its_complete_conditional_subjects() {
+        use language_semantics::{
+            ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
+        };
+        let original = Fixture::ordinary().text().unwrap();
+        let mut unconditional = Fixture::ordinary();
+        unconditional
+            .program
+            .machine_mut(0)
+            .termination_plan
+            .interface =
+            TerminationInterface::Published(TerminationGuarantee::Terminates { premises: vec![] });
+        let terminates = unconditional
+            .text()
+            .expect("published unconditional promise normalizes");
+        assert_ne!(original, terminates);
+        let conditional = |names, profile_name: &str| {
+            let mut fixture = Fixture::new(names);
+            let machine = &fixture.program.machines()[0];
+            let entry = &fixture.program.machine_states(machine)[0];
+            let subject = fixture.program.state_parameters(entry)[0].symbol;
+            let profile = fixture.program.semantic_domains.intern(profile_name);
+            fixture.program.machine_mut(0).termination_plan.interface =
+                TerminationInterface::Published(TerminationGuarantee::Terminates {
+                    premises: vec![ProgressPremise {
+                        profile,
+                        subject: ProgressSubject {
+                            root: subject,
+                            projections: vec![],
+                        },
+                    }],
+                });
+            fixture
+        };
+        let mut first = conditional(
+            ["Element", "Count", "backing", "other", "items"],
+            "package::Ready",
+        );
+        let first_text = first.text().unwrap();
+        assert_ne!(terminates, first_text);
+        assert_eq!(
+            Some(first_text.clone()),
+            conditional(["T", "N", "scope", "spare", "bytes"], "package::Ready").text()
+        );
+        assert_ne!(
+            Some(first_text),
+            conditional(
+                ["Element", "Count", "backing", "other", "items"],
+                "other::Ready"
+            )
+            .text()
+        );
+        let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
+            &mut first.program.machine_mut(0).termination_plan.interface
+        else {
+            unreachable!()
+        };
+        premises[0]
+            .subject
+            .projections
+            .push(SymbolHandle::invalid());
+        assert!(
+            first.text().is_none(),
+            "unknown projections cannot disappear"
+        );
+    }
+
+    #[test]
+    fn implementation_rankings_and_checked_summaries_are_not_silently_erased() {
+        let mut ranking = Fixture::ordinary();
+        ranking
+            .program
+            .machine_mut(0)
+            .termination_plan
+            .implementation_witness = Some(language_semantics::RankingWitness::default());
+        assert!(ranking.text().is_none());
+        let mut checked = Fixture::ordinary();
+        checked
+            .program
+            .machine_mut(0)
+            .termination_plan
+            .checked_summary =
+            language_semantics::TerminationGuarantee::Terminates { premises: vec![] };
+        assert!(checked.text().is_none());
     }
 
     #[test]
