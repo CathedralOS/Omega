@@ -1587,8 +1587,7 @@ impl Program<'_> {
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                let address =
-                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
                 match 1_u128.checked_shl(u32::from(address.bits())) {
                     Some(bound) => Ok(IntegerMathTerm::literal(
                         semantic_vocabulary::IntegerValue::Unsigned(bound),
