@@ -143,22 +143,24 @@
 .proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
 .proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
 .proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
-.proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 18px var(--font-serif); }
-.proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 15px var(--font-serif); }
+.proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 20px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 17px var(--font-serif); }
 .proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .proposed-scene .overview-node.check .stage-title { fill:var(--checked); }
-#compiler-overview[data-view="proposed"] .connected-minimap { width:76px; }
-@media(max-width:700px){
-  #compiler-overview[data-view="proposed"] .connected-minimap { width:54px; bottom:6px; right:6px; padding:3px; }
-  #compiler-overview[data-view="proposed"] .connected-minimap svg { height:84px; }
-}
+.proposed-scene .overview-node.native rect { fill:var(--ink); }
+.proposed-scene .overview-node.native .stage-title { fill:var(--ground); }
+.proposed-scene .overview-node.is-traced rect { stroke:var(--ink); stroke-width:3; stroke-dasharray:none; }
+.proposed-scene .overview-node.check.is-traced rect { stroke:var(--checked); }
+.trace-explanation .repair-stops { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; }
+.trace-explanation .repair-stops button { padding:2px 0; border:0; background:transparent; color:var(--ink); font:var(--type-reading-small); text-decoration:underline; }
+#compiler-overview[data-view="proposed"] .trace-explanation { border-color:var(--ink-muted); }
 @media(prefers-reduced-motion:no-preference){
   .overview-node,.overview-edge { transition:opacity 140ms ease; }
 }
 
 .label-guide { stroke:var(--rule); stroke-width:1; pointer-events:none; }
 
-.connected-enhanced:not(.has-trace) [data-camera="clear"] { display:none; }
+.connected-enhanced:not(.has-trace):not(:has(.trace-explanation:not([hidden]))) [data-camera="clear"] { display:none; }
 .connected-views { align-self:start; }
 .architecture.is-expanded .arch-header { padding:6px 12px; }
 .architecture.is-expanded .arch-header h2 { font:var(--type-subheading); }
@@ -291,3 +293,8 @@
 .wire-origin { fill:var(--surface); stroke:var(--trap); stroke-width:2; }
 .connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:500; }
 @media(max-width:700px){ .arch-header .atlas-mark { width:32px; height:35px; font-size:23px; } }
+
+@media(max-width:700px){
+  #compiler-overview[data-view="proposed"] .connected-minimap { width:72px; bottom:84px; }
+  #compiler-overview[data-view="proposed"] .connected-minimap svg { height:74px; }
+}
