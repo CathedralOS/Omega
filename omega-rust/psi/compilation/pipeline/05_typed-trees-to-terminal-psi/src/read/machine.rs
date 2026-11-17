@@ -918,6 +918,14 @@ impl<'t> Program<'t> {
     /// no body. A requirement with value parameters is one machine per
     /// tuple of literals a call binds them to (`arguments`), because its
     /// contract differs with them.
+    /// A template requirement's own check form: the requirement read once as
+    /// a bodyless machine with its `const` binders as rigid inputs, so its
+    /// contract is judged for every admitted application (generics.md,
+    /// "Publication and assumptions").
+    pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
+        self.requirement_form(declared, RequirementValues::Rigid)
+    }
+
     pub(super) fn requirement(
         &mut self,
         declared: &StateSignature,
@@ -1419,7 +1427,6 @@ impl<'t> Program<'t> {
         machine: &Machine,
         state: &State,
     ) -> Checked<PreparedFormalValues> {
-        use crate::body::FormalValueShape;
         use typed_trees::data::TypeParameterKind;
 
         let typed = self.typed;
@@ -1461,6 +1468,63 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("invalid or duplicate const binder"),
             ));
         }
+        let (prepared, inputs) = self.const_inputs(id, formals, state.return_type, &binders)?;
+        self.const_scope = inputs;
+        Ok(prepared)
+    }
+
+    /// The const inputs of a bodyless requirement read rigidly: its `const`
+    /// binders, as scalar formals after the authored ones, in the order
+    /// `contract` gives the rigid binders. generics.md, "An extent index
+    /// specifies logical shape": `[u8; Count]` under `const Count: u64` is a
+    /// static extent, so a formal of that type names this input.
+    fn requirement_const_inputs(
+        &mut self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<super::ConstBinding>> {
+        use typed_trees::data::TypeParameterKind;
+
+        let typed = self.typed;
+        let formals = span(
+            |span| typed.state_parameters.span(span),
+            requirement.parameters,
+            id,
+            "parameter span",
+        )?;
+        let binders = typed
+            .data_type_parameters
+            .span_or_empty(requirement.type_parameters)
+            .iter()
+            .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { type_reference } => {
+                    Some((parameter.symbol, type_reference))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if binders.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .const_inputs(id, formals, requirement.return_type, &binders)?
+            .1)
+    }
+
+    /// The input values a signature with these formals, `const` binders and
+    /// result will have, and the binders' inputs sorted by symbol. Shape
+    /// preparation emits no storage, regions or types; `contract` must
+    /// reproduce this exact allocation.
+    fn const_inputs(
+        &mut self,
+        id: MachineId,
+        formals: arena::RootRows<'_, StateParameter>,
+        return_type: typed_trees::types::TypeReferenceHandle,
+        binders: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    ) -> Checked<(PreparedFormalValues, Vec<super::ConstBinding>)> {
+        use crate::body::FormalValueShape;
+
+        let typed = self.typed;
         let mut scope = self.scope.clone();
         scope.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
         let mut shapes = Vec::with_capacity(formals.len() + binders.len());
@@ -1479,19 +1543,19 @@ impl<'t> Program<'t> {
                 borrowed,
             });
         }
-        for (_, type_reference) in &binders {
+        for (_, type_reference) in binders {
             shapes.push(FormalValueShape {
                 declared: self.declared_value_shape(id, *type_reference, &scope)?,
                 erased: false,
                 borrowed: false,
             });
         }
-        let result = state.return_type.is_valid()
+        let result = return_type.is_valid()
             && !matches!(
-                typed.type_reference_table.type_reference(state.return_type),
+                typed.type_reference_table.type_reference(return_type),
                 TypeReferenceNode::Unit
             );
-        let result = result && self.declared_value_shape(id, state.return_type, &scope)?;
+        let result = result && self.declared_value_shape(id, return_type, &scope)?;
         let values = crate::body::formal_value_ids(shapes.iter().copied(), result);
         let mut inputs = Vec::new();
         for (position, (symbol, type_reference)) in binders.iter().enumerate() {
@@ -1522,12 +1586,14 @@ impl<'t> Program<'t> {
         inputs.sort_unstable_by_key(|binding| {
             (binding.symbol.arena_index(), binding.symbol.generation())
         });
-        self.const_scope = inputs;
-        Ok(PreparedFormalValues {
-            shapes,
-            result,
-            values,
-        })
+        Ok((
+            PreparedFormalValues {
+                shapes,
+                result,
+                values,
+            },
+            inputs,
+        ))
     }
 
     /// The value parameters of a generic check form's entry, in declaration
@@ -2731,7 +2797,15 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        let (signature, mut names) = self.contract(
+        // A rigid reading keeps each `const` binder as this machine's input,
+        // so a formal sized by one (`items: &[u8; Count]`) names that input.
+        let inputs = if rigid.is_empty() {
+            Vec::new()
+        } else {
+            self.requirement_const_inputs(id, requirement)?
+        };
+        let outer = std::mem::replace(&mut self.const_scope, inputs);
+        let read = self.contract(
             id,
             requirement.symbol,
             requirement.parameters,
@@ -2740,7 +2814,9 @@ impl<'t> Program<'t> {
             declared,
             &rigid,
             &bound,
-        )?;
+        );
+        self.const_scope = outer;
+        let (signature, mut names) = read?;
         names.machine = requirement.name.as_str().to_owned();
         names.declared = self
             .typed
