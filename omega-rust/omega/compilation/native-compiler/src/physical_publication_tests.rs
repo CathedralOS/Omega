@@ -387,7 +387,7 @@ fn check_published_plan(
     let mut installed = published.plan().clone();
     installed
         .installation_operations
-        .push(OperationId::new(4096).unwrap());
+        .push((entry, OperationId::new(4096).unwrap()));
     assert!(matches!(
         verify(&reseal(installed)),
         Err(PublishedPlanMismatch {

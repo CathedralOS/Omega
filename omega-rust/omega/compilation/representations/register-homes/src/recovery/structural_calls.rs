@@ -835,6 +835,7 @@ pub(super) fn decode_normalized_foreign_call(
 fn decode_native_callback_argument(
     cursor: &mut Cursor<'_>,
 ) -> Result<TargetNativeCallbackArgument, FixedViewCopyDecodeError> {
+    let registrar_machine = decode_id(cursor, MachineId::new)?;
     let terminal_operation = decode_id(cursor, OperationId::new)?;
     let placement_index =
         usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?;
@@ -871,6 +872,7 @@ fn decode_native_callback_argument(
     let registrar_invokes_callback = decode_bool(cursor)?;
     Ok(TargetNativeCallbackArgument {
         registrar_invokes_callback,
+        registrar_machine,
         terminal_operation,
         placement_index,
         callback_function,
@@ -1820,6 +1822,73 @@ mod tests {
             decode_machine_function_identity(&mut Cursor::new(&bytes)),
             Err(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity),
         );
+    }
+
+    #[test]
+    fn normalized_foreign_callback_roundtrip_retains_its_registrar_machine() {
+        let mut source = row();
+        let parameter = calling_conventions::NativeParameterId::new(1).unwrap();
+        let placement = source.call.binding.boundary_entry_plan.call.parameters[0].clone();
+        let caller = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([9; 32]),
+        };
+        source
+            .call
+            .callbacks
+            .push(target_vocabulary::TargetNativeCallbackArgument {
+                registrar_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                terminal_operation: source.invocation_site.operation().unwrap(),
+                placement_index: 0,
+                callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
+                    caller, 0,
+                )
+                .unwrap(),
+                application: calling_conventions::NativeParameterApplication {
+                    parameter,
+                    native_ordinal: 0,
+                    shape: placement.shape,
+                    placement,
+                },
+                destination: calling_conventions::NativePlace::Parameter(parameter),
+                field_placements: None,
+                registrar_boundary_entry_plan: source.call.binding.boundary_entry_plan.clone(),
+                registrar_context: calling_conventions::CallbackMaterializationContext {
+                    binders: Vec::new(),
+                    demands: Vec::new(),
+                },
+                registrar_application_commitment: [1; 32],
+                registrar_invokes_callback: true,
+            });
+        let encode = |row: &SelectedNormalizedForeignCall| {
+            let mut bytes = Vec::new();
+            encode_normalized_foreign_call(&mut bytes, row).unwrap();
+            bytes
+        };
+        let bytes = encode(&source);
+        assert_eq!(
+            decode_normalized_foreign_call(&mut Cursor::new(&bytes)).unwrap(),
+            source
+        );
+        for end in 0..bytes.len() {
+            assert!(decode_normalized_foreign_call(&mut Cursor::new(&bytes[..end])).is_err());
+        }
+        let mut other = source.clone();
+        other.call.callbacks[0].registrar_machine = semantic_vocabulary::MachineId::new(2).unwrap();
+        let other_bytes = encode(&other);
+        assert_ne!(bytes, other_bytes);
+        assert_ne!(source.call.canonical_bytes(), other.call.canonical_bytes());
+        assert_eq!(
+            decode_normalized_foreign_call(&mut Cursor::new(&other_bytes)).unwrap(),
+            other
+        );
+        let mut callback_bytes = Vec::new();
+        target_vocabulary::encode_native_callback_argument(
+            &mut callback_bytes,
+            &source.call.callbacks[0],
+        );
+        callback_bytes[..8].fill(0);
+        assert!(super::decode_native_callback_argument(&mut Cursor::new(&callback_bytes)).is_err());
     }
 
     fn binding() -> NormalizedForeignCallBinding {

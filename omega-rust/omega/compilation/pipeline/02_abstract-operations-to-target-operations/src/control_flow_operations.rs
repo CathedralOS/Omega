@@ -297,7 +297,7 @@ pub(crate) mod operations {
         selected_calls: &crate::selected_boundary_calls::SelectedCallsByCall,
         scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
         native_callbacks: &BTreeMap<
-            OperationId,
+            (semantic_vocabulary::MachineId, OperationId),
             Vec<target_operations::TargetNativeCallbackArgument>,
         >,
         installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
@@ -1028,7 +1028,7 @@ pub(crate) mod operations {
                             reason,
                         };
                         let scope = super::interrupt_installation::scope(
-                            operation_id,
+                            (function.machine, operation_id),
                             installed_interrupts,
                         )
                         .map_err(|reason| {

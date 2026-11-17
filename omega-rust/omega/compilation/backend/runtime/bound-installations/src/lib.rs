@@ -41,6 +41,7 @@ pub struct BoundInstallations {
 /// One installation request and the table it fills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundInterruptInstallation {
+    pub machine: MachineId,
     pub service: ServiceId,
     pub operation: OperationId,
     pub boundary: BoundaryMachineId,
@@ -83,6 +84,9 @@ impl BoundInterruptInstallation {
         self.context_anchor.as_ref()
     }
 
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
     pub const fn service(&self) -> ServiceId {
         self.service
     }
@@ -169,6 +173,7 @@ impl BoundInterruptContextAnchor {
 /// One handler entry an installation writes into its table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundInterruptEntry {
+    pub machine: MachineId,
     pub operation: OperationId,
     pub placement_index: usize,
     pub application: u32,
@@ -211,6 +216,7 @@ impl BoundCallbackEntry {
 /// was admitted as, and why it is refused when it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundInterruptHelper {
+    pub machine: MachineId,
     pub operation: OperationId,
     pub kind: StaticInterruptOperation,
     pub refusal: Option<&'static str>,
@@ -240,12 +246,12 @@ impl BoundInstallations {
     /// The single installation admitted for `operation`.
     pub fn installation(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
     ) -> Result<&BoundInterruptInstallation, &'static str> {
         let mut rows = self
             .installations
             .iter()
-            .filter(|row| row.operation == operation);
+            .filter(|row| (row.machine, row.operation) == operation);
         match (rows.next(), rows.next()) {
             (Some(row), None) => Ok(row),
             _ => Err("installation does not have exactly one admitted scope"),
@@ -255,12 +261,12 @@ impl BoundInstallations {
     /// The handler entries admitted for `operation`, in application order.
     pub fn installation_entries(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
     ) -> impl Iterator<Item = &BoundInterruptEntry> + '_ {
         let mut entries: Vec<_> = self
             .entries
             .iter()
-            .filter(|entry| entry.operation == operation)
+            .filter(|entry| (entry.machine, entry.operation) == operation)
             .collect();
         entries.sort_by_key(|entry| entry.application);
         entries.into_iter()
@@ -270,13 +276,16 @@ impl BoundInstallations {
     /// admission admitted it as exactly that.
     pub fn require(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
         kind: StaticInterruptOperation,
     ) -> Result<(), &'static str> {
         if kind == StaticInterruptOperation::Install {
             return Err("an installation operation is not an arrival token helper");
         }
-        let mut rows = self.helpers.iter().filter(|row| row.operation == operation);
+        let mut rows = self
+            .helpers
+            .iter()
+            .filter(|row| (row.machine, row.operation) == operation);
         let (Some(helper), None) = (rows.next(), rows.next()) else {
             return Err("interrupt helper has no admitted installation association");
         };
@@ -290,13 +299,15 @@ impl BoundInstallations {
     /// has none or more than one.
     pub fn stack_requirement(
         &self,
-        operation: OperationId,
+        operation: (MachineId, OperationId),
         placement_index: usize,
     ) -> Option<&InstalledInterruptStackRequirement> {
-        let mut rows = self
-            .stack_requirements
-            .iter()
-            .filter(|row| (row.operation, row.placement_index) == (operation, placement_index));
+        let mut rows = self.stack_requirements.iter().filter(|row| {
+            (
+                (row.installation_machine, row.operation),
+                row.placement_index,
+            ) == (operation, placement_index)
+        });
         match (rows.next(), rows.next()) {
             (Some(row), None) => Some(row),
             _ => None,
@@ -321,27 +332,54 @@ mod tests {
         let mut bound = BoundInstallations::empty(psi());
         assert!(
             bound
-                .require(operation, StaticInterruptOperation::Context)
+                .require(
+                    (MachineId::new(1).unwrap(), operation),
+                    StaticInterruptOperation::Context
+                )
                 .is_err(),
             "an operation admission never answered is refused"
         );
         bound.helpers.push(BoundInterruptHelper {
+            machine: MachineId::new(1).unwrap(),
             operation,
             kind: StaticInterruptOperation::Context,
             refusal: None,
         });
+        bound.helpers.push(BoundInterruptHelper {
+            machine: MachineId::new(2).unwrap(),
+            operation,
+            kind: StaticInterruptOperation::BeginCompletion,
+            refusal: None,
+        });
         assert_eq!(
-            bound.require(operation, StaticInterruptOperation::Context),
+            bound.require(
+                (MachineId::new(1).unwrap(), operation),
+                StaticInterruptOperation::Context
+            ),
             Ok(())
         );
         assert!(
             bound
-                .require(operation, StaticInterruptOperation::Install)
+                .require(
+                    (MachineId::new(2).unwrap(), operation),
+                    StaticInterruptOperation::Context
+                )
+                .is_err()
+        );
+        assert!(
+            bound
+                .require(
+                    (MachineId::new(1).unwrap(), operation),
+                    StaticInterruptOperation::Install
+                )
                 .is_err()
         );
         bound.helpers[0].refusal = Some("refused by admission");
         assert_eq!(
-            bound.require(operation, StaticInterruptOperation::Context),
+            bound.require(
+                (MachineId::new(1).unwrap(), operation),
+                StaticInterruptOperation::Context
+            ),
             Err("refused by admission")
         );
     }

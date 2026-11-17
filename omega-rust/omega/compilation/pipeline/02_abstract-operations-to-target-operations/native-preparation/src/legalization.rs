@@ -546,12 +546,22 @@ pub(crate) fn legalize_target_operations(
 
 /// The interrupt installations still present after lowering, in the order
 /// the plan records them.
-fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabulary::OperationId> {
+fn surviving_installations(
+    target: &TargetOperationPlan,
+) -> Vec<(
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::OperationId,
+)> {
     let mut operations: Vec<_> = target
         .functions
         .iter()
-        .flat_map(|function| function.graph.operations())
-        .filter_map(|operation| operation.installation_operation())
+        .flat_map(|function| {
+            function.graph.operations().filter_map(move |operation| {
+                operation
+                    .installation_operation()
+                    .map(|operation| (function.machine, operation))
+            })
+        })
         .collect();
     operations.sort_unstable();
     operations.dedup();

@@ -102,6 +102,7 @@ fn installed_module() -> TerminalModule {
             .callback_applications
             .push(terminal_psi::TerminalCallbackApplication {
                 application_index: ordinal,
+                registrar_machine: machine_id(1),
                 registrar: operation,
                 static_machine_ordinal: ordinal,
                 requirement: "helper".into(),
@@ -121,6 +122,7 @@ fn installed_module() -> TerminalModule {
     ));
     module.installed_interrupt_registrations.push(
         terminal_psi::TerminalInstalledInterruptRegistration {
+            machine: machine_id(1),
             operation,
             installer: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
             service: semantic_vocabulary::ServiceId::new(1).unwrap(),
@@ -190,4 +192,36 @@ fn installed_helpers_rejoin_exact_bodies_and_refuse_missing_or_substituted_evide
             .1
             .is_err()
     );
+}
+
+#[test]
+fn equal_local_installation_operations_in_different_machines_keep_distinct_helpers() {
+    let mut module = installed_module();
+    let mut second = module.installed_interrupt_registrations[0].clone();
+    second.machine = machine_id(4);
+    module.installed_interrupt_registrations.push(second);
+    let extra: Vec<_> = module
+        .callback_applications
+        .iter()
+        .cloned()
+        .map(|mut callback| {
+            callback.application_index += 3;
+            callback.registrar_machine = machine_id(4);
+            callback
+        })
+        .collect();
+    module.callback_applications.extend(extra);
+    let roots = CallbackProviderDeclarations::installed_helper_roots(&module);
+    assert_eq!(
+        roots.len(),
+        2,
+        "one machine's local operation cannot erase another registration"
+    );
+    for (position, owner) in [machine_id(1), machine_id(4)].into_iter().enumerate() {
+        assert_eq!(roots[position].0, (owner, OperationId::new(10).unwrap()));
+        assert_eq!(
+            roots[position].1.as_ref().unwrap(),
+            &[machine_id(1), machine_id(2), machine_id(3)]
+        );
+    }
 }

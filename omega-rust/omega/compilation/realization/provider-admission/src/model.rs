@@ -12,7 +12,7 @@
 
 use calling_conventions::NativePlace;
 use installation_evidence::ProviderExecutionEvidence;
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
@@ -101,6 +101,7 @@ impl ProviderAdmissionRequest<'_, '_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeCallbackArgumentProposal {
     pub registrar_invokes_callback: bool,
+    pub registrar_machine: MachineId,
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
@@ -116,6 +117,7 @@ pub struct NativeCallbackArgumentProposal {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledInterruptNativeEntryProposal {
+    pub machine: MachineId,
     pub operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
@@ -176,13 +178,23 @@ pub use bound_installations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledInterruptHelper {
+    pub(super) installation_machine: MachineId,
     pub(super) installation: OperationId,
+    pub(super) machine: MachineId,
     pub(super) callback_application: u32,
     pub(super) operation: OperationId,
     pub(super) kind: language_core::static_interrupts::StaticInterruptOperation,
 }
 
 impl AdmittedInstalledInterruptHelper {
+    pub const fn installation_machine(&self) -> MachineId {
+        self.installation_machine
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
     pub const fn installation(&self) -> OperationId {
         self.installation
     }

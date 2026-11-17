@@ -241,6 +241,27 @@ impl NativeExecutionScope {
         };
         let installed_helpers =
             provider_selection::CallbackProviderDeclarations::installed_helper_roots(module);
+        // Resolve each occurrence once. A registrar's local operation number
+        // identifies its callback entries only together with the owning machine.
+        let mut callback_entries = std::collections::BTreeMap::<_, Vec<MachineId>>::new();
+        for callback in callbacks {
+            let application = module
+                .callback_application(callback.application_index())
+                .ok_or_else(|| {
+                    NativeExecutionScopeError::TargetContext(
+                        "callback occurrence lost its canonical application".into(),
+                    )
+                })?;
+            if application.registrar != callback.terminal_operation() {
+                return Err(NativeExecutionScopeError::TargetContext(
+                    "callback occurrence changed its canonical registrar operation".into(),
+                ));
+            }
+            callback_entries
+                .entry((application.registrar_machine, application.registrar))
+                .or_default()
+                .push(callback.callback_thunk_artifact().entry());
+        }
         let mut visited = vec![false; module.machines.len()];
         let mut pending = vec![entry];
         pending.extend(
@@ -281,7 +302,9 @@ impl NativeExecutionScope {
                 for operation in &block.operations {
                     if let OperationKind::BoundaryCall { .. } = operation.kind {
                         if let Ok(position) = installed_helpers
-                            .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                            .binary_search_by_key(&(body.id, operation.id), |(operation, _)| {
+                                *operation
+                            })
                         {
                             pending.extend(
                                 installed_helpers[position]
@@ -296,12 +319,9 @@ impl NativeExecutionScope {
                                     .copied(),
                             );
                         }
-                        pending.extend(
-                            callbacks
-                                .iter()
-                                .filter(|callback| callback.terminal_operation() == operation.id)
-                                .map(|callback| callback.callback_thunk_artifact().entry()),
-                        );
+                        if let Some(entries) = callback_entries.get(&(body.id, operation.id)) {
+                            pending.extend(entries.iter().copied());
+                        }
                     }
                     if let Some(invocation) = operation.kind.module_invocation() {
                         pending.push(invocation.callee);

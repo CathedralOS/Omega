@@ -28,7 +28,9 @@ use terminal_semantics::descriptor_results::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ArrivalHelperUse {
+    pub installation_machine: MachineId,
     pub installation: OperationId,
+    pub machine: MachineId,
     pub callback_application: u32,
     pub operation: OperationId,
     pub kind: StaticInterruptOperation,
@@ -67,14 +69,18 @@ pub(super) fn validate(
     request: &super::super::ProviderAdmissionRequest<'_, '_>,
     entry_custody: &super::super::callback_entries::PreparedEntries<'_>,
     call_graph: &terminal_installation::SynchronousCallGraph<'_>,
-    reached_operations: &[OperationId],
+    reached_operations: &[super::OperationSite],
 ) -> Result<Vec<ArrivalHelperUse>, String> {
     let module = input.module();
     if module.installed_interrupt_registrations.is_empty() {
         return Ok(Vec::new());
     }
     let bodies = flat_rows(module.machines.iter().map(|body| (body.id, body)).collect())?;
-    let reached_operations = membership(reached_operations)?;
+    let reached_count = reached_operations.len();
+    let reached_operations: BTreeSet<_> = reached_operations.iter().copied().collect();
+    if reached_operations.len() != reached_count {
+        return Err("reached interrupt operation is duplicated".into());
+    }
     let reached_machines = membership(
         &input
             .plan()
@@ -92,9 +98,7 @@ pub(super) fn validate(
         .installed_interrupt_registrations
         .iter()
         .filter(|registration| {
-            reached_operations
-                .get(registration.operation)
-                .is_some_and(Option::is_some)
+            reached_operations.contains(&(registration.machine, registration.operation))
                 || registration.callbacks.iter().any(|callback| {
                     occurrences
                         .get(&callback.application_index)
@@ -157,7 +161,7 @@ pub(super) fn validate(
         let root = Root {
             registration,
             context: declaration.structural_parameters[5].structural_type,
-            completion: selected_body(module, registration.operation, 3)?,
+            completion: selected_body(module, registration.machine, registration.operation, 3)?,
         };
         let completion = bodies
             .get(root.completion)
@@ -182,7 +186,10 @@ pub(super) fn validate(
             let occurrence = occurrences
                 .get(&callback.application_index)
                 .ok_or("installed handler has no retained executable occurrence")?;
-            if occurrence.terminal_operation() != registration.operation {
+            if callback.registrar_machine != registration.machine
+                || callback.registrar != registration.operation
+                || occurrence.terminal_operation() != registration.operation
+            {
                 return Err("installed handler occurrence names another installation".into());
             }
             let body = bodies
@@ -225,9 +232,15 @@ pub(super) fn validate(
         }
     }
     invocations.require_associated_calls(&reached_machines, &associations.calls)?;
-    associations
-        .helpers
-        .sort_by_key(|row| (row.installation, row.callback_application, row.operation));
+    associations.helpers.sort_by_key(|row| {
+        (
+            row.installation_machine,
+            row.installation,
+            row.callback_application,
+            row.machine,
+            row.operation,
+        )
+    });
     associations.helpers.dedup();
     Ok(associations.helpers)
 }
@@ -282,7 +295,7 @@ fn check_closure<'a>(
                     InvocationSite::Operation(operation.id),
                     actual,
                 )?;
-                if selected_body(module, operation.id, 0)? != root.completion {
+                if selected_body(module, body.id, operation.id, 0)? != root.completion {
                     return Err(format!(
                         "completion at {:?} selects another installation's controller",
                         operation.id
@@ -371,7 +384,9 @@ fn check_closure<'a>(
                     StaticInterruptOperation::Install => unreachable!(),
                 }
                 associations.helpers.push(ArrivalHelperUse {
+                    installation_machine: root.registration.machine,
                     installation: root.registration.operation,
+                    machine: body.id,
                     callback_application,
                     operation: operation.id,
                     kind,
@@ -661,13 +676,15 @@ fn only_argument(kind: &OperationKind) -> Result<&StructuralArgument, String> {
 
 pub(super) fn selected_body(
     module: &TerminalModule,
+    machine: MachineId,
     operation: OperationId,
     ordinal: u32,
 ) -> Result<MachineId, String> {
-    let mut selections = module
-        .callback_applications
-        .iter()
-        .filter(|row| row.registrar == operation && row.static_machine_ordinal == ordinal);
+    let mut selections = module.callback_applications.iter().filter(|row| {
+        row.registrar_machine == machine
+            && row.registrar == operation
+            && row.static_machine_ordinal == ordinal
+    });
     let (Some(selection), None) = (selections.next(), selections.next()) else {
         return Err(format!(
             "operation {operation:?} has no unique selected helper at ordinal {ordinal}"

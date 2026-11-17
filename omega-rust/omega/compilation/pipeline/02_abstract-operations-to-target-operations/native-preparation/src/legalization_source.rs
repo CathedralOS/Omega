@@ -246,7 +246,7 @@ pub(crate) mod scalar_graph {
                     return Err(Error::custody());
                 }
                 let callbacks =
-                    native_callbacks_at(native, operation, &binding.boundary_entry_plan)?
+                    native_callbacks_at(native, machine, operation, &binding.boundary_entry_plan)?
                         .into_iter()
                         .cloned()
                         .collect();

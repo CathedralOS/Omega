@@ -17,7 +17,7 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v16\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v17\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
@@ -467,7 +467,8 @@ fn hash_physical_entry_requirements(
         digest.u64(value);
     }
     digest.u64(row.installed_scopes().len() as u64);
-    for operation in row.installed_scopes() {
+    for (machine, operation) in row.installed_scopes() {
+        digest.raw(&machine.get().to_le_bytes());
         digest.raw(&operation.get().to_le_bytes());
     }
     digest.byte(match row.installed_cpu() {

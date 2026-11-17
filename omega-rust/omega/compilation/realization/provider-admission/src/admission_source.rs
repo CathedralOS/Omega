@@ -150,6 +150,7 @@ impl AdmittedInstalledEntryExecution {
         current: &AdmittedInstalledInterruptCohort,
     ) -> Result<(), &'static str> {
         if current.psi() != entry.entry().psi()
+            || entry.machine != scope.machine()
             || entry.operation != scope.operation()
             || entry.entry().target().architecture != target::Architecture::X86_64
             || (!scope.fatal_entries().is_empty()
@@ -167,10 +168,9 @@ impl AdmittedInstalledEntryExecution {
         if entries.next() != Some(entry) || entries.next().is_some() {
             return Err("installed execution has no exact unique current entry");
         }
-        let mut scopes = current
-            .scopes()
-            .iter()
-            .filter(|candidate| candidate.operation() == scope.operation());
+        let mut scopes = current.scopes().iter().filter(|candidate| {
+            candidate.machine() == scope.machine() && candidate.operation() == scope.operation()
+        });
         let Some(received) = scopes.next() else {
             return Err("installed execution lost its current installation");
         };

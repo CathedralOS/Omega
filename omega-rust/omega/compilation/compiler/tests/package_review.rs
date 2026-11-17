@@ -1972,6 +1972,8 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     );
     for callback in &module.callback_applications {
         let operation = module
+            .machine(callback.registrar_machine)
+            .expect("retained callback registrar machine")
             .operations()
             .find(|operation| operation.id == callback.registrar)
             .expect("retained callback registrar operation");
@@ -2089,6 +2091,8 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             .expect("the executed callback must retain its exact application");
         assert_eq!(callback.registrar, occurrence.terminal_operation());
         let operation = module
+            .machine(callback.registrar_machine)
+            .expect("retained callback registrar machine")
             .operations()
             .find(|operation| operation.id == callback.registrar)
             .expect("actual emitted registrar operation");

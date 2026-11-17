@@ -350,6 +350,7 @@ mod correspondence_tests {
         });
         let application = TerminalCallbackApplication {
             application_index: 0,
+            registrar_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
             registrar: semantic_vocabulary::OperationId::new(10).unwrap(),
             static_machine_ordinal: 1,
             requirement: "unit::Handler::call".into(),
