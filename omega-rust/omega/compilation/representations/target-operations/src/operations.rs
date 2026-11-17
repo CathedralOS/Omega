@@ -717,17 +717,17 @@ impl TargetUnitOperation {
                         ..
                     },
                 ..
-            }
-            | Self::BoundarySettlement {
+            } => Some((*psi_operation, result_home)),
+            Self::BoundarySettlement {
                 psi_operation,
-                result: TargetBoundaryResult::Structural(result_home),
+                result,
                 ..
             }
             | Self::NormalizedForeignCall {
                 psi_operation,
-                result: TargetBoundaryResult::Structural(result_home),
+                result,
                 ..
-            } => Some((*psi_operation, result_home)),
+            } => result.structural_home().map(|home| (*psi_operation, home)),
             _ => None,
         }
     }

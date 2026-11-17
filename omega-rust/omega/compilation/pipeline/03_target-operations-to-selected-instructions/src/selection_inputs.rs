@@ -701,9 +701,7 @@ pub(crate) mod aggregate_result_input {
         match &instruction.kind {
             LegalizedScalarInstructionKind::Call(call) => call_result(source, call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-                let target_vocabulary::TargetBoundaryResult::Structural(home) = &call.result else {
-                    return None;
-                };
+                let home = call.result.structural_home()?;
                 let (producer, result) = home.operation_result()?;
                 if producer != instruction.operation
                     || operation_result(source, result.place) != Some((producer, result))

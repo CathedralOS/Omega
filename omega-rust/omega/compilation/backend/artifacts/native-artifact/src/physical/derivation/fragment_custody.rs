@@ -39,6 +39,7 @@ pub(super) struct FragmentForeignCallRejoin<'a> {
 
 pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     pass: crate::physical::PhysicalEvidencePass,
+    result_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
     publication: &'a FragmentPublicationBinding,
     occurrence: &OptimizedBoundaryOccurrence,
     foreign: &image_emission::ObjectForeignCall,
@@ -250,6 +251,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         || record.call.structural_arguments.len() != structural_arguments.len()
         || !fragment_scalar_argument_custody_rejoin(
             pass,
+            result_geometry,
             publication,
             function,
             block,
@@ -327,6 +329,7 @@ fn fragment_callback_materialization_rejoin(
 
 fn fragment_scalar_argument_custody_rejoin(
     pass: crate::physical::PhysicalEvidencePass,
+    result_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
     publication: &FragmentPublicationBinding,
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
@@ -379,6 +382,7 @@ fn fragment_scalar_argument_custody_rejoin(
     }
     let home_offsets = image_emission::durable_home_offsets(function);
     if !fragment_scalar_result_custody_rejoin(
+        result_geometry,
         function,
         block,
         fragment,
@@ -540,6 +544,7 @@ fn fragment_immediate_argument_span_rejoin(
 }
 
 fn fragment_scalar_result_custody_rejoin(
+    result_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     fragment: &machine_code::PlacedFunctionFragment,
@@ -549,9 +554,17 @@ fn fragment_scalar_result_custody_rejoin(
     physical: Option<&machine_code::ForeignCallScalarResultRecord>,
 ) -> bool {
     let plan = &record.call.binding.boundary_entry_plan.call;
-    if matches!(record.call.result, TargetBoundaryResult::Structural(_)) {
+    if record.call.result.structural_home().is_some() {
         return physical.is_none()
-            && structural_result_capture(function, block, fragment, record, instruction).is_some();
+            && structural_result_capture(
+                Some(result_geometry),
+                function,
+                block,
+                fragment,
+                record,
+                instruction,
+            )
+            .is_some();
     }
     let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
         return physical.is_none()

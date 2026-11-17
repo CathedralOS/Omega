@@ -703,8 +703,13 @@ pub(super) fn encode_normalized_foreign_call(
             bytes.push(1);
             encode_scalar_home(bytes, home)?;
         }
-        target_vocabulary::TargetBoundaryResult::Structural(home) => {
-            bytes.push(2);
+        target_vocabulary::TargetBoundaryResult::Structural(home)
+        | target_vocabulary::TargetBoundaryResult::ScalarReference { home, .. } => {
+            bytes.push(if call.result.scalar_reference_codec().is_some() {
+                3
+            } else {
+                2
+            });
             match &home.origin {
                 TargetStructuralHomeOrigin::OperationResult { operation, result } => {
                     bytes.push(0);
@@ -726,6 +731,9 @@ pub(super) fn encode_normalized_foreign_call(
                     bytes.push(1);
                     encode_layout(bytes, layout);
                 }
+            }
+            if let Some(codec) = call.result.scalar_reference_codec() {
+                crate::codec_bytes::push_encoded(bytes, codec.to_le_bytes());
             }
         }
     }
@@ -771,10 +779,11 @@ pub(super) fn decode_normalized_foreign_call(
     })?;
     let structural_arguments = decode_list(cursor, decode_target_argument)?;
     let structural_indices = decode_list(cursor, decode_runtime_indices)?;
-    let result = match cursor.byte()? {
+    let result_tag = cursor.byte()?;
+    let result = match result_tag {
         0 => target_vocabulary::TargetBoundaryResult::Unit,
         1 => target_vocabulary::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
-        2 => {
+        2 | 3 => {
             let origin = match cursor.byte()? {
                 0 => TargetStructuralHomeOrigin::OperationResult {
                     operation: decode_id(cursor, OperationId::new)?,
@@ -791,9 +800,16 @@ pub(super) fn decode_normalized_foreign_call(
                 1 => TargetStructuralHomeLayout::Sum(decode_layout(cursor)?),
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
-            target_vocabulary::TargetBoundaryResult::Structural(
-                target_vocabulary::TargetStructuralHomeRequirement { origin, layout },
-            )
+            let home = target_vocabulary::TargetStructuralHomeRequirement { origin, layout };
+            if result_tag == 3 {
+                let codec = cursor.u64()?;
+                if runtime_abi::ScalarStorageCodec::decode(codec).is_none() {
+                    return Err(FixedViewCopyDecodeError::InvalidStructuralTransport);
+                }
+                target_vocabulary::TargetBoundaryResult::ScalarReference { home, codec }
+            } else {
+                target_vocabulary::TargetBoundaryResult::Structural(home)
+            }
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
@@ -1823,6 +1839,10 @@ mod tests {
     }
 
     fn binding() -> NormalizedForeignCallBinding {
+        binding_with_result(ValueShape::integer(4, 4))
+    }
+
+    fn binding_with_result(result: ValueShape) -> NormalizedForeignCallBinding {
         let locator = normalize_foreign_locator(
             ForeignLocatorCandidate::ElfVersioned {
                 object: b"libc.so.6".to_vec(),
@@ -1836,7 +1856,7 @@ mod tests {
             CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
             &CallSignature {
                 parameters: vec![ValueShape::integer(4, 4)],
-                result: Some(ValueShape::integer(4, 4)),
+                result: Some(result),
             },
         )
         .expect("evaluated entry plan")
@@ -2251,6 +2271,91 @@ mod tests {
         let mut changed_bytes = Vec::new();
         encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
+    }
+
+    #[test]
+    fn normalized_foreign_scalar_reference_result_retains_exact_codec_and_home() {
+        use target_vocabulary::{
+            TargetBoundaryResult, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
+            TargetStructuralHomeRequirement,
+        };
+        let mut source = row();
+        source.call.binding = binding_with_result(ValueShape::integer(8, 8));
+        let home = TargetStructuralHomeRequirement {
+            origin: TargetStructuralHomeOrigin::OperationResult {
+                operation: source.invocation_site.operation().unwrap(),
+                result: terminal_psi::StructuralOperationResult {
+                    place: semantic_vocabulary::PlaceId::new(9).unwrap(),
+                    structural_type: semantic_vocabulary::StructuralTypeId::new(10).unwrap(),
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                },
+            },
+            layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(16, 8)),
+        };
+        let signed = runtime_abi::ScalarStorageCodec::Integer {
+            byte_size: 4,
+            sign: semantic_vocabulary::IntegerSign::Signed,
+        }
+        .encode()
+        .unwrap();
+        source.call.result = TargetBoundaryResult::ScalarReference {
+            home: home.clone(),
+            codec: signed,
+        };
+        let mut bytes = Vec::new();
+        encode_normalized_foreign_call(&mut bytes, &source).unwrap();
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_normalized_foreign_call(&mut cursor).unwrap(), source);
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..bytes.len() {
+            assert!(decode_normalized_foreign_call(&mut Cursor::new(&bytes[..length])).is_err());
+        }
+        let canonical = source.call.canonical_bytes();
+        for replacement in [
+            TargetBoundaryResult::Structural(home.clone()),
+            TargetBoundaryResult::ScalarReference {
+                home: home.clone(),
+                codec: runtime_abi::ScalarStorageCodec::Integer {
+                    byte_size: 4,
+                    sign: semantic_vocabulary::IntegerSign::Unsigned,
+                }
+                .encode()
+                .unwrap(),
+            },
+            TargetBoundaryResult::ScalarReference {
+                home: TargetStructuralHomeRequirement {
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8)),
+                    ..home.clone()
+                },
+                codec: signed,
+            },
+        ] {
+            let mut changed = source.clone();
+            changed.call.result = replacement;
+            let mut encoded = Vec::new();
+            encode_normalized_foreign_call(&mut encoded, &changed).unwrap();
+            assert_ne!(bytes, encoded);
+            let identity = changed.call.canonical_bytes();
+            assert_ne!(canonical, identity);
+        }
+        for invalid_codec in [0, u64::MAX, signed | (1 << 63)] {
+            let mut changed = source.clone();
+            changed.call.result = TargetBoundaryResult::ScalarReference {
+                home: home.clone(),
+                codec: invalid_codec,
+            };
+            let mut encoded = Vec::new();
+            encode_normalized_foreign_call(&mut encoded, &changed).unwrap();
+            assert_eq!(
+                decode_normalized_foreign_call(&mut Cursor::new(&encoded)),
+                Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
+            );
+        }
     }
 
     #[test]

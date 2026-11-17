@@ -46,8 +46,13 @@ pub fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
             encode_scalar_home(bytes, home);
         }
         crate::TargetBoundaryResult::Unit => bytes.push(0),
-        crate::TargetBoundaryResult::Structural(home) => {
-            bytes.push(2);
+        crate::TargetBoundaryResult::Structural(home)
+        | crate::TargetBoundaryResult::ScalarReference { home, .. } => {
+            bytes.push(if call.result.scalar_reference_codec().is_some() {
+                3
+            } else {
+                2
+            });
             match &home.origin {
                 crate::TargetStructuralHomeOrigin::OperationResult { operation, result } => {
                     bytes.push(0);
@@ -69,6 +74,9 @@ pub fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
                     bytes.push(1);
                     encode_layout(bytes, layout);
                 }
+            }
+            if let Some(codec) = call.result.scalar_reference_codec() {
+                crate::codec_bytes::push_encoded(bytes, codec.to_le_bytes());
             }
         }
     }

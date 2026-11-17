@@ -53,6 +53,7 @@ use terminal_psi::OperationResult;
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_normalized_foreign_child(
     pass: crate::physical::PhysicalEvidencePass,
+    result_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
@@ -225,6 +226,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .map(|publication| {
             fragment_normalized_foreign_rejoin(
                 pass,
+                result_geometry,
                 publication,
                 occurrence,
                 foreign,
@@ -290,7 +292,7 @@ pub(crate) fn derive_normalized_foreign_child(
             let Some(rejoin) = fragment_rejoin else {
                 return Ok(None);
             };
-            let TargetBoundaryResult::Structural(home) = &rejoin.record.call.result else {
+            let Some(home) = rejoin.record.call.result.structural_home() else {
                 return Err("normalized foreign D41 child changed its structural result custody");
             };
             let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout
@@ -308,6 +310,30 @@ pub(crate) fn derive_normalized_foreign_child(
                 .and_then(|binding| binding.physical_program().function(occurrence.machine()))
                 .and_then(|function| function.structural.as_ref())
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
+            let declared_codec =
+                TargetBoundaryResult::declared_reference_codec(result.structural_type, |id| {
+                    result_geometry.declaration(id).ok()
+                });
+            let layout_matches =
+                if let Some(codec) = rejoin.record.call.result.scalar_reference_codec() {
+                    let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                    declared_codec == Some(codec)
+                        && shape
+                            == calling_conventions::ValueShape::integer(
+                                descriptor.byte_size,
+                                descriptor.alignment,
+                            )
+                        && placement.shape
+                            == calling_conventions::ValueShape::integer(
+                                descriptor.address_byte_size,
+                                descriptor.alignment,
+                            )
+                        && placement.is_complete_scalar_result()
+                } else {
+                    declared_codec.is_none()
+                        && placement.shape.byte_size == shape.byte_size
+                        && placement.shape.alignment == shape.alignment
+                };
             if home.operation_result() != source_operation.map(|operation| (operation, result))
                 || result.structural_type != declared.structural_type
                 || result.multiplicity != declared.multiplicity
@@ -321,8 +347,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     .structural_types
                     .iter()
                     .any(|item| !module.structural_types.iter().any(|source| source == item))
-                || placement.shape.byte_size != shape.byte_size
-                || placement.shape.alignment != shape.alignment
+                || !layout_matches
             {
                 return Err("normalized foreign D41 child changed its structural result custody");
             }

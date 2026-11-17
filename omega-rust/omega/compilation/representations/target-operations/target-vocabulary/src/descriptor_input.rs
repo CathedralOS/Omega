@@ -149,7 +149,9 @@ pub fn descriptor_input_guard_for_call_with_closed_scalars<
     let result = match result {
         TargetBoundaryResult::Unit => None,
         TargetBoundaryResult::Scalar(home) => Some(home.scalar_type),
-        TargetBoundaryResult::Structural(_) => return Ok(None),
+        TargetBoundaryResult::Structural(_) | TargetBoundaryResult::ScalarReference { .. } => {
+            return Ok(None);
+        }
     };
     derive(
         binding,

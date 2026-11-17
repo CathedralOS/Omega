@@ -1185,15 +1185,10 @@ pub(crate) mod operations {
                             site.provenance,
                         )?;
                         if let Some(
-                            TargetUnitOperation::BoundarySettlement {
-                                result: target_operations::TargetBoundaryResult::Structural(home),
-                                ..
-                            }
-                            | TargetUnitOperation::NormalizedForeignCall {
-                                result: target_operations::TargetBoundaryResult::Structural(home),
-                                ..
-                            },
+                            TargetUnitOperation::BoundarySettlement { result, .. }
+                            | TargetUnitOperation::NormalizedForeignCall { result, .. },
                         ) = site.operations.last()
+                            && let Some(home) = result.structural_home()
                         {
                             if site
                                 .live
