@@ -642,10 +642,30 @@ impl Program<'_> {
                 "byte predicate requires a byte view or fixed u8 array",
             ));
         }
-        // The clause formed this explicit whole range using the actual
-        // carrier. Retain its ordinary operator choice under the declaration
-        // that authored the clause, even though the canonical atom needs no
-        // runtime descriptor or loan of a logical subject.
+        let collection = if let ExpressionNode::Borrow(borrow) =
+            self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+        {
+            self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+        } else {
+            None
+        };
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_byte_observation_range(id, owner, argument, collection)?;
+        Ok((root, path, value_type))
+    }
+
+    /// Form the source range of a logical byte observation. The declaration
+    /// reader supplies its exact logical carrier; instantiated clauses supply
+    /// the actual checked structural operand. Neither call grants membership.
+    pub(super) fn complete_byte_observation_range(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        argument: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
         if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
             && let ExpressionNode::Indexed(indexed) =
                 self.typed.expression_table.expression(borrow.target)
@@ -654,14 +674,9 @@ impl Program<'_> {
                 ExpressionNode::Range(_)
             )
         {
-            let target = borrow.target;
-            let collection =
-                self.structural_operator_operand_reference(id, indexed.collection, value_type)?;
-            let [_, count] = self.collection_index_operand_types(id, row);
-            let owner = self.contract_operator_owner(id, scope)?;
-            self.complete_builtin_operator(id, owner, target, &[collection, count, count])?;
+            return self.complete_collection_range_operator(id, owner, borrow.target, collection);
         }
-        Ok((root, path, value_type))
+        Ok(())
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its

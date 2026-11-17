@@ -159,6 +159,19 @@ impl Program<'_> {
         Ok(Some(reference))
     }
 
+    /// Logical and executable range formation use the same actual collection
+    /// type and canonical count operands when completing source selection.
+    pub(super) fn complete_collection_range_operator(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        let count = self.collection_count_operand_type(machine);
+        self.complete_builtin_operator(machine, owner, expression, &[collection, count, count])
+    }
+
     /// Publish the operation this reader actually formed. Reads, writable
     /// places and explicit view adapters share the same source association.
     pub(super) fn complete_formed_operator(
@@ -190,7 +203,7 @@ impl Program<'_> {
                 | ExpressionKind::CollectionView { base, .. },
                 ExpressionNode::Indexed(indexed),
             ) => {
-                let Some(operand @ ValueType::Record(record, _, _)) = base.result else {
+                let Some(operand @ ValueType::Record(..)) = base.result else {
                     return Ok(());
                 };
                 let source = indexed.collection;
@@ -199,12 +212,11 @@ impl Program<'_> {
                 else {
                     return Ok(());
                 };
-                let [_, count] = self.collection_index_operand_types(machine, record);
-                self.complete_builtin_operator(
+                self.complete_collection_range_operator(
                     machine,
                     owner,
                     expression,
-                    &[Some(collection), count, count],
+                    Some(collection),
                 )
             }
             (

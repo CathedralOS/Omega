@@ -324,25 +324,32 @@ impl Program<'_> {
         machine: MachineId,
         row: semantic_vocabulary::StructuralTypeId,
     ) -> [Option<TypeReferenceHandle>; 2] {
-        let count = semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid"),
-        );
         let reference = self
             .record_sources
             .get(row)
             .and_then(|source| source.application.as_ref())
             .map(|application| application.reference);
-        let count_reference = self.typed.type_reference_table.named_references().find_map(
-            |(reference, symbol, _)| {
+        [reference, self.collection_count_operand_type(machine)]
+    }
+
+    pub(super) fn collection_count_operand_type(
+        &self,
+        machine: MachineId,
+    ) -> Option<TypeReferenceHandle> {
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.typed
+            .type_reference_table
+            .named_references()
+            .find_map(|(reference, symbol, _)| {
                 self.typed
                     .symbols
                     .builtin_type_atom(symbol)
                     .is_some_and(|atom| super::types::atom_type(atom, machine) == Ok(count))
                     .then_some(reference)
-            },
-        );
-        [reference, count_reference]
+            })
     }
 
     pub(super) fn collection_range_selection(

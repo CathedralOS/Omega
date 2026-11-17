@@ -585,6 +585,29 @@ impl Program<'_> {
         if !has_predicates(definition) {
             return Ok(());
         }
+        // A slice domain has a logical, unsized subject. Authenticate its
+        // complete primitive clause without materializing that subject as
+        // executable storage. Its explicit shared range still owes the
+        // ordinary operator selection on the actual declared slice type.
+        if let Some((expression, _)) =
+            typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
+        {
+            let (_, argument) =
+                typed_trees::byte_predicates::byte_predicate_call(self.typed, expression)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("primitive byte domain lost its observer call"),
+                        )
+                    })?;
+            return self.complete_byte_observation_range(
+                id,
+                definition.symbol,
+                argument,
+                Some(definition.target_type),
+            );
+        }
         let carrier = self.value_type(id, definition.target_type)?;
         let domain = crate::body::DomainInstance {
             declaration: definition.symbol,
@@ -592,31 +615,6 @@ impl Program<'_> {
         };
         let at = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         self.declared_domain(id, domain, carrier, definition.target_type, at)?;
-        // Byte storage retains the primitive predicate instead of a generic
-        // domain clause. Still read its authored clause here: forming the
-        // observer's shared range owes the same source operator checks as a
-        // clause instantiated at a field, formal or cast.
-        if typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
-            .is_some()
-        {
-            let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Declaration("domain identity"),
-                )
-            })?;
-            return self
-                .record_cast_predicates(
-                    id,
-                    Qualification {
-                        policy: None,
-                        domains,
-                    },
-                    carrier,
-                )
-                .map(|_| ());
-        }
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {
