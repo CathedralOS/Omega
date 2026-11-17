@@ -55,8 +55,10 @@ public data WindowsMetadataResult {
 
 // The raw directory entry retains native attributes. Bounded UTF-8 spelling
 // failure is explicit; a long or unrepresentable name is never truncated.
+// Matches the complete 4096-unit native directory record after strict UTF-8
+// conversion, including its worst case of three bytes per UTF-16 unit.
 public data WindowsDirectoryEntry [copy] {
-    name: [u8; 256];
+    name: [u8; 12288];
     name_len: u64;
     attributes: u32;
 }

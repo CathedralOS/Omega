@@ -411,7 +411,9 @@ requires open_writable >= 0 && open_writable <= 1,
     rd_j: u64 in Wrapping;
     rd_ridx: u64 in Wrapping;
     rd_nb: u8;
-    entry_name: [u8; 256];
+    // Portable result scratch; native decoding still requires a NUL-terminated
+    // name of at most 255 bytes before constructing any DirEntry.
+    entry_name: [u8; 12288];
 
     rda_sub: i32;
     rda_rc: i32;

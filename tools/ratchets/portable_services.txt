@@ -36,7 +36,7 @@ FilesystemService.copy | const open_create(..438..) | linux_x86_64,linux_arm64,m
 FilesystemService.copy | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
 FilesystemService.copy | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.copy | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
-FilesystemService.copy | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.copy | limit <= 4294967295 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.copy | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
 FilesystemService.copy | limit > 4294967295 | windows_x86_64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
 FilesystemService.copy | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
@@ -117,7 +117,7 @@ FilesystemService.read_all | refuse BadDescriptor | windows_x86_64 | noise | Win
 FilesystemService.read_all | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
 FilesystemService.read_at | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
 FilesystemService.read_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.read_at | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.read_at | limit <= 4294967295 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.read_at | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
 FilesystemService.read_at | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
 FilesystemService.read_dir_count | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
@@ -137,8 +137,8 @@ FilesystemService.read_dir_is_empty | clamp narrow_i64_to_u64_wrapping | linux_x
 FilesystemService.read_dir_is_empty | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
 FilesystemService.read_dir_is_empty | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | const windows_filesystem_transferred(..9223372036854775807..) | windows_x86_64 | noise | Windows passes i64 maximum as the requested count of an enumeration read
-FilesystemService.read_dir_is_empty | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.read_dir_is_empty | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_is_empty | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
+FilesystemService.read_dir_is_empty | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
 FilesystemService.read_dir_is_empty | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -146,7 +146,7 @@ FilesystemService.read_dir_is_empty | limit < out.len | linux_x86_64,linux_arm64
 FilesystemService.read_dir_is_empty | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.read_dir_is_empty | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_is_empty | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
 FilesystemService.read_dir_is_empty | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_is_empty | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -158,8 +158,8 @@ FilesystemService.read_dir_nth | clamp narrow_i64_to_i32_wrapping | linux_x86_64
 FilesystemService.read_dir_nth | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
 FilesystemService.read_dir_nth | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
 FilesystemService.read_dir_nth | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.read_dir_nth | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_nth | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
+FilesystemService.read_dir_nth | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
 FilesystemService.read_dir_nth | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_nth | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_nth | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -167,8 +167,8 @@ FilesystemService.read_dir_nth | limit < out.len | linux_x86_64,linux_arm64,maco
 FilesystemService.read_dir_nth | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.read_dir_nth | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_nth | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.read_dir_nth | limit <= 256 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.read_dir_nth | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
+FilesystemService.read_dir_nth | limit <= 12288 | windows_x86_64 | noise | UTF-8 carrier covers all 4096 UTF-16 units of the admitted native directory record
 FilesystemService.read_dir_nth | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_nth | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.read_dir_nth | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -192,8 +192,8 @@ FilesystemService.remove_dir_all | const min_u64(..2147483647..) | linux_x86_64,
 FilesystemService.remove_dir_all | const posix_filesystem_release_directory_stack(..4096..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
 FilesystemService.remove_dir_all | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.remove_dir_all | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.remove_dir_all | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.remove_dir_all | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
+FilesystemService.remove_dir_all | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
 FilesystemService.remove_dir_all | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
 FilesystemService.remove_dir_all | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.remove_dir_all | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -202,7 +202,7 @@ FilesystemService.remove_dir_all | limit < out.len | linux_x86_64,linux_arm64,ma
 FilesystemService.remove_dir_all | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.remove_dir_all | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
 FilesystemService.remove_dir_all | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.remove_dir_all | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes plus a terminating NUL; the larger portable carrier does not lift the native limit
 FilesystemService.remove_dir_all | limit <= 4095 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
 FilesystemService.remove_dir_all | limit <= 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
 FilesystemService.remove_dir_all | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
@@ -239,14 +239,14 @@ FilesystemService.set_permissions | limit < path.len | linux_x86_64,linux_arm64,
 FilesystemService.set_permissions | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
 FilesystemService.set_times | clamp narrow_i64_to_u8_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
 FilesystemService.set_times | clamp narrow_u64_to_i64_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.set_times | limit <= 1833029933770 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | limit <= 1833029933770 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.set_times | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.set_times | limit == -11644473600 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | limit == -11644473600 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.set_times | limit == 8 | macos_arm64 | noise | macOS timespec encoder writes 8-byte fields
-FilesystemService.set_times | limit > -11644473600 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | limit > -11644473600 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.set_times | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.set_times | refuse InvalidInput | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
-FilesystemService.set_times | refuse Unsupported | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | refuse InvalidInput | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
+FilesystemService.set_times | refuse Unsupported | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.symlink | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.symlink | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.symlink | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
@@ -285,9 +285,9 @@ FilesystemService.write_all | limit > 4294967295 | windows_x86_64 | noise | Wind
 FilesystemService.write_all | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
 FilesystemService.write_all | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
 FilesystemService.write_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.write_at | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.write_at | limit <= 4294967295 | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.write_at | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.write_at | refuse InvalidInput | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.write_at | refuse InvalidInput | windows_x86_64 | known | Portable timestamps and large transfers differ between Windows and POSIX
 FilesystemService.write_at | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
 TimeHost.monotonic_ticks | clamp narrow_i64_to_u64_saturating | linux_x86_64,linux_arm64,windows_x86_64 | noise | converting the OS clock record into raw platform units
 TimeHost.monotonic_ticks_per_second | clamp narrow_i64_to_u64_saturating | windows_x86_64 | noise | converting the OS clock record into raw platform units

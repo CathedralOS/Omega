@@ -130,22 +130,25 @@ machine windows_directory_encode_entry(source: &WindowsNativeDirectoryEntryInfo,
         let written: i32 = WindowsFilesystemUtf8Io::utf8<4096, 12288>(65001, 128, &source.characters,
             native_count, &mut encoded, 12288, 0, 0);
         transition written > 0 {
-            true -> extent(&encoded, written, source.attributes)
+            true -> (windows_directory_encoded_entry(&encoded, written, source.attributes))
             false -> (windows_directory_entry_error())
-        }
-    }
-    machine extent(encoded: &[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
-    requires written > 0 {
-        let count: u64 = narrow_i32_to_u64_exact(written);
-        transition count <= 256 {
-            true -> (windows_directory_copy_entry(encoded, count, attributes))
-            false -> (WindowsDirectoryEntryResult::Error { code: 122 })
         }
     }
 }
 
+// The converter's reported extent must fit its actual output allocation. The
+// raw and portable result carriers retain every byte of that admitted output.
+machine windows_directory_encoded_entry(encoded: &[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
+requires written > 0 {
+    let count: u64 = narrow_i32_to_u64_exact(written);
+    transition count <= 12288 {
+        true -> (windows_directory_copy_entry(encoded, count, attributes))
+        false -> (WindowsDirectoryEntryResult::Error { code: 122 })
+    }
+}
+
 machine windows_directory_copy_entry(source: &[u8; 12288], count: u64, attributes: u32) -> WindowsDirectoryEntryResult
-requires count <= 256 {
+requires count <= 12288 {
     let mut selected: WindowsDirectoryEntry;
     selected.name_len = count;
     selected.attributes = attributes;
@@ -153,15 +156,15 @@ requires count <= 256 {
     WindowsDirectoryEntryResult::Entry { entry: selected }
 }
 
-machine windows_directory_copy_name(source: &[u8; 12288], count: u64, name: &mut [u8; 256])
-requires count <= 256 {
+machine windows_directory_copy_name(source: &[u8; 12288], count: u64, name: &mut [u8; 12288])
+requires count <= 12288 {
     transition { _ -> copy(source, count, name, 0) }
-    machine copy(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
-    requires count <= 256 {
+    machine copy(source: &[u8; 12288], count: u64, name: &mut [u8; 12288], position: u64)
+    requires count <= 12288 {
         transition position < count { true -> store(source, count, name, position) false -> complete() }
     }
-    machine store(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
-    requires count <= 256 && position < count {
+    machine store(source: &[u8; 12288], count: u64, name: &mut [u8; 12288], position: u64)
+    requires count <= 12288 && position < count {
         name[position] = source[position];
         transition { _ -> copy(source, count, name, position + 1) }
     }

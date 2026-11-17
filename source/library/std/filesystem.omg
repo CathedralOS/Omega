@@ -62,8 +62,11 @@ public data DirStatsResult {
     case Ok(stats: DirStats);
 }
 
+// Target-invariant carrier for the existing Windows native directory record:
+// 4096 UTF-16 units need at most 3 UTF-8 bytes each. Actual filesystem name
+// limits still apply; only name[0..name_len] belongs to the selected name.
 public data DirEntry [copy] {
-    name: [u8; 256];
+    name: [u8; 12288];
     name_len: u64;
     is_dir: bool;
     is_file: bool;

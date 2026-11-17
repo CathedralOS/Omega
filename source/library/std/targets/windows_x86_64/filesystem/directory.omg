@@ -37,17 +37,18 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     transition result {
         WindowsDirectoryEntryResult::Error { code } -> (DirEntryResult::Error { kind: windows_filesystem_error(code) })
         WindowsDirectoryEntryResult::End -> DirEntryResult::End
-        WindowsDirectoryEntryResult::Entry { entry } -> selected(entry)
+        WindowsDirectoryEntryResult::Entry { entry } -> (windows_filesystem_directory_entry(entry))
     }
-    machine selected(record: WindowsDirectoryEntry) -> DirEntryResult {
-        transition record.name_len > 0 && record.name_len <= 256 {
-            true -> (DirEntryResult::Ok { entry: DirEntry {
-                name: record.name,
-                name_len: record.name_len,
-                is_dir: (record.attributes & 1040) == 16,
-                is_file: (record.attributes & 1040) == 0
-            } })
-            false -> (DirEntryResult::Error { kind: ErrorKind::Other })
-        }
+}
+
+machine windows_filesystem_directory_entry(record: WindowsDirectoryEntry) -> DirEntryResult {
+    transition record.name_len > 0 && record.name_len <= 12288 {
+        true -> (DirEntryResult::Ok { entry: DirEntry {
+            name: record.name,
+            name_len: record.name_len,
+            is_dir: (record.attributes & 1040) == 16,
+            is_file: (record.attributes & 1040) == 0
+        } })
+        false -> (DirEntryResult::Error { kind: ErrorKind::Other })
     }
 }
