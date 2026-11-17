@@ -132,7 +132,7 @@ class OverviewContracts(GeometryContracts, unittest.TestCase):
         self.assertEqual({e['id'] for e in self.model['edges']},{e['id'] for e in self.layout['edges']})
         nodes={n['id']:n for n in self.layout['nodes']}
         for a,b in zip(self.model['spine'],self.model['spine'][1:]):
-            if nodes[a]['x']==nodes[b]['x']:
+            if nodes[a]['x']+nodes[a]['width']/2==nodes[b]['x']+nodes[b]['width']/2:
                 self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
             else:
                 self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])

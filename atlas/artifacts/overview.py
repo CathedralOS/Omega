@@ -306,9 +306,11 @@ def render_scene(model):
     parts = [f'<g class="connected-scene{" proposed-scene" if model.get("view")=="proposed" else ""}">']
     proposed=model.get('view')=='proposed'
     for g in model['groups']:
-        parts.append(f'<g class="connected-group" data-group="{g["id"]}"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}"/>')
+        parts.append(f'<g class="connected-group" data-group="{g["id"]}"><rect x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="{g["height"]}" rx="6"/>')
+        if not proposed:
+            parts.append(f'<rect class="phase-band" x="{g["x"]}" y="{g["y"]}" width="{g["width"]}" height="33" rx="4"/>')
         for i,line in enumerate(g['caption']['lines']):
-            parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]}" y="{g["caption"]["y"]+i*26}">{esc(line)}</text>')
+            parts.append(f'<text class="connected-phase" x="{g["caption"]["x"]+5}" y="{g["caption"]["y"]+i*26}">{esc(line)}</text>')
         parts.append('</g>')
     start=model['startLabel']
     parts.append(f'<text class="connected-start" x="{start["x"]}" y="{start["y"]+20}">{("START ↓" if proposed else "START")}</text>')
@@ -321,6 +323,9 @@ def render_scene(model):
         arrow=f' marker-end="url(#overview-{marker})"'
         for section in e.get('sections',[]):
             path='M'+' L'.join(f'{p["x"]:g} {p["y"]:g}' for p in section['points'])
+            if e.get('detour') and not e.get('main'):
+                tail=section['points'][0]
+                parts.append(f'<circle class="wire-origin" cx="{tail["x"]}" cy="{tail["y"]}" r="3.2"/>')
             parts.append(f'<path d="{path}"{arrow}/><path class="connected-hit" d="{path}"/>')
         for label in e.get('labels',[]):
             parts.append(f'<text class="wire-caption" x="{label["x"]}" y="{label["y"]}" text-anchor="middle">{esc(label["text"])}</text>')
@@ -330,9 +335,18 @@ def render_scene(model):
         href=f'{n["page"]}.html#{n["anchor"]}' if model.get('view')=='proposed' else f'#layer-{n["group"]}'
         parts.append(f'<a class="overview-node {n["kind"]} {"operation" if n["role"]=="transform" else ""}" data-role="{n["role"]}" data-layer="{n["group"]}" data-endpoint="{n["id"]}" href="{href}" aria-label="{esc(n["title"])}">')
         if not proposed:
-            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3"/>')
+            radius=h/2 if n['role']=='artifact' else 4
+            parts.append(f'<rect class="node-body" x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}"/>')
             title={'apply-frame':'Apply frames · rewrite','image-build':'Form image · late code','optimized-abstract':'Optimized abstract ops','installations':'Measure handler objects','native-run':'Run native executable','build':'Build · packages · library'}.get(n['id'],n['title'])
-            parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
+            if n['role']=='transform':
+                title=title[:1].upper()+title[1:]
+            number,_,action=title.partition(' ')
+            if n['role']=='transform' and number.isdecimal():
+                parts.append(f'<rect class="step-tab" x="{x+3}" y="{y+3}" width="29" height="{h-6}" rx="2"/>')
+                parts.append(f'<text class="step-number" x="{x+17.5}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{number}</text>')
+                parts.append(f'<text class="current-title" x="{x+40}" y="{y+h/2}" dominant-baseline="central">{esc(action.capitalize())}</text>')
+            else:
+                parts.append(f'<text class="current-title" x="{x+w/2}" y="{y+h/2}" dominant-baseline="central" text-anchor="middle">{esc(title)}</text>')
         else:
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             parts.append(f'<text class="stage-title" x="{x+16}" y="{y+26}">{esc(n["title"])}</text>')
@@ -356,12 +370,17 @@ def render_overview(architecture):
     esc = html.escape
     trace_options=''.join(f'<option value="{t["id"]}">{esc(t["title"])}</option>' for t in model['traces'])
     options=''.join(f'<option value="{n["id"]}">{esc(n["title"])}</option>' for n in proposed['nodes'] if n['role']=='owner')
+    footer=(
+        '<div class="map-footer">'
+        '<div class="arch-overview-legend" data-legend="current"><span class="key-main">Stage handoff</span><span class="key-service">Supporting call or data</span><span class="key-detour">Pipeline detour or late code</span></div>'
+        '<div class="arch-overview-legend" data-legend="proposed" hidden><span>00–10: stage owners</span><span>01.1, 01.2…: unfolded operations</span><span>Within a stage: dependency order; work may repeat</span></div>'
+        '<div class="camera-tools" role="group" aria-label="Canvas navigation" hidden>'
+        '<button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><button type="button" data-camera="natural" aria-label="Reset zoom to 100%" title="Reset zoom to 100%"><output class="connected-scale">100%</output></button><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="expand">Expand</button></div></div>'
+    )
     parts = ['<div class="arch-reading" id="compiler-overview" data-view="current">',
              '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
-             '<div class="arch-overview-legend" data-legend="current"><span class="key-main">Stage handoff</span><span class="key-service">Supporting call or data</span><span class="key-detour">Pipeline detour or late code</span></div>',
-             '<div class="arch-overview-legend" data-legend="proposed" hidden><span>00–10: stage owners</span><span>01.1, 01.2…: unfolded operations</span><span>Within a stage: dependency order; work may repeat</span></div>',
-             f'<div class="connected-tools" hidden><label class="trace-picker">Trace <select aria-label="Trace a pipeline detour"><option value="">All connections</option>{trace_options}</select></label><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
+             f'<div class="connected-tools" hidden><label class="trace-picker">Trace <select aria-label="Trace a pipeline detour"><option value="">All connections</option>{trace_options}</select></label><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><label class="component-picker">Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
@@ -370,7 +389,7 @@ def render_overview(architecture):
     for name in ('arrow','return','check','service'):
         parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs>'+render_scene(model))
-    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div></div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
+    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div>'+footer+'</div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
     for e in model['edges']:
         if e['label']:
             parts.append(f'<li>{esc(nodes[e["start"]]["title"])} → {esc(nodes[e["end"]]["title"])}: {esc(e["label"])} · <a href="{e["source"]}">Source</a></li>')
