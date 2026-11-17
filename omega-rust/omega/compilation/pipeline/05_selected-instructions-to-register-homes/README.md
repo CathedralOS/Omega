@@ -14,17 +14,17 @@ Omega 04 hands this stage one `SelectedAllocationInput`, whatever it did: the
 current program, the analyses Omega 04 already established for it, and the
 program's `SelectedOptimizationRecord` (the completed rewrite phase, if any,
 and the transformations it applied). The entrance takes the selected
-allocation-recovery catalog entry, if any, and gets the legality analysis:
-Omega 04's own when it built one (after a rewrite phase), otherwise a new one
-under the allocator availability the entry requires (all allocatable views
-when nothing is selected). It then runs the procedure the entry's rule names
+allocation-recovery catalog entry, if any, and gets legality under that entry's
+required allocator availability (all environment-allocatable views when no
+recovery is selected). An analysis Omega 04 supplied is reused when its
+availability matches. Otherwise allocation keeps the program's live ranges and
+derives legality under the required views, so a rewrite's private constraints
+do not restrict allocation. It then runs the procedure the entry's rule names
 (plain assignment, fixed-view copies, or pressure rematerialization), each
 falling back to runtime spilling under remaining pressure, and admits the
 result. The record only enters the allocation manifest as evidence; which
-Omega 04 phase ran never chooses a procedure. A selected rule that needs
-different allocator availability than the analysis Omega 04 handed over is
-refused rather than recomputed or ignored; Omega 04 itself refuses a selection
-that combines its phases with each other or with a recovery rule.
+Omega 04 phase ran never chooses a procedure. Omega 04 still refuses a
+selection that combines its phases with each other or with a recovery rule.
 
 ## Current facts and evidence
 

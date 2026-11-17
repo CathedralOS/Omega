@@ -645,26 +645,23 @@ mod allocation_input {
             }
         }
 
-        /// The legality analysis allocation runs on. A legality Omega 04
-        /// already established is reused, never recomputed; a selected
-        /// recovery rule that requires different allocator availability than
-        /// that analysis used refuses instead of silently using it.
+        /// The legality analysis allocation runs on uses the selected recovery
+        /// rule's availability, or all environment-allocatable views when no
+        /// recovery rule is selected. A rewrite's private availability is
+        /// reused only when it matches; otherwise its live ranges are kept and
+        /// legality is derived for allocation's own required view set.
         pub fn into_legality(
             self,
             required: Option<AllocatorAvailabilityRequirement>,
         ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError>
         {
+            let requirement = required
+                .unwrap_or(AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews);
             match self.analyses {
-                AllocationAnalyses::LiveRanges(ranges) => stage_optimized_allocation_legality(
-                    ranges,
-                    required.unwrap_or(
-                        AllocatorAvailabilityRequirement::AllEnvironmentAllocatableViews,
-                    ),
-                ),
-                AllocationAnalyses::Legality(legality) => match required {
-                    None => Ok(legality),
-                    Some(requirement) => legality.require_availability(requirement),
-                },
+                AllocationAnalyses::LiveRanges(ranges) => {
+                    stage_optimized_allocation_legality(ranges, requirement)
+                }
+                AllocationAnalyses::Legality(legality) => legality.for_availability(requirement),
             }
         }
     }

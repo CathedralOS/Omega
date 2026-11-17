@@ -289,17 +289,18 @@ impl StagedOptimizedAllocationLegality {
         ranges; ranges, liveness, selected, record, register_environment, selections, budget_per_pass
     );
 
-    /// Keep this analysis for a rule that requires `requirement`, refusing
-    /// when the analysis was staged under different allocator availability.
-    pub(crate) fn require_availability(
+    /// Reuse legality only for the same available views. A later consumer may
+    /// require a different set; derive that analysis from the unchanged live
+    /// ranges rather than letting an earlier rewrite constrain allocation.
+    pub(crate) fn for_availability(
         self,
         requirement: AllocatorAvailabilityRequirement,
     ) -> Result<Self, OptimizedAllocationLegalityCustodyError> {
         let required = materialize_availability(&self.ranges, requirement)?;
-        if required.receipt().identity() != self.availability.receipt().identity() {
-            return Err(OptimizedAllocationLegalityCustodyError::AvailabilityConflict);
+        if required.receipt().identity() == self.availability.receipt().identity() {
+            return Ok(self);
         }
-        Ok(self)
+        stage_optimized_allocation_legality_with_availability(self.ranges, required)
     }
 
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
@@ -343,8 +344,6 @@ pub enum OptimizedAllocationLegalityCustodyError {
     MissingRequiredActiveResidentRematerializationView(&'static str),
     /// An admitted analysis names other live ranges, registers or availability.
     AnalysisMismatch,
-    /// A rule requires other allocator availability than the analysis it was handed.
-    AvailabilityConflict,
 }
 
 failed_display!(
