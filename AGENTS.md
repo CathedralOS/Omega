@@ -299,7 +299,7 @@ immediately before building (run these from the checkout root):
   ```
 - **Windows (Git Bash):**
   ```bash
-  bash tools/agent_setup.sh --mbx-only; mbx setup --yes; mbx xtask doctor
+  bash tools/agent_setup.sh --mbx-only && mbx setup --yes && mbx xtask doctor
   ```
 
 See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin

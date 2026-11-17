@@ -40,8 +40,12 @@ remain outside these sources.
 The patch contains three focused adapter tests, selected with
 `mbx test --release --locked -p mbx-cache-rustc checksum_algorithm --lib` from the
 upstream source. Check the existing parallel-frontend option/key control nearby,
-and run scoped Clippy on that crate. Use the same release profile overrides as
-the builder when retaining its compiled outputs.
+and run Clippy on that crate with
+`mbx clippy --locked --release -p mbx-cache-rustc --all-targets --no-deps -- -D warnings`.
+The unchanged upstream core emits a recursion-depth future warning on the pinned
+nightly; `--no-deps` scopes linting to the changed adapter while leaving that
+dependency warning visible. Use the same release profile overrides as the builder
+when retaining its compiled outputs.
 
 After building xtask, the installer controls run without compiling mbx:
 
