@@ -645,6 +645,7 @@ machine build_entry() {{ forward("{bytes}" as +Name); }}
 #[test]
 fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
     assert_eq!(verdict(&forwarded("plain")), "accepted");
+    // The explicit qualification must form before `forward` can use it.
     let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&forwarded(r"pla\x00in")) else {
         panic!("not rejected");
     };
@@ -652,9 +653,10 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
     assert_eq!(
         statements,
         [
-            "cannot prove requires contract for call forward from build_entry: no_nul(self) \
-          (needs fact `no_nul(self)` here; establish it before the call via a prior contract \
-          guarantee, domain membership, or guard) in state `entry`"
+            "cannot prove the value of this cast is in the domain it adds in machine `build_entry` \
+             state `entry`: domain `[u8]::Name` requires `byte_observation::no_nul(&self[..])` \
+             (needs that fact about the operand here; establish it before the cast via a guard, \
+             a prior contract guarantee or a `requires` of this machine)"
         ]
     );
 }

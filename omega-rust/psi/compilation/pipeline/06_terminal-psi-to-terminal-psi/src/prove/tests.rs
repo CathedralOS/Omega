@@ -286,6 +286,67 @@ fn policy_translation_maps_bounds_only_with_the_required_headroom() {
 }
 
 #[test]
+fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let axioms = [Proposition::Equal(
+        result.clone(),
+        ScalarTerm::wrapping_integer_add(integer, input.clone(), literal(2)).unwrap(),
+    )];
+    // Searching this relation reaches the result's wrapping definition while
+    // the input bound is unfinished. The later direct endpoint is already a
+    // complete proof and must remain available to that headroom query.
+    let assumptions = [
+        Proposition::LessOrEqual(input.clone(), result.clone()),
+        Proposition::LessOrEqual(input.clone(), literal(9)),
+    ];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    let ScalarTerm::Value { id, .. } = input else {
+        unreachable!()
+    };
+    let bound = prover.bound(id, Direction::Upper).unwrap();
+    assert_eq!(bound.literal, IntegerValue::Unsigned(9));
+    proof_admission::accept_certificate(
+        &context,
+        &bound.proof.conclusion,
+        &assumptions,
+        &axioms,
+        &bound.proof,
+    )
+    .unwrap();
+    let goal = Proposition::LessOrEqual(literal(2), result.clone());
+    let proof = prover.prove(&goal).unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof).unwrap();
+    assert!(prover.activity.in_progress_bound_reuses > 0);
+
+    // With no headroom premise, 254 + 2 wraps to 0. A pending attempt to
+    // bound that same operand must never serve as evidence for its own guard.
+    assert!(
+        Prover::new(&context, &[], &axioms, &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+}
+
+#[test]
 fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
     let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();

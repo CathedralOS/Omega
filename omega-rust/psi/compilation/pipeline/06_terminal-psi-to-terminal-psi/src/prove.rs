@@ -299,7 +299,7 @@ struct Bound {
 #[derive(Debug, Clone)]
 enum Slot {
     Unknown,
-    InProgress,
+    InProgress(Option<Bound>),
     Done(Option<Bound>),
 }
 
@@ -312,6 +312,8 @@ pub struct ProofSearchActivity {
     sign_queries: usize,
     #[cfg(test)]
     contradiction_searches: usize,
+    #[cfg(test)]
+    in_progress_bound_reuses: usize,
 }
 
 impl ProofSearchActivity {
@@ -327,6 +329,9 @@ impl ProofSearchActivity {
             self.contradiction_searches = self
                 .contradiction_searches
                 .saturating_add(other.contradiction_searches);
+            self.in_progress_bound_reuses = self
+                .in_progress_bound_reuses
+                .saturating_add(other.in_progress_bound_reuses);
         }
     }
 }
@@ -2600,12 +2605,19 @@ impl<'a> Prover<'a> {
         let slot = self.bounds.get(value)?.get(direction.index())?;
         match slot {
             Slot::Done(bound) => return bound.clone(),
-            // A relation cycle among hypotheses: this branch contributes
-            // nothing, the others still do.
-            Slot::InProgress => return None,
+            // A recursive candidate may reuse an already completed proof,
+            // never the candidate currently being derived. With no such
+            // proof this relation cycle contributes nothing.
+            Slot::InProgress(bound) => {
+                #[cfg(test)]
+                if bound.is_some() {
+                    self.activity.in_progress_bound_reuses += 1;
+                }
+                return bound.clone();
+            }
             Slot::Unknown => {}
         }
-        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress;
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(None);
         let best = self.search(value, direction);
         self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best.clone());
         best
@@ -2616,20 +2628,31 @@ impl<'a> Prover<'a> {
             return None;
         };
         let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
-        let mut candidates = Vec::new();
-        candidates.extend(self.carrier(&subject, integer, direction));
+        let mut best = self.carrier(&subject, integer, direction);
+        // Direct endpoints require no recursive search. Make their proofs
+        // available before following relations or arithmetic definitions:
+        // a wrapping step may need precisely this value's headroom.
         for index in 0..self.facts.len() {
-            if let Some(bound) = self.bound_from_fact(index, &subject, integer, direction) {
-                candidates.push(bound);
+            if let Some(next) = self.literal_bound_from_fact(index, &subject, integer, direction)
+                && best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                })
+            {
+                best = Some(next);
             }
         }
-        candidates.into_iter().reduce(|best, next| {
-            if direction.prefers(integer.compare(next.literal, best.literal)) {
-                next
-            } else {
-                best
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
+        for index in 0..self.facts.len() {
+            if let Some(next) = self.bound_from_fact(index, &subject, integer, direction)
+                && best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                })
+            {
+                best = Some(next);
+                self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
             }
-        })
+        }
+        best
     }
 
     fn oriented(subject: &ScalarTerm, literal: ScalarTerm, direction: Direction) -> Proposition {
@@ -2696,6 +2719,74 @@ impl<'a> Prover<'a> {
             ),
         };
         Some((value, restated.ok()?))
+    }
+
+    /// A fact with a closed endpoint supplies a bound without consulting
+    /// any unfinished value bound. The kernel still checks its actual proof.
+    fn literal_bound_from_fact(
+        &self,
+        index: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        direction: Direction,
+    ) -> Option<Bound> {
+        match (&self.facts[index].proposition, direction) {
+            // Direct bounds.
+            (Proposition::LessOrEqual(left, literal), Direction::Upper)
+            | (Proposition::LessOrEqual(literal, left), Direction::Lower)
+                if left == subject && literal.integer_value().is_some() =>
+            {
+                let (literal, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
+                Some(Bound { literal, proof })
+            }
+            (Proposition::LessThan(left, literal), Direction::Upper)
+            | (Proposition::LessThan(literal, left), Direction::Lower)
+                if left == subject && literal.integer_value().is_some() =>
+            {
+                let (value, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
+                let adjacent = step(value, direction == Direction::Lower)?;
+                let conclusion = Self::oriented(
+                    subject,
+                    ScalarTerm::integer(integer, adjacent).ok()?,
+                    direction,
+                );
+                Some(Bound {
+                    literal: adjacent,
+                    proof: node(
+                        conclusion,
+                        ProofRule::IntegerOrderDiscreteness {
+                            relation: Box::new(proof),
+                        },
+                    ),
+                })
+            }
+            (Proposition::Equal(left, right), _)
+                if (left == subject && right.integer_value().is_some())
+                    || (right == subject && left.integer_value().is_some()) =>
+            {
+                // Orient the equality so the weakened `<=` points the right way.
+                let proof = self.facts[index].proof(&self.facts);
+                let wanted_left_is_subject = direction == Direction::Upper;
+                let proof = if (left == subject) == wanted_left_is_subject {
+                    proof
+                } else {
+                    flip(proof).ok()?
+                };
+                let literal = if left == subject { right } else { left };
+                let (literal, proof) =
+                    self.literal_endpoint(weaken(proof).ok()?, literal, direction)?;
+                Some(Bound { literal, proof })
+            }
+            _ => None,
+        }
     }
 
     /// A bound on `subject` from one fact, or `None` when the fact says
@@ -2779,60 +2870,6 @@ impl<'a> Prover<'a> {
                     PrimitiveJudgment::ReflexiveEquality,
                 );
                 Self::carrier_bound_from_image(subject, chained, unchanged, direction)
-            }
-            // Direct bounds.
-            (Proposition::LessOrEqual(left, literal), Direction::Upper)
-            | (Proposition::LessOrEqual(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
-            {
-                let (literal, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
-                Some(Bound { literal, proof })
-            }
-            (Proposition::LessThan(left, literal), Direction::Upper)
-            | (Proposition::LessThan(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
-            {
-                let (value, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
-                let adjacent = step(value, direction == Direction::Lower)?;
-                let conclusion = Self::oriented(
-                    subject,
-                    ScalarTerm::integer(integer, adjacent).ok()?,
-                    direction,
-                );
-                Some(Bound {
-                    literal: adjacent,
-                    proof: node(
-                        conclusion,
-                        ProofRule::IntegerOrderDiscreteness {
-                            relation: Box::new(proof),
-                        },
-                    ),
-                })
-            }
-            (Proposition::Equal(left, right), _)
-                if (left == subject && right.integer_value().is_some())
-                    || (right == subject && left.integer_value().is_some()) =>
-            {
-                // Orient the equality so the weakened `<=` points the right way.
-                let proof = self.facts[index].proof(&self.facts);
-                let wanted_left_is_subject = direction == Direction::Upper;
-                let proof = if (left == subject) == wanted_left_is_subject {
-                    proof
-                } else {
-                    flip(proof).ok()?
-                };
-                let literal = if left == subject { right } else { left };
-                let (literal, proof) =
-                    self.literal_endpoint(weaken(proof).ok()?, literal, direction)?;
-                Some(Bound { literal, proof })
             }
             // Relations to another value: chain through its bound.
             (Proposition::LessOrEqual(near, far), _) | (Proposition::LessThan(near, far), _)
