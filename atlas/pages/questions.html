@@ -30,7 +30,7 @@ h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: an
 .glance div { padding: var(--space-3); }
 .glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
 .glance span { color: var(--ink-muted); font: var(--type-label); }
-.atlas-nav { font: var(--type-label); }
+.atlas-nav { font: var(--type-body); }
 .atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
 .atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
 .atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
@@ -91,16 +91,11 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
 @media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
 
-/* The overview is a reading tool; ink selection is not a proof verdict. */
-.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
-.overview-page h1 { font: var(--type-heading); }
-.overview-page .lede { font: var(--type-body); max-width: 90ch; }
-.overview-page .publication { max-width: 100ch; }
-.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
-.overview-page .topline { grid-column: 2; grid-row: 1; }
-.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
-.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
-.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+/* The overview and subject pages share one reading and navigation layout. */
+.top h1 { font: var(--type-heading); }
+.source-details { font: var(--type-label); color: var(--ink-muted); }
+.source-details .meta { margin-top: var(--space-3); }
+.source-details .publication { margin-bottom: 0; }
 .flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
 .explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
 .explorer-heading p { margin: 0 0 var(--space-2); }
@@ -176,7 +171,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 
 .architecture { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); background: var(--surface); }
 .arch-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 16px 8px; }
-.arch-header h2 { font: var(--type-heading); margin: 0; }
+.arch-header h2 { font: var(--type-heading); margin: 0; padding: 0; border: 0; }
 .arch-header a { font: var(--type-label); color: var(--family-native); }
 .arch-badge { font: var(--type-label); color: var(--ink-muted); }
 .arch-legend,.arch-relations { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 6px 16px; font: var(--type-label); }
@@ -240,11 +235,10 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .architecture.is-enhanced .arch-viewport { overflow: hidden; height: max(500px,calc(100dvh - 300px)); touch-action: none; cursor: grab; }
 .architecture.is-enhanced .arch-svg { display: none; }
 .architecture.is-enhanced .arch-viewport.is-dragging { cursor: grabbing; }
-.architecture:fullscreen { width: 100%; height: 100%; overflow: auto; background: var(--surface); }
-.architecture:fullscreen .arch-viewport { height: calc(100dvh - 220px); }
-.overview-page .page { max-width: none; padding: 16px 24px 48px; gap: 16px; }
-.overview-page .top h1 { font-size: 28px; line-height: 34px; }
-.overview-page .top .publication { display: none; }
+.architecture:is(:fullscreen,.is-expanded) { width: 100%; height: 100%; overflow: auto; background: var(--surface); }
+.architecture:is(:fullscreen,.is-expanded) .arch-viewport { height: calc(100dvh - 220px); }
+
+.overview-page .page { max-width: 1440px; }
 .secondary-routes { grid-column: 1/-1; min-width: 0; border: 1px solid var(--rule); padding: 12px 16px; }
 .secondary-routes > summary { font: var(--type-subheading); }
 .secondary-routes .flow-explorer { margin-top: 16px; }
@@ -279,6 +273,72 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-header h2 { font-size: 28px; line-height: 34px; }
 .arch-extra input { width: auto; margin: 0; }
 .arch-extra { white-space: nowrap; }
+
+/* The overview shows the whole route. Stage explanations stay behind the
+   selected box, while the unusual source/data paths remain on the diagram. */
+.arch-reading { padding: var(--space-2) var(--space-3) var(--space-3); }
+.arch-overview-tools { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.arch-overview-tools p,.arch-overview-legend { margin: 0; font: var(--type-label); color: var(--ink-muted); }
+.arch-overview-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-2) 0; }
+.arch-attention { color: var(--trap); }
+.arch-overview-svg { display: block; width: 100%; height: auto; max-height: none; background: var(--surface); }
+.overview-stage-region { fill: none; stroke: var(--rule); stroke-width: 1; }
+.overview-node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-node.owner rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
+.overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
+.overview-node .overview-box-title { font: 500 20px var(--font-serif); }
+.overview-node.native text { fill: var(--ground); }
+.overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
+.overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
+.overview-edge.request path { stroke-dasharray: 7 5; }
+.overview-edge.attention path { stroke: var(--trap); stroke-width: 2.2; stroke-dasharray: 7 5; }
+.overview-edge.check path { stroke: var(--checked); stroke-width: 2.5; }
+.overview-edge.check text,.overview-action.check { fill: var(--checked); }
+.overview-edge.attention text,.overview-action.attention { fill: var(--trap); }
+.overview-edge text,.overview-action { fill: var(--ink); font: 400 16px var(--font-serif); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.overview-return-label { fill: var(--trap); font: 400 17px var(--font-serif); }
+.overview-verdict { fill: var(--checked); font: 400 17px var(--font-serif); }
+.overview-layer-label { fill: var(--ink-muted); font: 500 16px var(--font-serif); }
+.overview-layer-note { fill: var(--ink-muted); font: 400 16px var(--font-serif); }
+.overview-firewall { fill: none; stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 5; }
+#overview-arrow path { fill: var(--ink-muted); }
+#overview-return path { fill: var(--trap); }
+#overview-check path { fill: var(--checked); }
+.legend-psi::before,.legend-native::before { content: ''; display: inline-block; width: 20px; height: 10px; margin-right: var(--space-2); border: 2px solid var(--ink-muted); }
+.legend-native::before { background: var(--ink); border-color: var(--ink); }
+.legend-check { color: var(--checked); }
+.arch-component-list { margin-top: var(--space-3); }
+.architecture-notes { margin-top: var(--space-3); padding: var(--space-3); border-top: var(--border-hairline) solid var(--rule); }
+.architecture-notes > summary { font: var(--type-subheading); }
+.arch-component-list > summary,.arch-full-map > summary { padding: var(--space-3); font: var(--type-subheading); }
+.arch-layer { padding: var(--space-3); margin-block: var(--space-2); border-left: var(--space-1) solid var(--family); background: var(--ground); }
+.arch-layer > summary,.arch-layer dt { font: var(--type-subheading); }
+.arch-layer dd { margin: 0 0 var(--space-4); max-width: 68ch; }
+.arch-layer dd p { margin-block: var(--space-2); }
+.arch-full-map { border-top: var(--border-hairline) solid var(--rule); }
+.architecture:is(:fullscreen,.is-expanded):not(.show-full-map) .arch-full-map,.architecture:is(:fullscreen,.is-expanded):not(.show-full-map) .arch-component-list { display: none; }
+.architecture:is(:fullscreen,.is-expanded).show-full-map .arch-reading { display: none; }
+.architecture:is(:fullscreen,.is-expanded) .arch-overview-svg { max-height: none; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; gap: var(--space-2) var(--space-3); padding-bottom: var(--space-3); }
+.overview-page .topline { grid-column: 1/-1; }
+.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { font: var(--type-heading); }
+.overview-page .source-details { align-self: center; }
+.overview-page .source-details[open] { grid-column: 1/-1; }
+@media (max-width: 700px) {
+  .arch-reading { padding: var(--space-2); }
+  .arch-overview-svg { max-height: none; }
+  .arch-overview-tools { align-items: start; }
+  .overview-page .top { grid-template-columns: minmax(0,1fr); }
+}
+
+.architecture.is-expanded { position: fixed; inset: 0; z-index: 10; width: 100%; height: 100dvh; overflow: auto; background: var(--surface); }
+.overview-page .page { grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.overview-page .atlas-nav summary { display: block; padding: var(--space-2) var(--space-3); margin-bottom: 0; }
+.overview-page .atlas-nav .sticky { position: static; max-height: none; overflow: visible; }
+.overview-page .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); }
 </style>
 </head>
 <body class="">
@@ -286,34 +346,38 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
   <div class="page">
     <header class="top">
       <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
-      <div class="eyebrow">Open decisions · page 14 of 15</div>
+      <div class="eyebrow">Open decisions</div>
       <h1>Open questions</h1>
       <p class="lede">Design choices that still need a ruling; recommendations remain proposals.</p>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas"><code>3c8dc4234c71</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/questions.md">Page source</a></span></div>
+      <details class="source-details"><summary>Source snapshot and evidence</summary>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas"><code>c03bdc1aef0e</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas/questions.md">Page source</a></span></div>
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
-      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
     </header>
-
-    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 15 pages</summary>
+    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Browse Atlas</summary>
       <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
-      <h2>The codebase</h2><ul>
-<li><a href="repository.html"><span class="number">01</span>Codebase map</a></li>
-<li><a href="psi.html"><span class="number">02</span>Psi stages</a></li>
-<li><a href="omega.html"><span class="number">03</span>Omega stages and realization</a></li>
-<li><a href="build-and-packages.html"><span class="number">04</span>Build and packages</a></li>
-<li><a href="cli.html"><span class="number">05</span>CLI</a></li>
-<li><a href="interpreter.html"><span class="number">06</span>Psi interpreter</a></li>
-<li><a href="bootstrap.html"><span class="number">07</span>Bootstrap</a></li>
-<li><a href="tools.html"><span class="number">08</span>Tools and verification</a></li>
-<li><a href="library.html"><span class="number">09</span>Bundled library</a></li>
+      <ul><li><a href="../index.html">Overview</a></li></ul>
+<h2>Compiler</h2><ul>
+<li><a href="architecture.html">Interactive architecture</a></li>
+<li><a href="psi.html">Psi stages</a></li>
+<li><a href="omega.html">Omega stages and realization</a></li>
+<li><a href="build-and-packages.html">Build and packages</a></li>
+<li><a href="interpreter.html">Psi interpreter</a></li>
+<li><a href="library.html">Bundled library</a></li>
 </ul>
-<h2>Planning</h2><ul>
-<li><a href="pipeline-map.html"><span class="number">10</span>Original pipeline map</a></li>
-<li><a href="pipeline-current.html"><span class="number">11</span>Reviewed pipeline routes</a></li>
-<li><a href="architecture.html"><span class="number">12</span>Interactive architecture</a></li>
-<li><a href="foundation-backend-plan.html"><span class="number">13</span>Foundation and backend plan</a></li>
-<li><a href="questions.html" aria-current="page"><span class="number">14</span>Open questions</a></li>
-<li><a href="rulings.html"><span class="number">15</span>Owner rulings</a></li></ul>
+<h2>Repository</h2><ul>
+<li><a href="repository.html">Codebase map</a></li>
+<li><a href="cli.html">CLI</a></li>
+<li><a href="bootstrap.html">Bootstrap</a></li>
+<li><a href="tools.html">Tools and verification</a></li>
+</ul>
+<h2>Plans and evidence</h2><ul>
+<li><a href="pipeline-current.html">Reviewed pipeline routes</a></li>
+<li><a href="foundation-backend-plan.html">Foundation and backend plan</a></li>
+<li><a href="questions.html" aria-current="page">Open questions</a></li>
+<li><a href="rulings.html">Owner rulings</a></li>
+<li><a href="pipeline-map.html">Original pipeline map</a></li>
+</ul>
       <p id="no-pages" hidden>No matching pages.</p>
     </details></nav>
     <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
@@ -345,7 +409,7 @@ runtime dependency rule explicitly with these consumers. Placing a compiler
 coordinator or source lookup behind a generic host interface is not allowed.</p>
 <p><strong>Planning obligation:</strong> classify the <code>bounded-process</code>, <code>platform-custody</code> and
 filesystem-authority exports by real consumer and operation. The
-<a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
+<a href="https://github.com/CathedralOS/Omega/blob/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
 The exact packages/names follow that classification; they are not already
 ratified by the owner.</p>
 <h2 id="q-b-which-buildsource-information-may-cross-the-boundary">Q-B. Which Build/source information may cross the boundary?</h2>
@@ -448,7 +512,7 @@ ordering argument. Once those gates close, the <a href="foundation-backend-plan.
 implements all replacements and retires the old routes together. These pages do
 not announce that feasibility, implementation or compiler validation has already
 been completed.</p></main>
-    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/3c8dc4234c71244a6dc47f238c180a72e193f3ce/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/c03bdc1aef0eb8ddcf949edd92162bb6625b87c9/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
   </div>
   <script>(() => {
   const root = document.documentElement;
@@ -467,7 +531,7 @@ been completed.</p></main>
   label();
   const wide = matchMedia('(min-width: 980px)');
   const pageList = document.getElementById('page-list');
-  const fitNavigation = () => { pageList.open = wide.matches; };
+  const fitNavigation = () => { pageList.open = wide.matches && !document.body.classList.contains('overview-page'); };
   wide.addEventListener('change', fitNavigation);
   fitNavigation();
   const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
@@ -703,7 +767,7 @@ been completed.</p></main>
   const rows = [...svg.querySelectorAll('.arch-row-label')].map(t=>({x:+t.getAttribute('x'),y:+t.getAttribute('y'),text:t.textContent}));
   const lines = new Map([...svg.querySelectorAll('.arch-node')].map(g=>[g.dataset.node,[...g.querySelectorAll('text')].map(t=>({y:+t.getAttribute('y'),text:t.textContent}))]));
   const dashes = {data:[],invoke:[8,5],dependency:[2,5],construction:[12,4,2,4],validation:[2,7],normative:[12,7],bypass:[6,4]};
-  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false;
+  let selected=null, moved=false, frame=0, size={w:0,h:0}, allRelations=false, expandTrigger=null;
   const make = (tag,text) => {const e=document.createElement(tag);if(text)e.textContent=text;return e;};
   const dimensions = () => ({w:viewport.clientWidth,h:viewport.clientHeight});
   const color = name => getComputedStyle(root).getPropertyValue('--'+name).trim();
@@ -792,6 +856,13 @@ been completed.</p></main>
     cameraChanged();if(focus)heading.focus({preventScroll:true});
   }
   root.classList.add('is-enhanced');root.querySelector('.arch-toolbar').hidden=false;
+  root.querySelectorAll('.overview-node[data-layer]').forEach(link=>{
+    link.addEventListener('click',()=>{
+      if(root.classList.contains('is-expanded'))expandTrigger?.click();
+      const layer=root.querySelector('#layer-'+link.dataset.layer);
+      layer.closest('.arch-component-list').open=true;layer.open=true;
+    });
+  });
   canvas.hidden=false;svg.hidden=true;root.querySelector('.arch-minimap').hidden=false;
   // The DOM outline and grouped selector expose every node without relying on
   // canvas hit targets or a screen reader interpreting pixels.
@@ -802,7 +873,14 @@ been completed.</p></main>
   root.querySelectorAll('[data-map]').forEach(button=>button.addEventListener('click',async()=>{
     const action=button.dataset.map;
     if(action==='fit')fit();if(action==='reset')reset();if(action==='in')zoom(camera.scale*1.3);if(action==='out')zoom(camera.scale/1.3);if(action==='natural')zoom(1);
-    if(action==='fullscreen')try{if(document.fullscreenElement===root)await document.exitFullscreen();else await root.requestFullscreen();}catch{button.textContent='Fullscreen unavailable';}
+    if(action==='fullscreen'){
+      root.classList.toggle('show-full-map',!!button.closest('.arch-full-map'));
+      const expanded=root.classList.toggle('is-expanded');
+      if(expanded)expandTrigger=button;
+      root.querySelectorAll('[data-map="fullscreen"]').forEach(control=>{control.textContent=expanded?'Close expanded view':'Expand diagram';});
+      if(!expanded)expandTrigger?.focus({preventScroll:true});
+      invalidate();
+    }
   }));
   root.querySelector('.arch-all-relations').addEventListener('change',e=>{allRelations=e.target.checked;invalidate();});
   jump.addEventListener('change',()=>{if(jump.value)select(jump.value,true);});
@@ -832,7 +910,17 @@ been completed.</p></main>
     const actions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
     if(actions[e.key]){e.preventDefault();camera.x+=actions[e.key][0];camera.y+=actions[e.key][1];cameraChanged();}
   });
-  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);}});
+  root.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&!detail.hidden){e.preventDefault();clear(true);return;}
+    if(!root.classList.contains('is-expanded'))return;
+    if(e.key==='Escape'){e.preventDefault();expandTrigger.click();return;}
+    if(e.key==='Tab'){
+      const controls=[...root.querySelectorAll('a[href],button,select,input,summary,[tabindex="0"]')].filter(control=>control.getClientRects().length);
+      const first=controls[0],last=controls.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
+    }
+  });
   new ResizeObserver(()=>{const next=dimensions();if(size.w&&size.h){camera.x+=(size.w-next.w)/2/camera.scale;camera.y+=(size.h-next.h)/2/camera.scale;}size=next;invalidate();}).observe(viewport);
   new MutationObserver(invalidate).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',invalidate);
@@ -840,7 +928,6 @@ been completed.</p></main>
   const watchDpr=()=>matchMedia('(resolution: '+devicePixelRatio+'dppx)').addEventListener('change',()=>{invalidate();watchDpr();},{once:true});
   watchDpr();
   document.fonts.ready.then(invalidate);document.fonts.addEventListener('loadingdone',invalidate);
-  document.addEventListener('fullscreenchange',()=>{root.querySelector('[data-map="fullscreen"]').textContent=document.fullscreenElement===root?'Exit fullscreen':'Fullscreen';invalidate();});
   reset();
 })();
 </script>
