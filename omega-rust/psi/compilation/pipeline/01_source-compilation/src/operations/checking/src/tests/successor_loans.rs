@@ -545,8 +545,7 @@ fn indexed_successors_keep_their_original_incoming_loan() {
     };
     // Tail-call cycles become state headers; acyclic helpers remain ordinary calls.
     // Keep this real cycle so the test exercises captured storage on arrivals.
-    let mut input = permission_inputs(
-        r#"
+    const SOURCE: &str = r#"
 data Shape [copy] { value: u64; }
 machine entry(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64, again: bool) -> u64
 requires index < 2 {
@@ -565,8 +564,8 @@ requires index < 2 {
         }
     }
 }
-"#,
-    );
+"#;
+    let mut input = permission_inputs(SOURCE);
     let graph_from_source = || {
         terminal_borrowed_storage_graph_from(
             &input.module,
@@ -665,6 +664,47 @@ requires index < 2 {
         .is_err(),
         "an indexed path without its actual capture cannot establish a loan"
     );
+    let mut stale = graph_from_source();
+    let mut changed = 0;
+    for candidate in &mut stale {
+        let stale_point = (candidate.entry.0, u32::MAX);
+        assert!(!candidate.flow.contains_key(&stale_point));
+        for step in candidate.flow.values_mut() {
+            for edge in &mut step.successors {
+                for binding in &mut edge.bindings {
+                    if let Some((_, capture)) = &mut binding.captured_storage {
+                        // Keep the complete source path, but name a capture
+                        // operation that does not exist in this machine.
+                        *capture = terminal_semantics::borrowed_storage::Projection::new(
+                            &capture.captured_address_path().unwrap(),
+                        )
+                        .at(stale_point);
+                        changed += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(changed > 0);
+    let mut stale =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &stale);
+    assert!(
+        stale
+            .captured_storage_family(machine.id, *at, descriptor)
+            .is_err()
+    );
+    assert!(
+        terminal_semantics::borrowed_loan_source(
+            &input.module,
+            machine,
+            &mut stale,
+            *at,
+            descriptor,
+            std::iter::empty(),
+        )
+        .is_err(),
+        "a stale Some capture cannot establish an incoming loan"
+    );
     let mut ambiguous = graph_from_source();
     let mut crossed = 0;
     for candidate in &mut ambiguous {
@@ -739,9 +779,65 @@ requires index < 2 {
         ),
         Err("borrowed successor exceeds its original incoming access")
     );
+    // Calling a nested machine directly gives it its own input references.
+    // On a later cycle, shape can come from shapes[index]. Both must permit
+    // forwarding without becoming one parent loan.
+    let mut transported =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+    let mut multiple_sources = 0;
+    for candidate in &input.module.machines {
+        for block in &candidate.blocks {
+            let at = (block.id, u32::try_from(block.operations.len()).unwrap());
+            for parameter in &block.structural_parameters {
+                if parameter.access == StructuralAccess::Owned
+                    || terminal_semantics::descriptor_results::is_descriptor(
+                        input.module.structural_types.iter(),
+                        parameter.structural_type,
+                    )
+                {
+                    continue;
+                }
+                let descriptor = DescriptorLocation::whole(parameter.place);
+                let family = transported
+                    .captured_storage_family(candidate.id, at, &descriptor)
+                    .expect("every borrowed header retains its complete input addresses");
+                if family.len() < 2 {
+                    continue;
+                }
+                terminal_semantics::borrowed_loan_sources(
+                    &input.module,
+                    candidate,
+                    &mut transported,
+                    at,
+                    &descriptor,
+                    std::iter::empty(),
+                )
+                .expect("every actual incoming resource must permit transport");
+                assert!(
+                    terminal_semantics::borrowed_loan_source(
+                        &input.module,
+                        candidate,
+                        &mut transported,
+                        at,
+                        &descriptor,
+                        std::iter::empty(),
+                    )
+                    .is_err(),
+                    "different incoming resources cannot establish one immediate parent"
+                );
+                multiple_sources += 1;
+            }
+        }
+    }
+    assert!(
+        multiple_sources > 0,
+        "the independent member must exercise distinct incoming resources"
+    );
+    drop(transported);
     let identity = machine.id;
     drop(analysis);
     drop(missing);
+    drop(stale);
     drop(ambiguous);
     // Check the entered machine's complete loan judgment, including both
     // successors, with the full source module and its actual tables intact.
@@ -769,4 +865,12 @@ requires index < 2 {
         "continuing an input must not create a loan"
     );
     assert!(conflicts.is_empty(), "{conflicts:?}");
+
+    // Every independently lowered member must check too. Use fresh input:
+    // the preparation above has already populated its checking tables.
+    let whole = judge(Ok(permission_inputs(SOURCE)));
+    assert!(
+        matches!(&whole, Ok(RouteVerdict::Accepted(_))),
+        "the unchanged indexed-reference cycle must check as a whole: {whole:?}"
+    );
 }

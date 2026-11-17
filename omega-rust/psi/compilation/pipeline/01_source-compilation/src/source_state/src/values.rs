@@ -5174,6 +5174,10 @@ pub mod expression {
         pub type_reference: crate::source_state::types::TypeReferenceHandle,
         pub path: Box<[Identifier]>,
         pub application: Option<Box<StaticSymbolApplication>>,
+        /// An open selected machine keeps its complete prepared binder tuple.
+        /// This records source context and grants no invocation authority.
+        pub authored_machine_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub const_literal: Option<numeric_literals::IntegerLiteral>,
         pub evidence_projection: Option<EvidenceProjection>,
         pub symbol: SymbolHandle,
@@ -5191,6 +5195,7 @@ pub mod expression {
             if self.symbol.is_valid()
                 || self.type_reference.is_valid()
                 || self.application.is_some()
+                || self.authored_machine_application.is_valid()
                 || self.const_literal.is_some()
                 || self.evidence_projection.is_some()
             {

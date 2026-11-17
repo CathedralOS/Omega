@@ -45,7 +45,7 @@ impl Held<'_, '_> {
                 let row = storage.log[begin..end]
                     .iter()
                     .rev()
-                    .find(|row| row.position <= self.up_to && overlap(&row.lineage, &backed))
+                    .find(|row| row.position <= self.up_to && overlap(&row.backing, &backed))
                     .ok_or(crate::checking::Unbound::Unproved(
                         "the scalar observation has no local indexed store correspondence",
                     ))?;
@@ -54,15 +54,21 @@ impl Held<'_, '_> {
                         "the last overlapping store supplies no scalar operand",
                     ));
                 };
-                if row.lineage.root != backed.root
-                    || row.lineage.segments.len() != backed.segments.len()
+                let written = row.backing.single_place().ok_or(crate::checking::Unbound::Unproved(
+                    "an indexed store has more than one possible cell",
+                ))?;
+                let selected = backed.single_place().ok_or(crate::checking::Unbound::Unproved(
+                    "an indexed observation has more than one possible cell",
+                ))?;
+                if written.root != selected.root
+                    || written.segments.len() != selected.segments.len()
                 {
                     return Err(crate::checking::Unbound::Unproved(
                         "the store and observed cell have different storage paths",
                     ));
                 }
                 let mut uncertain = false;
-                for (written, observed) in row.lineage.segments.iter().zip(&backed.segments) {
+                for (written, observed) in written.segments.iter().zip(&selected.segments) {
                     if written == observed {
                         continue;
                     }
@@ -112,7 +118,7 @@ impl Held<'_, '_> {
                 alternatives.push(ScalarTerm::value(value, scalar_type));
                 self.up_to = position;
                 self.point = Some(before);
-                observed = backed;
+                observed = backed.place;
             }
         })();
         (self.up_to, self.point) = saved;

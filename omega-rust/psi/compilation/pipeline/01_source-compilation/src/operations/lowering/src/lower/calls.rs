@@ -842,6 +842,7 @@ impl Lowering<'_> {
         acknowledgement: terminal_psi::CallAcknowledgement,
         source: SourceOrigin,
         static_reach_binding: Option<u32>,
+        static_reach_arguments: &[terminal_psi::static_reach::StaticReachArgument],
     ) -> Checked<()> {
         if let EvaluatedCallTarget::Boundary { boundary } = target {
             return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
@@ -890,6 +891,16 @@ impl Lowering<'_> {
         }
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
+        if !static_reach_arguments.is_empty() {
+            self.static_reach_applications.push(
+                terminal_psi::static_reach::StaticReachApplication {
+                    caller: self.id,
+                    site: InvocationSite::InvokeNoNormal(edge),
+                    callee: machine,
+                    arguments: static_reach_arguments.to_vec(),
+                },
+            );
+        }
         self.terminate(Terminator::InvokeNoNormal {
             edge,
             static_reach_binding,
@@ -1002,7 +1013,11 @@ impl Lowering<'_> {
         arguments: &[Expression],
         designated: Option<crate::lowering::body::DesignatedOperands>,
         result: Option<ValueType>,
-        (source, static_reach_binding): (SourceOrigin, Option<u32>),
+        (source, static_reach_binding, static_reach_arguments): (
+            SourceOrigin,
+            Option<u32>,
+            &[terminal_psi::static_reach::StaticReachArgument],
+        ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
         if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
@@ -1045,6 +1060,7 @@ impl Lowering<'_> {
                 acknowledgement,
                 source,
                 static_reach_binding,
+                static_reach_arguments,
             )?;
             return Ok(Reached::Ended(source));
         }
@@ -1197,6 +1213,21 @@ impl Lowering<'_> {
         }
         emitted.required_contract = canonical_contract;
         emitted.static_reach_binding = static_reach_binding;
+        if !static_reach_arguments.is_empty() {
+            let EvaluatedCallTarget::Machine(callee) = target else {
+                return Err(
+                    self.internal("a static callback application has no exact machine call")
+                );
+            };
+            self.static_reach_applications.push(
+                terminal_psi::static_reach::StaticReachApplication {
+                    caller: self.id,
+                    site: InvocationSite::Operation(operation),
+                    callee,
+                    arguments: static_reach_arguments.to_vec(),
+                },
+            );
+        }
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.homes.is_empty() {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();

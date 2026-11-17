@@ -2489,6 +2489,111 @@ pub mod borrowed_storage {
             Some(result)
         }
 
+        /// Validate the complete retained address without erasing dynamic
+        /// capture coordinates. A window is complete but not a single path;
+        /// erased or forgotten addresses never form a complete storage family.
+        pub fn validate_captured_storage_address(
+            &self,
+            mut position_exists: impl FnMut(Position) -> bool,
+        ) -> Result<Option<Vec<StructuralPathSegment>>, &'static str> {
+            let steps = self
+                .address
+                .as_ref()
+                .ok_or("captured storage address was forgotten")?;
+            let mut path = Vec::new();
+            let mut window = false;
+            for step in steps {
+                match step {
+                    AddressStep::Path(segments, at) => {
+                        if segments.iter().any(|step| step.runtime_index().is_some())
+                            && at.is_none()
+                        {
+                            return Err("captured storage selector has no formation position");
+                        }
+                        if at.is_some_and(|at| !position_exists(at)) {
+                            return Err("captured storage selector formation position is stale");
+                        }
+                        path.extend_from_slice(segments);
+                    }
+                    AddressStep::Window { at, .. } => {
+                        if !position_exists(*at) {
+                            return Err("captured storage window formation position is stale");
+                        }
+                        window = true;
+                    }
+                    AddressStep::ErasedElement | AddressStep::ErasedWindow => {
+                        return Err("captured storage address has erased runtime coordinates");
+                    }
+                }
+            }
+            Ok((!window).then_some(path))
+        }
+
+        /// Reference completeness must inspect every captured crossing. The
+        /// overlap-oriented `indirect` flag intentionally skips a leading
+        /// Referent and cannot authenticate that descriptor's entry identity.
+        pub(crate) fn has_captured_reference_crossing(&self) -> Result<bool, &'static str> {
+            self.validate_captured_storage_address(|_| true)?;
+            Ok(self.address.as_ref().ok_or("captured storage address was forgotten")?.iter().any(|step| {
+                matches!(step, AddressStep::Path(path, _) if path.contains(&StructuralPathSegment::Referent))
+            }))
+        }
+
+        /// The complete finite captured path, including Referent crossings.
+        /// Unlike captured_storage_path, this grants no inline-storage or loan
+        /// permission. Windows retain an address account but are not one path.
+        pub fn captured_address_path(&self) -> Result<Vec<StructuralPathSegment>, &'static str> {
+            self.validate_captured_storage_address(|_| true)?
+                .ok_or("captured storage window is not a finite structural path")
+        }
+
+        /// Compare complete addresses while keeping each runtime selector's
+        /// capture position. This grants no source, type or loan authority.
+        pub fn captured_address_is_prefix_of(&self, other: &Self) -> bool {
+            let (Some(parent), Some(child)) = (&self.address, &other.address) else {
+                return false;
+            };
+            let complete = |steps: &[AddressStep]| {
+                steps.iter().all(|step| match step {
+                    AddressStep::Path(path, at) => path.iter().all(|segment| match segment {
+                        StructuralPathSegment::RuntimeIndex { .. } => at.is_some(),
+                        StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::RepresentationView { .. }
+                        | StructuralPathSegment::Referent => true,
+                        StructuralPathSegment::AllElements
+                        | StructuralPathSegment::FixedRange { .. } => false,
+                    }),
+                    AddressStep::Window { .. }
+                    | AddressStep::ErasedElement
+                    | AddressStep::ErasedWindow => false,
+                })
+            };
+            if !complete(parent) || !complete(child) {
+                return false;
+            }
+            // Step boundaries can differ after composition. Compare the retained
+            // segments directly; both lists were checked as complete paths above.
+            fn segments(
+                steps: &[AddressStep],
+            ) -> impl Iterator<Item = (&StructuralPathSegment, Option<Position>)> {
+                steps
+                    .iter()
+                    .filter_map(|step| match step {
+                        AddressStep::Path(path, at) => Some((path.as_slice(), *at)),
+                        _ => None,
+                    })
+                    .flat_map(|(path, at)| path.iter().map(move |segment| (segment, at)))
+            }
+            let mut child = segments(child);
+            segments(parent).all(|(segment, at)| {
+                child.next().is_some_and(|(selected, captured)| {
+                    segment == selected && (segment.runtime_index().is_none() || at == captured)
+                })
+            })
+        }
+
         pub fn window(start: ValueId, end: ValueId, position: Position) -> Self {
             Self::new(&[]).with_window(start, end, position)
         }
@@ -2995,6 +3100,108 @@ pub mod borrowed_storage {
                 window.stripped_origin_path(),
                 None,
                 "a stripped window has no known start"
+            );
+        }
+
+        #[test]
+        fn captured_address_prefix_keeps_field_extensions_and_each_selector_capture() {
+            let first = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+            let second = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
+            let later = (semantic_vocabulary::BlockId::new(2).unwrap(), 1);
+            let selector = |value| StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(value).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            };
+            let field = StructuralPathSegment::Field(TerminalIdentityIndex(7));
+            let parent = Projection::new(&[selector(1)]).at(first);
+            let child = parent.then(&Projection::new(std::slice::from_ref(&field)));
+            assert_ne!(parent, child);
+            assert!(parent.captured_address_is_prefix_of(&child));
+            assert!(!child.captured_address_is_prefix_of(&parent));
+            assert!(parent.captured_address_is_prefix_of(&parent));
+
+            let nested = parent.then(&Projection::new(&[field.clone(), selector(2)]).at(second));
+            let nested_child = nested.then(&Projection::new(std::slice::from_ref(&field)));
+            assert!(parent.captured_address_is_prefix_of(&nested_child));
+            assert!(nested.captured_address_is_prefix_of(&nested_child));
+            let recaptured = parent.then(&Projection::new(&[field, selector(2)]).at(later));
+            assert_eq!(nested.captured_at, recaptured.captured_at);
+            assert_eq!(
+                nested.captured_address_path(),
+                recaptured.captured_address_path()
+            );
+            assert!(!nested.captured_address_is_prefix_of(&recaptured));
+            assert!(!recaptured.captured_address_is_prefix_of(&nested_child));
+        }
+
+        #[test]
+        fn captured_address_prefix_refuses_missing_erased_and_non_path_accounts() {
+            let first = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+            let later = (semantic_vocabulary::BlockId::new(1).unwrap(), 1);
+            let selector = StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(1).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            };
+            let parent = Projection::new(std::slice::from_ref(&selector)).at(first);
+            let recaptured = Projection::new(std::slice::from_ref(&selector)).at(later);
+            assert!(!parent.captured_address_is_prefix_of(&recaptured));
+            let unsupported = [
+                Projection::new(&[selector]),
+                parent.clone().without_captured_address(),
+                parent.clone().without_runtime_coordinates(),
+                parent.clone().with_window(
+                    ValueId::new(2).unwrap(),
+                    ValueId::new(3).unwrap(),
+                    first,
+                ),
+                parent.then(&Projection::new(&[StructuralPathSegment::AllElements])),
+                parent.then(&Projection::new(&[StructuralPathSegment::FixedRange {
+                    start: 0,
+                    end: 1,
+                }])),
+            ];
+            for account in unsupported {
+                assert!(!account.captured_address_is_prefix_of(&parent));
+                assert!(!parent.captured_address_is_prefix_of(&account));
+                assert!(!Projection::new(&[]).captured_address_is_prefix_of(&account));
+            }
+        }
+
+        #[test]
+        fn full_captured_address_keeps_reference_crossings_without_inline_permission() {
+            let path = vec![
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::FixedIndex(1),
+            ];
+            let leading = Projection::new(&[StructuralPathSegment::Referent]);
+            assert!(!leading.indirect);
+            assert_eq!(leading.has_captured_reference_crossing(), Ok(true));
+            assert_eq!(
+                leading.captured_storage_path(),
+                Some(vec![StructuralPathSegment::Referent])
+            );
+            let projection = Projection::new(&path);
+            assert_eq!(projection.captured_address_path(), Ok(path));
+            assert!(
+                projection.captured_storage_path().is_none(),
+                "physical address recovery must not grant inline loan permission"
+            );
+            let window = Projection::window(
+                ValueId::new(1).unwrap(),
+                ValueId::new(2).unwrap(),
+                (semantic_vocabulary::BlockId::new(1).unwrap(), 0),
+            );
+            assert_eq!(window.validate_captured_storage_address(|_| true), Ok(None));
+            assert_eq!(
+                window.captured_address_path(),
+                Err("captured storage window is not a finite structural path")
+            );
+            assert_eq!(
+                projection
+                    .without_captured_address()
+                    .captured_address_path(),
+                Err("captured storage address was forgotten")
             );
         }
 

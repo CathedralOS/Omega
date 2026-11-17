@@ -5,6 +5,17 @@ We emit executable container images (`emit_executable_image`) over a sealed
 custody (`final_image_validation`) for retained-artifact verifiers.
 */
 
+fn require_ordinary_image_root(
+    artifact: &crate::ObjectArtifact,
+) -> Result<(), diagnostics::Diagnostic> {
+    if artifact.installed_entry_execution().is_some() {
+        return Err(diagnostics::Diagnostic::error(
+            "an installed private body cannot be emitted as an ordinary image root",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) mod dynamic_elf {
     use diagnostics::Diagnostic;
     use image::{
@@ -149,6 +160,11 @@ pub(crate) mod dynamic_elf {
         artifact: &ObjectArtifact,
         interpreter: NormalizedElfInterpreterPlan,
     ) -> Result<DynamicElfImageEmission, Box<DynamicElfOrchestrationError>> {
+        super::require_ordinary_image_root(artifact).map_err(|diagnostic| {
+            Box::new(DynamicElfOrchestrationError::ProductionBridge(Box::new(
+                DynamicElfImageEmissionError { diagnostic },
+            )))
+        })?;
         let prepared_entry =
             crate::entries::hosted_unit_entry::prepare(artifact).map_err(|diagnostic| {
                 Box::new(DynamicElfOrchestrationError::HostedEntryPreparation(
@@ -173,7 +189,7 @@ pub(crate) mod dynamic_elf {
             })?;
         let admitted = emit_elf_dynamic_executable(image, interpreter)
             .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
-        let output = match validated_output(artifact, &prepared, &admitted) {
+        let output = match emitted_output(artifact, &admitted) {
             Ok(output) => output,
             Err(diagnostic) => {
                 return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
@@ -184,9 +200,8 @@ pub(crate) mod dynamic_elf {
         Ok(DynamicElfImageEmission { admitted, output })
     }
 
-    fn validated_output(
+    fn emitted_output(
         artifact: &ObjectArtifact,
-        prepared: &crate::entries::hosted_unit_entry::PreparedParts<'_>,
         admitted: &ValidatedElfDynamicExecutable,
     ) -> Result<EmittedImageOutput, Diagnostic> {
         let target = artifact.target();
@@ -201,17 +216,7 @@ pub(crate) mod dynamic_elf {
                 "admitted dynamic ELF target does not match the exact Linux object artifact",
             ));
         }
-        let mut output = emitted_direct_executable_output(admitted.output().clone());
-        let validation = validate_terminal_image(
-            artifact,
-            prepared.object,
-            prepared.relocations,
-            prepared.text_bytes,
-            prepared.entry_shim.clone(),
-            &output,
-        )?;
-        output.compiler_text_validation = Some(validation);
-        Ok(output)
+        Ok(emitted_direct_executable_output(admitted.output().clone()))
     }
 
     pub(crate) fn validate_dynamic_elf_image_emission(
@@ -219,7 +224,7 @@ pub(crate) mod dynamic_elf {
         emission: &DynamicElfImageEmission,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
-        let expected = derive_output(artifact, &emission.admitted)?;
+        let expected = derive_output(artifact, &emission.admitted, &emission.output)?;
         if emission.output != expected {
             return Err(Diagnostic::error(
                 "dynamic ELF production output drifted from exact admitted-byte custody",
@@ -231,11 +236,27 @@ pub(crate) mod dynamic_elf {
     fn derive_output(
         artifact: &ObjectArtifact,
         admitted: &ValidatedElfDynamicExecutable,
+        retained: &EmittedImageOutput,
     ) -> Result<EmittedImageOutput, Diagnostic> {
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let output = validated_output(artifact, &prepared, admitted)?;
+        let mut output = emitted_output(artifact, admitted)?;
+        let replayed = validate_terminal_image(
+            artifact,
+            prepared.object,
+            prepared.relocations,
+            prepared.text_bytes,
+            prepared.entry_shim.clone(),
+            &output,
+        )?;
+        super::final_image_validation::authenticate_retained_compiler_evidence(
+            retained.compiler_text_validation,
+            retained.compiler_function_validation,
+            replayed,
+            None,
+        )?;
+        output.compiler_text_validation = retained.compiler_text_validation;
         let mut replayed_image = image::build_final_image(FinalImageInput {
             target: artifact.target(),
             import_program: &artifact.imports,
@@ -779,6 +800,109 @@ pub(crate) mod final_image_validation {
         }
     }
 
+    /// Fresh images carry no replay report. Authenticate an older producer's
+    /// supplied report only after independently checking the actual bytes.
+    /// A function report cannot stand alone: it commits to the text report.
+    pub(crate) fn authenticate_retained_compiler_evidence(
+        text: Option<CompilerTextValidationEvidence>,
+        functions: Option<image::CompilerFunctionValidationEvidence>,
+        expected_text: CompilerTextValidationEvidence,
+        expected_functions: Option<image::CompilerFunctionValidationEvidence>,
+    ) -> Result<(), Diagnostic> {
+        let Some(text) = text else {
+            return if functions.is_none() {
+                Ok(())
+            } else {
+                Err(Diagnostic::error(
+                    "compiler-function validation evidence has no retained text evidence",
+                ))
+            };
+        };
+        if text != expected_text {
+            return Err(Diagnostic::error(
+                "terminal executable image retained stale final-text validation evidence",
+            ));
+        }
+        if functions != expected_functions {
+            return Err(Diagnostic::error(
+                "terminal executable image retained stale compiler-function validation evidence",
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod retained_evidence_tests {
+        use super::authenticate_retained_compiler_evidence as authenticate;
+        use image::{
+            CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
+            CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence,
+            EncodedCompilerTextDigest, FinalCompilerTextDigest,
+        };
+        fn text_evidence(encoded_digest: [u8; 32]) -> CompilerTextValidationEvidence {
+            let mut evidence = CompilerTextValidationEvidence {
+                encoded_text_digest: EncodedCompilerTextDigest::from_digest(encoded_digest),
+                final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
+                relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
+                    [3; 32],
+                ),
+                derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
+                encoded_text_report_fingerprint: 11,
+                final_compiler_text_report_fingerprint: 12,
+                relocation_envelope_report_fingerprint: 13,
+                checked_instruction_validation_report_fingerprint: 14,
+                checked_instruction_footprint_report_fingerprint: 15,
+                derivation_report_fingerprint: 16,
+                text_relocation_count: 17,
+                checked_instruction_validation_count: 18,
+            };
+            evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            evidence
+        }
+        fn function_evidence() -> CompilerFunctionValidationEvidence {
+            CompilerFunctionValidationEvidence {
+                function_count: 1,
+                instruction_count: 5,
+                zero_width_instruction_count: 3,
+                frame_prologue_byte_count: 4,
+                frame_epilogue_byte_count: 8,
+                fragment_manifest_report_fingerprint: 6,
+                frame_application_report_fingerprint: 7,
+                boundary_contract_report_fingerprint: Some(11),
+                final_region_binding_report_fingerprint: 14,
+                final_text_validation_report_fingerprint: 15,
+            }
+        }
+
+        #[test]
+        fn fresh_images_need_no_report_but_legacy_reports_must_match_their_route() {
+            let text = text_evidence([1; 32]);
+            let functions = function_evidence();
+            for expected in [None, Some(functions)] {
+                authenticate(None, None, text, expected).unwrap();
+                authenticate(Some(text), expected, text, expected).unwrap();
+            }
+            assert!(authenticate(None, Some(functions), text, Some(functions)).is_err());
+            assert!(authenticate(Some(text), Some(functions), text, None).is_err());
+            assert!(authenticate(Some(text), None, text, Some(functions)).is_err());
+        }
+
+        #[test]
+        fn supplied_legacy_reports_cannot_hide_stale_text_or_function_custody() {
+            let text = text_evidence([1; 32]);
+            let functions = function_evidence();
+            let stale_text = text_evidence([2; 32]);
+            let mut stale_functions = functions;
+            stale_functions.final_region_binding_report_fingerprint += 1;
+            assert!(
+                authenticate(Some(stale_text), Some(functions), text, Some(functions)).is_err()
+            );
+            assert!(
+                authenticate(Some(text), Some(stale_functions), text, Some(functions)).is_err()
+            );
+        }
+    }
+
     pub(crate) fn validate_terminal_image(
         artifact: &ObjectArtifact,
         object: &object_file::ObjectPlan,
@@ -787,11 +911,7 @@ pub(crate) mod final_image_validation {
         entry_shim: Option<EntryShim>,
         output: &EmittedImageOutput,
     ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
-        if artifact.installed_entry_execution().is_some() {
-            return Err(Diagnostic::error(
-                "an installed private body cannot be emitted as an ordinary image root",
-            ));
-        }
+        super::require_ordinary_image_root(artifact)?;
         let expected_imports = object
             .layout
             .symbols
@@ -1806,6 +1926,7 @@ pub(crate) mod image_output {
                 artifact.target
             )));
         }
+        super::require_ordinary_image_root(artifact)?;
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
@@ -1827,22 +1948,9 @@ pub(crate) mod image_output {
             },
             ObjectFormat::Coff => image_pe::emit_pe_x86_64_executable(image, subsystem),
         }?;
-        let mut output = emitted_direct_executable_output(output);
-        let text_validation = validate_terminal_image(
-            artifact,
-            prepared.object,
-            prepared.relocations,
-            prepared.text_bytes,
-            prepared.entry_shim.clone(),
-            &output,
-        )?;
-        output.compiler_function_validation =
-            crate::object::function_fragments::reporting::summarize(
-                artifact,
-                &output,
-                &text_validation,
-            )?;
-        output.compiler_text_validation = Some(text_validation);
+        // Writers resolve fixups and place emitted regions. Independent replay
+        // belongs to retained-artifact receiving checks and backend tests.
+        let output = emitted_direct_executable_output(output);
         Ok(ExecutableImage {
             companions: crate::companion_images::emit(artifact),
             psi: artifact.psi,
@@ -1935,17 +2043,12 @@ pub(crate) mod image_output {
         }
         let function_validation =
             crate::object::function_fragments::reporting::summarize(artifact, output, &recomputed)?;
-        if output.compiler_text_validation != Some(recomputed) {
-            return Err(Diagnostic::error(
-                "terminal executable image retained stale final-text validation evidence",
-            ));
-        }
-        if output.compiler_function_validation != function_validation {
-            return Err(Diagnostic::error(
-                "terminal executable image retained stale compiler-function validation evidence",
-            ));
-        }
-        Ok(())
+        super::final_image_validation::authenticate_retained_compiler_evidence(
+            output.compiler_text_validation,
+            output.compiler_function_validation,
+            recomputed,
+            function_validation,
+        )
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

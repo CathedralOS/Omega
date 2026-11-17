@@ -205,7 +205,7 @@ impl<'a> Storage<'a> {
                 // loan. Use that backing for reads and overlapping writes.
                 let backed = self.backing(references, &leaf, block, 0, concerns)?;
                 self.observations[index(block.get())]
-                    .entry(backed)
+                    .entry(backed.place)
                     .or_default()
                     .push(Observation {
                         point: ProgramPoint::BlockEntry(block),

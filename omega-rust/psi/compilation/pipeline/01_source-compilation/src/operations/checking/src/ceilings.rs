@@ -13,6 +13,7 @@ use terminal_psi::{
     BoundaryParameterKind, TerminalCallableEnvelope, TerminalCallableInvocation as Entry,
     TerminalMachine, TerminalModule,
 };
+use terminal_semantics::callable_envelopes::CallableOperationalView;
 use terminal_semantics::callable_values::{
     CallableFormalInput, CallableInvocationSite, CallableParameter, CallableValuePossibilities,
     CallableValueProgram, CallableValueQuery, resolve_callable_value, terminal_callable_values,
@@ -49,6 +50,7 @@ pub(crate) enum Permission {
 #[derive(Clone, Copy)]
 enum Envelope<'a> {
     Runtime(&'a TerminalCallableEnvelope),
+    Generic(&'a terminal_check_tables::contracts::StaticCallableEnvelope),
     /// These source-only signatures are not encoded, sealed or executable.
     /// An unknown bound stays unknown when its other contract axes are known.
     Abstract(&'a terminal_check_tables::contracts::RequirementCeilings),
@@ -57,6 +59,10 @@ impl<'a> Envelope<'a> {
     fn reach(self) -> Option<&'a [ServiceId]> {
         match self {
             Self::Runtime(envelope) => Some(&envelope.service_reach),
+            Self::Generic(envelope) => match &envelope.service_reach {
+                terminal_check_tables::contracts::StaticServiceCeiling::Open => None,
+                terminal_check_tables::contracts::StaticServiceCeiling::Closed(row) => Some(row),
+            },
             Self::Abstract(envelope) => match &envelope.reaches {
                 terminal_check_tables::contracts::Ceiling::Inferred => None,
                 terminal_check_tables::contracts::Ceiling::Authored(row) => Some(row),
@@ -66,6 +72,10 @@ impl<'a> Envelope<'a> {
     fn entries(self) -> Option<Vec<Entry>> {
         match self {
             Self::Runtime(envelope) => Some(envelope.invocations.clone()),
+            Self::Generic(envelope) => Some(envelope.invocations.clone()),
+            Self::Abstract(envelope) if envelope.envelope.is_some() => {
+                Some(envelope.envelope.as_ref()?.invocations.clone())
+            }
             Self::Abstract(envelope) => match &envelope.invokes {
                 terminal_check_tables::contracts::Ceiling::Inferred => None,
                 terminal_check_tables::contracts::Ceiling::Authored(row) => {
@@ -77,18 +87,21 @@ impl<'a> Envelope<'a> {
     fn suspension(self) -> Option<bool> {
         match self {
             Self::Runtime(envelope) => Some(envelope.suspends),
+            Self::Generic(envelope) => Some(envelope.suspends),
             Self::Abstract(envelope) => envelope.suspension,
         }
     }
     fn blocking(self) -> Option<bool> {
         match self {
             Self::Runtime(envelope) => Some(envelope.blocks),
+            Self::Generic(envelope) => Some(envelope.blocks),
             Self::Abstract(envelope) => envelope.blocking,
         }
     }
     fn termination(self) -> &'a terminal_psi::TerminalCallableTermination {
         match self {
             Self::Runtime(envelope) => &envelope.termination,
+            Self::Generic(envelope) => &envelope.termination,
             Self::Abstract(envelope) => &envelope.termination,
         }
     }
@@ -218,6 +231,14 @@ fn machine_envelope<'a>(
     }
     if let Some(envelope) = runtime {
         return Ok(Envelope::Runtime(envelope));
+    }
+    if let Ok(position) = elaboration
+        .generic_callable_declarations
+        .binary_search_by_key(&machine, |row| row.machine)
+    {
+        return Ok(Envelope::Generic(
+            &elaboration.generic_callable_declarations[position].envelope,
+        ));
     }
     if !elaboration.requirements.is_empty()
         && elaboration.module.callables.contracts.is_empty()
@@ -801,6 +822,110 @@ fn validate_check_form_envelopes(
     Ok(())
 }
 
+fn validate_requirement_envelopes(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<()> {
+    use terminal_check_tables::contracts::{Ceiling, StaticServiceCeiling};
+    let module = &elaboration.module;
+    let mut requirements = elaboration.requirements.clone();
+    requirements.sort_unstable();
+    let declarations = crate::checking::static_contracts::requirement_declarations(elaboration)?;
+    for (id, row) in elaboration.requirement_ceilings.iter() {
+        let declaration = declarations.get(id).and_then(|source| *source);
+        let Some(envelope) = &row.envelope else {
+            if declaration.is_some() {
+                return Err(fault(
+                    id,
+                    "abstract requirement lost its declared operational row",
+                ));
+            }
+            continue;
+        };
+        let declaration = declaration.ok_or_else(|| {
+            fault(
+                id,
+                "abstract requirement has no complete source declaration",
+            )
+        })?;
+        if envelope != &declaration.envelope
+            || row.suspension != Some(envelope.suspends)
+            || row.blocking != Some(envelope.blocks)
+            || row.termination != envelope.termination
+        {
+            return Err(fault(
+                id,
+                "abstract envelope differs from its complete source declaration",
+            ));
+        }
+        let machine = module
+            .machine(id)
+            .ok_or_else(|| fault(id, "abstract envelope names no exact machine"))?;
+        if requirements.binary_search(&id).is_err()
+            || !machine.blocks.is_empty()
+            || machine.declaration.is_some()
+            || module.callables.machine_envelope(id).is_some()
+        {
+            return Err(fault(
+                id,
+                "abstract envelope does not belong to a bodyless requirement",
+            ));
+        }
+        let reach = match (&row.reaches, &envelope.service_reach) {
+            (Ceiling::Inferred, StaticServiceCeiling::Open) => None,
+            (Ceiling::Authored(expected), StaticServiceCeiling::Closed(actual))
+                if expected == actual =>
+            {
+                Some(actual.as_slice())
+            }
+            _ => {
+                return Err(fault(
+                    id,
+                    "abstract envelope changes its declared service ceiling",
+                ));
+            }
+        };
+        let entries = envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Service(service) => Some(*service),
+                Entry::Parameter(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !matches!(&row.invokes, Ceiling::Authored(expected) if expected == &entries)
+            || reach.is_some_and(|reach| reach != machine.published_service_ceiling)
+            || entries != machine.published_synchronous_entries
+            || envelope.suspends != machine.published_may_suspend
+            || envelope.blocks != machine.published_may_block
+            || (machine.contract.termination == semantic_vocabulary::Termination::Terminates)
+                != matches!(
+                    envelope.termination,
+                    terminal_psi::TerminalCallableTermination::Terminates { .. }
+                )
+        {
+            return Err(fault(
+                id,
+                "abstract envelope differs from its exact published header",
+            ));
+        }
+        terminal_semantics::callable_envelopes::validate_callable_bounds(
+            module,
+            reach,
+            CallableOperationalView {
+                invocations: &envelope.invocations,
+                suspends: envelope.suspends,
+                blocks: envelope.blocks,
+                termination: &envelope.termination,
+            },
+            &machine.parameter_order,
+            &machine.parameters,
+            &machine.structural_parameters,
+        )
+        .map_err(|reason| fault(id, reason))?;
+    }
+    Ok(())
+}
+
 pub(crate) fn judge(
     elaboration: &terminal_check_tables::program::Elaboration,
 ) -> Checked<Vec<Excess>> {
@@ -835,6 +960,7 @@ fn judge_axes(
         ));
     }
     validate_check_form_envelopes(elaboration)?;
+    validate_requirement_envelopes(elaboration)?;
     let Some(first) = module.machines.first().map(|machine| machine.id) else {
         return Ok(Vec::new());
     };
@@ -980,6 +1106,13 @@ fn judge_axes(
             .invocations
             .values()
             .any(|call| matches!(call.callee, Callee::Selected { .. }))
+    }) || elaboration.requirement_ceilings.values().any(|row| {
+        row.envelope.as_ref().is_some_and(|envelope| {
+            envelope
+                .invocations
+                .iter()
+                .any(|entry| matches!(entry, Entry::Parameter(_)))
+        })
     }) || elaboration.check_form_envelopes.iter().any(|row| {
         row.envelope
             .invocations
@@ -1043,7 +1176,16 @@ fn judge_axes(
                 at,
             };
             let mut reached = Contributions::default();
-            if let Some(reach) = envelope.reach() {
+            if let Some(applied) =
+                crate::checking::static_reach::call_reach(elaboration, caller.id, row.site, call.inputs)?
+            {
+                reached.reach.extend(applied.services);
+                if applied.open && ceiling.reach().is_some() {
+                    return Err(context.unsupported(
+                        "open abstract service reach cannot establish a finite caller ceiling",
+                    ));
+                }
+            } else if let Some(reach) = envelope.reach() {
                 reached.reach.extend_from_slice(reach);
             } else if ceiling.reach().is_some() {
                 return Err(context.unsupported(

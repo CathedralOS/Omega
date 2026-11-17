@@ -362,6 +362,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
                 callee: crate::lowering::body::CallTarget::Boundary { boundary },
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments: vec![operand],
                 designated: None,
             },

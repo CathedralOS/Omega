@@ -610,6 +610,55 @@ terminates
     let requirement = form.module.machine(instance).unwrap();
     assert!(requirement.blocks.is_empty() && requirement.declaration.is_none());
     assert!(
+        !form.module.declaration_contracts.is_empty(),
+        "the requirement follows independently allocated declaration contracts"
+    );
+    let header = form
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_ref())
+        .find(|header| header.machine == instance)
+        .unwrap();
+    assert_ne!(header.header.proof.id.get(), instance.get());
+    assert_eq!(header.header.proof.id, requirement.contract.id);
+    crate::checking::static_contracts::requirement_declarations(&form).unwrap();
+
+    let mut forged = form.clone();
+    let header = forged
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_mut())
+        .find(|header| header.machine == instance)
+        .unwrap();
+    header.header.proof.id = semantic_vocabulary::ContractId::new(instance.get()).unwrap();
+    let refused = crate::checking::static_contracts::requirement_declarations(&forged).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.detail,
+        "abstract requirement has a different source header coordinate"
+    );
+    let mut forged = form.clone();
+    let declaration = forged
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .find(|declaration| {
+            declaration
+                .instance
+                .as_ref()
+                .is_some_and(|header| header.machine == instance)
+        })
+        .unwrap();
+    declaration.signature = None;
+    let refused = crate::checking::static_contracts::requirement_declarations(&forged).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.detail,
+        "abstract requirement instance has no source signature"
+    );
+    assert!(
         form.module.callables.machine_envelope(instance).is_none(),
         "the abstract contract does not acquire a runtime envelope"
     );

@@ -56,7 +56,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-use super::{Lineage, Shape, Storage, index, lineage};
+use super::{Backing, Lineage, Shape, Storage, index, lineage};
 use crate::checking::refusal;
 use terminal_check_tables::RefusalReason;
 
@@ -81,7 +81,7 @@ pub(super) enum Stored {
     /// A call may write through contents whose backing cannot be enumerated.
     /// This invalidates possible aliases; it establishes no replacement value.
     UnknownPayloadWrite {
-        receiving: Lineage,
+        receiving: Backing,
         contents: terminal_semantics::descriptor_results::UnknownDescriptorContents,
     },
 }
@@ -106,8 +106,8 @@ impl Stored {
 pub(super) struct Logged {
     /// The logical destination is retained for permission checks after the
     /// reaching-write owner resolves its separately captured backing.
-    pub(super) captured: Lineage,
-    pub(super) lineage: Lineage,
+    pub(super) destination: Lineage,
+    pub(super) backing: Backing,
     pub(super) block: BlockId,
     /// The normal continuation of its operation, as `Graph::locate` orders
     /// points: one past the operation's index in the block.
@@ -252,8 +252,8 @@ impl<'a> Storage<'a> {
             for (position, operation) in block.operations.iter().enumerate() {
                 for (lineage, stored) in self.stored_by(references, block, position, value_types)? {
                     log.push(Logged {
-                        captured: lineage.clone(),
-                        lineage,
+                        destination: lineage.clone(),
+                        backing: Backing::direct(lineage),
                         block: block.id,
                         position: position + 1,
                         operation: operation.id,
@@ -784,7 +784,7 @@ impl<'a> Storage<'a> {
                 .get(slot)
                 .and_then(|rows| rows.get(matched[slot]))
                 .ok_or_else(|| self.foreign(concerns, "an operation's store has no write row"))?;
-            if row.0 != store.lineage || row.1 != store.stored.content() {
+            if row.0 != store.destination || row.1 != store.stored.content() {
                 return Err(self.foreign(concerns, "a write row is not what its operation stores"));
             }
             matched[slot] += 1;

@@ -604,8 +604,10 @@ impl<'t> Program<'t> {
             self.read_failure_at(refusal, symbol, "the signature")
         })?;
         self.admitted_declarations.include(symbol);
-        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
-            || (self.rigid && matches!(reading, Reading::Implementation))
+        if matches!(
+            reading,
+            Reading::GenericEntry | Reading::Alternative(_) | Reading::Applied(_)
+        ) || (self.rigid && matches!(reading, Reading::Implementation))
         {
             let (machine, _) = self.declaration(id, symbol)?;
             let mut binders = self
@@ -640,13 +642,26 @@ impl<'t> Program<'t> {
             let (machine, _) = self.declaration(id, symbol)?;
             let parameters = self.typed.machine_type_parameters(machine);
             if !parameters.is_empty()
-                && parameters
-                    .iter()
-                    .all(|parameter| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+                && parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                            | crate::source_state::data::TypeParameterKind::Const { .. }
+                    )
+                })
             {
-                if parameters.len() != scope.len()
+                if parameters
+                    .iter()
+                    .filter(|parameter| {
+                        parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                    })
+                    .count()
+                    != scope.len()
                     || !parameters
                         .iter()
+                        .filter(|parameter| {
+                            parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                        })
                         .zip(&scope)
                         .all(|(parameter, (binder, _))| parameter.symbol == *binder)
                 {
@@ -717,6 +732,10 @@ impl<'t> Program<'t> {
         let scope = if let Some(references) = references {
             let (machine, _) = self.declaration(caller, symbol)?;
             let parameters = self.typed.machine_type_parameters(machine);
+            let parameters = parameters
+                .iter()
+                .filter(|parameter| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+                .collect::<Vec<_>>();
             if parameters.len() != references.len() {
                 return Err(refuse(
                     caller,
@@ -742,51 +761,16 @@ impl<'t> Program<'t> {
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
         self.fixed_inputs.push(id);
-        self.applications.push(id);
-        Ok(id)
-    }
-
-    pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
-        if let Some(id) = self
-            .applications
-            .iter()
-            .copied()
-            .find(|id| self.symbols.get(*id) == Some(&symbol))
-        {
-            return Ok(id);
-        }
-        // Inherited binder occurrences belong to this same generic body graph.
-        // Independently declared generic callees retain their dependency/SCC edge.
-        let root = self
-            .symbols
-            .get(MachineId::new(1).expect("one is nonzero"))
-            .and_then(|symbol| self.typed.machine_by_symbol(*symbol));
-        let local =
+        let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
-                .machine_by_symbol(symbol)
-                .zip(root)
-                .is_some_and(|(machine, root)| {
-                    let parameters = self.typed.machine_type_parameters(machine);
-                    !parameters.is_empty()
-                        && parameters.iter().all(|parameter| {
-                            self.typed.symbols.get(parameter.symbol).parent != machine.symbol
-                                && self
-                                    .typed
-                                    .machine_type_parameters(root)
-                                    .iter()
-                                    .any(|original| original == parameter)
-                        })
-                });
-        if local && let Some((id, _)) = self.symbols.iter().find(|(_, known)| **known == symbol) {
-            return Ok(id);
-        }
-        let id = self.next_identity()?;
-        self.read_machine(id, symbol, Reading::GenericEntry)?;
-        // Const inputs are ordinary rigid scalar formals, so this form can
-        // read the actual generic body and infer its complete effects. A
-        // bodyless placeholder cannot infer an omitted service ceiling.
-        // Retain the application for its independent template check too.
-        if !local {
+                .machine_type_parameters(machine)
+                .iter()
+                .all(|parameter| {
+                    self.typed.symbols.get(parameter.symbol).parent != symbol
+                        && self.generic_binders.contains(&parameter.symbol)
+                })
+        });
+        if !inherited {
             self.applications.push(id);
         }
         Ok(id)
@@ -1003,6 +987,8 @@ impl<'t> Program<'t> {
             if self.symbols.get(id) == Some(&symbol)
                 && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
                 && self.value_parameters.get(id) == Some(&parameters)
+                && self.scopes.get(id) == Some(&self.scope)
+                && self.source_scopes.get(id) == Some(&self.source_scope)
             {
                 return Ok(id);
             }
@@ -1024,8 +1010,8 @@ impl<'t> Program<'t> {
         self.names.push(names);
         self.value_parameters.push(parameters);
         self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
-        self.source_scopes.push(Default::default());
+        self.scopes.push(self.scope.clone());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
@@ -1371,7 +1357,32 @@ impl<'t> Program<'t> {
             }
             // Applied at one type argument per parameter, all type
             // parameters; so is one alternative of a finite family.
-            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
+            Reading::Applied(arguments) => {
+                if parameters
+                    .iter()
+                    .filter(|parameter| {
+                        parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                    })
+                    .count()
+                    != arguments.len()
+                    || parameters.iter().any(|parameter| {
+                        !matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Type
+                                | crate::source_state::data::TypeParameterKind::Const { .. }
+                                | crate::source_state::data::TypeParameterKind::Machine {
+                                    contract:
+                                        crate::source_state::data::MachineParameterContract::Structural(_)
+                                }
+                        )
+                    })
+                {
+                    return unserved_parameters(
+                        "application differs from its complete type and const binder roster",
+                    );
+                }
+            }
+            Reading::Alternative(arguments) => {
                 if parameters.len() != arguments.len()
                     || parameters.iter().any(|parameter| {
                         parameter.kind != crate::source_state::data::TypeParameterKind::Type
@@ -1704,6 +1715,7 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_type_parameters(machine)
                 .iter()
+                .filter(|parameter| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
                 .map(|parameter| parameter.symbol)
                 .zip(arguments.iter().copied())
                 .collect(),
@@ -1757,7 +1769,7 @@ impl<'t> Program<'t> {
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
         // must reproduce this exact allocation.
-        let prepared = if matches!(reading, Reading::GenericEntry)
+        let prepared = if matches!(reading, Reading::GenericEntry | Reading::Applied(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
             Some(self.prepare_const_scope(id, machine, state)?)

@@ -153,6 +153,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -1569,6 +1570,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
             ExpressionKind::Call {
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
@@ -2218,6 +2220,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                         callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -3222,6 +3225,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
@@ -4253,6 +4257,7 @@ fn returned_span_store(stored: u128) -> (crate::lowering::Elaboration, Discharge
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
+                            static_reach_arguments: Vec::new(),
                             callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4880,6 +4885,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
+                            static_reach_arguments: Vec::new(),
                             callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4941,6 +4947,7 @@ fn peeking(argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
@@ -4993,6 +5000,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
                 ExpressionKind::Call {
                     required_contract: None,
                     static_reach_binding: None,
+                    static_reach_arguments: Vec::new(),
                     callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -5099,6 +5107,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,

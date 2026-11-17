@@ -322,6 +322,87 @@ enum Slot {
     Done(Option<Bound>),
 }
 
+/// Bound construction needs a fact naming the queried value. Keep its original
+/// ordinal so both passes retain their first proof when endpoints tie. Other
+/// searches, including contradiction, still read the complete fact context.
+struct BoundFacts {
+    by_value: IdTable<ValueId, Vec<usize>>,
+    fallback: Vec<usize>,
+}
+
+#[derive(Default)]
+struct BoundFactCursor {
+    value_position: usize,
+    fallback_position: usize,
+}
+
+impl BoundFacts {
+    fn new(facts: &[Fact], declarations: &IdTable<ValueId, Option<usize>>) -> Self {
+        let mut result = Self {
+            by_value: declarations.map(|_, _| Vec::new()),
+            fallback: Vec::new(),
+        };
+        for (index, fact) in facts.iter().enumerate() {
+            // These are the forms read by literal_bound_from_fact,
+            // bound_from_fact and compound_bound_from_fact. A closed false
+            // fact or a disjunction remains available to their own searches.
+            if !matches!(
+                fact.proposition,
+                Proposition::LessOrEqual(..)
+                    | Proposition::LessThan(..)
+                    | Proposition::Equal(..)
+                    | Proposition::IntegerMathEqual(..)
+                    | Proposition::IntegerMathLessOrEqual(..)
+            ) {
+                continue;
+            }
+            let complete = fact.proposition.visit_value_ids(|value| {
+                if let Some(indices) = result.by_value.get_mut(value)
+                    && indices.last() != Some(&index)
+                {
+                    indices.push(index);
+                }
+            });
+            if !complete {
+                // Opaque terms need the ordinary matcher even when the
+                // visitor exposed no subject. Partial visits may also have
+                // indexed this fact; the ordinal merge removes that duplicate.
+                result.fallback.push(index);
+            }
+        }
+        result
+    }
+
+    fn next(&self, value: ValueId, cursor: &mut BoundFactCursor) -> Option<usize> {
+        let local = self
+            .by_value
+            .get(value)
+            .and_then(|indices| indices.get(cursor.value_position))
+            .copied();
+        let fallback = self.fallback.get(cursor.fallback_position).copied();
+        match (local, fallback) {
+            (Some(local), Some(fallback)) => {
+                if local <= fallback {
+                    cursor.value_position += 1;
+                }
+                if fallback <= local {
+                    cursor.fallback_position += 1;
+                }
+                Some(local.min(fallback))
+            }
+            (Some(index), None) => {
+                cursor.value_position += 1;
+                Some(index)
+            }
+            (None, Some(index)) => {
+                cursor.fallback_position += 1;
+                Some(index)
+            }
+            (None, None) => None,
+        }
+    }
+}
+
 /// Searches started during one explicit proof invocation. Callers retain the
 /// activity across certificate reuse to detect any additional search.
 #[derive(Debug, Default)]
@@ -341,6 +422,10 @@ pub struct ProofSearchActivity {
     /// Nodes emitted for the candidate fact, excluding the opposite search.
     #[cfg(test)]
     refutation_fact_nodes: usize,
+    #[cfg(test)]
+    bound_value_searches: usize,
+    #[cfg(test)]
+    bound_fact_visits: usize,
 }
 
 impl ProofSearchActivity {
@@ -369,6 +454,12 @@ impl ProofSearchActivity {
             self.refutation_fact_nodes = self
                 .refutation_fact_nodes
                 .saturating_add(other.refutation_fact_nodes);
+            self.bound_value_searches = self
+                .bound_value_searches
+                .saturating_add(other.bound_value_searches);
+            self.bound_fact_visits = self
+                .bound_fact_visits
+                .saturating_add(other.bound_fact_visits);
         }
     }
 }
@@ -396,6 +487,9 @@ pub(crate) struct Prover<'a> {
     /// `[upper, lower]` in the exact declared value namespace. A contract
     /// witness may begin at any real formal ID, not only at value one.
     bounds: IdTable<ValueId, [Slot; 2]>,
+    /// Derived once from this context's immutable facts; every branch builds
+    /// its own index through Prover::new rather than sharing proof answers.
+    bound_facts: BoundFacts,
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
@@ -638,6 +732,7 @@ impl<'a> Prover<'a> {
             .collect();
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::checking::known::TransportInputs::new(equations.len());
+        let bound_facts = BoundFacts::new(&facts, &definitions);
         let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
         Self {
             activity,
@@ -654,6 +749,7 @@ impl<'a> Prover<'a> {
             arrival_definitions,
             transport,
             bounds,
+            bound_facts,
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
@@ -2740,12 +2836,21 @@ impl<'a> Prover<'a> {
         let ScalarType::Integer(integer) = self.values.scalar_type(value)? else {
             return None;
         };
+        #[cfg(test)]
+        {
+            self.activity.bound_value_searches += 1;
+        }
         let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
         let mut best = self.carrier(&subject, integer, direction);
         // Direct endpoints require no recursive search. Make their proofs
         // available before following relations or arithmetic definitions:
         // a wrapping step may need precisely this value's headroom.
-        for index in 0..self.facts.len() {
+        let mut candidates = BoundFactCursor::default();
+        while let Some(index) = self.bound_facts.next(value, &mut candidates) {
+            #[cfg(test)]
+            {
+                self.activity.bound_fact_visits += 1;
+            }
             if let Some(next) = self.literal_bound_from_fact(index, &subject, integer, direction)
                 && best.as_ref().is_none_or(|current| {
                     direction.prefers(integer.compare(next.literal, current.literal))
@@ -2755,7 +2860,12 @@ impl<'a> Prover<'a> {
             }
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
-        for index in 0..self.facts.len() {
+        let mut candidates = BoundFactCursor::default();
+        while let Some(index) = self.bound_facts.next(value, &mut candidates) {
+            #[cfg(test)]
+            {
+                self.activity.bound_fact_visits += 1;
+            }
             let current = best.as_ref().map(|bound| bound.literal);
             if let Some(next) = self.bound_from_fact(index, &subject, integer, direction, current)
                 && best.as_ref().is_none_or(|current| {

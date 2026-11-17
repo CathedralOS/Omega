@@ -41,6 +41,7 @@ pub mod identity;
 pub mod ownership;
 pub mod proof;
 pub mod service_schemas;
+pub mod static_reach;
 pub use service_schemas::{
     TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
     TerminalServiceSchema,

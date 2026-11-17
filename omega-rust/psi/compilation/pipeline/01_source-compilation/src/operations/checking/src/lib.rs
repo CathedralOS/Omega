@@ -76,6 +76,7 @@ mod refinement;
 mod result_summaries;
 mod reuse;
 mod static_contracts;
+mod static_reach;
 mod verdict;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -957,7 +958,9 @@ fn check_prepared_machine(
             Ok(Discharged::Certificate(evidence)) if stores => {
                 let owner = storage.owner(operation, clause, concerns)?;
                 restoring.push((
-                    storage.capture_owner(references, operation, owner, concerns)?,
+                    storage
+                        .capture_owner(references, operation, owner, concerns)?
+                        .owner,
                     operation,
                 ));
                 Ok(Discharged::Certificate(evidence))
@@ -969,10 +972,12 @@ fn check_prepared_machine(
                 if stores && storage.untouched(references, operation, &owner, concerns)? {
                     Ok(Discharged::Preserved)
                 } else {
+                    let captured = storage.capture_owner(references, operation, owner, concerns)?;
                     windows.push(places::Window {
                         obligation,
                         opened_by: operation,
-                        owner: storage.capture_owner(references, operation, owner, concerns)?,
+                        owner: captured.owner,
+                        backing: captured.backing,
                         initial: zeroes,
                         restored: Vec::new(),
                     });

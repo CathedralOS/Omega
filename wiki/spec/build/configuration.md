@@ -50,10 +50,12 @@ and packaging. There are no debug/release or O1/O2/O3 optimization categories.
 [Optimization phases](optimizations.md#phase-and-product-boundaries)
 owns phase vocabulary, canonical selection, and fail-closed execution.
 
-Hosted/freestanding environment, default providers, calling policies, fault and
-resource supply belong to the selected target profile, not duplicated mutable
-Build flags. Project role, roots, dependencies, outputs, image intent, and
-provider selection remain build facts. Target-qualified bindings select facts;
+Hosted/freestanding environment, default providers, fault and resource supply
+belong to the selected target profile, independent of mutable Build flags.
+The compiler realizes the requirement's [calling convention](calling_plans.md#default-calling-convention)
+for that target. An unannotated requirement with no inherited policy uses
+Omega's convention. Project role, roots, dependencies, outputs, image intent,
+and provider selection remain build facts. Target-qualified bindings select facts;
 they do not redefine target policy. The compiler checks
 [hardware authority](permissions.md#where-the-operation-can-run) separately for
 each selected output. A firmware binding cannot grant machine ownership to a

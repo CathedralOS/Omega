@@ -2,7 +2,7 @@
 //! Authenticate that storage when lending an array or reading a descriptor;
 //! check slice bounds against the descriptor measured immediately before use.
 
-use super::{Shape, Storage};
+use super::{Shape, Storage, overlap};
 use semantic_vocabulary::{OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
     ValueId};
 use arena::{IdTable};
@@ -806,31 +806,18 @@ impl<'a> Storage<'a> {
     ) -> Checked<bool> {
         let concerns = Construct::Block(block);
         let raw = self.argument(source, concerns)?;
-        let descriptor = self.backing(references, &raw, block, from, concerns)?;
-        // Every pointer binding crossed on the way to the descriptor must
-        // remain frozen too; a stable old destination cannot authenticate a
-        // later observation through a rebound reference.
-        let mut prefixes = Vec::new();
-        for (position, segment) in raw.segments.iter().enumerate() {
-            if *segment == terminal_check_tables::bindings::Segment::Referent {
-                let prefix = super::Lineage {
-                    root: raw.root,
-                    segments: raw.segments[..position].to_vec(),
-                };
-                prefixes.push(self.backing(references, &prefix, block, from, concerns)?);
-            }
-        }
-        let mut leaf = descriptor.clone();
+        let access = self.backing_access(references, &raw, block, from, concerns)?;
+        let descriptor = access.storage;
+        let prefixes = access.pointers;
+        let mut leaf = descriptor.place.clone();
         leaf.segments
             .push(terminal_check_tables::bindings::Segment::Extent);
         for row in &self.log {
             if row.block != block || row.position <= from || row.position > until {
                 continue;
             }
-            if prefixes
-                .iter()
-                .any(|prefix| super::overlap(&row.lineage, prefix))
-                || super::overlap(&row.lineage, &descriptor)
+            if prefixes.iter().any(|prefix| overlap(&row.backing, prefix))
+                || overlap(&row.backing, &descriptor)
                     && !self.call_preserves_extent(
                         references,
                         super::Asked::Contents(&leaf),
