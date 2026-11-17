@@ -1873,6 +1873,8 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
     else {
         panic!("expected the pending native application");
     };
+    // Saved inputs must recover after their source session has been released.
+    drop(prepared);
     let original = &pending.terminal;
     assert!(
         original
