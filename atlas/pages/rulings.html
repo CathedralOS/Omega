@@ -90,9 +90,92 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
 @media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
 @media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
+
+/* The overview is a reading tool; ink selection is not a proof verdict. */
+.overview-page .top { gap: var(--space-2); padding-bottom: var(--space-3); }
+.overview-page h1 { font: var(--type-heading); }
+.overview-page .lede { font: var(--type-body); max-width: 90ch; }
+.overview-page .publication { max-width: 100ch; }
+.overview-page .top { grid-template-columns: minmax(0,1fr) auto; }
+.overview-page .topline { grid-column: 2; grid-row: 1; }
+.overview-page .top .brand,.overview-page .top > .eyebrow,.overview-page .top > .lede { display: none; }
+.overview-page .top h1 { grid-column: 1; grid-row: 1; align-self: center; }
+.overview-page .top .meta,.overview-page .top .publication { grid-column: 1/-1; }
+.flow-explorer { grid-column: 1/-1; min-width: 0; border: var(--border-control) solid var(--ink-muted); background: var(--surface); padding: var(--space-3); }
+.explorer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.explorer-heading p { margin: 0 0 var(--space-2); }
+.explorer-heading h2 { font: var(--type-heading); margin: 0; text-wrap: balance; }
+.explorer-heading > a { font: var(--type-label); }
+.explorer-intro { margin: var(--space-2) 0 var(--space-3); max-width: 80ch; font: var(--type-label); }
+.view-evidence { font: var(--type-label); margin: var(--space-3) 0; }
+.view-evidence summary { color: var(--ink-muted); }
+.view-switch { display: flex; gap: var(--space-2); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-3); }
+.view-switch button { padding: var(--space-2) var(--space-3); min-height: 44px; }
+.view-switch [aria-pressed="true"] { color: var(--ground); background: var(--ink); border-color: var(--ink); }
+.view-category { font: var(--type-label); margin: var(--space-3) 0 var(--space-2); }
+.view-note { font: var(--type-label); color: var(--ink-muted); max-width: 95ch; margin: 0 0 var(--space-3); }
+.view-static-title { font: var(--type-subheading); }
+.is-enhanced .view-static-title { display: none; }
+.flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); }
+.flow-canvas { min-width: 0; display: flex; flex-direction: column; }
+.overview-diagram { margin: var(--space-2) 0; }
+.overview-diagram .diagram-frame { padding: 0; background: var(--ground); }
+.overview-diagram svg { min-width: 900px; }
+.overview-diagram .node rect { fill: var(--surface); stroke: var(--ink-muted); stroke-width: 2; }
+.overview-diagram .node.native rect { fill: var(--ink); stroke: var(--ink); }
+.overview-diagram .node.hub rect { stroke: var(--ink); stroke-width: 2.5; }
+.overview-diagram .node.around rect { fill: var(--ground); stroke: var(--rule); stroke-width: 1.5; }
+.overview-diagram .edge text { font-size: 13px; stroke: var(--ground); }
+.overview-diagram .diagram-hint { font-size: 12px; }
+.tour { display: contents; }
+.tour-controls { order: -2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.tour-controls button { min-height: 44px; }
+.tour-controls [data-action="play"] { margin: 0 auto; }
+button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: default; }
+.tour-position { order: -1; margin: var(--space-2) 0 0; font: var(--type-label); }
+.tour-copy { order: 1; padding: var(--space-3); border-left: var(--border-control) solid var(--ink); background: var(--ground); }
+.tour-copy h3 { font: var(--type-subheading); margin: 0 0 var(--space-2); }
+.tour-copy p { margin: 0; max-width: 68ch; }
+.tour-note { order: 2; font: var(--type-label); color: var(--ink-muted); margin: var(--space-2) 0; }
+.flow-inspector { border: var(--border-control) solid var(--ink-muted); padding: var(--space-3); min-width: 0; }
+.flow-inspector .eyebrow { margin-top: 0; }
+.flow-inspector h3 { font: var(--type-subheading); margin: var(--space-2) 0; }
+.flow-inspector p { font: var(--type-label); }
+.flow-inspector h4 { font: var(--type-label); border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin: var(--space-3) 0 var(--space-2); }
+.flow-inspector ul { list-style: none; padding: 0; display: grid; gap: var(--space-2); margin: 0; }
+.flow-inspector li { display: grid; gap: var(--space-1); }
+.flow-inspector li button { text-align: left; min-height: 44px; }
+.flow-inspector li span,.connection-empty { font: var(--type-label); color: var(--ink-muted); }
+.inspector-disclosure > summary { font: var(--type-label); }
+.inspector-disclosure > summary strong { display: block; font: var(--type-subheading); }
+.inspector-disclosure > summary span { display: block; margin-top: var(--space-2); }
+.inspector-prompt { text-decoration: underline; }
+.inspector-contents { margin-top: var(--space-3); }
+.inspector-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: 0; }
+.flow-reference { border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); margin-top: var(--space-3); font: var(--type-label); }
+.flow-reference dt { font-weight: 500; margin-top: var(--space-3); }
+.flow-reference dd { margin: var(--space-2) 0 var(--space-3); max-width: 68ch; }
+.flow-reference li { max-width: 75ch; margin-bottom: var(--space-2); }
+.measurement { margin-bottom: var(--space-4); font: var(--type-label); }
+.measurement summary { padding: var(--space-2) 0; }
+.diagram .node[role="button"] { cursor: pointer; }
+.diagram .node[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.diagram .node.is-selected :is(rect,polygon,path,ellipse) { stroke-width: 4; stroke: var(--ink); }
+.diagram .node.is-selected text { text-decoration: underline; text-underline-offset: 3px; }
+.diagram .edge.is-related > path { stroke-width: 3; }
+.diagram .edge.is-current > path { stroke-width: 4; }
+.diagram-selection { display: flex; align-items: start; gap: var(--space-3); font: var(--type-label); }
+.diagram-selection p { margin: 0; max-width: 75ch; }
+.diagram-selection button { flex: 0 0 auto; min-height: 44px; }
+.is-playing .flow-view:not([hidden]) .edge.is-current > path { stroke-dasharray: 7 5; animation: reading-flow 1.2s linear infinite; }
+@keyframes reading-flow { to { stroke-dashoffset: -24; } }
+@media (min-width: 1100px) { .flow-layout { grid-template-columns: minmax(0,1fr) 290px; } .inspector-disclosure > summary { display: none; } .inspector-contents { margin-top: 0; } }
+@media (max-width: 1099px) { .flow-inspector { order: -1; position: sticky; top: var(--space-2); z-index: 1; background: var(--surface); max-height: 55vh; overflow-y: auto; } .inspector-disclosure[open] > summary span:not(.inspector-prompt) { display: none; } }
+@media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 </style>
 </head>
-<body>
+<body class="">
   <a class="skip" href="#main">Skip to content</a>
   <div class="page">
     <header class="top">
@@ -100,10 +183,11 @@ footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule)
       <div class="eyebrow">Recorded owner decisions · page 13 of 13</div>
       <h1>Owner rulings</h1>
       <p class="lede">The dated owner decisions the atlas must follow.</p>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/04b9c202452079a4dc6f570c36478e41175a32e3/atlas"><code>04b9c2024520</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/rulings.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/68eddba256a21cb955699a611644a20becdcaa09/atlas"><code>68eddba256a2</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/rulings.md">Page source</a></span></div>
 
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run.</p>
+      <details class="publication"><summary>What these revisions mean</summary><p>The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
     </header>
+
     <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Explore 13 pages</summary>
       <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
       <h2>The codebase</h2><ul>
@@ -157,7 +241,7 @@ changed here first, with the date.</p>
    data and source quotes, and are published as pages in the Omega design
    system.</li>
 </ol></main>
-    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/04b9c202452079a4dc6f570c36478e41175a32e3/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/68eddba256a21cb955699a611644a20becdcaa09/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
   </div>
   <script>(() => {
   const root = document.documentElement;
@@ -193,6 +277,204 @@ changed here first, with the date.</p>
       if (!item.hidden) count++;
     });
     document.getElementById('no-pages').hidden = count > 0;
+  });
+})();
+
+/* Progressive enhancement: source traces stay readable without scripting. */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const make = (tag, text, className) => {
+    const el = document.createElement(tag);
+    if (text) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  };
+  const activate = (el, label, callback) => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', label);
+    el.setAttribute('aria-pressed', 'false');
+    el.addEventListener('click', callback);
+    el.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); callback();
+      }
+    });
+  };
+  const selectConnections = (figure, id, current = []) => {
+    figure.classList.toggle('has-selection', Boolean(id));
+    const neighbors = new Set([id]);
+    figure.querySelectorAll('.edge').forEach(edge => {
+      const related = edge.dataset.from === id || edge.dataset.to === id;
+      edge.classList.toggle('is-related', related);
+      edge.classList.toggle('is-current', current.includes(edge.dataset.edge));
+      if (related) { neighbors.add(edge.dataset.from); neighbors.add(edge.dataset.to); }
+    });
+    figure.querySelectorAll('.node').forEach(node => {
+      node.classList.toggle('is-selected', node.dataset.node === id);
+      node.classList.toggle('is-neighbor', neighbors.has(node.dataset.node));
+      node.setAttribute('aria-pressed', String(node.dataset.node === id));
+    });
+  };
+
+  const explorer = document.querySelector('.flow-explorer');
+  if (explorer) {
+    const data = JSON.parse(document.getElementById('flow-model').textContent);
+    const switcher = explorer.querySelector('.view-switch');
+    switcher.hidden = false;
+    explorer.classList.add('is-enhanced');
+    let view, panel, index = 0, timer = null, playing = false;
+    const stop = () => {
+      clearTimeout(timer); timer = null; playing = false;
+      explorer.classList.remove('is-playing');
+      if (panel) {
+        panel.querySelector('[data-action="play"]').textContent = 'Play walkthrough';
+        panel.querySelector('[data-action="play"]').setAttribute('aria-pressed', 'false');
+      }
+    };
+    const reveal = id => {
+      const node = panel.querySelector(`[data-node="${id}"]`);
+      const frame = panel.querySelector('.diagram-frame');
+      const box = node.getBoundingClientRect(), viewport = frame.getBoundingClientRect();
+      // Pan only the figure, never move keyboard focus or scroll the whole page.
+      if (box.left < viewport.left || box.right > viewport.right)
+        frame.scrollLeft += (box.left + box.right - viewport.left - viewport.right) / 2;
+    };
+    const inspect = (id, pan = true) => {
+      const selected = view.nodes.find(n => n.id === id);
+      const aside = panel.querySelector('.flow-inspector');
+      const wasOpen = aside.querySelector('details')?.open ?? matchMedia('(min-width: 1100px)').matches;
+      const disclosure = make('details', '', 'inspector-disclosure'); disclosure.open = wasOpen;
+      const summary = make('summary');
+      summary.append(make('strong', selected.label), make('span', selected.description.split('. ')[0] + '.'), make('span', 'Inputs, outputs and source', 'inspector-prompt'));
+      const contents = make('div', '', 'inspector-contents');
+      const heading = make('h3', selected.label); heading.tabIndex = -1;
+      contents.append(make('p', view.id === 'dependencies' ? 'Package declaration' : 'Selected subsystem', 'eyebrow'), heading, make('p', selected.description));
+      disclosure.append(summary, contents); aside.replaceChildren(disclosure);
+      if (view.id === 'dependencies') contents.append(make('code', selected.id));
+      for (const direction of ['incoming', 'outgoing']) {
+        const incoming = direction === 'incoming';
+        const edges = view.edges.filter(e => (incoming ? e.end : e.start) === id);
+        contents.append(make('h4', view.id === 'dependencies' ? (incoming ? 'Declared by' : 'Declares dependencies on') : (incoming ? 'Receives from' : 'Supplies to')));
+        if (!edges.length) contents.append(make('p', 'No connection in this selected view.', 'connection-empty'));
+        const list = make('ul');
+        for (const edge of edges) {
+          const neighbor = view.nodes.find(n => n.id === (incoming ? edge.start : edge.end));
+          const item = make('li'), button = make('button', neighbor.label);
+          button.type = 'button';
+          button.addEventListener('click', () => {
+            selectNode(neighbor.id);
+            panel.querySelector('.inspector-contents h3').focus({preventScroll: true});
+          });
+          item.append(button, make('span', edge.label)); list.append(item);
+        }
+        contents.append(list);
+      }
+      const links = make('p', '', 'inspector-links');
+      const reference = panel.querySelector('.flow-reference');
+      const source = make('a', 'Pinned source'); source.href = selected.source;
+      const detail = make('a', 'Open subsystem →');
+      detail.href = new URL(`${location.pathname.endsWith('index.html') || location.pathname.endsWith('/') ? 'pages/' : ''}${selected.page}.html`, location.href).href;
+      links.append(detail, source);
+      if (selected.example_source) { const example = make('a', 'Console binding example'); example.href = selected.example_source; links.append(example); }
+      contents.append(links);
+      selectConnections(panel.querySelector('figure'), id, index >= 0 ? view.steps[index]?.edges || [] : []);
+      if (pan) reveal(id);
+      reference.dataset.selected = id;
+    };
+    const controls = () => {
+      panel.querySelector('[data-action="previous"]').disabled = index <= 0;
+      panel.querySelector('[data-action="next"]').disabled = index === view.steps.length - 1;
+      const play = panel.querySelector('[data-action="play"]');
+      play.disabled = reduced.matches;
+      panel.querySelector('.tour-note').textContent = reduced.matches ? 'Reduced motion is enabled. Use Next and Previous to read at your own pace.' : 'A guided reading, not execution timing. Starts paused and stops at the last step.';
+    };
+    const showStep = (next, pan = true) => {
+      index = Math.max(0, Math.min(view.steps.length - 1, next));
+      const step = view.steps[index];
+      panel.querySelector('.tour-position').textContent = `Step ${index + 1} of ${view.steps.length}`;
+      panel.querySelector('.tour-copy').replaceChildren(make('h3', step.title), make('p', step.text));
+      inspect(step.node, pan); controls();
+    };
+    const selectNode = id => {
+      stop(); index = -1;
+      panel.querySelector('.tour-position').textContent = 'Exploring connections';
+      panel.querySelector('.tour-copy').replaceChildren(make('p', 'The heavier lines touch the selected box. Next starts the walkthrough again.'));
+      inspect(id); controls();
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!playing) return;
+        if (index >= view.steps.length - 1) { stop(); return; }
+        showStep(index + 1);
+        if (index === view.steps.length - 1) stop(); else schedule();
+      }, 5000);
+    };
+    const changeView = id => {
+      stop(); view = data.find(v => v.id === id);
+      panel = explorer.querySelector(`[data-view-panel="${id}"]`);
+      explorer.querySelectorAll('.flow-view').forEach(p => { p.hidden = p !== panel; });
+      panel.querySelector('.diagram-frame').scrollLeft = 0;
+      switcher.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
+      if (view.steps.length) showStep(0, false); else { index = -1; inspect(view.nodes[0].id, false); controls(); }
+    };
+    data.forEach(model => {
+      const p = explorer.querySelector(`[data-view-panel="${model.id}"]`);
+      p.querySelector('svg').setAttribute('role', 'group');
+      p.querySelector('.flow-inspector').hidden = false;
+      p.querySelector('.tour').hidden = !model.steps.length;
+      p.querySelectorAll('.node').forEach(node => activate(node, `Inspect ${model.nodes.find(n => n.id === node.dataset.node).label}`, () => selectNode(node.dataset.node)));
+      p.querySelector('[data-action="previous"]').addEventListener('click', () => { stop(); showStep(index - 1); });
+      p.querySelector('[data-action="next"]').addEventListener('click', () => { stop(); showStep(index + 1); });
+      p.querySelector('[data-action="play"]').addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        if (reduced.matches) return;
+        if (index < 0 || index === view.steps.length - 1) showStep(0);
+        playing = true; explorer.classList.add('is-playing');
+        const button = panel.querySelector('[data-action="play"]');
+        button.textContent = 'Pause'; button.setAttribute('aria-pressed', 'true'); schedule();
+      });
+    });
+    switcher.querySelectorAll('button').forEach(b => b.addEventListener('click', () => changeView(b.dataset.view)));
+    reduced.addEventListener('change', () => { stop(); controls(); });
+    matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+      explorer.querySelectorAll('.inspector-disclosure').forEach(d => { d.open = event.matches; });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    window.addEventListener('pagehide', stop);
+    changeView('native');
+  }
+
+  document.querySelectorAll('figure.diagram:not(.overview-diagram)').forEach(figure => {
+    const nodes = [...figure.querySelectorAll('.node[data-node]')];
+    if (!nodes.length) return;
+    figure.querySelector('svg').setAttribute('role', 'group');
+    const controls = make('div', '', 'diagram-selection');
+    const status = make('p', 'Select a box to follow its immediate connections.');
+    status.setAttribute('aria-live', 'polite');
+    const reset = make('button', 'Show all'); reset.type = 'button'; reset.hidden = true;
+    reset.addEventListener('click', () => {
+      const selected = figure.querySelector('.node[aria-pressed="true"]') || nodes[0];
+      const restore = document.activeElement === reset;
+      selectConnections(figure, null); status.textContent = 'Select a box to follow its immediate connections.'; reset.hidden = true;
+      if (restore) selected.focus({preventScroll: true});
+    });
+    controls.append(status, reset); figure.querySelector('.diagram-frame').after(controls);
+    nodes.forEach(node => {
+      const label = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+      activate(node, `Inspect connections for ${label}`, () => {
+        const id = node.dataset.node;
+        selectConnections(figure, id); reset.hidden = false;
+        const connections = [...figure.querySelectorAll('.edge')].filter(e => e.dataset.from === id || e.dataset.to === id).map(e => {
+          const incoming = e.dataset.to === id;
+          const neighbor = nodes.find(n => n.dataset.node === (incoming ? e.dataset.from : e.dataset.to));
+          const name = [...neighbor.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          const payload = [...e.querySelectorAll('text')].map(t => t.textContent).join(' ');
+          return `${incoming ? 'From' : 'To'} ${name}: ${payload}`;
+        });
+        status.textContent = label + '. ' + connections.join('. ');
+      });
+    });
   });
 })();
 </script>
