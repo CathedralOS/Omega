@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Typed conversion leaves operand formation as an implicit caller obligation
+- Category: A verdict with nothing behind it
+- Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
+- Saw: Conversion accepts raw term handles and checks their shared type; callers must separately establish the operands' types. A lambda annotation `((λ z:Empty. Two) TwoZero)` was accepted because reduction hid its ill-typed argument. The local lambda check is repaired here, but the conversion API still carries no evidence of those operand premises.
+- Cost: Another caller can repeat the same omission. Reviewers must trace operand formation through each conversion call instead of seeing the required premises at its interface.
+- Reported: 2026-11-17, Codex, while repairing the table's pair-certificate checking cost
+
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
