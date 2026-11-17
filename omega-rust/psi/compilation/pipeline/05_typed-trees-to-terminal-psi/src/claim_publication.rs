@@ -15,6 +15,9 @@ fn preparation_error(
         None => Construct::Machine,
     };
     let (reason, detail) = match error {
+        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+            (RefusalReason::Unestablished, unavailable.message())
+        }
         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
             (RefusalReason::Unsupported, detail)
         }

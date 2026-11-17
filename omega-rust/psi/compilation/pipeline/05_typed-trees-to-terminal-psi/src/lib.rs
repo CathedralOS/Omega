@@ -1862,6 +1862,10 @@ fn finish_storage(
                 None => (Construct::Machine, None, None),
             };
             let (reason, detail) = match error {
+                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
+                    terminal_check_tables::RefusalReason::Unestablished,
+                    unavailable.message(),
+                ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     (terminal_check_tables::RefusalReason::Unsupported, detail)
                 }
