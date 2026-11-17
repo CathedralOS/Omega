@@ -40,6 +40,41 @@ use terminal_semantics::{
     observed_field_declaration, record_field_carrier, scalar_array_leaf_shape,
 };
 
+// The declaration owns validity on every observation of foreign storage;
+// neither the initial snapshot nor the host's decoder can replace that check.
+struct CheckedReferenceScalar {
+    backing: std::rc::Rc<dyn crate::TerminalScalarBacking>,
+    scalar: ScalarType,
+    stored_scalar: ScalarType,
+    restriction: Option<StructuralFieldType>,
+}
+impl std::fmt::Debug for CheckedReferenceScalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckedReferenceScalar")
+            .field("scalar", &self.scalar)
+            .finish_non_exhaustive()
+    }
+}
+impl crate::TerminalScalarBacking for CheckedReferenceScalar {
+    fn read(&self) -> Result<TerminalScalarValue, crate::TerminalEffectRejection> {
+        let value = self.backing.read()?;
+        crate::storage::structural_storage::contents::validate_scalar_contents(
+            self.scalar,
+            self.restriction.as_ref(),
+            self.stored_scalar,
+            value,
+            self.stored_scalar,
+        )
+        .map_err(crate::TerminalEffectRejection::new)?;
+        Ok(value)
+    }
+    fn write(&self, _value: TerminalScalarValue) -> Result<(), crate::TerminalEffectRejection> {
+        Err(crate::TerminalEffectRejection::new(
+            "shared provider reference cannot be written",
+        ))
+    }
+}
+
 struct ResolvedStructuralWindow {
     backing: TerminalStructuralValue,
     structural_type: semantic_vocabulary::StructuralTypeId,
@@ -127,19 +162,32 @@ impl TerminalExecution<'_> {
         result: &terminal_psi::StructuralOperationResult,
         supply: crate::boundary::effects::results::TerminalReferenceResult,
     ) -> Result<(), TerminalInterpretError> {
+        // Resident completion currently establishes one plain referent. A
+        // materialized outer tree cannot grant its nested descriptors a new
+        // live-storage contract. Reject the whole offer before publishing rows.
+        let mut nested: Vec<_> = supply.references.iter().map(|(_, child)| child).collect();
+        while let Some(child) = nested.pop() {
+            if matches!(
+                child.referent,
+                crate::TerminalReferencePayload::Resident { .. }
+            ) {
+                return Err(malformed());
+            }
+            nested.extend(child.references.iter().map(|(_, child)| child));
+        }
         if !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
         {
             return Err(malformed());
         }
-        let (referent, _access) = self.reference_contract(result.structural_type)?;
+        let (referent, access) = self.reference_contract(result.structural_type)?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
             result.qualifications.clone(),
         );
-        let view = self.stage_host_referent(result.place, referent, &supply)?;
+        let view = self.stage_host_referent(result.place, referent, access, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
             crate::storage::reference::ReferenceReferent {
@@ -167,10 +215,14 @@ impl TerminalExecution<'_> {
         &mut self,
         source: semantic_vocabulary::PlaceId,
         referent: StructuralTypeId,
+        access: StructuralAccess,
         supply: &crate::boundary::effects::results::TerminalReferenceResult,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        if let crate::boundary::effects::results::TerminalReferencePayload::Aggregate(aggregate) =
-            &supply.referent
+        if let crate::boundary::effects::results::TerminalReferencePayload::Aggregate(aggregate)
+        | crate::boundary::effects::results::TerminalReferencePayload::Resident {
+            aggregate,
+            ..
+        } = &supply.referent
         {
             if aggregate.structural_type != referent {
                 return Err(malformed());
@@ -210,6 +262,85 @@ impl TerminalExecution<'_> {
                 storage.publish(self)?;
                 self.local_structural_identities.commit_cursor(cursor);
             }
+            crate::boundary::effects::results::TerminalReferencePayload::Resident {
+                aggregate,
+                scalars,
+            } => {
+                use crate::storage::scalar_storage::ScalarCell;
+                use crate::storage::structural_storage::contents::{self, StorageLeafKind};
+                if !supply.references.is_empty()
+                    || scalars.windows(2).any(|pair| pair[0].path >= pair[1].path)
+                    || access != StructuralAccess::SharedBorrow
+                {
+                    return Err(malformed());
+                }
+                // Aggregate validation follows declaration order; storage and
+                // backing rows use canonical paths even when field IDs differ.
+                let mut values = aggregate.canonical_contents();
+                values.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+                let description =
+                    contents::describe(self, &view, StructuralAccess::SharedBorrow, Some(&values))?;
+                if description.requires_erased_establishment || description.requires_atomic_storage
+                {
+                    return Err(malformed());
+                }
+                let mut leaves = Vec::with_capacity(scalars.len());
+                for leaf in description.leaves {
+                    match leaf.kind {
+                        StorageLeafKind::Scalar { .. } => leaves.push(leaf),
+                        StorageLeafKind::ByteArray { .. }
+                        | StorageLeafKind::EmptyScalarArray { .. } => {}
+                        _ => return Err(malformed()),
+                    }
+                }
+                leaves.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+                if leaves.len() != scalars.len() || values.len() != scalars.len() {
+                    return Err(malformed());
+                }
+                let mut storage = ConstructorStorage::new(self.account.as_ref());
+                let mut cursor = self.local_structural_identities.cursor();
+                self.stage_structural_result_contents(
+                    source,
+                    &view,
+                    &values,
+                    &mut storage,
+                    &mut cursor,
+                )?;
+                for ((leaf, supplied), original) in leaves.into_iter().zip(scalars).zip(&values) {
+                    if leaf.path != supplied.path || original.path != supplied.path {
+                        return Err(malformed());
+                    }
+                    leaf.validate_value(original).map_err(|_| malformed())?;
+                    let StorageLeafKind::Scalar {
+                        destination,
+                        scalar,
+                        restriction,
+                        stored_scalar,
+                    } = leaf.kind
+                    else {
+                        return Err(malformed());
+                    };
+                    let crate::TerminalStorageContents::Scalar { value, .. } = original.contents
+                    else {
+                        return Err(malformed());
+                    };
+                    let checked = CheckedReferenceScalar {
+                        backing: supplied.backing.clone(),
+                        scalar,
+                        restriction,
+                        stored_scalar,
+                    };
+                    let resident = ScalarCell::resident(value, std::rc::Rc::new(checked))?;
+                    storage.install_resident_scalar(
+                        &destination,
+                        resident,
+                        self.account.as_ref(),
+                    )?;
+                }
+                storage.publish(self)?;
+                self.local_structural_identities.commit_cursor(cursor);
+                self.queue_retired_descriptor_home(StructuralRuntimePlace::from(&view));
+            }
             crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
                 if supply.references.is_empty() {
                     self.materialize_zeroed_structural_storage(source, &view)?;
@@ -228,8 +359,10 @@ impl TerminalExecution<'_> {
             }
         }
         for (path, nested) in &supply.references {
-            let (nested_referent, _access) = self.host_referent_field_reference(referent, path)?;
-            let nested_view = self.stage_host_referent(source, nested_referent, nested)?;
+            let (nested_referent, nested_access) =
+                self.host_referent_field_reference(referent, path)?;
+            let nested_view =
+                self.stage_host_referent(source, nested_referent, nested_access, nested)?;
             self.reference_referents.insert(
                 StructuralRuntimePlace {
                     opaque_identity: view.opaque_identity,
@@ -1150,6 +1283,7 @@ impl TerminalExecution<'_> {
             &self.program.structural_types(),
             &self.structural_values,
             self.reference_referents.as_map(),
+            self.structural_cases.as_map(),
             &mut self.live_affine_frontier,
             &mut self.live_claims,
             subject,

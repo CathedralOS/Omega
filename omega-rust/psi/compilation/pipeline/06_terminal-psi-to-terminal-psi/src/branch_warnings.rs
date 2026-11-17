@@ -18,6 +18,67 @@ use terminal_psi::TerminalMachine;
 use crate::graph::Graph;
 use crate::{ImpossibleArm, ProofSearchActivity, hypotheses, prove};
 
+/// Keep this machine's prepared proof inputs until accepted diagnostics need them.
+/// Repeated requests reuse the warning results and release the prepared inputs.
+#[derive(Default)]
+pub(super) struct Deferred {
+    pending: std::sync::Mutex<Option<Prepared>>,
+    impossible: std::sync::OnceLock<Vec<ImpossibleArm>>,
+}
+
+struct Prepared {
+    context: PropositionContext,
+    graph: Graph,
+}
+
+impl std::fmt::Debug for Deferred {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BranchWarnings")
+            .field("materialized", &self.impossible.get())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Deferred {
+    pub(super) fn new(graph: Graph, context: PropositionContext) -> Self {
+        Self {
+            pending: std::sync::Mutex::new(Some(Prepared { context, graph })),
+            impossible: std::sync::OnceLock::new(),
+        }
+    }
+
+    pub(super) fn materialize(
+        &self,
+        lowered: &TerminalMachine,
+        tables: &MachineTables,
+        branches: &[Branch],
+        activity: &mut ProofSearchActivity,
+    ) -> &[ImpossibleArm] {
+        self.impossible.get_or_init(|| {
+            // A panic must not consume preparation: a later caller may retry
+            // the same immutable inputs after recovering the poisoned lock.
+            let mut pending = self
+                .pending
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            let Some(prepared) = pending.as_ref() else {
+                return Vec::new();
+            };
+            let result = Analysis::new(
+                &prepared.context,
+                &prepared.graph,
+                tables,
+                lowered,
+                lowered.id,
+            )
+            .run(branches, activity);
+            *pending = None;
+            result
+        })
+    }
+}
+
 struct PointRefutation {
     point: ProgramPoint,
     // Outer None means unqueried; inner None means no accepted refutation.

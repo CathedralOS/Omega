@@ -18,7 +18,7 @@ pub(crate) struct PreparedProductTarget {
 
 /// The slot and provider one selection names, as the roster states a supply.
 /// A selection of an operator family names each coordinate as its own slot.
-pub(crate) fn selected_supplies(
+fn selected_supplies(
     selection: &build_time_evaluation::provider_declarations::ProviderSelection,
 ) -> Vec<source_compiler::TerminalSourceSupply> {
     use build_time_evaluation::provider_declarations::ProviderSelectionSubject;

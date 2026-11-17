@@ -988,10 +988,37 @@ impl<'t> Program<'t> {
                     self.node(id, call.receiver)?,
                     ExpressionNode::Name(path) if self.names_requirement(call.target_symbol, path.symbol)
                 ));
-        if (call.receiver.is_valid() && !qualified)
-            || (call.requirement_application.is_valid() && named.is_none())
-            || call.exact_coercion_target.is_valid()
-        {
+        if call.requirement_application.is_valid() && named.is_none() {
+            if !self
+                .typed
+                .expression_table
+                .static_machine_application_is_valid(call.authored_machine_application)
+            {
+                return unserved("requirement call has no live supplying application");
+            }
+            let lexical_owner = self
+                .typed
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner;
+            let scope = self
+                .typed
+                .applied_requirement_scope(lexical_owner, call.requirement_application)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("requirement call lost its declaring application"),
+                    )
+                })?;
+            if !self
+                .typed
+                .requirement_application_matches_contract_scope(call.target_symbol, &scope)
+            {
+                return unserved("requirement call selects another complete trait application");
+            }
+        }
+        if (call.receiver.is_valid() && !qualified) || call.exact_coercion_target.is_valid() {
             return unserved("receiver, requirement or coercion call");
         }
         if !call.evidence_arguments.is_empty() {
@@ -4015,7 +4042,7 @@ impl Touches<'_> {
                 }
                 let result = (|| {
                     for (selector, arm) in arms {
-                        if let crate::body::Selector::Value(pattern) = selector
+                        if let Some(pattern) = selector.test()
                             && self.expression(pattern, false, captures)?
                         {
                             return Ok(true);

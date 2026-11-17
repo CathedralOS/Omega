@@ -505,13 +505,20 @@ impl FilesystemContext {
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
     ) -> Result<(), &'static str> {
-        for service in declaration.reach_beyond_owning_supply() {
-            let supplied = program
-                .module()
+        self.admit_service_ids(program.module(), declaration.reach_beyond_owning_supply())
+    }
+
+    fn admit_service_ids(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        services: impl IntoIterator<Item = semantic_vocabulary::ServiceId>,
+    ) -> Result<(), &'static str> {
+        for service in services {
+            let supplied = module
                 .services
                 .iter()
                 .find(|row| row.id == service)
-                .and_then(|row| program.module().identities.text(row.identity))
+                .and_then(|row| module.identities.text(row.identity))
                 .is_some_and(|identity| {
                     matches!(
                         identity,
@@ -523,7 +530,10 @@ impl FilesystemContext {
                             | "toolchain::FilesystemNamespaceMutation"
                     )
                 });
-            if !supplied {
+            // Keep only the existing exact legacy labels. Canonical service
+            // applications owe the retained schema and receiver-bundled owner;
+            // a familiar path inside another identity cannot supply authority.
+            if !supplied && module.core_filesystem_service(service).is_err() {
                 return Err("filesystem supply does not provide this exact additional service");
             }
         }
@@ -857,6 +867,161 @@ impl LibcFilesystemCall {
 mod tests {
     use super::*;
     use semantic_vocabulary::IntegerType;
+
+    fn canonical_filesystem_module() -> terminal_psi::TerminalModule {
+        use language_core::core_vocabulary::{
+            CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
+        };
+        use language_semantics::{
+            service_surface::{ServiceReceiverApplication, ServiceSurface},
+            type_identity::{
+                encoding::{CoordinateTag, atom, bare, byte_atom, compound},
+                vocabulary::{NameForm, OwnerForm},
+            },
+        };
+        use terminal_psi::{
+            ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule, TerminalServiceSchema,
+        };
+
+        let mut module = TerminalModule::declarations();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        for (index, service) in FilesystemService::ALL.into_iter().enumerate() {
+            let site =
+                CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(service))
+                    .unwrap();
+            let revision = source::source_identity::owned_toolchain_source_identity_digest(
+                "core",
+                &[site.file.to_str().unwrap()],
+                site.source,
+            )
+            .unwrap();
+            let nominal = |owner| {
+                compound(
+                    NameForm::Nominal,
+                    [owner, atom(CoordinateTag::Path, site.declaration)],
+                )
+            };
+            let declaration =
+                identities.intern(&nominal(byte_atom(OwnerForm::ToolchainSource, &revision)));
+            let application = compound(
+                CoordinateTag::TraitApplication,
+                [
+                    atom(
+                        CoordinateTag::Declaration,
+                        &nominal(bare(OwnerForm::Toolchain)),
+                    ),
+                    compound(CoordinateTag::Arguments, []),
+                    compound(CoordinateTag::Lifetimes, []),
+                ],
+            );
+            let mut surface = ServiceSurface::default();
+            surface.trait_name = surface.identities.intern(site.declaration);
+            surface
+                .receiver_applications
+                .push(ServiceReceiverApplication {
+                    application: surface.identities.intern(&application),
+                    trait_name: surface.trait_name,
+                    trait_package_identity: None,
+                    argument_identities: vec![],
+                    lifetime_argument_identities: vec![],
+                    requirement_identities: vec![],
+                });
+            let application = identities.intern(&application);
+            module.services.push(ServiceDeclaration {
+                id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
+                identity: application,
+                parents: vec![],
+            });
+            module.service_schemas.push(TerminalServiceSchema {
+                declaration,
+                application,
+                surface: std::sync::Arc::new(surface),
+            });
+        }
+        module.identities = identities.build();
+        module
+    }
+
+    #[test]
+    fn canonical_filesystem_services_receive_the_existing_host_supply() {
+        let module = canonical_filesystem_module();
+        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+        assert_eq!(
+            context.admit_service_ids(&module, module.services.iter().map(|row| row.id)),
+            Ok(())
+        );
+        assert_eq!(
+            context.admit_service_ids(
+                &module,
+                module
+                    .services
+                    .iter()
+                    .map(|row| row.id)
+                    .chain([semantic_vocabulary::ServiceId::new(99).unwrap()])
+            ),
+            Err("filesystem supply does not provide this exact additional service")
+        );
+    }
+
+    #[test]
+    fn malformed_canonical_filesystem_labels_do_not_use_legacy_name_matching() {
+        let original = canonical_filesystem_module();
+        let service = original.services[2].id;
+        let exact = original
+            .identities
+            .text(original.services[2].identity)
+            .unwrap();
+        for text in [
+            format!("{exact}trailing"),
+            exact[..exact.len() - 1].to_owned(),
+            "toolchain::FilesystemMetadataQuery::Other".to_owned(),
+            "package:foreign::FilesystemMetadataQuery".to_owned(),
+        ] {
+            let mut module = original.clone();
+            let mut identities = std::mem::take(&mut module.identities).into_builder();
+            let changed = identities.intern(&text);
+            module.identities = identities.build();
+            module.services[2].identity = changed;
+            module.service_schemas[2].application = changed;
+            let surface = std::sync::Arc::make_mut(&mut module.service_schemas[2].surface);
+            surface.receiver_applications[0].application = surface.identities.intern(&text);
+            let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+            assert_eq!(
+                context.admit_service_ids(&module, [service]),
+                Err("filesystem supply does not provide this exact additional service"),
+                "accepted {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn filesystem_supply_preserves_only_its_exact_legacy_labels() {
+        let mut module = terminal_psi::TerminalModule::declarations();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        for (index, label) in [
+            "toolchain::FilesystemContentRead",
+            "toolchain::FilesystemContentWrite",
+            "toolchain::FilesystemMetadataQuery",
+            "toolchain::FilesystemMetadataMutation",
+            "toolchain::DirectoryEnumeration",
+            "toolchain::FilesystemNamespaceMutation",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            module.services.push(terminal_psi::ServiceDeclaration {
+                id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
+                identity: identities.intern(label),
+                parents: vec![],
+            });
+        }
+        module.identities = identities.build();
+        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+        assert_eq!(
+            context.admit_service_ids(&module, module.services.iter().map(|row| row.id)),
+            Ok(())
+        );
+    }
 
     #[test]
     fn scalar_formals_require_known_width_and_preserve_signedness() {

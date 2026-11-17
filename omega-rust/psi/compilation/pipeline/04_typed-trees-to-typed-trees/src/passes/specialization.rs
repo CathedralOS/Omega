@@ -301,6 +301,14 @@ impl Site {
         }
     }
 
+    fn requirement_application(self, program: &TypedTrees) -> TypeReferenceHandle {
+        match self.call(program) {
+            Some(StaticArgumentCall::Expression(_, call)) => call.requirement_application,
+            Some(StaticArgumentCall::Statement(_)) => TypeReferenceHandle::invalid(),
+            None => TypeReferenceHandle::invalid(),
+        }
+    }
+
     /// Points the call at `target`, the machine its application selects.
     /// The static arguments the call listed are spent: the generated machine
     /// has no parameter left to apply.
@@ -369,6 +377,32 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     if !applied.application.is_valid() || applied.selected_otherwise {
         return Ok(());
     }
+    if program
+        .closed_requirement_application(applied.target)
+        .is_some()
+    {
+        program
+            .require_closed_requirement_call_application(applied.target, applied.application)
+            .map_err(unserved)?;
+        let reference = site.requirement_application(program);
+        if reference.is_valid() {
+            let owner = program
+                .expression_table
+                .static_machine_application(applied.application)
+                .lexical_owner;
+            let scope = program
+                .applied_requirement_scope(owner, reference)
+                .ok_or(unserved(
+                    "closed requirement call lost its trait application",
+                ))?;
+            if !program.requirement_application_matches_contract_scope(applied.target, &scope) {
+                return Err(unserved(
+                    "closed requirement call changed its trait application",
+                ));
+            }
+        }
+        return Ok(());
+    }
     let mut arguments = program
         .expression_table
         .static_machine_application_arguments(applied.application)
@@ -385,6 +419,9 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
             .prepare_bodyless_callable_application(applied.application, applied.target)
             .map_err(unserved)?;
         return Ok(());
+    }
+    if program.trait_machine_signature(applied.target).is_some() {
+        return apply_requirement(program, site, &applied, &arguments);
     }
     if arguments.is_empty() {
         return Ok(());
@@ -962,9 +999,27 @@ fn apply_requirement(
     applied: &Applied,
     arguments: &[StaticMachineArgument],
 ) -> Served<()> {
-    if let Some(closed) =
+    let reference = site.requirement_application(program);
+    let selected = if reference.is_valid() {
+        let owner = program
+            .expression_table
+            .static_machine_application(applied.application)
+            .lexical_owner;
+        let scope = program
+            .applied_requirement_scope(owner, reference)
+            .ok_or(unserved("requirement call lost its applied trait scope"))?
+            .environment();
+        prepare_requirement_in_scope(
+            program,
+            &scope,
+            applied.target,
+            applied.application,
+            arguments,
+        )?
+    } else {
         prepare_requirement_application(program, applied.target, applied.application, arguments)?
-    {
+    };
+    if let Some(closed) = selected {
         site.enter(program, closed);
     }
     Ok(())
@@ -985,14 +1040,6 @@ pub(crate) fn prepare_requirement_application(
     if requirement.symbol != target {
         return Ok(None);
     }
-    let parameters = program
-        .state_signature_type_parameters(requirement)
-        .iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    if parameters.is_empty() {
-        return Ok(None);
-    }
     if !owner.type_parameters.is_empty() {
         return Err(unserved(
             "a requirement application still has its trait's static parameters",
@@ -1002,6 +1049,34 @@ pub(crate) fn prepare_requirement_application(
         return Err(unserved(
             "a requirement application still has its trait's lifetime parameters",
         ));
+    }
+    let environment =
+        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
+    prepare_requirement_in_scope(program, &environment, target, application, arguments)
+}
+
+/// Calls and Build selections close the same complete requirement in its
+/// declaring trait application. The resulting header retains both argument
+/// lists; a phantom trait parameter still distinguishes two requirements.
+pub(crate) fn prepare_requirement_in_scope(
+    program: &mut TypedTrees,
+    environment: &typed_trees::trait_definition::TraitApplicationEnvironment,
+    target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
+    arguments: &[StaticMachineArgument],
+) -> Result<Option<SymbolHandle>, Stop> {
+    let (owner, requirement) = program
+        .trait_machine_signature(target)
+        .ok_or(unserved("applied requirement lost its declaration"))?;
+    let scope = environment
+        .scope(program)
+        .filter(|scope| scope.declaration.symbol == owner.symbol)
+        .ok_or(unserved("applied requirement changes its declaring trait"))?;
+    let parameters = program
+        .state_signature_type_parameters(requirement)
+        .to_vec();
+    if parameters.is_empty() && scope.keeps_declared_signatures(program) {
+        return Ok(None);
     }
     if !requirement.lifetime_parameters.is_empty() {
         return Err(unserved(
@@ -1013,8 +1088,19 @@ pub(crate) fn prepare_requirement_application(
             "a requirement application needs one argument for each declared binder",
         ));
     }
-    let environment =
-        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
+    let trait_arguments = program
+        .materialize_trait_application_arguments(environment)
+        .map_err(unserved)?;
+    let lexical_owner = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
+    if program
+        .require_owned_application_operands(&trait_arguments, lexical_owner)
+        .is_err()
+    {
+        return Ok(None);
+    }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, parameter, argument)?);
@@ -1040,7 +1126,7 @@ pub(crate) fn prepare_requirement_application(
         .binding_declaration = target;
     table.set_static_machine_application_lifetimes(application, target, &[]);
     let closed = program
-        .instantiate_requirement_application(&environment, target, &[], application)
+        .instantiate_requirement_application(environment, target, &trait_arguments, application)
         .map_err(unserved)?;
     Ok(Some(closed))
 }
@@ -1945,8 +2031,10 @@ fn copied_parts(
         program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
             copied &= match node {
                 ExpressionNode::Call(call) => {
-                    call.layout_query.is_none()
-                        && call.native_code_layout.is_none()
+                    // The shared expression copier retains a layout query's
+                    // operand and view; callable application substitutes their
+                    // types with every other copied expression.
+                    call.native_code_layout.is_none()
                         && call.quotient_operation.is_none()
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()
@@ -2088,7 +2176,9 @@ fn copy_declarations(
             "a copied body has an embedded type expression without a retained static operand",
         ));
     }
-    let type_start = program.type_reference_table.type_reference_count() + 1;
+    // Type-row iteration takes a storage offset; expression iteration takes
+    // an arena identity. Keep the first copied type in the prepared range.
+    let type_start = program.type_reference_table.type_reference_count();
     let expression_start = program.expression_table.expression_count() + 1;
     let spelled = operands
         .iter()

@@ -737,11 +737,13 @@ mod provider_requests {
     }
 
     pub(super) fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
-        request.operation == BuildOperation::ProviderSelection
-            && request
-                .operands
-                .iter()
-                .any(|operand| operand.application.is_some())
+        matches!(
+            request.operation,
+            BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+        ) && request
+            .operands
+            .iter()
+            .any(|operand| operand.application.is_some())
     }
 
     #[cfg(test)]

@@ -15,8 +15,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use typed_trees_to_terminal_psi::{
-    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, SourceOrigin, Statement,
-    Strict, Target, Termination, Unpositioned, ValueType,
+    Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
+    SourceOrigin, Statement, Strict, Target, Termination, Unpositioned, ValueType,
 };
 
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
@@ -53,6 +53,7 @@ mod handoffs;
 mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
+mod inferred_locals;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
@@ -3404,7 +3405,7 @@ fn matching(
             subject: Box::new(subject),
             arms: arms
                 .into_iter()
-                .map(|(case, arm)| (Selector::Case(case), arm))
+                .map(|(case, arm)| (Selector::Case(CaseSelector::tag(case)), arm))
                 .collect(),
             default: default.map(Box::new),
         },
@@ -3765,7 +3766,7 @@ fn boxed(arm: (usize, Expression), default: Expression) -> Shaped {
         requires: Vec::new(),
         statements: vec![Statement::Dispatch {
             subject: place(0, shape()),
-            arms: vec![(arm.0, Target::Value(arm.1), nowhere())],
+            arms: vec![(CaseSelector::tag(arm.0), Target::Value(arm.1), nowhere())],
             default: Some((Target::Value(default), nowhere())),
             source: nowhere(),
         }],

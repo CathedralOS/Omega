@@ -226,8 +226,9 @@ pub mod product_operand {
                     return Err("Product application has no live prepared row");
                 }
                 let application = self.product_operand_applications.get(handle);
+                let role = self.product_operand_application_role(application)?;
                 if !matches!(
-                    application.role,
+                    role,
                     Some(
                         ProductOperandRole::BoundarySubject
                             | ProductOperandRole::Provider
@@ -242,11 +243,11 @@ pub mod product_operand {
                     .ok_or("Product application has a stale declared formal table")?;
                 if parameters.is_empty()
                     && application.declaration_lifetime_count == 0
-                    && application.role != Some(ProductOperandRole::Requirement)
+                    && role != Some(ProductOperandRole::Requirement)
                 {
                     return Ok(None);
                 }
-                if application.role == Some(ProductOperandRole::Requirement) {
+                if role == Some(ProductOperandRole::Requirement) {
                     let closed = self.product_requirement_application(handle)?;
                     let (owner, requirement) = self
                         .trait_machine_signature(closed.signature.symbol)
@@ -255,7 +256,7 @@ pub mod product_operand {
                         self.trait_requirement_callable_identity_text(owner, requirement),
                     ));
                 }
-                let identity = match application.role {
+                let identity = match role {
                     Some(ProductOperandRole::BoundarySubject) => application
                         .scope
                         .scope(self)
@@ -299,6 +300,32 @@ pub mod product_operand {
                     .ok_or("Product application lost its canonical identity")
             }
 
+            pub fn product_operand_application_role(
+                &self,
+                application: &ProductOperandApplication,
+            ) -> Result<Option<ProductOperandRole>, &'static str> {
+                self.product_operand_declaration_role(application.role, application.declaration)
+            }
+
+            pub fn product_operand_declaration_role(
+                &self,
+                role: Option<ProductOperandRole>,
+                declaration: SymbolHandle,
+            ) -> Result<Option<ProductOperandRole>, &'static str> {
+                if role != Some(ProductOperandRole::RootGrantSubject) {
+                    return Ok(role);
+                }
+                if self.conformance_by_symbol(declaration).is_some() {
+                    Ok(Some(ProductOperandRole::Provider))
+                } else if self.trait_machine_signature(declaration).is_some() {
+                    Ok(Some(ProductOperandRole::Requirement))
+                } else {
+                    Err(
+                        "root grant application names neither a provider nor a boundary requirement",
+                    )
+                }
+            }
+
             /// A native binding selects the canonical closed header only while
             /// its original supplying arguments and declaring scope still match.
             pub fn product_requirement_application(
@@ -309,7 +336,9 @@ pub mod product_operand {
                     return Err("Product requirement application has no live prepared row");
                 }
                 let application = self.product_operand_applications.get(handle);
-                if application.role != Some(ProductOperandRole::Requirement) {
+                if self.product_operand_application_role(application)?
+                    != Some(ProductOperandRole::Requirement)
+                {
                     return Err("Product application is not a requirement");
                 }
                 let closed = self
@@ -1348,7 +1377,10 @@ pub mod product_operand {
                 rows[first..last]
                     .iter()
                     .map(|row| (row.symbol, row.is_public)),
-                if kind == ProductOperandKind::BoundarySubject {
+                if matches!(
+                    kind,
+                    ProductOperandKind::BoundarySubject | ProductOperandKind::RootGrantSubject
+                ) {
                     &index.token_bound_machines
                 } else {
                     &[]
@@ -1357,8 +1389,9 @@ pub mod product_operand {
         }
     }
 
-    const PRODUCT_ROLES: [ProductOperandKind; 8] = [
+    const PRODUCT_ROLES: [ProductOperandKind; 9] = [
         ProductOperandKind::BoundarySubject,
+        ProductOperandKind::RootGrantSubject,
         ProductOperandKind::Provider,
         ProductOperandKind::Requirement,
         ProductOperandKind::TestRequirement,
@@ -1382,7 +1415,7 @@ pub mod product_operand {
 
     #[derive(Default)]
     pub(crate) struct ProductDeclarationIndex {
-        roles: [Vec<ProductDeclarationName>; 8],
+        roles: [Vec<ProductDeclarationName>; 9],
         token_bound_machines: Vec<SymbolHandle>,
     }
 
@@ -1425,7 +1458,9 @@ pub mod product_operand {
                 // operator family and every competing exact declaration.
                 rows.sort_by(|left, right| left.path.cmp(&right.path));
             }
-            if roles.contains(&ProductOperandKind::BoundarySubject) {
+            if roles.contains(&ProductOperandKind::BoundarySubject)
+                || roles.contains(&ProductOperandKind::RootGrantSubject)
+            {
                 index.token_bound_machines = self
                     .machine_token_bindings()
                     .iter()
@@ -1500,6 +1535,25 @@ pub mod product_operand {
                         .map(|operator| (operator.symbol, operator.is_public)),
                 )
                 .collect::<Vec<_>>(),
+            ProductOperandKind::RootGrantSubject => program
+                .conformances()
+                .iter()
+                .map(|definition| (definition.symbol, definition.is_public))
+                .chain(
+                    program
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            matches!(
+                                machine.supply_mode,
+                                language_semantics::MachineSupplyMode::AdmissionClaim
+                                    | language_semantics::MachineSupplyMode::TopLevelRequirement
+                            )
+                        })
+                        .map(|machine| (machine.symbol, machine.is_public)),
+                )
+                .chain(product_candidates(program, ProductOperandKind::Requirement))
+                .collect(),
             ProductOperandKind::Provider => program
                 .data_definitions()
                 .iter()
@@ -1693,6 +1747,7 @@ pub mod product_operand {
                     program,
                     &[
                         ProductOperandKind::BoundarySubject,
+                        ProductOperandKind::RootGrantSubject,
                         ProductOperandKind::Provider,
                         ProductOperandKind::Requirement,
                         ProductOperandKind::Data,
@@ -3457,7 +3512,7 @@ pub mod trait_definition {
                     program: &TypedTrees,
                     retained: &mut impl crate::references::TypedReferences,
                 ) {
-                    retained.declaration_description_dependency(self.argument_owner);
+                    retained.formation_owner(self.argument_owner);
                     for frame in program.trait_application_frames.span_or_empty(self.frames) {
                         retained.declaration_description_dependency(frame.declaration);
                         for binding in program
@@ -3799,7 +3854,7 @@ pub mod trait_definition {
             .chain(
                 self.live_product_operand_applications().into_iter().filter_map(|handle| {
                     let application = self.product_operand_applications.get(handle);
-                    matches!(application.role, Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject | language_semantics::declaration_selection::ProductOperandRole::Requirement))
+                    matches!(self.product_operand_application_role(application), Ok(Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject | language_semantics::declaration_selection::ProductOperandRole::Requirement)))
                         .then(|| application.scope.scope(self)).flatten()
                 }),
             )

@@ -881,7 +881,10 @@ fn statement_homes<'b>(
             ..
         } => {
             expression_homes(subject, homes);
-            for (_, arm, _) in arms {
+            for (selector, arm, _) in arms {
+                if let Some(condition) = selector.condition.as_deref() {
+                    expression_homes(condition, homes);
+                }
                 target_homes(arm, homes);
             }
             if let Some((arm, _)) = default {
@@ -978,7 +981,10 @@ fn expression_homes<'b>(
             ..
         } => {
             expression_homes(subject, homes);
-            for (_, arm) in arms {
+            for (selector, arm) in arms {
+                if let Some(condition) = selector.test() {
+                    expression_homes(condition, homes);
+                }
                 expression_homes(arm, homes);
             }
             if let Some(arm) = default {
@@ -1326,6 +1332,26 @@ pub(super) struct Chosen {
 }
 
 impl Chosen {
+    /// A join must reload any selected payload whose cached parameters were
+    /// invalidated on an incoming path. Keep disjoint selections unchanged.
+    pub(super) fn retain_invalidation(&mut self, incoming: &Self) {
+        debug_assert_eq!(self.place, incoming.place);
+        if incoming.parameters.is_empty() {
+            self.parameters.clear();
+        }
+    }
+
+    /// Fallthrough retains the saved subject's storage and lifetime, without
+    /// granting any particular case or carrying a case's payload parameters.
+    pub(super) fn without_case(&self) -> Self {
+        Self {
+            capture: self.capture.clone(),
+            place: self.place,
+            case: None,
+            parameters: Vec::new(),
+        }
+    }
+
     /// A computed subject owns its complete temporary root, including any
     /// sibling fields outside the projected sum selected by this match.
     pub(super) fn temporary(&self) -> Option<PlaceId> {
@@ -1357,6 +1383,8 @@ struct Located {
     /// names it and it can be used as the value without a copy.
     fresh: bool,
 }
+
+type CaseSelection = (Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>);
 
 /// A structural root's whole-value domains and the projected domains of the
 /// fields beneath it.
@@ -3592,6 +3620,19 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(subject));
         let case = self.case_of(at.record, case)?.id;
+        let value = self.case_membership_at(&at, case, source)?;
+        if at.fresh {
+            self.retire_homes(&[at.root], source)?;
+        }
+        Ok(Reached::Value(value))
+    }
+
+    fn case_membership_at(
+        &mut self,
+        at: &Located,
+        case: StructuralCaseId,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
         self.name_contents(at.place, ValueType::record(at.record))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
@@ -3604,7 +3645,6 @@ impl<'a> Lowering<'a> {
                 case,
             },
         )
-        .map(Reached::Value)
     }
 
     /// Ends the open block in the `StructuralCase` that observes the sum
@@ -3624,14 +3664,14 @@ impl<'a> Lowering<'a> {
     /// after arms that name every declared case is an authored branch no
     /// arrival takes. state_contracts.md, "Unreachable branches": "This is
     /// an advisory diagnostic, not an inherent language error", and patterns
-    /// use "first-match order", so the program is accepted: no edge enters
-    /// the arm, no block is returned for it, and the arm is recorded in
-    /// `MachineSources::dead_wildcards` for its warning. A `_` arm that some
-    /// case reaches is lowered and checked like every other arm.
+    /// use "first-match order", so no tag edge enters that arm and no block
+    /// is returned for it. `case_decisions` accounts for failed field tests
+    /// before recording an unused authored wildcard; private selections do
+    /// not produce source advisories. A wildcard reached by an unnamed tag
+    /// receives a block like every other arm.
     ///
     /// Each scalar payload field of an arm's case is one parameter of the
     /// arm's block, in declaration order.
-    #[allow(clippy::type_complexity)]
     pub(super) fn select(
         &mut self,
         subject: &Expression,
@@ -3639,8 +3679,19 @@ impl<'a> Lowering<'a> {
         wildcard: Option<SourceOrigin>,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
-    ) -> Evaluation<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
+    ) -> Evaluation<CaseSelection> {
         let at = continuing!(self.located(subject));
+        self.select_at(at, arms, wildcard, source, capture)
+    }
+
+    fn select_at(
+        &mut self,
+        at: Located,
+        arms: &[usize],
+        wildcard: Option<SourceOrigin>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
+    ) -> Evaluation<CaseSelection> {
         let data = self.record_type(at.record)?;
         if data.cases().is_empty() {
             return Err(self.internal("a dispatch on storage that is no sum"));
@@ -3686,9 +3737,18 @@ impl<'a> Lowering<'a> {
         }
         let mut rest: Option<(BlockId, Chosen)> = None;
         let mut excluded = Vec::new();
+        // Case positions index the declared roster. Prepare the first arm
+        // once rather than search all arms for each declared case.
+        let mut arm_positions = vec![None; data.cases().len()];
+        for (arm, case) in arms.iter().enumerate() {
+            let Some(position) = arm_positions.get_mut(*case) else {
+                return Err(self.internal("a dispatch arm is outside its sum's case roster"));
+            };
+            position.get_or_insert(arm);
+        }
         let mut edges = Vec::with_capacity(data.cases().len());
         for (position, case) in data.cases().iter().enumerate() {
-            let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
+            let (target, payload_fields) = match arm_positions[position] {
                 Some(arm) => (blocks[arm].0, payloads[arm].clone()),
                 None if wildcard.is_some() => {
                     let block = match &rest {
@@ -3741,9 +3801,6 @@ impl<'a> Lowering<'a> {
                 structural_arguments: Vec::new(),
                 cleanup_actions: Vec::new(),
             });
-        }
-        if let (Some(arm), None) = (wildcard, &rest) {
-            self.sources.dead_wildcards.push(arm.into());
         }
         self.terminate(Terminator::StructuralCase {
             source: at.root,
@@ -4119,12 +4176,88 @@ impl<'a> Lowering<'a> {
         Ok(Reached::Value(Value::Scalar(length)))
     }
 
+    /// Storage equality uses the reader's selected intrinsic meaning.
+    pub(super) fn structural_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let Some(ValueType::Record(record, _, _)) = left.result else {
+            return Err(self.internal("storage equality has no structural operand"));
+        };
+        let data = self.record_type(record)?;
+        if data.cases().is_empty() {
+            return self.byte_equal(left, right, source);
+        }
+        // A payload-free case constructor evaluates nothing. Retain the
+        // ordinary single-membership lowering for this constant operand.
+        if let ExpressionKind::Case { case, fields } = &right.kind
+            && fields.is_empty()
+            && data.is_copyable()
+            && data.cleanup.is_none()
+        {
+            return self.case_membership(left, *case, source);
+        }
+        self.enum_equal(left, right, source)
+    }
+
+    /// Save the left value before evaluating the right. Each saved Boolean
+    /// observes one retained case identity, rather than a representation tag.
+    /// The right dispatch returns the saved Boolean of its selected case:
+    /// both operands are evaluated once, with linear work in the case roster
+    /// and no pairwise expansion (data_and_literals.md, "Value equality").
+    fn enum_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let left = continuing!(self.located(left));
+        let cases = self.record_type(left.record)?.cases();
+        let mut observed = Vec::with_capacity(cases.len());
+        for case in cases {
+            let Value::Scalar(value) = self.case_membership_at(&left, case.id, source)? else {
+                return Err(self.internal("a case membership has no Boolean value"));
+            };
+            observed.push(value);
+        }
+        let right = continuing!(self.located(right));
+        let temporaries = [
+            left.fresh.then_some(left.root),
+            right.fresh.then_some(right.root),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        let roster = (0..cases.len()).collect::<Vec<_>>();
+        let (blocks, _) = continuing!(self.select_at(right, &roster, None, source, None));
+        let join = self.block(source);
+        let result = self.value(
+            ScalarType::Boolean,
+            ValueOrigin::BlockParameter {
+                block: join,
+                position: 0,
+            },
+        );
+        self.parameter(join, result, ScalarType::Boolean)?;
+        for ((block, _), value) in blocks.into_iter().zip(observed) {
+            self.enter(block);
+            if !temporaries.is_empty() {
+                self.retire_homes(&temporaries, source)?;
+            }
+            self.jump_with_structural(join, vec![value], Vec::new(), source)?;
+        }
+        self.enter(join);
+        Ok(Reached::Value(Value::Scalar(result)))
+    }
+
     /// `left == right` on two borrowed byte views. Each operand is located
     /// in source order, then each is measured, then the two are compared:
     /// the comparison names each measurement as the length of its operand
     /// (byte_views.md, "The operand retains its own dominating length
     /// observation, readable access, and establishment").
-    pub(super) fn byte_equal(
+    fn byte_equal(
         &mut self,
         left: &Expression,
         right: &Expression,

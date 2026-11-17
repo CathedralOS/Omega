@@ -674,7 +674,7 @@ pub(crate) mod atomic_access {
                 access: root_access,
                 path: location.path.clone(),
             },
-            scalar_type: integer.as_checking(),
+            scalar_type: integer,
             field_byte_offset,
             event: access,
             operands,

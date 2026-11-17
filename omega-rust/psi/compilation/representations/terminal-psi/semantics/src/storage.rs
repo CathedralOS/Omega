@@ -2828,6 +2828,15 @@ pub mod borrowed_storage {
     }
 
     impl Region {
+        /// A logical write names its captured storage when retained. Alias
+        /// bounds may widen a case payload to its containing sum; that bound
+        /// remains the safe write footprint when the address was forgotten.
+        pub fn written_storage_path(&self) -> Vec<StructuralPathSegment> {
+            self.projection
+                .captured_storage_path()
+                .unwrap_or_else(|| self.projection.path.clone())
+        }
+
         pub fn overlaps(&self, other: &Self) -> bool {
             self.projection.indirect
                 || other.projection.indirect
@@ -2927,6 +2936,39 @@ pub mod borrowed_storage {
     mod tests {
         use super::*;
         use terminal_psi::TerminalIdentityIndex;
+
+        #[test]
+        fn case_write_addresses_remain_exact_without_narrowing_alias_bounds() {
+            let root = Some(PlaceId::new(1).unwrap());
+            let path = |case| {
+                vec![
+                    StructuralPathSegment::Case(
+                        semantic_vocabulary::StructuralCaseId::new(case).unwrap(),
+                    ),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(7)),
+                ]
+            };
+            let mut left = Region {
+                root,
+                projection: Projection::new(&path(1)),
+            };
+            let right = Region {
+                root,
+                projection: Projection::new(&path(2)),
+            };
+            assert!(
+                left.overlaps(&right),
+                "case payloads overlay the same storage"
+            );
+            assert_eq!(left.written_storage_path(), path(1));
+            left.projection.forget_address();
+            assert_eq!(
+                left.written_storage_path(),
+                left.projection.path,
+                "forgotten addresses retain their conservative write bound"
+            );
+            assert!(left.overlaps(&right));
+        }
 
         #[test]
         fn a_stripped_element_selector_keeps_the_storage_after_it() {

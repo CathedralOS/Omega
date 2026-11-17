@@ -1,6 +1,6 @@
 //! Prepare declaration-level expression meanings from operands outward. A cast
-//! may supply an operator's operand type, and an applied operator's result may
-//! supply a cast's operand type; neither gets a second, shape-specific path.
+//! may supply an operator's operand type; an initialized local may supply a
+//! member's receiver type. Each consumer reads its operands' retained types.
 
 use typed_trees::TypedTrees;
 
@@ -14,6 +14,7 @@ pub(crate) fn prepare(
     enum Meaning {
         Cast(usize),
         Operator(typed_trees::expression::TableBinaryExpression),
+        Member(typed_trees::expression::TableMemberExpression),
     }
     let casts = crate::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
     let mut sites = casts
@@ -24,6 +25,21 @@ pub(crate) fn prepare(
         crate::operator_calls::sites(program, frontier)
             .into_iter()
             .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
+    );
+    sites.extend(
+        program
+            .expression_table
+            .iter_backing_expressions()
+            .filter_map(|(handle, node)| match node {
+                typed_trees::expression::ExpressionNode::Member(member)
+                    if handle.arena_index() as usize > frontier
+                        && member.selection
+                            == typed_trees::expression::MemberSelection::Unresolved =>
+                {
+                    Some((handle, Meaning::Member(member.clone())))
+                }
+                _ => None,
+            }),
     );
     let mut type_values = program
         .type_reference_table
@@ -54,6 +70,9 @@ pub(crate) fn prepare(
             Meaning::Cast(position) => {
                 casts.account(position, source, program, &owners, cast_destinations)?
             }
+            Meaning::Member(member) => {
+                prepare_member(program, &owners, &mut types, handle, &member)?;
+            }
             Meaning::Operator(binary) => {
                 crate::operator_calls::prepare_site(program, &owners, &mut types, handle, binary)?
             }
@@ -76,4 +95,58 @@ pub(crate) fn prepare(
     crate::contracts::proof_facts::normalize_membership_selections(source, program, &owners)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
     Ok(())
+}
+
+/// Complete the same member selection once the receiver's actual type exists.
+/// Access permission and live-value checks remain with the receiving judgment.
+fn prepare_member(
+    program: &mut TypedTrees,
+    owners: &typed_trees::references::ProgramOperandOwners,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    handle: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Result<(), diagnostics::Diagnostic> {
+    use typed_trees::expression::{CollectionMeasure, ExpressionNode, MemberSelection};
+    use typed_trees::types::TypeReferenceNode;
+
+    if member.case_variant.is_some() {
+        return Ok(());
+    }
+    let mut receivers = owners
+        .expression_owners(handle)
+        .map(|owner| types.get(program, owner, member.receiver));
+    let Some(Some(receiver)) = receivers.next() else {
+        return Ok(());
+    };
+    if !receivers.all(|other| other == Some(receiver)) {
+        return Ok(());
+    }
+    let selected = crate::typing_queries::declared_projection_field(
+        program,
+        receiver,
+        member.member.as_str(),
+        Default::default(),
+    )
+    .ok()
+    .map(|field| MemberSelection::Field(field.symbol));
+    let selected = selected.or_else(|| {
+        let receiver = program.type_reference_table.peeled_type_reference(receiver);
+        (matches!(
+            program.type_reference_table.type_reference(receiver),
+            TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. }
+        ) && CollectionMeasure::from_authored_spelling(member.member.as_str())
+            == Some(CollectionMeasure::Length))
+        .then_some(MemberSelection::CollectionMeasure(
+            CollectionMeasure::Length,
+        ))
+    });
+    let Some(selected) = selected else {
+        return Ok(());
+    };
+    if let ExpressionNode::Member(member) = program.expression_table.expression_mut(handle) {
+        member.selection = selected;
+    }
+    crate::expressions::expression::table::member_binding::finalize_authored_member_selection(
+        program, handle,
+    )
 }

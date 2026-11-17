@@ -31,7 +31,8 @@
 //! moved or removed unless [`reset_refusal`] finds it safe: not locked, no tracked or
 //! untracked changes, and no commit that exists only in that worktree. A slot with a
 //! topic belongs to the session that acquired it until `release` clears the topic, so
-//! `acquire` and `clean` never take a claimed slot; only its own topic reuses it.
+//! `acquire` and `clean` never take an assigned checkout. A pool slot's own topic
+//! can resume it explicitly.
 //! Those commands run one at a time under [`PoolLock`], so two sessions can never
 //! both pick the same idle slot before either has written its topic.
 
@@ -61,8 +62,12 @@ struct WorktreeInfo {
 }
 
 impl WorktreeInfo {
+    fn is_unassigned(&self) -> bool {
+        self.topic.is_none()
+    }
+
     fn is_unassigned_pool_slot(&self) -> bool {
-        self.slot_index.is_some() && self.topic.is_none()
+        self.slot_index.is_some() && self.is_unassigned()
     }
 }
 
@@ -884,6 +889,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .iter()
                 .filter(|w| {
                     w.slot_index.is_none()
+                        && w.is_unassigned()
                         && w.path.starts_with(&wt_base)
                         && !w.open_pr
                         && w.name != current_name
@@ -1031,6 +1037,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 && !dry_run
                 && let Some(donor) = items.iter().find(|w| {
                     w.slot_index.is_none()
+                        && w.is_unassigned()
                         && w.path.starts_with(&wt_base)
                         && !w.open_pr
                         && !keep.contains(&w.name)
@@ -1065,10 +1072,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 {
                     continue;
                 }
+                if !wt.is_unassigned() {
+                    println!("kept worktree `{}` because its topic is assigned", wt.name);
+                    kept.insert(wt.name.clone());
+                    continue;
+                }
                 if wt.slot_index.is_some() {
                     // Pool slots stay in the pool; reset released slots back to origin/main.
-                    // A claimed slot (topic set) is another session's until it releases it.
-                    if !wt.at_main && wt.topic.is_none() && refusal_for(&main_root, wt).is_none() {
+                    if !wt.at_main && refusal_for(&main_root, wt).is_none() {
                         if dry_run {
                             println!("would reset pool slot `{}` to origin/main", wt.name);
                         } else if reset_slot_to_main(&wt.path) {

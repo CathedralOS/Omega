@@ -136,36 +136,49 @@ fn declaration<'a>(
             "provider selection subject is not its exact boundary schema",
         ));
     }
-    if subject.applied || source.provider_type.applied {
-        // These requests keep their complete source applications. They must be
-        // projected by the static record owner rather than erased to the bare
-        // template or interpreted from application display text.
-        for identity in [subject, &source.provider_type] {
-            if identity.applied
-                && (!typed
-                    .product_operand_applications
-                    .is_valid(identity.application)
-                    || typed
-                        .product_operand_application_identity(identity.application)
-                        .map_err(diagnostic)?
-                        .is_none())
+    for (identity, role) in [
+        (
+            subject,
+            language_semantics::declaration_selection::ProductOperandRole::BoundarySubject,
+        ),
+        (
+            &source.provider_type,
+            language_semantics::declaration_selection::ProductOperandRole::Provider,
+        ),
+    ] {
+        if identity.applied {
+            if !typed
+                .product_operand_applications
+                .is_valid(identity.application)
             {
                 return Err(diagnostic(
                     "provider policy lost its exact complete static application",
                 ));
             }
+            let retained = typed.product_operand_applications.get(identity.application);
+            let actual = typed
+                .product_operand_application_identity(identity.application)
+                .map_err(diagnostic)?;
+            if retained.role != Some(role)
+                || retained.declaration != identity.symbol
+                || retained.argument.symbol != identity.symbol
+                || actual.is_none()
+                || actual != identity.application_identity
+                || retained.scope.scope(typed).is_none()
+            {
+                return Err(diagnostic(
+                    "provider policy changed its retained declaration or complete static application",
+                ));
+            }
+        } else if identity.application.is_valid() || identity.application_identity.is_some() {
+            return Err(diagnostic(
+                "bare provider policy retains conflicting application metadata",
+            ));
         }
-        return Err(diagnostic(
-            "source provider choice needs the retained applied static record namespace",
-        ));
     }
-    if subject.application.is_valid()
-        || source.provider_type.application.is_valid()
-        || subject.application_identity.is_some()
-        || source.provider_type.application_identity.is_some()
-    {
+    if source.provider_type.applied {
         return Err(diagnostic(
-            "bare provider policy retains conflicting application metadata",
+            "selected generic provider has no checked implementation for its static arguments",
         ));
     }
     let provider = typed.implementation_value_head(source.provider_type.symbol);

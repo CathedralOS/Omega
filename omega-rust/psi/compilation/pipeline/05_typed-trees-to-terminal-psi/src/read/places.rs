@@ -31,7 +31,9 @@ use typed_trees::types::TypeReferenceNode;
 use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
-use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
+use crate::body::{
+    CaseSelector, CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType,
+};
 use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
@@ -728,7 +730,7 @@ impl Program<'_> {
         ))
     }
 
-    /// `x == S::C` compares tags only when `S` is a payload-free sum: no
+    /// Intrinsic equality compares tags only on a payload-free sum: no
     /// record fields and no case payloads (data_and_literals.md, "Primitive
     /// and payload-free-sum equality is intrinsic"; conformances.md,
     /// "payload-bearing sums require an explicit named conformance"). Psi
@@ -741,13 +743,16 @@ impl Program<'_> {
         record: Opened,
     ) -> Checked<()> {
         let source = self.source(id, record.record())?;
-        if source.fields.is_empty() && source.cases.iter().all(|(_, payload)| payload.is_empty()) {
+        if source.fields.is_empty()
+            && !source.cases.is_empty()
+            && source.cases.iter().all(|(_, payload)| payload.is_empty())
+        {
             return Ok(());
         }
         Err(refuse(
             id,
             Construct::Machine,
-            Unserved::Typing("`==` against a case of data with no selected Equatable comparison"),
+            Unserved::Typing("`==` on data with no selected Equatable comparison"),
         ))
     }
 
@@ -1426,16 +1431,14 @@ impl Program<'_> {
     }
 
     /// `subject in S::C`: the subject, read once, and the case's position in
-    /// the subject's own sum type. `equality` marks `subject == S::C`, which
-    /// is this test only on a sum whose equality is the intrinsic tag
-    /// comparison (`intrinsic_tag_equality`).
+    /// the subject's own sum type. Equality has its own value-comparison
+    /// admission; membership does not ask for Equatable.
     pub(super) fn case_test(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         subject: ExpressionHandle,
         case: SymbolHandle,
-        equality: bool,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
@@ -1446,9 +1449,6 @@ impl Program<'_> {
                 Unserved::Typing("case test of a value that is not a sum"),
             ));
         };
-        if equality {
-            self.require_intrinsic_tag_equality(id, record)?;
-        }
         let case = self.case_position(id, record, case)?;
         Ok(Expression {
             call_context: None,
@@ -1461,12 +1461,53 @@ impl Program<'_> {
         })
     }
 
+    /// Preserve the checked projected-equality condition as an ordinary
+    /// expression. It will execute only after lowering selects this case.
+    pub(super) fn case_selector(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        record: Opened,
+        pattern: &TableDestructurePattern,
+        subject: &Expression,
+        at: SourceOrigin,
+    ) -> Checked<CaseSelector> {
+        let case = self.case_pattern(id, record, pattern, at)?;
+        let condition = self.expression(
+            id,
+            slots,
+            pattern.condition,
+            Some(ValueType::plain(ScalarType::Boolean)),
+        )?;
+        let tests_fields = self
+            .typed
+            .expression_table
+            .match_fields(pattern.fields)
+            .iter()
+            .any(|field| matches!(field.action, MatchFieldAction::Equal(_)));
+        if !tests_fields
+            && !super::expressions::same_computation(
+                &condition,
+                &super::expressions::case_condition(subject, case),
+            )
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Transition("case pattern whose condition is not its case test"),
+            ));
+        }
+        Ok(CaseSelector {
+            case,
+            condition: tests_fields.then(|| Box::new(condition)),
+        })
+    }
+
     /// The case a destructuring pattern selects in the sum `record`, after
-    /// checking that the pattern is one this slice serves: a case head and
-    /// payload fields that are each bound or waived. patterns.md: "A pattern
-    /// that can fail rejects; a binding introduces no hidden branch, trap,
-    /// fallback or runtime assertion." A binding has no node of its own:
-    /// stage 01 replaces each use of it by the payload member it names. The
+    /// checking its nominal head and exact payload roster. A field may bind,
+    /// waive, or test its projected value. The condition is read separately
+    /// by `case_selector`; a binding has no node of its own because stage 01
+    /// replaces each use of it by the payload member it names. The
     /// pattern must name every payload field unless it ends in `..`;
     /// frozen typed trees retain the roster, not a coverage verdict, so
     /// this reader checks that rule before lowering the binding.
@@ -1508,10 +1549,9 @@ impl Program<'_> {
                 }
             }
             match &field.action {
-                MatchFieldAction::Bind(_) | MatchFieldAction::Waive => {}
-                MatchFieldAction::Equal(_) => {
-                    return Err(unserved("pattern field tested against a value"));
-                }
+                MatchFieldAction::Bind(_)
+                | MatchFieldAction::Waive
+                | MatchFieldAction::Equal(_) => {}
             }
             if !field.field_symbol.is_valid() {
                 return Err(refuse(

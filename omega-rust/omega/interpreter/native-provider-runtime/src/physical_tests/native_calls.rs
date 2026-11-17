@@ -16,7 +16,7 @@ use machine_emission::native_foreign_bridge::{
 };
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
-fn compile(command: &mut Command) {
+pub(super) fn compile(command: &mut Command) {
     let result = command.output().unwrap();
     assert!(
         result.status.success(),

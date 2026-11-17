@@ -307,6 +307,33 @@ pub(crate) mod record {
                         structural_type: result.structural_type,
                     });
                 }
+                // A separately owned component may still hold a linear claim.
+                // Compare cleanup regions after those claims take their own
+                // regions out, as when forming the destination frontier.
+                let covered_claims = self
+                    .live_claims
+                    .values()
+                    .filter_map(|claim| {
+                        (claim.place == Some(source.place)
+                            && actual.iter().any(|entry| {
+                                entry.place == source.place && claim.path.starts_with(&entry.path)
+                            }))
+                        .then_some((source.place, claim.path.as_slice()))
+                    })
+                    .collect::<Vec<_>>();
+                crate::engine::custody::exclude_linear_regions(
+                    &types,
+                    &mut actual,
+                    covered_claims,
+                    &|current| {
+                        crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                            &types,
+                            self.structural_values.get(&current.place)?,
+                            self.structural_cases.as_map(),
+                            &current.path,
+                        )
+                    },
+                )?;
                 let mut remaining = result_frontier
                     .iter()
                     .filter(|entry| entry.place == result.place)
@@ -1535,6 +1562,43 @@ pub(crate) mod record {
                         case,
                     },
                 )?;
+                Ok(())
+            }
+
+            pub(crate) fn install_resident_scalar(
+                &mut self,
+                destination: &crate::storage::primitive_storage::PrimitiveStorageEndpoint,
+                resident: crate::storage::scalar_storage::ScalarCell,
+                account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            ) -> Result<(), TerminalInterpretError> {
+                use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
+                match destination {
+                    PrimitiveStorageEndpoint::Scalar(home) => {
+                        if let Some(previous) = self.primitives.get(home) {
+                            if previous.read()? != resident.read()? {
+                                return Err(malformed());
+                            }
+                            self.primitives.insert_cell(home.clone(), resident)?;
+                        } else {
+                            let mut parent = home.clone();
+                            let Some(StructuralPathSegment::FixedIndex(index)) = parent.path.pop()
+                            else {
+                                return Err(malformed());
+                            };
+                            let array = self.byte_arrays.get_mut(&parent).ok_or(malformed())?;
+                            let index = usize::try_from(index).map_err(|_| malformed())?;
+                            array.prepare_resident_install(index, &resident, account)?;
+                            array.install_resident(index, resident)?;
+                        }
+                    }
+                    PrimitiveStorageEndpoint::ScalarField(field) => {
+                        if self.scalars.get(field).ok_or(malformed())?.read()? != resident.read()? {
+                            return Err(malformed());
+                        }
+                        self.scalars.insert_cell(field.clone(), resident)?;
+                    }
+                    _ => return Err(malformed()),
+                }
                 Ok(())
             }
 
@@ -4486,6 +4550,25 @@ pub(crate) mod structural_storage {
             observation_root: Option<(TerminalStructuralValue, usize)>,
         }
 
+        pub(crate) fn validate_scalar_contents(
+            scalar: ScalarType,
+            restriction: Option<&StructuralFieldType>,
+            stored_scalar: ScalarType,
+            value: TerminalScalarValue,
+            actual: ScalarType,
+        ) -> Result<(), &'static str> {
+            if value.scalar_type() != scalar || !terminal_scalar_belongs_to_type(value) {
+                return Err("scalar contents differ from the declared logical carrier");
+            }
+            if actual != stored_scalar || !scalar_fits_storage(actual, value) {
+                return Err("scalar contents differ from the declared stored carrier");
+            }
+            if restriction.is_some_and(|field| !value.satisfies_field(field)) {
+                return Err("scalar contents do not satisfy the declaration restriction");
+            }
+            Ok(())
+        }
+
         impl StorageLeaf {
             pub(crate) fn validate_value(
                 &self,
@@ -4506,24 +4589,13 @@ pub(crate) mod structural_storage {
                             value,
                             stored_scalar: actual,
                         },
-                    ) => {
-                        if value.scalar_type() != *scalar || !terminal_scalar_belongs_to_type(value)
-                        {
-                            return Err("scalar contents differ from the declared logical carrier");
-                        }
-                        if actual != *stored_scalar || !scalar_fits_storage(actual, value) {
-                            return Err("scalar contents differ from the declared stored carrier");
-                        }
-                        if restriction
-                            .as_ref()
-                            .is_some_and(|field| !value.satisfies_field(field))
-                        {
-                            return Err(
-                                "scalar contents do not satisfy the declaration restriction",
-                            );
-                        }
-                        Ok(())
-                    }
+                    ) => validate_scalar_contents(
+                        *scalar,
+                        restriction.as_ref(),
+                        *stored_scalar,
+                        value,
+                        actual,
+                    ),
                     (StorageLeafKind::Case { case, .. }, TerminalStorageContents::Case(actual))
                         if actual == *case =>
                     {
@@ -5296,6 +5368,7 @@ pub(crate) mod structural_storage {
                 if let ArrayStorageHome::Frame { depth, place, .. } = array.home {
                     self.frame_array(depth, place);
                 }
+                self.place(array.referent.clone());
             }
 
             pub(crate) fn primitive_endpoint(&mut self, endpoint: &PrimitiveStorageEndpoint) {
@@ -5308,6 +5381,10 @@ pub(crate) mod structural_storage {
                         for fragment in fragments {
                             self.primitive_endpoint(&fragment.storage.endpoint);
                         }
+                    }
+                    PrimitiveStorageEndpoint::Scalar(home) => self.place(home.clone()),
+                    PrimitiveStorageEndpoint::ScalarField(field) => {
+                        self.place(field.parent.clone())
                     }
                     PrimitiveStorageEndpoint::OwnedArrayElement { home, .. } => {
                         self.primitive_home(*home)
@@ -5461,6 +5538,20 @@ pub(crate) mod structural_storage {
                     || super::cells(&self.structural_element_view_fields, root)
                         .next()
                         .is_some()
+                    || super::cells(&self.structural_primitive_storage, root).any(|(_, cell)| {
+                        matches!(
+                            cell,
+                            crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                        )
+                    })
+                    || super::cells(&self.structural_scalar_fields, root).any(|(_, cell)| {
+                        matches!(
+                            cell,
+                            crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                        )
+                    })
+                    || super::cells(&self.structural_byte_storage, root)
+                        .any(|(_, array)| array.has_residents())
             }
 
             pub(crate) fn queue_retired_descriptor_home(&mut self, root: StructuralRuntimePlace) {
@@ -5653,6 +5744,47 @@ pub(crate) mod structural_storage {
                     for carrier in views {
                         self.structural_element_view_fields.remove(&carrier);
                     }
+                    // A materialized resident referent owns its cells even
+                    // though it has no local place. Keep the occurrence while
+                    // any carrier, reborrow or continuation reaches its identity.
+                    if !retained
+                        .regions
+                        .iter()
+                        .any(|region| region.root().opaque_identity == root.opaque_identity)
+                    {
+                        let primitives: Vec<_> =
+                            super::cells(&self.structural_primitive_storage, &root)
+                                .filter(|(_, cell)| {
+                                    matches!(
+                                        cell,
+                                        crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                                    )
+                                })
+                                .map(|(home, _)| home.clone())
+                                .collect();
+                        let fields: Vec<_> = super::cells(&self.structural_scalar_fields, &root)
+                            .filter(|(_, cell)| {
+                                matches!(
+                                    cell,
+                                    crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                                )
+                            })
+                            .map(|(home, _)| home.clone())
+                            .collect();
+                        let arrays: Vec<_> = super::cells(&self.structural_byte_storage, &root)
+                            .filter(|(_, array)| array.has_residents())
+                            .map(|(home, _)| home.clone())
+                            .collect();
+                        for home in primitives {
+                            self.structural_primitive_storage.remove(&home);
+                        }
+                        for home in fields {
+                            self.structural_scalar_fields.remove(&home);
+                        }
+                        for home in arrays {
+                            self.structural_byte_storage.remove(&home);
+                        }
+                    }
                     if self.descriptor_cells_exist(&root) {
                         self.retired_descriptor_homes.push(root);
                     }
@@ -5682,6 +5814,17 @@ pub(crate) mod structural_storage {
                 &self,
                 source: &TerminalStructuralValue,
             ) -> Result<OriginalAllocation, TerminalInterpretError> {
+                self.maybe_original_owned_allocation(source)?.ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "storage source has no live supplying allocation",
+                    ),
+                )
+            }
+
+            pub(crate) fn maybe_original_owned_allocation(
+                &self,
+                source: &TerminalStructuralValue,
+            ) -> Result<Option<OriginalAllocation>, TerminalInterpretError> {
                 let homes = self
                     .call_stack
                     .iter()
@@ -5741,9 +5884,7 @@ pub(crate) mod structural_storage {
                 if competing {
                     return Err(malformed());
                 }
-                selected.ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "storage source has no live supplying allocation",
-                ))
+                Ok(selected)
             }
         }
     }

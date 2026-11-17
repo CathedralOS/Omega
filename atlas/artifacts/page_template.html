@@ -10,9 +10,10 @@
 </head>
 <body class="%%PAGE_CLASS%%">
   <a class="skip" href="#main">Skip to content</a>
+%%HEADER%%
   <div class="page">
     <header class="top">
-      <div class="topline"><a class="brand" href="%%PREFIX%%index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
+%%BACK%%
       <div class="eyebrow">%%STATUS%%</div>
       <h1>%%TITLE%%</h1>
       <p class="lede">%%DESCRIPTION%%</p>
@@ -21,14 +22,10 @@
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 %%COUNTS%%
     </header>
-    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Browse Atlas</summary>
-      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
-      %%NAV%%
-      <p id="no-pages" hidden>No matching pages.</p>
-    </details></nav>
-    <main id="main">%%EXPLORER%%%%TOC%%%%BODY%%</main>
-    <footer><a href="%%PREFIX%%index.html">Atlas index</a><a href="%%README_URL%%">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
+%%TOC%%
+    <main id="main">%%EXPLORER%%%%BODY%%</main>
   </div>
+%%FOOTER%%
 %%CANVAS_BUNDLE%%
   <script>%%SCRIPT%%</script>
 </body>

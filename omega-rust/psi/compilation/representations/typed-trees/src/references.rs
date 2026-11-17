@@ -1322,7 +1322,12 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         _: StaticMachineApplicationHandle,
         formation_owner: SymbolHandle,
     ) {
-        self.declaration_description_dependency(formation_owner);
+        self.formation_owner(formation_owner);
+    }
+    /// An application keeps the declaration that supplied its lexical scope.
+    /// Retaining that origin does not invoke or select the declaration.
+    fn formation_owner(&mut self, owner: SymbolHandle) {
+        self.declaration_description_dependency(owner);
     }
     fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
@@ -1431,6 +1436,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
         formation_owner: SymbolHandle,
     ) {
         self.0.static_application(application, formation_owner);
+    }
+    fn formation_owner(&mut self, owner: SymbolHandle) {
+        self.0.formation_owner(owner);
     }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
         self.0.declaration_description_dependency(symbol);
@@ -4974,5 +4982,103 @@ mod cast_dependency_tests {
             .insert_type_reference_handles([carrier]);
         *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
         assert_eq!(observed(&program), vec![SymbolHandle::invalid()]);
+    }
+}
+
+#[cfg(test)]
+mod formation_owner_tests {
+    use super::*;
+    use crate::data::{TypeParameter, TypeParameterKind};
+    use crate::name::Identifier;
+    use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments, TraitDefinition};
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn a_trait_scope_retains_its_supplier_without_selecting_its_code() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Trait, SymbolNameRef::Static("Service")),
+                (SymbolKind::Machine, SymbolNameRef::Static("build")),
+            ]),
+        );
+        let service = declarations.handle_at(u32::try_from(symbols::BUILTIN_TYPE_COUNT).unwrap());
+        let supplier =
+            declarations.handle_at(u32::try_from(symbols::BUILTIN_TYPE_COUNT + 1).unwrap());
+        let parameter = builder
+            .insert_children(
+                service,
+                [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+            )
+            .handle_at(0);
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: parameter,
+            name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        }]);
+        program.push_trait_definition(TraitDefinition {
+            symbol: service,
+            name: Identifier::generated("Service"),
+            type_parameters: parameters,
+            ..Default::default()
+        });
+        let actual = program
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::U64)
+            .unwrap();
+        let argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: actual,
+                name: Identifier::generated("u64"),
+            });
+        let environment = AppliedTraitScope::new(
+            &program,
+            program.trait_definition_by_symbol(service).unwrap(),
+            TraitApplicationArguments {
+                lexical_owner: supplier,
+                enclosing_data_applications: &[],
+                arguments: &[argument],
+                lifetimes: &[],
+            },
+        )
+        .unwrap()
+        .environment();
+        let scope = environment.retain(&mut program).unwrap();
+        #[derive(Default)]
+        struct Seen {
+            origins: Vec<SymbolHandle>,
+            dependencies: Vec<SymbolHandle>,
+        }
+        impl Extend<SymbolHandle> for Seen {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                self.dependencies.extend(symbols);
+            }
+        }
+        impl TypedReferences for Seen {
+            fn formation_owner(&mut self, owner: SymbolHandle) {
+                self.origins.push(owner);
+            }
+            fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+                self.dependencies.push(symbol);
+            }
+        }
+        let mut seen = Seen::default();
+        scope.visit_references(&program, &mut seen);
+        assert_eq!(seen.origins, vec![supplier]);
+        assert!(!seen.dependencies.contains(&supplier));
+        for required in [service, parameter, actual] {
+            assert!(
+                seen.dependencies.contains(&required),
+                "missing {required:?}"
+            );
+        }
     }
 }

@@ -1879,7 +1879,17 @@ impl RequirementApplicationSource {
         let bindings = typed
             .expression_table
             .static_machine_application_bindings(closed.application);
-        if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
+        // Declaring-trait arguments belong to the closed callable identity
+        // and ABI's declaring_application. This tuple holds only the
+        // method's own binders, so it is empty for Trait<T>::value().
+        let parameters = typed.state_signature_type_parameters(template);
+        if bindings.len() != parameters.len()
+            || bindings.len() != closed.portable_local_arguments.len()
+            || bindings
+                .iter()
+                .zip(parameters)
+                .any(|(binding, parameter)| binding.parameter != parameter.symbol)
+        {
             return Err("a closed requirement binds other than one argument per parameter");
         }
         let mut selected = Vec::with_capacity(bindings.len());

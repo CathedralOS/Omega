@@ -16,8 +16,6 @@ a:hover { text-decoration-thickness: var(--border-control); }
 .skip:focus { top: var(--space-3); }
 .page { max-width: 1320px; margin: auto; padding: var(--space-4) max(var(--space-3),env(safe-area-inset-right)) var(--space-5) max(var(--space-3),env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
 .top { grid-column: 1/-1; display: grid; gap: var(--space-3); border-bottom: var(--border-hairline) solid var(--rule); padding-bottom: var(--space-4); }
-.topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.brand { font: var(--type-subheading); text-decoration: none; }
 button,input { font: var(--type-label); color: var(--ink); background: var(--surface); border: var(--border-control) solid var(--ink-muted); border-radius: var(--radius-chamfer); padding: var(--space-2); }
 button { cursor: pointer; }
 input { width: 100%; }
@@ -30,14 +28,6 @@ h1 { font: var(--type-display); margin: 0; text-wrap: balance; overflow-wrap: an
 .glance div { padding: var(--space-3); }
 .glance b { display: block; font: var(--type-heading); font-variant-numeric: tabular-nums; }
 .glance span { color: var(--ink-muted); font: var(--type-label); }
-.atlas-nav { font: var(--type-body); }
-.atlas-nav summary { padding: var(--space-3); border: var(--border-control) solid var(--ink-muted); background: var(--surface); margin-bottom: var(--space-3); }
-.atlas-nav h2 { font: var(--type-label); color: var(--ink-muted); margin: var(--space-4) 0 var(--space-2); }
-.atlas-nav ul { padding: 0; margin: 0; list-style: none; display: grid; gap: var(--space-1); }
-.atlas-nav a { display: block; padding: var(--space-2); text-decoration: none; color: var(--ink-muted); border-left: var(--border-control) solid transparent; }
-.atlas-nav a:hover { color: var(--ink); text-decoration: underline; }
-.atlas-nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); background: var(--surface); }
-.atlas-nav .number { margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
 main { min-width: 0; }
 main h2 { font: var(--type-heading); border-top: var(--border-hairline) solid var(--rule); margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-3); scroll-margin-top: var(--space-3); text-wrap: balance; }
 main h3 { font: var(--type-subheading); margin-top: var(--space-4); }
@@ -87,8 +77,7 @@ summary { cursor: pointer; }
 .atlas-card p { margin: 0; }
 footer { grid-column: 1/-1; border-top: var(--border-hairline) solid var(--rule); padding-top: var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); color: var(--ink-muted); font: var(--type-label); }
 [hidden] { display: none !important; }
-@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } .sticky { position: sticky; top: var(--space-4); max-height: calc(100vh - var(--space-5)); overflow-y: auto; } .atlas-nav summary { display: none; } }
-@media (max-width: 979px) { .atlas-nav ul { grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); } .atlas-nav input { max-width: 360px; } }
+@media (min-width: 980px) { .page { grid-template-columns: 205px minmax(0,1fr); } }
 @media print { .atlas-nav,.topline button,.contents,.diagram details { display: none; } .page { display: block; } .diagram-frame,.table-scroll { overflow: visible; } }
 
 /* The overview and subject pages share one reading and navigation layout. */
@@ -230,14 +219,10 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .architecture :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
 .overview-page .page { grid-template-columns:minmax(0,1fr); gap:8px; padding-top:12px; }
 .overview-page .top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding-bottom:0; border:0; }
-.overview-page .topline { flex:1; }
 .overview-page .top > .eyebrow,.overview-page .top > .lede { display:none; }
 .overview-page .top h1 { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .overview-page .source-details { align-self:center; }
 .overview-page .source-details[open] { grid-column:1/-1; }
-.overview-page .atlas-nav summary { display:block; padding:4px 12px; margin-bottom:0; font:var(--type-label); }
-.overview-page .atlas-nav .sticky { position:static; max-height:none; overflow:visible; }
-.overview-page .atlas-nav ul { grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
 @media (max-width:700px) {
   .overview-page .page { padding:12px; }
   .overview-page .top { grid-template-columns:minmax(0,1fr); }
@@ -286,48 +271,130 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .legend-check { color: var(--checked); }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
+
+/* Shared navigation uses Atlas tokens; page content keeps its own layout. */
+.site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
+.site-bar { max-width:1320px; margin:auto; padding:var(--space-3); display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
+.site-brand { color:var(--ink); font:var(--type-subheading); text-decoration:none; white-space:nowrap; }
+.site-primary { display:flex; align-items:center; gap:var(--space-4); margin-left:auto; }
+.site-primary a { color:var(--ink-muted); font:var(--type-body); text-decoration:none; white-space:nowrap; }
+.site-primary a:hover,.site-primary a.is-active { color:var(--ink); text-decoration:underline; text-underline-offset:.4em; }
+.site-actions { display:flex; align-items:center; gap:var(--space-3); }
+.site-actions button,.site-directory > summary { font:var(--type-label); color:var(--ink); background:var(--surface); border:var(--border-control) solid var(--ink-muted); border-radius:var(--radius-chamfer); padding:var(--space-2); min-height:40px; cursor:pointer; white-space:nowrap; }
+.site-directory { position:relative; }
+.site-directory > summary { list-style:none; }
+.site-directory > summary::-webkit-details-marker { display:none; }
+.site-directory[open] > summary { background:var(--ground); }
+.directory-panel { position:absolute; right:0; top:calc(100% + var(--space-2)); width:min(760px,calc(100vw - var(--space-4))); max-height:75dvh; overflow:auto; border:var(--border-control) solid var(--ink-muted); background:var(--surface); padding:var(--space-3); }
+.directory-panel input { width:100%; margin:var(--space-2) 0 var(--space-3); }
+.directory-panel .atlas-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-3); }
+.directory-panel .nav-home { grid-column:1/-1; }
+.directory-panel .atlas-nav h2 { margin:0 0 var(--space-2); font:var(--type-label); color:var(--ink-muted); }
+.directory-panel .atlas-nav ul,.footer-pages ul { list-style:none; padding:0; margin:0; }
+.directory-panel .atlas-nav a { display:block; padding:var(--space-2); color:var(--ink-muted); text-decoration:none; font:var(--type-body); border-left:var(--border-control) solid transparent; }
+.directory-panel .atlas-nav a:hover,.directory-panel .atlas-nav a[aria-current="page"] { color:var(--ink); background:var(--ground); border-color:var(--ink); }
+.site-footer { display:block; padding:0; border-top:var(--border-hairline) solid var(--rule); margin-top:var(--space-5); color:var(--ink-muted); background:var(--surface); }
+.site-footer-inner { max-width:1320px; margin:auto; padding:var(--space-4) var(--space-3); }
+.footer-pages { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); }
+.footer-pages h2 { font:var(--type-subheading); color:var(--ink); margin:0 0 var(--space-3); }
+.footer-pages a { color:inherit; font:var(--type-body); text-decoration:none; display:inline-block; padding:var(--space-1) 0; }
+.footer-pages a:hover { text-decoration:underline; }
+.footer-meta { border-top:var(--border-hairline) solid var(--rule); padding-top:var(--space-3); margin-top:var(--space-4); display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); font:var(--type-label); }
+.back-link { font:var(--type-label); color:var(--ink-muted); width:fit-content; }
+.page-sections { min-width:0; font:var(--type-label); }
+.page-sections .contents { position:sticky; top:100px; max-height:calc(100dvh - 116px); overflow:auto; border:0; padding:0; background:transparent; }
+.page-sections summary { color:var(--ink-muted); margin-bottom:var(--space-3); }
+.page-sections ul { list-style:none; padding:0; margin:0; }
+.page-sections ul ul { padding-left:var(--space-3); border-left:var(--border-hairline) solid var(--rule); }
+.page-sections a { display:block; padding:var(--space-2) 0; color:var(--ink-muted); text-decoration:none; font:400 14px/20px var(--font-serif); }
+.page-sections a:hover,.page-sections a[aria-current="location"] { color:var(--ink); text-decoration:underline; }
+.home-page .page { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
+.home-page .top { border:0; padding:var(--space-4) 0 0; gap:var(--space-3); }
+.home-page .top h1 { font:var(--type-display); max-width:19ch; }
+main h2,main h3 { scroll-margin-top:100px; }
+.home-page .lede { max-width:48ch; }
+.home-page .source-details { font:var(--type-label); color:var(--ink-muted); }
+.home-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
+.route-card { display:grid; gap:var(--space-3); padding:var(--space-4); border:var(--border-control) solid var(--ink-muted); background:var(--surface); color:var(--ink); text-decoration:none; }
+.route-card:hover { border-color:var(--ink); background:var(--ground); }
+.route-card h2 { font:var(--type-heading); border:0; margin:0; padding:0; }
+.route-card p { margin:0; max-width:40ch; }
+.route-link { font:var(--type-subheading); text-decoration:underline; text-underline-offset:.2em; }
+.section-intro { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:var(--space-2) var(--space-4); }
+.section-intro h2 { border:0; padding:0; margin:0; }
+.section-intro p { color:var(--ink-muted); margin:0; }
+.home-reference { margin-top:var(--space-5); scroll-margin-top:100px; }
+.reference-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:var(--space-4); border-top:var(--border-hairline) solid var(--rule); }
+.reference-link { padding:var(--space-3) 0; margin-right:var(--space-4); border-bottom:var(--border-hairline) solid var(--rule); color:var(--ink); text-decoration:none; display:grid; gap:var(--space-1); }
+.reference-link strong { font:var(--type-subheading); }
+.reference-link span { font:var(--type-body); color:var(--ink-muted); }
+.reference-link:hover strong { text-decoration:underline; }
+.home-context { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-4); margin-top:var(--space-5); }
+.home-context h2 { font:var(--type-subheading); margin:0; padding:var(--space-3) 0 0; }
+.home-context p { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); }
+.history-note { font:var(--type-label); padding:var(--space-3); max-width:1320px; margin:auto; color:var(--ink-muted); }
+@media (max-width:760px) {
+ .site-bar { gap:var(--space-3); }
+ .site-brand { margin-right:auto; }
+ .site-primary { order:3; flex-basis:100%; margin:0; justify-content:space-between; gap:var(--space-3); }
+ .site-primary a { padding:var(--space-1) 0; }
+ .site-actions { gap:var(--space-2); }
+ .site-directory { position:static; }
+ .directory-panel { left:var(--space-3); right:var(--space-3); top:calc(100% + var(--space-2)); width:auto; max-height:calc(100dvh - 160px); }
+ .directory-panel .atlas-nav { grid-template-columns:minmax(0,1fr); }
+ .footer-pages { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
+ .home-choices,.home-context { grid-template-columns:minmax(0,1fr); }
+ .reference-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .route-card { padding:var(--space-3); }
+ .home-page .top { padding-top:var(--space-3); }
+ .home-page .top h1 { font:300 40px/46px var(--font-serif); }
+ main h2,main h3 { scroll-margin-top:144px; }
+ .home-reference { scroll-margin-top:144px; }
+}
+@media (max-width:979px) {
+ .page-sections .contents { position:static; max-height:none; border-top:var(--border-hairline) solid var(--rule); border-bottom:var(--border-hairline) solid var(--rule); padding:var(--space-3) 0; }
+ .page-sections .contents > summary { margin:0; }
+ .page-sections .contents[open] > summary { margin-bottom:var(--space-2); }
+}
+@media print { .site-header,.site-footer,.page-sections { display:none; } }
 </style>
 </head>
 <body class="">
   <a class="skip" href="#main">Skip to content</a>
-  <div class="page">
-    <header class="top">
-      <div class="topline"><a class="brand" href="../index.html">Ω / Atlas</a><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div>
-      <div class="eyebrow">Current behavior and marked proposals</div>
-      <h1>Reviewed pipeline routes</h1>
-      <p class="lede">Observed compilation routes, corrected value paths and the proposed ownership changes.</p>
-      <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/61249c7280127022c3b28268fe4eef5de414e360/atlas"><code>61249c728012</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
-<details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
-    </header>
-    <nav class="atlas-nav" aria-label="Atlas pages"><details id="page-list" class="sticky" open><summary>Browse Atlas</summary>
-      <label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Psi, packages, tools…" autocomplete="off">
-      <ul><li><a href="../index.html">Overview</a></li></ul>
-<h2>Compiler</h2><ul>
-<li><a href="architecture.html">Interactive architecture</a></li>
+<header class="site-header"><div class="site-bar"><a class="site-brand" href="../index.html">Ω / Atlas</a><nav class="site-primary" aria-label="Primary navigation"><a href="architecture.html" class="">Compiler map</a><a href="foundation-backend-plan.html#start-with-the-extra-arrows" class="">Repair plan</a><a href="../index.html#reference" class="">Reference</a></nav><div class="site-actions"><details id="page-list" class="site-directory"><summary>All pages</summary><div class="directory-panel"><label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Search Atlas…" autocomplete="off"><nav class="atlas-nav" aria-label="Atlas pages"><div class="nav-home"><a href="../index.html">Atlas overview →</a></div>
+<section><h2>Compiler</h2><ul>
+<li><a href="architecture.html">Compiler map</a></li>
 <li><a href="psi.html">Psi stages</a></li>
 <li><a href="omega.html">Omega stages and realization</a></li>
 <li><a href="build-and-packages.html">Build and packages</a></li>
 <li><a href="interpreter.html">Psi interpreter</a></li>
 <li><a href="library.html">Bundled library</a></li>
-</ul>
-<h2>Repository</h2><ul>
+</ul></section>
+<section><h2>Repository</h2><ul>
 <li><a href="repository.html">Codebase map</a></li>
 <li><a href="cli.html">CLI</a></li>
 <li><a href="bootstrap.html">Bootstrap</a></li>
 <li><a href="tools.html">Tools and verification</a></li>
-</ul>
-<h2>Plans and evidence</h2><ul>
+</ul></section>
+<section><h2>Plans and evidence</h2><ul>
 <li><a href="pipeline-current.html" aria-current="page">Reviewed pipeline routes</a></li>
-<li><a href="foundation-backend-plan.html">Foundation and backend plan</a></li>
+<li><a href="foundation-backend-plan.html">Compiler repair plan</a></li>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul>
-      <p id="no-pages" hidden>No matching pages.</p>
-    </details></nav>
-    <main id="main"><details class="contents"><summary>On this page</summary><div class="toc">
+</ul></section></nav><p id="no-pages" hidden>No matching pages.</p></div></details><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div></div></header>
+  <div class="page">
+    <header class="top">
+<a class="back-link" href="../index.html">← Atlas overview</a>
+      <div class="eyebrow">Current behavior and marked proposals</div>
+      <h1>Reviewed pipeline routes</h1>
+      <p class="lede">Observed compilation routes, corrected value paths and the proposed ownership changes.</p>
+      <details class="source-details"><summary>Source snapshot and evidence</summary>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/54a4163589bab2f99272123376c29a888918b92b/atlas"><code>54a4163589ba</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
+      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+<details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
+    </header>
+<aside class="page-sections"><details class="contents" open><summary>On this page</summary><div class="toc">
 <ul>
 <li><a href="#current-route-source-providers-and-execution">Current route: source, providers, and execution</a></li>
 <li><a href="#current-native-order-installation-binding-happens-later">Current native order: installation binding happens later</a></li>
@@ -337,7 +404,8 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 <li><a href="#size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</a></li>
 </ul>
 </div>
-</details><p>The compiler has a numbered Psi route and a numbered native route, plus
+</details></aside>
+    <main id="main"><p>The compiler has a numbered Psi route and a numbered native route, plus
 drivers that settle providers, bind installations, and emit artifacts. The
 owner wants one linear pipeline. The diagrams below distinguish the present
 code from the contracts that migration still needs.</p>
@@ -776,17 +844,37 @@ adopted architectures. Exact stage numbers remain open. The
 <a href="rulings.html">owner rulings</a> govern the destination.</p>
 <h2 id="size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</h2>
 <p>The measurement panel is generated from
-<a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
+<a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
 source lines within Cargo package directories, including test files, under
-the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/evidence/data/manifest.json">evidence manifest</a>.
+the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/evidence/data/manifest.json">evidence manifest</a>.
 A directory total does not prove that all its work belongs in one stage.
 The plan must trace each producer, consumer, authority, and refusal condition.</p>
 <p>Text scans identify observed names, not every Rust use. A dependency with no
 observed use still needs resolver-aware verification before deletion. See
-the <a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
+the <a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
 scan and the limits of the generated data.</p></main>
-    <footer><a href="../index.html">Atlas index</a><a href="https://github.com/CathedralOS/Omega/blob/61249c7280127022c3b28268fe4eef5de414e360/atlas/README.md">Rebuild and evidence rules</a><span>Original publications: <a href="https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P">pipeline</a> · <a href="https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM">plan</a>. Those historical URLs are separate from these pages.</span></footer>
   </div>
+<footer class="site-footer"><div class="site-footer-inner"><nav class="footer-pages" aria-label="Atlas directory"><section><h2>Compiler</h2><ul>
+<li><a href="architecture.html">Compiler map</a></li>
+<li><a href="psi.html">Psi stages</a></li>
+<li><a href="omega.html">Omega stages and realization</a></li>
+<li><a href="build-and-packages.html">Build and packages</a></li>
+<li><a href="interpreter.html">Psi interpreter</a></li>
+<li><a href="library.html">Bundled library</a></li>
+</ul></section>
+<section><h2>Repository</h2><ul>
+<li><a href="repository.html">Codebase map</a></li>
+<li><a href="cli.html">CLI</a></li>
+<li><a href="bootstrap.html">Bootstrap</a></li>
+<li><a href="tools.html">Tools and verification</a></li>
+</ul></section>
+<section><h2>Plans and evidence</h2><ul>
+<li><a href="pipeline-current.html">Reviewed pipeline routes</a></li>
+<li><a href="foundation-backend-plan.html">Compiler repair plan</a></li>
+<li><a href="questions.html">Open questions</a></li>
+<li><a href="rulings.html">Owner rulings</a></li>
+<li><a href="pipeline-map.html">Original pipeline map</a></li>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/54a4163589bab2f99272123376c29a888918b92b/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -805,9 +893,18 @@ scan and the limits of the generated data.</p></main>
   label();
   const wide = matchMedia('(min-width: 980px)');
   const pageList = document.getElementById('page-list');
-  const fitNavigation = () => { pageList.open = wide.matches && !document.body.classList.contains('overview-page'); };
-  wide.addEventListener('change', fitNavigation);
-  fitNavigation();
+  pageList.addEventListener('toggle', () => {
+    if(pageList.open)document.getElementById('page-filter').focus({preventScroll:true});
+  });
+  document.addEventListener('click', event => {
+    if(!pageList.contains(event.target))pageList.open=false;
+  });
+  document.addEventListener('keydown', event => {
+    if(event.key==='Escape'&&pageList.open){pageList.open=false;pageList.querySelector('summary').focus();}
+  });
+  const contents=document.querySelector('.page-sections .contents');
+  const fitContents=()=>{if(contents)contents.open=wide.matches;};
+  wide.addEventListener('change',fitContents);fitContents();
   const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {
     const frame = figure.querySelector('.diagram-frame');
     figure.querySelector('.diagram-hint').hidden = frame.scrollWidth <= frame.clientWidth;
@@ -821,8 +918,27 @@ scan and the limits of the generated data.</p></main>
       item.hidden = !item.textContent.toLowerCase().includes(query);
       if (!item.hidden) count++;
     });
+    document.querySelectorAll('.atlas-nav section').forEach(group=>{
+      group.hidden=![...group.querySelectorAll('li')].some(item=>!item.hidden);
+    });
+    const home=document.querySelector('.atlas-nav .nav-home');
+    home.hidden=Boolean(query)&&!home.textContent.toLowerCase().includes(query);
+    if(!home.hidden)count++;
     document.getElementById('no-pages').hidden = count > 0;
   });
+  if(contents){
+    const links=[...contents.querySelectorAll('a[href^="#"]')];
+    const selectSection=id=>links.forEach(link=>{
+      if(link.getAttribute('href')==='#'+id)link.setAttribute('aria-current','location');
+      else link.removeAttribute('aria-current');
+    });
+    const observer=new IntersectionObserver(entries=>{
+      const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top);
+      if(visible.length)selectSection(visible[0].target.id);
+    },{rootMargin:'-8% 0px -65% 0px'});
+    links.forEach(link=>{const target=document.getElementById(decodeURIComponent(link.hash.slice(1)));if(target)observer.observe(target);});
+    if(location.hash)selectSection(decodeURIComponent(location.hash.slice(1)));
+  }
 })();
 
 /* Progressive enhancement: source traces stay readable without scripting. */

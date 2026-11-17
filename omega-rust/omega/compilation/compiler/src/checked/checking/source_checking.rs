@@ -165,16 +165,9 @@ fn prepare_and_judge(
     let layout_scopes = layout_target_scopes(&typed, build, chosen_defaults, &claimed_selections)?;
     let external_roots = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    // The Build's own provider selections are supplies of this compilation
-    // whether or not the program reaches their slots: each chosen provider
-    // is judged against the slot it names. A target package's defaults join
-    // below, when a target chooses them for a requirement its entries reach
-    // (`judge_supplied_product`).
-    let supplies = build
-        .provider_selections
-        .iter()
-        .flat_map(crate::checked::selected_supplies)
-        .collect::<Vec<_>>();
+    // Provider choices enter through their complete normalized applications
+    // below. Passing them through the bare Supply adapter as well loses the
+    // selected trait arguments and creates a second, different judgment.
     let mut selected = Vec::new();
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
@@ -306,7 +299,7 @@ fn prepare_and_judge(
         subject,
         selected,
         bindings,
-        supplies,
+        supplies: Vec::new(),
         normalization: Default::default(),
     };
     let preparation_compilation = roster.preparation_compilation()?;

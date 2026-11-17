@@ -142,8 +142,7 @@ impl Program<'_> {
                 .trait_definition_by_symbol(*symbol)
                 .filter(|owner| owner.is_boundary)
             {
-                self.boundary_trait_declaration(entry, owner)?;
-                self.declared_service(entry, owner)?;
+                self.claim_boundary_trait(entry, owner)?;
                 continue;
             }
             if self.trait_declaration(entry, *symbol)?
@@ -416,11 +415,10 @@ impl Program<'_> {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
                     if declared.is_boundary {
-                        self.boundary_trait_declaration(entry, declared)
+                        self.claim_boundary_trait(entry, declared)
                             .map_err(|refusal| {
                                 self.read_failure_at(refusal, declared.symbol, "the trait")
                             })?;
-                        self.declared_service(entry, declared)?;
                     } else {
                         self.trait_declaration(entry, declared.symbol)
                             .map_err(|refusal| {

@@ -2362,6 +2362,8 @@ pub mod trust_declarations {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AcceptedMachineDeclaration {
         pub machine: SymbolHandle,
+        pub declaration_identity: String,
+        pub package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
         pub name: String,
         pub template: Result<Option<AcceptedTemplateDeclaration>, TrustDeclarationCardinality>,
         pub contract: Result<AcceptedContractDeclaration, TrustDeclarationCardinality>,

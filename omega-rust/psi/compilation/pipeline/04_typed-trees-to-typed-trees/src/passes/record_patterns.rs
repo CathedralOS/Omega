@@ -15,7 +15,6 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::TableMatchField;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableLocalData};
-use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut resolutions = Vec::new();
@@ -79,10 +78,9 @@ fn named_field(program: &TypedTrees, record: &DataDefinition, name: &str) -> Sym
 ///
 /// The subject's type is read from the declaration of the binding it names,
 /// a parameter or an earlier typed local of the same state, and otherwise
-/// from the marker's own type. A field path, a call result, a type-applied
-/// record, a quotient and a sum all stay unresolved. Lifetime
-/// arguments leave the field roster unchanged; their actual loans are checked
-/// when the prepared body is lowered.
+/// from the marker's own type. Applied records use their exact closed field
+/// roster. A field path, a call result, an open application, a quotient and a
+/// sum stay unresolved. The checker still judges the actual value and loans.
 fn subject_record<'program>(
     program: &'program TypedTrees,
     state: &State,
@@ -97,16 +95,7 @@ fn subject_record<'program>(
                 .then_some(local.type_reference)
         })?;
     let carrier = program.type_reference_table.peeled_type_reference(declared);
-    let symbol = match program.type_reference_table.type_reference(carrier) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if arguments.is_empty() => *base_symbol,
-        _ => return None,
-    };
-    let record = program.unique_data_definition_by_symbol(symbol)?;
+    let record = program.closed_data_definition(carrier)?;
     let plain = program.data_type_parameters(record).is_empty()
         && record.quotient.is_none()
         && program

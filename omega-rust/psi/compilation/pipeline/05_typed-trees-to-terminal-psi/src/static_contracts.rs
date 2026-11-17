@@ -124,9 +124,28 @@ struct RecordBindingLocation {
 pub(crate) struct StaticContracts {
     pub schemas: Vec<SourceSchema>,
     pub conformances: Vec<SourceConformance>,
-    pub formed: Vec<SymbolHandle>,
+    pub formed: Vec<FormedConformance>,
     /// Only prepared record binders are indexed; scalar formals need no rows.
     record_bindings: Vec<RecordBindingLocation>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FormedConformance {
+    pub declaration: SymbolHandle,
+    pub questions: std::ops::Range<usize>,
+}
+
+impl StaticContracts {
+    pub(crate) fn conformance_questions(
+        &self,
+        declaration: SymbolHandle,
+    ) -> Option<&[SourceConformance]> {
+        let row = self
+            .formed
+            .binary_search_by_key(&symbol_key(declaration), |row| symbol_key(row.declaration))
+            .ok()?;
+        self.conformances.get(self.formed[row].questions.clone())
+    }
 }
 
 fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {

@@ -88,9 +88,9 @@ def main():
             page.goto(address('pages/architecture.html'))
             page.locator('#page-list summary').click()
             page.locator('#page-filter').fill('psi')
-            assert page.locator('nav li:visible').count()==2
+            assert page.locator('.atlas-nav li:visible').count()==2
             page.locator('#page-filter').fill('')
-            page.locator('nav a[href="psi.html"]').click()
+            page.locator('.atlas-nav a[href="psi.html"]').click()
             page.wait_for_url('**/pages/psi.html')
             page.locator('#theme').click()
             assert page.evaluate('document.documentElement.dataset.theme')=='dark'

@@ -6,7 +6,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 use terminal_psi::{CallAcknowledgement, CallOrigin};
 
-use crate::body::{Body, Expression, ExpressionKind, Selector, Statement, Target};
+use crate::body::{Body, Expression, ExpressionKind, Statement, Target};
 
 pub(crate) fn retain(
     expression: &mut Expression,
@@ -63,7 +63,10 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
                 ..
             } => {
                 expression(machine, subject)?;
-                for (_, arm, _) in arms {
+                for (selector, arm, _) in arms {
+                    if let Some(condition) = selector.condition.as_deref() {
+                        expression(machine, condition)?;
+                    }
                     target(machine, arm)?;
                 }
                 if let Some((arm, _)) = default {
@@ -163,7 +166,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         } => {
             expression(machine, subject)?;
             for (selector, arm) in arms {
-                if let Selector::Value(pattern) = selector {
+                if let Some(pattern) = selector.test() {
                     expression(machine, pattern)?;
                 }
                 expression(machine, arm)?;

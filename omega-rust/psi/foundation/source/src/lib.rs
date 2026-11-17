@@ -538,24 +538,67 @@ pub mod source_identity {
                 )
             }
         };
-        let byte_count = u64::try_from(source.source.len()).map_err(|_| {
-            format!(
-                "compiler-consumed source `{}` byte length exceeds the canonical range",
-                source.path.display()
-            )
-        })?;
-        let mut digest = Sha256::new();
-        digest.update(SOURCE_CONTENT_DOMAIN);
-        digest.update(byte_count.to_le_bytes());
-        digest.update(source.source.as_bytes());
+        let (byte_count, content_digest) = source_content_identity(source.source.as_bytes())
+            .map_err(|_| {
+                format!(
+                    "compiler-consumed source `{}` byte length exceeds the canonical range",
+                    source.path.display()
+                )
+            })?;
         Ok(ConsumedSourceUnit {
             kind,
             package,
             toolchain_namespace,
             relative_path,
             byte_count,
-            content_digest: digest.finalize().into(),
+            content_digest,
         })
+    }
+
+    fn source_content_identity(bytes: &[u8]) -> Result<(u64, [u8; 32]), &'static str> {
+        let byte_count = u64::try_from(bytes.len())
+            .map_err(|_| "source byte length exceeds the canonical range")?;
+        let mut digest = Sha256::new();
+        digest.update(SOURCE_CONTENT_DOMAIN);
+        digest.update(byte_count.to_le_bytes());
+        digest.update(bytes);
+        Ok((byte_count, digest.finalize().into()))
+    }
+
+    /// Commit to a receiver's bundled source using the producer's existing
+    /// toolchain-owned framing. No source object or filesystem read is needed;
+    /// the commitment describes bytes and grants no toolchain custody.
+    pub fn owned_toolchain_source_identity_digest(
+        namespace: &str,
+        relative_path: &[&str],
+        contents: &[u8],
+    ) -> Result<[u8; 32], &'static str> {
+        let canonical_component = |component: &str| {
+            !component.is_empty()
+                && !matches!(component, "." | "..")
+                && !component.contains(['/', '\\'])
+        };
+        if !canonical_component(namespace)
+            || relative_path.is_empty()
+            || relative_path.iter().any(|part| !canonical_component(part))
+        {
+            return Err("bundled toolchain source has non-canonical coordinates");
+        }
+        let (byte_count, content_digest) = source_content_identity(contents)?;
+        let unit = ConsumedSourceUnit::from_retained(
+            ConsumedSourceUnitKind::ToolchainOwned,
+            None,
+            Some(namespace.to_owned()),
+            relative_path
+                .iter()
+                .map(|part| (*part).to_owned())
+                .collect(),
+            byte_count,
+            content_digest,
+        )?;
+        Ok(toolchain_source_revision_digest(
+            &canonical_consumed_unit_bytes(&unit),
+        ))
     }
 
     fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
@@ -711,6 +754,44 @@ pub mod source_identity {
                     SourceOrigin::Toolchain,
                 )
                 .clone()
+        }
+
+        #[test]
+        fn bundled_source_commitments_use_the_existing_owned_source_framing() {
+            let file = toolchain("relocated/toolchain");
+            let original = owned_toolchain_source_identity_digest(
+                "core",
+                &["numbers.omg"],
+                file.source.as_bytes(),
+            )
+            .unwrap();
+            assert_eq!(original, toolchain_source_identity_digest(&file).unwrap());
+            for (namespace, path, bytes) in [
+                ("other", "numbers.omg", file.source.as_bytes()),
+                ("core", "different.omg", file.source.as_bytes()),
+                ("core", "numbers.omg", b"changed".as_slice()),
+            ] {
+                assert_ne!(
+                    original,
+                    owned_toolchain_source_identity_digest(namespace, &[path], bytes).unwrap()
+                );
+            }
+            for (namespace, path) in [
+                ("", vec!["numbers.omg"]),
+                ("core", vec![]),
+                ("core", vec!["..", "numbers.omg"]),
+                ("core", vec!["sub/numbers.omg"]),
+                ("core", vec!["sub\\numbers.omg"]),
+            ] {
+                assert!(
+                    owned_toolchain_source_identity_digest(
+                        namespace,
+                        &path,
+                        file.source.as_bytes()
+                    )
+                    .is_err()
+                );
+            }
         }
 
         #[test]

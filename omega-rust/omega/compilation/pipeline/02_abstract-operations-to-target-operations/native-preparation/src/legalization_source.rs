@@ -2334,9 +2334,7 @@ pub(crate) mod scalar_graph {
                                 .ok_or(Error::custody())?;
                         LegalizedScalarInstructionKind::AtomicAccess {
                             location: access.location,
-                            scalar_type: unit
-                                .closed_integer(access.scalar_type)
-                                .ok_or(Error::custody())?,
+                            scalar_type: access.scalar_type,
                             field_byte_offset: access.field_byte_offset,
                             event: access.event,
                             outcome: access.outcome,

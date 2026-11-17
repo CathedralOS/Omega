@@ -53,14 +53,17 @@ This skill lists **only** the steps. The shared rules, including the
    Correct the mechanism after tracing; naming the other programs keeps the
    task from shrinking to the witness alone. At first registration, `--path`
    can name the witness, the board, or the subsystem directory the recorded
-   error points to; the worker narrows it after tracing.
+   error points to. After tracing, name the files and functions you will edit
+   in the note. For paths outside the registered set, take a supplemental claim
+   and name the original ticket in its note, following
+   [the claim scope rule](../../../AGENTS.md#hard-rules).
    A claim lasts two hours from when it was taken or last renewed. Run
    `cargo xtask claims renew` from the worktree after each push (it renews
    every claim that worktree took; `claims note` also renews). `renew` also
    restores a claim that lapsed and reports any live claim now overlapping its
    paths. Keep ownership through checkpoint merges;
-   release the claim when the original acceptance lands, or record an unfinished
-   handoff under the law of completion when the session must stop.
+   release all related claims when the original acceptance lands, or record an
+   unfinished handoff under the law of completion when the session must stop.
 
 ## Step 2: Reproduce & Trace Before Editing (the Worker's Job in a Swarm)
 

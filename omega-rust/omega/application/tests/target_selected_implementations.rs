@@ -81,3 +81,25 @@ fn a_target_without_a_build_row_has_no_implementation() {
         assert!(text.contains(&refusal), "{text}");
     }
 }
+
+#[test]
+fn applied_services_keep_their_separate_selected_implementations() {
+    let directory = fixture("run/providers/applied_boundary_providers");
+    let output = omega_run(&directory, &["--both"]);
+    let text = printed(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("native exit 0"), "{text}");
+    assert!(text.contains("interp exit: 0"), "{text}");
+}
+
+#[test]
+fn an_implementation_of_another_service_application_is_refused() {
+    let directory = fixture("fail/providers/applied_boundary_providers");
+    let output = omega_run(&directory, &["--both"]);
+    let text = printed(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("provider `First` does not satisfy the selected application of `Service`"),
+        "{text}"
+    );
+}

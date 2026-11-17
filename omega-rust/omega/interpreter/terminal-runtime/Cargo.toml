@@ -25,5 +25,8 @@ native-artifact = { path = "../../compilation/backend/artifacts/native-artifact"
 provider-admission = { path = "../../compilation/realization/provider-admission" }
 
 [dev-dependencies]
+language-core = { path = "../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+source = { path = "../../../psi/foundation/source" }
 orchestration = { path = "../../build-system/orchestration" }
 platform-custody = { path = "../../foundation/platform-custody" }

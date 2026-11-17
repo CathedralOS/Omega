@@ -11,6 +11,7 @@ use std::{
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 mod native_calls;
+mod provider_references;
 
 #[test]
 fn internal_native_provider_worker() {
