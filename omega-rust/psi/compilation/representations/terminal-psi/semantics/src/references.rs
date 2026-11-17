@@ -2534,6 +2534,11 @@ pub(crate) mod reference_origins {
             if inventory.unknown_contents.len() != contents.unknown_contents.len() {
                 return Err("reference result omits an unknown contents packet");
             }
+            let mut packets = contents.unknown_contents.iter().collect::<Vec<_>>();
+            packets.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+            if packets.windows(2).any(|pair| pair[0].path == pair[1].path) {
+                return Err("unknown result contents repeat or omit their origins");
+            }
             for expected in inventory.unknown_contents {
                 let mut path = crate::descriptor_lifetimes::descriptor_location(
                     types,
@@ -2545,14 +2550,12 @@ pub(crate) mod reference_origins {
                 .ok_or("unknown result contents lost their exact carrier")?
                 .path;
                 path.push(crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents);
-                let mut matching = contents
-                    .unknown_contents
-                    .iter()
-                    .filter(|packet| packet.path == path);
-                let packet = matching
-                    .next()
+                let packet = packets
+                    .binary_search_by(|packet| packet.path.cmp(&path))
+                    .ok()
+                    .map(|position| packets[position])
                     .ok_or("unknown result contents lost their custody packet")?;
-                if matching.next().is_some() || packet.origins.is_empty() {
+                if packet.origins.is_empty() {
                     return Err("unknown result contents repeat or omit their origins");
                 }
                 for origin in &packet.origins {

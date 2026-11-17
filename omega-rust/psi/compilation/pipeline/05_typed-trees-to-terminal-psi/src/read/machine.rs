@@ -426,8 +426,7 @@ impl<'t> Program<'t> {
                 "named callee admission",
             ));
         }
-        // ponytail: linear scan over the discovered machines; a dense table
-        // indexed by machine position if closures grow past a few hundred.
+        // An already discovered body keeps its existing machine identity.
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
             if self.implementation_body != Some(id) && self.symbols.get(id) == Some(&symbol) {
