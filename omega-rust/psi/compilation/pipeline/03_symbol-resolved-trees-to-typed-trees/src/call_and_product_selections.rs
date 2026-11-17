@@ -3980,13 +3980,6 @@ pub(crate) mod qualification_casts {
         type_frontier: usize,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
-        crate::expression_meanings::prepare(
-            source,
-            program,
-            expression_frontier,
-            type_frontier,
-            cast_destinations,
-        )?;
         let sites = expression_table(program)
             .expression_entries()
             .filter_map(|(handle, expression)| {
@@ -3995,43 +3988,56 @@ pub(crate) mod qualification_casts {
                 {
                     return None;
                 }
-                let ExpressionNode::Cast(cast) = expression else {
+                let ExpressionNode::Cast(_) = expression else {
                     return None;
                 };
-                Some((handle, *cast))
+                Some(handle)
             })
             .collect::<Vec<_>>();
+        // A value cast's declared target supplies its result type before an
+        // enclosing operator or domain-entry run reads that operand. Checking
+        // the conversion itself still belongs to the lowered-form checker.
+        for handle in &sites {
+            let cast = *program.expression_table.cast_node(*handle).unwrap();
+            if !cast.semantic_domain.is_empty() || cast.form.entry().is_some() {
+                continue;
+            }
+            let result = if cast.domain == numerics::arithmetic::ArithmeticDomain::Exact {
+                Some(cast.target_type)
+            } else if let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(cast.target_type)
+            {
+                program
+                    .type_reference_table
+                    .find_arithmetic_result_type_reference(*symbol, cast.domain)
+            } else {
+                program
+                    .type_reference_table
+                    .find_policy_qualified_type_reference(cast.target_type, cast.domain)
+            };
+            if let ExpressionNode::Cast(target) = program.expression_table.expression_mut(*handle) {
+                target.result_type = result.unwrap_or_default();
+            }
+        }
+        crate::expression_meanings::prepare(
+            source,
+            program,
+            expression_frontier,
+            type_frontier,
+            cast_destinations,
+        )?;
         let mut updates = Vec::with_capacity(sites.len());
 
-        for (handle, cast) in sites {
+        for handle in sites {
+            let cast = *program.expression_table.cast_node(handle).unwrap();
             // A run typing deferred to its declaration has no types to settle.
             if cast.form.entry().is_some() && !cast.result_type.is_valid() {
                 continue;
             }
+            // Policy entries were accounted together; ordinary value casts
+            // already retain the result of their declared target above.
             if cast.semantic_domain.is_empty() {
-                // An accounted policy entry already carries its exact result.
-                if cast.form.entry().is_some() {
-                    continue;
-                }
-                let result = if cast.domain == numerics::arithmetic::ArithmeticDomain::Exact {
-                    Some(cast.target_type)
-                } else if let TypeReferenceNode::Named { symbol, .. } = program
-                    .type_reference_table
-                    .type_reference(cast.target_type)
-                {
-                    program
-                        .type_reference_table
-                        .find_arithmetic_result_type_reference(*symbol, cast.domain)
-                } else {
-                    program
-                        .type_reference_table
-                        .find_policy_qualified_type_reference(cast.target_type, cast.domain)
-                };
-                if let ExpressionNode::Cast(target) =
-                    program.expression_table.expression_mut(handle)
-                {
-                    target.result_type = result.unwrap_or_default();
-                }
                 continue;
             }
             let matching_occurrences = expression_table(program)

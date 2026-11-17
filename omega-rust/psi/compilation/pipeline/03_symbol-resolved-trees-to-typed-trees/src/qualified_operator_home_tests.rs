@@ -163,8 +163,7 @@ const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, ri
 const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
 
-#[test]
-fn bundled_core_fixtures_resolve_their_authored_imports() {
+fn bundled_core_sources() -> Vec<(String, String)> {
     let core =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
     let mut files = std::fs::read_dir(core)
@@ -173,7 +172,7 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
         .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
         .collect::<Vec<_>>();
     files.sort_unstable();
-    let files = files
+    files
         .into_iter()
         .map(|path| {
             (
@@ -181,7 +180,12 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
                 std::fs::read_to_string(path).unwrap(),
             )
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
+
+#[test]
+fn bundled_core_fixtures_resolve_their_authored_imports() {
+    let files = bundled_core_sources();
     let mut units = files
         .iter()
         .map(|(name, text)| (0, name.as_str(), text.as_str()))
@@ -222,6 +226,94 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
             "Core's imports do not expose classify_f32 in another file: {name}"
         );
     }
+}
+
+#[test]
+fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use language_semantics::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let files = bundled_core_sources();
+    let mut units = files
+        .iter()
+        .map(|(name, text)| (0, name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    let client = units.len();
+    units.push((
+        31,
+        "difference.omg",
+        r#"
+use omega::language::core::narrow_i64_to_u64_wrapping;
+data Time [copy] { seconds: i64; }
+machine difference(time: &Time, earlier: Time) -> u64 in Wrapping {
+    let seconds: u64 in Wrapping =
+        (narrow_i64_to_u64_wrapping(time.seconds) as u64 in Wrapping)
+        - (narrow_i64_to_u64_wrapping(earlier.seconds) as u64 in Wrapping);
+    seconds
+}
+"#,
+    ));
+    let program = packages(
+        &units,
+        &[],
+        &[(
+            client,
+            0,
+            "omega::language::core::narrow_i64_to_u64_wrapping",
+            3,
+        )],
+    )
+    .expect("the actual Core converter and its authored imports type successfully");
+    let owner = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "difference")
+        .unwrap()
+        .symbol;
+    let owners = typed_trees::references::collect_program_operand_owners(&program);
+    let subtractions = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            (matches!(node, ExpressionNode::Binary(binary)
+                if binary.operator == BinaryOperator::Subtract)
+                && owners.expression_owners(handle).any(|found| found == owner))
+            .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    let [subtraction] = subtractions.as_slice() else {
+        panic!("one authored subtraction belongs to difference: {subtractions:?}");
+    };
+    let operand = CoreIntegerOperand {
+        carrier: FixedInteger::unsigned(64),
+        policy: ArithmeticDomain::Wrapping,
+    };
+    let expected =
+        CoreIntegerOperatorSignature::select(ScalarBinaryOperation::Subtract, [operand; 2])
+            .unwrap();
+    let selected = program
+        .expression_table
+        .authored_selection_occurrences(*subtraction)
+        .map(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap()
+                .target()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected,
+        vec![Target::Intrinsic(Intrinsic::CoreIntegerOperator(expected))],
+        "the imported call results retain the complete selected policy, not CheckedOperator"
+    );
 }
 
 #[test]
