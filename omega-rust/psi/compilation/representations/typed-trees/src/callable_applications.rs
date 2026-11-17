@@ -4196,7 +4196,15 @@ pub(crate) mod payloads {
                             "an applied callable binder cannot be replaced as a bare static operand",
                         );
                     }
-                    *argument = selected?;
+                    let mut selected = selected?;
+                    // A named replacement may omit the type already retained
+                    // on this occurrence. Keep its substituted type so later
+                    // consumers do not have to reconstruct it from the name.
+                    if argument.type_reference.is_valid() {
+                        selected.type_reference =
+                            self.type_reference(program, argument.type_reference)?;
+                    }
+                    *argument = selected;
                     continue;
                 }
                 argument.type_reference = self.type_reference(program, argument.type_reference)?;
