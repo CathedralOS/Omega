@@ -274,7 +274,7 @@ impl<'t> Program<'t> {
     /// The machine a symbol enters: a machine itself, or the machine whose
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
-    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    pub(super) fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }

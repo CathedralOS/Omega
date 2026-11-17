@@ -22,7 +22,7 @@ pub(super) struct ApplicationArguments<'source> {
 /// Source-only authentication is shared with static partition discovery,
 /// which runs before any checking machine or scalar input is allocated.
 pub(super) struct ApplicationBindings<'source> {
-    pub(super) parameters: &'source [typed_trees::data::TypeParameter],
+    pub(super) parameters: arena::RootRows<'source, typed_trees::data::TypeParameter>,
     pub(super) inherited: bool,
     pub(super) bindings:
         symbols::SymbolMap<&'source typed_trees::static_applications::StaticMachineBinding>,
