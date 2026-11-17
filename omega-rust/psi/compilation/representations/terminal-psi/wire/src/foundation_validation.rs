@@ -3530,6 +3530,9 @@ pub(crate) mod machine_foundations {
         validate_operation_result_places(machine)?;
 
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
+        return_sources
+            .validate_whole_discards(|ty| module.structural_type(ty))
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
                 module,
@@ -3544,9 +3547,6 @@ pub(crate) mod machine_foundations {
                 &scalar_index,
                 &return_sources,
             )?;
-            return_sources
-                .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))
-                .map_err(CodecError::MalformedStructuralFoundation)?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())

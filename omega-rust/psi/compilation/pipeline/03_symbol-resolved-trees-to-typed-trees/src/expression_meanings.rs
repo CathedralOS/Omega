@@ -15,6 +15,10 @@ pub(crate) fn prepare(
         Cast(usize),
         Operator(typed_trees::expression::TableBinaryExpression),
         Member(typed_trees::expression::TableMemberExpression),
+        Local(
+            typed_trees::statement::StatementHandle,
+            symbols::SymbolHandle,
+        ),
     }
     let casts = crate::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
     let mut sites = casts
@@ -41,6 +45,31 @@ pub(crate) fn prepare(
                 _ => None,
             }),
     );
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            sites.extend(
+                program
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+                    .filter_map(|(statement, node)| {
+                        let typed_trees::statement::StatementNode::LocalData(local) = node else {
+                            return None;
+                        };
+                        (local.type_is_inferred
+                            && local.role.has_ordinary_initializer()
+                            && !local.type_reference.is_valid()
+                            && program
+                                .expression_table
+                                .expression_is_valid(local.initial_value)
+                            && local.initial_value.arena_index() as usize > frontier)
+                            .then_some((
+                                local.initial_value,
+                                Meaning::Local(statement, machine.symbol),
+                            ))
+                    }),
+            );
+        }
+    }
     let mut type_values = program
         .type_reference_table
         .type_reference_rows_from(type_frontier)
@@ -62,7 +91,11 @@ pub(crate) fn prepare(
     }
     // Typing allocates operands before their consumers. A simultaneous cast
     // run is one operation, positioned at its first entry, just as before.
-    sites.sort_unstable_by_key(|(handle, _)| handle.arena_index());
+    // Complete a local after its initializer and before names that read it;
+    // no earlier query can depend on that newly published binding.
+    sites.sort_unstable_by_key(|(handle, meaning)| {
+        (handle.arena_index(), matches!(meaning, Meaning::Local(..)))
+    });
     let owners = typed_trees::references::collect_program_operand_owners(program);
     let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
     for (handle, meaning) in sites {
@@ -75,6 +108,19 @@ pub(crate) fn prepare(
             }
             Meaning::Operator(binary) => {
                 crate::operator_calls::prepare_site(program, &owners, &mut types, handle, binary)?
+            }
+            Meaning::Local(statement, owner) => {
+                // A cast or selected operator can acquire its result only here.
+                // Publish that result on an inferred local before later operands
+                // read it. A real declared receiving type is never replaced.
+                if let Some(reference) = types.get(program, owner, handle) {
+                    let typed_trees::statement::StatementNode::LocalData(local) =
+                        program.statement_table.statement_mut(statement)
+                    else {
+                        unreachable!("prepared local statement retains its kind")
+                    };
+                    local.type_reference = reference;
+                }
             }
         }
     }

@@ -15986,9 +15986,24 @@ pub mod descriptor_results {
                             });
                             step.inputs.push((Some(selected), access));
                         } else {
-                            // An unresolved selection can retain authority,
-                            // never establish disjointness or an early end.
-                            step.may_escape = true;
+                            // A scalar access uses its reference to address
+                            // storage; it cannot carry a descriptor out of this
+                            // operation. Keep observing the root and retain the
+                            // exact memory query. Unknown or descriptor-bearing
+                            // selections still retain authority conservatively.
+                            let primitive = access.is_some()
+                                && match used {
+                                    StructuralStorageUse::Projection(projection) => {
+                                        crate::primitive_operation_projection_type(
+                                            module.structural_types.iter(),
+                                            *graph.place_types.get(&root)?,
+                                            projection,
+                                        )
+                                        .is_some()
+                                    }
+                                    _ => false,
+                                };
+                            step.may_escape |= !primitive;
                             let selected = DescriptorLocation::whole(root);
                             let access = access.map(|access| {
                                 (

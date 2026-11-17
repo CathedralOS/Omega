@@ -1431,7 +1431,12 @@ impl Program<'_> {
         if entry.kind == CastEntryKind::Remove
             && let Some(domain) = domain
         {
-            self.domain_removal(id, domain, before)?;
+            self.domain_removal(
+                id,
+                domain,
+                before,
+                SourceOrigin::of(self.typed.expression_table.source_span(cast.value)),
+            )?;
         }
         // Only qualification changed. Keeping the original term also keeps
         // its immutable value identity and every fact already proved of it.

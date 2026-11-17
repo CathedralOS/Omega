@@ -51,7 +51,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition main.k >= 0 && main.k < 28 { true -> block clear_cell(main) _ -> block col_init(main) }
     }
     machine clear_cell(main: &mut Main) {
-        main.line[main.k] = 32; // ' '
+        (&mut main.line as -Utf8)[main.k as -Wrapping] = 32; // ' '
         main.k = main.k + 1;
         transition { _ -> block clear(main) }
     }
@@ -86,13 +86,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine cell_store(main: &mut Main) {
-        main.line[main.o0] = main.tc;
-        main.line[main.o1] = main.oc;
+        (&mut main.line as -Utf8)[main.o0 as -Wrapping] = main.tc;
+        (&mut main.line as -Utf8)[main.o1 as -Wrapping] = main.oc;
         main.j = main.j + 1;
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(&main.line[..]);
+        Console::write_line((&main.line as -Utf8)[..]);
         main.i = main.i + 1;
         transition { _ -> block row_loop(main) }
     }

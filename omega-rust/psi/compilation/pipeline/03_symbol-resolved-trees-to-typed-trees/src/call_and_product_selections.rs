@@ -4089,16 +4089,13 @@ pub(crate) mod qualification_casts {
             } else {
                 cast.target_type
             };
-            // An entry over a shared view names a domain of its referent
+            // An entry over a reference names a domain of its referent
             // (domains.md, "Mutable views": the cast accounts "for the
             // domains displayed on its referent"), which accounting left as
             // the reference's referee.
             if cast.form.entry().is_some()
-                && let TypeReferenceNode::Reference {
-                    referee,
-                    access: language_core::ReferenceAccess::Shared,
-                    ..
-                } = program.type_reference_table.type_reference(carrier)
+                && let TypeReferenceNode::Reference { referee, .. } =
+                    program.type_reference_table.type_reference(carrier)
             {
                 carrier = program
                     .type_reference_table

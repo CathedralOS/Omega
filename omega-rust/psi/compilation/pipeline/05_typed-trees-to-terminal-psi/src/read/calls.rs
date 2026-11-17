@@ -3374,8 +3374,8 @@ impl<'t> Program<'t> {
             }
             _ => (argument, formal.access, false),
         };
-        // A recast presents the same captured place under another type. The
-        // parser keeps it inside the loan; it never produces an owned value.
+        // A recast forms its written reference presentation over the same
+        // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {
             // `view as &[T]` given to a slice formal is the re-view of an
             // existing view; it passes on like any other view value.
