@@ -1749,12 +1749,12 @@ mod tests {
             ValueShape::integer_aggregate(4, 2),
         ] {
             let mut bytes = Vec::new();
-            encode_shape(&mut bytes, shape);
+            super::encode_shape(&mut bytes, shape);
             let mut cursor = Cursor::new(&bytes);
-            assert_eq!(decode_shape(&mut cursor).unwrap(), shape);
+            assert_eq!(super::decode_shape(&mut cursor).unwrap(), shape);
             assert_eq!(cursor.remaining(), 0);
             for end in 0..bytes.len() {
-                assert!(decode_shape(&mut Cursor::new(&bytes[..end])).is_err());
+                assert!(super::decode_shape(&mut Cursor::new(&bytes[..end])).is_err());
             }
             encoded.push(bytes);
         }

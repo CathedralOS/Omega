@@ -313,8 +313,8 @@ mod tests {
         let scalar = plan(ValueShape::integer(4, 2));
         let record = plan(ValueShape::integer_aggregate(4, 2));
         assert_eq!(
-            scalar.call.parameters[0].locations,
-            record.call.parameters[0].locations
+            scalar.plan().call.parameters[0].locations,
+            record.plan().call.parameters[0].locations
         );
         assert_ne!(
             scalar.contract_commitment_digest(),

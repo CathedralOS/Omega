@@ -1575,6 +1575,7 @@ mod tests {
             b"OMGNTI34",
             b"OMGNTI35",
             b"OMGNTI36",
+            b"OMGNTI37",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1598,7 +1599,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI38", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI39", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

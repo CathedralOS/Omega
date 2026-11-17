@@ -2571,9 +2571,7 @@ pub mod structural_unit_input {
     use crate::structural_inputs::structural_reference_input::{
         parameter_shape, stored_value_shape,
     };
-    use calling_conventions::{
-        CallPlan, IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement,
-    };
+    use calling_conventions::{CallPlan, IndirectPointerLocation, ValueLocation, ValuePlacement};
     use terminal_psi::StructuralAccess;
 
     #[derive(Clone, Copy)]
