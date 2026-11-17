@@ -3,7 +3,7 @@
 
 /// `process_exit` requires that exact external completion; `None` requires
 /// the entry to return Unit, which the CLI maps to native exit zero.
-pub fn execute_report(
+pub fn execute_report_with_completion(
     report: compiler::CompileReport,
     output: &std::path::Path,
     process_exit: Option<i32>,
@@ -65,4 +65,13 @@ pub fn execute_report(
         Some(process_exit.unwrap_or(0)),
         "{observed:?}"
     );
+}
+
+/// Keep the original exact-Unit oracle for callers that return normally.
+#[allow(
+    dead_code,
+    reason = "external-exit fixtures use the completion-aware oracle"
+)]
+pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path) {
+    execute_report_with_completion(report, output, None);
 }

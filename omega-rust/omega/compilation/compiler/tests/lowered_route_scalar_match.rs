@@ -506,7 +506,11 @@ fn execute_policy_transition_fixture(root: &std::path::Path, check_consent: bool
         false,
     )
     .unwrap();
-    joined_product_execution::execute_report(report, &directory.path().join("native"), Some(0));
+    joined_product_execution::execute_report_with_completion(
+        report,
+        &directory.path().join("native"),
+        Some(0),
+    );
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
