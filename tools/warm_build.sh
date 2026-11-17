@@ -13,15 +13,11 @@
 #   bash tools/warm_build.sh restore <slot> [replace-stale] # unpack into the slot
 #   bash tools/warm_build.sh session-start           # SessionStart hook, cloud only
 #
-# mbx cannot do this job here. This workspace builds with Cargo's checksum
-# freshness (.cargo/config.toml), which passes `-Zchecksum-hash-algorithm` to
-# rustc, and mbx 1.29.2 does not cache a compilation with a flag it does not
-# model: every unit is reported as bypassed and its store stays empty. The
-# same setting is what makes a plain directory restore sound: Cargo compares
-# source contents, not file times, so a fresh clone reuses a restored build and
-# recompiles exactly the crates whose sources differ. Build scripts are the
-# exception: Cargo still dates their inputs by modification time, which
-# settle_source_times handles.
+# Warm archives restore complete Cargo build state before a session starts.
+# The checksum-aware mbx build (tools/mbx/) can reuse supported compilations too;
+# it does not replace restoring this state. Keep Cargo checksum freshness enabled:
+# it makes a restored directory sound by comparing contents rather than file times.
+# Build-script freshness also needs the settling performed below.
 #
 # There are two slots because Cargo gives the two places a session builds in
 # different identities. A pool worktree (.agents/worktree/worker-N) sits inside

@@ -38,11 +38,13 @@ arch=$(uname -m)
 if [ "$arch" = "arm64" ]; then arch="aarch64"; fi
 case "$os" in
   Darwin)
-    mbx_target="aarch64-apple-darwin"
     nextest_target="universal-apple-darwin"
     ;;
+  MINGW*|MSYS*)
+    if [ "$mbx_only" != true ]; then echo 'Windows setup supports --mbx-only; install other prerequisites separately' >&2; exit 2; fi
+    nextest_target=x86_64-pc-windows-msvc
+    ;;
   *)
-    mbx_target="$arch-unknown-linux-gnu"
     nextest_target="$arch-unknown-linux-gnu"
     ;;
 esac
@@ -71,18 +73,7 @@ if [ "$mbx_only" = false ]; then
 fi
 
 step "mbx $MBX_VERSION"
-if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
-  archive=mbx-$mbx_target.tar.gz
-  release=https://github.com/jdx/mr-boxington/releases/download/v$MBX_VERSION
-  (cd "$work" &&
-    curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
-    if command -v sha256sum >/dev/null; then
-      grep " $archive\$" SHA256SUMS | sha256sum --check --strict -
-    else
-      grep " $archive\$" SHA256SUMS | shasum -a 256 --check -
-    fi &&
-    tar -xzf "$archive" -C "$bin" mbx)
-fi
+bash "$repo/tools/mbx/install.sh" "$bin"
 mbx --version
 # Collection settings are machine policy, unsupported in workspace .mbx.toml.
 # Managed hosts share one fixed worker pool; retain it without disabling GC or

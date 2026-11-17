@@ -578,12 +578,15 @@ that commit as its base. Integrate newer source only for an actual conflict or
 needed prerequisite, then follow [squash-merge landing](landing.md). A slot that
 has been released or moved resets to `origin/main` as before.
 
-`mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
-on Cargo's checksum freshness, Cargo then passes
-`-Zchecksum-hash-algorithm=blake3` to rustc, and mbx 1.29.2 bypasses its cache
-for a flag it does not model: a full build reports `0 hits, 0 misses, 213
-bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
-`mbx` still schedules builds and manages target directories.
+The repository's mbx build includes the source-pinned checksum adapter repair in
+[`tools/mbx/`](../mbx/README.md). Upstream 1.29.2 bypasses compilations carrying
+`-Zchecksum-hash-algorithm=blake3`; the patched adapter retains that option in
+its cache key and dependency discovery. Both host setup and CI install the same
+distinct build identity from `tools/mbx-version`. The builder records its source,
+patch and binary identities beside the installed executable. Keep Cargo's checksum
+freshness enabled; replacing it with timestamp checks would invalidate the warm
+archive's reuse guarantee. Cache results remain dependent on the exact compiler,
+inputs and supported invocation, so this repair does not replace warm archives.
 
 Windows MSVC host builds select Rust's bundled LLD linker through
 `.cargo/config.toml`. Microsoft's `link.exe` refused an existing 266-character

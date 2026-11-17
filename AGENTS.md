@@ -297,9 +297,9 @@ immediately before building (run these from the checkout root):
   ```bash
   bash tools/agent_setup.sh && mbx xtask doctor
   ```
-- **Windows PowerShell:**
+- **Windows (Git Bash):**
   ```powershell
-  $v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
+  bash tools/agent_setup.sh --mbx-only; mbx setup --yes; mbx xtask doctor
   ```
 
 See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin

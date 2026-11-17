@@ -1,0 +1,109 @@
+--- a/crates/mbx-cache-rustc/src/rustc_cache_tests.rs
++++ b/crates/mbx-cache-rustc/src/rustc_cache_tests.rs
+@@ -1675,6 +1675,67 @@
+ }
+ 
+ #[test]
++fn checksum_algorithm_is_retained_in_the_action_key() {
++    let invocation = |options: &[&str]| {
++        let mut arguments = vec![
++            "--crate-name=widget",
++            "--crate-type=lib",
++            "--emit=dep-info,metadata,link",
++        ];
++        arguments.extend_from_slice(options);
++        arguments.push("src/lib.rs");
++        RustcInvocation::parse(&args(&arguments)).unwrap()
++    };
++    let key = |invocation: RustcInvocation| {
++        invocation
++            .action(context(&[("src/lib.rs", "source")]))
++            .unwrap()
++            .digest
++    };
++    let attached = invocation(&["-Zchecksum-hash-algorithm=blake3"]);
++    assert_eq!(
++        attached,
++        invocation(&["-Z", "checksum-hash-algorithm=blake3"])
++    );
++    let digest = key(attached);
++    assert_ne!(digest, key(invocation(&[])));
++    assert_ne!(
++        digest,
++        key(invocation(&["-Zchecksum-hash-algorithm=sha256"]))
++    );
++}
++
++#[test]
++fn checksum_algorithm_reaches_dependency_discovery() {
++    let invocation = RustcInvocation::parse(&args(&[
++        "--crate-name=widget",
++        "--crate-type=lib",
++        "--emit=dep-info,metadata,link",
++        "-Zchecksum-hash-algorithm=blake3",
++        "src/lib.rs",
++    ]))
++    .unwrap();
++    let output = std::env::temp_dir().join("checksum-probe.d");
++    let command = invocation.dep_info_command(&output).unwrap();
++    assert!(
++        command
++            .arguments()
++            .iter()
++            .any(|argument| argument == "-Zchecksum-hash-algorithm=blake3")
++    );
++}
++
++#[test]
++fn checksum_algorithm_requires_a_value() {
++    for option in ["-Zchecksum-hash-algorithm", "-Zchecksum-hash-algorithm="] {
++        assert_eq!(
++            RustcInvocation::parse(&args(&[option])).unwrap_err(),
++            BypassReason::MissingValue("-Zchecksum-hash-algorithm".into())
++        );
++    }
++}
++
++#[test]
+ fn models_parallel_frontend_options_in_the_action_key() {
+     let invocation = |parallelism: &[&str]| {
+         let mut arguments = vec![
+--- a/crates/mbx-cache-rustc/src/lib.rs
++++ b/crates/mbx-cache-rustc/src/lib.rs
+@@ -1640,6 +1640,15 @@
+                 }
+                 _ => {}
+             }
++            // Cargo checksum freshness changes dependency output and must be
++            // part of the key and dependency-discovery invocation as authored.
++            if option == "checksum-hash-algorithm" || option == "checksum-hash-algorithm=" {
++                return Err(BypassReason::MissingValue("-Zchecksum-hash-algorithm".into()));
++            }
++            if option.starts_with("checksum-hash-algorithm=") {
++                self.parsed.push(Argument::Plain(format!("-Z{option}")));
++                return Ok(());
++            }
+             // Replaces the working directory in every path rustc records, and
+             // in the options its incremental state is checked against. The
+             // value is the virtual directory written in the working
+--- a/crates/mbx/Cargo.toml
++++ b/crates/mbx/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "mbx"
+-version = "1.29.2"
++version = "1.29.2+omega.1"
+ description = "A build cache for Rust projects"
+ edition.workspace = true
+ rust-version.workspace = true
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1443,7 +1443,7 @@
+ 
+ [[package]]
+ name = "mbx"
+-version = "1.29.2"
++version = "1.29.2+omega.1"
+ dependencies = [
+  "bytesize",
+  "cargo-config2",

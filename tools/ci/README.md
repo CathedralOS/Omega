@@ -12,7 +12,9 @@ and diff, then, when Rust files changed, `fmt --check`, which runs one
 `rustfmt` per CPU.
 
 `tools/xtask/bootstrap-mbx.sh` installs `mbx` at the version in
-`tools/mbx-version` and verifies its checksum. It lives under `tools/xtask/` so
+`tools/mbx-version` through the shared source-pinned builder in `tools/mbx/install.sh`.
+The builder verifies the upstream source and bootstrap binary, applies the retained
+checksum-cache patch and checks the distinct local version before installation. It lives under `tools/xtask/` so
 that `admission.yml`'s `tools/xtask/**` push filter and cache key cover it
 along with the `xtask` crate.
 

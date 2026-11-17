@@ -212,7 +212,7 @@ fn check_rust_link_probe(root: &Path) -> CheckEntry {
 
 fn mbx_install_fix() -> &'static str {
     if cfg!(windows) {
-        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell: `$v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes`"#
+        "mbx is required (direct cargo fallback is forbidden); install/update via Git Bash: `bash tools/agent_setup.sh --mbx-only`"
     } else {
         "mbx is required (direct cargo fallback is forbidden); install/update via `bash tools/agent_setup.sh`"
     }
