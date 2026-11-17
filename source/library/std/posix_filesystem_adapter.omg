@@ -365,6 +365,10 @@ requires open_writable >= 0 && open_writable <= 1,
     open_readable >= 0 && open_readable <= 1,
     open_creating >= 0 && open_creating <= 1
 {
+    // Typed stat views need the complete buffer at an eight-byte boundary.
+    // The record's u64 scratch fields supply that alignment at its base.
+    stat_buf: [u8; 144];
+
     dir_mode: i32;
     read_flags: i32;
 
@@ -377,8 +381,6 @@ requires open_writable >= 0 && open_writable <= 1,
     open_creating: i32;
 
     file_fd: i32;
-
-    stat_buf: [u8; 144];
 
     times_buf: [u8; 32];
 
