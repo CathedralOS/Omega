@@ -1472,6 +1472,43 @@ fn a_known_empty_case_keeps_its_cleanup_membership() {
 }
 
 #[test]
+fn sibling_helpers_keep_the_same_static_binders_and_entry_contract() {
+    for requires in ["requires Count > 0u64", ""] {
+        let text = format!(
+            r#"
+            public machine entry<const Count: u64>(pick: bool) -> u64
+            {requires}
+            {{
+                first(pick)
+                machine first(pick: bool) -> u64
+                requires Count > 0u64
+                {{
+                    transition pick {{ true -> second() false -> 0u64 }}
+                }}
+                machine second() -> u64
+                requires Count > 0u64
+                {{ Count }}
+            }}
+            "#
+        );
+        let verdict = judge(Ok(parameter_form(&text)));
+        if requires.is_empty() {
+            assert!(
+                matches!(&verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+                    if unproved.iter().any(|obligation|
+                        matches!(obligation.kind, ObligationKind::CallRequirement { .. }))),
+                "the sibling's contract remains owed: {verdict:?}"
+            );
+        } else {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_nominal_const_extent_keeps_its_checking_input() {
     let form = parameter_form(
         r#"
