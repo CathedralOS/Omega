@@ -50,7 +50,7 @@ pub fn endpoint_requirements(
     Ok(requirements)
 }
 
-pub fn check<'premise>(
+pub(crate) fn check<'premise>(
     context: &PropositionContext,
     conclusion: &Proposition,
     groups: &[Vec<IntegerMathTerm>],
@@ -107,6 +107,23 @@ pub fn check<'premise>(
         return Err("content intervals leave a gap or change the conserved set");
     }
     Ok(())
+}
+
+/// Distinct endpoint questions from the context's exact projection meanings.
+/// This forms no comparison and supplies no evidence for their order.
+pub fn projected_endpoints(
+    context: &PropositionContext,
+    equation: &ContentConservation,
+) -> Result<Vec<IntegerMathTerm>, &'static str> {
+    let left = intervals(context, equation, equation.left())?;
+    let right = intervals(context, equation, equation.right())?;
+    Ok(left
+        .into_iter()
+        .chain(right)
+        .flat_map(|(start, end)| [start, end])
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect())
 }
 
 fn intervals(

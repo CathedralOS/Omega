@@ -1700,7 +1700,7 @@ pub(crate) mod structural_signature_wire {
     }
 
     /// A capacity scalar is one postorder table (`crate::term_table`).
-    fn encode_capacity_scalar(
+    pub(crate) fn encode_capacity_scalar(
         writer: &mut Writer,
         scalar: &ContentProjectionScalar,
     ) -> Result<(), CodecError> {
@@ -1785,6 +1785,12 @@ pub(crate) mod structural_signature_wire {
                 _ => ContentProjectionScalar::Multiply(operand()?, operand()?),
             })
         }
+    }
+
+    pub(crate) fn decode_capacity_scalar(
+        reader: &mut Reader<'_>,
+    ) -> Result<ContentProjectionScalar, CodecError> {
+        decode_term_table(reader)
     }
 
     pub(crate) fn decode_content_projection_expression(

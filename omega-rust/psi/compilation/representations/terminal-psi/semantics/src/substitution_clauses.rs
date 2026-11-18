@@ -117,6 +117,17 @@ pub trait ClauseBindings {
         false
     }
 
+    /// Content meanings require the exact declaration and storage cut. Ordinary
+    /// scalar bindings cannot retain a foreign contract's projection names.
+    fn content(
+        &mut self,
+        _equation: &semantic_vocabulary::ContentConservation,
+    ) -> Result<Proposition, Self::Error> {
+        Err(Self::Error::from(
+            "content clause has no exact projection bindings",
+        ))
+    }
+
     /// Resolve one computation after its operands have been resolved. Ordinary
     /// call substitution retains the selected computation. Declaration
     /// formation can instead register it as a pending logical computation.
@@ -537,6 +548,7 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
                 right,
             }
         }
+        Proposition::ContentConservation(equation) => bindings.content(equation)?,
         Proposition::StructuralCaseMembership { subject, case } => {
             bindings.case_predicate(subject.root(), subject.path(), *case)?
         }
@@ -677,6 +689,15 @@ fn bound_term<Error: From<&'static str>>(
 /// over unbounded integers and is kept as written
 /// (mathematical_values.md: "These terms denote unbounded mathematical
 /// integers and cannot overflow").
+/// Bind a mathematical endpoint through the same version-aware observations
+/// used by ordinary clause arithmetic.
+pub fn substitute_clause_math_term<Error: From<&'static str>>(
+    term: &IntegerMathTerm,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+) -> Result<IntegerMathTerm, Error> {
+    bound_mathematical(term, bindings, &[])
+}
+
 fn bound_mathematical<Error: From<&'static str>>(
     term: &IntegerMathTerm,
     bindings: &mut dyn ClauseBindings<Error = Error>,

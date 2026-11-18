@@ -792,6 +792,13 @@ impl Qualifications {
             subject_owner,
         )
         .map_err(|_| unavailable("domain lost its exact selected subject application"))?;
+        let content_projection = declared.content_projection.as_ref().map(|projection| {
+            let mut projection = projection.clone();
+            projection.identity.domain =
+                semantic_vocabulary::ContentDomainId::new(semantic_domain.get())
+                    .expect("a semantic domain is nonzero");
+            projection
+        });
         self.structural.push(StructuralDomainDeclaration {
             subject_identity: self.identities.intern(&subject_identity),
             access_policy: None,
@@ -802,12 +809,125 @@ impl Qualifications {
             semantic_domain,
             identity,
             carrier,
-            content_projection: None,
+            content_projection,
             byte_predicate: None,
             establishment_routes,
         });
         self.structural_domains.push((symbol, carrier, id));
         Ok(())
+    }
+
+    /// Source content terms use the exact source application coordinate. Once
+    /// the domain catalog exists, every published clause uses its module owner.
+    pub(crate) fn content_proposition(
+        &self,
+        machine: MachineId,
+        clause: &semantic_vocabulary::Proposition,
+    ) -> Checked<semantic_vocabulary::Proposition> {
+        use semantic_vocabulary::{ContentConservation, ContentTerm, Proposition};
+        fn term(
+            owner: &Qualifications,
+            machine: MachineId,
+            value: &ContentTerm,
+        ) -> Checked<ContentTerm> {
+            match value {
+                ContentTerm::Separate(children) => ContentTerm::separate(
+                    children
+                        .iter()
+                        .map(|child| term(owner, machine, child))
+                        .collect::<Checked<Vec<_>>>()?,
+                )
+                .map_err(|_| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Contract("content substitution loses exact separation subjects"),
+                    )
+                }),
+                ContentTerm::Projection {
+                    projection,
+                    subject,
+                } => {
+                    let mut bindings = owner.structural_domains.iter().filter(|(source, _, _)| {
+                        u64::from(source.identity.0) == projection.domain.get()
+                    });
+                    let Some((_, _, domain)) = bindings.next() else {
+                        return Err(refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Contract("content clause lost its exact source application"),
+                        ));
+                    };
+                    if bindings.next().is_some() {
+                        return Err(refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Contract(
+                                "content application has competing carrier declarations",
+                            ),
+                        ));
+                    }
+                    let declared = owner
+                        .structural
+                        .iter()
+                        .find(|declared| declared.id == *domain)
+                        .and_then(|declared| declared.content_projection.as_ref())
+                        .ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Contract(
+                                    "content application has no retained projection definition",
+                                ),
+                            )
+                        })?;
+                    if declared.identity.projection_report_fingerprint
+                        != projection.projection_report_fingerprint
+                    {
+                        return Err(refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Contract(
+                                "content clause names another projection definition",
+                            ),
+                        ));
+                    }
+                    Ok(ContentTerm::Projection {
+                        projection: declared.identity,
+                        subject: subject.clone(),
+                    })
+                }
+            }
+        }
+        Ok(match clause {
+            Proposition::ContentConservation(equation) => {
+                Proposition::ContentConservation(ContentConservation::new(
+                    equation.algebra().clone(),
+                    term(self, machine, equation.left())?,
+                    term(self, machine, equation.right())?,
+                ))
+            }
+            Proposition::Conjunction(parts) => Proposition::Conjunction(
+                parts
+                    .iter()
+                    .map(|part| self.content_proposition(machine, part))
+                    .collect::<Checked<_>>()?,
+            ),
+            Proposition::Disjunction(parts) => Proposition::Disjunction(
+                parts
+                    .iter()
+                    .map(|part| self.content_proposition(machine, part))
+                    .collect::<Checked<_>>()?,
+            ),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => Proposition::Implication {
+                premise: Box::new(self.content_proposition(machine, premise)?),
+                conclusion: Box::new(self.content_proposition(machine, conclusion)?),
+            },
+            other => other.clone(),
+        })
     }
 
     /// The whole-value domains a record type carries, sorted. A policy has no

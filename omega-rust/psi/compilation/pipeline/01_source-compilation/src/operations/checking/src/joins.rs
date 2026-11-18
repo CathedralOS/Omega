@@ -1003,6 +1003,7 @@ pub(crate) fn check<'a>(
         let mut failed = Vec::new();
         for &(index, obligation, edge, point) in &arrivals {
             let kind = ObligationKind::ArrivalInvariant { edge };
+            let mut interpretations = Vec::new();
             let verdict = goal(
                 machine.module,
                 machine.lowered,
@@ -1013,10 +1014,17 @@ pub(crate) fn check<'a>(
                 tables,
                 machine.types,
                 machine.ranking_bindings,
+                &mut interpretations,
             )
             .and_then(|goal| {
-                decide(
+                let question_context = super::content::context(
                     machine.context,
+                    interpretations,
+                    machine.id,
+                    obligation,
+                )?;
+                decide(
+                    &question_context,
                     machine.graph,
                     tables,
                     machine.id,

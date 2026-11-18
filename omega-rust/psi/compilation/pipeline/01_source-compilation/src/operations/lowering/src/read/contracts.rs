@@ -344,6 +344,11 @@ impl Program<'_> {
     ) -> Checked<Proposition> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if typed.expression_table.expression_is_valid(expression)
+            && let Some(content) = self.content_clause(id, scope, expression)?
+        {
+            return Ok(content);
+        }
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }

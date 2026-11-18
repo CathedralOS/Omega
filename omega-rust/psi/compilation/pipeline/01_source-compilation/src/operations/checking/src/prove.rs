@@ -54,6 +54,8 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/content.rs"]
+mod content;
 #[path = "prove/float_integer.rs"]
 mod float_integer;
 #[path = "prove/float_meaning.rs"]
@@ -1056,6 +1058,11 @@ impl<'a> Prover<'a> {
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.
     pub(crate) fn has_rules_for(&mut self, goal: &Proposition) -> bool {
+        if let Proposition::ContentConservation(equation) = goal {
+            return equation.algebra().kind == semantic_vocabulary::ContentAlgebraKind::IntervalSet
+                && proof_admission::content_intervals::projected_endpoints(self.context, equation)
+                    .is_ok();
+        }
         let fixed = |facts: &[Fact], equations: &[usize], value| {
             equations.iter().any(|&index| {
                 let equation = &facts[index].proposition;
@@ -1808,8 +1815,8 @@ impl<'a> Prover<'a> {
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
-            | Proposition::StructuralCaseMembership { .. }
-            | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            | Proposition::StructuralCaseMembership { .. } => Err("goal form outside this prover"),
+            Proposition::ContentConservation(_) => self.content_intervals(goal),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
             Proposition::IntegerIeeeFloatExact { .. } => {
                 proof_admission::check_integer_float_exact(self.context, goal)

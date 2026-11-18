@@ -17083,6 +17083,20 @@ pub(crate) mod structural_catalog {
                     identities,
                     types,
                 )
+                && projection.formation.iter().all(|question| {
+                    use semantic_vocabulary::ContentProjectionFormation as F;
+                    match question {
+                        F::Natural(value) => {
+                            validate_content_projection_scalar(value, carrier, identities, types, 0)
+                        }
+                        F::OrderedInterval { start, end } => {
+                            validate_content_projection_scalar(start, carrier, identities, types, 0)
+                                && validate_content_projection_scalar(
+                                    end, carrier, identities, types, 0,
+                                )
+                        }
+                    }
+                })
                 && declaration_contracts::content::terminal_projection_report_fingerprint(
                     &projection.algebra,
                     &projection.expression,

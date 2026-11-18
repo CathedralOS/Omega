@@ -1228,6 +1228,43 @@ impl Field<semantic_vocabulary::ContentProjectionExpression> for ContentExpressi
     }
 }
 
+pub(crate) struct ContentFormation;
+impl Field<semantic_vocabulary::ContentProjectionFormation> for ContentFormation {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::ContentProjectionFormation,
+    ) -> Result<(), CodecError> {
+        use super::structural_signature_wire::encode_capacity_scalar;
+        use semantic_vocabulary::ContentProjectionFormation as F;
+        match value {
+            F::Natural(value) => {
+                writer.u8(1);
+                encode_capacity_scalar(writer, value)?;
+            }
+            F::OrderedInterval { start, end } => {
+                writer.u8(2);
+                encode_capacity_scalar(writer, start)?;
+                encode_capacity_scalar(writer, end)?;
+            }
+        }
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::ContentProjectionFormation, CodecError> {
+        use super::structural_signature_wire::decode_capacity_scalar;
+        use semantic_vocabulary::ContentProjectionFormation as F;
+        Ok(match reader.u8()? {
+            1 => F::Natural(decode_capacity_scalar(reader)?),
+            2 => F::OrderedInterval {
+                start: decode_capacity_scalar(reader)?,
+                end: decode_capacity_scalar(reader)?,
+            },
+            _ => return Err(CodecError::NonCanonicalEncoding),
+        })
+    }
+}
+
 delegated_fields! {
     ContentAlgebra: semantic_vocabulary::ContentAlgebra
         => super::content_wire::encode_content_algebra, super::content_wire::decode_content_algebra;
@@ -1268,6 +1305,7 @@ wire_record! {
         identity: ProjectionIdentity,
         algebra: ContentAlgebra,
         expression: ContentExpression,
+        formation: List<ContentFormation>,
     }
     PathQualification: StructuralPathQualification { path: QualificationPath, domain: Id }
 }

@@ -92,10 +92,14 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
         captures: crate::source_state::NamedConformanceCaptureIndex::new(typed),
         exact_toolchain_sources: Default::default(),
         calling_catalogs: Default::default(),
+        content_definitions: Default::default(),
     })
 }
 
 pub(crate) struct SharedProgram {
+    content_definitions: std::sync::OnceLock<
+        Result<Vec<crate::source_state::content_projections::ContentProjection>, &'static str>,
+    >,
     pub captures: crate::source_state::NamedConformanceCaptureIndex,
     exact_toolchain_sources:
         std::sync::OnceLock<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
@@ -113,6 +117,16 @@ type CallingCatalog = Result<
 >;
 
 impl SharedProgram {
+    pub(crate) fn content_definitions(
+        &self,
+        typed: &TypedTrees,
+    ) -> Result<&[crate::source_state::content_projections::ContentProjection], &'static str> {
+        self.content_definitions
+            .get_or_init(|| typed.content_projections())
+            .as_deref()
+            .map_err(|detail| *detail)
+    }
+
     pub(crate) fn exact_toolchain_sources(
         &self,
         typed: &TypedTrees,

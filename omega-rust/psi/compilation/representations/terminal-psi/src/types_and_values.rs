@@ -523,6 +523,7 @@ pub mod types {
             pub identity: ContentProjectionIdentity,
             pub algebra: ContentAlgebra,
             pub expression: ContentProjectionExpression,
+            pub formation: Vec<semantic_vocabulary::ContentProjectionFormation>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

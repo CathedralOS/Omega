@@ -2050,7 +2050,6 @@ pub fn validate_memberships(
 }
 
 pub mod domain_preservation {
-    use crate::exactly_one::exactly_one;
     use crate::projected_field_declaration;
     use crate::structural_paths_may_overlap;
     use semantic_vocabulary::{
@@ -2339,28 +2338,9 @@ pub mod domain_preservation {
             }
             ContentProjectionScalar::SubjectField(path)
             | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-                let mut current = carrier;
-                let mut canonical = Vec::new();
-                for (index, identity) in path.iter().enumerate() {
-                    let declaration =
-                        exactly_one(types.clone(), |declaration| declaration.id == current)?;
-                    let field = exactly_one(declaration.shape.direct_fields()?.iter(), |field| {
-                        identities.text(field.identity) == Some(identity.as_str())
-                            && !field.relevance.is_erased()
-                    })?;
-                    canonical.push(Segment::Field(field.id));
-                    if index + 1 < path.len() {
-                        current = match field.field_type {
-                            terminal_psi::StructuralFieldType::Structural(child) => child,
-                            _ => return None,
-                        };
-                    } else if field.field_type.scalar_type().is_none() {
-                        return None;
-                    }
-                }
-                if canonical.is_empty() {
-                    return None;
-                }
+                let (canonical, _) =
+                    crate::content_projections::field_path(types, identities, carrier, path)
+                        .ok()?;
                 output.push(canonical);
                 Some(())
             }

@@ -975,8 +975,8 @@ pub use interval_sets::{CanonicalIntervalSet, IntervalSetError, NaturalInterval}
 pub use storage::content::ContentPlaceSegment as StructuralPlaceSegment;
 pub use storage::content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentIntervalInterpretation,
-    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionFormation,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
     content_conservation_report_fingerprint, encode_fingerprint_string,
 };
 /// A content place orders case names before field names. Import this concrete

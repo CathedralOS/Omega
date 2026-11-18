@@ -748,21 +748,6 @@ impl Lowering<'_> {
             self.qualify(value, signature.parameters[*position].qualification())?;
             *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
         }
-        let bindings: Vec<_> = formals
-            .records
-            .iter()
-            .map(|formal| {
-                self.exact_root(formal.place)
-                    .map(|exact| (formal.place, exact))
-            })
-            .collect::<Checked<_>>()?;
-        for clause in signature.requires.iter().chain(&signature.ensures) {
-            self.name_clause_contents(
-                clause,
-                &bindings,
-                result.structural().map(|result| result.place),
-            )?;
-        }
         Ok((formals, result))
     }
 }
@@ -970,6 +955,14 @@ impl<'a> Lowering<'a> {
     }
 
     fn qualify_contract(&mut self, contract: &mut MachineContract) -> Checked<()> {
+        for clause in &mut contract.requires {
+            *clause = self.qualifications.content_proposition(self.id, clause)?;
+        }
+        for clause in &mut contract.ensures {
+            clause.proposition = self
+                .qualifications
+                .content_proposition(self.id, &clause.proposition)?;
+        }
         contract.membership_ensures = self
             .signature
             .membership_ensures
@@ -1470,6 +1463,33 @@ impl<'a> Lowering<'a> {
         self.publish_rankings(&mut machine)?;
         self.qualifications
             .complete(&machine, self.coercions_start)?;
+        // Name declared input observations after the storage type catalog is
+        // available, before final snapshot identities are allocated.
+        let bindings = machine
+            .contract
+            .structural_parameters
+            .iter()
+            .map(|formal| {
+                self.exact_root(formal.place)
+                    .map(|exact| (formal.place, exact))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for clause in self
+            .signature
+            .requires
+            .iter()
+            .chain(&self.signature.ensures)
+        {
+            self.name_clause_contents(
+                clause,
+                &bindings,
+                machine
+                    .contract
+                    .result
+                    .structural()
+                    .map(|result| result.place),
+            )?;
+        }
         self.name_default_contents(&machine, structural_types)?;
         self.name_storage_contents(&machine)?;
         // A scalar machine has no structural place, so its place, root and

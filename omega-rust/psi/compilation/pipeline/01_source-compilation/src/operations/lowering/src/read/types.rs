@@ -1375,11 +1375,18 @@ impl Program<'_> {
                 .iter()
                 .any(|declared| declared.instance == domain)
         {
+            let content_projection = self.declared_content_projection(id, domain)?;
+            if content_projection.is_some() && !matches!(plain, ValueType::Record(..)) {
+                return unserved(
+                    "scalar content projections have no structural claim representation",
+                );
+            }
             self.declared_domains.push(super::DeclaredDomain {
                 instance: domain,
                 carrier: plain,
                 predicate: None,
                 complete_predicate_theory: false,
+                content_projection,
             });
         }
         Ok(())

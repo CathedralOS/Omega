@@ -40,46 +40,9 @@ pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Result<Option<arena::RootRows<'_, StateParameter>>, Diagnostic> {
-    if !program.symbols.symbols().nodes().is_valid(target) {
-        return Ok(None);
-    }
-    if let Some(application) = program.closed_requirement_application(target) {
-        return Ok(Some(
-            program.state_signature_parameters(application.signature),
-        ));
-    }
-    if let Some(state) = program.state_by_symbol(target) {
-        return Ok(Some(program.state_parameters(state)));
-    }
-    if let Some(machine) = program.machine_by_symbol(target) {
-        return Ok(program
-            .machine_states(machine)
-            .first()
-            .map(|state| program.state_parameters(state)));
-    }
-    if let Some((_, signature)) = program.machine_parameter_signature(target) {
-        return Ok(Some(program.state_signature_parameters(signature)));
-    }
-    if let Some(operator) = program.operator_definition_by_symbol(target) {
-        return Ok(Some(program.operator_parameters(operator)));
-    }
-    let mut signatures = program
-        .traits()
-        .iter()
-        .flat_map(|declaration| program.trait_machine_signatures(declaration))
-        .filter(|signature| signature.symbol == target);
-    if let Some(signature) = signatures.next()
-        && signatures.next().is_none()
-    {
-        return Ok(Some(program.state_signature_parameters(signature)));
-    }
-    if let Some(signature) = program
-        .evidence_requirement_declaration(target)
-        .map_err(Diagnostic::error)?
-    {
-        return Ok(Some(program.state_signature_parameters(signature)));
-    }
-    Ok(None)
+    program
+        .callable_parameters(target)
+        .map_err(Diagnostic::error)
 }
 
 pub(crate) fn selected_construction_field_type(

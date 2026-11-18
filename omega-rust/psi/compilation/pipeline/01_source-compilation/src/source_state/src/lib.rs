@@ -52,6 +52,8 @@ pub mod boundary_values {
     }
 }
 pub mod callable_lifetimes;
+mod callable_parameters;
+pub use callable_parameters::CallableValueTypes;
 pub mod content_contracts;
 pub mod content_projections;
 pub mod source_names;

@@ -162,8 +162,35 @@ impl Lowering<'_> {
         result: Option<PlaceId>,
         argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
     ) -> Checked<()> {
+        let clause = self.qualifications.content_proposition(self.id, clause)?;
         let mut named = Named { leaves: Vec::new() };
-        let _ = substitute_clause(clause, &mut named);
+        let mut clauses = vec![&clause];
+        while let Some(clause) = clauses.pop() {
+            match clause {
+                Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+                    clauses.extend(parts)
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    clauses.push(premise);
+                    clauses.push(conclusion);
+                }
+                Proposition::ContentConservation(equation) => {
+                    self.name_content_endpoints(
+                        equation,
+                        bindings,
+                        result,
+                        argument_types,
+                        &mut named,
+                    )?;
+                }
+                _ => {
+                    let _ = substitute_clause(clause, &mut named);
+                }
+            }
+        }
         for Observation {
             root,
             mut path,
@@ -208,6 +235,134 @@ impl Lowering<'_> {
             self.initial_content(leaf, scalar_type)?;
         }
         Ok(())
+    }
+
+    fn name_content_endpoints(
+        &self,
+        equation: &semantic_vocabulary::ContentConservation,
+        bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
+        argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
+        named: &mut Named,
+    ) -> Checked<()> {
+        let mut terms = vec![equation.left(), equation.right()];
+        while let Some(term) = terms.pop() {
+            let semantic_vocabulary::ContentTerm::Projection {
+                projection,
+                subject,
+            } = term
+            else {
+                if let semantic_vocabulary::ContentTerm::Separate(parts) = term {
+                    terms.extend(parts);
+                }
+                continue;
+            };
+            // Returned storage is named at its exit. Capturing it here would
+            // invent an entry snapshot before the call has produced it.
+            if Some(subject.root) == result {
+                continue;
+            }
+            let (position, &(_, exact)) = bindings
+                .iter()
+                .enumerate()
+                .find(|(_, (root, _))| *root == subject.root)
+                .ok_or_else(|| self.internal("content observation has no exact input subject"))?;
+            let root_type = match argument_types.get(position).copied().flatten() {
+                Some((formal, _)) => formal,
+                None => self.content_subject_type(exact)?,
+            };
+            let selected = terminal_semantics::content_projections::resolve_projection(
+                self.structural_types,
+                &self.qualifications.structural,
+                self.qualifications.identities.as_table(),
+                root_type,
+                equation.algebra(),
+                *projection,
+                subject,
+            )
+            .map_err(|detail| self.internal(detail))?;
+            let mut scalars = Vec::new();
+            match &selected.definition.expression {
+                semantic_vocabulary::ContentProjectionExpression::IntervalSet(intervals) => {
+                    for (start, end) in intervals {
+                        scalars.extend([start, end]);
+                    }
+                }
+                semantic_vocabulary::ContentProjectionExpression::CountedQuantity(value) => {
+                    scalars.push(value)
+                }
+            }
+            for question in &selected.definition.formation {
+                match question {
+                    semantic_vocabulary::ContentProjectionFormation::Natural(value) => {
+                        scalars.push(value)
+                    }
+                    semantic_vocabulary::ContentProjectionFormation::OrderedInterval {
+                        start,
+                        end,
+                    } => scalars.extend([start, end]),
+                }
+            }
+            for scalar in scalars {
+                let term = terminal_semantics::content_projections::scalar(
+                    self.structural_types.iter(),
+                    self.qualifications.identities.as_table(),
+                    selected.carrier,
+                    subject.root,
+                    &selected.prefix,
+                    subject.version,
+                    scalar,
+                )
+                .map_err(|detail| self.internal(detail))?;
+                terminal_semantics::substitution::clauses::substitute_clause_math_term(
+                    &term, named,
+                )
+                .map_err(|detail| self.internal(detail))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn content_subject_type(&self, mut exact: ExactPlaceId) -> Checked<StructuralTypeId> {
+        let mut path = Vec::new();
+        let root = loop {
+            let row = self
+                .tables
+                .places
+                .get(exact)
+                .ok_or_else(|| self.internal("content subject has no exact storage row"))?;
+            match row.origin {
+                PlaceOrigin::Root(root) => break root,
+                PlaceOrigin::Projection { parent, segment } => {
+                    path.push(match segment {
+                        Segment::Field(field) => CanonicalStructuralPathSegment::Field(field),
+                        Segment::Case(case) => CanonicalStructuralPathSegment::Case(case),
+                        Segment::FixedIndex(index) => {
+                            CanonicalStructuralPathSegment::FixedIndex(index)
+                        }
+                        Segment::Referent => CanonicalStructuralPathSegment::Referent,
+                        _ => {
+                            return Err(self.internal(
+                                "content contract subject has no static declared carrier",
+                            ));
+                        }
+                    });
+                    exact = parent;
+                }
+            }
+        };
+        path.reverse();
+        let (_, root_type) = self
+            .roots
+            .get(root)
+            .ok_or_else(|| self.internal("content subject lost its storage type"))?;
+        terminal_semantics::canonical_structural_path_tip(
+            self.structural_types.iter(),
+            *root_type,
+            &path,
+        )
+        .map(|carrier| carrier.id)
+        .ok_or_else(|| self.internal("content subject path has no exact declared type"))
     }
 
     /// Named qualifications and type defaults name the same current storage

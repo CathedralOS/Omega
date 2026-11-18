@@ -222,6 +222,17 @@ pub(crate) mod content {
         Multiply(Box<Self>, Box<Self>),
     }
 
+    /// Partial source conversions remain independently owed when the final
+    /// endpoint expression alone would hide them.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+    pub enum ContentProjectionFormation {
+        Natural(ContentProjectionScalar),
+        OrderedInterval {
+            start: ContentProjectionScalar,
+            end: ContentProjectionScalar,
+        },
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
     pub enum ContentProjectionExpression {
         IntervalSet(Vec<(ContentProjectionScalar, ContentProjectionScalar)>),

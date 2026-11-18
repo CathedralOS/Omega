@@ -1645,6 +1645,20 @@ pub(crate) mod structural_encoding {
         bytes.u64(projection.projection.identity.projection_report_fingerprint);
         encode_content_algebra(bytes, &projection.projection.algebra);
         encode_content_projection_expression(bytes, &projection.projection.expression);
+        bytes.len(projection.projection.formation.len());
+        for question in &projection.projection.formation {
+            match question {
+                semantic_vocabulary::ContentProjectionFormation::Natural(value) => {
+                    bytes.u8(1);
+                    encode_content_projection_scalar(bytes, value);
+                }
+                semantic_vocabulary::ContentProjectionFormation::OrderedInterval { start, end } => {
+                    bytes.u8(2);
+                    encode_content_projection_scalar(bytes, start);
+                    encode_content_projection_scalar(bytes, end);
+                }
+            }
+        }
     }
 
     fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {

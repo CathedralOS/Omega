@@ -83,6 +83,7 @@ pub fn reverify(
         &prepared.types,
         &mut references,
     )?;
+    let mut interpretations = Vec::new();
     let goal = crate::checking::goal(
         module,
         lowered,
@@ -93,11 +94,14 @@ pub fn reverify(
         tables,
         &prepared.types,
         &prepared.ranking_bindings,
+        &mut interpretations,
     )?;
+    let question_context =
+        super::content::context(&prepared.context, interpretations, machine, obligation)?;
     let hypotheses =
         crate::checking::hypotheses(&prepared.graph, tables, machine, obligation, row.created_at)?;
     crate::checking::verify(
-        &prepared.context,
+        &question_context,
         machine,
         obligation,
         goal,
@@ -860,6 +864,7 @@ pub fn reverify_specialization(
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
             continue;
         }
+        let mut interpretations = Vec::new();
         let verdict = crate::checking::goal(
             module,
             lowered,
@@ -870,10 +875,17 @@ pub fn reverify_specialization(
             tables,
             &prepared.types,
             &prepared.ranking_bindings,
+            &mut interpretations,
         )
         .and_then(|goal| {
-            carry.certify(
+            let question_context = super::content::context(
                 &prepared.context,
+                interpretations,
+                specialization,
+                obligation,
+            )?;
+            carry.certify(
+                &question_context,
                 &prepared.graph,
                 obligation,
                 &row.kind,

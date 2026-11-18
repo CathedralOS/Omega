@@ -658,6 +658,37 @@ impl ClauseBindings for Scope<'_, '_> {
         Err("partial contract under a case requires its exact case observation".into())
     }
 
+    fn content(
+        &mut self,
+        equation: &semantic_vocabulary::ContentConservation,
+    ) -> Result<Proposition, BindingError> {
+        let module = self.module;
+        let occurrences = terminal_semantics::content_projections::resolve(
+            &module.structural_types,
+            &module.structural_domains,
+            &module.identities,
+            self.roots.iter().map(|root| (root.place, root.ty)),
+            equation,
+        )?;
+        let mut questions = Vec::new();
+        for occurrence in occurrences {
+            let (_, formation) = terminal_semantics::content_projections::bind(
+                &module.structural_types,
+                &module.identities,
+                &occurrence,
+                self,
+            )?;
+            questions.extend(formation);
+        }
+        for question in questions {
+            self.prove(&question)?;
+        }
+        // The separated union generates body obligations; spelling it here
+        // supplies no premise that its intervals are disjoint or conserved.
+        // The unchanged contract is proved at each actual return.
+        Ok(Proposition::Truth)
+    }
+
     fn computed(&mut self, term: ScalarTerm) -> Result<ScalarTerm, BindingError> {
         // The result's carrier range is unavailable while proving formation.
         // Only the already formed operands can justify the new computation.
@@ -681,6 +712,23 @@ impl ClauseBindings for Scope<'_, '_> {
 fn owes(clauses: impl IntoIterator<Item = impl std::borrow::Borrow<Proposition>>) -> bool {
     let mut owes = false;
     for clause in clauses {
+        let mut pending = vec![clause.borrow()];
+        while let Some(part) = pending.pop() {
+            match part {
+                Proposition::ContentConservation(_) => owes = true,
+                Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+                    pending.extend(parts)
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    pending.push(premise);
+                    pending.push(conclusion);
+                }
+                _ => {}
+            }
+        }
         clause.borrow().visit_scalar_terms(|term| {
             // A total byte observation still owes its exact carrier and path.
             // Every declaration entrance must form it, even under Falsehood.

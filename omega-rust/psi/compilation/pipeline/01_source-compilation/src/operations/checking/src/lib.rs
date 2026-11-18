@@ -55,6 +55,7 @@ mod branch_warnings;
 mod call_contracts;
 mod callable_arrivals;
 mod ceilings;
+mod content;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -882,6 +883,7 @@ fn check_prepared_machine(
             ))));
             continue;
         }
+        let mut interpretations = Vec::new();
         let verdict = goal(
             module,
             lowered,
@@ -892,8 +894,11 @@ fn check_prepared_machine(
             tables,
             types,
             ranking_bindings,
+            &mut interpretations,
         )
         .and_then(|goal| {
+            let question_context = content::context(context, interpretations, id, obligation)?;
+            let context = question_context.as_ref();
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(
                     context,
@@ -2022,6 +2027,7 @@ fn goal<'a>(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     ranking_bindings: &rankings::Bindings,
+    interpretations: &mut Vec<semantic_vocabulary::ContentIntervalInterpretation>,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
         module,
@@ -2033,6 +2039,7 @@ fn goal<'a>(
         tables,
         types,
         ranking_bindings,
+        interpretations,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -2083,6 +2090,7 @@ fn stated_goal<'a>(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     ranking_bindings: &rankings::Bindings,
+    interpretations: &mut Vec<semantic_vocabulary::ContentIntervalInterpretation>,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
@@ -2122,12 +2130,18 @@ fn stated_goal<'a>(
             // A scalar formal is the scalar actual in its lane; a field of a
             // record formal is what that field of the record actual holds
             // when the call is made.
-            let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
+            let mut over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
                 substitute_goal(
                     clause,
-                    &mut ErasedTerms {
-                        terms: &erased,
-                        runtime,
+                    &mut content::AtCut {
+                        module,
+                        parameters: call.contract.structural_parameters,
+                        result: call.contract.result,
+                        bindings: &mut ErasedTerms {
+                            terms: &erased,
+                            runtime,
+                        },
+                        interpretations,
                     },
                 )
             };
@@ -2173,7 +2187,13 @@ fn stated_goal<'a>(
                 })?;
             substitute_goal(
                 &clause.proposition,
-                &mut storage.at_return(references, tables, exit, concerns)?,
+                &mut content::AtCut {
+                    module,
+                    parameters: &lowered.contract.structural_parameters,
+                    result: Some(&lowered.contract.result),
+                    bindings: &mut storage.at_return(references, tables, exit, concerns)?,
+                    interpretations,
+                },
             )
             .map_err(|unbound| unbound.refusal(id, concerns))
         }

@@ -40,6 +40,7 @@ mod carriers;
 mod casts;
 mod clause_calls;
 mod constant_values;
+mod content;
 mod contracts;
 mod expressions;
 mod fixed_bytes;
@@ -112,6 +113,7 @@ pub(crate) struct DeclaredDomain {
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
     pub complete_predicate_theory: bool,
+    pub content_projection: Option<terminal_psi::StructuralContentProjection>,
 }
 
 pub(crate) struct PredicateDefinition {
@@ -412,6 +414,9 @@ impl<'t> Program<'t> {
         entry: MachineId,
         bodies: usize,
     ) -> Checked<()> {
+        self.shared
+            .content_definitions(self.typed)
+            .map_err(|detail| refuse(entry, Construct::Machine, Unserved::Declaration(detail)))?;
         if self.type_purpose == storage_metadata::TypePurpose::StorageDescription
             || bodies != self.symbols.len()
         {
@@ -979,6 +984,7 @@ mod tests {
                 carrier: ValueType::record(carrier),
                 predicate: None,
                 complete_predicate_theory: false,
+                content_projection: None,
             }));
         let bodies = arena::IdTable::default();
         let components =
@@ -1050,6 +1056,7 @@ mod tests {
             carrier: ValueType::record(carrier),
             predicate: None,
             complete_predicate_theory: false,
+            content_projection: None,
         });
         assert_eq!(
             unprepared

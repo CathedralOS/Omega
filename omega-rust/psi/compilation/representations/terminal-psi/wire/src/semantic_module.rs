@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 288`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 289`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -5092,10 +5092,9 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 288 retains normal-result membership facts independently of declared
-// result types, including their complete service-contract meaning. Earlier
-// payloads lack these guarantees and reject before decoding.
-pub(crate) const FORMAT_MARKER: u16 = 288;
+// Marker 289 retains every content projection's partial-operand formation
+// question. Earlier payloads omit these obligations and reject before decoding.
+pub(crate) const FORMAT_MARKER: u16 = 289;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -6202,7 +6201,7 @@ mod format_marker_tests {
         // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285,
+            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
