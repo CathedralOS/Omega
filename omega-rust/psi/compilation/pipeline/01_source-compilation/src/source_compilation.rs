@@ -1319,15 +1319,10 @@ impl SourceContinuation {
         } = Arc::unwrap_or_clone(owned_input);
         (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
         drop(pending_bodies);
-        let mut deferred = Vec::new();
-        let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
-        for pre_check in pending_pre_checks {
-            let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
-            accounting.append(recorded.accounting);
-            if let Some(pending) = recorded.pending {
-                deferred.push(pending);
-            }
-        }
+        let (deferred, accounting) = PreCheckEvaluation::evaluate_recorded_continuations(
+            pending_pre_checks,
+            typing.typed_mut(),
+        )?;
         let source = CompletedSource {
             declaration_syntax: context.declaration_syntax,
             typing,

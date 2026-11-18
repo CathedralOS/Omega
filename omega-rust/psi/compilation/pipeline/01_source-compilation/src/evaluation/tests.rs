@@ -2497,3 +2497,246 @@ machine read() -> u64 {
         "no product route yet: source wire-schema evaluation"
     );
 }
+
+#[test]
+fn source_request_inventory_recorded_frontier_runs_once() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "machine length() -> u64 { 4 } machine entry() { let bytes: [u8; length()]; }",
+    )]);
+    let mut program = base.typed().clone();
+    let mut expected = program.clone();
+    crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut expected).unwrap();
+    assert!(!expected.deferred_refusals.is_empty());
+
+    let (recorded, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            pending.evaluate_or_defer_recorded(&mut program).unwrap()
+        });
+    assert!(recorded.pending.is_none());
+    assert!(recorded.accounting.receipts().is_empty());
+    assert!(program == expected);
+    assert_eq!(
+        passes,
+        (1, 1),
+        "request inventory and conditional owner pass"
+    );
+}
+
+#[test]
+fn source_request_inventory_extension_is_shared_by_all_continuations() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "machine length() -> u64 { 4 } machine entry() { let bytes: [u8; length()]; }",
+    )]);
+    let mut expected = base.typed().clone();
+    crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut expected).unwrap();
+    assert!(!expected.deferred_refusals.is_empty());
+    let mut observed = Vec::new();
+    for continuations in [0, 1, 8] {
+        let mut program = base.typed().clone();
+        let (remaining, passes) =
+            crate::evaluation::source_frontier::inventory_observation::observe(|| {
+                crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
+                    vec![pending.clone(); continuations],
+                    0,
+                    &mut program,
+                )
+                .unwrap()
+            });
+        assert!(remaining.is_empty());
+        assert!(program == expected);
+        observed.push(passes);
+    }
+    assert_eq!(observed, [(1, 1); 3]);
+}
+
+#[test]
+fn source_request_inventory_completion_is_shared_by_all_continuations() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "machine length() -> u64 { 4 } machine entry() { let bytes: [u8; length()]; }",
+    )]);
+    let mut expected = base.typed().clone();
+    crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut expected).unwrap();
+    assert!(!expected.deferred_refusals.is_empty());
+    let mut observed = Vec::new();
+    for continuations in [0, 1, 8] {
+        let mut program = base.typed().clone();
+        let ((remaining, accounting), passes) =
+            crate::evaluation::source_frontier::inventory_observation::observe(|| {
+                crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+                    vec![pending.clone(); continuations],
+                    &mut program,
+                )
+                .unwrap()
+            });
+        assert!(remaining.is_empty());
+        assert!(accounting.receipts().is_empty());
+        if continuations == 0 {
+            assert!(program == *base.typed());
+        } else {
+            assert!(program == expected);
+        }
+        observed.push(passes);
+    }
+    assert_eq!(observed, [(0, 0), (1, 1), (1, 1)]);
+}
+
+#[test]
+fn source_request_inventory_restarts_after_a_typed_program_changes() {
+    let (_, _, plain, pending) = typed_base(&[("main.omg", "machine entry() { }")]);
+    let mut program = plain.typed().clone();
+    let (_, first) = crate::evaluation::source_frontier::inventory_observation::observe(|| {
+        crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+            vec![pending],
+            &mut program,
+        )
+        .unwrap()
+    });
+    assert_eq!(first, (1, 0));
+    assert!(program.deferred_refusals.is_empty());
+
+    let (_, _, completed, pending) = typed_base(&[(
+        "main.omg",
+        "machine length() -> u64 { 4 } machine entry() { let bytes: [u8; length()]; }",
+    )]);
+    program = completed.typed().clone();
+    let (_, second) = crate::evaluation::source_frontier::inventory_observation::observe(|| {
+        crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+            vec![pending],
+            &mut program,
+        )
+        .unwrap()
+    });
+    assert_eq!(second, (1, 1));
+    assert!(!program.deferred_refusals.is_empty());
+}
+
+#[test]
+fn source_request_inventory_preserves_authority_and_refusal_order() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "machine length() -> u64 { 4 } machine entry() { let bytes: [u8; length()]; }",
+    )]);
+    let limits = compiler_storage::RecordLimits::default();
+    let bytes = compiler_storage::encode(&pending, limits).unwrap();
+    let restored: crate::evaluation::PreCheckEvaluation =
+        compiler_storage::decode(&bytes, limits).unwrap();
+    let authority_error = "source normalization authority has not been rejoined";
+    let mut expected = base.typed().clone();
+    crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut expected).unwrap();
+
+    // The first continuation's authority still precedes inventory and recording.
+    let mut program = base.typed().clone();
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+                vec![restored.clone(), pending.clone()],
+                &mut program,
+            )
+            .err()
+            .expect("restored authority must be rejoined")
+        });
+    assert_eq!(error[0].message, authority_error);
+    assert_eq!(passes, (0, 0));
+    assert!(program == *base.typed());
+
+    // A later continuation fails only after the first one's rows were recorded.
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+                vec![pending, restored.clone()],
+                &mut program,
+            )
+            .err()
+            .expect("every continuation checks its own authority")
+        });
+    assert_eq!(error[0].message, authority_error);
+    assert_eq!(passes, (1, 1));
+    assert!(program == expected);
+
+    // Extension recording precedes its continuation authority, as before.
+    let mut program = base.typed().clone();
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
+                vec![restored.clone()],
+                0,
+                &mut program,
+            )
+            .err()
+            .expect("extension still checks restored authority")
+        });
+    assert_eq!(error[0].message, authority_error);
+    assert_eq!(passes, (1, 1));
+    assert!(program == expected);
+
+    // Its wire frontier check still precedes both recording and authority.
+    let mut program = base.typed().clone();
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
+                vec![restored],
+                program.wire_schemas().len() + 1,
+                &mut program,
+            )
+            .err()
+            .expect("a lost wire frontier must refuse")
+        });
+    assert_eq!(
+        error[0].message,
+        "source extension lost its original wire-schema frontier"
+    );
+    assert_eq!(passes, (0, 0));
+    assert!(program == *base.typed());
+}
+
+#[test]
+fn source_request_inventory_never_serves_missing_constant_work() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "const LIMIT: u32 = 7; machine entry() { let read: u32 = LIMIT; }",
+    )]);
+    let mut program = base.typed().clone();
+    forget_recorded_value(&mut program);
+    let before = program.clone();
+    let expected = pending.clone().evaluate(&mut program).unwrap_err();
+    assert!(
+        expected[0]
+            .message
+            .contains("source constant evaluation: `LIMIT` is used")
+    );
+    assert!(program == before);
+    let limits = compiler_storage::RecordLimits::default();
+    let bytes = compiler_storage::encode(&pending, limits).unwrap();
+    let restored: crate::evaluation::PreCheckEvaluation =
+        compiler_storage::decode(&bytes, limits).unwrap();
+
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_recorded_continuations(
+                vec![pending, restored.clone()],
+                &mut program,
+            )
+            .err()
+            .expect("missing constant work still precedes later continuation authority")
+        });
+    assert_eq!(error, expected);
+    assert_eq!(passes, (0, 0));
+    assert!(program == before);
+
+    let (error, passes) =
+        crate::evaluation::source_frontier::inventory_observation::observe(|| {
+            crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
+                vec![restored],
+                0,
+                &mut program,
+            )
+            .err()
+            .expect("extension refuses unserved work before its authority check")
+        });
+    assert_eq!(error, expected);
+    assert_eq!(passes, (0, 0));
+    assert!(program == before);
+}
