@@ -1192,6 +1192,30 @@ pub(crate) fn complete(
         }
     }
     let binders = BinderClosures::build(trees);
+    // Calls retain their callee as an expression child. That occurrence is
+    // checked by the owning call below; a separately selected machine still
+    // needs the noncall refusal. Match exact handles and selected declarations.
+    let mut call_callees = Vec::new();
+    let mut retain_callee = |callee: ExpressionHandle, target: symbols::SymbolHandle| {
+        if callee.is_valid()
+            && matches!(trees.tables.bodies.expressions.expression(callee),
+                ExpressionNode::Name(path) if path.symbol == target)
+        {
+            call_callees.push(callee);
+        }
+    };
+    for (_, resolved) in &sources.expressions {
+        if let ExpressionNode::Call(call) = trees.tables.bodies.expressions.expression(*resolved) {
+            retain_callee(call.callee, call.target_symbol);
+        }
+    }
+    for (_, resolved) in &sources.statements {
+        if let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved) {
+            retain_callee(call.callee, call.target_symbol);
+        }
+    }
+    call_callees.sort_unstable();
+    call_callees.dedup();
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
             ExpressionNode::Call(call) => {
@@ -1237,8 +1261,10 @@ pub(crate) fn complete(
                 );
             }
             ExpressionNode::Name(path)
-                if selected_machine(trees, path.symbol)
-                    .is_some_and(|index| trees.machines[index].has_structural_type_equations) =>
+                if call_callees.binary_search(resolved).is_err()
+                    && selected_machine(trees, path.symbol).is_some_and(|index| {
+                        trees.machines[index].has_structural_type_equations
+                    }) =>
             {
                 return Err(vec![Diagnostic::error(
                     "machine with structural equations requires a closed explicit call; noncall selection retains an unsolved equation",
