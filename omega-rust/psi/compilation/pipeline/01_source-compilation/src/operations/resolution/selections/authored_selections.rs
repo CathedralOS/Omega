@@ -419,7 +419,11 @@ fn collect_authored_statement_call_candidates(
     candidates: &mut Vec<AuthoredStatementCallCandidate>,
 ) {
     use crate::source_resolved::statement::Statement;
-    for (offset, statement) in program.state_statements(statements).iter().enumerate() {
+    for (offset, statement) in program
+        .construction_statements(statements)
+        .iter()
+        .enumerate()
+    {
         match statement {
             Statement::Call(call)
                 if call.operational_acknowledgement.origin
@@ -487,7 +491,7 @@ fn finalize_authored_statement_call_selections(
             let state = program.machine_state(*state_handle);
             collect_authored_statement_call_candidates(
                 program,
-                state.statements,
+                state.construction_statement_span(),
                 machine.compiler_selection_partition,
                 &mut candidates,
             );
@@ -946,7 +950,7 @@ fn finalize_statement_static_argument_selections(
     let mut sites = Vec::new();
     for machine in program.machines.iter() {
         for state in program.machine_state_handles(machine.states) {
-            let statements = program.machine_state(*state).statements;
+            let statements = program.machine_state(*state).construction_statement_span();
             collect_statement_static_sites(
                 program,
                 statements,
@@ -1028,7 +1032,8 @@ fn finalize_statement_static_argument_selections(
                 occurrences.push(occurrence);
             }
         }
-        let Some(Statement::Call(source_call)) = program.state_statements(statements).get(offset)
+        let Some(Statement::Call(source_call)) =
+            program.construction_statements(statements).get(offset)
         else {
             return Err(Diagnostic::error(
                 "static input attachments lost their statement call",
@@ -1081,7 +1086,11 @@ fn collect_statement_static_sites(
     sites: &mut Vec<StatementStaticSite>,
 ) {
     use crate::source_resolved::statement::Statement;
-    for (offset, statement) in program.state_statements(statements).iter().enumerate() {
+    for (offset, statement) in program
+        .construction_statements(statements)
+        .iter()
+        .enumerate()
+    {
         match statement {
             Statement::Call(call) => {
                 let mut candidates = Vec::new();

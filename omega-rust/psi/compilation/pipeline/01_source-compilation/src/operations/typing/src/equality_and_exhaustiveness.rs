@@ -47,7 +47,7 @@ pub(crate) mod equality {
 
             for state_handle in program.machine_state_handles(machine.states) {
                 let state = program.machine_state(*state_handle);
-                for statement in resolved_statements(program).statements(state.statement_nodes) {
+                for statement in program.state_body(state) {
                     scan_statement(program, statement)?;
                 }
             }
@@ -292,7 +292,7 @@ pub(crate) mod equality {
 pub(crate) mod exhaustiveness {
     use crate::source_resolved as resolved;
     use crate::typing::expressions::call_results::declared_call_return;
-    use crate::typing::tables::{resolved_expressions, resolved_statements};
+    use crate::typing::tables::resolved_expressions;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
@@ -729,7 +729,7 @@ pub(crate) mod exhaustiveness {
                     bindings: Vec::new(),
                 };
                 scope.bindings = coverage_bindings(&scope);
-                let statements = resolved_statements(program).statements(state.statement_nodes);
+                let statements = program.state_body(state);
                 let location =
                     if machine.name.as_str().rsplit("::").next() == Some(state.name.as_str()) {
                         machine.name.as_str().to_owned()
@@ -1084,7 +1084,6 @@ pub(crate) mod exhaustiveness {
     fn coverage_bindings(scope: &DispatchScope<'_>) -> Vec<CoverageBinding> {
         let program = scope.program;
         let parameters = program.state_parameters(scope.state.parameters);
-        let statements = program.state_statements(scope.state.statements);
         let binding = |symbol, reference: &TypeReference, mutable: bool| CoverageBinding {
             symbol: symbol_key(symbol),
             primitive: comparison_primitive_type(program, reference).is_some(),
@@ -1104,19 +1103,20 @@ pub(crate) mod exhaustiveness {
                     parameter.is_mutable,
                 )
             })
-            .chain(statements.iter().filter_map(|statement| {
-                let resolved::statement::Statement::LocalData(local) = statement else {
-                    return None;
-                };
-                let inferred = (local.is_operand_capture || local.type_is_inferred)
-                    .then(|| subject_declared_type(scope, local.initial_value))
-                    .flatten();
-                Some(binding(
-                    local.symbol,
-                    inferred.as_ref().unwrap_or(&local.type_reference),
-                    local.is_mutable,
-                ))
-            }))
+            .chain(
+                program
+                    .state_locals(scope.state)
+                    .map(|(local, declared_type)| {
+                        let inferred = (local.is_operand_capture || local.type_is_inferred)
+                            .then(|| subject_declared_type(scope, local.initial_value))
+                            .flatten();
+                        binding(
+                            local.symbol,
+                            inferred.as_ref().unwrap_or(declared_type),
+                            local.is_mutable,
+                        )
+                    }),
+            )
             .chain(
                 program
                     .machine_type_parameters(scope.machine)
@@ -2426,20 +2426,12 @@ pub(crate) mod exhaustiveness {
             {
                 return Some(parameter.type_reference.clone());
             }
-            let statements = scope.program.state_statements(scope.state.statements);
-            if let Some(position) = scope
-                .program
-                .resolution_indexes
-                .local_statement_position(statements, symbol)
-                && let Some(resolved::statement::Statement::LocalData(local)) =
-                    statements.get(position as usize)
-                && local.symbol == symbol
-            {
-                if local.is_operand_capture || matches!(local.type_reference, TypeReference::Unit) {
+            if let Some((local, declared_type)) = scope.program.state_local(scope.state, symbol) {
+                if local.is_operand_capture || local.type_is_inferred {
                     return subject_declared_type(scope, local.initial_value)
-                        .or_else(|| Some(local.type_reference.clone()));
+                        .or_else(|| Some(declared_type.clone()));
                 }
-                return Some(local.type_reference.clone());
+                return Some(declared_type.clone());
             }
             if let Some(declaration) = scope.program.const_declaration(symbol) {
                 return Some(declaration.declared_type.clone());

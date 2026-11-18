@@ -199,7 +199,7 @@ use crate::source_resolved::signature::{
     CrashCause, NativeCallbackParameter, SignatureContract, SignatureContractKind, StateParameter,
     StateSignature, StateSignatureStorage,
 };
-use crate::source_resolved::state::{State, StateStorage};
+use crate::source_resolved::state::State;
 use crate::source_resolved::statement::Statement;
 use crate::source_resolved::types::TypeReference;
 use arena::{Handle, HandleSpan};
@@ -261,20 +261,17 @@ fn lower_state_parts(
                 .transpose()?;
             Ok::<_, Diagnostic>((parameters, return_type))
         })?;
-    let mut state = State {
-        symbol: SymbolHandle::invalid(),
-        name: crate::resolution::lowering::name::lower_name(syntax_trees, name),
-        storage: StateStorage {
-            parameters,
-            return_type,
-            ..StateStorage::default()
-        },
-    };
+    let mut state = State::header(
+        crate::resolution::lowering::name::lower_name(syntax_trees, name),
+        parameters,
+        return_type,
+    );
     state.contracts = with_state_scope(lowerer, &state, |lowerer| {
         lower_signature_contracts(lowerer, syntax_trees, contracts)
     })?;
     if !lowerer.defer_machine_bodies {
-        state.statements = lower_state_body(lowerer, syntax_trees, &state, statements)?;
+        let body = lower_state_body(lowerer, syntax_trees, &state, statements)?;
+        state.set_construction_statements(body);
     }
     Ok(state)
 }
@@ -307,7 +304,11 @@ fn with_state_scope<T>(
     let previous_name = lowerer
         .current_state_name
         .replace(state.name.as_str().to_owned());
-    let reference_parameters = if lowerer.current_machine_is_boundary {
+    let reference_parameters = if lowerer
+        .machine_body
+        .as_ref()
+        .is_some_and(|scope| scope.is_boundary)
+    {
         reference_struct_parameter_names(lowerer, &state.parameters)
     } else {
         Vec::new()

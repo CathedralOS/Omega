@@ -3,13 +3,13 @@ use crate::token_input::cursor::{Input, ParseResult};
 use crate::types::references::parse_type_reference_handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::ConstDefinition;
+use syntax_trees::item::ConstSyntax;
 use tokens::PunctuationKind;
 
 pub(crate) fn parse_const_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ConstDefinition> {
+) -> ParseResult<'tokens, 'source, ConstSyntax> {
     let (first, input) = input.take_identifier()?;
     let (scope, name, input) = if input.at_punctuation(PunctuationKind::ColonColon) {
         let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
@@ -25,16 +25,12 @@ pub(crate) fn parse_const_definition<'tokens, 'source>(
     let input = input.with_constant_position(false);
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     Ok((
-        ConstDefinition {
+        ConstSyntax {
             scope,
             name,
             is_public: false,
             type_reference,
-            value,
-            pending_target_observation: false,
-            normalization: None,
-            qualification: None,
-            pending_qualification: None,
+            initializer: value,
         },
         input,
     ))

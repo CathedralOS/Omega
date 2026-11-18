@@ -192,12 +192,59 @@ impl SyntaxCopy<'_> {
         )
     }
 
-    fn copy_statement_node(
+    pub(crate) fn copy_authored_assembly(
+        &mut self,
+        other: &SyntaxTrees,
+        mut assembly: crate::statement::AuthoredAssembly,
+    ) -> crate::statement::AuthoredAssembly {
+        for expression in assembly
+            .requires
+            .iter_mut()
+            .chain(assembly.ensures.iter_mut())
+        {
+            *expression = self.copy_expression_handle(other, *expression);
+        }
+        for block in &mut assembly.blocks {
+            for expression in block.requires.iter_mut().chain(block.ensures.iter_mut()) {
+                *expression = self.copy_expression_handle(other, *expression);
+            }
+            for instruction in &mut block.instructions {
+                self.copy_assembly_operands(other, &mut instruction.operands);
+            }
+        }
+        assembly
+    }
+
+    pub(crate) fn copy_assembly_operands(
+        &mut self,
+        other: &SyntaxTrees,
+        operands: &mut crate::statement::AssemblyOperands,
+    ) {
+        match operands {
+            crate::statement::AssemblyOperands::Expressions(values) => {
+                for value in values {
+                    *value = self.copy_expression_handle(other, *value);
+                }
+            }
+            crate::statement::AssemblyOperands::Transition(target) => {
+                *target = self.copy_transition_target(other, *target);
+            }
+        }
+    }
+
+    pub(crate) fn copy_statement_node(
         &mut self,
         other: &SyntaxTrees,
         statement: &StatementNode,
     ) -> StatementNode {
         match statement {
+            StatementNode::AuthoredAssembly(handle) => {
+                let assembly = self.copy_authored_assembly(
+                    other,
+                    other.statements.authored_assembly(*handle).clone(),
+                );
+                StatementNode::AuthoredAssembly(self.statements.insert_authored_assembly(assembly))
+            }
             StatementNode::Assembly(handle) => {
                 let graph = other.statements.assembly(*handle);
                 let blocks: Vec<_> = other
@@ -308,6 +355,62 @@ impl SyntaxCopy<'_> {
                 relevance: local_data.relevance,
                 pattern_fields: self.copy_match_fields(other, local_data.pattern_fields),
             }),
+            StatementNode::Dispatch(handle) => {
+                let dispatch = other.statements.dispatch(*handle);
+                let subjects = other
+                    .statements
+                    .expression_handles(dispatch.subjects)
+                    .iter()
+                    .map(|subject| self.copy_expression_handle(other, *subject))
+                    .collect::<Vec<_>>();
+                let arms = dispatch
+                    .arms
+                    .iter()
+                    .map(|arm| {
+                        let patterns = arm
+                            .patterns
+                            .iter()
+                            .zip(&subjects)
+                            .map(|(pattern, subject)| {
+                                let capture =
+                                    self.copy_capture(other, pattern.capture, Some(*subject));
+                                let pattern = match pattern.pattern {
+                                    MatchPattern::Wildcard => MatchPattern::Wildcard,
+                                    MatchPattern::Value(value) => MatchPattern::Value(
+                                        self.copy_expression_handle(other, value),
+                                    ),
+                                    MatchPattern::Destructure(pattern) => {
+                                        MatchPattern::Destructure(
+                                            self.copy_destructure_pattern(other, pattern),
+                                        )
+                                    }
+                                };
+                                crate::statement::DispatchPattern { capture, pattern }
+                            })
+                            .collect();
+                        crate::statement::DispatchArm {
+                            patterns,
+                            guard: match arm.guard {
+                                TransitionGuardNode::Always => TransitionGuardNode::Always,
+                                TransitionGuardNode::When(value) => TransitionGuardNode::When(
+                                    self.copy_expression_handle(other, value),
+                                ),
+                            },
+                            target: self.copy_transition_target(other, arm.target),
+                            source_span: arm.source_span,
+                        }
+                    })
+                    .collect();
+                let subjects = self.statements.insert_expression_handles(subjects);
+                StatementNode::Dispatch(self.statements.insert_dispatch(
+                    crate::statement::TableDispatch {
+                        subjects,
+                        arms,
+                        subjects_span: dispatch.subjects_span,
+                        source_span: dispatch.source_span,
+                    },
+                ))
+            }
             StatementNode::Transition(transition) => {
                 let patterns = other
                     .statements
@@ -616,6 +719,15 @@ impl SyntaxCopy<'_> {
         other: &SyntaxTrees,
         capture: Handle<MatchSubjectCapture>,
     ) -> Handle<MatchSubjectCapture> {
+        self.copy_capture(other, capture, None)
+    }
+
+    fn copy_capture(
+        &mut self,
+        other: &SyntaxTrees,
+        capture: Handle<MatchSubjectCapture>,
+        copied_subject: Option<ExpressionHandle>,
+    ) -> Handle<MatchSubjectCapture> {
         if !capture.is_valid() {
             return Handle::invalid();
         }
@@ -625,8 +737,9 @@ impl SyntaxCopy<'_> {
         {
             return *copied;
         }
-        let subject =
-            self.copy_expression_handle(other, other.expressions.match_subject(capture).subject);
+        let subject = copied_subject.unwrap_or_else(|| {
+            self.copy_expression_handle(other, other.expressions.match_subject(capture).subject)
+        });
         let copied = match other.expressions.match_subject(capture).purpose {
             crate::expression::SubjectCapturePurpose::Match => {
                 self.expressions.insert_match_subject(subject)

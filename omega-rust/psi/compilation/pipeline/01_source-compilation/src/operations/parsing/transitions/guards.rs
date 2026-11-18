@@ -3,11 +3,9 @@ use crate::expressions::parse::parse_expression_handle_without_struct_literals;
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
-    UnaryOperator,
+    ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern, TableDestructurePattern,
 };
-use syntax_trees::statement::TableOutcomeProofSelector;
-use syntax_trees::statement::TransitionGuardNode;
+use syntax_trees::statement::{DispatchPattern, TransitionGuardNode};
 use tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) use crate::patterns::bindings::{
@@ -17,38 +15,41 @@ pub(crate) use crate::patterns::bindings::{
 pub(crate) struct DestructureBindings {
     pub(crate) subject: ExpressionHandle,
     pub(crate) fields: Vec<DestructureBinding>,
-    pub(crate) pattern: Option<syntax_trees::statement::TransitionPattern>,
-    pub(crate) proof_selectors: Vec<TableOutcomeProofSelector>,
+}
+
+pub(crate) struct ArmCondition {
+    pub(crate) guard: TransitionGuardNode,
+    pub(crate) patterns: Box<[DispatchPattern]>,
+    pub(crate) bindings: Vec<DestructureBindings>,
 }
 
 pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     subject: &[ExpressionHandle],
-) -> Result<
-    (
-        TransitionGuardNode,
-        Vec<DestructureBindings>,
-        Option<Vec<Option<bool>>>,
-        Input<'tokens, 'source>,
-    ),
-    ParseError,
-> {
+) -> ParseResult<'tokens, 'source, ArmCondition> {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
 
     if subject.len() == 1
-        && let Some((guard, bindings)) =
+        && let Some((pattern, bindings)) =
             parse_destructure_pattern_arm(syntax_trees, pattern_input, subject[0])?
     {
-        return Ok((guard, vec![bindings], None, rest));
+        return Ok((
+            ArmCondition {
+                guard: TransitionGuardNode::Always,
+                patterns: Box::new([pattern]),
+                bindings: vec![bindings],
+            },
+            rest,
+        ));
     }
 
     if subject.len() >= 2
-        && let Some((guard, bindings)) =
+        && let Some(condition) =
             parse_tuple_destructure_pattern_arm(syntax_trees, pattern_input, subject)?
     {
-        return Ok((guard, bindings, None, rest));
+        return Ok((condition, rest));
     }
 
     let (patterns, pattern_rest) = parse_transition_match_list(syntax_trees, pattern_input, true)?;
@@ -62,13 +63,27 @@ pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
                 Some(expression) => TransitionGuardNode::When(expression),
                 None => TransitionGuardNode::Always,
             };
-            return Ok((guard, Vec::new(), None, rest));
+            return Ok((
+                ArmCondition {
+                    guard,
+                    patterns: Box::default(),
+                    bindings: Vec::new(),
+                },
+                rest,
+            ));
         }
         return Err(input.error_here("anonymous transition blocks do not support tuple patterns"));
     }
 
     if patterns.len() == 1 && patterns[0].is_none() {
-        return Ok((TransitionGuardNode::Always, Vec::new(), None, rest));
+        return Ok((
+            ArmCondition {
+                guard: TransitionGuardNode::Always,
+                patterns: Box::default(),
+                bindings: Vec::new(),
+            },
+            rest,
+        ));
     }
 
     if subject.len() != patterns.len() {
@@ -79,51 +94,21 @@ pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
         )));
     }
 
-    let bool_tuple: Option<Vec<Option<bool>>> = patterns
-        .iter()
-        .map(|pattern| match pattern {
-            None => Some(None),
-            Some(handle) => match syntax_trees.expressions.expression(*handle) {
-                ExpressionNode::Boolean(value) => Some(Some(*value)),
-                _ => None,
-            },
-        })
-        .collect();
-    let mut bindings = Vec::new();
-    for (left, right) in subject.iter().copied().zip(patterns) {
-        let Some(right) = right else {
-            continue;
-        };
-        retain_value_pattern(syntax_trees, left, right, &mut bindings);
-    }
-
-    Ok((TransitionGuardNode::Always, bindings, bool_tuple, rest))
-}
-
-fn arm_pattern_is_condition(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Binary(binary) => matches!(
-            binary.operator,
-            BinaryOperator::And
-                | BinaryOperator::Or
-                | BinaryOperator::Equal
-                | BinaryOperator::NotEqual
-                | BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual
-                | BinaryOperator::Less
-                | BinaryOperator::LessOrEqual
-        ),
-        ExpressionNode::Membership(_) => true,
-        ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
-        _ => false,
-    }
+    Ok((
+        ArmCondition {
+            guard: TransitionGuardNode::Always,
+            patterns: patterns.into_iter().map(value_pattern).collect(),
+            bindings: Vec::new(),
+        },
+        rest,
+    ))
 }
 
 fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     subjects: &[ExpressionHandle],
-) -> Result<Option<(TransitionGuardNode, Vec<DestructureBindings>)>, ParseError> {
+) -> Result<Option<ArmCondition>, ParseError> {
     if !input.at_punctuation(PunctuationKind::LeftParen) {
         return Ok(None);
     }
@@ -161,23 +146,22 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
         )));
     }
 
-    let mut combined = ExpressionHandle::invalid();
+    let mut patterns = Vec::with_capacity(subjects.len());
     let mut all_bindings = Vec::new();
     for (component, subject) in components.into_iter().zip(subjects.iter().copied()) {
         if component.at_contextual("_") && component.tokens.len() == 1 {
+            patterns.push(DispatchPattern::default());
             continue;
         }
-        if let Some((guard, bindings)) =
+        if let Some((pattern, bindings)) =
             parse_destructure_pattern_arm(syntax_trees, component, subject)?
         {
-            if !bindings.proof_selectors.is_empty() {
+            if !pattern.proof_selectors().is_empty() {
                 return Err(component.error_here(
                     "outcome proof selectors are admitted only on a single exact result-case arm",
                 ));
             }
-            if let TransitionGuardNode::When(expression) = guard {
-                combined = join_guard_conjunction(syntax_trees, combined, expression);
-            }
+            patterns.push(pattern);
             all_bindings.push(bindings);
             continue;
         }
@@ -190,9 +174,7 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
         if !rest.tokens.is_empty() {
             return Err(rest.error_here("expected tuple transition pattern component"));
         }
-        if let Some(pattern) = pattern {
-            retain_value_pattern(syntax_trees, subject, pattern, &mut all_bindings);
-        }
+        patterns.push(value_pattern(pattern));
     }
 
     for (binding_index, bindings) in all_bindings.iter().enumerate() {
@@ -210,7 +192,7 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
         }
     }
 
-    if let Some(guard_input) = guard_input {
+    let guard = if let Some(guard_input) = guard_input {
         let (guard, rest) =
             parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
         if !rest.tokens.is_empty() {
@@ -224,17 +206,16 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
                 &bindings.fields,
             )
         });
-        combined = join_guard_conjunction(syntax_trees, combined, guard);
-    }
+        TransitionGuardNode::When(guard)
+    } else {
+        TransitionGuardNode::Always
+    };
 
-    Ok(Some((
-        if combined.is_valid() {
-            TransitionGuardNode::When(combined)
-        } else {
-            TransitionGuardNode::Always
-        },
-        all_bindings,
-    )))
+    Ok(Some(ArmCondition {
+        guard,
+        patterns: patterns.into_boxed_slice(),
+        bindings: all_bindings,
+    }))
 }
 
 fn split_tuple_pattern_components<'tokens, 'source>(
@@ -255,10 +236,7 @@ fn split_tuple_pattern_components<'tokens, 'source>(
             Some(PunctuationKind::LeftParen) => paren += 1,
             Some(PunctuationKind::RightParen) if paren > 0 => paren -= 1,
             Some(PunctuationKind::RightParen) if bracket == 0 && brace == 0 => {
-                if tokens[index + 1..]
-                    .iter()
-                    .any(|token| !token.is_non_semantic())
-                {
+                if tokens[index + 1..].iter().any(|token| !token.is_trivia()) {
                     return Err(input
                         .restarted(&tokens[index + 1..])
                         .error_here("expected `if` or `->` after tuple transition pattern"));
@@ -280,55 +258,11 @@ fn split_tuple_pattern_components<'tokens, 'source>(
     Err(input.error_here("expected `)` to close tuple transition pattern"))
 }
 
-fn retain_value_pattern(
-    syntax_trees: &mut SyntaxTrees,
-    subject: ExpressionHandle,
-    value: ExpressionHandle,
-    bindings: &mut Vec<DestructureBindings>,
-) {
-    let capture = syntax_trees.expressions.insert_transition_subject(subject);
-    // Resolution distinguishes a named case/domain from a value and creates
-    // the ordinary equality selection there. Keep literals and computed
-    // values on that same route instead of inserting an unpositioned test.
-    let (head, guard) = if arm_pattern_is_condition(syntax_trees, value) {
-        (ExpressionHandle::invalid(), value)
-    } else {
-        (value, ExpressionHandle::invalid())
-    };
-    bindings.push(DestructureBindings {
-        subject,
-        fields: Vec::new(),
-        pattern: Some(syntax_trees::statement::TransitionPattern {
-            subject,
-            capture,
-            is_structural: false,
-            pattern: syntax_trees::expression::TableDestructurePattern {
-                head,
-                guard,
-                has_rest: true,
-                ..Default::default()
-            },
-        }),
-        proof_selectors: Vec::new(),
-    });
-}
-
-fn join_guard_conjunction(
-    syntax_trees: &mut SyntaxTrees,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> ExpressionHandle {
-    if !left.is_valid() {
-        return right;
+fn value_pattern(value: Option<ExpressionHandle>) -> DispatchPattern {
+    DispatchPattern {
+        pattern: value.map_or(MatchPattern::Wildcard, MatchPattern::Value),
+        capture: Default::default(),
     }
-    syntax_trees
-        .expressions
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            policy: numerics::arithmetic::ArithmeticDomain::Exact,
-            left,
-            operator: BinaryOperator::And,
-            right,
-        }))
 }
 
 pub(crate) fn parse_transition_expression_list<'tokens, 'source>(
@@ -403,7 +337,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     subject: ExpressionHandle,
-) -> Result<Option<(TransitionGuardNode, DestructureBindings)>, ParseError> {
+) -> Result<Option<(DispatchPattern, DestructureBindings)>, ParseError> {
     if !input.at_name_like() {
         return Ok(None);
     }
@@ -482,41 +416,36 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
 
-    let mut combined = ExpressionHandle::invalid();
-    if let Some(guard_input) = guard_input {
+    let guard = if let Some(guard_input) = guard_input {
         let (guard, rest) =
             parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
         if !rest.tokens.is_empty() {
             return Err(rest.error_here("expected transition pattern guard"));
         }
-        let guard = rewrite_destructure_guard_expression(syntax_trees, guard, saved, &fields);
-        combined = join_guard_conjunction(syntax_trees, combined, guard);
-    }
+        rewrite_destructure_guard_expression(syntax_trees, guard, saved, &fields)
+    } else {
+        ExpressionHandle::invalid()
+    };
 
-    let guard = TransitionGuardNode::Always;
     Ok(Some((
-        guard,
+        DispatchPattern {
+            capture,
+            pattern: MatchPattern::Destructure(TableDestructurePattern {
+                application_type: Default::default(),
+                head,
+                fields: syntax_trees
+                    .expressions
+                    .insert_match_fields(parsed_fields.fields),
+                has_rest,
+                guard,
+                proof_selectors: syntax_trees
+                    .statements
+                    .insert_outcome_proof_selectors(proof_selectors),
+            }),
+        },
         DestructureBindings {
             subject: saved,
             fields,
-            pattern: Some(syntax_trees::statement::TransitionPattern {
-                subject,
-                capture,
-                is_structural: true,
-                pattern: syntax_trees::expression::TableDestructurePattern {
-                    application_type: Default::default(),
-                    head,
-                    fields: syntax_trees
-                        .expressions
-                        .insert_match_fields(parsed_fields.fields),
-                    has_rest,
-                    guard: combined,
-                    proof_selectors: syntax_trees
-                        .statements
-                        .insert_outcome_proof_selectors(proof_selectors.iter().cloned()),
-                },
-            }),
-            proof_selectors,
         },
     )))
 }

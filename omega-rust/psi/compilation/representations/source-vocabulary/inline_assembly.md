@@ -1,12 +1,12 @@
 # Checked instruction catalog
 
-[Assembly](../../../../wiki/spec/language/assembly.md) defines the language.
+[Assembly](../../../../../wiki/spec/language/assembly.md) defines the language.
 [inline_assembly.rs](src/inline_assembly.rs) is the closed, shared catalog of
 source instructions: shape, availability, target, authority, ordered operand
 constraints, ordering, flag data flow and realized clobbers. A row does not
 show that every stage from source to native code supports it.
 
-The [interpreted execution contract](../../../../wiki/spec/language/assembly.md#interpreted-execution)
+The [interpreted execution contract](../../../../../wiki/spec/language/assembly.md#interpreted-execution)
 requires executable instruction meaning, not just footprint metadata. Use
 ordinary value, place and transition operations where exact; otherwise keep
 explicitly contracted environment effects. Scratch
@@ -70,9 +70,11 @@ Unknown mnemonics fail separately. Service-admission candidates
 (`cl*`/`tlbi`/`ic`/`dc`) stay unrecognized until each has its own contract.
 Target gates never substitute another ISA's instruction.
 
-[Parsing](../../compilation/pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
-lowers known forms and checks separators, transfer position and the exact
-clobber union. Requires and ensures clauses become assertions around the
+[Parsing](../../pipeline/01_source-compilation/src/operations/parsing/assembly/parse.rs)
+records instruction spelling, operands, clauses and labels, and checks separators.
+[Instruction preparation](../../pipeline/01_source-compilation/src/operations/resolution/declarations/assembly/mod.rs)
+looks up contracts, checks transfer position and the exact clobber union, and
+builds the block graph. Requires and ensures clauses become assertions around the
 instructions, with a proof-neutral entry marker for an ensures-only block.
 Checked assertions use exact block-point flow facts and refuse stale
 postconditions whose places were written.
@@ -80,14 +82,14 @@ postconditions whose places were written.
 The current source checker constructs `AsmAuthorityAdmission` from
 `Build.freestanding` for the entire build. Its `privileged_services.port_io`
 and `privileged_services.interrupt_table` flags select narrower classes.
-The [hardware authority decision](../../../../wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
+The [hardware authority decision](../../../../../wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
 retires the global flag and requires each output's target and provider
-contracts to cover the instruction. The [code repair queue](../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
+contracts to cover the instruction. The [code repair queue](../../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
 tracks this change and the interrupt-mask reach correction.
 A source gate, catalog row, parser test or instruction encoder is not evidence
 for the final artifact or native execution.
 
-The [implicit freestanding entry plan](../../../omega/compilation/backend/calling-conventions/src/plans.rs)
+The [implicit freestanding entry plan](../../../../omega/compilation/target-description/calling-conventions/src/plans.rs)
 adds instruction-pointer, stack-pointer and control-state use to its ordinary
 limit on volatile state. This compatibility path applies only to the
 compiler-selected boot root; it must not widen an explicit source-selected
@@ -96,7 +98,7 @@ boundary StatePlan. The limit permits using state, not gaining missing authority
 Adding atomics, cache/TLB operations and mode transitions to the catalog must
 extend the same contract and replay model; there is no separate instruction
 language per family. Final realization joins
-[machine-state footprint replay](../../../../wiki/spec/build/machine_state_evidence.md).
+[machine-state footprint replay](../../../../../wiki/spec/build/machine_state_evidence.md).
 
 Memory fences keep their exact kind through the shared processor-event type,
 the canonical Terminal wire format and the native selected forms. Receiving

@@ -173,6 +173,7 @@ pub fn prepare_const_qualification_selection<'authored>(
         top_level_bindings,
         retained_base,
     } = request;
+    declarations::prepare_statement_bodies(&mut syntax)?;
     declarations::target_families::normalize(&mut syntax, sources.as_deref())?;
     let constant_selection =
         declarations::declaration_selection::ConstantSelection::with_shared_base(
@@ -184,7 +185,7 @@ pub fn prepare_const_qualification_selection<'authored>(
     normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {
-        if (definition.pending_qualification.is_some()
+        if (definition.preparation().pending_qualification.is_some()
             || const_destination_requires_proof(authored, definition, Some(&constant_selection)))
             && constants::pending_const_initializer_leaves(
                 authored,

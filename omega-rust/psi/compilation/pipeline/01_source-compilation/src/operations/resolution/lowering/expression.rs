@@ -178,7 +178,7 @@ pub(crate) mod match_dispatch {
         let head = syntax_trees.display_expression_name(saved.pattern_head);
         Diagnostic::error(format!(
             "saved match subject read has no enclosing arm capture in `{}::{}` for `{head}`: capture {:?}, head {:?}, purpose {:?}, enclosing {:?}",
-            lowerer.current_machine_name.as_deref().unwrap_or("<declaration>"),
+            lowerer.machine_body.as_ref().map_or("<declaration>", |machine| machine.name.as_str()),
             lowerer.current_state_name.as_deref().unwrap_or("<signature>"),
             saved.capture, saved.pattern_head,
             syntax_trees.expressions.match_subject(saved.capture).purpose,

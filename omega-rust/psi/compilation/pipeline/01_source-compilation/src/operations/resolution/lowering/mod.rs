@@ -17,6 +17,7 @@ pub(crate) mod domain;
 pub(crate) mod expression;
 pub(crate) mod item;
 pub(crate) mod machine;
+pub(crate) mod machine_supply;
 pub(crate) mod mathematical;
 pub(crate) mod measure;
 pub(crate) mod name;

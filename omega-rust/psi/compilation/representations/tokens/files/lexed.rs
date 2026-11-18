@@ -4,13 +4,11 @@ use declaration_contracts::source_identity::DependencyScope;
 use source_admission::SourceOrigin;
 use source_text::SourceId;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LexedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
-    pub source: Arc<str>,
     pub origin: Option<SourceOrigin>,
     pub tokens: TokenStream<'static>,
     pub scope: DependencyScope,

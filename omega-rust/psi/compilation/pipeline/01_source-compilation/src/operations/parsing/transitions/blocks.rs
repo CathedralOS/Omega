@@ -2,13 +2,11 @@ use crate::errors::parse_error::ParseError;
 use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::identifier::Identifier;
+use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::statement::{
-    StatementHandle, StatementNode, TableLocalData, TableTransition, TransitionTargetHandle,
-    TransitionTargetNode,
+    DispatchArm, StatementHandle, StatementNode, TableDispatch, TransitionTargetNode,
 };
-use tokens::PunctuationKind;
+use tokens::{KeywordKind, PunctuationKind};
 
 use crate::transitions::guards::{parse_transition_expression_list, parse_transition_guard_node};
 use crate::transitions::targets::parse_transition_block_target_with_bindings;
@@ -17,62 +15,24 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
-    /*
-        Captured subjects are named by where the transition starts
-        in its file and their place in its subject list. The
-        parser splits files into pages by worker count, and each
-        page numbers its own expressions, so a name taken from an
-        expression's arena index changed with the host's thread
-        count and so did every checked record holding it.
-    */
-    let transition_start = input.tokens.first().map_or(0, |token| token.span.start);
-    let (mut subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
-        (
-            Vec::new(),
-            input.take_punctuation(PunctuationKind::LeftBrace, "{")?,
-        )
+    let start = input;
+    let input = input.take_keyword(KeywordKind::Transition, "transition")?;
+    let (subjects, after_subjects) = if input.at_punctuation(PunctuationKind::LeftBrace) {
+        (Vec::new(), input)
     } else {
         let (expressions, rest) = parse_expression_list_until_punctuation(
             syntax_trees,
             input,
             PunctuationKind::LeftBrace,
         )?;
-        let input = rest.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        (expressions, input)
+        (expressions, rest)
     };
 
-    let mut subject_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
-    for (place, subject_expression) in subject.iter_mut().enumerate() {
-        if expression_is_closed_boolean(syntax_trees, *subject_expression) {
-            continue;
-        }
-        let captured = *subject_expression;
-        let name =
-            Identifier::generated(format!("__transition_subject#{transition_start}.{place}"));
-        let path_start = syntax_trees
-            .expressions
-            .append_identifier_path_member(name.clone());
-        let path = HandleSpan::from_parts(path_start, 1);
-        *subject_expression = syntax_trees.expressions.insert(ExpressionNode::Name {
-            members: path,
-            application: None,
-        });
-        subject_captures.push((name, captured));
-    }
-
-    let mut statements = arena::HandleSpan::empty();
-    let mut arm_statements: Vec<StatementHandle> = Vec::new();
-    let mut arm_bool_tuples: Vec<Option<Vec<Option<bool>>>> = Vec::new();
-    let mut parsed_arms: Vec<(
-        syntax_trees::statement::TransitionGuardNode,
-        TransitionTargetHandle,
-        arena::HandleSpan<syntax_trees::statement::TableOutcomeProofSelector>,
-        source_text::SourceSpan,
-        HandleSpan<syntax_trees::statement::TransitionPattern>,
-    )> = Vec::new();
+    let subjects_span = (!subjects.is_empty()).then(|| input.source_span_until(after_subjects));
+    let mut input = after_subjects.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut arms = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (guard, bindings, bool_tuple, rest) =
-            parse_transition_guard_node(syntax_trees, input, &subject)?;
+        let (condition, rest) = parse_transition_guard_node(syntax_trees, input, &subjects)?;
         let source_span = rest
             .tokens
             .first()
@@ -90,139 +50,37 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 input,
             )
         } else {
-            parse_transition_block_target_with_bindings(syntax_trees, input, &bindings)?
+            parse_transition_block_target_with_bindings(syntax_trees, input, &condition.bindings)?
         };
         input = rest;
 
-        let patterns = syntax_trees
-            .statements
-            .insert_transition_patterns(bindings.iter().filter_map(|binding| binding.pattern));
-        let proof_selectors = bindings
-            .first()
-            .map(|bindings| {
-                syntax_trees
-                    .statements
-                    .insert_outcome_proof_selectors(bindings.proof_selectors.iter().cloned())
-            })
-            .unwrap_or_else(HandleSpan::empty);
-        parsed_arms.push((guard, target, proof_selectors, source_span, patterns));
-        arm_bool_tuples.push(bool_tuple);
+        arms.push(DispatchArm {
+            patterns: condition.patterns,
+            guard: condition.guard,
+            target,
+            source_span,
+        });
     }
-
-    if parsed_arms.is_empty() {
+    if arms.is_empty() {
         return Err(input.error_here(
             "a transition block must carry at least one arm; an empty dispatch can never proceed",
         ));
     }
-
-    for (name, initial_value) in subject_captures {
-        let capture = syntax_trees
-            .statements
-            .insert(StatementNode::LocalData(TableLocalData {
-                role: language_core::LocalBindingRole::DispatchSubject,
-                name,
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                initial_value,
-                is_mutable: false,
-                relevance: language_core::BindingRelevance::Relevant,
-                pattern_fields: Default::default(),
-            }));
-        let handle = syntax_trees.items.append_statement_handle(capture);
-        statements.push_contiguous(handle);
-    }
-
-    for (guard, target, proof_selectors, source_span, patterns) in parsed_arms {
-        let statement =
-            syntax_trees
-                .statements
-                .insert(StatementNode::Transition(TableTransition {
-                    patterns,
-                    target,
-                    continuation: TransitionTargetHandle::invalid(),
-                    guard,
-                    proof_selectors,
-                    exit: Default::default(),
-                    ends_dispatch: false,
-                    source_span,
-                }));
-        let handle = syntax_trees.items.append_statement_handle(statement);
-        arm_statements.push(statement);
-        statements.push_contiguous(handle);
-    }
-
-    let last = *arm_statements
-        .last()
-        .expect("empty dispatch rejected above");
-    if let StatementNode::Transition(mut transition) =
-        syntax_trees.statements.statement(last).clone()
-    {
-        transition.ends_dispatch = true;
-        syntax_trees
-            .statements
-            .replace_statement(last, StatementNode::Transition(transition));
-    }
-
-    let opposite_boolean_pair = subject.len() == 1
-        && matches!(arm_bool_tuples.as_slice(), [Some(first), Some(second)]
-            if matches!((first.as_slice(), second.as_slice()),
-                ([Some(left)], [Some(right)]) if left != right));
-
-    if (subject.len() >= 2 || opposite_boolean_pair)
-        && arm_bool_tuples.iter().all(|tuple| {
-            tuple
-                .as_ref()
-                .is_some_and(|tuple| tuple.len() == subject.len())
-        })
-        && subject.len() <= 8
-    {
-        let matrices: Vec<&Vec<Option<bool>>> = arm_bool_tuples
-            .iter()
-            .map(|t| t.as_ref().unwrap())
-            .collect();
-        let covered = (0u32..(1u32 << subject.len())).all(|combo| {
-            matrices.iter().any(|arm| {
-                arm.iter().enumerate().all(|(bit, pattern)| match pattern {
-                    None => true,
-                    Some(value) => *value == ((combo >> bit) & 1 == 1),
-                })
-            })
-        });
-        if covered
-            && let Some(last) = arm_statements.last()
-            && let StatementNode::Transition(transition) =
-                syntax_trees.statements.statement(*last).clone()
-        {
-            syntax_trees.statements.replace_statement(
-                *last,
-                StatementNode::Transition(TableTransition {
-                    guard: syntax_trees::statement::TransitionGuardNode::Always,
-                    patterns: HandleSpan::empty(),
-                    ..transition
-                }),
-            );
-        }
-    }
-
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((statements, input))
-}
-
-fn expression_is_closed_boolean(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Binary(binary) => {
-            binary.operator == syntax_trees::expression::BinaryOperator::Equal
-                && matches!(
-                    syntax_trees.expressions.expression(binary.left),
-                    ExpressionNode::Boolean(_)
-                )
-                && matches!(
-                    syntax_trees.expressions.expression(binary.right),
-                    ExpressionNode::Boolean(_)
-                )
-        }
-        _ => false,
-    }
+    let subjects = syntax_trees.statements.insert_expression_handles(subjects);
+    let dispatch = syntax_trees.statements.insert_dispatch(TableDispatch {
+        subjects,
+        subjects_span,
+        arms: arms.into_boxed_slice(),
+        source_span: start.source_span_until(input),
+    });
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::Dispatch(dispatch));
+    Ok((
+        HandleSpan::from_parts(syntax_trees.items.append_statement_handle(statement), 1),
+        input,
+    ))
 }
 
 fn parse_expression_list_until_punctuation<'tokens, 'source>(

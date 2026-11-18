@@ -152,7 +152,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
         match &mut declaration {
             ParsedDeclaration::Item(item) => match item {
                 Item::Conformance(conformance) => conformance.is_public = true,
-                Item::Const(constant) => constant.is_public = true,
+                Item::Const(constant) => constant.declaration.is_public = true,
                 Item::Data(data) => data.is_public = true,
                 Item::TypeAlias(alias) => alias.is_public = true,
                 Item::Domain(domain) => domain.is_public = true,
@@ -266,7 +266,7 @@ fn parse_declared_item<'tokens, 'source>(
     if input.at_contextual("const") {
         let input = input.take_contextual("const")?;
         let (item, rest) = parse_const_definition(syntax_trees, input)?;
-        return Ok((Item::Const(item), rest));
+        return Ok((Item::Const(item.into()), rest));
     }
 
     if input.at_contextual("proposition") {

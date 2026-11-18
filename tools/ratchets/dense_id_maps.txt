@@ -60,7 +60,6 @@
 2 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/declarations/generic_data/uses.rs
 4 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/declarations/trait_defaults.rs
 2 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/lowering/lowerer.rs
-3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/lowering/machine.rs
 1 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/names/scopes.rs
 1 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/names/top_level.rs
 4 omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/selections/authored_selections.rs

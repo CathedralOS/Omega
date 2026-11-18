@@ -62,7 +62,7 @@ pub(super) fn reject_repeated_local_names(
         let mut locals: Vec<SymbolHandle> = Vec::new();
         for statement in declarations
             .state_statements
-            .span_or_empty(state.statements)
+            .span_or_empty(state.construction_statement_span())
         {
             arms.statement(statement);
             let Statement::LocalData(local) = statement else {

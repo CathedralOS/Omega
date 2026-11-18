@@ -224,23 +224,8 @@ pub(crate) struct Lowerer {
         temp and a confusing layout error). Overwritten at each state.
     */
     pub(crate) current_state_parameter_names: Vec<String>,
-    /*
-        Whether the machine currently being lowered is a BOUNDARY machine. Only
-        boundary params are REAL pointer slots (the entry hand-off vouches
-        them); a non-boundary `&Struct` param is a call-site ALIAS slot sharing
-        the caller's storage, and materializing a pointee deref through one
-        loads a non-pointer as an address (segfault -- probed 2026-07-04). The
-        ref-param hoist is scoped to boundary machines.
-    */
-    pub(crate) current_machine_is_boundary: bool,
-    /*
-        Machine contract evidence names are a distinct erased namespace. They
-        classify bare-name assignments before ordinary value resolution.
-    */
-    pub(crate) current_machine_root_index: Option<usize>,
-    pub(crate) current_machine_name: Option<String>,
+    pub(crate) machine_body: Option<super::machine::MachineBodyScope>,
     pub(crate) current_state_name: Option<String>,
-    pub(crate) current_evidence_term_names: Vec<String>,
     /*
         Maps a match SUBJECT syntax expression handle to the name and diagnostic
         source span of its single hoisted temp. All arms of one enum-variant match share the same
@@ -348,11 +333,8 @@ impl Lowerer {
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
             current_state_parameter_names: Vec::new(),
-            current_machine_is_boundary: false,
-            current_machine_root_index: None,
-            current_machine_name: None,
+            machine_body: None,
             current_state_name: None,
-            current_evidence_term_names: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
             expression_match_captures: Vec::new(),
             current_state_parameters: Vec::new(),

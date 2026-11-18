@@ -280,6 +280,12 @@ impl<'syntax> Uses<'syntax> {
         match statement {
             // Assembly belongs to target code, which a Build entry is not;
             // its operands are still expressions of this statement.
+            StatementNode::AuthoredAssembly(handle) => {
+                syntax
+                    .statements
+                    .authored_assembly(*handle)
+                    .visit_operands(syntax, |operand| self.expression(operand));
+            }
             StatementNode::Assembly(handle) => {
                 let graph = syntax.statements.assembly(*handle);
                 for block in syntax.statements.assembly_blocks(graph.blocks) {
@@ -316,6 +322,23 @@ impl<'syntax> Uses<'syntax> {
             StatementNode::LocalData(local) => {
                 self.expression(local.initial_value);
                 self.fields(syntax.expressions.match_fields(local.pattern_fields));
+            }
+            StatementNode::Dispatch(handle) => {
+                let dispatch = syntax.statements.dispatch(*handle);
+                self.all(syntax.statements.expression_handles(dispatch.subjects));
+                for arm in &dispatch.arms {
+                    for slot in &arm.patterns {
+                        match slot.pattern {
+                            MatchPattern::Wildcard => {}
+                            MatchPattern::Value(value) => self.expression(value),
+                            MatchPattern::Destructure(pattern) => self.pattern(&pattern),
+                        }
+                    }
+                    if let TransitionGuardNode::When(guard) = arm.guard {
+                        self.expression(guard);
+                    }
+                    self.target(arm.target);
+                }
             }
             StatementNode::Transition(transition) => {
                 for pattern in syntax.statements.transition_patterns(transition.patterns) {

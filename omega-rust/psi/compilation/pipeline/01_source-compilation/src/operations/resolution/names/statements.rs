@@ -797,7 +797,8 @@ fn assign_machine_references(
             if selected_bodies.is_none() {
                 continue;
             }
-            let statements = state_statements.span_mut_or_empty(state.statements);
+            let statements =
+                state_statements.span_mut_or_empty(state.construction_statement_span());
             routing::assign_statement_slice_symbols(
                 &machine_scope,
                 statements,
@@ -820,7 +821,12 @@ fn assign_machine_references(
                 path_members: statement_path_members,
                 symbols,
             }
-            .assign(&machine_scope, parameters, state_symbol, state.statements);
+            .assign(
+                &machine_scope,
+                parameters,
+                state_symbol,
+                state.construction_statement_span(),
+            );
         }
     });
     Ok(())
@@ -897,7 +903,11 @@ mod scalar_pattern_selection_tests {
             .machines
             .iter()
             .flat_map(|machine| program.machine_state_handles(machine.states))
-            .flat_map(|state| program.state_statements(program.machine_state(*state).statements))
+            .flat_map(|state| {
+                program.construction_statements(
+                    program.machine_state(*state).construction_statement_span(),
+                )
+            })
             .filter_map(|statement| {
                 use crate::source_resolved::statement::{Statement, TransitionGuard};
                 let Statement::Transition(transition) = statement else {

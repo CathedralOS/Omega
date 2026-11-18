@@ -30,6 +30,7 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
     diagnostics::Diagnostic::error(format!("typing could not complete the check ({construct})"))
 }
 
+mod atomic_calls;
 mod call_and_product_selections;
 mod constant_initializers;
 mod constructor_applications;

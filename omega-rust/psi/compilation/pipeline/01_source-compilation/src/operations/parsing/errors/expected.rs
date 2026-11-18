@@ -38,9 +38,9 @@ pub(crate) fn expected_one_of_here(input: Input<'_, '_>, expected: &[&str]) -> P
 
 fn describe_token(input: Input<'_, '_>, token: &Token) -> String {
     match token.kind {
-        TokenKind::Identifier => format!("identifier `{}`", input.text(token).as_str()),
+        TokenKind::Identifier => format!("identifier `{}`", input.spelling(token)),
         TokenKind::NumericLiteral(_) => {
-            format!("numeric literal `{}`", input.text(token).as_str())
+            format!("numeric literal `{}`", input.spelling(token))
         }
         TokenKind::StringLiteral => "string literal".to_owned(),
         TokenKind::Keyword(keyword) => format!("keyword `{}`", keyword.lexeme()),

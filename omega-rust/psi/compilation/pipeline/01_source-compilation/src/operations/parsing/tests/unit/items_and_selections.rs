@@ -1,7 +1,6 @@
 use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
 use language_core::BindingRelevance;
-use language_core::atomic::AtomicExpressionResultCustody;
 use source_text::Span;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::PropositionBody;
@@ -84,7 +83,7 @@ fn local_bindings_parse_their_type_and_initializer_once() {
 }
 
 #[test]
-fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
+fn member_calls_preserve_their_written_initializer_and_binding_properties() {
     for operation in [
         "fetch_add(operand(), NoOrdering)",
         "fetch_sub(operand(), NoOrdering)",
@@ -103,23 +102,17 @@ fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
                 format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
             let parsed = crate::tests::parse_source_unwrap(&source);
             let statements = first_machine_statements(&parsed);
-            let [local, write] = statements else {
-                panic!("binding and atomic write: {source}")
+            let [local] = statements else {
+                panic!("one authored binding: {source}")
             };
             let StatementNode::LocalData(local) = parsed.statements.statement(*local) else {
                 panic!("result binding")
             };
             assert_eq!(local.is_mutable, mutable);
             assert_eq!(local.relevance, relevance);
-            assert!(
-                matches!(parsed.expressions.expression(local.initial_value), ExpressionNode::Integer(value) if *value == numeric_literals::IntegerLiteral::zero())
-            );
-            let StatementNode::Assignment(write) = parsed.statements.statement(*write) else {
-                panic!("atomic write")
-            };
             assert!(matches!(
-                parsed.expressions.expression(write.value),
-                ExpressionNode::Atomic(_)
+                parsed.expressions.expression(local.initial_value),
+                ExpressionNode::Call(_)
             ));
             assert_eq!(parsed.expressions.iter_expressions().filter(|(_, expression)| {
                 matches!(expression, ExpressionNode::Call(call) if call.target.as_str(&parsed) == "operand")
@@ -160,7 +153,7 @@ fn malformed_binding_reports_its_initializer_error() {
 }
 
 #[test]
-fn trait_defaults_share_atomic_binding_dispatch() {
+fn trait_defaults_keep_the_authored_member_call() {
     let tokens = Lexer::new(
         "trait Updates { machine update(cell: u64) { let prior: u64 = cell.swap(1, NoOrdering); } }",
     ).tokenize().unwrap();
@@ -170,14 +163,10 @@ fn trait_defaults_share_atomic_binding_dispatch() {
         .items
         .state_signature(parsed.items.state_signatures(definition.machines)[0]);
     let statements = parsed.items.statements(signature.default_body);
-    assert_eq!(statements.len(), 2);
+    assert_eq!(statements.len(), 1);
     assert!(matches!(
         parsed.statements.statement(statements[0]),
         StatementNode::LocalData(_)
-    ));
-    assert!(matches!(
-        parsed.statements.statement(statements[1]),
-        StatementNode::Assignment(_)
     ));
 }
 
@@ -205,12 +194,8 @@ fn terminal_acknowledgements_preserve_named_and_parenthesized_call_forms() {
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
-        let StatementNode::Transition(transition) = parsed
-            .statements
-            .statement(parsed.items.statements(state.statements)[0])
-        else {
-            panic!("terminal transition");
-        };
+        let transition =
+            &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
         match parsed.statements.transition_target(transition.target) {
             syntax_trees::statement::TransitionTargetNode::Named {
                 operational_acknowledgement,
@@ -272,12 +257,8 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
-        let StatementNode::Transition(transition) = parsed
-            .statements
-            .statement(parsed.items.statements(state.statements)[0])
-        else {
-            panic!("expected transition: {target}");
-        };
+        let transition =
+            &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
         let target_node = parsed.statements.transition_target(transition.target);
         if named {
             let syntax_trees::statement::TransitionTargetNode::Named {
@@ -320,61 +301,87 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
 }
 
 #[test]
-fn opposite_boolean_subject_arms_test_the_subject_once() {
+fn opposite_boolean_subject_arms_retain_their_authored_patterns_and_shared_subject() {
     for first in [true, false] {
         let source = format!(
-            "machine value() -> u8 {{
-                 transition probe() {{ {first} -> 1u8 {} -> 2u8 }}
-             }}",
+            "machine value() -> u8 {{ transition probe() {{ {first} -> 1u8 {} -> 2u8 }} }}",
             !first
         );
         let parsed = crate::tests::parse_source_unwrap(&source);
-        let machine = crate::tests::root_machine_unwrap(&parsed);
-        let state = parsed
-            .items
-            .state(parsed.items.state_handles(machine.states)[0]);
-        let statements = parsed.items.statements(state.statements);
-        assert_eq!(statements.len(), 3);
-        let StatementNode::LocalData(capture) = parsed.statements.statement(statements[0]) else {
-            panic!("dispatch subject capture");
+        let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
+        copied.extend_from(&parsed);
+        assert_eq!(copied.snapshot(), parsed.snapshot());
+        let statements = first_machine_statements(&parsed);
+        assert_eq!(statements.len(), 1);
+        let dispatch = crate::tests::dispatch(&parsed, statements[0]);
+        let &[subject] = parsed.statements.expression_handles(dispatch.subjects) else {
+            panic!("one authored subject")
         };
-        assert_eq!(
-            capture.role,
-            language_core::LocalBindingRole::DispatchSubject
-        );
         assert!(matches!(
-            parsed.expressions.expression(capture.initial_value),
+            parsed.expressions.expression(subject),
             ExpressionNode::Call(_)
         ));
-        let StatementNode::Transition(first_arm) = parsed.statements.statement(statements[1])
-        else {
-            panic!("first authored arm");
-        };
-        assert!(matches!(first_arm.guard, TransitionGuardNode::Always));
-        let [pattern] = parsed.statements.transition_patterns(first_arm.patterns) else {
-            panic!("first arm tests the subject");
-        };
-        assert!(!pattern.pattern.guard.is_valid());
-        assert_eq!(
-            parsed.display_expression_name(pattern.subject),
-            capture.name.as_str(&parsed)
-        );
-        assert!(
-            matches!(parsed.expressions.expression(pattern.pattern.head),
-            ExpressionNode::Boolean(value) if *value == first)
-        );
-        let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[2]) else {
-            panic!("second authored arm");
-        };
-        assert!(matches!(last_arm.guard, TransitionGuardNode::Always));
-        assert!(
-            parsed
-                .statements
-                .transition_patterns(last_arm.patterns)
-                .is_empty(),
-            "the opposite arm is the fall-through and tests nothing"
-        );
+        assert_eq!(dispatch.arms.len(), 2);
+        for (arm, expected) in dispatch.arms.iter().zip([first, !first]) {
+            let [pattern] = arm.patterns.as_ref() else {
+                panic!("each arm retains its Boolean pattern")
+            };
+            assert!(!pattern.capture.is_valid());
+            let syntax_trees::expression::MatchPattern::Value(value) = pattern.pattern else {
+                panic!("authored value pattern")
+            };
+            assert!(
+                matches!(parsed.expressions.expression(value),ExpressionNode::Boolean(value) if *value == expected)
+            );
+        }
     }
+}
+
+#[test]
+fn copying_a_dispatch_preserves_wildcard_positions_and_structural_bindings() {
+    let source = "data Pair { v: u32; } machine inspect(first: Pair, second: bool) -> u32 {
+        transition (first, second) { (Pair { v }, _) if v > 0u32 -> {} (_, false) -> 7u32 }
+    }";
+    let parsed = crate::tests::parse_source_unwrap(source);
+    let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
+    copied.extend_from(&parsed);
+    let find = |item: &syntax_trees::item::Item| item.as_machine().cloned();
+    let machine = copied.root_items().find_map(find).unwrap();
+    let state = copied
+        .items
+        .state(copied.items.state_handles(machine.states)[0]);
+    let dispatch = crate::tests::dispatch(&copied, copied.items.statements(state.statements)[0]);
+    let subjects = copied.statements.expression_handles(dispatch.subjects);
+    let first = &dispatch.arms[0].patterns;
+    let last = &dispatch.arms[1].patterns;
+    use syntax_trees::expression::MatchPattern;
+    assert!(matches!(first[0].pattern, MatchPattern::Destructure(_)));
+    assert_eq!(
+        copied.expressions.match_subject(first[0].capture).subject,
+        subjects[0]
+    );
+    let syntax_trees::statement::TransitionGuardNode::When(guard) = dispatch.arms[0].guard else {
+        panic!("tuple guard")
+    };
+    let ExpressionNode::Binary(comparison) = copied.expressions.expression(guard) else {
+        panic!("comparison")
+    };
+    let ExpressionNode::Member(field) = copied.expressions.expression(comparison.left) else {
+        panic!("bound field")
+    };
+    let ExpressionNode::SavedSubject(saved) = copied.expressions.expression(field.receiver) else {
+        panic!("captured subject")
+    };
+    assert_eq!(saved.capture, first[0].capture);
+    assert!(matches!(first[1].pattern, MatchPattern::Wildcard));
+    assert!(matches!(last[0].pattern, MatchPattern::Wildcard));
+    let MatchPattern::Value(value) = last[1].pattern else {
+        panic!("second column tests false")
+    };
+    assert!(matches!(
+        copied.expressions.expression(value),
+        ExpressionNode::Boolean(false)
+    ));
 }
 
 #[test]
@@ -392,27 +399,24 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
         let statements = parsed.items.statements(state.statements);
+        assert_eq!(
+            statements.len(),
+            body.matches("transition").count(),
+            "each authored block has its own boundary"
+        );
         let mut arms = 0;
         for statement in statements {
-            let transition = match parsed.statements.statement(*statement) {
-                StatementNode::Transition(transition) => transition,
-                StatementNode::LocalData(local)
-                    if local.role == language_core::LocalBindingRole::DispatchSubject =>
-                {
-                    continue;
-                }
-                _ => panic!("authored transition"),
-            };
-            arms += 1;
-            let tested = matches!(transition.guard, TransitionGuardNode::When(_))
-                || parsed
-                    .statements
-                    .transition_patterns(transition.patterns)
-                    .iter()
-                    .any(|pattern| {
-                        pattern.pattern.head.is_valid() || pattern.pattern.guard.is_valid()
-                    });
-            assert!(tested, "{body}");
+            for arm in &crate::tests::dispatch(&parsed, *statement).arms {
+                arms += 1;
+                assert!(
+                    matches!(arm.guard, TransitionGuardNode::When(_))
+                        || arm.patterns.iter().any(|slot| !matches!(
+                            slot.pattern,
+                            syntax_trees::expression::MatchPattern::Wildcard
+                        )),
+                    "{body}"
+                );
+            }
         }
         assert!(arms >= 2, "{body}");
     }
@@ -433,9 +437,7 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
         let statement = parsed.items.statements(state.statements)[0];
-        let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
-            panic!("transition");
-        };
+        let transition = &crate::tests::dispatch(&parsed, statement).arms[0];
         let syntax_trees::statement::TransitionTargetNode::Value(expression) =
             parsed.statements.transition_target(transition.target)
         else {
@@ -457,65 +459,21 @@ fn source_target_declarations_are_retired() {
 }
 
 #[test]
-fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
-    let tokens = Lexer::new(
-        "machine update(cell: u64) { let prior: u64 = cell.compare_exchange(0, 1, NoOrdering, NoOrdering); }",
-    )
-    .tokenize()
-    .expect("tokenize decisive compare-exchange");
-    let parsed = parse_syntax_trees(&tokens).expect("parse decisive compare-exchange");
-    let atomic = parsed
-        .expressions
-        .iter_expressions()
-        .find_map(|(_, expression)| match expression {
-            ExpressionNode::Atomic(atomic) => Some(atomic),
-            _ => None,
-        })
-        .expect("decisive compare-exchange desugars to an atomic expression");
-
-    assert!(matches!(
-        atomic.ordering,
-        language_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
-    ));
-    assert_eq!(atomic.result_custody, AtomicExpressionResultCustody::Scalar);
-}
-
-#[test]
-fn single_attempt_compare_exchange_keeps_its_outcome_instead_of_a_scalar_prior() {
-    let tokens = Lexer::new(
-        "machine update(cell: u64) { let outcome: u64 = cell.compare_exchange_once(0, 1, NoOrdering, NoOrdering); }",
-    )
-    .tokenize()
-    .expect("tokenize single-attempt compare-exchange");
-    let parsed = parse_syntax_trees(&tokens).expect("parse single-attempt compare-exchange");
-    let statements = first_machine_statements(&parsed);
-
-    let [statement] = statements else {
-        panic!("one authored local, no result placeholder or assignment");
-    };
-    let StatementNode::LocalData(local) = parsed.statements.statement(*statement) else {
-        panic!("the outcome binds the authored local");
-    };
-    assert_eq!(local.name.as_str(&parsed), "outcome");
-    assert_eq!(local.role, language_core::LocalBindingRole::Value);
-    let ExpressionNode::Atomic(atomic) = parsed.expressions.expression(local.initial_value) else {
-        panic!("single-attempt compare-exchange is an atomic expression");
-    };
-    assert!(matches!(
-        atomic.ordering,
-        language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
-    ));
-    assert!(matches!(
-        atomic.result_custody,
-        AtomicExpressionResultCustody::CompareExchangeOnce(_)
-    ));
-    assert!(!atomic.result.is_valid());
-    let ExpressionNode::Call(roster) = parsed.expressions.expression(atomic.value) else {
-        panic!("retained operand roster");
-    };
-    assert_eq!(roster.target.as_str(&parsed), "compare_exchange_once");
-    assert!(roster.receiver.is_valid());
-    assert_eq!(roster.arguments.count(), 2);
+fn atomic_spellings_are_ordinary_member_calls_through_parsing() {
+    for member in [
+        "load",
+        "store",
+        "fetch_add",
+        "swap",
+        "compare_exchange",
+        "compare_exchange_once",
+    ] {
+        let input = format!(
+            "data Registry {{ {member}: machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; }} machine call(registry: Registry) -> u64 {{ (registry.{member})(1u64, 42u64) }}"
+        );
+        let trees = crate::tests::parse_source_unwrap(&input);
+        assert!(trees.expressions.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::Call(call) if call.target.as_str(&trees) == member && call.arguments.count() == 2)));
+    }
 }
 
 #[test]
@@ -991,7 +949,7 @@ fn struct_literal_retains_its_complete_authored_source_span() {
         "parse structured const declaration",
     );
     let declaration = crate::tests::root_const(&parsed, "structured const declaration");
-    let span = parsed.expressions.source_span(declaration.value).span;
+    let span = parsed.expressions.source_span(declaration.initializer).span;
     assert_eq!(&source[span.start..span.end], "Point { x: 1, y: 2 }");
 }
 
@@ -1004,12 +962,12 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let parsed = crate::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         let declaration = crate::tests::root_const(&parsed, "array const declaration");
         assert!(matches!(
-            parsed.expressions.expression(declaration.value),
+            parsed.expressions.expression(declaration.initializer),
             ExpressionNode::ArrayLiteral(_)
         ));
         let start = source.find(initializer).unwrap();
         assert_eq!(
-            parsed.expressions.source_span(declaration.value),
+            parsed.expressions.source_span(declaration.initializer),
             source_text::SourceSpan::new(source_id, Span::new(start, start + initializer.len())),
             "{initializer}"
         );

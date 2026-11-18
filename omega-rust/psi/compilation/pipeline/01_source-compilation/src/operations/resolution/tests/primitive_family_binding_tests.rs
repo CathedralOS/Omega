@@ -211,8 +211,10 @@ fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
     assert!(program.symbols.symbol_source_is_selected(product.symbol));
     assert_ne!(build.operator_home_domain, product.operator_home_domain);
     let product_home = product.operator_home_domain;
-    crate::resolution::lowering::machine::reject_duplicate_direct_token_bindings(&mut program)
-        .unwrap();
+    crate::resolution::selections::machine_token_bindings::reject_duplicate_direct_token_bindings(
+        &mut program,
+    )
+    .unwrap();
 
     // A newly selected binding still has to name its semantic home. The
     // retained inactive copy must neither reject the valid twin nor supply

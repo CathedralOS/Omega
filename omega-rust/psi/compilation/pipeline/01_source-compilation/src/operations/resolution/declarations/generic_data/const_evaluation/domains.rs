@@ -396,7 +396,7 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_closed_dom
                         }
                         _ => value.atom(),
                     };
-                    let initializer = syntax.expressions.source_span(definition.value);
+                    let initializer = syntax.expressions.source_span(definition.value());
                     syntax.type_references.retain_const_argument_normalization(
                         argument,
                         name.source_span(),

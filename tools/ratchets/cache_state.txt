@@ -27,7 +27,7 @@
 3 omega-rust/omega/packages/source-acquisition/src/storage.rs
 1 omega-rust/omega/packages/source-acquisition/src/test_support.rs
 3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_resolved/src/declarations_and_machines.rs
-3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_resolved/src/storage_and_indexes.rs
+3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_resolved/src/lookup_indexes.rs
 21 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/declaration_tables_and_index.rs
 8 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_symbols/table.rs
 3 omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs

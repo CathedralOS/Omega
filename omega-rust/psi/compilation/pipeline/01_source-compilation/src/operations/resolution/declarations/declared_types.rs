@@ -1496,7 +1496,7 @@ impl Expansion<'_, '_> {
             }
             Item::Const(definition) => {
                 self.reference(syntax, definition.type_reference, inherited)?;
-                self.expression_static_operands(syntax, definition.value, inherited)?;
+                self.expression_static_operands(syntax, definition.value(), inherited)?;
             }
             _ => {}
         }
