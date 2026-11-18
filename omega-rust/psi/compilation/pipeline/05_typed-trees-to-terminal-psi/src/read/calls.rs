@@ -261,7 +261,8 @@ impl<'t> Program<'t> {
                             | typed_trees::data::TypeParameterKind::Machine {
                                 contract: typed_trees::data::MachineParameterContract::Structural(
                                     _
-                                ),
+                                )
+                                    | typed_trees::data::MachineParameterContract::Nominal { .. },
                             }
                     )
                 })
@@ -956,8 +957,42 @@ impl<'t> Program<'t> {
             call.authored_call_selection,
             call.authored_call_binding,
         )?;
+        if let Some(operation) = &call.private_layout_operation {
+            let symbols = &self.typed.symbols;
+            if !symbols.symbols().nodes().is_valid(call.target_symbol)
+                || symbols.sealed_intrinsic(symbols.get(call.target_symbol).parent)
+                    != Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::PrivateLayoutPlacement,
+                    )
+            {
+                return unserved("private placement requires its sealed core machine");
+            }
+            if self.publication != terminal_codec::TerminalPublication::LayoutPolicyInvocation {
+                let Some(&caller) = self.symbols.get(id) else {
+                    return unserved("private placement has no source caller");
+                };
+                self.exact_toolchain_sources()
+                    .map_err(str::to_owned)
+                    .and_then(|sources| {
+                        self.typed.check_private_callback_placement_owner(
+                            &operation.selected_slot,
+                            caller,
+                            sources,
+                        )
+                    })
+                    .map_err(|reason| {
+                        let mut error = refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("private callback placement"),
+                        );
+                        error.detail.push_str(": ");
+                        error.detail.push_str(&reason);
+                        error
+                    })?;
+            }
+        }
         if call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
             || call.native_code_layout.is_some()
         {
@@ -2035,7 +2070,7 @@ impl<'t> Program<'t> {
             })?;
             let outer = std::mem::replace(&mut self.scope, scope);
             let outer_source = std::mem::replace(&mut self.source_scope, source_scope);
-            let read = self.requirement(required, &[]);
+            let read = self.binder_requirement(parameter, required, &[]);
             self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
@@ -2395,12 +2430,20 @@ impl<'t> Program<'t> {
             match self.typed.evidence_requirement_declaration(target) {
                 Ok(Some(requirement)) => requirement,
                 Ok(None) => {
-                    let Some(typed_trees::data::MachineParameterContractView::Structural(
-                        requirement,
-                    )) = self.typed.retained_static_machine_contract(target)
-                    else {
+                    let Some(contract) = self.typed.retained_static_machine_contract(target) else {
                         return Ok(None);
                     };
+                    if let typed_trees::data::MachineParameterContractView::Nominal {
+                        trait_definition,
+                        ..
+                    } = contract
+                        && trait_definition.is_boundary
+                    {
+                        return Err(unserved(
+                            "a boundary callback needs its selected boundary entry",
+                        ));
+                    }
+                    let requirement = contract.signature();
                     let owner = self
                         .symbols
                         .get(id)
@@ -2444,6 +2487,12 @@ impl<'t> Program<'t> {
         )?;
         let callee = if let Some((receiver, position, _)) = record.as_ref() {
             self.record_requirement(*receiver, *position, requirement, &value_arguments)?
+        } else if self
+            .typed
+            .retained_static_machine_contract(target)
+            .is_some()
+        {
+            self.binder_requirement(target, requirement, &value_arguments)?
         } else {
             self.requirement(requirement, &value_arguments)?
         };

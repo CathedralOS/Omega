@@ -1543,6 +1543,7 @@ pub(crate) mod instance {
     }
 
     pub struct TerminalInstance<'host, 'artifact> {
+        observation_admission: Option<crate::call_observations::ObservationAdmission>,
         program: TerminalProgram<'artifact>,
         entry: semantic_vocabulary::MachineId,
         process_domain: std::sync::Arc<SimulatedProcessDomain>,
@@ -1571,6 +1572,7 @@ pub(crate) mod instance {
                 required_imports,
                 bindings: BTreeMap::new(),
                 storage_resolver: None,
+                observation_admission: None,
                 components: BTreeMap::new(),
                 invoked: false,
                 closed: false,
@@ -1579,6 +1581,49 @@ pub(crate) mod instance {
 
         pub fn program(&self) -> &TerminalProgram<'artifact> {
             &self.program
+        }
+
+        pub(super) fn authorize_call_observation(&mut self, target: Option<&str>) {
+            self.observation_admission = Some(crate::call_observations::ObservationAdmission {
+                target: target.map(str::to_owned),
+            });
+        }
+
+        /// Select arguments of exact direct calls in an admitted compiler invocation.
+        pub fn observe_calls(
+            &mut self,
+            admitted: &terminal_installation::AdmittedCompilerEvaluation,
+            calls: &[crate::TerminalCallObservation],
+        ) -> Result<(), TerminalInterpretError> {
+            use super::program::ProgramStorage;
+            let error = || {
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "call observations require an unopened, admitted compiler invocation",
+                )
+            };
+            if self.invoked || self.closed || !self.required_imports.is_empty() {
+                return Err(error());
+            }
+            let authorization = self.observation_admission.as_ref().ok_or_else(error)?;
+            let execution = self.execution.as_mut().ok_or_else(error)?;
+            let view = match execution.program.catalogs.as_ref() {
+                ProgramStorage::Borrowed(view) => *view,
+                ProgramStorage::Retained(code) => code.view(),
+                _ => return Err(error()),
+            };
+            admitted
+                .require_invocation(view, authorization.target.as_deref(), self.entry.into())
+                .map_err(|_| error())?;
+            execution.select_call_observations(calls)
+        }
+
+        pub fn take_call_observations(&mut self) -> Vec<crate::ObservedTerminalCall> {
+            self.execution
+                .as_mut()
+                .and_then(|execution| execution.call_observations.as_mut())
+                .filter(|observations| observations.complete)
+                .map(|observations| std::mem::take(&mut observations.records))
+                .unwrap_or_default()
         }
 
         pub fn bind_storage_resolver(
@@ -1824,7 +1869,7 @@ pub(crate) mod instance {
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
             self.invoked = true;
-            execution
+            let status = execution
                 .resume_with_components(
                     meter,
                     &mut ImportDispatch {
@@ -1833,7 +1878,19 @@ pub(crate) mod instance {
                     },
                     &mut self.components,
                 )
-                .map_err(TerminalInstanceError::Execution)
+                .map_err(TerminalInstanceError::Execution);
+            if let Some(observations) = execution.call_observations.as_mut() {
+                match &status {
+                    Ok(TerminalExecutionStatus::Complete(_)) => {
+                        observations
+                            .finish(execution.account.as_ref())
+                            .map_err(TerminalInstanceError::Execution)?;
+                    }
+                    Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {}
+                    _ => execution.call_observations = None,
+                }
+            }
+            status
         }
 
         pub fn observe_private_entry_ram(
@@ -2812,6 +2869,34 @@ pub(crate) mod program {
                 execution,
                 requirements.imports,
             ))
+        }
+
+        /// A compiler invocation may observe its own direct calls. The
+        /// installation which will execute must be the one that was admitted.
+        pub fn instantiate_compiler_evaluation<'host>(
+            &self,
+            request: TerminalInstantiation<'_>,
+            admitted: &terminal_installation::AdmittedCompilerEvaluation,
+        ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
+            let refusal = || {
+                TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "compiler call observations require the admitted installation and target",
+                    ),
+                )
+            };
+            let installation = request.installation.ok_or_else(refusal)?;
+            if installation.provider_selections.as_ref() != Some(admitted.providers())
+                || installation
+                    .target_machines
+                    .as_ref()
+                    .is_some_and(|context| Some(context.target()) != admitted.target())
+            {
+                return Err(refusal());
+            }
+            let mut instance = self.instantiate(request)?;
+            instance.authorize_call_observation(admitted.target());
+            Ok(instance)
         }
 
         pub(crate) fn from_admitted(program: AdmittedTerminalProgram<'artifact>) -> Self {

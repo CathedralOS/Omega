@@ -236,6 +236,130 @@ impl StorageAddresses for Backing {
 }
 
 impl<'a> Storage<'a> {
+    /// A store and read with the same current index value reach the same
+    /// scalar. This supplies its value without proving physical containment,
+    /// case membership, establishment or loan authority.
+    pub(super) fn stored_scalar_suffix<'b>(
+        &self,
+        tables: &MachineTables,
+        row: &'b Logged,
+        selected: &'b Backing,
+        trace: &mut Reaching,
+        concerns: Construct,
+    ) -> Checked<Option<&'b [Segment]>> {
+        if !matches!(row.stored, Stored::Value(_)) {
+            return Ok(None);
+        }
+        let ([parent], [child]) = (row.backing.regions.as_slice(), selected.regions.as_slice())
+        else {
+            return Ok(None);
+        };
+        if parent.place.root != child.place.root
+            || !child.place.segments.starts_with(&parent.place.segments)
+            || !parent
+                .place
+                .segments
+                .iter()
+                .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
+        {
+            return Ok(None);
+        }
+        match (&parent.origin, &child.origin) {
+            (None, None)
+                if !parent.place.segments.contains(&Segment::Referent)
+                    && !child.place.segments.contains(&Segment::Referent) => {}
+            (
+                Some(DescriptorCallOrigin::Argument {
+                    source: a,
+                    projection: left,
+                }),
+                Some(DescriptorCallOrigin::Argument {
+                    source: b,
+                    projection: right,
+                }),
+            ) if a == b && left.captured_address_is_prefix_of(right) => {}
+            _ => return Ok(None),
+        }
+        // Initialization and unscoped queries do not identify a current
+        // selector evaluation. Keep their existing conservative supply.
+        let Some(used) = trace.used else {
+            return Ok(None);
+        };
+        let before = row.position.checked_sub(1).ok_or_else(|| {
+            self.foreign(
+                concerns,
+                "a current storage selection has no store prestate",
+            )
+        })?;
+        let stored = if let Some(previous) = before.checked_sub(1) {
+            let operation = self
+                .block(row.block)?
+                .operations
+                .get(previous)
+                .ok_or_else(|| {
+                    self.foreign(concerns, "a current storage selection is past its block")
+                })?;
+            ProgramPoint::AfterOperation(operation.id)
+        } else {
+            ProgramPoint::BlockEntry(row.block)
+        };
+        let mut entries = Vec::new();
+        // A block's structural actual, or an operation's fresh storage, is
+        // rebound as well as its scalar selectors when its entry is crossed.
+        let root_definition = match self.root_kind(parent.place.root, concerns)? {
+            StructuralPlaceKind::BlockParameter { block, .. } => {
+                Some(ProgramPoint::BlockEntry(block))
+            }
+            StructuralPlaceKind::OperationResult { producer, .. } => {
+                Some(ProgramPoint::AfterOperation(producer))
+            }
+            _ => None,
+        };
+        if let Some(definition) = root_definition {
+            if !self.graph.dominates(definition, stored)?
+                || !self.graph.dominates(definition, used)?
+            {
+                return Ok(None);
+            }
+            entries.push(self.graph.locate(definition)?.0);
+        }
+        for step in parent.place.segments.iter().chain(&child.place.segments) {
+            let Segment::RuntimeIndex { selector } = step else {
+                continue;
+            };
+            let origin =
+                terminal_check_tables::row(&tables.values, *selector, self.machine, concerns)?
+                    .origin;
+            let definition = match origin {
+                ValueOrigin::MachineParameter { .. } => continue,
+                ValueOrigin::BlockParameter { block, .. } => ProgramPoint::BlockEntry(block),
+                ValueOrigin::Operation(operation) => ProgramPoint::AfterOperation(operation),
+                ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => return Ok(None),
+            };
+            if !self.graph.dominates(definition, stored)?
+                || !self.graph.dominates(definition, used)?
+            {
+                return Ok(None);
+            }
+            entries.push(self.graph.locate(definition)?.0);
+        }
+        entries.sort_unstable();
+        entries.dedup();
+        if entries
+            .iter()
+            .any(|owner| trace.crossed_entries.get(index(owner.get())) != Some(&false))
+        {
+            return Ok(None);
+        }
+        trace.selector_entries.extend(entries);
+        trace.selector_entries.sort_unstable();
+        trace.selector_entries.dedup();
+        Ok(child
+            .place
+            .segments
+            .strip_prefix(parent.place.segments.as_slice()))
+    }
+
     /// Capture every complete storage address at the actual use. Unknown
     /// correspondence remains an error; it never becomes a new local root.
     pub(super) fn backing(

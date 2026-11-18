@@ -1526,7 +1526,8 @@ fn lower_program<'source>(
         terminal_codec::TerminalPublication::Portable => {
             terminal_psi::TerminalIdentityTableBuilder::default()
         }
-        terminal_codec::TerminalPublication::Invocation => {
+        terminal_codec::TerminalPublication::Invocation
+        | terminal_codec::TerminalPublication::LayoutPolicyInvocation => {
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };

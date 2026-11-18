@@ -6,7 +6,8 @@
 # Written by `cargo xtask check-rules --update-place-transport`.
 1 omega-rust/psi/compilation/build-time-evaluation/src/evaluation_requests.rs
 1 omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/declarations/machines.rs
-2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
+1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/deferred_bodies.rs
+1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/generated_source.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
 1 omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs
 1 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/continuations.rs

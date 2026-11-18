@@ -1,0 +1,40 @@
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::layout_plan_place_private_field;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+public boundary trait FatalVector00 { machine enter() reaches crashes Abort ensures false; }
+public data InterruptGate { selector: u16; ist: u8; attributes: u8; reserved: u32; }
+
+public GateSlot00 satisfies PrivateCallbackSlot<InterruptGate, GateLayout00, FatalVector00::enter> {}
+public GateLayout00 satisfies FixedLayout<InterruptGate> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 2 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 5 } };
+        entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 12 } };
+        let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 4, size_fixed: 16, size_is_dynamic: false, align: 8 };
+        let low: LayoutPlan = layout_plan_place_private_field<GateSlot00>(plan,
+            FieldPlan::Bits { container: 0, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 16 });
+        let middle: LayoutPlan = layout_plan_place_private_field<GateSlot00>(low,
+            FieldPlan::Bits { container: 6, container_width: 16, destination_lsb: 0, source_lsb: 16, width: 16 });
+        layout_plan_place_private_field<GateSlot00>(middle,
+            FieldPlan::Bits { container: 8, container_width: 32, destination_lsb: 0, source_lsb: 32, width: 32 })
+    }
+}
+
+machine main() crashes Trap {
+    let mut value: LayoutStorage<InterruptGate, GateLayout00>;
+    value.selector = 3u16;
+    transition size_of<LayoutStorage<InterruptGate, GateLayout00>>() == 16u64 && value.selector == 3u16 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

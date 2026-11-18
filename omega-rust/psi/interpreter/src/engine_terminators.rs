@@ -2218,7 +2218,10 @@ pub(crate) mod structural_return {
                     && signature.projected_qualifications.is_empty()
                     && returned_claims.is_empty()
                 {
-                    self.snapshot_scalar_case(&value)?
+                    self.snapshot_scalar_case(
+                        &value,
+                        crate::storage::scalar_storage::ScalarCell::read,
+                    )?
                 } else {
                     None
                 };
@@ -2275,9 +2278,12 @@ pub(crate) mod structural_return {
             .map_err(|error| error.in_reference_formation("complete structural return"))
         }
 
-        fn snapshot_scalar_case(
+        pub(crate) fn snapshot_scalar_case(
             &self,
             value: &crate::boundary::values::TerminalStructuralValue,
+            read: fn(
+                &crate::storage::scalar_storage::ScalarCell,
+            ) -> Result<crate::TerminalScalarValue, TerminalInterpretError>,
         ) -> Result<Option<TerminalScalarCaseResult>, TerminalInterpretError> {
             if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
                 return Ok(None);
@@ -2307,7 +2313,7 @@ pub(crate) mod structural_return {
                 );
                 self.structural_scalar_fields
                     .get(&cell)
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
+                    .map(read)
                     .transpose()?
                     .map(|scalar| (field.id, scalar))
                     .ok_or(malformed())
