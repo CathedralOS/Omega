@@ -365,10 +365,9 @@ impl Lowering<'_> {
         .ok_or_else(|| self.internal("content subject path has no exact declared type"))
     }
 
-    /// Named qualifications and type defaults name the same current storage
-    /// that restoration checks inspect. Inventory those clauses before sealing
-    /// snapshot identities; preparing a question supplies no proof of it.
-    pub(in crate::lowering::lower) fn name_default_contents(
+    /// Name the declared predicates before sealing their field snapshots.
+    /// Custody and restoration remain separate checks.
+    pub(in crate::lowering::lower) fn name_declared_predicates(
         &mut self,
         machine: &terminal_psi::TerminalMachine,
         types: &[terminal_psi::StructuralTypeDeclaration],
@@ -381,7 +380,7 @@ impl Lowering<'_> {
                     .map_err(|error| self.internal(error.detail))?;
             let mut inventory = Vec::new();
             for required in requirements
-                .declared()
+                .declared_predicates()
                 .map_err(|error| self.internal(error.detail))?
             {
                 let (_, root_type) = self

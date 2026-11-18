@@ -313,6 +313,11 @@ pub struct DefaultRequirements<'a> {
     type_defaults: Vec<bool>,
 }
 
+struct DeclaredPredicates {
+    requirements: Vec<DefaultRequirement>,
+    has_content: bool,
+}
+
 impl<'a> DefaultRequirements<'a> {
     pub fn new(
         types: &'a [StructuralTypeDeclaration],
@@ -373,7 +378,30 @@ impl<'a> DefaultRequirements<'a> {
         path: &[StructuralPathSegment],
         carrier: StructuralTypeId,
     ) -> Judged<Vec<DefaultRequirement>> {
+        let declared = self.predicates_at(root, path, carrier)?;
+        if declared.has_content {
+            return Err(self.error("content custody cannot be restored from storage predicates"));
+        }
+        Ok(declared.requirements)
+    }
+
+    fn predicate_clauses_at(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        carrier: StructuralTypeId,
+    ) -> Judged<Vec<DefaultRequirement>> {
+        Ok(self.predicates_at(root, path, carrier)?.requirements)
+    }
+
+    fn predicates_at(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        carrier: StructuralTypeId,
+    ) -> Judged<DeclaredPredicates> {
         let mut result = Vec::new();
+        let mut has_content = false;
         for position in 0..self.declaration(carrier)?.requires.len() {
             result.push(DefaultRequirement {
                 root,
@@ -398,11 +426,12 @@ impl<'a> DefaultRequirements<'a> {
                 self.error("a named default has incomplete membership requirements")
             })?;
             for domain in closure {
-                if !domain.complete_predicate_theory || domain.content_projection.is_some() {
+                if !domain.complete_predicate_theory {
                     return Err(
                         self.error("a named default has no complete storage predicate theory")
                     );
                 }
+                has_content |= domain.content_projection.is_some();
                 if domain.predicate.is_some() || domain.byte_predicate.is_some() {
                     if path
                         .iter()
@@ -424,7 +453,10 @@ impl<'a> DefaultRequirements<'a> {
             carrier,
             origin: DefaultClause::Domain(id),
         }));
-        Ok(result)
+        Ok(DeclaredPredicates {
+            requirements: result,
+            has_content,
+        })
     }
 
     /// The complete declared defaults at one actual storage occurrence.
@@ -441,6 +473,24 @@ impl<'a> DefaultRequirements<'a> {
     /// Every clause used for snapshot demand, including nested type defaults.
     /// This inventory supplies no assumptions about those contents.
     pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {
+        self.declared_with(Self::at)
+    }
+
+    /// Name the predicates needed for snapshots, including predicates on
+    /// domains with content claims. This query grants no restoration or custody.
+    pub fn declared_predicates(&self) -> Judged<Vec<DefaultRequirement>> {
+        self.declared_with(Self::predicate_clauses_at)
+    }
+
+    fn declared_with<F>(&self, mut collect: F) -> Judged<Vec<DefaultRequirement>>
+    where
+        F: FnMut(
+            &Self,
+            PlaceId,
+            &[StructuralPathSegment],
+            StructuralTypeId,
+        ) -> Judged<Vec<DefaultRequirement>>,
+    {
         let mut result = Vec::new();
         for (place, ty, _) in &self.declared.declared {
             if self
@@ -451,13 +501,14 @@ impl<'a> DefaultRequirements<'a> {
             {
                 continue;
             }
-            self.walk(
+            self.walk_with(
                 *place,
                 &mut Vec::new(),
                 *ty,
                 false,
                 &mut Vec::new(),
                 &mut result,
+                &mut collect,
             )?;
         }
         Ok(result)
@@ -489,11 +540,32 @@ impl<'a> DefaultRequirements<'a> {
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
+        self.walk_with(root, path, carrier, zero, active, result, &mut Self::at)
+    }
+
+    fn walk_with<F>(
+        &self,
+        root: PlaceId,
+        path: &mut Vec<StructuralPathSegment>,
+        carrier: StructuralTypeId,
+        zero: bool,
+        active: &mut Vec<StructuralTypeId>,
+        result: &mut Vec<DefaultRequirement>,
+        collect: &mut F,
+    ) -> Judged<()>
+    where
+        F: FnMut(
+            &Self,
+            PlaceId,
+            &[StructuralPathSegment],
+            StructuralTypeId,
+        ) -> Judged<Vec<DefaultRequirement>>,
+    {
         if active.contains(&carrier) {
             return Err(self.error("recursive inline storage has no finite default inventory"));
         }
         active.push(carrier);
-        result.extend(self.at(root, path, carrier)?);
+        result.extend(collect(self, root, path, carrier)?);
         match &self.declaration(carrier)?.shape {
             StructuralTypeShape::FixedArray {
                 element,
@@ -503,7 +575,7 @@ impl<'a> DefaultRequirements<'a> {
                     // Nested type defaults genuinely apply to each element.
                     for index in 0..*length {
                         path.push(StructuralPathSegment::FixedIndex(index));
-                        self.walk(root, path, *element, zero, active, result)?;
+                        self.walk_with(root, path, *element, zero, active, result, collect)?;
                         path.pop();
                     }
                 } else if let Some(row) = self.declared.row(root) {
@@ -530,7 +602,7 @@ impl<'a> DefaultRequirements<'a> {
                     selected.dedup();
                     for index in selected {
                         path.push(StructuralPathSegment::FixedIndex(index));
-                        self.walk(root, path, *element, zero, active, result)?;
+                        self.walk_with(root, path, *element, zero, active, result, collect)?;
                         path.pop();
                     }
                 }
@@ -543,7 +615,7 @@ impl<'a> DefaultRequirements<'a> {
                 ..
             } if zero => {}
             StructuralTypeShape::Record { fields, .. } => {
-                self.fields(root, path, fields, zero, active, result)?;
+                self.fields_with(root, path, fields, zero, active, result, collect)?;
             }
             StructuralTypeShape::Sum { cases } => {
                 if zero && cases.is_empty() {
@@ -551,7 +623,7 @@ impl<'a> DefaultRequirements<'a> {
                 }
                 for case in cases.iter().take(if zero { 1 } else { cases.len() }) {
                     path.push(StructuralPathSegment::Case(case.id));
-                    self.fields(root, path, &case.fields, zero, active, result)?;
+                    self.fields_with(root, path, &case.fields, zero, active, result, collect)?;
                     path.pop();
                 }
             }
@@ -569,7 +641,7 @@ impl<'a> DefaultRequirements<'a> {
         Ok(())
     }
 
-    fn fields(
+    fn fields_with<F>(
         &self,
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
@@ -577,12 +649,21 @@ impl<'a> DefaultRequirements<'a> {
         zero: bool,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
-    ) -> Judged<()> {
+        collect: &mut F,
+    ) -> Judged<()>
+    where
+        F: FnMut(
+            &Self,
+            PlaceId,
+            &[StructuralPathSegment],
+            StructuralTypeId,
+        ) -> Judged<Vec<DefaultRequirement>>,
+    {
         for field in fields {
             if let terminal_psi::StructuralFieldType::Structural(nested) = field.field_type {
                 path.push(StructuralPathSegment::Field(field.identity));
                 if self.type_has_defaults(nested)? || self.projected_beneath(root, path) {
-                    self.walk(root, path, nested, zero, active, result)?;
+                    self.walk_with(root, path, nested, zero, active, result, collect)?;
                 }
                 path.pop();
             }
@@ -3716,6 +3797,62 @@ mod default_requirement_tests {
             establishment_routes: None,
             access_policy: None,
         }
+    }
+
+    #[test]
+    fn content_predicate_inventory_does_not_authorize_restoration() {
+        use semantic_vocabulary::{
+            ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+            ContentProjectionIdentity,
+        };
+        let mut types = types(2);
+        types[1].requires.push(Proposition::Truth);
+        let mut machine = machine();
+        machine.structural_parameters[0]
+            .qualifications
+            .push(StructuralDomainId::new(1).unwrap());
+        let mut domains = vec![domain(types[1].id)];
+        domains[0].content_projection = Some(terminal_psi::StructuralContentProjection {
+            identity: ContentProjectionIdentity {
+                domain: ContentDomainId::new(1).unwrap(),
+                projection_report_fingerprint: 1,
+            },
+            algebra: ContentAlgebra {
+                kind: ContentAlgebraKind::IntervalSet,
+                parameter: "Nat".to_owned(),
+            },
+            expression: ContentProjectionExpression::IntervalSet(Vec::new()),
+            formation: Vec::new(),
+        });
+        let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        let rows = defaults.declared_predicates().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(defaults.clause(&rows[0]).unwrap(), Proposition::Truth);
+        assert!(matches!(rows[1].origin, DefaultClause::Domain(_)));
+        assert_eq!(
+            defaults.clause(&rows[1]).unwrap(),
+            Proposition::Equal(
+                ScalarTerm::byte_sequence_predicate(
+                    ByteSequencePredicate::ValidUtf8,
+                    PlaceId::new(1).unwrap(),
+                    Vec::new(),
+                ),
+                ScalarTerm::Boolean(true),
+            ),
+        );
+        for refused in [
+            defaults.declared(),
+            defaults.storage(PlaceId::new(2).unwrap(), &[]),
+            defaults.declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)])),
+        ] {
+            assert_eq!(
+                refused.unwrap_err().detail,
+                "content custody cannot be restored from storage predicates"
+            );
+        }
+        domains[0].complete_predicate_theory = false;
+        let incomplete = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+        assert!(incomplete.declared_predicates().is_err());
     }
 
     #[test]

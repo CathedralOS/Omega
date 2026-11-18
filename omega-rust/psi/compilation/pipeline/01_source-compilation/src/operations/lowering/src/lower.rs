@@ -1490,7 +1490,7 @@ impl<'a> Lowering<'a> {
                     .map(|result| result.place),
             )?;
         }
-        self.name_default_contents(&machine, structural_types)?;
+        self.name_declared_predicates(&machine, structural_types)?;
         self.name_storage_contents(&machine)?;
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
