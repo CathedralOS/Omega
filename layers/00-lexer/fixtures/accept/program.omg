@@ -1,0 +1,14 @@
+data Counter { value: u64; }
+
+machine clear(counter: &mut Counter) {
+    counter.value = 0;
+}
+
+public machine + add(left: Vec2, right: Vec2) -> Vec2 {
+    add_vectors(left, right)
+}
+
+domain u16::Small requires self <= 10;
+let next: u64 = cursor +! width;   // traps when the sum leaves u64
+let mask: u16 = 0xFFFFu16;
+Build::select_provider<windows_x86_64::Console, TestConsole>(builder);

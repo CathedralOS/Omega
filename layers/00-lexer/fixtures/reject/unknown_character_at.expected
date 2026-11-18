@@ -1,0 +1,3 @@
+error UnknownCharacter at 1:9 bytes 8..9
+  text: @
+  this character is not part of Omega's syntax
