@@ -6493,9 +6493,11 @@ pub(crate) mod storage_origin_input {
             path: Vec<StructuralPathSegment>,
         ) -> Result<Option<Vec<ScalarStorageOrigin>>, SelectedInstructionError> {
             let declarations = &function.structural.as_ref().unwrap().structural_types;
-            let geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(declarations)
-                    .unwrap();
+            let geometry = crate::instruction_selection::native_geometry::NativeGeometry::new(
+                declarations,
+                target::NativeTarget::linux_x64(),
+            )
+            .unwrap();
             scalar_storage_origins(
                 &crate::instruction_selection::native_geometry::NativeInput::new(
                     function, &geometry,
