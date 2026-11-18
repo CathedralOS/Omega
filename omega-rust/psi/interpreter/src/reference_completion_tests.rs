@@ -1815,3 +1815,332 @@ fn live_reference_owner_ignores_inactive_cached_descendants_of_a_live_sum() {
     );
     assert!(execution.actual_storage_type_from_owner(&phantom).is_err());
 }
+
+#[test]
+fn aggregate_reference_formation_keeps_admitted_target_geometry() {
+    use crate::boundary::structural_inputs::contents::TerminalStructuralContents;
+    use crate::boundary::values::StructuralRuntimePlace;
+    use semantic_vocabulary::{
+        AuthoredFieldStorage, AuthoredRecordStorage, OperationId, TargetCarrierLayout, ValueId,
+    };
+
+    let type_id = |id| StructuralTypeId::new(id).unwrap();
+    let unsigned =
+        |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    let field = |id, identity, field_type| StructuralFieldDeclaration {
+        declaration_identity: Default::default(),
+        inline_carrier: None,
+        id: StructuralFieldId::new(id).unwrap(),
+        identity: TerminalIdentityIndex(identity),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+        storage: None,
+    };
+    let word_field = |id, identity, offset| StructuralFieldDeclaration {
+        inline_carrier: Some(type_id(5)),
+        storage: Some(AuthoredFieldStorage::Direct {
+            byte_offset: offset,
+        }),
+        ..field(id, identity, StructuralFieldType::Scalar(unsigned(64)))
+    };
+    // The captured source recipe contains a sibling sum before the byte field.
+    // Its field walk needs admitted carrier facts even with no layout applications.
+    let types = vec![
+        ty(
+            1,
+            StructuralTypeShape::Sum {
+                cases: (1..=2)
+                    .map(|id| StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: semantic_vocabulary::StructuralCaseId::new(u64::from(id)).unwrap(),
+                        identity: TerminalIdentityIndex(id),
+                        fields: Vec::new(),
+                    })
+                    .collect(),
+            },
+        ),
+        ty(2, StructuralTypeShape::PrimitiveScalar(unsigned(8))),
+        ty(
+            3,
+            StructuralTypeShape::FixedArray {
+                element: type_id(2),
+                length: ArrayExtent::Literal(32),
+            },
+        ),
+        ty(
+            4,
+            StructuralTypeShape::Record {
+                fields: vec![
+                    field(1, 6, StructuralFieldType::Structural(type_id(1))),
+                    StructuralFieldDeclaration {
+                        inline_carrier: Some(type_id(5)),
+                        ..field(2, 7, StructuralFieldType::Scalar(unsigned(64)))
+                    },
+                    field(3, 8, StructuralFieldType::Structural(type_id(3))),
+                ],
+                storage: StructuralRecordStorage::Packed,
+            },
+        ),
+        ty(5, StructuralTypeShape::PrimitiveScalar(unsigned(64))),
+        ty(
+            6,
+            StructuralTypeShape::Record {
+                fields: vec![word_field(6, 10, 0), word_field(7, 11, 8)],
+                storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                    byte_size: 16,
+                    byte_alignment: 8,
+                }),
+            },
+        ),
+        ty(
+            7,
+            StructuralTypeShape::FixedArray {
+                element: type_id(2),
+                length: ArrayExtent::Literal(16),
+            },
+        ),
+        ty(
+            8,
+            StructuralTypeShape::Record {
+                fields: vec![
+                    field(8, 15, StructuralFieldType::Structural(type_id(6))),
+                    field(9, 16, StructuralFieldType::Structural(type_id(7))),
+                ],
+                storage: StructuralRecordStorage::Packed,
+            },
+        ),
+        StructuralTypeDeclaration {
+            multiplicity: StructuralMultiplicity::Affine,
+            ..ty(
+                9,
+                StructuralTypeShape::Reference {
+                    referent: type_id(8),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            )
+        },
+    ];
+    let source = StructuralArgument {
+        place: PlaceId::new(1).unwrap(),
+        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(8))],
+        access: StructuralAccess::SharedBorrow,
+    };
+    let mut module: TerminalModule = (**empty_program().catalogs).clone();
+    let mut identities = TerminalIdentityTableBuilder::default();
+    for index in 1..=16 {
+        assert_eq!(
+            identities.intern(&format!("aggregate_view_{index}")),
+            TerminalIdentityIndex(index)
+        );
+    }
+    module.identities = identities.build();
+    module.structural_types = types;
+    let machine = semantic_vocabulary::MachineId::new(2).unwrap();
+    module.entry = Some(TargetMachineCallable::Machine(machine));
+    module.machines[0].id = machine;
+    module.machines[0].parameter_order = vec![BoundaryParameterKind::Structural];
+    module.machines[0].structural_parameters = vec![StructuralParameterDeclaration {
+        place: source.place,
+        position: 0,
+        structural_type: type_id(4),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: source.access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
+    }];
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: source.place,
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+        });
+    assert!(module.target_layout_applications.is_empty());
+    assert!(module.access_lifecycle_plans.is_empty());
+    // Seal the final catalog, then use ordinary admission. No fixture identity
+    // or admitted layout object is manufactured after the catalog changes.
+    let optimization =
+        terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
+    let program = crate::TerminalProgram::borrow(artifact.view());
+    let target = terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
+    let facts = terminal_installation::LayoutTargetFacts {
+        profile: "linux_x86_64".into(),
+        pointer_size: 8,
+        pointer_alignment: 8,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
+        little_endian: true,
+    };
+    let layouts =
+        terminal_installation::admit_target_layouts(artifact.view(), &target, &facts).unwrap();
+    assert!(layouts.closures().is_empty());
+    assert!(layouts.resolved_lifecycles().is_empty());
+    let supplies = program
+        .admit_runtime_supplies(crate::boundary::effects::TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
+            x86_flags: None,
+            memory_ordering: None,
+            entry: artifact.semantic_module().entry,
+            installation: None,
+            host_imports: &[],
+            target_machines: Some(&target),
+            target_layouts: Some(&layouts),
+        })
+        .unwrap();
+    let owner = crate::TerminalStructuralValue::minted(1, type_id(4), Vec::new());
+    let mut bytes = [0; 32];
+    bytes[0] = 42;
+    let mut values = vec![
+        TerminalBoundaryStorageValue {
+            path: vec![Path::Field(StructuralFieldId::new(1).unwrap())],
+            contents: TerminalStorageContents::Case(
+                semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+            ),
+        },
+        TerminalBoundaryStorageValue {
+            path: vec![Path::Field(StructuralFieldId::new(2).unwrap())],
+            contents: TerminalStorageContents::Scalar {
+                value: word(unsigned(64), 8),
+                stored_scalar: unsigned(64),
+            },
+        },
+    ];
+    values.extend(
+        bytes
+            .iter()
+            .enumerate()
+            .map(|(index, byte)| TerminalBoundaryStorageValue {
+                path: vec![
+                    Path::Field(StructuralFieldId::new(3).unwrap()),
+                    Path::FixedIndex(index as u64),
+                ],
+                contents: TerminalStorageContents::Scalar {
+                    value: word(unsigned(8), u128::from(*byte)),
+                    stored_scalar: unsigned(8),
+                },
+            }),
+    );
+    let contents = [TerminalStructuralContents {
+        argument_index: 0,
+        values,
+    }];
+    let mut execution = program
+        .start_execution(
+            &[],
+            crate::TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&owner),
+                contents: &contents,
+                ..Default::default()
+            },
+            Some(&supplies),
+        )
+        .unwrap();
+    assert_eq!(execution.program.target_layouts.as_deref(), Some(&layouts));
+    let mut geometry = terminal_semantics::ReferenceStorageGeometry::new(
+        artifact.semantic_module().structural_types.iter(),
+        |application| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                application,
+            ))
+        },
+    )
+    .with_target_carriers(Some(TargetCarrierLayout {
+        pointer_byte_size: facts.pointer_size,
+        pointer_byte_alignment: facts.pointer_alignment,
+        descriptor_byte_size: facts.pointer_size.checked_mul(2).unwrap(),
+        descriptor_byte_alignment: facts.pointer_alignment,
+        case_tag_byte_size: facts.case_tag_size,
+        case_tag_byte_alignment: facts.case_tag_alignment,
+    }));
+    assert_eq!(geometry.layout(type_id(4)).unwrap(), (48, 8));
+    let region = geometry.region(type_id(4), &source.path).unwrap();
+    assert_eq!((region.byte_offset, region.byte_length), (16, 32));
+    let mut backing = StructuralRuntimePlace::from(&owner);
+    backing.path = source.path.clone();
+    assert_eq!(execution.structural_values.get(&source.place), Some(&owner));
+    assert_eq!(
+        execution
+            .structural_byte_storage
+            .get(&backing)
+            .unwrap()
+            .local_view()
+            .unwrap()
+            .bytes(),
+        bytes
+    );
+    let projected = execution
+        .resolve_live_storage_projection(source.place, &source.path, source.access)
+        .unwrap();
+    assert_eq!(StructuralRuntimePlace::from(&projected.value), backing);
+    assert_eq!(projected.value.structural_type, type_id(3));
+    let offset = ValueId::new(2).unwrap();
+    execution
+        .values
+        .insert(offset, word(unsigned(64), 0))
+        .unwrap();
+    let storage = Some(ReferenceStorageView {
+        byte_offset: offset,
+        stored_scalar: None,
+    });
+    let result = StructuralOperationResult {
+        place: PlaceId::new(2).unwrap(),
+        structural_type: type_id(9),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    let operation = Operation::unsuspended(
+        OperationId::new(2).unwrap(),
+        OperationResult::Structural(result.clone()),
+        OperationKind::EstablishReference {
+            source: source.clone(),
+            storage,
+        },
+    );
+    let formed = execution.establish_reference(&operation, &source, storage);
+    if let Err(error) = &formed {
+        let crate::TerminalInterpretError::ReferenceFormation { stage, detail } = error else {
+            panic!("unexpected formation failure: {error:?}");
+        };
+        assert_eq!(*stage, "establish reference");
+        assert!(
+            detail.contains("stage: \"validate aggregate storage view\"")
+                && detail.contains("compatible=false"),
+            "unexpected formation failure: {error:?}"
+        );
+        assert!(!execution.structural_values.contains_key(&result.place));
+        assert!(execution.reference_referents.is_empty());
+    }
+    formed.expect("aligned aggregate reference formation must consume admitted target geometry");
+    let carrier = execution.structural_values.get(&result.place).unwrap();
+    let referent = execution
+        .reference_referents
+        .get(&StructuralRuntimePlace::from(carrier))
+        .unwrap();
+    assert_eq!(StructuralRuntimePlace::from(&referent.view), backing);
+    let region = referent.aggregate_view.expect("aggregate byte window");
+    assert_eq!(
+        (
+            region.structural_type,
+            region.byte_offset,
+            region.byte_length
+        ),
+        (type_id(8), 0, 32)
+    );
+    assert_eq!(referent.collection_loan.as_ref().unwrap().len(), 32);
+    assert_eq!(
+        execution
+            .structural_byte_storage
+            .get(&backing)
+            .unwrap()
+            .local_view()
+            .unwrap()
+            .bytes(),
+        bytes
+    );
+}
