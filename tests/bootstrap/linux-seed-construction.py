@@ -1,5 +1,6 @@
 """Exercise the cold Linux command with only its five source inputs available."""
 
+import argparse
 from pathlib import Path
 import shutil
 import struct
@@ -11,8 +12,9 @@ BOOTSTRAP = ROOT / "bootstrap/linux_x86_64/bootstrap"
 BETA = Path("bootstrap/interpreted/1_beta/beta_compiler.beta")
 GAMMA = Path("bootstrap/interpreted/2_gamma/gamma_evaluator.beta")
 COMPILER = [Path("bootstrap/compiled_vm/compiler.gamma"),
-            Path("bootstrap/compiled_vm/frontend.gamma"),
-            Path("bootstrap/independent/native.gamma")]
+            Path("bootstrap/compiled_vm/frontend.gamma")]
+NATIVE = Path("bootstrap/independent/native.gamma")
+ALPHA = Path("bootstrap/compiled_vm/alpha_backend.gamma")
 
 
 def invoke(argv, data=b""):
@@ -30,7 +32,8 @@ def check_native(program):
     assert 1 in segments and 2 not in segments and 3 not in segments
 
 
-def check_source_producer(work, source, compiler):
+def check_source_producer(work, source, compiler=None, *, alpha=False):
+    command = [BOOTSTRAP, "--alpha"] if alpha else [BOOTSTRAP]
     producer = work / "producer.gamma"
     producer.write_bytes(b"""(def $application () Int 1)
 (def emit_after_header ((i Int)) Int
@@ -42,13 +45,17 @@ def check_source_producer(work, source, compiler):
     program = b"(def main () Int (+ (read 0) 19))"
     request.write_bytes(b"\xff" + program)
     out = work / "from-producer"
-    result = invoke([BOOTSTRAP, source, out, producer, request])
+    result = invoke([*command, source, out, producer, request])
     assert (result.returncode, result.stdout, result.stderr) == (0, b"", b""), result
     assert (out / "program.input").read_bytes() == request.read_bytes()
     assert (out / "producer.output").read_bytes() == program
+    if alpha:
+        check_alpha_stages(out)
+        compiler = out / "gamma-compiler"
+    direct_artifact = out / ("successor.tape" if alpha else "successor")
     direct = invoke([compiler], program)
     assert (direct.returncode, direct.stdout, direct.stderr) == (
-        0, (out / "successor").read_bytes(), b""), direct
+        0, direct_artifact.read_bytes(), b""), direct
     check_native(out / "successor")
     for byte in (0, 23):
         result = invoke([out / "successor"], bytes([byte]))
@@ -58,22 +65,43 @@ def check_source_producer(work, source, compiler):
     rejected = work / "bad-producer-output"
     invalid = b"(def main () Int undefined)"
     request.write_bytes(b"\x00" + invalid)
-    result = invoke([BOOTSTRAP, source, rejected, producer, request])
+    result = invoke([*command, source, rejected, producer, request])
     assert result.returncode == 249 and not result.stdout, result
     assert (rejected / "producer.output").read_bytes() == invalid
-    assert not (rejected / "successor").exists()
+    assert not (rejected / "successor").exists() and not (rejected / "successor.tape").exists()
     missing = work / "missing-producer-input"
-    result = invoke([BOOTSTRAP, source, missing, producer, work / "absent.input"])
+    result = invoke([*command, source, missing, producer, work / "absent.input"])
     assert result.returncode and not missing.exists()
 
 
-def check(work):
+def check_stamped(seed, executable, tape):
+    field = struct.pack("<I", len(tape)) + tape
+    expected = seed[:0x3000] + field + seed[0x3000 + len(field):]
+    assert executable.read_bytes() == expected, executable
+
+
+def check_alpha_stages(out):
+    seed = (ROOT / "bootstrap/interpreted/0_alpha/alpha_x64_linux").read_bytes()
+    for executable, tape in (("beta-seed", "admitted-beta.tape"), ("beta", "beta.tape"),
+                             ("gamma-evaluator", "gamma.tape"), ("gamma0", "gamma0.tape"),
+                             ("gamma1", "gamma1.tape"), ("gamma-compiler", "gamma2.tape"),
+                             ("program", "program.tape"), ("successor", "successor.tape")):
+        check_stamped(seed, out / executable, (out / tape).read_bytes())
+    first = (out / "gamma0.tape").read_bytes()
+    assert first == (out / "gamma1.tape").read_bytes() == (out / "gamma2.tape").read_bytes()
+
+
+def check(work, alpha):
     source = work / "source"
-    for name in (BETA, GAMMA, *COMPILER):
+    compiler_files = [*COMPILER, ALPHA if alpha else NATIVE]
+    for name in (BETA, GAMMA, *compiler_files):
         dest = source / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, dest)
 
+    if alpha:
+        check_source_producer(work, source, alpha=True)
+        return
     out = work / "built"
     caller_source = work / "customer input.gamma"
     caller_source.write_bytes(b"(def main () Int (+ (read 0) 7))")
@@ -85,11 +113,9 @@ def check(work):
     assert (out / "gamma.tape").read_bytes() == gamma
     seed = (ROOT / "bootstrap/interpreted/0_alpha/alpha_x64_linux").read_bytes()
     for name, tape in [("beta-seed", beta), ("beta", beta), ("gamma-evaluator", gamma)]:
-        hole = struct.pack("<I", len(tape)) + tape
-        expected = seed[:0x3000] + hole + seed[0x3000 + len(hole):]
-        assert (out / name).read_bytes() == expected, name
+        check_stamped(seed, out / name, tape)
 
-    compiler_source = b"\n".join((source / name).read_bytes() for name in COMPILER)
+    compiler_source = b"\n".join((source / name).read_bytes() for name in compiler_files)
     assert (out / "compiler.gamma").read_bytes() == compiler_source
     assert (out / "compiler.request").read_bytes() == (
         struct.pack("<I", len(compiler_source)) + compiler_source + compiler_source)
@@ -146,6 +172,9 @@ def check(work):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--alpha", action="store_true", help="exercise the Alpha tape target")
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
-        check(Path(directory))
+        check(Path(directory), args.alpha)
     print("Cold Linux Gamma construction, changed programs and refusals passed")

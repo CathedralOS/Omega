@@ -1,7 +1,7 @@
 # Bootstrap on Linux x86-64
 
 Run the checked-in binary with the source tree and a new output directory.
-The resulting `gamma-compiler` takes Gamma source on stdin and writes a
+The default `gamma-compiler` takes Gamma source on stdin and writes a
 standalone Linux x86-64 executable on stdout.
 
 ```sh
@@ -72,6 +72,29 @@ uses those bytes directly and runs offline. The native `successor` already
 contains the Gamma program, so its stdin starts at the sealed `EEREQ` header.
 [Epsilon evaluation request](../interpreted/4_epsilon/EVALUATOR_ENTRY.md)
 
+### Run the compiled Alpha tape route
+
+Pass `--alpha` before the source root to run the same construction with
+the Gamma-to-Alpha backend. For example, build the Epsilon evaluator from
+the same distributed Gamma source and Delta request as above.
+
+```sh
+bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-epsilon-alpha \
+    bootstrap/linux_x86_64/delta.gamma /path/to/epsilon-request.bin
+```
+
+The Gamma compiler source uses `compiled_vm/alpha_backend.gamma`. The driver
+stamps its output into the original Linux Alpha seed at every executable
+stage. The evaluator emits `gamma0.tape`. Two self-compilations produce
+`gamma1.tape` and `gamma2.tape`. The driver compares all three stamped
+executables byte for byte. The resulting `gamma-compiler` accepts ordinary Gamma source
+on stdin and writes Alpha tape. The optional inputs produce `program.tape`
+and `successor.tape`, together with the independently executable `program`
+and `successor`. For the illustrated inputs those are the Delta compiler and
+Epsilon evaluator. Run `successor` with the same sealed Epsilon request as
+the native route. Each output tape must fit the seed's 16 MiB field including
+its four-byte length. [Compiled VM](../compiled_vm/README.md)
+
 ## Follow the construction
 
 1. The binary carries the audited Linux Alpha executable and the admitted
@@ -84,10 +107,13 @@ contains the Gamma program, so its stdin starts at the sealed `EEREQ` header.
    driver puts those produced bytes in the same Alpha executable to obtain
    `gamma-evaluator`.
 3. The driver joins `compiled_vm/compiler.gamma`, `compiled_vm/frontend.gamma`
-   and `independent/native.gamma` with one newline between files. It writes
+   and the selected backend with one newline between files. The native route
+   uses `independent/native.gamma`. The Alpha route uses
+   `compiled_vm/alpha_backend.gamma`. The driver writes
    the four-byte little-endian source length, those exact source bytes and
    a second copy as input for the Gamma program. The evaluator runs this
-   request and produces the first native compiler, `gamma0`.
+   request and produces the first compiler, `gamma0`, after stamping its tape
+   when the Alpha target is selected.
 4. `gamma0` reads the joined Gamma source and emits `gamma1`. That compiler
    reads the same source and emits the final executable. The driver compares
    both rebuilds byte for byte before publishing `gamma-compiler`. The
@@ -128,4 +154,5 @@ For a function-labeled disassembly, omit `,-s` from the linker option and run
 The Linux test supplies the five compiler source files, checks every stamped image
 against the audited seed, checks each static executable, compiles two changed
 Gamma programs, runs both on changed bytes and exercises malformed inputs.
-Run `python3 tests/bootstrap/linux-seed-construction.py`.
+Run `python3 tests/bootstrap/linux-seed-construction.py` for native images and
+`python3 tests/bootstrap/linux-seed-construction.py --alpha` for Alpha tapes.
