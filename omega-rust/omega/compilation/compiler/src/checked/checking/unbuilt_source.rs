@@ -142,7 +142,6 @@ fn frozen_frontier(
             provider_selections: &build.provider_selections,
             targets: &targets,
             subject: root_package,
-            freestanding: build.settings.freestanding,
         },
     )
     .map_err(CompileFailure::from)

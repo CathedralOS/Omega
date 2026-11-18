@@ -10,7 +10,6 @@
 
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
-use language_core::inline_assembly::AsmAuthorityAdmission;
 
 /// One step of typed preparation and the name its refusals carry.
 struct Pass {
@@ -45,7 +44,6 @@ const PASSES: &[Pass] = &[
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
     deferred_layout_applications: &'request [crate::source_state::types::TypeReferenceHandle],
-    asm_authority: Option<AsmAuthorityAdmission>,
     wire_compatibility_demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
 }
 
@@ -54,7 +52,6 @@ impl<'request> PreparationRequest<'request> {
         Self {
             admits_pending_inputs: false,
             deferred_layout_applications: &[],
-            asm_authority: None,
             wire_compatibility_demands: &[],
         }
     }
@@ -65,11 +62,6 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: true,
             ..Self::settled()
         }
-    }
-
-    pub const fn with_asm_authority(mut self, authority: AsmAuthorityAdmission) -> Self {
-        self.asm_authority = Some(authority);
-        self
     }
 
     pub const fn with_wire_compatibility_demands(
@@ -84,7 +76,6 @@ impl<'request> PreparationRequest<'request> {
         PreparationAdmission {
             admits_pending_inputs: self.admits_pending_inputs,
             deferred_layout_applications: self.deferred_layout_applications.to_vec(),
-            asm_authority: self.asm_authority,
             wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
         }
     }
@@ -119,7 +110,6 @@ impl<'request> PreparationRequest<'request> {
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     deferred_layout_applications: Vec<crate::source_state::types::TypeReferenceHandle>,
-    asm_authority: Option<AsmAuthorityAdmission>,
     wire_compatibility_demands: Vec<declaration_contracts::wire::WireCompatibilityDemand>,
 }
 
@@ -284,11 +274,11 @@ mod tests {
     fn the_program_keeps_its_identity_and_the_request_its_policy() {
         let program = TypedTrees::default();
         let identity = program.identity;
-        let request =
-            PreparationRequest::preliminary().with_asm_authority(AsmAuthorityAdmission::HOSTED);
+        let request = PreparationRequest::preliminary();
         let expected = request.admission();
         let (frozen, metadata) = prepare_typed_trees(program, &request).unwrap();
         assert_eq!(frozen.identity.get(), identity.get());
+        assert!(metadata.admits_pending_inputs);
         assert_eq!(metadata, expected);
     }
 

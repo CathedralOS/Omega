@@ -314,8 +314,7 @@ data Unused<'held, Payload> { count: u32; payload: &'held Payload; }
 machine build_entry() { }
 "#
         ),
-        "type generic data with lifetimes, bounds, requirements, cleanup, a quotient or retired \
-         members"
+        "type generic data with lifetimes, bounds, cleanup, a quotient or retired members"
     );
 }
 

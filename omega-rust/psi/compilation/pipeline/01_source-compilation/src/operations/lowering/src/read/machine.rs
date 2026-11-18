@@ -134,20 +134,9 @@ impl<'t> Program<'t> {
         id: MachineId,
         machine: &'t Machine,
     ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
-        Ok(self
-            .generic_parameters(id, machine)?
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| {
-                parameter.kind == crate::source_state::data::TypeParameterKind::Type
-            })
-            .map(|(position, parameter)| {
-                (
-                    parameter.symbol,
-                    ValueType::Rigid(terminal_check_tables::values::RigidType(position as u32)),
-                )
-            })
-            .collect())
+        Ok(super::type_parameters::rigid_type_scope(
+            self.generic_parameters(id, machine)?,
+        ))
     }
 
     /// A helper with no written input requirement can use what every caller

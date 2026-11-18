@@ -702,6 +702,20 @@ fn prepare_generic_forms<'source>(
             )?);
             continue;
         }
+        if let Some(declared) = typed.unique_data_definition_by_symbol(*template) {
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
+            program.generic_data(declared)?;
+            forms.push(finish_reading(
+                program,
+                None,
+                IdTable::default(),
+                None,
+                None,
+                None,
+            )?);
+            continue;
+        }
         match prepare_form(
             typed,
             purpose,

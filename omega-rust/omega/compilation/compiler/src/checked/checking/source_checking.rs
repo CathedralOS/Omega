@@ -58,15 +58,6 @@ pub(crate) fn check_product_source(
                     Arc::new(inputs.clone())
                         as Arc<dyn source_compiler::evaluation::BuildTimeSelectionAuthority>
                 }),
-                asm_authority: Some(
-                    language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
-                        build.settings.freestanding,
-                    )
-                    .with_grants(
-                        build.settings.privileged_services.port_io,
-                        build.settings.privileged_services.interrupt_table,
-                    ),
-                ),
                 wire_demands: &build.wire_compatibility_demands,
                 optimizations: rollback
                     .settle(&build.settings.optimizations)
