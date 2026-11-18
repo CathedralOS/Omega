@@ -1,2 +1,2 @@
 checked compilation failed for package `invalid_missing_module`
-dep.omg: captured entry is absent: dep.omg
+import `invalid_missing_module::dep` does not select one declaration, callable family, or module in its checked package
