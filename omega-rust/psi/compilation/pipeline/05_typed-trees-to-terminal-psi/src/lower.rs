@@ -963,6 +963,14 @@ impl<'a> Lowering<'a> {
     }
 
     fn qualify_contract(&mut self, contract: &mut MachineContract) -> Checked<()> {
+        contract.membership_ensures = self
+            .signature
+            .membership_ensures
+            .iter()
+            .map(|membership| self.qualifications.runtime_membership(self.id, membership))
+            .collect::<Checked<_>>()?;
+        contract.membership_ensures.sort();
+        contract.membership_ensures.dedup();
         for value in contract
             .parameters
             .iter_mut()

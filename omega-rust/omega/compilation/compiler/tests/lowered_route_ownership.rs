@@ -1150,6 +1150,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         (vec![record], None),
     ] {
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters,
             erased: Vec::new(),
@@ -1468,6 +1469,7 @@ mod transferred_on_one_path {
             (Vec::new(), boolean()),
         ] {
             signatures.push(Signature {
+                membership_ensures: Vec::new(),
                 operational: Default::default(),
                 parameters,
                 erased: Vec::new(),

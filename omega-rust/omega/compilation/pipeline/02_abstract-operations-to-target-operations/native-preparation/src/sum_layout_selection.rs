@@ -4428,6 +4428,7 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
         result_reference_regions: vec![],
         result_lifetimes: Some(vec![]),
         requires: vec![],
+        membership_ensures: Vec::new(),
         normal_qualifications: vec![],
         scalar_domain_requirements: vec![],
         scalar_requires: vec![],

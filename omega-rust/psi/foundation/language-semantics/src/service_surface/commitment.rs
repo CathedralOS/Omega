@@ -45,12 +45,12 @@ pub fn declared_type_signature<Parameter: AsRef<str>>(
 
 impl ServiceSurface {
     pub fn declaration_commitment(&self) -> [u8; 32] {
-        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v7\0");
+        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v8\0");
         self.encode_contract(&mut digest, |_, output| output.len(0));
         digest.finish()
     }
 
-    /// Write the declaration in v7 order. The caller writes its method suffix
+    /// Write the declaration in v8 order. The caller writes its method suffix
     /// at the exact boundary between that method's contract and the next one.
     /// Target-neutral declarations write an empty calling-application count.
     pub fn encode_contract<Output: ServiceContractSink>(
@@ -89,7 +89,7 @@ impl ServiceSurface {
             encoder.service_method(method, &self.identities);
             method_suffix(method, encoder.output);
         }
-        // The v7 trailer pairs each declaration's canonical type signature
+        // The v8 trailer pairs each declaration's canonical type signature
         // with the same sorted method roster as the preceding contract.
         for method in methods {
             encoder
@@ -204,6 +204,27 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
         for claim in result_claims {
             self.string(&claim.domain);
             self.carry_policy(claim.effective_carry);
+        }
+        self.len(method.normal_result_memberships.len());
+        for membership in &method.normal_result_memberships {
+            self.len(membership.path.len());
+            for projection in &membership.path {
+                match projection {
+                    ServiceResultProjection::Field(field) => {
+                        self.byte(1);
+                        self.string(field);
+                    }
+                    ServiceResultProjection::Case(case) => {
+                        self.byte(2);
+                        self.string(case);
+                    }
+                    ServiceResultProjection::FixedIndex(index) => {
+                        self.byte(3);
+                        self.output.service_contract_bytes(&index.to_le_bytes());
+                    }
+                }
+            }
+            self.string(&membership.domain);
         }
 
         self.strings(&method.service_reach);

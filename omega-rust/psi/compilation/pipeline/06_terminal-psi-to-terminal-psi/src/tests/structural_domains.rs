@@ -346,7 +346,7 @@ fn a_routed_cast_needs_its_issuer_route() {
     }
     refused(
         elaboration,
-        "a structural cast adds a routed domain without its issuer route",
+        "a structural cast lacks both an existing membership and an authorized issuer route",
     );
 }
 
@@ -486,4 +486,575 @@ machine entry() -> u32 {
                 .contains("a type gains or loses a domain only"),
         "{refusal:?}"
     );
+}
+
+const NORMAL_MEMBERSHIP: &str = r#"// Expected exit: 0
+
+data Ticket { number: u32; }
+domain Ticket::Stamped requires self.number > 0u32 established by stamp;
+machine stamp(ticket: Ticket) -> Ticket
+requires ticket.number > 0u32
+ensures result in Stamped {
+    let tagged: Ticket in Stamped = Ticket { number: ticket.number } as +Stamped;
+    tagged as -Stamped
+}
+machine record_value(number: u32) -> u32 requires number > 0u32 {
+    let plain: Ticket = stamp(Ticket { number: number });
+    let tagged: Ticket in Stamped = plain as +Stamped;
+    tagged.number
+}
+machine other(ticket: Ticket) -> Ticket { ticket }
+domain u32::WordStamped established by stamp_word;
+machine stamp_word(number: u32) -> u32 ensures result in WordStamped {
+    let tagged: u32 in WordStamped = number as +WordStamped;
+    tagged as -WordStamped
+}
+machine scalar_value(number: u32) -> u32 {
+    let plain: u32 = stamp_word(number);
+    let tagged: u32 in WordStamped = plain as +WordStamped;
+    tagged as -WordStamped
+}
+machine entry() -> u32 crashes Trap {
+    let first: u32 = record_value(7u32);
+    let second: u32 = record_value(11u32);
+    let first_word: u32 = scalar_value(7u32);
+    let second_word: u32 = scalar_value(11u32);
+    transition first == 7u32 && second == 11u32 && first_word == 7u32 && second_word == 11u32 {
+        true -> 0u32
+        false -> wrong()
+    }
+    machine wrong() -> u32 crashes Trap { crash Trap; }
+}
+"#;
+
+#[test]
+fn normal_result_membership_is_a_fact_without_changing_the_declared_result() {
+    let elaboration = invocation(NORMAL_MEMBERSHIP).unwrap();
+    let contracts: Vec<_> = elaboration
+        .module
+        .machines
+        .iter()
+        .filter(|machine| !machine.contract.membership_ensures.is_empty())
+        .collect();
+    assert_eq!(contracts.len(), 2);
+    for machine in contracts {
+        match &machine.result {
+            terminal_psi::TerminalMachineResult::Structural(result) => {
+                assert!(result.qualifications.is_empty())
+            }
+            terminal_psi::TerminalMachineResult::Scalar(result) => {
+                assert_eq!(result.qualifications, Default::default())
+            }
+            _ => panic!("membership issuer has an actual runtime result"),
+        }
+    }
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
+    let base = invocation(NORMAL_MEMBERSHIP).unwrap();
+    let mut cases = Vec::new();
+    let mut missing = invocation(NORMAL_MEMBERSHIP).unwrap();
+    for machine in &mut missing.module.machines {
+        machine.contract.membership_ensures.retain(|row| {
+            !matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        });
+    }
+    for header in &mut missing.module.declaration_contracts {
+        header.membership_ensures.retain(|row| {
+            !matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        });
+    }
+    cases.push(("missing guarantee", missing));
+    let mut wrong = base;
+    for machine in &mut wrong.module.machines {
+        let parameter = machine
+            .structural_parameters
+            .first()
+            .map(|parameter| parameter.place);
+        for membership in &mut machine.contract.membership_ensures {
+            if let terminal_psi::RuntimeDomainMembership::Structural { root, .. } = membership {
+                *root = parameter.expect("structural issuer has a structural input");
+            }
+        }
+    }
+    cases.push(("input named as result", wrong));
+    let mut missing_predicate = invocation(NORMAL_MEMBERSHIP).unwrap();
+    for machine in &mut missing_predicate.module.machines {
+        if machine.contract.membership_ensures.iter().any(|row| {
+            matches!(
+                row,
+                terminal_psi::RuntimeDomainMembership::Structural { .. }
+            )
+        }) {
+            machine.contract.ensures.clear();
+        }
+    }
+    cases.push(("missing independent predicate", missing_predicate));
+    let observed: Vec<_> = cases
+        .into_iter()
+        .map(|(name, elaboration)| (name, judge(Ok(elaboration))))
+        .collect();
+    for (name, verdict) in &observed {
+        eprintln!("{name}: {verdict:?}");
+    }
+    for (name, verdict) in observed {
+        let refusal = verdict.expect_err(name);
+        let expected = match name {
+            "input named as result" => "membership promise does not name its exact normal result",
+            "missing independent predicate" => {
+                "membership guarantee lost its independent result predicate"
+            }
+            _ => "lacks both an existing membership and an authorized issuer route",
+        };
+        assert!(refusal.detail.contains(expected), "{name}: {refusal:?}");
+    }
+}
+
+#[test]
+fn native_normal_membership_matches_the_authored_service_guarantee() {
+    let text = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by Seal::issue;
+boundary trait Seal {
+    machine issue(ticket: Ticket) -> Ticket
+    reaches none
+    ensures result in Stamped
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let ticket: Ticket = Seal::issue(Ticket { number: 7u32 });
+    let stamped: Ticket in Stamped = ticket as +Stamped;
+    stamped.number
+}
+"#;
+    let elaboration = invocation(text).unwrap();
+    let module = elaboration.module;
+    let boundary = &module.boundary_machines[0];
+    let method = &module.service_schemas[0].surface.methods[0];
+    assert_eq!(method.normal_result_memberships.len(), 1);
+    assert!(!boundary.requires_checked_result(
+        &module.structural_domains,
+        &module.scalar_qualifications.domains
+    ));
+    terminal_semantics::validate_boundary_normal_memberships(&module, boundary, method).unwrap();
+    let mut missing = boundary.clone();
+    missing.membership_ensures.clear();
+    let mut changed = module.clone();
+    let mut identities = changed.identities.clone().into_builder();
+    changed.structural_domains[0].identity = identities.intern("another-exact-domain-application");
+    changed.identities = identities.build();
+    let mut changed_commitment = changed.boundary_machines[0].clone();
+    changed_commitment
+        .declaration
+        .as_mut()
+        .unwrap()
+        .source
+        .contract = [9; 32];
+    let observed = [
+        (
+            "missing row",
+            terminal_semantics::validate_boundary_normal_memberships(&module, &missing, method),
+        ),
+        (
+            "changed domain",
+            terminal_semantics::validate_boundary_normal_memberships(
+                &changed,
+                &changed.boundary_machines[0],
+                method,
+            ),
+        ),
+        (
+            "changed domain and header commitment",
+            terminal_semantics::validate_boundary_normal_memberships(
+                &changed,
+                &changed_commitment,
+                method,
+            ),
+        ),
+    ];
+    for (name, result) in &observed {
+        eprintln!("{name}: {result:?}");
+    }
+    for (name, result) in observed {
+        assert!(
+            result
+                .unwrap_err()
+                .contains("authored normal-result membership guarantees"),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn normal_result_membership_survives_field_reads_and_plain_record_copies() {
+    let text = NORMAL_MEMBERSHIP
+        .replace(
+            "data Ticket { number: u32; }",
+            "data Ticket { number: u32; canary: u32; }",
+        )
+        .replace(
+            "Ticket { number: ticket.number }",
+            "Ticket { number: ticket.number, canary: 41u32 }",
+        )
+        .replace(
+            "Ticket { number: number }",
+            "Ticket { number: number, canary: 41u32 }",
+        )
+        .replace(
+            "machine entry()",
+            r#"
+machine boxed(number: u32) -> Ticket ensures result.number in WordStamped {
+    let tagged: u32 in WordStamped = stamp_word(number) as +WordStamped;
+    Ticket { number: tagged as -WordStamped, canary: 41u32 }
+}
+machine projected(number: u32) -> u32 {
+    let original: Ticket = boxed(number);
+    let mut copied: Ticket = original;
+    copied.canary = 99u32;
+    let tagged: u32 in WordStamped = copied.number as +WordStamped;
+    tagged as -WordStamped
+}
+machine entry()"#,
+        )
+        .replace(
+            "let first_word: u32 = scalar_value(7u32);",
+            "let first_word: u32 = projected(7u32);",
+        );
+    let verdict = judge(invocation(&text)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
+    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: &mut Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
+        .replace("let plain: Ticket = stamp", "let mut plain: Ticket = stamp")
+        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(&mut plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
+    let changed_value = NORMAL_MEMBERSHIP.replace(
+        "let tagged: u32 in WordStamped = plain as +WordStamped;",
+        "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",
+    );
+    let observed = [
+        (
+            "alias write",
+            alias_write,
+            "lacks both an existing membership and an authorized issuer route",
+        ),
+        (
+            "changed value",
+            changed_value,
+            "scalar return origin does not match its source or authorized issuer",
+        ),
+    ]
+    .map(|(name, text, reason)| (name, judge(invocation(&text)), reason));
+    for (name, verdict, _) in &observed {
+        eprintln!("{name}: {verdict:?}");
+    }
+    for (name, verdict, reason) in observed {
+        let refusal = verdict.expect_err(name);
+        assert!(refusal.detail.contains(reason), "{name}: {refusal:?}");
+    }
+}
+
+#[test]
+fn normal_result_membership_does_not_authorize_fresh_zero_construction() {
+    let text = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine entry() -> u32 {
+    let forged: Ticket in Stamped;
+    let plain: Ticket = forged as -Stamped;
+    plain.number
+}
+"#;
+    let refusal = match invocation(text) {
+        Ok(_) => panic!("fresh zero construction needs its own issuer"),
+        Err(refusal) => refusal,
+    };
+    assert!(
+        refusal.detail.contains("this cast adds `Ticket::Stamped`")
+            && refusal
+                .detail
+                .contains("not one of the domain's establishment routes"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn normal_result_membership_checks_stored_machine_contracts_against_the_target() {
+    use terminal_psi::{
+        TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableTermination,
+        TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+    };
+    let text = NORMAL_MEMBERSHIP
+        .replace(
+            "machine entry()",
+            "machine unmarked(number: u32) -> u32 { number }\nmachine entry()",
+        )
+        .replace(
+            "let first_word: u32 = scalar_value(7u32);",
+            "let first_word: u32 = unmarked(7u32);",
+        );
+    let mut module = invocation(&text).unwrap().module;
+    let required = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .contract
+                .membership_ensures
+                .iter()
+                .any(|row| matches!(row, terminal_psi::RuntimeDomainMembership::Scalar { .. }))
+        })
+        .unwrap();
+    let marked = required.id;
+    let proof = required.contract.clone();
+    let unmarked = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| module.identities.text(declaration.callable))
+                .is_some_and(|identity| identity.contains("unmarked"))
+        })
+        .unwrap()
+        .id;
+    let mut identities = module.identities.clone().into_builder();
+    let identity = identities.intern("normal-membership-test-callable");
+    let application = identities.intern("normal-membership-test-selection");
+    module.identities = identities.build();
+    let scalar_result = proof.result.scalar_ref().unwrap();
+    module.callables.contracts.push(TerminalCallableContract {
+        id: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        identity,
+        scalar_parameters: proof.parameters.clone(),
+        parameter_order: proof.parameter_order.clone(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Scalar(scalar_result.value_type()),
+        proof_result: proof.result.clone(),
+        entry_claim_paths: Vec::new(),
+        result_claim_paths: Vec::new(),
+        result_reference_regions: Vec::new(),
+        proof,
+        evidence_contract: Vec::new(),
+        envelope: TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: Vec::new(),
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        },
+    });
+    module
+        .callables
+        .descriptors
+        .push(TerminalMachineDescriptor {
+            id: semantic_vocabulary::MachineDescriptorId::new(1).unwrap(),
+            contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            machine: marked,
+            origin: TerminalMachineDescriptorOrigin {
+                application,
+                conformance: None,
+                requirement: None,
+            },
+            refinement_obligations: Vec::new(),
+            refinement_evidence: Vec::new(),
+        });
+    terminal_semantics::scalar_qualifications::validate(&module).unwrap();
+    terminal_semantics::calls::callable_refinement::callable_contract_refinement_goals(
+        &module,
+        semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        marked,
+    )
+    .unwrap();
+    let refinement =
+        terminal_semantics::calls::callable_refinement::callable_contract_refinement_goals(
+            &module,
+            semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            unmarked,
+        );
+    assert!(refinement.unwrap_err().contains(
+        "selected callable contract does not provide its required normal-result membership"
+    ));
+    module.callables.descriptors[0].machine = unmarked;
+    let error = terminal_semantics::scalar_qualifications::validate(&module).unwrap_err();
+    assert!(
+        format!("{error:?}")
+            .contains("normal completion does not establish its promised runtime membership"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn normal_result_membership_checks_provider_bodies_without_executing_requirements() {
+    let text = r#"
+domain u64::Ticked established by tick_source;
+machine tick_source(value: u64) -> u64 ensures result in Ticked {
+    let tagged: u64 in Ticked = value as +Ticked;
+    tagged as -Ticked
+}
+boundary trait Service {
+    machine tick() -> u64 reaches none ensures result in Ticked crashes none;
+}
+Selected satisfies Service {
+    machine tick() -> u64 reaches none crashes none { tick_source(29u64) }
+}
+machine entry() -> u64 reaches Service { Service::tick() }
+"#;
+    let negative = text.replace("tick_source(29u64)", "29u64");
+    let observed = [
+        ("checked provider", text),
+        ("missing provider fact", negative.as_str()),
+    ]
+    .map(|(name, source)| {
+        let typed = boundary_calls::typed(source);
+        let verdict = entryless::judged_typed_result(&typed, false);
+        match &verdict {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+        (name, verdict)
+    });
+    let [(positive_name, positive), (negative_name, negative)] = observed;
+    assert!(
+        matches!(positive.unwrap(), RouteVerdict::Accepted(_)),
+        "{positive_name}"
+    );
+    let refusal = match negative {
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal,
+        other => panic!("{negative_name}: {other:?}"),
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("normal completion does not establish its promised runtime membership"),
+        "{negative_name}: {refusal:?}"
+    );
+    let selected_name = text.rfind("machine tick()").unwrap() + "machine ".len();
+    assert_eq!(
+        refusal.source_span.unwrap().span.start,
+        selected_name,
+        "the error must identify the selected body: {refusal:?}"
+    );
+}
+
+#[test]
+fn a_pure_result_membership_keeps_its_independent_predicate_proof() {
+    let source = r#"
+domain u32::Positive requires self > 0u32;
+machine entry(value: u32 in Positive) -> u32
+ensures result in Positive { value as -Positive }
+"#;
+    let negative = source.replace("value as -Positive", "0u32");
+    let observed = [
+        ("predicate established", source),
+        ("predicate false", negative.as_str()),
+    ]
+    .map(|(name, source)| {
+        let mut elaboration = invocation(source).unwrap();
+        assert_eq!(elaboration.module.scalar_qualifications.domains.len(), 1);
+        let domain = elaboration.module.scalar_qualifications.domains[0].id;
+        for machine in &mut elaboration.module.machines {
+            let result = machine.result.scalar_ref().unwrap();
+            machine.contract.membership_ensures.push(
+                terminal_psi::RuntimeDomainMembership::Scalar {
+                    subject: semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                    domain,
+                },
+            );
+        }
+        let verdict = judge(Ok(elaboration));
+        match &verdict {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+        (name, verdict)
+    });
+    let [(name, positive), (negative_name, negative)] = observed;
+    assert!(
+        matches!(positive.unwrap(), RouteVerdict::Accepted(_)),
+        "{name}"
+    );
+    assert!(
+        matches!(negative.unwrap(), RouteVerdict::Rejected { unproved, .. } if !unproved.is_empty()),
+        "{negative_name}"
+    );
+}
+
+#[test]
+fn native_scalar_promises_require_their_exact_nominal_issuer() {
+    let module = invocation(
+        r#"
+domain u64::Issued established by Native::issue;
+boundary trait Native {
+    machine issue() -> u64 reaches none ensures result in Issued crashes none;
+    machine other() -> u64 reaches none crashes none;
+}
+machine entry() -> u64 crashes none {
+    let other: u64 = Native::other();
+    Native::issue()
+}
+"#,
+    )
+    .unwrap()
+    .module;
+    let own = module
+        .boundary_machines
+        .iter()
+        .find(|row| !row.membership_ensures.is_empty())
+        .unwrap();
+    let other = module
+        .boundary_machines
+        .iter()
+        .find(|row| row.membership_ensures.is_empty())
+        .unwrap();
+    let requires_checked = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
+        boundary.requires_checked_result(
+            &module.structural_domains,
+            &module.scalar_qualifications.domains,
+        )
+    };
+    let mut wrong_callable = own.clone();
+    wrong_callable.identity = other.identity;
+    let mut wrong_owner = own.clone();
+    wrong_owner.declaration.as_mut().unwrap().source.state =
+        other.declaration.as_ref().unwrap().source.state.clone();
+    let mut missing = own.clone();
+    missing.declaration = None;
+    let observed = [
+        ("own requirement", requires_checked(own), false),
+        ("another callable", requires_checked(&wrong_callable), true),
+        (
+            "another nominal owner",
+            requires_checked(&wrong_owner),
+            true,
+        ),
+        ("missing declaration", requires_checked(&missing), true),
+    ];
+    for boundary in [own, other] {
+        let source = &boundary.declaration.as_ref().unwrap().source;
+        eprintln!(
+            "callable: {:?}; nominal requirement: {:?}; semantic declaration: {:?}",
+            module.identities.text(boundary.identity),
+            module.identities.text(source.state.identity()),
+            module.identities.text(source.semantic_declaration)
+        );
+    }
+    for (name, actual, _) in &observed {
+        eprintln!("{name}: requires checked body = {actual}");
+    }
+    for (name, actual, expected) in observed {
+        assert_eq!(actual, expected, "{name}");
+    }
 }

@@ -222,6 +222,10 @@ pub(crate) fn requirement_declarations(
                         .eq(machine.ensures.iter().map(|row| &row.proposition)),
                 ),
                 (
+                    "abstract requirement has different source result memberships",
+                    header.proof.membership_ensures != machine.contract.membership_ensures,
+                ),
+                (
                     "abstract requirement has different source crash routes",
                     header.proof.declared_crash_routes != machine.declared_crash_routes,
                 ),
@@ -689,6 +693,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                     .iter()
                     .map(|clause| clause.proposition.clone())
                     .collect::<Vec<_>>()
+            || boundary.membership_ensures != question.required.proof.membership_ensures
             || boundary.crash_routes != question.required.proof.crash_routes
             || question.required.crash_policy != CallableCrashPolicy::Closed
             || !match (&boundary.result, &question.required.result) {

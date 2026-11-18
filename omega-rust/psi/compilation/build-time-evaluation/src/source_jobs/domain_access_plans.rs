@@ -256,21 +256,21 @@ fn subject_schema(
     definition: &typed_trees::domain::DomainDefinition,
     schema_type: SymbolHandle,
 ) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
-    let subject = typed
-        .closed_data_definition(definition.target_type)
-        .ok_or("no product route yet: an access plan for a subject that is not closed data")?;
+    let subject = typed_trees::reflection::construction::schema_subject_symbol(
+        typed,
+        definition.target_type,
+    )?;
     let authority = typed_trees::reflection::construction::schema_query_authority(
         typed,
         definition.symbol,
-        subject.symbol,
+        subject,
     )?;
     let graph = typed_trees::reflection::construction::construct_semantic_schema_graph_for_type(
         typed,
         definition.target_type,
         authority,
     )?;
-    let revision =
-        typed_trees::reflection::construction::declaration_source_revision(typed, subject.symbol)?;
+    let revision = typed_trees::reflection::construction::schema_subject_revision(typed, subject)?;
     // Ordinary result snapshots use the canonical record identity, not its
     // short source name. Construct the input with that same identity so the
     // complete returned value can be compared without discarding its type.
