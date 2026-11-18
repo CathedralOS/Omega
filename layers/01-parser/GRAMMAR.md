@@ -406,20 +406,21 @@ left out.
   predicates `requires name: pred`.
 - Optional semicolons after data members.
 
-## Decisions this grammar needs
+## Decisions
 
-Each row is a rule to settle before fixtures are written. "Leaning" is
-Claude's recommendation and nothing more.
+Answered by Jarod on 2026-11-18. Eight are decided; two are waiting on one
+more exchange. The grammar text above has not yet been rewritten to match;
+that happens once the last two are settled.
 
-| # | Decision | Options | Leaning |
-| --- | --- | --- | --- |
-| 1 | Is there an `if` statement? | Follow the spec's one example, or follow V1 and the spec's silence everywhere else. | No `if` statement; `if` only as an arm guard. Treat language/conformances.md:39 as a stale example. |
-| 2 | What ends an arm? | (a) A newline or comma ends an arm. (b) Newlines never matter and the parser looks ahead for `->`. (c) V1's rule, which cannot parse the spec's own example. | (a). Every example writes one arm per line, and it makes D4 parse. It does make arms the second place newlines matter. |
-| 3 | Do `match` and `transition` share tuple subjects and patterns? | Spec says yes; V1 only does it for `transition`. | Yes, as the spec says. |
-| 4 | Punctuation after a `requires` before a body? | Nothing, a comma, or a semicolon. | Nothing, per the spec's prose. Refuse `;`. Accept a trailing comma only if you want it. |
-| 5 | Which words are reserved? | None, as V1; or a short fixed list. | None, as V1, with `self` special. It matches the spec letting `u8` be a parameter name. |
-| 6 | Operator precedence? | V1's table, or something else. | V1's table. The spec gives two tiers and both agree with it. |
-| 7 | Generic arguments versus less-than? | V1's try-then-fall-back rule, or a new explicit form. | V1's rule, stated as: `<` starts arguments when they parse completely and are followed by `(`, `::` or a closing delimiter. |
-| 8 | Is assembly in the first parser? | Parse `asm` now, or leave it for its own step. | Leave it out of the first pass. The spec and V1 disagree on its whole shape (D5). |
-| 9 | Are `(m satisfies T::r)` and `some S` in? | The spec shows both; V1 has neither. | In, as the spec shows. |
-| 10 | How is the spec corpus used for testing? | Tag each of the 132 examples as a file, statements, clauses or an expression, and mark the ones that are placeholders or deliberately rejected. | Do that tagging as the parser's first fixture work. |
+| # | Question | Evidence | Jarod's answer | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Is there an `if` statement? | V1 retired it 2026-07-02; the spec example is rot. | "obviously not" | **Decided: no.** `if` only as an arm guard. |
+| 2 | What ends an arm? | V1's `source` tree has about 11,350 arm lines ending with nothing and 87 ending in a comma. Every spec example omits the comma. Rust requires a comma unless the arm's result is a block. | "comma I think? what does rust do?" | **Open.** Requiring a comma invalidates nearly every existing arm; accepting a comma or a newline does not. |
+| 3 | Tuples in both `match` and `transition`? | The spec says the two share one pattern vocabulary. | "match and transition are identical, only differing in that transition is at the end" | **Decided: one grammar for both.** `transition` is the form in tail position. |
+| 4 | Punctuation after `requires` before a body? | In V1's `source` tree, 775 of 794 such clauses end with nothing, 7 with a comma, 12 with a semicolon. | "whitespace is possibly fine" | **Decided: nothing.** |
+| 5 | Which words are reserved? | V1 reserves none in effect. | `self` matters only inside data and domain predicates; `iN` and `uN` cannot be declared as type names. | **Decided: no reserved words.** `self` is contextual. Refusing a declaration named `u7` is a naming rule for a later layer, not this one. |
+| 6 | Operator precedence? | V1's table, checked in its code. | "same as it was" | **Decided: V1's table.** |
+| 7 | Generic arguments versus less-than? | In a declaration or a type, `<` can only be generics. In an expression, `apply<set_time>(x)` and `a < b` start alike, and a parser cannot know what `apply` is: names are resolved in the next layer. | Expects it to be decidable at once, without seeking. | **Open.** True for declarations and types; not for expressions. |
+| 8 | Is assembly in the first parser? | The spec defines it; V1 has only part. | "just parse it" | **Decided: in**, as the spec defines it. |
+| 9 | `(m satisfies T::r)` and `some S`? | Both in the spec since 2026-11-10; neither in V1. | "obviously in" | **Decided: in.** |
+| 10 | How is the spec corpus tagged for testing? | 132 examples of mixed kinds. | "I dont care" | **Decided: Claude's choice.** Each example is tagged by what it is. |

@@ -182,8 +182,11 @@ Psi to native code) are not planned yet.
   seven spec examples that V1's parser, as read, would refuse. The largest:
   the spec shows an `if` statement that V1 retired, and writes `match` arms
   in a way V1 cannot parse.
-- **What it needs:** ten decisions, listed at the end of that document with
-  the options and a leaning for each. Fixtures and code wait on them.
+- **Decisions:** eight of the grammar's ten are decided (2026-11-18): no `if`
+  statement, `match` and `transition` share one grammar, nothing after a
+  `requires` before a body, no reserved words, V1's operator precedence,
+  assembly is parsed, and the spec's newer forms are in. Two are open: what
+  ends an arm, and how `<` is told from less-than in expressions.
 
 ### L2 to L4
 
@@ -578,4 +581,5 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Rust on stable, `layers/NN-name/` layout, git repository; start with the lexer. | Jarod |
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
 | 2026-11-18 | L0 Lexer signed off, with its six gap rules accepted as consistent with the spec. L1 Parser starts with its grammar. | Jarod |
+| 2026-11-18 | Eight parser grammar decisions made, recorded in `layers/01-parser/GRAMMAR.md`: no `if` statement; `match` and `transition` are one grammar; nothing after `requires` before a body; no reserved words; V1's precedence; assembly parsed; `satisfies` expressions and `some` binders in. | Jarod |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
