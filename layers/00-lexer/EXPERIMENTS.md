@@ -435,6 +435,58 @@ turning protection off altogether; opening files relative to an already-open
 directory, which skips walking the path each time and needs calls the
 standard library does not expose. With open now the largest remaining cost,
 that last one is the obvious next thing to try for per-file loading.
+## 7. Cheaper routes to opening a file (2026-11-18): rejected
+
+**Hypothesis.** With antivirus off, opening a file is about 13 microseconds
+and more than half of reading it. The standard library opens by full path
+through the Win32 layer, so the kernel walks every directory from the drive
+letter down each time. Opening relative to a handle on the file's own
+directory leaves nothing to walk and should be clearly cheaper. No measurable
+difference would reject it.
+
+**How it was tested.** A new tool opens the same 19,442 files four ways:
+
+    cargo run --release -p omega-lexer --example open_breakdown -- <directories>
+
+1. `File::open` with the full path.
+2. `NtOpenFile` with the full path, which skips the Win32 layer.
+3. `NtOpenFile` relative to one handle on the top of the tree.
+4. `NtOpenFile` relative to a handle on the file's own directory.
+
+Routes 2 to 4 call ntdll directly, since the standard library cannot name a
+starting directory. Before timing, 512 files were read through every route
+and compared byte for byte with `std::fs::read`; all matched. Real-time
+antivirus was off. Fastest of 5 passes, two runs, one thread:
+
+| Route | Open + close | Open + read + close |
+| --- | --- | --- |
+| 1. `File::open`, full path | 16.6 to 17.7 us | 22.9 to 26.3 us |
+| 2. `NtOpenFile`, full path | 17.6 to 19.5 us | 20.2 to 20.6 us |
+| 3. `NtOpenFile`, from the tree root | 16.3 to 19.3 us | 26.1 to 27.1 us |
+| 4. `NtOpenFile`, from its own directory | 16.8 to 18.6 us | 20.7 to 21.8 us |
+
+**Result.** No route is faster. Every one costs 16 to 20 microseconds to open
+and close a file, and the differences between routes are smaller than the
+differences between two runs of the same route. Across threads the two
+extremes are also the same: both peak near 112,000 files per second at 4
+threads and fall back to about 87,000 on 16 and 32.
+
+**Decision.** Rejected. The cost of opening a file here is not the path walk
+and not the Win32 layer. It is what Windows and the file system do to create
+and tear down an open file, and no choice of route from user code avoids it.
+
+Two side facts from this run:
+
+- The tree has 9,620 directories for 19,442 files, about 2 files each, and
+  opening a directory costs 13 to 15 microseconds, the same as a file. So a
+  loader that keeps directory handles pays for 9,620 extra opens up front.
+- The tool stays in the repository so the same comparison can be rerun on a
+  different file system, such as a Dev Drive.
+
+**What this leaves.** For reading file by file there is nothing further to
+take out from the caller's side: about 20 microseconds per file, peaking near
+110,000 to 120,000 files per second at 4 threads. The only measured way past
+that is to open fewer files, which is owner question 4 in PLAN.md.
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
@@ -446,6 +498,7 @@ that last one is the obvious next thing to try for per-file loading.
 | 5A. Class-table dispatch | 10 to 25 percent | about 7 percent |
 | 5B. Branch-free word end | about 10 percent | about 16 percent |
 | 5C. Branch-free whitespace | a few percent faster | 15 percent slower |
+| 7. Open relative to a directory | clearly cheaper opens | no difference |
 
 Guesses about straight-line work have run high. The two that came in low, 4
 and 5B, both removed a wait (for the allocator, for a wrong branch guess)
