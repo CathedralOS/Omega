@@ -915,7 +915,8 @@ fn publish_parents(
                     "reference reborrow has no exact formation point",
                 )
             })?;
-            let parent = terminal_semantics::borrowed_loan_source(
+            use terminal_semantics::{BorrowedLoanSource, BorrowedLoanSources};
+            let lender = terminal_semantics::borrowed_loan_sources(
                 module,
                 machine,
                 &mut analysis,
@@ -926,6 +927,15 @@ fn publish_parents(
                     .filter(|(id, _)| *id != child)
                     .map(|(id, life)| (*id, life)),
             )
+            .and_then(|sources| match sources {
+                BorrowedLoanSources::Selected(_) => Ok(Lender::Selected),
+                other => Ok(match other.single()? {
+                    BorrowedLoanSource::Owner => Lender::Owner,
+                    BorrowedLoanSource::Incoming => Lender::Incoming,
+                    BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
+                    BorrowedLoanSource::Provider => Lender::Provider,
+                }),
+            })
             .map_err(|reason| {
                 let mut refusal = refuse(
                     machine.id,
@@ -950,16 +960,7 @@ fn publish_parents(
                 }
                 refusal
             })?;
-            updates.push((
-                machine.id,
-                child,
-                match parent {
-                    terminal_semantics::BorrowedLoanSource::Owner => Lender::Owner,
-                    terminal_semantics::BorrowedLoanSource::Incoming => Lender::Incoming,
-                    terminal_semantics::BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
-                    terminal_semantics::BorrowedLoanSource::Provider => Lender::Provider,
-                },
-            ));
+            updates.push((machine.id, child, lender));
         }
     }
     for (machine, child, lender) in updates {

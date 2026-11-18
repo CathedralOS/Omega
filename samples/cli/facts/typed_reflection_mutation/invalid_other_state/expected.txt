@@ -1,1 +1,2 @@
-requires type predicate does not hold for the supplied arguments
+the type arguments of this application do not meet its requirement
+increment$specialized$named(name(u64))
