@@ -363,8 +363,8 @@ def render_overview(architecture):
     from .proposed import proposed_model
     model = layout_model(overview_model(architecture))
     revision=re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
-    model.update(view='current',badge=f'Current · pre-migration snapshot {revision[:12]}',
-                 intro='Pre-migration compiler. Follow the stage arrows or trace an orange detour. Proposed shows the plan and links to its implemented routes.')
+    model.update(view='current',badge=f'Before migration · {revision[:12]}',
+                 intro='This snapshot shows the earlier compiler. Trace an orange arrow to its source, then switch to Stages 00–10 to follow the repair.')
     proposed=layout_model(proposed_model())
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
@@ -378,7 +378,7 @@ def render_overview(architecture):
         '<button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><button type="button" data-camera="natural" aria-label="Reset zoom to 100%" title="Reset zoom to 100%"><output class="connected-scale">100%</output></button><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="expand">Expand</button></div></div>'
     )
     parts = ['<div class="arch-reading" id="compiler-overview" data-view="current">',
-             '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
+             '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" id="stages" data-view="proposed" aria-pressed="false">Stages 00–10</button><button type="button" id="before-migration" data-view="current" aria-pressed="true">Before migration</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
              f'<div class="connected-tools" hidden><label class="trace-picker">Trace <select aria-label="Trace a pipeline detour"><option value="">All connections</option>{trace_options}</select></label><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><label class="component-picker">Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
@@ -396,7 +396,7 @@ def render_overview(architecture):
     parts.append('</ol></details><script type="application/json" id="overview-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script>')
     parts.append('<template id="overview-proposed-scene"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+render_scene(proposed)+'</svg></template>')
     parts.append('<script type="application/json" id="overview-proposed-model">'+json.dumps(proposed,ensure_ascii=False).replace('<','\\u003c')+'</script>')
-    parts.append('<details class="proposed-contracts"><summary>Proposed contracts and open questions</summary><p>The phase boundaries are a design judgment. The <a href="foundation-backend-plan.html#implementation-checkpoint">implementation checkpoint</a> traces individual routes in the migration branch. Read the <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">open planning gates</a> for the evidence still needed.</p><dl>')
+    parts.append('<details class="proposed-contracts"><summary>Numbered stages, contracts and Rust sources</summary><p>Each stage links to the implementation. The <a href="foundation-backend-plan.html#compiler-verification">verification record</a> identifies the builds and routes that were exercised. The <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">original planning gates</a> explain the design obligations.</p><dl>')
     for n in proposed['nodes']:
         anchor=' id="proposed-handlers"' if n['id']=='native-planning-target' else ''
         if n['id']=='binding-summarize': anchor=' id="proposed-handler-binding"'

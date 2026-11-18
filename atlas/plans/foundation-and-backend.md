@@ -7,12 +7,11 @@ representations, runtimes and validators must agree before the new route replace
 the old one. Internal work has dependencies and can be divided among agents;
 partial routes are not separately rolled out.
 
-Implementation is underway on the compiler branch. The [implementation
-checkpoint](#implementation-checkpoint) traces which handoffs have actual
-callers and which still need acceptance runs. The plan applies the six
-[owner rulings](../rulings.md). The proposed boundaries and names are
-**judgment**. Feasibility obligations remain **unverified** until the named
-evidence is supplied.
+The compiler at `c329436ed22` implements numbered stages 00–10. Open the full
+map to follow their Rust code or read the verification record for the exact
+builds, commands and results. The design below records the original **judgment**
+and obligations under the six owner rulings. [Full architecture](../artifacts/architecture.md)
+· [Compiler verification](#compiler-verification) · [Owner rulings](../rulings.md)
 
 **Reading the map?** Start with [the extra-arrow repair list](#start-with-the-extra-arrows)
 and the [handler detour](#why-handlers-leave-and-return). The remaining sections
@@ -792,7 +791,22 @@ example does not establish that outcome.
 
 ### Implementation checkpoint
 
-The [full map](../artifacts/architecture.md) preserves the pre-migration compiler at `3f9ce43f0c9d` in **Current**. **Proposed** shows the recorded plan. Select an operation to read its contract and any evidence from the implementation. The original source traces below use `788ecf2489d`. The object-to-image handoff uses `80cc31a4df8`.
+The full map opens at **Stages 00–10**. Each stage links to its implementation at `c329436ed22`. **Before migration** preserves the compiler at `3f9ce43f0c9d`. Select an operation for its contract and dated evidence. The original source traces below use `788ecf2489d`. The object-to-image handoff uses `80cc31a4df8`. [Full map](../artifacts/architecture.md)
+
+#### Compiler verification
+
+| Compiler revision | What ran | Result |
+| --- | --- | --- |
+| `c329436ed22` | GitHub PR admission checked rules, formatting and every workspace target on the merge tree. | Passed. [Admission job](https://github.com/CathedralOS/Omega/actions/runs/44241832259/job/134591328279) · [Exact check command](https://github.com/CathedralOS/Omega/blob/c329436ed22f18b41352985cff202b46129e6538/.github/workflows/admission.yml#L98-L116) |
+| `ba6f2878314d` | Clippy linted every workspace target with warnings treated as errors. | Passed. [Clippy job](https://github.com/CathedralOS/Omega/actions/runs/44241626718/job/134590658245) · [Pinned build](https://github.com/CathedralOS/Omega/blob/6663af86b612592a686daeb6b6099bfcb484ac36/.github/workflows/compiler-linear-pipeline-lint.yml#L17-L19) |
+| `464945420ba4` | The retained runtime resumed execution. The native reader recovered the selected machine’s linked code layout from its published image. The lowered-publication suite and public Build host accounting checks also ran. | These jobs passed. The ordinary compiler built the selected-provider fixture for Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64. Every image matched the bytes already run on its native host. [Runtime](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668562) · [Image readback](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668783) · [Lowered publication](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668293) · [Build and four images](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668598) |
+| `fa159e507e29` | The hosted build published its exact Linux compiler and a selected-provider executable for each of the same four targets. | Each executable again matched the native-host record. [Compiler and images](https://github.com/CathedralOS/Omega/actions/runs/44238276226/job/134579604878) · [Four matching hosts](#native-execution-on-four-matching-hosts) |
+
+The official compiler from [#4049](https://github.com/CathedralOS/Omega/pull/4049), `1b54028582cc`, and the published migration compiler `fa159e507e29` ran the real Console sample on Linux x86-64. Each used the same frozen library and source with `omega run --both samples/cli/basics/cli_mvp/main.omg` and a newline on standard input. Both printed `Hello, Omega.` and the close prompt. The complete 66-byte transcripts matched. The native program, Psi interpreter and CLI all exited 0 on both builds. [Official compiler](https://github.com/CathedralOS/Omega/actions/runs/44236005981/job/134575797260) · [Migration compiler](https://github.com/CathedralOS/Omega/actions/runs/44238276226/job/134579604878) · [Console source](https://github.com/CathedralOS/Omega/blob/1b54028582cc66fe9bb9440f84ac4a603763fa26/samples/cli/basics/cli_mvp/main.omg#L16-L24) · [Exact transcript and compiler digests](../evidence/checkpoints/public-console.json) · [Replay](../evidence/README.md#replay-the-public-console-sample)
+
+A separate hosted job checks the Console sample and four selected-provider image digests at `c329436ed22`. The two-build comparison above records the local runs. [Hosted Console and native-image checks](https://github.com/CathedralOS/Omega/actions/runs/44242787970/job/134594429740)
+
+#### Implementation traces
 
 | Route | What the compiler hands forward |
 | --- | --- |

@@ -18,6 +18,7 @@ import subprocess
 import textwrap
 from urllib.parse import quote, unquote, urlsplit
 import xml.etree.ElementTree as ET
+from artifacts.proposed import COMPILER_REVISION
 from artifacts.whole_map import render_architecture
 
 
@@ -41,8 +42,8 @@ PAGES = [
     ("library", "Bundled library", "subsystems/library.md", "Language declarations, target providers, and their use through Build and realization.", "Observed source map"),
     ("pipeline-map", "Original pipeline map", "artifacts/pipeline-map/original.html", "Claude’s original authored presentation, preserved as a historical proposed design.", "Historical proposed design"),
     ("pipeline-current", "Reviewed pipeline routes", "artifacts/pipeline-map/map.md", "Observed compilation routes, corrected value paths and the proposed ownership changes.", "Pre-migration routes and proposed changes"),
-    ("architecture", "Compiler map", "artifacts/architecture.md", "Follow the pre-migration compiler and the planned stages. Select an operation to inspect its implementation.", "Pre-migration map and implementation evidence"),
-    ("foundation-backend-plan", "Compiler repair plan", "plans/foundation-and-backend.md", "The observed architecture problems, their proposed repairs, and the contracts the replacement must preserve.", "Judgment — migration proposal"),
+    ("architecture", "Compiler map", "artifacts/architecture.md", "Trace the numbered implementation and compare it with the compiler before migration.", "Stages 00–10 and the historical map"),
+    ("foundation-backend-plan", "Compiler repair plan", "plans/foundation-and-backend.md", "The stage contracts, the earlier detours they replace, and the evidence from the running compiler.", "Migration plan and verification"),
     ("questions", "Open questions", "questions.md", "Design choices that still need a ruling; recommendations remain proposals.", "Open decisions"),
     ("rulings", "Owner rulings", "rulings.md", "The dated owner decisions the atlas must follow.", "Recorded owner decisions"),
 ]
@@ -347,7 +348,7 @@ def build_all(content_revision: str | None, site: Path) -> Path:
     glance = '<div class="glance">' + "".join(
         f'<div><b>{value:,}</b><span>{html.escape(label)}</span></div>' for value, label in values) + "</div>"
     glance = '<details class="measurement"><summary>Snapshot measurements and counting rules</summary>' + glance + '<p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>'
-    landing = ("landing", "See how Omega fits together.", "artifacts/home.html", "Trace the compiler. Find the detours. Follow the repair plan.", "Compiler architecture & repair plans")
+    landing = ("landing", "See how Omega fits together.", "artifacts/home.html", "Explore the numbered compiler and the architecture it replaces.", "Compiler architecture & repair plans")
     for number, (page_id, title, source_name, description, status) in enumerate([landing, *PAGES]):
         output = site / "index.html" if page_id == "landing" else pages / f"{page_id}.html"
         source = ATLAS / source_name
@@ -369,6 +370,7 @@ def build_all(content_revision: str | None, site: Path) -> Path:
             "SCRIPT": script, "CANVAS_BUNDLE": f'<script src="{os.path.relpath(ATLAS / "design/diagram-zoom.js", output.parent).replace(chr(92), "/")}"></script>' if explorer else "", "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
             "PAGE_COUNT": str(len(PAGES)), "REVISION": revision[:12], "PUBLICATION": publication,
             "REVISION_URL": f"{GITHUB}/tree/{revision}", "MANIFEST_URL": source_url(manifest_path, content_revision, output),
+            "IMPLEMENTATION_PIN": f'<span>Numbered implementation <a href="{GITHUB}/tree/{COMPILER_REVISION}"><code>{COMPILER_REVISION[:11]}</code></a></span>' if page_id in ("landing", "architecture", "foundation-backend-plan") else "",
             "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-current", "foundation-backend-plan") else "",
             "EXPLORER": explorer, "PAGE_CLASS": "overview-page" if explorer else "home-page" if page_id=='landing' else "",
             "HEADER": site_header(page_id,prefix), "FOOTER": site_footer(prefix,source_url(ATLAS/'README.md',content_revision,output)),

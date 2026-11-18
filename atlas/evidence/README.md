@@ -116,6 +116,19 @@ The checker reads each process result from its job log, verifies the complete se
 
 ## Compare the two published compiler builds
 
+### Replay the public Console sample
+
+The [Console record](checkpoints/public-console.json) pins the exact compiler, library, sample, input, combined process output and exit codes. Choose a lane listed in the record. The checker verifies the compiler digest, extracts the matching Git inputs into a fresh directory and supplies a newline when the program asks for input. This runs the public CLI on Linux x86-64.
+
+```bash
+python3 atlas/evidence/scripts/check_console_sample.py official --compiler /path/to/official/omega --run
+python3 atlas/evidence/scripts/check_console_sample.py migration --compiler /path/to/migration/omega --run
+```
+
+With `--log /path/to/console.log`, the checker can also compare a saved byte-for-byte transcript. Without `--run` it checks the cited inputs and any supplied log or executable.
+
+### Selected-provider fixture at 4650
+
 The [target execution record](checkpoints/target-execution-4650.json) contains the exact compiler SHA-256 values, Git revisions, fixture hashes, toolchain library tree and results for the selected-provider fixture. It compares official build `46502a522a16` with migration build `fcb284a45c40`. The arm64 Mach-O result records offline signature verification. Execution on Darwin was *unverified* for those two recorded builds.
 
 To replay, set `BASELINE_OMEGA` and `CANDIDATE_OMEGA` to the absolute paths of those executables. Check their hashes with `sha256sum "$BASELINE_OMEGA" "$CANDIDATE_OMEGA"`. Run the following from a checkout containing the official commit. A new temporary directory gives both compilers the same source root and separate output directories.

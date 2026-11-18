@@ -8,6 +8,7 @@ from .proposed_operations import unfold
 
 PLAN_REVISION = '9d9e40a22677ade9f9697fdf1181ef0ac940c612'
 PLAN_PATH = 'atlas/plans/foundation-and-backend.md'
+COMPILER_REVISION = 'c329436ed22f18b41352985cff202b46129e6538'
 
 
 # Each entry points at the repair condition in the audited plan and at the
@@ -135,8 +136,9 @@ def annotate_implementation(nodes):
             [('Read the completed image', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L19-L58'),
              ('Validate linked ranges', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L105-L141')]),
         'published': (
-            'The host matches a supplied native image to the Terminal artifact, manifest and target before giving its layout to the interpreter. A Psi-only request can run without an image. A native adapter request reaches a host service that installs only an adapter held in the published product. On the selected-provider fixture, official and migration images ran on four matching native hosts. All eight exited 0.',
+            'The host matches a supplied native image to the Terminal artifact, manifest and target before giving its layout to the interpreter. A Psi-only request can run without an image. A native adapter request reaches a host service that installs only an adapter held in the published product. On the selected-provider fixture, official and migration images ran on four matching native hosts. All eight exited 0. On the separate bundled Console sample, the official and migration compilers also produced identical Hello output and each reported native and Psi exit 0.',
             [('Host identity and target checks', implemented + 'build-system/orchestration/src/published_terminal.rs#L45-L91'),
+             ('Real Console on both engines', 'foundation-backend-plan.html#compiler-verification'),
              ('Four-host results', 'foundation-backend-plan.html#native-execution-on-four-matching-hosts'),
              ('Eight native process exits', 'https://github.com/CathedralOS/Omega/actions/runs/44227027634'),
              ('Executed image and compiler digests', 'https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/images.json'),
@@ -157,6 +159,38 @@ def annotate_implementation(nodes):
     }
     for key, (description, evidence) in checkpoints.items():
         nodes[key]['implementation'] = dict(description=description, evidence=evidence)
+
+    # These are concrete operations observed in each stage. The numbered
+    # drawing still cites its original design contract separately.
+    omega_pipeline = 'omega/compilation/pipeline/'
+    stages = (
+        ('admission', 'Accepts each requested target and checks that installation assumptions belong to a native product.',
+         omega_pipeline + '00_compilation-inputs/src/lib.rs#L144-L176'),
+        ('source-settlement', 'Lexes one admitted file, parses its tokens into syntax and recycles the token buffer before advancing.',
+         'psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L97-L131'),
+        ('seal', 'Matches provider demand to the source publication and target, then issues the demand with the checked program and its source identity.',
+         omega_pipeline + '02_portable-publication/src/provider_demand.rs#L105-L131'),
+        ('native-planning', 'Receives the published demand, plans the selected providers for this target and records dependencies of a folded entry.',
+         omega_pipeline + '03_native-program-planning/src/execution.rs#L30-L54'),
+        ('physical-planning', 'Selects physical instructions, allocates registers and settles the frame before returning the physical program.',
+         omega_pipeline + '04_physical-program-planning/src/lib.rs#L119-L175'),
+        ('binding', 'Matches installation guards to measurements of the actual handlers and checks them against the frame and instructions.',
+         omega_pipeline + '05_installation-binding/src/lib.rs#L78-L91'),
+        ('encoding', 'Encodes the framed instructions and carries the checked bytes, fixups and layout requirements forward.',
+         omega_pipeline + '06_native-encoding/src/lib.rs#L24-L53'),
+        ('layout-stage', 'Orders blocks and resolves instruction bytes and branch alternatives using their actual offsets.',
+         omega_pipeline + '07_native-layout/src/ordinary.rs#L104-L146'),
+        ('object-stage', 'Publishes the object, placed text, executable body evidence and native code locations together.',
+         omega_pipeline + '08_object-construction/src/fragment_container.rs#L226-L253'),
+        ('image-stage', 'Receives a completed object and reads its placed text, fragments, frame and installation authority.',
+         omega_pipeline + '09_image-construction/image-emission/src/object_input.rs#L16-L55'),
+        ('publish', 'Checks the requested output kind and requires an executable publication receipt for a native executable report.',
+         omega_pipeline + '10_product-publication/src/output.rs#L154-L196'),
+    )
+    for stage, description, path in stages:
+        url = f'https://github.com/CathedralOS/Omega/blob/{COMPILER_REVISION}/omega-rust/{path}'
+        nodes[stage]['implementation'] = dict(description=description,
+            evidence=[(f'Rust implementation at {COMPILER_REVISION[:11]}', url)])
 
 
 def proposed_model():
@@ -220,8 +254,8 @@ def proposed_model():
     edges=[dict(id=f'proposed-{a}-{b}',start=a,end=b,label='',kind='data',main=True,source=by_id[b]['source'])
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
-               badge=f'Proposed 00–10 · plan {PLAN_REVISION[:12]}',
-               intro='Recorded plan. Select an operation for implementation evidence and open questions. Current shows the pre-migration compiler.',
+               badge=f'Numbered implementation · {COMPILER_REVISION[:11]}',
+               intro='Follow stages 00–10 from input to product. Select a numbered stage for its Rust source. Within stage 01, each file streams from lexer to parser.',
                phaseGaps={n['id']:32 for n in nodes if n['role']=='owner'},
                phases=phases,placements=[])
     audit = 'https://github.com/CathedralOS/Omega/blob/9c3100603b816814610190bf73f78814abefb760/' + PLAN_PATH
