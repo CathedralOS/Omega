@@ -113,7 +113,7 @@ impl CompilationSession {
             let root = source.root().to_path_buf();
             let package_inputs = source.package_inputs().cloned();
             let selected = self
-                .select_completed_source(source, returned, product.inspection_name(), None)
+                .select_completed_source(source, returned, Some(&product), None)
                 .result
                 .map_err(crate::CompilationProductError::from)?;
             let mut outputs = crate::target_batch::produce_products(vec![(
@@ -204,10 +204,10 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-        inspection: Option<&str>,
+        product: Option<&crate::CompilationProduct>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        match source.select(returned, inspection, frontier) {
+        match source.select(returned, product, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => refusal(failure),
         }

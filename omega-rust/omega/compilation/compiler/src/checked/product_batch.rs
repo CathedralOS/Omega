@@ -15,6 +15,7 @@ use std::sync::Arc;
 #[derive(Default)]
 pub(super) struct PackageProductSelection<'a> {
     inspection: Option<&'a str>,
+    report: Option<products::RequestedCompileProduct>,
     permissions: Option<&'a Arc<TerminalPermissionAcceptance>>,
     test_permissions: Option<&'a Arc<TerminalPermissionAcceptance>>,
 }
@@ -32,6 +33,7 @@ impl<'a> PackageProductSelection<'a> {
         };
         Self {
             inspection: product.inspection_name(),
+            report: product.report_kind(),
             permissions,
             test_permissions,
         }
@@ -200,7 +202,7 @@ impl CompilationSession {
             .map(|(position, owner, source, target, inputs, unprepared)| {
                 let demand = requested(&owner);
                 let prepared =
-                    PreparedProductTarget::capture(&source, Some(target), demand.permissions);
+                    PreparedProductTarget::capture(&source, Some(target), demand.permissions, demand.report);
                 let tests =
                     super::test_roots::select_test_roots(&source, target).map(|selection| {
                         let roots = selection
@@ -219,6 +221,7 @@ impl CompilationSession {
                                         &checked,
                                         Some(target),
                                         demand.test_permissions,
+                                        demand.report.filter(|kind| *kind == products::RequestedCompileProduct::NativeArtifact),
                                     );
                                     (checked, prepared)
                                 });

@@ -5,7 +5,7 @@
 use crate::checking::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use crate::source_state::FrozenTypedTrees;
 use diagnostics::Diagnostic;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
@@ -16,7 +16,7 @@ pub struct AcceptedTerminalSource {
     pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
     /// What the route says about the accepted source without refusing it
     /// (`advisories`), in the order the parts were judged.
-    advisories: Vec<Diagnostic>,
+    advisories: DeferredAdvisories,
 }
 
 /// One constant the declarations of an accepted module name.
@@ -66,14 +66,17 @@ impl AcceptedTerminalSource {
                 "accepted forms lost their exact source correspondence",
             )]);
         }
-        let (closure, advisories) = accepted.materialize_advisories();
+        let AcceptedCompilation {
+            closure,
+            additional,
+        } = accepted;
         Ok(Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
             package_review_numeric: Default::default(),
-            advisories,
+            advisories: DeferredAdvisories::new(additional),
         })
     }
 
@@ -107,7 +110,7 @@ impl AcceptedTerminalSource {
     /// accepted judgment for whoever reports the compilation; nothing here
     /// prints them and no later stage reads them.
     pub fn advisories(&self) -> &[Diagnostic] {
-        &self.advisories
+        self.advisories.get(self.closure.as_ref())
     }
 
     /// Binds source companions to this exact accepted code owner. The Build
@@ -703,21 +706,54 @@ fn advisories<'part>(parts: impl Iterator<Item = &'part AcceptedClosure>) -> Vec
     advisories
 }
 
-/// All semantic verdicts accepted. Keep additional parts only until source
-/// correspondence is checked and their diagnostics have been requested.
+/// All semantic verdicts accepted. Additional parts supply only their
+/// diagnostics after the source correspondence has been checked.
 #[derive(Debug)]
 struct AcceptedCompilation {
     closure: Box<AcceptedClosure>,
     additional: Vec<Box<AcceptedClosure>>,
 }
 
-impl AcceptedCompilation {
-    fn materialize_advisories(self) -> (Box<AcceptedClosure>, Vec<Diagnostic>) {
-        let advisories = advisories(
-            std::iter::once(self.closure.as_ref())
-                .chain(self.additional.iter().map(|part| part.as_ref())),
-        );
-        (self.closure, advisories)
+/// Reporters request the same warnings by default. Transient source jobs use
+/// the accepted code without reporting it, so they must not start advisory
+/// proof searches just to discard the diagnostics. Keep every accepted part
+/// until the first read, then release the additional forms after aggregation.
+struct DeferredAdvisories {
+    additional: Mutex<Vec<Box<AcceptedClosure>>>,
+    cached: OnceLock<Vec<Diagnostic>>,
+}
+
+impl std::fmt::Debug for DeferredAdvisories {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DeferredAdvisories")
+            .field("materialized", &self.cached.get().is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl DeferredAdvisories {
+    fn new(additional: Vec<Box<AcceptedClosure>>) -> Self {
+        Self {
+            additional: Mutex::new(additional),
+            cached: OnceLock::new(),
+        }
+    }
+
+    fn get(&self, primary: &AcceptedClosure) -> &[Diagnostic] {
+        self.cached.get_or_init(|| {
+            let mut additional = self
+                .additional
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // Retain the parts if a diagnostic search panics, just as each
+            // accepted closure retains its own deferred warning inputs.
+            let result = advisories(
+                std::iter::once(primary).chain(additional.iter().map(|part| part.as_ref())),
+            );
+            additional.clear();
+            result
+        })
     }
 }
 
@@ -840,6 +876,103 @@ fn build_backing<'source>(
 mod tests {
     use super::*;
     use crate::lowering::Compilation;
+
+    fn contract_fixture(name: &str) -> AcceptedTerminalSource {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../../tests/fixtures/pass/contracts")
+            .join(name)
+            .join("main.omg");
+        let text = std::fs::read_to_string(path).unwrap();
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let id = sources
+            .add_checked_instance(
+                format!("accepted/{name}/main.omg").into(),
+                text.as_str(),
+                "accepted".into(),
+                Some(package),
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
+                declaration_contracts::source_identity::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = crate::production::frontend_fixture::Lexer::new(&text)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap()
+            .symbol;
+        let (frozen, _) = crate::preparation::prepare_typed_trees(
+            typed,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .unwrap();
+        AcceptedTerminalSource::judge(
+            Arc::new(frozen),
+            Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[Some(package)],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn authored_advisories_wait_for_read_and_release_additional_forms_once() {
+        // This kept CLI fixture has one authored contradiction and two real
+        // specializations. Its extra check forms must not multiply warnings.
+        let accepted = contract_fixture("generic_branch_contract_contradiction_exit");
+        assert!(accepted.advisories.cached.get().is_none());
+        assert!(!accepted.advisories.additional.lock().unwrap().is_empty());
+        let diagnostics = accepted.advisories();
+        let warnings: Vec<_> = diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.severity == diagnostics::DiagnosticSeverity::Warning
+                    && diagnostic.message.starts_with("unreachable branch:")
+            })
+            .collect();
+        assert_eq!(warnings.len(), 1, "{diagnostics:?}");
+        assert!(warnings[0].message.contains("machine `pick`"));
+        assert!(warnings[0].source_span.is_some());
+        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(std::ptr::eq(
+            diagnostics.as_ptr(),
+            accepted.advisories().as_ptr()
+        ));
+        assert_eq!(accepted.advisories(), diagnostics);
+    }
+
+    #[test]
+    fn specialization_only_advisories_remain_quiet_after_a_lazy_read() {
+        let accepted = contract_fixture("specialized_branch_selection_quiet_exit");
+        assert!(accepted.advisories.cached.get().is_none());
+        assert!(accepted.advisories().is_empty());
+        assert!(accepted.advisories.cached.get().is_some());
+        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(accepted.advisories().is_empty());
+    }
 
     fn elaboration(
         publication: terminal_codec::TerminalPublication,

@@ -83,7 +83,14 @@ impl ProductReportPlan {
     }
 
     pub fn needs_terminal(&self, admission: &BuildAdmission) -> bool {
-        !matches!(self.requested, ProductReportRequest::Check) && !admission.artifact_only()
+        !Self::reports_advisories(self.requested.kind(), admission)
+    }
+
+    pub fn reports_advisories(
+        request: RequestedCompileProduct,
+        admission: &BuildAdmission,
+    ) -> bool {
+        request == RequestedCompileProduct::Check || admission.artifact_only()
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {

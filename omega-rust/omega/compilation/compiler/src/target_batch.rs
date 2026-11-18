@@ -116,14 +116,18 @@ impl crate::CompilationSession {
                         .map_err(crate::CompileFailure::from)
                         .and_then(|target| {
                             let source = source.as_ref().map_err(Clone::clone)?;
-                            let prepared =
-                                PreparedProductTarget::capture(source, target.profile(), None)
-                                    .map_err(|diagnostics| {
-                                        crate::CompileFailure::source_completion(
-                                            diagnostics,
-                                            source.source_completion_accounting.clone(),
-                                        )
-                                    })?;
+                            let prepared = PreparedProductTarget::capture(
+                                source,
+                                target.profile(),
+                                None,
+                                Some(shared.requested_product),
+                            )
+                            .map_err(|diagnostics| {
+                                crate::CompileFailure::source_completion(
+                                    diagnostics,
+                                    source.source_completion_accounting.clone(),
+                                )
+                            })?;
                             Ok((target, source, prepared))
                         });
                     (profile, prepared)

@@ -32,6 +32,7 @@ pub(crate) struct SelectedProviderCustody {
 
 pub(crate) struct SelectedProductTarget {
     pub(crate) consent: Option<PreparedRuntimeConsent>,
+    pub(crate) advisories: Option<Vec<Diagnostic>>,
     pub(crate) custody: SelectedProviderCustody,
 }
 
@@ -45,6 +46,7 @@ impl SelectedProductTarget {
             settle_execution(source, prepared.profile, prepared.demand, &mut timings)?;
         Ok(Self {
             consent: prepared.consent,
+            advisories: prepared.advisories,
             custody: SelectedProviderCustody {
                 optimizations: source.optimizations.clone(),
                 terminal_publication: Arc::clone(&source.terminal_publication),

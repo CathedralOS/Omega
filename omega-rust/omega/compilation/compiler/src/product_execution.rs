@@ -34,6 +34,16 @@ impl CompilationProduct {
         }
     }
 
+    pub(crate) fn report_kind(&self) -> Option<products::RequestedCompileProduct> {
+        use products::RequestedCompileProduct as Report;
+        match self {
+            Self::Check => Some(Report::Check),
+            Self::Terminal(_) => Some(Report::TerminalArtifact),
+            Self::Native(_) => Some(Report::NativeArtifact),
+            Self::Inspection(_) => None,
+        }
+    }
+
     pub fn optimization_rollback(&self) -> crate::OptimizationRollback {
         match self {
             Self::Terminal(rollback) => rollback.clone(),
@@ -306,6 +316,7 @@ impl TargetCompilation {
             .report
             .needs_terminal(&self.realization.custody.build_admission);
         let consent = self.realization.consent.take();
+        let advisories = self.realization.advisories.take();
         let checked = self.realization.into_checked_compilation()?;
         let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
@@ -315,7 +326,11 @@ impl TargetCompilation {
                 .map_err(CompilationProductError::TrustAdmission)?;
             match self.report.prepare(&checked)? {
                 CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(
-                    report.with_advisories(advisories(&checked)),
+                    report.with_advisories(advisories.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "compilation lost the requested source advisory report",
+                        )]
+                    })?),
                 )),
                 CheckedProductReport::Terminal {
                     mut settlement,
@@ -382,21 +397,6 @@ impl TargetCompilation {
             error.with_source_completion_accounting(accounting)
         })
     }
-}
-
-/// The advisory diagnostics of the accepted source this compilation checked
-/// (`AcceptedTerminalSource::advisories`), each placed in its source file.
-/// They are warnings about a program that was accepted, so a compilation
-/// with no retained judgment simply has none.
-fn advisories(checked: &products::CheckedCompilation) -> Vec<Diagnostic> {
-    let Ok(accepted) = checked.terminal_publication().accepted() else {
-        return Vec::new();
-    };
-    let mut advisories = accepted.advisories().to_vec();
-    if let Some(sources) = accepted.source().symbols.source_map() {
-        crate::checked::checking::attribute_diagnostics(&mut advisories, &sources, None);
-    }
-    advisories
 }
 
 impl ProductRequest {
