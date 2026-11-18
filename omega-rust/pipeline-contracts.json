@@ -2,6 +2,114 @@
   "items": [
     {
       "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "PreparedProductTarget::field:demand#1",
+      "kind": "carried_record",
+      "meaning": "Stage-01 sealed provider facts to be received at stage 02 for the same deployment.",
+      "producer": "compiler product target preparation",
+      "signature": "5b65790d97caa413ed8bb81e1855f739402f010727515f6dfc11a4881c2747cd"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "PreparedProductTarget::field:profile#1",
+      "kind": "carried_record",
+      "meaning": "Optional deployment selected for the already checked source request.",
+      "producer": "compiler product target preparation",
+      "signature": "e03c7ec67e7b0c8c41c44278426449ef6d955d516bbd90dc0e090c05693b1f10"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "impl:PreparedProductTarget::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the PreparedProductTarget contract in compiler product target preparation.",
+      "producer": "compiler product target preparation",
+      "signature": "bbee37433cf89083d3e48e73c3dea51ca22baa3fda91ee55c56c581ba47f5def"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "impl:PreparedProductTarget::method:capture#1",
+      "kind": "host_operation",
+      "meaning": "Check the exact frozen source owner and request its complete provider demand before portable publication starts.",
+      "producer": "compiler product target preparation",
+      "signature": "e6c2842f273a2a3ac0c9d73b9c70f0b1bfe7c5ead7b20fc7e047fa5d41086ba7"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "struct:PreparedProductTarget#1",
+      "kind": "carried_record",
+      "meaning": "The chosen deployment and the source-issued facts prepared before publication.",
+      "producer": "compiler product target preparation",
+      "signature": "a7804c3f7e3d13f882aae51d21d1e0ee305cd9844680b2d95826514eba09f2d7"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the compiler product target preparation module.",
+      "producer": "compiler product target preparation",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "use:package_compilation :: PackageCompilationInputs#1",
+      "kind": "definition",
+      "meaning": "Bring the existing package_compilation::PackageCompilationInputs declarations into the compiler product target preparation module.",
+      "producer": "compiler product target preparation",
+      "signature": "c12bd937b28f70befa4113e135dbf2f148a93a43ea1bdb22f2bc390eee08c3db"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "use:products :: CheckedProductSource#1",
+      "kind": "definition",
+      "meaning": "Bring the existing products::CheckedProductSource declarations into the compiler product target preparation module.",
+      "producer": "compiler product target preparation",
+      "signature": "40fb7bbb5c4530a9ac884984307f97819f656713e446323945c716287dda7513"
+    },
+    {
+      "consumers": [
+        "compiler execution settlement",
+        "single and batch product entry points"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "use:source_compiler :: provider_supply :: { SourceProviderDemand , SourceProviderFacts }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing source_compiler::provider_supply::{ SourceProviderDemand , SourceProviderFacts } declarations into the compiler product target preparation module.",
+      "producer": "compiler product target preparation",
+      "signature": "9a061d738ece9b326f89d3e62f6885fd6e4ada68587651af652153d2db6e79db"
+    },
+    {
+      "consumers": [
         "source checking",
         "target product batch",
         "checked compilation"
@@ -236,16 +344,15 @@
     },
     {
       "consumers": [
-        "source checking",
-        "target product batch",
-        "checked compilation"
+        "checked compilation",
+        "executable target planning"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
       "item": "function:settle_execution#1",
-      "kind": "producer",
-      "meaning": "Issue portable demand and the immutable source/entry projections before selecting the target\u2019s native providers.",
-      "producer": "compiler target settlement",
-      "signature": "5769658052ff64d412ad3dc1983988361147e3f2260240c5c9d9c1f29d882141"
+      "kind": "host_operation",
+      "meaning": "Publish the already completed source target demand and entry metadata, then dispatch one native provider selection.",
+      "producer": "compiler selected product coordination",
+      "signature": "26e97667fe3883d0e19ce8d18b4e496e2e3428de948955eff4836c8760080a7f"
     },
     {
       "consumers": [
@@ -275,16 +382,15 @@
     },
     {
       "consumers": [
-        "source checking",
-        "target product batch",
-        "checked compilation"
+        "checked compilation",
+        "executable target planning"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
       "item": "impl:SelectedProductTarget::implementation#1",
       "kind": "definition",
-      "meaning": "Group the checked operations and read-only accessors declared for SelectedProductTarget.",
-      "producer": "compiler target settlement",
-      "signature": "f313e2e6a0d4a05ca5f7d7db5eec5f191b0817051b692b138e5f750178480e93"
+      "meaning": "Methods for the SelectedProductTarget contract in compiler selected product coordination.",
+      "producer": "compiler selected product coordination",
+      "signature": "fa868876fa2e900869fc254269c3c14f3abe20c39d0b961b9b828de46a7169c9"
     },
     {
       "consumers": [
@@ -327,16 +433,15 @@
     },
     {
       "consumers": [
-        "source checking",
-        "target product batch",
-        "checked compilation"
+        "checked compilation",
+        "executable target planning"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
       "item": "impl:SelectedProductTarget::method:select#1",
-      "kind": "producer",
-      "meaning": "Capture published source, metadata and native provider supply for a prepared target.",
-      "producer": "compiler target settlement",
-      "signature": "927f8d3ce30785e43fd669d00b56a99d3761da717b0d8f0fedac4f223f58be7d"
+      "kind": "host_operation",
+      "meaning": "Consume the prepared source provider demand, expose published inputs and set up target-specific checked product custody.",
+      "producer": "compiler selected product coordination",
+      "signature": "df819fb823475ede34f7489d9cf5f68806a817ec7f21846b7b0e6a16bad65b5a"
     },
     {
       "consumers": [
@@ -488,9 +593,9 @@
       "file": "omega-rust/omega/compilation/compiler/src/terminal/program_entry.rs",
       "item": "function:prepare_program_entry#1",
       "kind": "producer",
-      "meaning": "Attach the receipt for the exact published nominal root and selected program entry to this effective artifact.",
+      "meaning": "Reads the checked nomination from the frozen target and binds its root and signature to the published executable program.",
       "producer": "compiler entry preparation",
-      "signature": "02450cfdadfc3ed494bb399b01351077cbb04680082c284a63f586b7356d471a"
+      "signature": "41a6a3c6bbb63b85f5438a3d9360351816b244b346aad666b234db8692af1699"
     },
     {
       "consumers": [
@@ -539,6 +644,50 @@
       "meaning": "Name the terminal_installation::application::{ProducedTerminalApplication, TerminalApplicationCustody, TerminalCompositionRoots,} interface used by this ownership boundary.",
       "producer": "compiler entry preparation",
       "signature": "a1b3a40fc3dbd18c9f24b01aafd23b7f35f676dff4d7528b2097e1eeb40dbdc0"
+    },
+    {
+      "consumers": [
+        "explicit native provider input inspection"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs",
+      "item": "function:prepare_provider_execution_inputs#1",
+      "kind": "host_operation",
+      "meaning": "Explicit inspection obtains source-issued reached binding identities, publishes their portable origins and invokes native target planning.",
+      "producer": "compiler provider inspection",
+      "signature": "3c00ec329c9fb6fbe27279638e898b9ed8e5117ee255284d2d06286ae2a048bc"
+    },
+    {
+      "consumers": [
+        "explicit native provider input inspection"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the compiler provider inspection module.",
+      "producer": "compiler provider inspection",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "explicit native provider input inspection"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs",
+      "item": "use:semantic_vocabulary :: BoundaryMachineId#1",
+      "kind": "definition",
+      "meaning": "Bring the existing semantic_vocabulary::BoundaryMachineId declarations into the compiler provider inspection module.",
+      "producer": "compiler provider inspection",
+      "signature": "e824dbbdb4fc108cf1632e5f1075f01cb824c28c2c2486c012523da2238fb328"
+    },
+    {
+      "consumers": [
+        "explicit native provider input inspection"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs",
+      "item": "use:source_compiler :: SourcePublication#1",
+      "kind": "definition",
+      "meaning": "Bring the existing source_compiler::SourcePublication declarations into the compiler provider inspection module.",
+      "producer": "compiler provider inspection",
+      "signature": "11926903d9a47ad2ca2d311ef18f50e873cd33890279bf2db848a68519128801"
     },
     {
       "consumers": [
@@ -1013,9 +1162,9 @@
       "file": "omega-rust/omega/compilation/native-compiler/src/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::implementation#1",
       "kind": "definition",
-      "meaning": "Entry operations available at the native compiler boundary.",
+      "meaning": "Rejoins the frozen entry nomination to its original program identity, the effective executable artifact and the selected deployment target.",
       "producer": "native compiler",
-      "signature": "3f57e82ef0b6d4babc9c676b7f20be955930b91572e1820e13b1e8ad98f2bb36"
+      "signature": "e5cebad94f5a80801e480373bc2f4a486a24603fb5dfb817dfacebba4908ac2b"
     },
     {
       "consumers": [
@@ -1037,9 +1186,9 @@
       "file": "omega-rust/omega/compilation/native-compiler/src/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:for_program#1",
       "kind": "checker",
-      "meaning": "Verify the executable identity, original nomination and target profile before reading an entry.",
+      "meaning": "Rejoins the frozen entry nomination to its original program identity, the effective executable artifact and the selected deployment target.",
       "producer": "native compiler",
-      "signature": "d0b2efa55494e4ea5906bfbbb546ebbe1b4d8f031a9aceafb95ac85b31977a64"
+      "signature": "52315758a6fbd8df2ca94c33088426b0588b16782d712f9b37214e498f5e46ee"
     },
     {
       "consumers": [
@@ -1182,7 +1331,7 @@
       "kind": "producer",
       "meaning": "Dispatch the published demand to scoped or unscoped planning and report the original source boundary in a missing-supply diagnostic.",
       "producer": "native compiler driver",
-      "signature": "a38654b55a1b381af6984a1d8c755c4b3bb36d3fd3c6ea3fc95942a3afa80960"
+      "signature": "05a681d600a063d3c60c1f7e6b6f84f9b4f4d56d84eb570483408588ffa8a3ab"
     },
     {
       "consumers": [
@@ -1223,11 +1372,11 @@
         "checked and published compilations"
       ],
       "file": "omega-rust/omega/compilation/native-compiler/src/provider_selection.rs",
-      "item": "use:native_program_planning :: { SelectedExecution , SelectedProviderRealization , SelectedProviderResult }#1",
+      "item": "use:native_program_planning :: { SelectedExecution , SelectedProviderRealization , SelectedProviderResult , }#1",
       "kind": "definition",
       "meaning": "Expose the driver-owned selector and its frozen provider result and realization to the coordinator and products.",
       "producer": "native compiler driver",
-      "signature": "7e4633155667d65e07ceb861693f6a3348851a467dbf3b828b86c39c8a524dfe"
+      "signature": "0ca6c537e4b65bb32721888f72418f97a14eb30560b6c64335bc3e749a5054f0"
     },
     {
       "consumers": [
@@ -1751,14 +1900,15 @@
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "function:capture_origins#1",
       "kind": "producer",
-      "meaning": "Resolve reached Build binding occurrences, source schema custody and package authority against the accepted source.",
+      "meaning": "Attach the source-issued native binding materializations, canonical schema custody and package permissions to the portable artifact.",
       "producer": "02 portable publication",
-      "signature": "ed264715399e85e6ffe58b24dfa42e042785312dc6292f35df234d2a4807379c"
+      "signature": "fe7a1aa8712991d9b6085565511cf24c4aece438496d114a092a62ad81fdef23"
     },
     {
       "consumers": [
@@ -1773,102 +1923,109 @@
     },
     {
       "consumers": [
-        "native_compiler::select_published_providers",
-        "03 published target planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "impl:ProductCodeSource < '_ >::implementation#1",
       "kind": "definition",
-      "meaning": "Group the checked operations and read-only accessors declared for ProductCodeSource.",
+      "meaning": "Methods for the ProductCodeSource < '_ > contract in 02 portable publication.",
       "producer": "02 portable publication",
-      "signature": "aceab7d87061a0851a2347f97ef3821da36e8d37c24dbaf9d087e5fd2be26b69"
+      "signature": "f82c2c9242effc3e3c6ecb4b2a126bf9b9e135e05995c65b7db9d00704bda6bb"
     },
     {
       "consumers": [
-        "native_compiler::select_published_providers",
-        "03 published target planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "impl:ProductCodeSource < '_ >::method:publish_provider_demand#1",
       "kind": "producer",
-      "meaning": "Publish unscoped roots or the exact logical bodies, scalar entry reach and separate native-input and review inventories for the target.",
+      "meaning": "Authenticate the stage-01 facts and publish their canonical program, exact bodies and scalar reach for stage-03 target planning.",
       "producer": "02 portable publication",
-      "signature": "a75cc73091e5d439a6bc19aa87992e91c971169cd60a073f1a8c309518d6ff48"
+      "signature": "e7ccf8e02db3e3b962152a0ab3e5052fe29559cad0d8cea7679da3f93af2000b"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "impl:ProductCodeSource < '_ >::method:publish_provider_origins#1",
       "kind": "producer",
-      "meaning": "Publish the selected binding and policy evidence for explicit input inspection.",
+      "meaning": "Project the already issued source bindings, package permissions and canonical schema for explicit inspection.",
       "producer": "02 portable publication",
-      "signature": "f27a236d18e7e3efbeb5d0b940b7c5afccf9dfbad382d2f14cf05d5ce96b8a7c"
+      "signature": "6d63ca673ea867df7dd715740f9eb60e548d74826d8baf9502e34c29ca4455ba"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "use:backend_plan :: { ProviderExecutionOrigins , PublishedProviderDemand }#1",
       "kind": "definition",
-      "meaning": "Uses backend_plan::{ ProviderExecutionOrigins , PublishedProviderDemand } in this boundary operation.",
+      "meaning": "Bring the existing backend_plan::{ ProviderExecutionOrigins , PublishedProviderDemand } declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
       "signature": "bd38581951fa1e5327f696a478cf63368e2b8e5a6a5e6066d156fa8d8ee8320f"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
-      "meaning": "Uses diagnostics::Diagnostic in this boundary operation.",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
       "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
-      "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId }#1",
+      "item": "use:source_compiler :: provider_supply :: { SourceNativeBinding , SourceProviderDemand , SourceProviderFacts , }#1",
       "kind": "definition",
-      "meaning": "Uses semantic_vocabulary::{ BoundaryMachineId , MachineId } in this boundary operation.",
+      "meaning": "Bring the existing source_compiler::provider_supply::{ SourceNativeBinding , SourceProviderDemand , SourceProviderFacts , } declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
-      "signature": "592c71005520c04a0addd7e1d117e2431aad411ed4dba1ea72affa1be1694096"
+      "signature": "946824c904465ebe27b3c7977403d09fb3a220c14e24006a77b4379d1008c159"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
-      "item": "use:source_compiler :: { AcceptedTerminalSource , PortableTerminalProgram , PsiCompilationObserver }#1",
+      "item": "use:source_compiler :: { PortableTerminalProgram , PsiCompilationObserver }#1",
       "kind": "definition",
-      "meaning": "Uses source_compiler::{ AcceptedTerminalSource , PortableTerminalProgram , PsiCompilationObserver } in this boundary operation.",
+      "meaning": "Bring the existing source_compiler::{ PortableTerminalProgram , PsiCompilationObserver } declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
-      "signature": "52b65a2319573d7c9435880702d0ecb1cf347db53f396f239bd04985f2a1e381"
+      "signature": "7a5bfabf782ad0386fd0d1e1d0b644b35a4f00855422936214125ca92285b70d"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
-      "meaning": "Uses std::sync::Arc in this boundary operation.",
+      "meaning": "Bring the existing std::sync::Arc declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
       "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
     },
     {
       "consumers": [
-        "03 native program planning"
+        "03 published target planning",
+        "explicit provider input inspection"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs",
       "item": "use:super :: ProductCodeSource#1",
       "kind": "definition",
-      "meaning": "Uses super::ProductCodeSource in this boundary operation.",
+      "meaning": "Bring the existing super::ProductCodeSource declarations into the 02 portable publication module.",
       "producer": "02 portable publication",
       "signature": "45c5d5ff21f59e9ee6c936c00558517ead7770064aa34b7b3b2cc580f4dd5cc2"
     },
@@ -1996,7 +2153,7 @@
       "kind": "producer",
       "meaning": "Reuses completed defaults only for the same target, full artifact manifest, boundary and binding receipt. Otherwise verifies the declared ABI and evaluates the actual native mechanism\u2019s default policy.",
       "producer": "03 native and component calling planning",
-      "signature": "d12e75a0928f3650bb09d9377f01ca285782fd5eca9ea8803a54db3e9dffa4d2"
+      "signature": "f04cf35645b47a3ae1e7acfe67a563fdfe3f30dd7cc2283f8bc31076fe469b73"
     },
     {
       "consumers": [
@@ -2020,7 +2177,7 @@
       "kind": "checker",
       "meaning": "Validates the provider row, original requirement, inherited receiver, declaration ABI, policy report and commitment against each explicit selected calling application. Retains eligible default ABI keys as a separate result.",
       "producer": "03 native and component calling planning",
-      "signature": "e1bc2077cfdbb63b26aa88f5cb9d177a628a40f2a0593789445c15fd50e16b52"
+      "signature": "aa973aceeb1ebd0d2df04805a96fdd69805095a64967e787b29dd454bba0e379"
     },
     {
       "consumers": [
@@ -3677,7 +3834,7 @@
       "kind": "producer",
       "meaning": "Admit native supply, bind installation requirements and verify the exact target fold against selected plans.",
       "producer": "03 native provider admission",
-      "signature": "2e6381868959887dcd453863abefbe8a4c078617960b99518323bbf04e0dfe90"
+      "signature": "1bfade48de0b669f607adb87e88efdacfa80a1c758d3e1cf44c33666332774a2"
     },
     {
       "consumers": [
@@ -3703,7 +3860,7 @@
       "kind": "producer",
       "meaning": "Admit native requirement plans, candidate and calling receipts, installed permissions and row execution evidence against the exact source and target.",
       "producer": "03 native provider admission",
-      "signature": "1112b675bbd4d9701985039a572392451aab3dbaa1a1cf9d07d03dad5ab2e327"
+      "signature": "ff77a69cb4f68151dd403a2a2dca418c00dd0048fa8f89ae1acf91d7cbb31dc2"
     },
     {
       "consumers": [
@@ -3729,7 +3886,7 @@
       "kind": "producer",
       "meaning": "Issue an empty supply roster tied to this canonical program and optional deployment.",
       "producer": "03 native provider admission",
-      "signature": "bea2c1777dbb0a67c11915f38f2ee6cad0c788bfc21f64cc1dbfcb34c7f99288"
+      "signature": "9157081ee108ed8443e30bacc6c6817832cb902eb2ce9805f1da97c1abf12ab2"
     },
     {
       "consumers": [
@@ -3742,7 +3899,7 @@
       "kind": "checker",
       "meaning": "Verify original code identity and reproduce the exact nonempty selected dependency table before attaching received folded code.",
       "producer": "03 native provider admission",
-      "signature": "c50976c423ad4934f9f90a140a167037999a852a1b1c33d19c87a2cc3c2e9f40"
+      "signature": "fb1064b934d0f5e84e2feb79e187430f05f847e9cf2760bc89d00aa9350e2102"
     },
     {
       "consumers": [
@@ -3755,7 +3912,7 @@
       "kind": "producer",
       "meaning": "Close installation reach over the selected plan facts only after verifying the canonical input identity.",
       "producer": "03 native provider admission",
-      "signature": "623c56f4f3bdc0cdd577848e9ff0ffcb1d944794a33ff7d2cbdffb03822f93a1"
+      "signature": "94e76a40767a287a96ac011f14e0521af38ee270fea4d26796896f67209e88d8"
     },
     {
       "consumers": [
@@ -3794,7 +3951,7 @@
       "kind": "carried_record",
       "meaning": "Inspect the retained program identity, selected rows, placements and permission evidence.",
       "producer": "03 native provider admission",
-      "signature": "281d6d214bcc1c82241d18fd066dcb078fb594f3fa6c6ccf53164168ff72cb45"
+      "signature": "283d4e9e1f113227be440d5697524599c2145280460196b4600df8d0799b37d8"
     },
     {
       "consumers": [
@@ -3924,7 +4081,7 @@
       "kind": "checker",
       "meaning": "Reject a realization when its admitted semantic program identity differs from the supplied identity.",
       "producer": "03 native provider admission",
-      "signature": "8fb7198137a1b3e7bf5c71d1538083f4178469dd715faa471c864179131931e9"
+      "signature": "53e0b8f4e10fce6a963d75f0f3c94ca71612dc804b6e0c597a19b922993a16a9"
     },
     {
       "consumers": [
@@ -5448,18 +5605,6 @@
     },
     {
       "consumers": [
-        "09 object and image correspondence",
-        "published-object verification"
-      ],
-      "file": "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
-      "item": "TargetOperationsForReplay::field:origin#1",
-      "kind": "carried_record",
-      "meaning": "Private per-issuance marker shared with the actual semantic facts entering the physical and object pipeline.",
-      "producer": "03 native program planning",
-      "signature": "88582d1be2e94b214ed133db2d794413f16ada22db19745260e39b68916553e7"
-    },
-    {
-      "consumers": [
         "published-object verification"
       ],
       "file": "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
@@ -5540,18 +5685,6 @@
       "meaning": "Checks both the unique issuance shared with the frozen originals and the entire received semantic publication. Changed records and equal-looking independent compilations cannot substitute their replay evidence.",
       "producer": "03 native program planning",
       "signature": "0e8ef4cf73102b5574bae0306e6d7c08bab43d0b5f16d0193d79d413d6a67008"
-    },
-    {
-      "consumers": [
-        "09 object and image correspondence",
-        "published-object verification"
-      ],
-      "file": "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
-      "item": "impl:RetainedTargetOperations::method:target#1",
-      "kind": "definition",
-      "meaning": "Provides read-only access to the frozen target audit record that accompanies the retained object.",
-      "producer": "03 native program planning",
-      "signature": "f4797da681184309f258a0da88a8ed1741f956958fab1912fc7db9b835de9028"
     },
     {
       "consumers": [
@@ -10946,7 +11079,7 @@
       "kind": "checker",
       "meaning": "Authenticate selecting declaration, provider, callable and package coordinates before returning candidate positions.",
       "producer": "provider plan correspondence",
-      "signature": "a5bd6fab1e1881e07c7fb5fa9010f8a5702e093ab05f88fbdbb18ab4da32e3d7"
+      "signature": "c14f7235106b55fb752172c890c45a58f62f72e9acc1d0399f493eee93740bad"
     },
     {
       "consumers": [
@@ -11109,11 +11242,11 @@
         "received provider installation and package admission"
       ],
       "file": "omega-rust/omega/compilation/representations/provider-plans/src/target_providers.rs",
-      "item": "selected_provider_candidate_rows::use:terminal_semantics :: provider_candidates :: { CheckedProviderQuery , CheckedProviderRow , selected_candidate_positions }#1",
+      "item": "selected_provider_candidate_rows::use:terminal_semantics :: provider_candidates :: { CheckedProviderQuery , CheckedProviderRow , selected_candidate_positions , }#1",
       "kind": "definition",
       "meaning": "Name the terminal_semantics::provider_candidates::{CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions} interface used by this ownership boundary.",
       "producer": "provider plan correspondence",
-      "signature": "f81f61e89b0b637dae4ba13d9e9aea0e4f8aef44bc7cbd42410a12ed71995cd4"
+      "signature": "720f9b6dfc4aea9ae53f95f23049d34f865a750d28fa4177ff8d81f0dd84cd12"
     },
     {
       "consumers": [
@@ -11825,6 +11958,1398 @@
     },
     {
       "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "ClosedLogicalProviderReach::field:bindings#1",
+      "kind": "carried_record",
+      "meaning": "The source-bound native materializations or checked body associations carried by this owner.",
+      "producer": "01 source compilation",
+      "signature": "1a8a0a2bc919ba42ec4c9d2270801005267fc56cd925a486f3b1dbb4bf58181e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "ClosedLogicalProviderReach::field:selection#1",
+      "kind": "carried_record",
+      "meaning": "The recorded canonical source choice of a logical or declared provider.",
+      "producer": "01 source compilation",
+      "signature": "362d7596e3ce1dcaf9b26a741bb550907e535594a6a420944f9d465ca8cb0579"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "DemandedRequirement::field:reached#1",
+      "kind": "carried_record",
+      "meaning": "The declared boundary requirement actually reached by the target request.",
+      "producer": "01 source compilation",
+      "signature": "d7398db7e3ad7fe5a703adf70fb9a86bc90ef174fd14dc1b93975ea8bf6e61a0"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "DemandedRequirement::field:realization#1",
+      "kind": "carried_record",
+      "meaning": "The exact selected source implementation machine when the supply has a source body.",
+      "producer": "01 source compilation",
+      "signature": "f9611ecef17ea6486bdf3a510a5b5b3c6c7f5308fffdf6f21d880c969151e1f7"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "DemandedRequirement::field:supplies#1",
+      "kind": "carried_record",
+      "meaning": "Declared target-specific candidate supplies for this reached requirement.",
+      "producer": "01 source compilation",
+      "signature": "cd56b24affa8779d263e471337e4d681d4e5b522cef0a2bb6aa1a4b43958ab89"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "JudgedProvider::field:machine#1",
+      "kind": "carried_record",
+      "meaning": "Checked implementation machine associated with this exact requirement.",
+      "producer": "01 source compilation",
+      "signature": "ce249d1ac1f414564900d7a3f479d62403ba2c1b923ae542d8c58af09958ff4c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "JudgedProvider::field:provider#1",
+      "kind": "carried_record",
+      "meaning": "Actual provider declaration in the accepted source.",
+      "producer": "01 source compilation",
+      "signature": "5372685be5237d4076834489ae03f287f2d64ef3e56d99302b5917b4c898e244"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "JudgedProvider::field:requirement#1",
+      "kind": "carried_record",
+      "meaning": "The requirement declaration of the accepted source judged for its provider.",
+      "producer": "01 source compilation",
+      "signature": "a4ca06c0c4a9d897f3f58e2b83281bc0a5ebc9a8607d1de5ca1915bf2a9b6471"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "PreparedTargetSupply::field:requirements#1",
+      "kind": "carried_record",
+      "meaning": "The prepared or settled source requirements in the order captured by the owner.",
+      "producer": "01 source compilation",
+      "signature": "925676a652fb2c866b148dbad231061eac8c152d653d7045391b333976feb44c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "PreparedTargetSupply::field:target#1",
+      "kind": "carried_record",
+      "meaning": "Exact selected target, or absence of target on an unscoped request.",
+      "producer": "01 source compilation",
+      "signature": "34ca61bab1bc3362118565b01c17e90f56bb26080760ab5d59496ff114da7062"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "ProviderSupply::field:authority#1",
+      "kind": "carried_record",
+      "meaning": "Source role determining supply precedence among authored choices.",
+      "producer": "01 source compilation",
+      "signature": "debb43278674212c13df09cb7cfebb70ff900e6b5ea3f1faa4a5799566665cf3"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "ProviderSupply::field:selection#1",
+      "kind": "carried_record",
+      "meaning": "The recorded canonical source choice of a logical or declared provider.",
+      "producer": "01 source compilation",
+      "signature": "71b7fa4b69bb268cf36eb5c737c677e728dd0873453ff48c926af7a0d457e6dd"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SelectionDeclarationKey::Requirement::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Arena index of the exact source slot or requirement coordinate.",
+      "producer": "01 source compilation",
+      "signature": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SelectionDeclarationKey::Requirement::field:1#1",
+      "kind": "carried_record",
+      "meaning": "Generation of the exact source slot or requirement coordinate.",
+      "producer": "01 source compilation",
+      "signature": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SelectionDeclarationKey::Slot::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Arena index of the exact source slot or requirement coordinate.",
+      "producer": "01 source compilation",
+      "signature": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SelectionDeclarationKey::Slot::field:1#1",
+      "kind": "carried_record",
+      "meaning": "Generation of the exact source slot or requirement coordinate.",
+      "producer": "01 source compilation",
+      "signature": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SettledRequirement::field:reached#1",
+      "kind": "carried_record",
+      "meaning": "The declared boundary requirement actually reached by the target request.",
+      "producer": "01 source compilation",
+      "signature": "d7398db7e3ad7fe5a703adf70fb9a86bc90ef174fd14dc1b93975ea8bf6e61a0"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SettledRequirement::field:realization#1",
+      "kind": "carried_record",
+      "meaning": "The exact selected source implementation machine when the supply has a source body.",
+      "producer": "01 source compilation",
+      "signature": "abdec1ecf6f08c0dd9334a40e568343849a7092730fa21680c2514e1f797029b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SettledRequirement::field:supply#1",
+      "kind": "carried_record",
+      "meaning": "The unique supply settled for this reached source requirement.",
+      "producer": "01 source compilation",
+      "signature": "0d370bc277fa896a691ad542098ab1de72b95c7456b90b8b7bb536c02cafdc9f"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SettledTargetSupply::field:requirements#1",
+      "kind": "carried_record",
+      "meaning": "The prepared or settled source requirements in the order captured by the owner.",
+      "producer": "01 source compilation",
+      "signature": "b29dd299d63c1a2422d5f8974bbf04f33acd10976f28cc186ca02469f55f7aa1"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SettledTargetSupply::field:target#1",
+      "kind": "carried_record",
+      "meaning": "Exact selected target, or absence of target on an unscoped request.",
+      "producer": "01 source compilation",
+      "signature": "34ca61bab1bc3362118565b01c17e90f56bb26080760ab5d59496ff114da7062"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SupplySelection::Checked::field:0#1",
+      "kind": "carried_record",
+      "meaning": "The checked source provider selection.",
+      "producer": "01 source compilation",
+      "signature": "53e803f70d83f805c8fcca90fb6320132f4a013bfc5660e4b16fa92d7d89e2b3"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "SupplySelection::Native::field:0#1",
+      "kind": "carried_record",
+      "meaning": "The evaluated native Build supply.",
+      "producer": "01 source compilation",
+      "signature": "fa1e89fcef1ad6a7d778148fcbc0174b5ac6f38c2016903bd59fea2f424d6a3b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:build#1",
+      "kind": "carried_record",
+      "meaning": "The explicit source provider selections supplied by Build.",
+      "producer": "01 source compilation",
+      "signature": "e9c222bde73769f55ac079f7d061be1197b3de5e191635000b6b6e018de03c5b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:declared#1",
+      "kind": "carried_record",
+      "meaning": "The accepted source declaration roster against which Build selections resolve.",
+      "producer": "01 source compilation",
+      "signature": "fe20cbb23e54605afed9b85c2818a8d6ada19629dee58c5d438e4e2e683d8d6d"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:defaults#1",
+      "kind": "carried_record",
+      "meaning": "The target-package default provider selections.",
+      "producer": "01 source compilation",
+      "signature": "73a5661a46dd6249b497a5c3e31cd5062502ae12123502d3a9d86e835629df86"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:judged#1",
+      "kind": "carried_record",
+      "meaning": "Requirement and provider bodies already judged by the source owner.",
+      "producer": "01 source compilation",
+      "signature": "667fd748adfd579828dced17c1d26becf246bcf055f8ebf3b52b60f370ebea3b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:module#1",
+      "kind": "carried_record",
+      "meaning": "The accepted module whose real obligations are being inspected.",
+      "producer": "01 source compilation",
+      "signature": "0daa62027f1d2b8386b34f7a3535294e59aa5a356b8062a19f7a82da61f85936"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:native_bindings#1",
+      "kind": "carried_record",
+      "meaning": "Completed Build native bindings used as declared provider candidates.",
+      "producer": "01 source compilation",
+      "signature": "b8b5947e9d5fcfdd17d102b4362f5b74bbb958a0fe6341ef22e105c6a13e4aa8"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:numeric_support#1",
+      "kind": "carried_record",
+      "meaning": "Admitted numeric target capabilities used when checking source body requirements.",
+      "producer": "01 source compilation",
+      "signature": "3c8188a308662c7bb8a05c59746e65882474390edfddfe19e48f1c6c3aabd991"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:roots#1",
+      "kind": "carried_record",
+      "meaning": "The actual invocation roots from the source judgment and its entry roster.",
+      "producer": "01 source compilation",
+      "signature": "f9aea111c51b001d97b8dc7a0ecb109f726f41080db1844eaa779ef718e39278"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "TargetSupplyRequest::field:target#1",
+      "kind": "carried_record",
+      "meaning": "Exact selected target, or absence of target on an unscoped request.",
+      "producer": "01 source compilation",
+      "signature": "47f7c787c4292fea1e4cee3113112a51bb9d16c8ea84a7e47cf46aef560fc61e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "UnchosenSupply::Competing::field:0#1",
+      "kind": "carried_record",
+      "meaning": "The competing same-precedence candidates.",
+      "producer": "01 source compilation",
+      "signature": "f301c6ce5060eb3f2a2b0b833f064a1f595a68fd83e1767b686047b373ca06cb"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "enum:SelectionDeclarationKey#1",
+      "kind": "definition",
+      "meaning": "The exact slot or requirement declaration coordinates used to match explicit Build selections.",
+      "producer": "01 source compilation",
+      "signature": "650a0a17193411d81773646125b2fdca448e3efff1c2cb59c2870c7841e24c75"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "enum:SupplyAuthority#1",
+      "kind": "definition",
+      "meaning": "The source of a provider choice used to rank Build, native or target-default supplies.",
+      "producer": "01 source compilation",
+      "signature": "5949ecc4acab2694e0c1f07bb758e85ddd21dcb54cde3956b4eb4ec9413306bd"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "enum:SupplySelection#1",
+      "kind": "carried_record",
+      "meaning": "Either a checked source provider choice or its completed native binding.",
+      "producer": "01 source compilation",
+      "signature": "544016e9d9c36f540b1481bfba013196c7a4f3433db1f69a0e4518b105faecf2"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "enum:UnchosenSupply#1",
+      "kind": "carried_record",
+      "meaning": "The absent or competing candidate supplies returned by source choice checking.",
+      "producer": "01 source compilation",
+      "signature": "1b456efeebf71132ef51073098f9eabd324df4ee46081b0ea258463fc3fa1f7f"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:choose_supply#1",
+      "kind": "checker",
+      "meaning": "Apply Build/native/default precedence and report absent or competing choices.",
+      "producer": "01 source compilation",
+      "signature": "b745bef62f01c39e1155801c76e5803709b59f4b4cbc6054837f6edb13c3c7d3"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:explicit_build_requirements#1",
+      "kind": "producer",
+      "meaning": "Collect and order only requirements named by exact Build declaration coordinates for this deployment.",
+      "producer": "01 source compilation",
+      "signature": "75888311c7c4bfa5da8fbe9d98e243bb2c9f9008b9831faec8727c6137a4dfc7"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:is_direct_compiler_primitive#1",
+      "kind": "checker",
+      "meaning": "Identify a reached compiler primitive by its checked declaration and ABI.",
+      "producer": "01 source compilation",
+      "signature": "ff16ab3f223330e8d2e3b3f157f87b5b464278f3a563dccf217d25e35399a287"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:names_requirement#1",
+      "kind": "checker",
+      "meaning": "Compare a Build selection subject with the actual source requirement or its owning slot.",
+      "producer": "01 source compilation",
+      "signature": "117dc9449a3495c255c054dea416c2c9a49bac122265c7b1ebedfd756b383a6e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:refuse#1",
+      "kind": "host_operation",
+      "meaning": "Render the failure to plan an actual program obligation on the selected target.",
+      "producer": "01 source compilation",
+      "signature": "adf061207c106de33b7650f1585d1d31ccda5ece2e2744320aa7da6453ca79ea"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:require_numeric_support#1",
+      "kind": "checker",
+      "meaning": "Check the accepted numeric demand against its admitted source target capabilities.",
+      "producer": "01 source compilation",
+      "signature": "e92acd14ceef9d65c4d61cf42b8dc3ae15f995600cc55cc76d667ac5e37e2c72"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:selection_declarations#1",
+      "kind": "producer",
+      "meaning": "Project all declaration coordinates named by a checked Build selection for exact root matching.",
+      "producer": "01 source compilation",
+      "signature": "cdbda00d864f6568faafe5de6a4c6093d425bc6188bb89cf68d01bde59f3447a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:unplanned_boundary#1",
+      "kind": "checker",
+      "meaning": "Check whether the specific reached requirement needs a plan outside this route.",
+      "producer": "01 source compilation",
+      "signature": "c8cce6beef0f953f5378a6a19bbc7a3702ecfe3bd4d4cf47d2267d8de9c0c985"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "function:unplanned_demands#1",
+      "kind": "checker",
+      "meaning": "Identify demanded module features whose target supply has no supported planning route.",
+      "producer": "01 source compilation",
+      "signature": "1be42afc13353bb5282bfa78184ca3816ca89b4be0188b38e36229c37942535a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ClosedLogicalProviderReach::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the ClosedLogicalProviderReach contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "eef6a02f52c1cf2e13db275705ac789961b28ffe7570fc351f4fe8564f5ee5bd"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ClosedLogicalProviderReach::method:bindings#1",
+      "kind": "carried_record",
+      "meaning": "Borrow the chosen requirement-to-machine pairs without selecting a provider again.",
+      "producer": "01 source compilation",
+      "signature": "1a663f4fccc118fe48c27286bb86568d373aea9bdfdc85cced9fae3dec04dd6a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ClosedLogicalProviderReach::method:into_parts#1",
+      "kind": "carried_record",
+      "meaning": "Move out the completed logical selection and its exact requirement-to-body pairs.",
+      "producer": "01 source compilation",
+      "signature": "122a8f3a0ef7bcfb277fa39c47c9b3dc592039adddd2e023177af57d08362fa5"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ClosedLogicalProviderReach::method:requirements#1",
+      "kind": "carried_record",
+      "meaning": "Read the exact reached or settled requirements recorded by this owner.",
+      "producer": "01 source compilation",
+      "signature": "ef7239ded32c2c11b8256561025ecf368032e0bef3da4f7fc4f53653164b7741"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ClosedLogicalProviderReach::method:selection#1",
+      "kind": "carried_record",
+      "meaning": "Borrow the closed logical provider selection for this source judgment.",
+      "producer": "01 source compilation",
+      "signature": "6e10ae694fed555f79af2619114fe54dec2a85a2e08e8ddac6104735dcf8838a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:DemandedRequirement::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the DemandedRequirement contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "89edba8856c89dff02ee62dc3d76a7459d6f6f085621345d4bb340dfa253cb41"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:DemandedRequirement::method:chosen#1",
+      "kind": "carried_record",
+      "meaning": "Read the uniquely preferred declared supply for a reached requirement.",
+      "producer": "01 source compilation",
+      "signature": "0265cdaf2f3530e960b6b7a8504e79be0262f9ada7079101ac08ac225b392c48"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the PreparedTargetSupply contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "c0327ad8580eaa14db69b568fbb471492f92ca344cbb5f1165291661efe92ad6"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::implementation#2",
+      "kind": "definition",
+      "meaning": "Methods for the PreparedTargetSupply contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "da31759a5cec15f93877112c670805f685ffbea077e90c1af4af643ac534b6b0"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::method:demands_nothing#1",
+      "kind": "carried_record",
+      "meaning": "Read whether the prepared target has any reached provider obligations.",
+      "producer": "01 source compilation",
+      "signature": "9669839107653c1bc9290c8a4f6e3dc94f2452bb884d46a1534f8013257abad5"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::method:prepare#1",
+      "kind": "producer",
+      "meaning": "Collect declarations and target-scoped supply candidates for the prepared requirements.",
+      "producer": "01 source compilation",
+      "signature": "e4e115cfd705f6dc3fc2943459e8f9a1b0ac7a8df812c255ec362c928b33367e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::method:requirements#1",
+      "kind": "carried_record",
+      "meaning": "Read the exact reached or settled requirements recorded by this owner.",
+      "producer": "01 source compilation",
+      "signature": "af77d4926a80f179d362e3cb18ba1d0aa2944a3ec3f8e70a28ba590579312db5"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::method:settle#1",
+      "kind": "producer",
+      "meaning": "Check every reached requirement and issue the target-specific, settled source supply.",
+      "producer": "01 source compilation",
+      "signature": "ddcdc7c1b9f4391c2ff7c87b5aef94ed837dc599f01a641fbd62868ac4006225"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:PreparedTargetSupply::method:target#1",
+      "kind": "carried_record",
+      "meaning": "Read the deployment under which these source choices were prepared.",
+      "producer": "01 source compilation",
+      "signature": "6447e3a6e5d05f69d3e29950af230a8a97ccc2e9beebdfe72880cc1a6b89059a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ProviderSupply::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the ProviderSupply contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "ccad36bfe06e40cdf55558ea65d656c8ace5946ae529484e30d5eaaec7cf9d2c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ProviderSupply::method:checked#1",
+      "kind": "carried_record",
+      "meaning": "Read a checked source provider choice when this supply has a source implementation.",
+      "producer": "01 source compilation",
+      "signature": "a996f9371406ec5cc507a07803f5be4e7d33c151127302bd7428da4d7fb519cc"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:ProviderSupply::method:description#1",
+      "kind": "host_operation",
+      "meaning": "Render the declared source or native supply for a diagnostic.",
+      "producer": "01 source compilation",
+      "signature": "fc99c4ed5348463b6a21bbb65d8b826818c78c2d5b44fb7d815b558407ebb4cd"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SelectionDeclarationKey::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the SelectionDeclarationKey contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "6323851139934ba1a8ab4420978ce60166e7518ea86283427ca2879186f51371"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SelectionDeclarationKey::method:requirement#1",
+      "kind": "definition",
+      "meaning": "Construct the requirement variant from the exact source declaration index and generation.",
+      "producer": "01 source compilation",
+      "signature": "07a9ff8b3f01f48b08aea9f614cf2df02b91be9bf9ab7799844454ecf4b4726c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SelectionDeclarationKey::method:slot#1",
+      "kind": "definition",
+      "meaning": "Construct the slot variant from the exact source declaration index and generation.",
+      "producer": "01 source compilation",
+      "signature": "5c4e9f09e0bee36b8138d454fe33dc84e47d468338af1549136e7e67073b3ce0"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SettledTargetSupply::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the SettledTargetSupply contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "38c8b2dc99aa068a9a8e4b980a04f47854b39936ac5eaa5b3aaa45a36806458b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SettledTargetSupply::method:requirements#1",
+      "kind": "carried_record",
+      "meaning": "Read the exact reached or settled requirements recorded by this owner.",
+      "producer": "01 source compilation",
+      "signature": "f7b9cf31b11dcccbe3abd42ba2963178fb8a9ed0020931b4a6a023ec520ba8f2"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:SettledTargetSupply::method:target#1",
+      "kind": "carried_record",
+      "meaning": "Read the deployment under which these source choices were prepared.",
+      "producer": "01 source compilation",
+      "signature": "6447e3a6e5d05f69d3e29950af230a8a97ccc2e9beebdfe72880cc1a6b89059a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:crate :: AcceptedTerminalSource::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the crate::AcceptedTerminalSource contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "2ce0eb44cf99c376afd3fdedf45138171d52183148a7928f43d91520fccdb34e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "impl:crate :: AcceptedTerminalSource::method:close_logical_provider_reach#1",
+      "kind": "producer",
+      "meaning": "Follow actual source invocation roots through selected checked bodies until their exact logical roster closes.",
+      "producer": "01 source compilation",
+      "signature": "17200a677b4a3d8ced7700a08b87a97f73509020ad757ac5544278a62c68500a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "module:demand#1",
+      "kind": "definition",
+      "meaning": "Source-side closure of roots, chosen bodies and native binding occurrences.",
+      "producer": "01 source compilation",
+      "signature": "1a27890635a03e338efa591f5161a19b5709ac8868c2da545d5ac3309ae06c55"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "module:package_review#1",
+      "kind": "definition",
+      "meaning": "Review inventory of all target-authored package bindings and numeric obligations.",
+      "producer": "01 source compilation",
+      "signature": "a5e58042b12359e437b301f236e5181b241756a10692b5754400ea3b20a44b7f"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:ClosedLogicalProviderReach#1",
+      "kind": "carried_record",
+      "meaning": "The complete reached provider selection and chosen boundary-to-machine associations.",
+      "producer": "01 source compilation",
+      "signature": "2529024f4ca247c0cd39df69dd51f5b7a0bfad508e330304a2130b2bfa474302"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:DemandedRequirement#1",
+      "kind": "carried_record",
+      "meaning": "An actually reached boundary with its available supplies and optional judged body.",
+      "producer": "01 source compilation",
+      "signature": "6df458eb262b4defc6b93454e2e73cd24a72c10f078539f1cd525d115ec1ef33"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:JudgedProvider#1",
+      "kind": "carried_record",
+      "meaning": "A source provider, requirement and implementation coordinate judged together.",
+      "producer": "01 source compilation",
+      "signature": "45afa9ddc98eff6c370b02855dde3f939105639a92d8b64c30bbed80949c3f68"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:PreparedTargetSupply#1",
+      "kind": "carried_record",
+      "meaning": "The collected obligations and supplies for source-level target inspection.",
+      "producer": "01 source compilation",
+      "signature": "89a23f4bfee6b92d3533cf5ec73ee2c2eb5de44a3abfb656b0b5457c678acb53"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:ProviderSupply#1",
+      "kind": "carried_record",
+      "meaning": "The declared choice for a requirement together with its supplying authority.",
+      "producer": "01 source compilation",
+      "signature": "0f8bfb606d1a835726b2fcab4db3c57f906aeb10f93d234eec3ff44d1fc5eb8c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:SettledRequirement#1",
+      "kind": "carried_record",
+      "meaning": "The one source-level supply chosen for a reached requirement.",
+      "producer": "01 source compilation",
+      "signature": "18e24b3943cc6ce2b91ef457bcc3270cd70e0406cd5dfe2f6331b1a60e54fe60"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:SettledTargetSupply#1",
+      "kind": "carried_record",
+      "meaning": "Complete, target-specific source requirement allocation.",
+      "producer": "01 source compilation",
+      "signature": "51385021da7862dece599307e983f705c7677a8aeb2b20c487b2427a0ca3834d"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "struct:TargetSupplyRequest#1",
+      "kind": "carried_record",
+      "meaning": "Inputs needed to inspect one source-level target supply, including exact roots and selections.",
+      "producer": "01 source compilation",
+      "signature": "af4bd4708845b0a5a885d0681d5ba051146bc088dc43140ee2bc6f1bdc7fe1c3"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:crate :: DeclaredBoundaryRequirement as ReachedBoundaryRequirement#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::DeclaredBoundaryRequirement as ReachedBoundaryRequirement declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "085cd9d5db83681769ae514579eba6927c022401e4c41504a05e99f552ae2487"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:crate :: provider_choice_inputs :: ProviderSelection#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::provider_choice_inputs::ProviderSelection declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "e33acaf8ee6bcb5c0c5ba7052b99fb0610f960bda735485d9dbedd208dbdf85d"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:crate :: provider_choice_inputs :: ProviderSelectionSubject#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::provider_choice_inputs::ProviderSelectionSubject declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "3b59d0ef9424caa9466ae3f6b9b812ca32bf9aaf907bacd2f2f669bd48df24b9"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:crate :: provider_choice_inputs :: TargetProviderDefaults#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::provider_choice_inputs::TargetProviderDefaults declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "f74f1b862642d1041a19c1059c67aa4459f13f4b684160b5b97a4f0069f9358d"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:demand :: { SourceNativeBinding , SourceProviderDemand , SourceProviderFacts }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing demand::{ SourceNativeBinding , SourceProviderDemand , SourceProviderFacts } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "fb44dcbfda22eee6af6a6fc0a01b563fb1c8edc0a77ee13e78819749016962d4"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:package_review :: SourcePackageReviewRequirements#1",
+      "kind": "definition",
+      "meaning": "Bring the existing package_review::SourcePackageReviewRequirements declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "9654109614153111010d54fdfe2dc8c08ad8860819247b85cda3efff2cba6df1"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing semantic_vocabulary::{ BoundaryMachineId , MachineId } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "592c71005520c04a0addd7e1d117e2431aad411ed4dba1ea72affa1be1694096"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs",
+      "item": "use:terminal_psi :: TerminalModule#1",
+      "kind": "definition",
+      "meaning": "Bring the existing terminal_psi::TerminalModule declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "e82b15bbd1598ad59242c887e5dce4f36c7f0355f2726cc7ea71e1e377ec15df"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderDemand::Target::field:bindings#1",
+      "kind": "carried_record",
+      "meaning": "The source-bound native materializations or checked body associations carried by this owner.",
+      "producer": "01 source compilation",
+      "signature": "855bc6ffd36e3cbaf7da245d757a160dad0894a5fed60148767ee0300598712e"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderDemand::Target::field:closed#1",
+      "kind": "carried_record",
+      "meaning": "The logical requirement-to-checked-body selections which are complete before portable publication.",
+      "producer": "01 source compilation",
+      "signature": "1c2d41e2a0cce721f503f3ca584dc5d43020ec6ac66f917586e0d883b7e50811"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderDemand::Target::field:labels#1",
+      "kind": "carried_record",
+      "meaning": "Boundary coordinates paired with their source names for native refusal diagnostics.",
+      "producer": "01 source compilation",
+      "signature": "93e654a4da996675fec39d67bf9ec3ecc7a2d1f45ffe5a0c084102cb8ea216e4"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderDemand::Target::field:review#1",
+      "kind": "carried_record",
+      "meaning": "Source-owned numeric and declared native binding inventory reserved for package review.",
+      "producer": "01 source compilation",
+      "signature": "73a50394e4a1884bc261a81b7316932696a7de07afdbe9cf8e72070e979b8570"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderDemand::Unscoped::field:roots#1",
+      "kind": "carried_record",
+      "meaning": "The actual invocation roots from the source judgment and its entry roster.",
+      "producer": "01 source compilation",
+      "signature": "42c249411ba945b8e1a4ce8715046bac806f274239076baf7d290ab3d7e74d4e"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderFacts::field:facts#1",
+      "kind": "carried_record",
+      "meaning": "The completed source-specific result. Receipt fields cannot be independently supplied.",
+      "producer": "01 source compilation",
+      "signature": "e8a72810288c5b072308a451468454f4666445a1eacb49f1744ea857c02d9580"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderFacts::field:issuer#1",
+      "kind": "carried_record",
+      "meaning": "Weak pointer to the unique accepted source judgment which issued these facts.",
+      "producer": "01 source compilation",
+      "signature": "699c87df3aa637c460073b5f2cc0c3823f78ff7840286fe9a1cee27d54e371c2"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "SourceProviderFacts::field:target#1",
+      "kind": "carried_record",
+      "meaning": "Exact selected target, or absence of target on an unscoped request.",
+      "producer": "01 source compilation",
+      "signature": "34ca61bab1bc3362118565b01c17e90f56bb26080760ab5d59496ff114da7062"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "alias:SourceNativeBinding#1",
+      "kind": "carried_record",
+      "meaning": "One exact source requirement and native materialization, or its source-specific refusal.",
+      "producer": "01 source compilation",
+      "signature": "e34ae9af3568f9b84a213a46e43673f51bb2d731104acb3f5f2f561e98a156f8"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "enum:SourceProviderDemand#1",
+      "kind": "carried_record",
+      "meaning": "Exact unscoped roots or closed target choices and review data carried to portable publication.",
+      "producer": "01 source compilation",
+      "signature": "5ca0ef41fbcd5a82cde7cad75a433d01321d3ffb79cd3722702877da4745b904"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:AcceptedTerminalSource::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the AcceptedTerminalSource contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "db3984c86cc38b705b9fad8a087805a9bfd49544157687453ad1273697b96328"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:AcceptedTerminalSource::method:reached_native_bindings#1",
+      "kind": "producer",
+      "meaning": "Join only executed Build supplies for the selected target to a unique reached source requirement, preserving exact materializations and retained refusals.",
+      "producer": "01 source compilation",
+      "signature": "242466dba5addda4e789f9d74575dddab4bb5c7ff5473707ed325aed5590c9fb"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourceProviderFacts < T >::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the SourceProviderFacts < T > contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "a4fdf7c97996227a59b555d555b94d831d0a89579b515faecae3c9c8d7e5168e"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourceProviderFacts < T >::method:new#1",
+      "kind": "producer",
+      "meaning": "Issue provider facts from their exact source owner and deployment.",
+      "producer": "01 source compilation",
+      "signature": "22fc3772635220812b9106696da2082544f5cb374bf012536ee636d52834220a"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourceProviderFacts < T >::method:receive#1",
+      "kind": "checker",
+      "meaning": "Authenticate the exact source judgment and requested deployment before transferring the completed source facts.",
+      "producer": "01 source compilation",
+      "signature": "e6b41c56cd706bc5e37f9d7624dea2e044eecf1208ba64dc145b822f1906c461"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourcePublication::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "28221d8521987557f2890083debe4d8f7f06439a2e5d832cd45ad99afc7d32ab"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourcePublication::method:prepare_provider_bindings#1",
+      "kind": "producer",
+      "meaning": "Resolve and seal the exact native binding occurrences requested by an explicit inspection.",
+      "producer": "01 source compilation",
+      "signature": "844665b33d248d2594c8bb849a7ad272e51795977623610413485514b44f79d0"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "impl:SourcePublication::method:prepare_provider_demand#1",
+      "kind": "producer",
+      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Folded scalar and ABI planning consume these choices later.",
+      "producer": "01 source compilation",
+      "signature": "e4619fa027700a6ea7a68586831dc8c149c21678bc37b2cf36a0791bf2a10b9f"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "struct:SourceProviderFacts#1",
+      "kind": "carried_record",
+      "meaning": "Source-owned custody of fully resolved facts for one judgment and target.",
+      "producer": "01 source compilation",
+      "signature": "2a0aecff502ecda3698e259a6689076b6a048df277ff6f463719ddbb064a3632"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:crate :: provider_choice_inputs :: ProviderSelection#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::provider_choice_inputs::ProviderSelection declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "e33acaf8ee6bcb5c0c5ba7052b99fb0610f960bda735485d9dbedd208dbdf85d"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:crate :: { AcceptedTerminalSource , SourcePublication }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::{ AcceptedTerminalSource , SourcePublication } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "d3b458dffeb70050d704d9041504beb702e15df9ad9a33778635bcc81a12cc2e"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:provider_choices :: NativeBuildSupply#1",
+      "kind": "definition",
+      "meaning": "Bring the existing provider_choices::NativeBuildSupply declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "3a516f7a16535c92f2324684bc537d9f3982281d33b56392f02de5a658d0bc5e"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing semantic_vocabulary::{ BoundaryMachineId , MachineId } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "592c71005520c04a0addd7e1d117e2431aad411ed4dba1ea72affa1be1694096"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:std :: sync :: { Arc , Weak }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing std::sync::{ Arc , Weak } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "4f1dfa53202e189c7945ffdfa67213cba8cf7b3f39383f02bc7e8447bbe42432"
+    },
+    {
+      "consumers": [
+        "02 portable publication",
+        "explicit provider input inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs",
+      "item": "use:super :: { ClosedLogicalProviderReach , SourcePackageReviewRequirements , explicit_build_requirements , }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing super::{ ClosedLogicalProviderReach , SourcePackageReviewRequirements , explicit_build_requirements , } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "6441502436567fea88f769401210b96f9ee88a60461697b8c2785882edfb187c"
+    },
+    {
+      "consumers": [
         "02 portable publication",
         "03 package review planning"
       ],
@@ -11930,9 +13455,381 @@
       "meaning": "Uses exact checked Terminal IDs for requirements and the selected provider bodies that root source demand.",
       "producer": "01 source compilation",
       "signature": "592c71005520c04a0addd7e1d117e2431aad411ed4dba1ea72affa1be1694096"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "SourcePublication::field:accepted#1",
+      "kind": "producer",
+      "meaning": "The accepted source judgment and its exact root roster.",
+      "producer": "01 source compilation",
+      "signature": "3544ebf75a761d3a14eb938e463c030001b5abe0c326e5a9362ab8663e3b6c21"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "SourcePublication::field:optimizations#1",
+      "kind": "carried_record",
+      "meaning": "The fixed Psi optimization selection of this source judgment.",
+      "producer": "01 source compilation",
+      "signature": "204e86269f2ac23908ea846d3734d48b89288b6a653fa397046990138bb325fd"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "SourcePublication::field:program#1",
+      "kind": "producer",
+      "meaning": "The one memoized portable product or original refusal of the source issuer.",
+      "producer": "01 source compilation",
+      "signature": "8cfedae21fea91a4095288acde2cca58b8f6bb8e8669f40db8b37825a62bd78e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "1163539d4982ff21de0c5c812693bedb5d8c21109b41622c0bb6315f5c86741e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:accepted#1",
+      "kind": "carried_record",
+      "meaning": "Borrow the previously accepted source after checking the fixed Psi optimization route.",
+      "producer": "01 source compilation",
+      "signature": "32509c99bedd72ae324476e7ab450958f533ef594d169b66f91a48502a14e1c9"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:accepted_owner#1",
+      "kind": "carried_record",
+      "meaning": "Borrow the issued Arc used to check provider fact provenance without retaining the source in the facts.",
+      "producer": "01 source compilation",
+      "signature": "0cb0cd4c4b5b30de9c8b6db900695dff67728b9ba0b47574e975c3100070f2b9"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:judge#1",
+      "kind": "producer",
+      "meaning": "Judge the exact frozen source and roster and retain the resulting immutable source owner.",
+      "producer": "01 source compilation",
+      "signature": "954948e3026a2a648ec81c33f7b76e1b387e2fb037f54a487dc1ba427d77ea39"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:new#1",
+      "kind": "producer",
+      "meaning": "Create an empty publication fixed to the selected Psi optimization policy.",
+      "producer": "01 source compilation",
+      "signature": "55ae754a67f63e98c7518192aca994bcbec2ed6f732f1b99c5064f302e969f7c"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:optimizations#1",
+      "kind": "carried_record",
+      "meaning": "Read the fixed portable optimization selection the source publication was issued with.",
+      "producer": "01 source compilation",
+      "signature": "a51529ee39adaf3901fbd49c1caed1ef46d503df4ef4fc4454ab6fbca2ca9e53"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:publish#1",
+      "kind": "producer",
+      "meaning": "Publish portable code for the accepted source and fixed optimization selection, including source declaration admission.",
+      "producer": "01 source compilation",
+      "signature": "8b7e2f3322b3e49ecaf6645bb7375e73b6e66e4c85c9f7e7bb14bfc4831dd9a2"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:published#1",
+      "kind": "carried_record",
+      "meaning": "Read an already completed portable publication if present.",
+      "producer": "01 source compilation",
+      "signature": "889ff4fe16ab997b489ea7a48a4b6762714026c1ca0628687eda2e4596e6270a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:require_published#1",
+      "kind": "checker",
+      "meaning": "Require the already published portable program and its exact fixed optimization selection.",
+      "producer": "01 source compilation",
+      "signature": "47e11439a13157ddf832e10b346313b26a85bc9be87adf038ac042738a295a8d"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:require_source_owner#1",
+      "kind": "checker",
+      "meaning": "Compare the exact frozen tree owner with the one held by this judgment.",
+      "producer": "01 source compilation",
+      "signature": "a98e0c642cf4ee4ac7508efcc61559b268ce6efeafa8c07e98182f5c3b8d1f5e"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:retain#1",
+      "kind": "producer",
+      "meaning": "Memoize the portable program or its original refusal once for this issuing judgment.",
+      "producer": "01 source compilation",
+      "signature": "9b8c1b0086b648c34912eb7bee32ca5636ee72046dcd376421715850f28c119a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:roster#1",
+      "kind": "carried_record",
+      "meaning": "Read the root and declaration roster sealed with the judgment.",
+      "producer": "01 source compilation",
+      "signature": "6f9ac3047d2fa46760f7fe5fe7f342956a1807d73cc924ba6c21a4551500e9f8"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:SourcePublication::method:with_declaration_metadata#1",
+      "kind": "producer",
+      "meaning": "Issue a fresh source judgment for the enlarged declaration roster before publication.",
+      "producer": "01 source compilation",
+      "signature": "1ed3022f5dc8825d7cf1b4e9efda54c969217a1d63223038bbd53456086c6ace"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:std :: fmt :: Debug for SourcePublication::implementation#1",
+      "kind": "definition",
+      "meaning": "Methods for the std::fmt::Debug for SourcePublication contract in 01 source compilation.",
+      "producer": "01 source compilation",
+      "signature": "ad05de010dad33ff4ed0299afb52920a0013df0d81afc106407f3b434ac2d76b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "impl:std :: fmt :: Debug for SourcePublication::method:fmt#1",
+      "kind": "host_operation",
+      "meaning": "Display the availability of the retained source judgment and publication.",
+      "producer": "01 source compilation",
+      "signature": "87751e5f0aa6fae20114e73fd13c4e92245bc768d4e42e55e9b665930cd407e1"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "module:tests#1",
+      "kind": "test_support",
+      "meaning": "Test the source publication\u2019s fixed judgment, optimization selection and refusal custody.",
+      "producer": "01 source compilation",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "struct:SourcePublication#1",
+      "kind": "producer",
+      "meaning": "An accepted source judgment and one memoized portable publication for a fixed optimization selection.",
+      "producer": "01 source compilation",
+      "signature": "25942dc3ff1c47863e0db66a94ef1ee2ac20761169a8b23539cd86978235123f"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "tests::function:accepted_publication_refuses_unexecuted_psi_optimizations#1",
+      "kind": "test_support",
+      "meaning": "Test the source publication\u2019s fixed judgment, optimization selection and refusal custody.",
+      "producer": "01 source compilation",
+      "signature": "4dda1d3287f5e503127ddda427f29e11639df869a9e027811aab554e794f8b81"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "tests::function:publication_keeps_its_projection_and_one_refusal_without_retry#1",
+      "kind": "test_support",
+      "meaning": "Test the source publication\u2019s fixed judgment, optimization selection and refusal custody.",
+      "producer": "01 source compilation",
+      "signature": "914c2ce4607b556a9525869346f638ad6cc80ab48fb7e082d88e1739a47a3539"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "tests::use:optimization :: PsiOptimization#1",
+      "kind": "test_support",
+      "meaning": "Test the source publication\u2019s fixed judgment, optimization selection and refusal custody.",
+      "producer": "01 source compilation",
+      "signature": "6481806337c5ccc537a413e82fdc2ca36d5e3727e3dceb64b07fae3941c1b87a"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "tests::use:super :: *#1",
+      "kind": "test_support",
+      "meaning": "Test the source publication\u2019s fixed judgment, optimization selection and refusal custody.",
+      "producer": "01 source compilation",
+      "signature": "5d9f812e6d6973f484fcf6f9205e773ecbb4503112229f85e702d7904367395b"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "use:crate :: { PortableTerminalProgram , SourceCompilationRoster }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing crate::{ PortableTerminalProgram , SourceCompilationRoster } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "ab829acfa22de098fad135d5fd08972ce987b71207140e3959e842afa17a6096"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "use:diagnostics :: Diagnostic#1",
+      "kind": "definition",
+      "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "use:optimization :: PsiOptimizationSelections#1",
+      "kind": "definition",
+      "meaning": "Bring the existing optimization::PsiOptimizationSelections declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "91e4691793836cb8c08f70610dcaf9cc26384509bc6df1978a8722cdb5693aa9"
+    },
+    {
+      "consumers": [
+        "01 source provider fact issuance",
+        "02 portable publication",
+        "checked source inspection"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs",
+      "item": "use:std :: sync :: { Arc , OnceLock }#1",
+      "kind": "definition",
+      "meaning": "Bring the existing std::sync::{ Arc , OnceLock } declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "20dc458c7e7775a6f2cb70859e0345a0407318e56caba151c4576441d8c9cf4a"
     }
   ],
   "roots": [
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "definition",
+        "host_operation"
+      ],
+      "path": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs"
+    },
     {
       "allowed_kinds": [
         "carried_record",
@@ -11949,6 +13846,13 @@
         "producer"
       ],
       "path": "omega-rust/omega/compilation/compiler/src/terminal/program_entry.rs"
+    },
+    {
+      "allowed_kinds": [
+        "definition",
+        "host_operation"
+      ],
+      "path": "omega-rust/omega/compilation/compiler/src/terminal/provider_execution.rs"
     },
     {
       "allowed_kinds": [
@@ -12175,10 +14079,40 @@
     {
       "allowed_kinds": [
         "carried_record",
+        "checker",
+        "definition",
+        "host_operation",
+        "producer"
+      ],
+      "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "checker",
+        "definition",
+        "producer"
+      ],
+      "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
         "definition",
         "producer"
       ],
       "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/package_review.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "checker",
+        "definition",
+        "host_operation",
+        "producer",
+        "test_support"
+      ],
+      "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs"
     }
   ],
   "version": 1

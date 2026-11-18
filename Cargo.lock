@@ -1958,7 +1958,6 @@ dependencies = [
  "effects",
  "optimization",
  "package-compilation",
- "provider-choices",
  "semantic-vocabulary",
  "source-compiler",
  "target",
