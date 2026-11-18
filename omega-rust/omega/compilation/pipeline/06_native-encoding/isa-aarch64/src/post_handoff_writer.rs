@@ -36,7 +36,7 @@ mod fragment {
             width,
         } = layout_plans::private_address_fragment(placement, usize::MAX)?;
         let offset = usize::try_from(offset).ok()?;
-        let count = usize::try_from(container_width / 8).ok()?;
+        let count = usize::from(container_width / 8);
         let whole = destination_lsb == 0 && width == container_width;
         if !whole {
             load(bytes, container, fragment, root, offset, count)?;

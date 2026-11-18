@@ -915,7 +915,24 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
     let [other_plan] = other_plans.as_slice() else {
         panic!("the other target retains its exact checked default plan")
     };
-    assert_eq!(other_plan.provider_type, "Native");
+    assert_eq!(
+        defaults[0].selections[0].provider_type.authored_path,
+        "Native"
+    );
+    assert_eq!(
+        other_plan.provider_type,
+        accepted
+            .source()
+            .normalized_hermetic_symbol_identity(checked.provider)
+            .unwrap()
+    );
+    assert_eq!(
+        other_plan.provider_type_package_identity,
+        accepted
+            .source()
+            .symbols
+            .symbol_package_identity(checked.provider)
+    );
     assert_eq!(other_plan.target, "windows_x86_64");
 
     let prepared = prepare_for_target(
