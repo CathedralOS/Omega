@@ -1984,26 +1984,9 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        let selected = crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
-            .map(|selected| selected.id)
-            .or_else(|| {
-                // A byte element is a real scalar leaf, not a separately
-                // declared aggregate. Use the same exact primitive carrier
-                // correspondence as other borrowed scalar projections.
-                if !matches!(
-                    crate::runtime_read_projection_tip(types.iter(), source, &argument.path),
-                    Some(crate::Position::ByteElement)
-                ) {
-                    return None;
-                }
-                crate::borrowed_primitive_projection_declaration(
-                    types.iter(),
-                    source,
-                    &argument.path,
-                    Some(parameter.structural_type),
-                )
-            });
-        if selected != Some(parameter.structural_type) {
+        if crate::borrowed_projection_type(types.iter(), source, &argument.path)
+            != Some(parameter.structural_type)
+        {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
             ));

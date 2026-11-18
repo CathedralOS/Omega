@@ -1993,6 +1993,8 @@ impl<'a> Lowering<'a> {
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     CollectionExtent::LiveLength { capacity }
                 }
+                // A bounded byte reference is a pointer to its exact declared
+                // extent; an owned byte carrier above has a separate live length.
                 terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
                     CollectionExtent::Fixed(capacity)
                 }

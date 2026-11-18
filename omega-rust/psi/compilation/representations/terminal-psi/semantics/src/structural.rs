@@ -2760,6 +2760,44 @@ pub(crate) mod primitive_place {
         }
     }
 
+    /// The storage carrier of an inline field when its address is lent. An
+    /// owned byte carrier keeps its storage type rather than a copied view.
+    pub fn borrowed_storage_field_type(field: &StructuralFieldType) -> Option<StructuralFieldType> {
+        match field.byte_sequence_carrier() {
+            Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+                Some(StructuralFieldType::ByteSequence(carrier))
+            }
+            _ => field.canonical_leaf_type(),
+        }
+    }
+
+    /// Resolve the actual type selected by a storage path, including scalar
+    /// leaves without a separate inline declaration. This supplies neither
+    /// bounds evidence nor permission to access the selected storage.
+    pub fn borrowed_projection_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        if let Some(selected) = runtime_structural_path_tip(declarations.clone(), root, path) {
+            return Some(selected.id);
+        }
+        if matches!(path.last(), Some(StructuralPathSegment::Field(_))) {
+            let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
+            // A field can spell its carrier without an inline type ID. An
+            // explicit but invalid ID cannot be replaced by another row.
+            if field.relevance.is_erased() || field.inline_carrier.is_some() {
+                return None;
+            }
+            let carrier = borrowed_storage_field_type(&field.field_type)?
+                .leaf_declaration(declarations.clone())?;
+            return crate::structural_declaration(declarations, carrier.id).map(|row| row.id);
+        }
+        let scalar =
+            borrowed_primitive_projection_declaration(declarations.clone(), root, path, None)?;
+        crate::structural_declaration(declarations, scalar).map(|row| row.id)
+    }
+
     pub fn runtime_structural_copy_type<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
