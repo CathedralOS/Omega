@@ -11,7 +11,7 @@ Why `BuildValueAdmission` retains private admission state across evaluation:
 
 /*
 Provenance:
-- Configuration decoding (`EvaluatedBuildSettings`, `PrivilegedServicesGrants`, `ElfInterpreterSelections`): `src/build_execution/build_value/configuration.rs`.
+- Configuration decoding (`EvaluatedBuildSettings`, `ElfInterpreterSelections`): `src/build_execution/build_value/configuration.rs`.
 - Initial `Build` value construction: `src/build_execution/build_value/initial.rs`.
 - Optimization vocabulary admission and extraction: `src/build_execution/build_value/optimization.rs`.
 - Toolchain `build` machine and facet queries: `src/build_execution/build_value/vocabulary.rs`.
@@ -22,7 +22,7 @@ mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::{EvaluatedBuildSettings, PrivilegedServicesGrants, X86DeploymentClaim};
+pub use configuration::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::is_build_machine;
 
 use super::BuildMachineFilesystemScope;
