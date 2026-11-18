@@ -169,3 +169,116 @@ fn summaries_compose_callees_first() {
         );
     }
 }
+
+#[test]
+fn private_generic_results_stay_inside_the_verification_unit() {
+    let source = r#"
+machine same<T>(left: &T, right: &T) -> bool { false }
+machine compare<T>(left: &T, right: &T) -> bool { same<T>(left, right) }
+machine hold(direct: bool) -> bool requires direct == false { true }
+machine entry() -> bool {
+    let left: u64 = 1;
+    let right: u64 = 1;
+    let direct: bool = compare<u64>(&left, &right);
+    hold(direct)
+}
+"#;
+    for (public, same_unit, false_result) in [
+        (false, true, true),
+        (true, true, true),
+        (false, false, true),
+        (false, true, false),
+    ] {
+        let source = if public {
+            source.replace("machine same<", "public machine same<")
+        } else {
+            source.to_owned()
+        };
+        let source = if false_result {
+            source
+        } else {
+            source.replace("{ false }", "{ true }")
+        };
+        let (typed, _) = crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(&source),
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the complete source preparation must retain its generic applications");
+        let entry = super::boundary_calls::entry(&typed);
+        let subjects = if same_unit { &[None][..] } else { &[][..] };
+        let prepared = crate::lowering::prepare_compilation(
+            &typed,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let mut verdicts = crate::checking::judge_compilation(prepared).into_iter();
+        let primary = verdicts.next().unwrap().unwrap();
+        if !public && same_unit && false_result {
+            let RouteVerdict::Accepted(accepted) = primary else {
+                panic!("the caller must get the checked private result: {primary:?}");
+            };
+            let false_results = accepted
+                .elaboration
+                .module
+                .machines
+                .iter()
+                .filter(|machine| {
+                    let terminal_psi::TerminalMachineResult::Scalar(result) = &machine.result
+                    else {
+                        return false;
+                    };
+                    if result.scalar_type != ScalarType::Boolean {
+                        return false;
+                    }
+                    machine.contract.ensures.iter().any(|clause| {
+                        clause.proposition
+                            == Proposition::Equal(
+                                ScalarTerm::value(result.id, ScalarType::Boolean),
+                                ScalarTerm::Boolean(false),
+                            )
+                    })
+                })
+                .count();
+            assert_eq!(
+                false_results, 2,
+                "both private calls need their own summary"
+            );
+            accepted.publish_invocation().unwrap();
+        } else {
+            let missing_requirement = match &primary {
+                RouteVerdict::Rejected { unproved, .. } | RouteVerdict::Incomplete(unproved) => {
+                    unproved.iter().any(|row| {
+                        matches!(row.kind, ObligationKind::CallRequirement { .. })
+                            && row.statement.contains("call hold")
+                            && row.statement.contains("direct == false")
+                    })
+                }
+                _ => false,
+            };
+            assert!(
+                missing_requirement,
+                "the caller must prove its actual requirement: public={public}, same_unit={same_unit}, false_result={false_result}: {primary:?}"
+            );
+        }
+        // A concrete result never excuses checking the generic declaration.
+        let templates = verdicts.collect::<Vec<_>>();
+        assert!(!templates.is_empty());
+        assert!(
+            templates
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+            "the independent generic bodies must still be checked: {templates:?}"
+        );
+    }
+}

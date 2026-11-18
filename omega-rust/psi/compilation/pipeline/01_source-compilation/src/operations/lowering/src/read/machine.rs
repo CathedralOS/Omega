@@ -156,7 +156,11 @@ impl<'t> Program<'t> {
         let mut fixed = self.symbols.map(|_, _| false);
         for id in entry
             .iter()
-            .chain(&self.fixed_inputs)
+            .chain(
+                self.fixed_contracts
+                    .iter()
+                    .map(super::FixedContract::machine),
+            )
             .chain(&self.requirements)
             .chain(
                 self.selections
@@ -276,8 +280,9 @@ impl<'t> Program<'t> {
     /// Prepare the bodies whose checked outcomes are available to this source
     /// unit. Public visibility does not move an exact local call across the
     /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
-    /// abstract requirements, selected implementations and generated generic
-    /// bodies still retain their separately checked interface contracts.
+    /// abstract requirements and selected implementations still retain their
+    /// separately checked interface contracts. A private applied body can
+    /// supply a result summary after its own returns have been checked.
     ///
     /// Scalar result inference currently adds ordinary contract clauses, so
     /// its roster remains private-only: stronger local facts must not silently
@@ -287,24 +292,31 @@ impl<'t> Program<'t> {
         &self,
         entry: Option<MachineId>,
     ) -> Checked<LocalSummaryBodies> {
-        let mut boundary = self.symbols.map(|_, _| false);
-        for id in entry
-            .iter()
-            .chain(&self.fixed_inputs)
-            .chain(&self.requirements)
-            .chain(
-                self.selections
-                    .iter()
-                    .map(|selection| &selection.implementation),
-            )
-        {
+        let mut boundary = self.symbols.map(|_, _| (false, false));
+        for id in entry.iter().chain(&self.requirements).chain(
+            self.selections
+                .iter()
+                .map(|selection| &selection.implementation),
+        ) {
             *boundary.get_mut(*id).ok_or_else(|| {
                 refuse(
                     *id,
                     Construct::Machine,
                     Unserved::Machine("local summary boundary without a machine"),
                 )
-            })? = true;
+            })? = (true, true);
+        }
+        for contract in &self.fixed_contracts {
+            let id = *contract.machine();
+            let current = boundary.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local contract boundary without a machine"),
+                )
+            })?;
+            current.0 = true;
+            current.1 |= matches!(contract, super::FixedContract::Interface(_));
         }
         let mut local = LocalSummaryBodies {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
@@ -321,35 +333,73 @@ impl<'t> Program<'t> {
             })? = true;
         }
         for (id, &symbol) in self.symbols.iter() {
-            if boundary.get(id) == Some(&true) {
+            let &(outcome_boundary, result_boundary) = boundary.get(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local body without a contract boundary"),
+                )
+            })?;
+            if outcome_boundary && result_boundary {
                 continue;
             }
             let complete = complete_subject.get(id) == Some(&true);
-            let outcome_subject = match &self.outcome_subjects {
-                Some(subjects) if !complete => crate::source_state::source_subjects::contains(
+            let local_subject = match &self.local_summary_scope {
+                Some(scope) if !complete => crate::source_state::source_subjects::contains(
                     self.typed,
                     symbol,
-                    subjects,
+                    scope.subjects(),
                     self.purpose,
                 )
                 .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
                 _ => complete,
             };
-            if !outcome_subject {
+            if !local_subject {
                 continue;
             }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
+            // Application copies are private symbols even when their source
+            // declaration is public or belongs to an implementation.
+            let template = crate::lowering::template_of(self.typed, symbol);
+            let declaration = self
+                .typed
+                .machine_by_symbol(template.unwrap_or(symbol))
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("a local body has no originating declaration"),
+                    )
+                })?;
             if machine.satisfies.is_empty()
+                && declaration.satisfies.is_empty()
                 && self
                     .typed
-                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
+                    .owned_conformance_realization(
+                        self.typed.lifetime_declaration_owner(declaration.symbol),
+                    )
                     .is_none()
-                && crate::lowering::template_of(self.typed, symbol).is_none()
             {
-                local.outcomes.push(id);
-                if complete && !machine.is_public {
+                let outcome_subject = complete
+                    || matches!(
+                        self.local_summary_scope,
+                        Some(super::LocalSummaryScope::Witness(_))
+                    );
+                if !outcome_boundary && outcome_subject && template.is_none() {
+                    local.outcomes.push(id);
+                }
+                let application = template.is_some()
+                    || self.applied.binary_search_by_key(&id, |row| row.0).is_ok();
+                if !result_boundary
+                    && !machine.is_public
+                    && !declaration.is_public
+                    && (complete
+                        || (application
+                            && machine.body_is_present
+                            && machine.body_status == MachineBodyStatus::Complete))
+                {
                     local.result_contracts.push(id);
                 }
             }
@@ -777,7 +827,7 @@ impl<'t> Program<'t> {
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
-        self.fixed_inputs.push(id);
+        self.fixed_contracts.push(super::FixedContract::Inputs(id));
         let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
                 .machine_type_parameters(machine)
