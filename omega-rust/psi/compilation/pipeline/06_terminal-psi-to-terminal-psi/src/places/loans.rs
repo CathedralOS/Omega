@@ -144,7 +144,7 @@ pub(super) enum BorrowedResource {
 
 #[derive(Debug)]
 enum LoanRegion {
-    Storage(super::Lineage),
+    Storage(Vec<super::Lineage>),
     /// An admitted provider establishes a stable shared permission. Its input
     /// loans are retained separately; its address remains unavailable.
     Provider,
@@ -154,7 +154,16 @@ impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
             (Self::Storage(child), Self::Storage(parent)) => {
-                child.root == parent.root && child.segments.starts_with(&parent.segments)
+                // Loan flow already authenticates the parent occurrence. Every
+                // possible child address must stay inside that parent's region;
+                // address overlap alone never supplies parent authority.
+                !child.is_empty()
+                    && child.iter().all(|child| {
+                        parent.iter().any(|parent| {
+                            child.root == parent.root
+                                && child.segments.starts_with(&parent.segments)
+                        })
+                    })
             }
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
@@ -197,12 +206,19 @@ fn competing_borrows(
     {
         return Some(LoanConflict::AccessExceedsParent);
     }
-    let (LoanRegion::Storage(left_place), LoanRegion::Storage(right_place)) =
+    let (LoanRegion::Storage(left_places), LoanRegion::Storage(right_places)) =
         (left_place, right_place)
     else {
         return None;
     };
-    if !overlap(left_place, right_place) || !left.is_exclusive() && !right.is_exclusive() {
+    if left_places.is_empty() || right_places.is_empty() {
+        return Some(LoanConflict::AccessExceedsParent);
+    }
+    if !left.is_exclusive() && !right.is_exclusive()
+        || !left_places
+            .iter()
+            .any(|left| right_places.iter().any(|right| overlap(left, right)))
+    {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -312,7 +328,7 @@ impl<'a> Storage<'a> {
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
         if matches!(resource, BorrowedResource::Storage) || !is_view {
             return self
-                .backing(references, raw, at.0, at.1 as usize, concerns)
+                .backings(references, raw, at.0, at.1 as usize, concerns)
                 .map(LoanRegion::Storage);
         }
         let location = raw.descriptor_location().ok_or_else(|| {
@@ -402,7 +418,7 @@ impl<'a> Storage<'a> {
             captured = Some(next);
         }
         captured
-            .map(LoanRegion::Storage)
+            .map(|region| LoanRegion::Storage(vec![region]))
             .ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
     }
 
@@ -1125,7 +1141,7 @@ impl<'a> Storage<'a> {
                             (place, backing)
                         }
                         super::StorageEffect::Storage(place) => {
-                            let backing = LoanRegion::Storage(self.backing(
+                            let backing = LoanRegion::Storage(self.backings(
                                 references,
                                 &place,
                                 block.id,
@@ -1164,7 +1180,7 @@ impl<'a> Storage<'a> {
                             (place, backing)
                         }
                         super::StorageEffect::Storage(place) => {
-                            let backing = LoanRegion::Storage(self.backing(
+                            let backing = LoanRegion::Storage(self.backings(
                                 references,
                                 &place,
                                 block.id,
@@ -1203,13 +1219,13 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
-                    let backing = LoanRegion::Storage(self.backing(
+                    let backing = LoanRegion::Storage(vec![self.backing(
                         references,
                         &cleaned,
                         block.id,
                         block.operations.len(),
                         concerns,
-                    )?);
+                    )?]);
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
@@ -1229,7 +1245,7 @@ impl<'a> Storage<'a> {
                                 loan.access,
                                 &loan.lineage,
                                 access,
-                                &LoanRegion::Storage(backing),
+                                &LoanRegion::Storage(vec![backing]),
                             )
                             .is_some()
                                 && ((access.is_exclusive() && !loan.access.is_exclusive())
@@ -1816,17 +1832,11 @@ impl<'a> Storage<'a> {
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                 )
             }) {
-            Some(references.flow(self.machine).map_err(|error| {
-                self.unsupported(
-                    error
-                        .operation(module)
-                        .map(Construct::Operation)
-                        .unwrap_or(Construct::Machine),
-                    error
-                        .detail()
-                        .unwrap_or("persistent loans have no complete descriptor flow"),
-                )
-            })?)
+            Some(
+                references
+                    .flow(self.machine)
+                    .map_err(|error| graph_refusal(module, error))?,
+            )
         } else {
             None
         };
@@ -2115,7 +2125,7 @@ impl<'a> Storage<'a> {
         };
         let backing = self.backing(references, &selected, at.0, at.1 as usize, concerns)?;
         if name.path.is_empty()
-            && matches!(&loan.lineage, LoanRegion::Storage(region) if *region == backing)
+            && matches!(&loan.lineage, LoanRegion::Storage(regions) if regions.as_slice() == std::slice::from_ref(&backing))
         {
             return Ok(false);
         }
@@ -2441,4 +2451,58 @@ fn holds(
             .surviving
             .get(at)
             .is_some_and(|names| !names.is_empty())
+}
+
+#[cfg(test)]
+mod origin_family_tests {
+    use super::*;
+    use semantic_vocabulary::{PlaceId, StructuralFieldId};
+    use terminal_check_tables::bindings::Segment;
+
+    #[test]
+    fn loan_conflicts_keep_every_possible_original_address() {
+        let place = |root, field: Option<u64>| super::super::Lineage {
+            root: PlaceId::new(root).unwrap(),
+            segments: field
+                .map(|field| Segment::Field(StructuralFieldId::new(field).unwrap()))
+                .into_iter()
+                .collect(),
+        };
+        let family = LoanRegion::Storage(vec![place(1, Some(1)), place(2, Some(1))]);
+        let region = |root, field| LoanRegion::Storage(vec![place(root, field)]);
+        let conflict = |other: &LoanRegion| {
+            competing_borrows(
+                ReferenceAccess::Shared,
+                &family,
+                ReferenceAccess::Mutable,
+                other,
+            )
+        };
+        assert_eq!(
+            conflict(&region(2, Some(1))),
+            Some(LoanConflict::ExclusiveAndShared)
+        );
+        assert_eq!(
+            conflict(&region(2, None)),
+            Some(LoanConflict::ExclusiveAndShared)
+        );
+        assert_eq!(conflict(&region(2, Some(2))), None);
+        assert_eq!(conflict(&region(3, Some(1))), None);
+        assert_eq!(
+            competing_borrows(
+                ReferenceAccess::Shared,
+                &family,
+                ReferenceAccess::Shared,
+                &family
+            ),
+            None
+        );
+        assert_eq!(
+            conflict(&LoanRegion::Storage(Vec::new())),
+            Some(LoanConflict::AccessExceedsParent)
+        );
+        assert!(region(2, Some(1)).respects_parent(&family));
+        assert!(!region(2, Some(1)).respects_parent(&region(1, None)));
+        assert!(!LoanRegion::Storage(Vec::new()).respects_parent(&family));
+    }
 }

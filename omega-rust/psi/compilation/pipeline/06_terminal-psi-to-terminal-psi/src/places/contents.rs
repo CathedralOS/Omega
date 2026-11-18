@@ -201,17 +201,18 @@ impl<'a> Storage<'a> {
                     "an initial content value of storage that is no scalar leaf of a formal or declared call result"));
             }
             if let Some(block) = block_entry {
-                // A borrowed formal has the same backing as its incoming
-                // loan. Use that backing for reads and overlapping writes.
-                let backed = self.backing(references, &leaf, block, 0, concerns)?;
-                self.observations[index(block.get())]
-                    .entry(backed)
-                    .or_default()
-                    .push(Observation {
+                self.record_observation(
+                    references,
+                    &leaf,
+                    block,
+                    0,
+                    Observation {
                         point: ProgramPoint::BlockEntry(block),
                         position: 0,
                         value,
-                    });
+                    },
+                    concerns,
+                )?;
             }
         }
         Ok(())

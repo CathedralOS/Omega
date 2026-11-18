@@ -465,12 +465,12 @@ pub(crate) mod reference_completion {
         }
         if crate::arrival_parameter(machine, descriptor.root)
             .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
-            && let Some(crate::descriptor_results::DescriptorCallOrigin::Argument {
-                source,
-                projection,
-            }) = analysis.storage_projection(machine.id, at, descriptor)
+            && let Some(origins) = analysis.storage_projection(machine.id, at, descriptor)
+            && let [
+                crate::descriptor_results::DescriptorCallOrigin::Argument { source, projection },
+            ] = origins.as_slice()
             && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == source && parameter.access != StructuralAccess::Owned
+                parameter.place == *source && parameter.access != StructuralAccess::Owned
             })
         {
             // Indexed storage keeps its captured address through headers too.

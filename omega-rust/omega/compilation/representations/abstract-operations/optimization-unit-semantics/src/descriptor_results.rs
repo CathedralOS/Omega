@@ -2543,7 +2543,12 @@ fn adapt(
                     | O::EstablishElementView { .. }
                     | O::EstablishReference { .. }
             ) {
-                step.authority_derivations = step.derivations.clone();
+                step.authority_derivations = step
+                    .derivations
+                    .iter()
+                    .cloned()
+                    .map(|(source, destination)| (source.into(), destination))
+                    .collect();
             }
             let cleanup_rosters: Vec<_> = if node.successors.is_empty() {
                 if graph.normal_exits.contains(&position) {

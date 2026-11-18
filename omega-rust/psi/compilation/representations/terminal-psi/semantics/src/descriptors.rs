@@ -716,7 +716,9 @@ pub mod descriptor_lifetimes {
         /// reference the parameter held.
         pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
-        pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// All possible old resources supplying a destination. An unavailable
+        /// source prevents definite authority without inventing an old owner.
+        pub authority_derivations: Vec<(DescriptorFlowSource, DescriptorLocation)>,
         pub inputs: Vec<DescriptorFlowInput>,
         pub may_escape: bool,
         pub successors: Vec<DescriptorFlowEdge>,
@@ -733,7 +735,7 @@ pub mod descriptor_lifetimes {
                 &self.definitions,
                 self.authority_derivations
                     .iter()
-                    .map(|(source, destination)| (source, destination)),
+                    .map(|(source, destination)| (source.exact_location(), destination)),
                 false,
                 may,
             )
@@ -834,6 +836,28 @@ pub mod descriptor_lifetimes {
                 .filter_map(DescriptorFlowBinding::locations)
         }
 
+        fn forwarded_names<'a>(
+            names: Vec<DescriptorLocation>,
+            definitions: &[DescriptorLocation],
+            derivations: impl Clone
+            + Iterator<Item = (Option<&'a DescriptorLocation>, &'a DescriptorLocation)>,
+        ) -> Vec<DescriptorLocation> {
+            names
+                .into_iter()
+                .flat_map(|name| {
+                    let retained = (!definitions
+                        .iter()
+                        .any(|definition| definition.contains(&name)))
+                    .then(|| name.clone());
+                    retained
+                        .into_iter()
+                        .chain(derivations.clone().filter_map(move |(from, to)| {
+                            from.and_then(|from| name.transported(from, to))
+                        }))
+                })
+                .collect()
+        }
+
         fn forward_effects(
             &self,
             source: &DescriptorLocation,
@@ -841,26 +865,25 @@ pub mod descriptor_lifetimes {
         ) -> Vec<DescriptorLocation> {
             let mut names = vec![source.clone()];
             for (_, effect) in &self.effects {
-                let derivations = if authority {
-                    &effect.authority_derivations
-                } else {
-                    &effect.derivations
-                };
-                names = names
-                    .into_iter()
-                    .flat_map(|name| {
-                        let retained = (!effect
-                            .definitions
+                names = if authority {
+                    Self::forwarded_names(
+                        names,
+                        &effect.definitions,
+                        effect
+                            .authority_derivations
                             .iter()
-                            .any(|definition| definition.contains(&name)))
-                        .then(|| name.clone());
-                        retained.into_iter().chain(
-                            derivations
-                                .iter()
-                                .filter_map(move |(from, to)| name.transported(from, to)),
-                        )
-                    })
-                    .collect();
+                            .map(|(source, destination)| (source.exact_location(), destination)),
+                    )
+                } else {
+                    Self::forwarded_names(
+                        names,
+                        &effect.definitions,
+                        effect
+                            .derivations
+                            .iter()
+                            .map(|(source, destination)| (Some(source), destination)),
+                    )
+                };
                 names.sort();
                 names.dedup();
             }
@@ -1223,7 +1246,9 @@ pub mod descriptor_lifetimes {
                                 &step.definitions,
                                 step.authority_derivations
                                     .iter()
-                                    .map(|(source, destination)| (source, destination)),
+                                    .map(|(source, destination)| {
+                                        (source.exact_location(), destination)
+                                    }),
                                 invalidate_containers,
                                 may,
                             );
@@ -1238,20 +1263,29 @@ pub mod descriptor_lifetimes {
                                 .collect::<Vec<_>>();
                             let mut effected = after.clone();
                             for (_, effect) in &edge.effects {
-                                let derivations = if invalidate_containers {
-                                    &effect.derivations
+                                effected = if invalidate_containers {
+                                    transport_authority(
+                                        &effected,
+                                        &effect.definitions,
+                                        effect.derivations.iter().map(|(source, destination)| {
+                                            (Some(source), destination)
+                                        }),
+                                        invalidate_containers,
+                                        may,
+                                    )
                                 } else {
-                                    &effect.authority_derivations
+                                    transport_authority(
+                                        &effected,
+                                        &effect.definitions,
+                                        effect.authority_derivations.iter().map(
+                                            |(source, destination)| {
+                                                (source.exact_location(), destination)
+                                            },
+                                        ),
+                                        invalidate_containers,
+                                        may,
+                                    )
                                 };
-                                effected = transport_authority(
-                                    &effected,
-                                    &effect.definitions,
-                                    derivations
-                                        .iter()
-                                        .map(|(source, destination)| (source, destination)),
-                                    invalidate_containers,
-                                    may,
-                                );
                             }
                             let mut transported = transport_authority(
                                 &effected,
@@ -1264,7 +1298,8 @@ pub mod descriptor_lifetimes {
                                 transport_authority(
                                     &after,
                                     &definitions,
-                                    edge.derivations(),
+                                    edge.derivations()
+                                        .map(|(source, destination)| (Some(source), destination)),
                                     invalidate_containers,
                                     may,
                                 )
@@ -1272,7 +1307,8 @@ pub mod descriptor_lifetimes {
                                 transport_authority(
                                     &after,
                                     &definitions,
-                                    edge.authority_derivations(),
+                                    edge.authority_derivations()
+                                        .map(|(source, destination)| (Some(source), destination)),
                                     invalidate_containers,
                                     may,
                                 )
@@ -1317,7 +1353,7 @@ pub mod descriptor_lifetimes {
         derivations: impl Clone
         + Iterator<
             Item = (
-                &'locations DescriptorLocation,
+                Option<&'locations DescriptorLocation>,
                 &'locations DescriptorLocation,
             ),
         >,
@@ -1340,20 +1376,32 @@ pub mod descriptor_lifetimes {
                 derivations
                     .clone()
                     .filter_map(move |(source, destination)| {
-                        location.transported(source, destination)
+                        source.and_then(|source| location.transported(source, destination))
                     })
             })
             .collect::<BTreeSet<_>>();
         for candidate in candidates {
             let sources = derivations
                 .clone()
-                .filter_map(|(source, destination)| candidate.transported(destination, source))
+                .filter_map(|(source, destination)| {
+                    destination.contains(&candidate).then(|| {
+                        source.and_then(|source| candidate.transported(destination, source))
+                    })
+                })
                 .collect::<Vec<_>>();
             if !sources.is_empty()
                 && if may {
-                    sources.iter().any(|source| before.contains(source))
+                    sources.iter().any(|source| {
+                        source
+                            .as_ref()
+                            .is_some_and(|source| before.contains(source))
+                    })
                 } else {
-                    sources.iter().all(|source| before.contains(source))
+                    sources.iter().all(|source| {
+                        source
+                            .as_ref()
+                            .is_some_and(|source| before.contains(source))
+                    })
                 }
             {
                 after.insert(candidate);
@@ -1410,7 +1458,7 @@ pub mod descriptor_lifetimes {
                     DescriptorFlowStep {
                         definitions: vec![root(destination)],
                         derivations: vec![(root(source), root(destination))],
-                        authority_derivations: vec![(root(source), root(destination))],
+                        authority_derivations: vec![(root(source).into(), root(destination))],
                         inputs: vec![(Some(root(source)), None)],
                         ..Default::default()
                     },
@@ -13824,7 +13872,8 @@ pub mod descriptor_results {
                                 return Err("value identity transfer changes the retained type");
                             }
                             step.derivations.push((source.clone(), destination.clone()));
-                            step.authority_derivations.push((source, destination));
+                            step.authority_derivations
+                                .push((source.into(), destination));
                         }
                     }
                     step.inputs = original.inputs.clone();
@@ -17071,7 +17120,12 @@ pub mod descriptor_results {
                             | OperationKind::EstablishElementView { .. }
                             | OperationKind::EstablishMutableElementView { .. }
                     ) {
-                        step.authority_derivations = step.derivations.clone();
+                        step.authority_derivations = step
+                            .derivations
+                            .iter()
+                            .cloned()
+                            .map(|(source, destination)| (source.into(), destination))
+                            .collect();
                     }
                     step.successors.push(DescriptorFlowEdge {
                         edge: None,

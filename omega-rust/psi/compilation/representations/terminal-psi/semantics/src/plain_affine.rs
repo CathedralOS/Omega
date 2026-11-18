@@ -565,18 +565,22 @@ fn reference_backing_uses(
                     }
                 }
                 slot.path.push(DescriptorPathSegment::Referent);
-                let source =
+                let sources =
                     references
-                        .location(graph.id, *at, &slot)
+                        .storage_origins(graph.id, *at, &slot)
                         .ok_or(Error::unsupported(
-                            "reference observation has no exact live backing",
+                            "reference observation has no complete live backing",
                         ))?;
-                if !graph.place_types.contains_key(&source.root) {
-                    return Err(Error::malformed("reference backing is outside its machine"));
+                // Liveness retains every possible lender. It does not select
+                // one address or authorize a use through an ambiguous pointer.
+                for source in sources {
+                    if !graph.place_types.contains_key(&source.root) {
+                        return Err(Error::malformed("reference backing is outside its machine"));
+                    }
+                    uses.entry(*at)
+                        .or_insert_with(IdSet::new)
+                        .insert(source.root);
                 }
-                uses.entry(*at)
-                    .or_insert_with(IdSet::new)
-                    .insert(source.root);
             }
         }
     }

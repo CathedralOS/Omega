@@ -818,22 +818,15 @@ impl<'a> Storage<'a> {
                     .position
                     .checked_sub(1)
                     .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
-                let destination =
-                    storage.backing(references, &row.lineage, row.block, before, concerns)?;
-                let source = if let Stored::Moved(source) = &row.stored {
-                    Some(storage.backing(references, source, row.block, before, concerns)?)
-                } else {
-                    None
-                };
-                Ok((destination, source))
+                storage.backing(references, &row.lineage, row.block, before, concerns)
             })
             .collect::<Checked<Vec<_>>>()?;
-        for (row, (destination, source)) in storage.log.iter_mut().zip(relocated) {
+        for (row, destination) in storage.log.iter_mut().zip(relocated) {
             row.lineage = destination;
-            if let Some(source) = source {
-                row.stored = Stored::Moved(source);
-            }
         }
+        // A copied source supplies contents, not a write destination. Keep its
+        // authored path so Reaching checks every captured address at the
+        // pre-copy cut; no later pointer replacement can retarget that read.
         storage.byte_payload_writes(references)?;
         for block in &lowered.blocks {
             for (before, operation) in block.operations.iter().enumerate() {
@@ -841,7 +834,6 @@ impl<'a> Storage<'a> {
                     continue;
                 };
                 let concerns = Construct::Operation(operation.id);
-                let leaf = storage.backing(references, &leaf, block.id, before, concerns)?;
                 let value = operation
                     .result
                     .scalar_ref()
@@ -849,14 +841,18 @@ impl<'a> Storage<'a> {
                         storage.foreign(concerns, "a storage observation has no scalar result")
                     })?
                     .id;
-                storage.observations[index(block.id.get())]
-                    .entry(leaf)
-                    .or_default()
-                    .push(Observation {
+                storage.record_observation(
+                    references,
+                    &leaf,
+                    block.id,
+                    before,
+                    Observation {
                         point: ProgramPoint::AfterOperation(operation.id),
                         position: before + 1,
                         value,
-                    });
+                    },
+                    concerns,
+                )?;
             }
         }
         Ok(storage)
@@ -879,17 +875,17 @@ impl<'a> Storage<'a> {
             .map_err(crate::Unbound::Unsupported)
     }
 
-    /// Resolve a permission crossing at its actual use. Descriptor identity
-    /// is not backing identity, and a later reassignment must not retarget an
-    /// earlier captured borrow. Ambiguous or missing correspondence refuses.
-    fn backing(
+    /// Read every captured address at the actual use. A borrowed header may
+    /// choose several inputs; the contents solver must check every choice,
+    /// while a store still needs one exact destination.
+    fn backings(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,
         block: BlockId,
         before: usize,
         concerns: Construct,
-    ) -> Checked<Lineage> {
+    ) -> Checked<Vec<Lineage>> {
         let borrowed_arrival =
             matches!(
                 self.root_kind(place.root, concerns)?,
@@ -903,7 +899,7 @@ impl<'a> Storage<'a> {
                         )
                 });
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
-            return Ok(place.clone());
+            return Ok(vec![place.clone()]);
         }
         let length = self
             .lowered
@@ -964,18 +960,84 @@ impl<'a> Storage<'a> {
                     ),
                 )
             })?;
-        let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
-            source: root,
-            projection,
-        } = captured
-        else {
-            return Err(unresolved());
-        };
-        let path = projection.captured_storage_path().ok_or_else(unresolved)?;
-        let mut resolved = self.stored_at(root, &path, concerns)?;
-        resolved.segments.extend_from_slice(suffix);
-        self.shape(&resolved, concerns)?;
-        Ok(resolved)
+        let mut choices = captured
+            .into_iter()
+            .map(|captured| {
+                let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+                    source: root,
+                    projection,
+                } = captured
+                else {
+                    return Err(unresolved());
+                };
+                let path = projection.captured_storage_path().ok_or_else(unresolved)?;
+                let mut resolved = self.stored_at(root, &path, concerns)?;
+                resolved.segments.extend_from_slice(suffix);
+                self.shape(&resolved, concerns)?;
+                Ok(resolved)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        choices.sort();
+        choices.dedup();
+        if choices.is_empty() {
+            return Err(self.unsupported(concerns, "storage has no captured backing"));
+        }
+        Ok(choices)
+    }
+
+    fn record_observation(
+        &mut self,
+        references: &mut DescriptorAnalysis<'a>,
+        leaf: &Lineage,
+        block: BlockId,
+        before: usize,
+        observation: Observation,
+        concerns: Construct,
+    ) -> Checked<()> {
+        let choices = self.backings(references, leaf, block, before, concerns)?;
+        if let [backed] = choices.as_slice() {
+            self.observations[index(block.get())]
+                .entry(backed.clone())
+                .or_default()
+                .push(observation);
+        }
+        // One selected value does not identify every possible lender's value.
+        // Availability still joins all choices through the reaching equations.
+        Ok(())
+    }
+
+    fn backing(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        let mut choices = self
+            .backings(references, place, block, before, concerns)?
+            .into_iter();
+        let first = choices
+            .next()
+            .ok_or_else(|| self.unsupported(concerns, "storage has no captured backing"))?;
+        if choices.any(|choice| choice != first) {
+            let error =
+                terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine {
+                    machine: self.machine,
+                    position: Some((
+                        block,
+                        u32::try_from(before).map_err(|_| {
+                            self.foreign(
+                                concerns,
+                                "storage query position exceeds its descriptor graph",
+                            )
+                        })?,
+                    )),
+                    detail: Some(terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING),
+                };
+            return Err(self.unsupported(concerns, &error.in_module(self.module)));
+        }
+        Ok(first)
     }
 
     /// Whether `operation` writes into storage that already holds a value: a
@@ -2919,7 +2981,49 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        let resolved = self.backing(references, original, block, up_to, concerns)?;
+        let mut choices = self.backings(references, original, block, up_to, concerns)?;
+        choices.sort();
+        choices.dedup();
+        if choices.len() > 1 {
+            let key = match asked {
+                Asked::Contents(_) => Some((block, up_to, original.clone(), QueryKind::Contents)),
+                Asked::Case(_) => Some((block, up_to, original.clone(), QueryKind::Case)),
+                Asked::Window { .. } => None,
+            };
+            if let Some(key) = &key
+                && let Some(&address) = budget.keys.get(key)
+            {
+                return Ok(Supply::transfer(address).within(0));
+            }
+            let address = budget.add_equation();
+            if let Some(key) = key {
+                budget.keys.insert(key, address);
+            }
+            let remaining = budget.remaining;
+            budget.remaining = remaining
+                .checked_sub(1)
+                .ok_or_else(|| self.unsupported(concerns, "a chain of copies does not end"))?;
+            let result = (|| {
+                for choice in choices {
+                    let supply = self.reaching_supply(
+                        references,
+                        tables,
+                        asked.at(&choice),
+                        block,
+                        up_to,
+                        budget,
+                        concerns,
+                    )?;
+                    budget.add_supply(address, supply);
+                }
+                Ok(Supply::transfer(address).within(0))
+            })();
+            budget.remaining = remaining;
+            return result;
+        }
+        let resolved = choices
+            .pop()
+            .ok_or_else(|| self.unsupported(concerns, "storage has no captured backing"))?;
         let asked = asked.at(&resolved);
         let key = match asked {
             Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
