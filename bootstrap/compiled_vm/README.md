@@ -193,22 +193,23 @@ restricted escapes. All source bytes, including comments, are validated.
 The backend first censuses declarations and parameter scopes. It counts lexical
 slots by traversing expression positions, then compiles through an explicit
 action stack. Every function and branch is visited, including unreachable code.
-Instructions are immutable records; a second pass builds an AVL map from
-numeric labels to byte addresses. Only after successful validation and label
-resolution does the compiler publish instruction bytes. Function and local name
-lookup currently uses exact span comparison in lists; this deliberately simple
-implementation can be measured and replaced if larger customers justify it.
+The lowering calls named target operations such as `i_add` and `i_jeq`. Their
+encoders prepend little-endian fields. Reading them backwards gives each
+label its distance from the code end, which the compiler saves in an AVL map.
+After validation and the capacity check, the writer fills addresses and
+outputs the fields in program order. Function and local name lookup compares
+exact source spans in lists.
 
 The small integer tags in `c_kind` name syntax, not source shapes:
 `1=def`, `2=Int`, `3=main`, `4=$application`, `5=if`, `6=let`,
 `7..11=+,-,*,/,%`, `12=eq`, `13=lt`, `14=pair`, `15=read`, `16=write`,
 `17=first`, `18=second`, `19=input`. All other names remain source spans.
-Instruction opcodes are the existing Alpha opcodes; private record opcode 21
-marks a label and emits no bytes. Label identifiers 1..13 belong to runtime
+The Alpha assembler writes the existing Alpha opcodes. A label marks a
+position between emitted fields. Label identifiers 1..13 belong to runtime
 helpers, function identifiers start at 100, and subsequent labels follow them.
 
-The source files total 33,329 bytes (851 lines); the one joining newline makes
-the executed source 33,330 bytes, SHA-256
+In the original Alpha construction, the two source files totaled 33,329 bytes
+(851 lines). One joining newline brought the executed source to 33,330 bytes, SHA-256
 `7b439ef26f2cb8a27bb9c0a2b4d5bfca6e7efeed0a5bdf9d798c04b65370b946`.
 On Linux x86-64 its actual reference construction completed in 62.362 seconds.
 It produced a 457,252-byte compiler tape, SHA-256
@@ -652,15 +653,23 @@ This is construction of an actual compiler-source component, not complete Omega
 compiler construction or reproducible self-rebuild. Full modules, sums and
 broader compiler-source facilities remain delivery work.
 
-Both Gamma realizations still carry reviewability debt in the shared numeric
-instruction protocol and deeply nested dispatch: see `i_size` and `i_emit` in
-[the Alpha realization](alpha_backend.gamma) and `i_size`/`i_emit` in
-[the native realization](../independent/native.gamma). Their compact size does
-not make the operation meanings and byte lengths easy to trace. The executable
-correspondence receipts justify retaining both while their representations are
-improved; they do not establish that either realization meets the whole-chain
-independent-reviewability goal. This debt belongs in the comparison alongside
-execution time, memory and trust assumptions.
+## Following an instruction through both assemblers
+
+For a register addition, the shared lowering calls `i_add`. Alpha writes
+opcode 3 and two register indices in one three-byte field. Linux x86-64
+loads the same two slots, appends `48 01 d8` for `add rax,rbx`, then stores
+the result. Each field adds its own width to the label positions used by
+later jumps. A forward jump holds the label identity until publication.
+
+For `(def main () Int 42)`, the generated input loop checks whether the read
+returned EOF. At Alpha tape offset `0x48`, the bytes `10 00 01` compare
+registers 0 and 1 for equality. The next eight bytes encode the destination
+`0xa1` in little-endian order. In the ELF, `48 39 d8 75 0c` at virtual
+address `0x40019b` compares the same values and skips over a jump on inequality.
+The next instruction loads `0x400291` into `rax`, and `ff e0` jumps there.
+Both destinations start the call after the input loop. The loop's backward
+jump returns to the read at tape offset `0x3c` or ELF address `0x40013e`.
+See the [Alpha assembler](alpha_backend.gamma) and [native assembler](../independent/native.gamma).
 
 ## Earlier nominal-case construction interruption
 

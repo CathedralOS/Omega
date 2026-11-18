@@ -7,8 +7,8 @@ loop, or host compiler. The first customer is the actual Gamma compiler from
 [`../compiled_vm/`](../compiled_vm/README.md), compiled into a native executable
 that emits the ordinary Alpha compiler tape.
 
-`native.gamma` replaces instruction sizing and emission in the shared Gamma
-compiler. Source composition is explicit concatenation, in order:
+`native.gamma` supplies the assembler for the shared Gamma lowering. The
+compiler source concatenates these three files in order.
 
 1. `../compiled_vm/compiler.gamma` owns declaration validation, scoped expression
    lowering, tagged values, call frames, runtime checks, and label resolution.
@@ -16,8 +16,8 @@ compiler. Source composition is explicit concatenation, in order:
 3. `native.gamma` emits ELF64 headers, startup, and native instruction sequences.
 
 No source text is rewritten or recognized as a special customer. The same
-frontend and lowering serve the Alpha and native realizations. Every instruction
-record becomes a fixed native sequence; labels resolve to actual code addresses.
+frontend and lowering serve the Alpha and native realizations. Each named
+operation appends its native fields, and labels resolve to actual code addresses.
 The compiler validates all functions and branches before buffered publication.
 The public [Gamma semantics](../interpreted/2_gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
@@ -73,10 +73,9 @@ comments for review.
 
 The shared compiler's disjoint frame, sealed-input, buffered-output, immutable
 pair and call-depth guards remain authoritative. Pair handles retain a separate
-unforgeable tag. Only compiler-generated memory instructions enter this backend;
-this is not a compiler for arbitrary self-modifying Alpha programs. Native
-instruction records cannot be supplied by Gamma source. Output has the existing
-128-MiB buffer limit, including the 128-byte ELF header and 88-byte startup.
+unforgeable tag. The backend receives memory operations only through the
+compiler's checked lowering. The 128-MiB output limit includes the 128-byte
+ELF header and 88-byte startup.
 The Alpha backend separately retains its audited 16-MiB seed-hole limit.
 
 Storage limits and authored traps retain the shared compiler's distinct statuses.
@@ -89,15 +88,14 @@ addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
 
-The native backend retains an **auditability failure**: numeric semantic
-operation identities and the nested `i_size` ladder make meaning costly to
-recover. Functional controls, scoped ISA/ELF review, and 214 source lines do not
-establish auditability. Gamma already permits named operation functions,
-predicates, and clearer decomposition; missing variants/matching do not excuse
-this code or make a language addition inevitable. Retention comparison must
-consider source refactoring/deletion before an earned facility or a different
-rung. Necessary numeric encoding bytes are separate from semantic operation
-identities. This milestone records the debt rather than claiming to repair it.
+To audit a conditional transfer, follow `i_jz` in
+[`native.gamma`](native.gamma). It tests the register, emits `75 0c` to skip
+the twelve-byte absolute jump when the register is nonzero, and reserves
+eight bytes for the destination in the jump's immediate. Publication fills
+that field with the code end minus the target label's distance from the end.
+The widths passed to the assembler determine both label offsets and emitted
+bytes. The x86 instructions, register convention and ELF layout still need
+their own review.
 
 ## Delivery continuation
 
@@ -112,8 +110,8 @@ precomputed compiler image, or proof-certificate subsystem is not part of it.
 
 ## Construction evidence
 
-A fresh Linux x86-64 cold run constructed the following exact closure and
-artifacts. Two native compiler rebuilds matched byte for byte; the native Alpha
+Before the assembler refactor, a Linux x86-64 cold run constructed the
+following source closures and artifacts. Two native compiler rebuilds matched byte for byte; the native Alpha
 compiler's output also matched its Alpha-executed self-rebuild. The disclosed
 Python-assisted development route independently produced the same native image.
 
