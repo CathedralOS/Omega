@@ -4,7 +4,7 @@
 (data EpsilonRuntimeValue
   (EpsilonRuntimeInteger Int)
   (EpsilonRuntimeAggregate EpsilonType EpsilonRuntimeChildren)
-  (EpsilonRuntimeSumValue EpsilonDeclaration EpsilonResolvedSumCase EpsilonRuntimePayloads)
+  (EpsilonRuntimeSumValue EpsilonResolvedSumCase EpsilonRuntimePayloads)
   (EpsilonRuntimeViewValue EpsilonRuntimeView))
 
 ; Case identity belongs to its checked nominal owner. Payload positions follow

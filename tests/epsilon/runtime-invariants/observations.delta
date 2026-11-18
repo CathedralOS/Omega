@@ -17,7 +17,7 @@
         ((EpsilonRuntimeInteger integer) (invariant_tagged_integer 0 integer output))
         ((EpsilonRuntimeAggregate typeValue children)
           (bytes_concat (bytes_single 7) output))
-        ((EpsilonRuntimeSumValue owner caseValue payloads)
+        ((EpsilonRuntimeSumValue caseValue payloads)
           (bytes_concat (bytes_single 7) output))
         ((EpsilonRuntimeViewValue view) (bytes_concat (bytes_single 7) output))))
     ((EpsilonEvaluatorTrap kind output)

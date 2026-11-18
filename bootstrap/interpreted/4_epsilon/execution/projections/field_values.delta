@@ -24,7 +24,7 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
-    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view)
       (epsilon_evaluator_integer (epsilon_runtime_view_length view) store output))
     ((EpsilonRuntimeAggregate typeValue children)
@@ -45,7 +45,7 @@
 (def epsilon_runtime_has_contextual_length ((value EpsilonRuntimeValue)) Int
   (match value
     ((EpsilonRuntimeInteger scalar) 0)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)
+    ((EpsilonRuntimeSumValue caseValue payloads) 0)
     ((EpsilonRuntimeViewValue view) 1)
     ((EpsilonRuntimeAggregate typeValue children)
       (match typeValue

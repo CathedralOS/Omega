@@ -1,9 +1,20 @@
+data OtherKeyword { case As; }
 data Main {
     console: Console;
     scanner: OmegaLexScan;
     diagnostic: OmegaLexDiagnosticCode;
 }
+machine Main::selected_token(&mut self) -> OmegaTokenKind {
+    self.scanner.reset(0);
+    self.scanner.token_end = 4;
+    self.scanner.set_keyword(OmegaKeywordKind::As);
+    return self.scanner.token_kind;
+}
+
 machine Main::main(&mut self) {
+    self.selected_token();
+    assert self.scanner.has_token == 1;
+    assert self.scanner.next_cursor == 4;
     self.scanner.reset(0);
     self.scanner.reject(self.diagnostic, 2, 8);
     assert self.scanner.accepted == 0;

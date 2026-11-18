@@ -46,7 +46,7 @@
     (let invalid Bytes (epsilon_emit_stored_internal coordinate)
       (bytes_concat accepted (bytes_concat
         (epsilon_emit_case "(EpsilonRuntimeAggregate ep_type ep_children)" invalid)
-        (bytes_concat (epsilon_emit_case "(EpsilonRuntimeSumValue ep_owner ep_case ep_payload)" invalid)
+        (bytes_concat (epsilon_emit_case "(EpsilonRuntimeSumValue ep_case ep_payload)" invalid)
           (epsilon_emit_case "(EpsilonRuntimeViewValue ep_view)" invalid)))))))
 
 (def epsilon_emit_stored_scalar_then ((coordinate Int)

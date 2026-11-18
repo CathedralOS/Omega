@@ -730,8 +730,8 @@ mod tests {
             ),
             (
                 "bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources",
-                617419,
-                "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63",
+                616982,
+                "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9",
                 None,
             ),
             (

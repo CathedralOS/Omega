@@ -58,7 +58,7 @@
                   (EpsilonEvaluatorBlockTrap 7 nextOutput))))
             ((EpsilonRuntimeAggregate typeValue children)
               (EpsilonEvaluatorBlockInternal start))
-            ((EpsilonRuntimeSumValue owner caseValue payloads)
+            ((EpsilonRuntimeSumValue caseValue payloads)
               (EpsilonEvaluatorBlockInternal start))
             ((EpsilonRuntimeViewValue view)
               (EpsilonEvaluatorBlockInternal start))))

@@ -51,12 +51,12 @@ def main():
         cases = [case for case in cases if case.name in set(selected)]
 
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon evaluator closure", epsilon, 617419,
-                     "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63")
+    require_identity("Epsilon evaluator closure", epsilon, 616982,
+                     "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9")
     entry_source = (Path(os.environ["OMEGA_REPO_ROOT"]) /
                     "tests/epsilon/evaluator-entry/evaluator_entry.delta").read_bytes()
-    require_identity("canonical entry", entry_source, 10558,
-                     "718417f256271d2de5c7b06e0e5f4824abb5993c2a115a69ac81bb1df9072daa")
+    require_identity("canonical entry", entry_source, 10567,
+                     "cd609cfabdf04a3f913e0def10deaf63615f157bc8d600c91971c02c283cbd7e")
 
     subject = epsilon + entry_source
     support = (directory / "support.bin").read_bytes()
@@ -68,8 +68,8 @@ def main():
         900, "canonical receipt reconstruction")
     if status != 0:
         raise SystemExit(f"canonical receipt reconstruction status {status}")
-    require_identity("canonical evaluator receipt", receipt, 728066,
-                     "92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7")
+    require_identity("canonical evaluator receipt", receipt, 726667,
+                     "a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87")
 
     closure_digest = hashlib.sha256(epsilon).digest()
 

@@ -10,16 +10,16 @@ import time
 from pathlib import Path
 
 
-EPSILON_BYTES = 617419
-EPSILON_SHA256 = "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63"
+EPSILON_BYTES = 616982
+EPSILON_SHA256 = "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9"
 DRIVER_BYTES = 2150
 DRIVER_SHA256 = "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa"
-RECEIPT_BYTES = 720476
-RECEIPT_SHA256 = "c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460"
-INVARIANTS_BYTES = 8415
-INVARIANTS_SHA256 = "2bc73c60572ddac4ebbfe9b36d4d0d5f44268b56fc0cbafc14dd2a127f947144"
-INVARIANTS_RECEIPT_BYTES = 723284
-INVARIANTS_RECEIPT_SHA256 = "6d8d58141054007b8e5c52a21ddcfde50e4e03c73b3e9a5f2dee63d1784622af"
+RECEIPT_BYTES = 719068
+RECEIPT_SHA256 = "a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2"
+INVARIANTS_BYTES = 9044
+INVARIANTS_SHA256 = "e5b3d4061a4155ec099b6208bd43ef4e1286da50033cd2f645f398e292ec548f"
+INVARIANTS_RECEIPT_BYTES = 722216
+INVARIANTS_RECEIPT_SHA256 = "8ec94a1da2813439680036657f9306e1c2834b30341a61d7b8e5a7d8f8ff3143"
 
 
 def identity(data):
@@ -137,7 +137,7 @@ def main():
     invariant_expected = bytes.fromhex(
         (gate / "invariants.expected.hex").read_text(encoding="ascii").strip()
     )
-    if invariant_expected != bytes([1]) * 40:
+    if invariant_expected != bytes([1]) * 42:
         raise SystemExit("array-storage invariant expected observation changed")
     invariant_receipt = reconstruct_receipt(
         evaluator, delta, epsilon, invariant_driver, support, receipt_timeout,
