@@ -11,7 +11,7 @@ use crate::record::{
     PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
     PackageReviewPropositionParameterSignature, PackageReviewTypeIdentity,
 };
-use language_semantics::type_identity::normalize_requirement_lifetime_partition;
+use application_identity::type_identity::normalize_requirement_lifetime_partition;
 
 pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 

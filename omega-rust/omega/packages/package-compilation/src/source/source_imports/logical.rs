@@ -14,12 +14,15 @@
 //! bindings are still decided by admission.
 
 use super::frontier::RegisteredPackageRoot;
+use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
-use source::{DependencyScope, LoadedSource, SourceFileSystem, SourceId};
+use source_admission::LoadedSource;
+use source_capture::SourceFileSystem;
+use source_compiler::RetainedSourceParse;
 use source_compiler::{SourceInput, UnmeasuredProduction};
+use source_text::SourceId;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use syntax_trees::{ParsedUnit, SyntaxTrees, item::Item};
 
 #[derive(Clone, Debug, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct LogicalSourceInventory {
@@ -39,7 +42,7 @@ struct LogicalSourceUnit {
     /// The first name of every top-level declaration, in authored order.
     declared: Vec<String>,
     /// The unit's parse under discovery's private coordinates.
-    syntax: Arc<ParsedUnit>,
+    syntax: Arc<RetainedSourceParse>,
 }
 
 pub(crate) trait LogicalSourceDiscovery {
@@ -264,36 +267,14 @@ impl LogicalSourceInventory {
             by_path: Vec::new(),
         };
         for (path, unit) in paths.into_iter().zip(parsed) {
-            let syntax = &unit.syntax;
-            let mut module = None;
-            let mut declares_operator_family = false;
-            let mut declared = Vec::new();
-            for item in unit.root_items() {
-                declared.extend(declared_names(syntax, syntax.root_item(*item)));
-                if matches!(syntax.root_item(*item), Item::Machine(machine) if machine.spelling.is_some())
-                {
-                    declares_operator_family = true;
-                }
-                if let Item::Module(declaration) = syntax.root_item(*item) {
-                    if module.is_some() {
-                        return Err(vec![Diagnostic::error(format!(
-                            "source {} declares more than one logical module",
-                            path.display()
-                        ))]);
-                    }
-                    module = Some(
-                        syntax
-                            .items
-                            .identifier_path_members(declaration.path)
-                            .iter()
-                            .map(|name| name.as_str(syntax).to_owned())
-                            .collect::<Vec<_>>(),
-                    );
-                }
-            }
+            let source_compiler::SourceDeclarations {
+                module,
+                declares_operator_family,
+                declared,
+            } = unit.declarations(&path)?;
             result.units.push(LogicalSourceUnit {
                 path,
-                module: module.unwrap_or_default(),
+                module,
                 declares_operator_family,
                 declared,
                 syntax: Arc::new(unit),
@@ -314,7 +295,7 @@ impl LogicalSourceInventory {
         Ok(result)
     }
 
-    fn retained(&self, path: &Path) -> Option<&ParsedUnit> {
+    fn retained(&self, path: &Path) -> Option<&RetainedSourceParse> {
         let position = self
             .by_path
             .binary_search_by(|unit| self.units[*unit as usize].path.as_path().cmp(path))
@@ -329,7 +310,7 @@ impl LogicalSourceInventory {
 pub(crate) fn retained_unit<'a>(
     owners: &'a [RegisteredPackageRoot],
     path: &Path,
-) -> Option<&'a ParsedUnit> {
+) -> Option<&'a RetainedSourceParse> {
     owners
         .iter()
         .filter(|owner| path.starts_with(&owner.root))
@@ -337,43 +318,10 @@ pub(crate) fn retained_unit<'a>(
         .find_map(|inventory| inventory.retained(path))
 }
 
-/// The names an import path can start with to select `item`: its own name,
-/// and for a machine attached to a data type, that type.
-fn declared_names(syntax: &SyntaxTrees, item: &Item) -> Vec<String> {
-    let first = |name: &syntax_trees::identifier::Identifier| {
-        let text = name.as_str(syntax);
-        text.split("::").next().unwrap_or(text).to_owned()
-    };
-    let path = |members| {
-        syntax
-            .items
-            .identifier_path_members(members)
-            .first()
-            .map(first)
-    };
-    match item {
-        Item::Capability(definition) => vec![first(&definition.name)],
-        Item::Conformance(conformance) => conformance.alias.iter().map(first).collect(),
-        Item::Const(definition) => vec![first(&definition.name)],
-        Item::Data(definition) => vec![first(&definition.name)],
-        Item::Domain(definition) => vec![first(&definition.name)],
-        Item::Measure(definition) => path(definition.name).into_iter().collect(),
-        Item::Operator(definition) => path(definition.name).into_iter().collect(),
-        Item::Proposition(definition) => vec![first(&definition.name)],
-        Item::Machine(machine) => match &machine.attached_data {
-            Some(owner) => vec![first(owner)],
-            None => vec![first(&machine.name)],
-        },
-        Item::Trait(definition) => vec![first(&definition.name)],
-        Item::TypeAlias(definition) => vec![first(&definition.name)],
-        Item::Module(_) | Item::Package(_) | Item::Use(_) => Vec::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use source::{CapturedSourceNode, CapturedSourceTree};
+    use source_capture::{CapturedSourceNode, CapturedSourceTree};
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
@@ -463,8 +411,12 @@ mod tests {
             .unwrap();
         let retained = retained_unit(&discovery, &capture_root().join("renamed.omg"))
             .expect("discovery retained the unit it parsed");
-        assert_eq!(&*retained.source, "module api; public data Export {}");
-        assert_eq!(retained.root_items().len(), 2);
+        let declarations = retained
+            .declarations(&capture_root().join("renamed.omg"))
+            .unwrap();
+        assert_eq!(declarations.module, ["api"]);
+        assert_eq!(declarations.declared, ["Export"]);
+        assert!(!declarations.declares_operator_family);
         assert!(retained_unit(&discovery, &capture_root().join("odd.omg")).is_some());
         assert!(retained_unit(&discovery, &capture_root().join("build.omg")).is_none());
         assert!(retained_unit(&discovery, Path::new("/elsewhere/odd.omg")).is_none());

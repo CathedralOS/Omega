@@ -1,0 +1,14 @@
+[package]
+name = "numerics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "numerics"
+path = "src/lib.rs"
+
+[dependencies]
+bignum = { path = "../../../foundation/bignum" }
+wire = { path = "../../../foundation/wire" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }

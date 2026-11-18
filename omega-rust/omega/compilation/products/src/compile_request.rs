@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 /*
 Compilation requests, target-local checking inputs, and native product policies.
 
@@ -20,7 +22,7 @@ permission policy).
 */
 
 use diagnostics::Diagnostic;
-use optimization_core::OptimizationRollback;
+use optimization_requests::OptimizationRollback;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageCompilationSourceInputs,
@@ -34,23 +36,10 @@ use std::sync::Arc;
 use target::TargetProfile;
 pub use terminal_installation::PrivateEntryRamInitialization;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileOptions {
-    pub root_path: PathBuf,
-    pub build_dir: Option<PathBuf>,
-    pub target_name: Option<String>,
-}
-
-impl CompileOptions {
-    pub fn build_dir(&self) -> PathBuf {
-        self.build_dir.clone().unwrap_or_else(|| {
-            self.root_path
-                .parent()
-                .map(|parent| parent.join("build"))
-                .unwrap_or_else(|| PathBuf::from("build"))
-        })
-    }
-}
+pub use compilation_inputs::{
+    CompileOptions, NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
+    partition_installation_assumptions, validate_installation_assumption_targets,
+};
 
 pub struct CheckedCompileRequest {
     pub root_path: PathBuf,
@@ -92,110 +81,6 @@ impl CheckedExecutionRequest<'_> {
     }
 }
 
-#[derive(Clone)]
-pub struct NativeProductRequest {
-    /// Export the serialized derivation record used by separate package review.
-    pub retain_native_inputs: bool,
-    /// Keep original native stage owners for a requested correspondence audit.
-    pub retain_native_stage_inputs: bool,
-    pub installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
-    pub image: NativeImageDemand,
-    pub private_entry_ram: Vec<PrivateEntryRamInitialization>,
-    pub terminal_authority_policy: TerminalAuthorityPolicy,
-    pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-    pub optimization_rollback: OptimizationRollback,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum NativeImageDemand {
-    #[default]
-    Emit,
-    RuntimeAdmissionOnly,
-}
-
-pub fn validate_installation_assumption_targets(
-    rows: &[crate::InstallationEnvironmentAssumption],
-    targets: &[TargetProfile],
-) -> Result<(), String> {
-    for row in rows {
-        row.validate_description()?;
-        if !targets.contains(&row.profile()) {
-            return Err(format!(
-                "installation assumption names unrequested target {}",
-                row.profile().target_name()
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub fn partition_installation_assumptions(
-    rows: Vec<crate::InstallationEnvironmentAssumption>,
-    targets: &[TargetProfile],
-) -> Result<Vec<Vec<crate::InstallationEnvironmentAssumption>>, String> {
-    validate_installation_assumption_targets(&rows, targets)?;
-    let mut groups = vec![Vec::new(); targets.len()];
-    for row in rows {
-        let position = targets
-            .iter()
-            .position(|target| *target == row.profile())
-            .ok_or("installation assumption lost its validated target")?;
-        groups[position].push(row);
-    }
-    Ok(groups)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestedCompileProduct {
-    Check,
-    TerminalArtifact,
-    NativeArtifact,
-}
-
-impl RequestedCompileProduct {
-    pub fn validate_optimization_rollback(
-        self,
-        rollback: &OptimizationRollback,
-    ) -> Result<(), Diagnostic> {
-        let unavailable = rollback
-            .requested_disabled()
-            .as_slice()
-            .iter()
-            .filter(|optimization| match self {
-                Self::Check => true,
-                Self::TerminalArtifact => {
-                    optimization.execution_phase()
-                        != optimization_core::OptimizationExecutionPhase::Psi
-                }
-                Self::NativeArtifact => false,
-            })
-            .map(|optimization| format!("`{}`", optimization.build_case_name()))
-            .collect::<Vec<_>>();
-        if unavailable.is_empty() {
-            Ok(())
-        } else {
-            Err(Diagnostic::error(format!(
-                "optimization rollback {} names stages not executed by {:?}",
-                unavailable.join(", "),
-                self
-            )))
-        }
-    }
-
-    pub(crate) fn admit_build_requirements(
-        self,
-        artifact_only: bool,
-        optimization_rollback: &OptimizationRollback,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if artifact_only && self != Self::Check && !optimization_rollback.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "artifact-only builds execute no product optimization stages to roll back",
-            )]);
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedCompileInputs {
     pub root_path: PathBuf,
@@ -215,12 +100,12 @@ struct CompilePolicy {
     retain_native_stage_inputs: bool,
     native_image: NativeImageDemand,
     private_entry_ram: Vec<PrivateEntryRamInitialization>,
-    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
-    pub(super) build_snapshot: Option<BuildSnapshotRequest>,
+    installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
+    build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
-    pub(super) terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
+    terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     package_target_inputs: PackageCompilationTargetInputs,
-    pub(super) optimization_rollback: OptimizationRollback,
+    optimization_rollback: OptimizationRollback,
 }
 
 impl Default for CompilePolicy {
@@ -296,7 +181,7 @@ impl CompileRequest {
 
     pub fn with_installation_assumptions(
         mut self,
-        inputs: Vec<crate::InstallationEnvironmentAssumption>,
+        inputs: Vec<installation_evidence::InstallationEnvironmentAssumption>,
     ) -> Self {
         self.policy.installation_assumptions = inputs;
         self
@@ -335,136 +220,44 @@ impl CompileRequest {
     }
 
     pub fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
-        if self.destinations.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "compilation requires at least one target configuration",
-            )]);
-        }
-        let multiple = self.destinations.len() > 1;
         let shared = Arc::new(self.shared);
         let mut policy = self.policy;
-        let installation_assumptions = std::mem::take(&mut policy.installation_assumptions);
-        if !installation_assumptions.is_empty()
-            && shared.requested_product != RequestedCompileProduct::NativeArtifact
-        {
-            return Err(vec![Diagnostic::error(
-                "installation assumptions require a native product",
-            )]);
-        }
+        let target_inputs = std::mem::take(&mut policy.package_target_inputs);
+        let packages = match &shared.package_sources {
+            Some(source) => PackageCompilationInputs::from_parts(Arc::clone(source), target_inputs)
+                .map(Some)
+                .map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .map(|error| Diagnostic::error(error.to_string()))
+                        .collect::<Vec<_>>()
+                }),
+            None if target_inputs == PackageCompilationTargetInputs::default() => Ok(None),
+            None => Err(vec![Diagnostic::error(
+                "target package inputs require shared package sources",
+            )]),
+        };
+        let admitted = compilation_inputs::admit_destinations(
+            self.destinations
+                .into_iter()
+                .map(|row| row.target_name)
+                .collect(),
+            shared.requested_product,
+            &policy.optimization_rollback,
+            std::mem::take(&mut policy.installation_assumptions),
+            packages.as_ref().err().map(Vec::as_slice),
+        )?;
+        let package_inputs = packages?;
         let policy = Arc::new(policy);
-        let mut targets = Vec::<ValidatedTargetCompilation>::with_capacity(self.destinations.len());
-        let mut diagnostics = Vec::new();
-        for mut destination in self.destinations {
-            if multiple && destination.target_name.is_none() {
-                diagnostics.push(Diagnostic::error(
-                    "multiple configurations must each name an exact target",
-                ));
-                continue;
-            }
-            if shared.requested_product == RequestedCompileProduct::NativeArtifact
-                && destination.target_name.is_none()
-            {
-                match TargetProfile::host_if_supported() {
-                    Some(host) => {
-                        destination.target_name = Some(host.target_name().to_owned());
-                    }
-                    None => {
-                        let catalogued = TargetProfile::ALL
-                            .into_iter()
-                            .filter(|profile| profile.native_realization().is_some())
-                            .map(|profile| profile.target_name())
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        diagnostics.push(Diagnostic::error(format!(
-                            "native production needs an exact target profile: none was \
-                             named and this host has no catalogued Omega deployment \
-                             profile (name one of {catalogued})"
-                        )));
-                        continue;
-                    }
-                }
-            }
-            let profile = match destination
-                .target_name
-                .as_deref()
-                .map(|name| TargetProfile::from_omega_target_name(Some(name)))
-                .transpose()
-            {
-                Ok(profile) => profile,
-                Err(error) => {
-                    diagnostics.push(error);
-                    continue;
-                }
-            };
-            if let Err(error) = shared
-                .requested_product
-                .validate_optimization_rollback(&policy.optimization_rollback)
-            {
-                diagnostics.push(error);
-                continue;
-            }
-            if targets.iter().any(|target| target.profile == profile) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "duplicate compilation target {:?}",
-                    profile
-                )));
-            }
-            let target_inputs = policy.package_target_inputs.clone();
-            let package_inputs = match &shared.package_sources {
-                Some(source) => {
-                    match PackageCompilationInputs::from_parts(source.clone(), target_inputs) {
-                        Ok(inputs) => Some(inputs),
-                        Err(errors) => {
-                            diagnostics.extend(
-                                errors
-                                    .into_iter()
-                                    .map(|error| Diagnostic::error(error.to_string())),
-                            );
-                            continue;
-                        }
-                    }
-                }
-                None if target_inputs == PackageCompilationTargetInputs::default() => None,
-                None => {
-                    diagnostics.push(Diagnostic::error(
-                        "target package inputs require shared package sources",
-                    ));
-                    continue;
-                }
-            };
-            targets.push(ValidatedTargetCompilation {
-                policy: policy.clone(),
-                installation_assumptions: Vec::new(),
-                package_inputs,
-                profile,
-            });
-        }
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
-        let profiles = targets
-            .iter()
-            .filter_map(|target| target.profile)
-            .collect::<Vec<_>>();
-        let groups = partition_installation_assumptions(installation_assumptions, &profiles)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut groups = groups.into_iter();
-        for target in &mut targets {
-            if target.profile.is_some() {
-                target.installation_assumptions = groups.next().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "installation assumption partition lost a target",
-                    )]
-                })?;
-            }
-        }
-        targets.sort_by_key(|target| {
-            target.profile.and_then(|profile| {
-                TargetProfile::ALL
-                    .iter()
-                    .position(|entry| *entry == profile)
+        let targets = admitted
+            .into_iter()
+            .map(|destination| ValidatedTargetCompilation {
+                profile: destination.profile,
+                installation_assumptions: destination.installation_assumptions,
+                package_inputs: package_inputs.clone(),
+                policy: Arc::clone(&policy),
             })
-        });
+            .collect();
         Ok(ValidatedCompileRequest { shared, targets })
     }
 }
@@ -484,7 +277,7 @@ impl ValidatedCompileRequest {
 #[derive(Debug)]
 pub struct ValidatedTargetCompilation {
     policy: Arc<CompilePolicy>,
-    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
+    installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
     package_inputs: Option<PackageCompilationInputs>,
     profile: Option<TargetProfile>,
 }

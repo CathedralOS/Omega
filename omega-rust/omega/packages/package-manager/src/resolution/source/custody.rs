@@ -25,7 +25,7 @@ pub(crate) struct PackageSourceCustody {
     resolution: ImmutableSourceResolution,
     materialization: PackageSourceMaterialization,
     pub(crate) snapshot_root: PathBuf,
-    captured_source: Option<Arc<source::CapturedSourceTree>>,
+    captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
@@ -115,12 +115,15 @@ impl PackageSourceCustody {
         }
     }
 
-    pub(crate) fn with_captured_source(mut self, tree: Arc<source::CapturedSourceTree>) -> Self {
+    pub(crate) fn with_captured_source(
+        mut self,
+        tree: Arc<source_capture::CapturedSourceTree>,
+    ) -> Self {
         self.captured_source = Some(tree);
         self
     }
 
-    pub fn captured_source(&self) -> Option<&Arc<source::CapturedSourceTree>> {
+    pub fn captured_source(&self) -> Option<&Arc<source_capture::CapturedSourceTree>> {
         self.captured_source.as_ref()
     }
 

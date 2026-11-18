@@ -8,13 +8,14 @@ any structural or semantic drift produces a distinct identity hash.
 */
 
 use abstract_operations::{AbstractFunctionResult, CompletionClaimSource, ValueBinding};
+use arena::NumericId;
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
     IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
-    IntegerSign, IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
+    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
     StructuralCaseSubject, StructuralPlaceKind,
 };
 use terminal_psi::{
@@ -65,7 +66,7 @@ pub use unit_encoding::{
 
 pub(crate) mod carrier_encoding {
     use super::{
-        CanonicalBytes, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
+        CanonicalBytes, IntegerSign, IntegerType, IntegerValue, NumericId, ScalarType,
         StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralParameterDeclaration, StructuralPathSegment, ValueBinding,
         structural_encoding::encode_structural_operation_result,
@@ -76,10 +77,7 @@ pub(crate) mod carrier_encoding {
         encode_scalar_type(bytes, binding.scalar_type);
     }
 
-    pub(super) fn encode_optional_id<T: PsiSemanticId>(
-        bytes: &mut CanonicalBytes,
-        value: Option<&T>,
-    ) {
+    pub(super) fn encode_optional_id<T: NumericId>(bytes: &mut CanonicalBytes, value: Option<&T>) {
         bytes.boolean(value.is_some());
         if let Some(value) = value {
             bytes.id(*value);
@@ -97,7 +95,7 @@ pub(crate) mod carrier_encoding {
         }
     }
 
-    pub(super) fn encode_ids<T: PsiSemanticId>(bytes: &mut CanonicalBytes, ids: &[T]) {
+    pub(super) fn encode_ids<T: NumericId>(bytes: &mut CanonicalBytes, ids: &[T]) {
         bytes.len(ids.len());
         for id in ids {
             bytes.id(*id);
@@ -2654,11 +2652,11 @@ pub(crate) mod unit_encoding {
         encode_provider_candidate, encode_structural_domain, encode_structural_type,
     };
     use super::{
-        AbstractFunctionResult, AcceptedObligationFact, EffectLink, OptimizationEdge,
+        AbstractFunctionResult, AcceptedObligationFact, EffectLink, NumericId, OptimizationEdge,
         OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
         OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiSemanticId,
-        ServiceDeclaration, StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
+        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ServiceDeclaration,
+        StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
@@ -3000,7 +2998,7 @@ pub(crate) mod unit_encoding {
             self.bytes(&value.to_le_bytes());
         }
 
-        pub(super) fn id(&mut self, value: impl PsiSemanticId) {
+        pub(super) fn id(&mut self, value: impl NumericId) {
             self.u64(value.get());
         }
 

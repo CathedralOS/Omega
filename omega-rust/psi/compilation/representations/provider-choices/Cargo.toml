@@ -1,0 +1,12 @@
+[package]
+name = "provider-choices"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../declaration-contracts" }
+source-text = { path = "../../../foundation/source-text" }
+symbols = { path = "../declaration-identity" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+evaluation-receipts = { path = "../../../evaluation/evaluation-receipts" }

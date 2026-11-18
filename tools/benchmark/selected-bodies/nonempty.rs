@@ -18,7 +18,7 @@ fn main() {
         !fields_mode || MEASURE_COMPLETIONS,
         "field counters need the tracking allocator"
     );
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let source_id = sources
         .add("completion/main.omg".into(), text.clone())
         .source_id;
@@ -26,8 +26,8 @@ fn main() {
     let tokens = frontend_fixture::Lexer::new(&text).tokenize().unwrap();
     let syntax = frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     let mut frontier =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+        source_compiler::resolution::pre_resolution::resolve_deferred_numeric_probe(
+            source_compiler::resolution::ResolutionRequest {
                 syntax,
                 sources: Some(Arc::clone(&sources)),
                 top_level_bindings: Vec::new(),
@@ -36,7 +36,7 @@ fn main() {
         )
         .unwrap();
     let mut typing =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+        source_compiler::typing::lower_symbol_resolved_trees_to_seeded_base(
             frontier.shared_trees(),
         )
         .unwrap();
@@ -87,7 +87,7 @@ fn main() {
         let completion_started = std::time::Instant::now();
         let complete = || {
             let mut next = typing.complete_bodies(source).unwrap();
-            build_time_evaluation::PreCheckEvaluation::defer_declared_requests(next.typed_mut())
+            source_compiler::evaluation::PreCheckEvaluation::defer_declared_requests(next.typed_mut())
                 .unwrap();
             next
         };
@@ -122,13 +122,13 @@ fn main() {
                 .map(|row| row.request)
                 .collect::<Vec<_>>(),
             [
-                typed_trees::deferred_refusals::DeferredRequest::TypeExpressionEvaluation,
-                typed_trees::deferred_refusals::DeferredRequest::ArrayExtentEvaluation
+                source_compiler::source_state::deferred_refusals::DeferredRequest::TypeExpressionEvaluation,
+                source_compiler::source_state::deferred_refusals::DeferredRequest::ArrayExtentEvaluation
             ]
         );
         basic_oracle_ns += basic_oracle_started.elapsed().as_nanos();
         let recorded_oracle_started = std::time::Instant::now();
-        build_time_evaluation::PreCheckEvaluation::require_recorded_requests(typing.typed())
+        source_compiler::evaluation::PreCheckEvaluation::require_recorded_requests(typing.typed())
             .unwrap();
         recorded_oracle_ns += recorded_oracle_started.elapsed().as_nanos();
         let pointer_oracle_started = std::time::Instant::now();
@@ -185,7 +185,7 @@ fn profile_owner<T: Clone>(name: &'static str, rows: Option<usize>, owner: &T) {
     ));
 }
 
-fn profile_actual_owners(program: &typed_trees::TypedTrees) {
+fn profile_actual_owners(program: &source_compiler::source_state::TypedTrees) {
     profile_owner(
         "excluded_authored_selection_occurrences",
         None,
@@ -571,8 +571,8 @@ fn profile_actual_owners(program: &typed_trees::TypedTrees) {
 }
 
 fn profile_refusal_operations(
-    predecessor: &typed_trees::TypedTrees,
-    successor: &typed_trees::TypedTrees,
+    predecessor: &source_compiler::source_state::TypedTrees,
+    successor: &source_compiler::source_state::TypedTrees,
     selected: symbols::SymbolHandle,
 ) {
     // Clone setup and the genuine new row values are outside the mutation

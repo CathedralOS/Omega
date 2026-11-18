@@ -1,0 +1,583 @@
+/*
+What a rejection states: the condition that was not proved, with the authored
+names and arguments needed to locate and repair it. For example a call requirement
+reads "cannot prove requires contract for call halve from run: count > 1",
+where the lowered form alone could only say "requires clause 1 of the called
+machine".
+
+The obligation kind and the lowered form give the identities: the callee and
+clause of a `CallRequirement`, the operation of an `OperationSafety` and its
+carrier, the machine of a guarantee. Elaboration's names table
+(`crate::lowering::MachineNames`) gives what to call them: machine and
+state names, each clause's authored text, the binder an operation's value
+lands in, and a call's argument text, so a callee clause is stated over the
+caller's actuals. Without that table (bodies
+lowered without typed trees) a statement names the identities only.
+
+A statement says what was not proved, never that it is false
+(`wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a proof
+is not proof of falsehood"). An unproved condition is not described as
+"provably zero" or "structurally false": neither follows from failed search.
+*/
+
+use semantic_vocabulary::{
+    CrashCause, IntegerCarrier, IntegerSign, InvocationSite, MachineId, ObligationId, OperationId,
+    ScalarType,
+};
+use terminal_check_tables::MachineTables;
+use terminal_check_tables::edges::Callee;
+use terminal_check_tables::obligations::{CrashSite, ExecutionSite, ObligationKind};
+use terminal_check_tables::{
+    names::{Binder, MachineNames},
+    program::{Elaboration, SourceOrigin},
+};
+use terminal_psi::{
+    ArrayExtent, OperationKind, OperationResult, StructuralTypeShape, TerminalModule,
+};
+
+/// The statement of one unproved obligation of `machine`, which arises at
+/// `site`.
+pub(crate) fn unproved(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    obligation: ObligationId,
+    kind: ObligationKind,
+    site: SourceOrigin,
+) -> String {
+    let names = elaboration.names.get(machine);
+    match kind {
+        ObligationKind::IntegerWidthPositive { parameter } => {
+            let binder = tables
+                .values
+                .get(parameter)
+                .and_then(|row| match row.origin {
+                    terminal_check_tables::values::ValueOrigin::MachineParameter { position } => {
+                        names.and_then(|names| names.formals.get(usize::try_from(position).ok()?))
+                    }
+                    _ => None,
+                });
+            match binder {
+                Some(binder) => format!("cannot prove integer width `{binder}` is positive"),
+                None => String::from("cannot prove integer width is positive"),
+            }
+        }
+        ObligationKind::CallRequirement { invocation, clause } => {
+            let callee = tables
+                .invocations
+                .get(invocation)
+                .and_then(|row| match row.callee {
+                    Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(
+                        callee,
+                    )) => Some(callee),
+                    Callee::Selected { .. }
+                    | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => {
+                        None
+                    }
+                });
+            let callee_names = callee.and_then(|callee| elaboration.names.get(callee));
+            let text = callee_names.and_then(|callee_names| {
+                let clause = callee_names.requires.get(usize::try_from(clause).ok()?)?;
+                let arguments = site
+                    .span()
+                    .and_then(|span| names.and_then(|names| names.arguments(span)));
+                let over_actuals = clause.render(&|position| {
+                    arguments
+                        .and_then(|arguments| arguments.get(position))
+                        .or_else(|| callee_names.formals.get(position))
+                        .cloned()
+                        .unwrap_or_else(|| String::from("?"))
+                });
+                Some((over_actuals, callee_names.authored(clause)))
+            });
+            match (names, callee_names, text) {
+                // Show both the substituted obligation and its authored
+                // requirement so the caller can establish the missing fact.
+                (Some(names), Some(callee_names), Some((text, fact))) => format!(
+                    "cannot prove requires contract for call {} from {}: {text} (needs fact \
+                     `{fact}` here; establish it before the call via a prior contract \
+                     guarantee, domain membership, or guard) in state `{}`",
+                    callee_names.machine, names.machine, names.state
+                ),
+                _ => format!(
+                    "cannot prove requires clause {} of the called machine",
+                    u64::from(clause) + 1
+                ),
+            }
+        }
+        ObligationKind::NormalGuarantee { clause, .. }
+        | ObligationKind::PublishedGuarantee { clause } => {
+            let text = names.and_then(|names| {
+                let text = names.ensures.get(usize::try_from(clause).ok()?)?;
+                Some((names, names.authored(text)))
+            });
+            match text {
+                Some((names, text)) => match names.exit_statement(site) {
+                    Some(statement) => format!(
+                        "cannot prove ensures contract for exit from {} at statement {statement}: \
+                         {text}",
+                        names.machine
+                    ),
+                    None => format!(
+                        "cannot prove ensures contract for exit from {}: {text}",
+                        names.machine
+                    ),
+                },
+                None => format!("cannot prove ensures clause {}", u64::from(clause) + 1),
+            }
+        }
+        ObligationKind::OperationSafety { site: execution } => {
+            let statement = match execution {
+                ExecutionSite::Operation(operation) => {
+                    operation_safety(elaboration, machine, names, operation, site)
+                }
+                ExecutionSite::Block(_) => format!(
+                    "cannot prove storage index bounds in {}",
+                    owner(names, site)
+                ),
+            };
+            match indexed_extent(&elaboration.module, machine, execution, obligation) {
+                Some((Some(index), extent)) => {
+                    format!("{statement}: cannot prove index `{index}` is within length {extent}")
+                }
+                Some((None, extent)) => {
+                    format!("{statement}: cannot prove index is within length {extent}")
+                }
+                None => statement,
+            }
+        }
+        ObligationKind::DataDomain { clause, .. } => format!(
+            "cannot prove requires clause {} of a data type in {}",
+            u64::from(clause) + 1,
+            owner(names, site)
+        ),
+        ObligationKind::ArrivalInvariant { edge } => {
+            head_arrival(elaboration, machine, tables, edge, site)
+                .or_else(|| cast_predicate_arrival(elaboration, machine, tables, edge, names, site))
+                .unwrap_or_else(|| {
+                    format!("cannot prove block invariant in {}", owner(names, site))
+                })
+        }
+        ObligationKind::CrashCoverage { site: crash, cause } => {
+            crash_coverage(elaboration, tables, names, crash, cause, site)
+        }
+        // A failed comparison is stated as what the witness needs of the
+        // call, never as "the loop does not end": the measure was not
+        // shown to go down, which is not a proof that it does not.
+        ObligationKind::RankComparison { edge, .. } => {
+            let strict = elaboration
+                .module
+                .machine(machine)
+                .and_then(|lowered| crate::checking::rankings::claims_strict(lowered, edge));
+            match strict {
+                Some(false) => format!(
+                    "cannot prove the `terminates by` measure does not grow in {}",
+                    owner(names, site)
+                ),
+                _ => format!(
+                    "cannot prove the `terminates by` measure decreases at this call in {} \
+                     (the recursive call must pass a strictly smaller measure; establish it \
+                     via a guard or a `requires` of this machine)",
+                    owner(names, site)
+                ),
+            }
+        }
+        ObligationKind::WellFoundedness { .. } => format!(
+            "cannot prove the `terminates by` measure is bounded below in {}",
+            owner(names, site)
+        ),
+        ObligationKind::Claim { .. }
+        | ObligationKind::Loan { .. }
+        | ObligationKind::RestorationWindow { .. }
+        | ObligationKind::DomainDebt { .. }
+        | ObligationKind::EstablishmentDebt { .. } => {
+            format!(
+                "cannot prove conserved obligation in {}",
+                owner(names, site)
+            )
+        }
+    }
+}
+
+/// An arrival into a loop head is a call of the head's member, and the
+/// head's invariant is that member's `requires`
+/// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
+/// every invocation, including terminal and recursive calls."). It is stated
+/// over the call's requirement: the clauses over
+/// the call's actuals, then as the member wrote them, and the calling
+/// machine's state. The calling machine is the one whose names record a
+/// call at the arrival's site. `None` for a join, whose predicate the
+/// checker inferred, and for the entry's jump, which no call made.
+/// A cast's conditions were not established on arrival at its continuation.
+/// The same proof step serves domain predicates and exact representability;
+/// the refusal names which one failed, so a domain cast still says that the
+/// value is not shown to be in the domain it adds.
+/// `None` for an arrival that does not establish a cast predicate.
+fn cast_predicate_arrival(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    edge: semantic_vocabulary::EdgeId,
+    names: Option<&MachineNames>,
+    site: SourceOrigin,
+) -> Option<String> {
+    let terminal_check_tables::edges::Destination::Block(established) =
+        tables.edges.get(edge)?.destination
+    else {
+        return None;
+    };
+    use terminal_check_tables::program::CastCondition;
+    let (claim, stated) = match &elaboration
+        .sources
+        .get(machine)?
+        .predicate_establishments
+        .iter()
+        .find(|(block, _)| *block == established)?
+        .1
+    {
+        CastCondition::DomainMembership(stated) => {
+            ("the value of this cast is in the domain it adds", stated)
+        }
+        CastCondition::ExactRepresentation(stated) => {
+            ("the required condition of this cast", stated)
+        }
+    };
+    Some(format!(
+        "cannot prove {claim} in {}: {stated} (needs that fact about the operand here; \
+         establish it before the cast via a guard, a prior contract guarantee or a `requires` \
+         of this machine)",
+        owner(names, site)
+    ))
+}
+
+fn head_arrival(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    edge: semantic_vocabulary::EdgeId,
+    site: SourceOrigin,
+) -> Option<String> {
+    let terminal_check_tables::edges::Destination::Block(head) =
+        tables.edges.get(edge)?.destination
+    else {
+        return None;
+    };
+    let member = elaboration
+        .sources
+        .get(machine)?
+        .heads
+        .iter()
+        .find(|(block, _)| *block == head)?
+        .1;
+    let callee = elaboration.names.get(member)?;
+    let span = site.span()?;
+    let (caller, arguments) = elaboration
+        .names
+        .iter()
+        .find_map(|(_, names)| Some((names, names.arguments(span)?)))?;
+    if callee.requires.is_empty() {
+        return None;
+    }
+    let over_actuals: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| {
+            clause.render(&|position| {
+                arguments
+                    .get(position)
+                    .or_else(|| callee.formals.get(position))
+                    .cloned()
+                    .unwrap_or_else(|| String::from("?"))
+            })
+        })
+        .collect();
+    let authored: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| callee.authored(clause))
+        .collect();
+    Some(format!(
+        "cannot prove requires contract for call {} from {}: {} (needs fact `{}` here; \
+         establish it before the call via a prior contract guarantee, domain membership, or \
+         guard) in state `{}`",
+        callee.machine,
+        caller.machine,
+        over_actuals.join(" && "),
+        authored.join(" && "),
+        caller.state
+    ))
+}
+
+/// An uncovered crash names the route the caller must publish: a surviving
+/// call route names the
+/// caller and callee, a `crash` statement names its machine, and both say
+/// what to publish. The diagnostic uses the retained source site rather
+/// than inventing a position from lowered operation numbering.
+fn crash_coverage(
+    elaboration: &Elaboration,
+    tables: &MachineTables,
+    names: Option<&MachineNames>,
+    crash: CrashSite,
+    cause: CrashCause,
+    site: SourceOrigin,
+) -> String {
+    let Some(names) = names else {
+        return format!("cannot prove crash coverage in {}", owner(names, site));
+    };
+    // A call site is an operation, or a block that ends in a call with no
+    // normal return; either way the invocation row names the callee.
+    let callee = tables
+        .invocations
+        .iter()
+        .find(|(_, row)| match (crash, row.site) {
+            (CrashSite::Operation(operation), InvocationSite::Operation(called)) => {
+                operation == called
+            }
+            (CrashSite::Block(block), InvocationSite::InvokeNoNormal(edge)) => tables
+                .edges
+                .get(edge)
+                .is_some_and(|row| row.source == block),
+            _ => false,
+        })
+        .and_then(|(_, row)| match row.callee {
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                elaboration.names.get(callee)
+            }
+            Callee::Selected { .. }
+            | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => None,
+        });
+    match callee {
+        Some(callee) => format!(
+            "call from `{}` to `{}` has an uncovered {cause:?} crash route; publish a \
+             same-cause route whose guard covers this invocation",
+            names.machine, callee.machine
+        ),
+        None => format!(
+            "machine `{}` has an uncovered {cause:?} crash; publish a same-cause `crashes` \
+             route whose guard covers this site",
+            names.machine
+        ),
+    }
+}
+
+/// Name the exact array whose projection owns the failed bound. A single
+/// operation can index several arrays, so the operation alone cannot identify
+/// the extent. The index comes back too when it is a constant, so the message
+/// can say which index fell outside (`values[8]` into `[i32; 8]`).
+fn indexed_extent(
+    module: &TerminalModule,
+    machine: MachineId,
+    site: ExecutionSite,
+    obligation: ObligationId,
+) -> Option<(Option<u64>, u64)> {
+    let lowered = module.machine(machine)?;
+    let projections = match site {
+        ExecutionSite::Operation(operation) => {
+            lowered.operation(operation)?.kind.structural_projections()
+        }
+        ExecutionSite::Block(block) => lowered.block(&block)?.terminator.storage_uses(),
+    };
+    projections.into_iter().find_map(|projection| {
+        let (position, index) =
+            projection
+                .path
+                .iter()
+                .enumerate()
+                .find_map(|(position, step)| match step.runtime_index() {
+                    Some((index, owner)) if owner == obligation => Some((position, index)),
+                    _ => None,
+                })?;
+        let root = lowered.structural_place_type(projection.root).or_else(|| {
+            lowered
+                .block_structural_parameters()
+                .find(|parameter| parameter.place == projection.root)
+                .map(|parameter| parameter.structural_type)
+        })?;
+        let array = terminal_semantics::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            root,
+            &projection.path[..position],
+        )?;
+        match array.shape {
+            StructuralTypeShape::FixedArray {
+                length: ArrayExtent::Literal(extent),
+                ..
+            } => Some((
+                terminal_semantics::constant_runtime_index(lowered, index),
+                extent,
+            )),
+            _ => None,
+        }
+    })
+}
+
+/// A partial operation's unproved safety condition: overflow of an add, subtract or
+/// multiply, the count of a shift, the definedness of a division or
+/// remainder. Each names the operation's carrier.
+fn operation_safety(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    names: Option<&MachineNames>,
+    operation: OperationId,
+    site: SourceOrigin,
+) -> String {
+    let owner = owner(names, site);
+    let found = usize::try_from(machine.get() - 1)
+        .ok()
+        .and_then(|position| elaboration.module.machines.get(position))
+        .and_then(|lowered| {
+            lowered
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|candidate| candidate.id == operation)
+        });
+    let Some(found) = found else {
+        return format!("cannot prove operation safety in {owner}");
+    };
+    let carrier = match &found.result {
+        OperationResult::Scalar(declaration) => primitive(declaration.scalar_type),
+        OperationResult::Unit | OperationResult::Structural(_) => String::from("?"),
+    };
+    let signed = matches!(
+        &found.result,
+        OperationResult::Scalar(declaration)
+            if matches!(declaration.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed)
+    );
+    let partial = |operation: &str| {
+        let conditions = if signed {
+            "the divisor must be proven nonzero and the signed `MIN / -1` primitive pair must \
+             be excluded"
+        } else {
+            "the divisor must be proven nonzero"
+        };
+        format!("partial exact {operation} in {owner}: {conditions}")
+    };
+    match found.kind {
+        OperationKind::ExactIntegerAdd { .. }
+        | OperationKind::ExactIntegerSubtract { .. }
+        | OperationKind::ExactIntegerMultiply { .. } => format!(
+            "exact arithmetic in {owner} may overflow `{carrier}`: the operands are not provably \
+             in range (decision 17 -- exact arithmetic is a proof obligation)"
+        ),
+        // A left shift's goal is a conjunction: the count is below the width
+        // and the shifted value fits. The route does not say which conjunct
+        // failed, so the statement names both.
+        OperationKind::ExactIntegerShiftLeft { .. } => format!(
+            "exact arithmetic in {owner} may overflow `{carrier}`: the shift count is not \
+             provably below the operand width or the shifted value is not provably in range"
+        ),
+        OperationKind::ExactIntegerShiftRight { .. } => {
+            format!(
+                "shift count in {owner} is not provably below the operand width for `{carrier}`"
+            )
+        }
+        // The operand's carrier is not named because
+        // the operation row holds only the operand's value identity.
+        OperationKind::IntegerExactCast { .. } => format!(
+            "Exact integer cast in {owner} to `{carrier}` is not provably representable; \
+             constrain the source with a range or dominating guard, or use a named Wrapping, \
+             Saturating, or Trapping conversion"
+        ),
+        OperationKind::ExactIntegerDivide { .. } => partial("division"),
+        OperationKind::ExactIntegerRemainder { .. } => partial("remainder"),
+        _ => format!("cannot prove operation safety in {owner}"),
+    }
+}
+
+/// One fact in force before a branch, as an unreachable-branch warning names
+/// it: an entry requirement or a callee's guarantee as authored, otherwise
+/// what kind of fact it is.
+pub(crate) fn premise(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    premise: terminal_check_tables::values::Justification,
+) -> String {
+    use terminal_check_tables::values::Justification;
+    let clause = |names: Option<&MachineNames>, clause: u32, ensures: bool| {
+        let names = names?;
+        let clauses = if ensures {
+            &names.ensures
+        } else {
+            &names.requires
+        };
+        Some(names.authored(clauses.get(usize::try_from(clause).ok()?)?))
+    };
+    let names = elaboration.names.get(machine);
+    match premise {
+        Justification::EntryRequirement { clause: position } => {
+            clause(names, position, false).unwrap_or_else(|| String::from("an entry requirement"))
+        }
+        Justification::CalleeGuarantee {
+            invocation,
+            clause: position,
+        } => elaboration
+            .tables
+            .machines
+            .get(machine)
+            .and_then(|tables| tables.invocations.get(invocation))
+            .and_then(|row| match row.callee {
+                Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                    let callee_names = elaboration.names.get(callee)?;
+                    Some(format!(
+                        "`{}` ensures {}",
+                        callee_names.machine,
+                        clause(Some(callee_names), position, true)?
+                    ))
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| String::from("a callee's guarantee")),
+        Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
+        Justification::DispatchBinding { .. } => String::from("the case a dispatch selected"),
+        Justification::BlockInvariant { .. } => String::from("a block invariant"),
+        Justification::FormalType => String::from("the declared type of a formal"),
+        Justification::Derived { .. } | Justification::OperationSemantics(_) => {
+            String::from("a derived fact")
+        }
+    }
+}
+
+/// Where a value is computed, using the retained authored binder:
+/// "machine `run` state `entry` local `quotient`", or "... return value".
+pub(crate) fn owner(names: Option<&MachineNames>, site: SourceOrigin) -> String {
+    let Some(names) = names else {
+        return String::from("this machine");
+    };
+    let mut owner = format!("machine `{}` state `{}`", names.machine, names.state);
+    let binder = site.span().and_then(|span| names.binder(span));
+    match binder {
+        Some(Binder::Local(name)) => {
+            owner.push_str(" local `");
+            owner.push_str(name);
+            owner.push('`');
+        }
+        Some(Binder::ReturnValue) => owner.push_str(" return value"),
+        None => {}
+    }
+    owner
+}
+
+/// A scalar type as Omega spells it.
+fn primitive(scalar_type: ScalarType) -> String {
+    match scalar_type {
+        ScalarType::Boolean => String::from("bool"),
+        ScalarType::IeeeFloat(_) => String::from("float"),
+        ScalarType::Callable(contract) => format!("machine contract {}", contract.get()),
+        ScalarType::Integer(integer) => {
+            let sign = match integer.sign() {
+                IntegerSign::Signed => 'i',
+                IntegerSign::Unsigned => 'u',
+            };
+            match integer.carrier() {
+                IntegerCarrier::Address => format!("{sign}size"),
+                IntegerCarrier::Fixed => match integer.width() {
+                    semantic_vocabulary::IntegerWidth::Bits(bits) => format!("{sign}{bits}"),
+                    semantic_vocabulary::IntegerWidth::Parameter(_) => {
+                        format!("{sign}<width parameter>")
+                    }
+                },
+            }
+        }
+    }
+}

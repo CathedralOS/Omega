@@ -9,12 +9,12 @@
 use std::path::Path;
 
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
-use terminal_check_tables::obligations::ObligationKind;
-use terminal_psi_to_terminal_psi::{
+use source_compiler::checking::{
     ProofSearchActivity, Selection, discharge, reverify_specialization,
 };
-use typed_trees_to_terminal_psi::Elaboration;
+use source_compiler::lowering::Elaboration;
+use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
+use terminal_check_tables::obligations::ObligationKind;
 
 fn one_line(text: impl std::fmt::Display) -> String {
     text.to_string()
@@ -51,7 +51,7 @@ fn report(
     main: &Path,
     subject: u64,
     elaboration: &Elaboration,
-    discharged: &terminal_psi_to_terminal_psi::Discharge,
+    discharged: &source_compiler::checking::Discharge,
     machine: MachineId,
     lines: &mut Vec<String>,
 ) -> bool {
@@ -87,20 +87,20 @@ fn report(
 /// dependency set. Observe its completed forms instead of independently
 /// finalizing a closure before its generic headers exist. Empty subjects and
 /// selections retain this experiment's concrete-root-only scope.
-fn prepare(
+pub(super) fn prepare(
     frontier: &compiler::TypedFrontier,
     entry: symbols::SymbolHandle,
 ) -> Result<PreparedCompilation, String> {
     let calling = frontier.normalization.calling.borrow(&frontier.typed);
-    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+    let prepared = source_compiler::lowering::prepare_compilation(
         &frontier.typed,
-        typed_trees_to_terminal_psi::Compilation {
+        source_compiler::lowering::Compilation {
             calling: calling.selection(),
             providers: frontier.provider_selections(),
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -166,7 +166,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 .machines
                 .iter()
                 .filter(|(_, symbol)| {
-                    typed_trees_to_terminal_psi::template_of(typed, **symbol).is_some()
+                    source_compiler::lowering::template_of(typed, **symbol).is_some()
                 })
                 .map(|(machine, _)| machine)
                 .collect::<Vec<_>>();
@@ -205,7 +205,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // type family one per alternative it lists.
     let mut generics: Vec<(
         symbols::SymbolHandle,
-        Vec<(Elaboration, terminal_psi_to_terminal_psi::Discharge)>,
+        Vec<(Elaboration, source_compiler::checking::Discharge)>,
     )> = Vec::new();
     let mut carried_all = true;
     for (prepared, machines) in roots {
@@ -251,7 +251,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             let Some(template) = consumer
                 .machines
                 .get(specialization)
-                .and_then(|symbol| typed_trees_to_terminal_psi::template_of(typed, *symbol))
+                .and_then(|symbol| source_compiler::lowering::template_of(typed, *symbol))
             else {
                 return "route=defect\tspecialization without a template".to_owned();
             };
@@ -408,16 +408,17 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                     })
                     .collect();
                 // Form both exact declarations before entering search-free replay.
-                let generic_scope = match terminal_psi_to_terminal_psi::prepare_replay(
-                    generic,
-                    &mut proof_activity,
-                ) {
-                    Ok(scope) => scope,
-                    Err(refusal) => {
-                        return format!("route=outside\tformation: {}", one_line(&refusal.detail));
-                    }
-                };
-                let mut consumer_scope = match terminal_psi_to_terminal_psi::prepare_replay(
+                let generic_scope =
+                    match source_compiler::checking::prepare_replay(generic, &mut proof_activity) {
+                        Ok(scope) => scope,
+                        Err(refusal) => {
+                            return format!(
+                                "route=outside\tformation: {}",
+                                one_line(&refusal.detail)
+                            );
+                        }
+                    };
+                let mut consumer_scope = match source_compiler::checking::prepare_replay(
                     &mut consumer,
                     &mut proof_activity,
                 ) {

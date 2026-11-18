@@ -1,0 +1,941 @@
+//! Replay source correspondence and backing geometry against stage 02.
+//! Production reads the current program and the facts the driver carried;
+//! only validators may enter this module, and only with stage 02's output
+//! retained for that audit (`RetainedTargetOperations`).
+
+use super::placed_reference::backing_geometry;
+use super::{
+    AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractStructuralCallResult, Error, MachineId, access_lifecycle_retained, aggregate_results,
+    byte_concatenation_retained, byte_operation_retained, call_target_matches, control_flow,
+    correspondence, descriptor_tables, element_operation_retained, empty_run_release_retained,
+    fixed_byte_length_is_static, fragments, ieee_float_builtin_retained, ieee_literal_retained,
+    installed_calls, installed_interrupts, parameter_abi, placed_reference, placed_scalar_retained,
+    primitive_accesses, program_image_retained, static_interrupts, structural_case,
+    structural_fields,
+};
+use object_file::StagedOptimizedRelocationFreeObjectContainer;
+use target_operations::TargetUnitOperation;
+
+fn original_function(
+    original: &crate::RetainedTargetOperations,
+    machine: MachineId,
+) -> Result<&AbstractFunction, Error> {
+    let mut rows = original
+        .target_for_correspondence()
+        .optimized()
+        .plan()
+        .functions
+        .iter()
+        .filter(|row| row.machine == machine);
+    match (rows.next(), rows.next()) {
+        (Some(row), None) => Ok(row),
+        _ => Err(Error::Mismatch("audit has no unique original function")),
+    }
+}
+
+/// The optimized function and stage 02's lowered function for `machine`.
+/// Only the replay validators call this; ordinary emission reads the
+/// prepared plan.
+pub(in crate::function_fragments) fn audited_function<'a>(
+    _source: &'a StagedOptimizedRelocationFreeObjectContainer,
+    original: &'a crate::RetainedTargetOperations,
+    machine: MachineId,
+) -> Result<(&'a AbstractFunction, &'a target_operations::TargetFunction), Error> {
+    let abstracted = original_function(original, machine)?;
+    let mut targeted = crate::retained_working_program::target_operations(original)
+        .functions
+        .iter()
+        .filter(|function| function.machine == machine);
+    match (targeted.next(), targeted.next()) {
+        (Some(targeted), None) => Ok((abstracted, targeted)),
+        _ => Err(Error::Mismatch(
+            "shared function has no unique current source",
+        )),
+    }
+}
+
+pub(in crate::function_fragments) fn establish_geometry(
+    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
+) -> Result<(), super::Error> {
+    let current = source.source().source().source().source();
+    let physical = current.original_physical_program().ok_or(Error::Mismatch(
+        "original physical instructions were not retained (ReplayUnavailable)",
+    ))?;
+    let abstracted = original.target_for_correspondence().optimized().plan();
+    let targeted = crate::retained_working_program::target_operations(original);
+    let selected = physical;
+    if !targeted.functions.iter().any(|function| {
+        function.graph.operations().any(|operation| {
+            matches!(
+                operation,
+                TargetUnitOperation::EstablishAccessReference { .. }
+            )
+        })
+    }) {
+        return Ok(());
+    }
+    let graph = backing_geometry::completed_graph(abstracted, targeted).ok_or(
+        super::Error::Mismatch("placed formation has no complete reference-origin graph"),
+    )?;
+    let mut geometry =
+        backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
+    for function in &targeted.functions {
+        for operation in function.graph.operations() {
+            if let TargetUnitOperation::EstablishAccessReference {
+                psi_operation,
+                result_home,
+                source,
+                correspondence,
+                ..
+            } = operation
+            {
+                geometry
+                    .proves(
+                        function.machine,
+                        result_home.place(),
+                        source,
+                        correspondence,
+                    )
+                    .map_err(|reason| super::Error::AccessBackingGeometry {
+                        machine: function.machine,
+                        operation: *psi_operation,
+                        reason,
+                    })?;
+            }
+        }
+    }
+    Ok(())
+}
+
+// Original selection correspondence belongs beside the other retained-source
+// checks. Ordinary pool validation reads exact current instruction owners.
+fn validate_image_selection_origins(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
+) -> Result<(), Error> {
+    use selected_instructions::SelectedImageAddressReference as Reference;
+    let current_input =
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+    let catalogs = super::code_catalogs(&current_input);
+    for address in &source.source().text_section().unresolved_image_addresses {
+        if !matches!(
+            address.reference,
+            Reference::MachineDescriptor { .. }
+                | Reference::ImplementationTable { .. }
+                | Reference::NativeCodeLayout { .. }
+        ) {
+            continue;
+        }
+        let function = original_function(original, address.machine)?;
+        let matches = function
+            .operations()
+            .filter(|operation| match (address.reference, operation) {
+                (
+                    Reference::ImplementationTable { table },
+                    AbstractOperation::SelectImplementation {
+                        psi_operation,
+                        table: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == table,
+                (
+                    Reference::MachineDescriptor { descriptor },
+                    AbstractOperation::SelectMachine {
+                        psi_operation,
+                        descriptor: original,
+                        result,
+                    },
+                ) => {
+                    *psi_operation == address.operation
+                        && *original == descriptor
+                        && catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .is_some_and(|row| {
+                                result.scalar_type
+                                    == semantic_vocabulary::ScalarType::Callable(row.contract)
+                            })
+                }
+                (
+                    Reference::NativeCodeLayout { machine },
+                    AbstractOperation::EstablishNativeCodeLayout {
+                        psi_operation,
+                        machine: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == machine,
+                _ => false,
+            })
+            .count();
+        if matches != 1 {
+            return Err(Error::Mismatch(
+                if matches!(address.reference, Reference::NativeCodeLayout { .. }) {
+                    "native metadata address differs from its exact query"
+                } else {
+                    "code descriptor address differs from its checked selection"
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Match writer custody once per original/current roster. Ordinary publication
+// reads the located current row; only this audit opens the prepared program.
+type ByteWriterRow = (
+    MachineId,
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::BoundaryMachineId,
+    target_vocabulary::BoundaryExecutionBinding,
+);
+
+fn validate_byte_writers(
+    prepared: &legalized_operations::LegalizedOperationPlan,
+    current: &post_allocation_machine::PostAllocationMachineProgram,
+) -> Result<(), Error> {
+    use legalized_operations::LegalizedScalarInstructionKind as Prepared;
+    use selected_instructions::SelectedBoundarySettlementPayload as Current;
+    let mut expected: Vec<ByteWriterRow> = prepared
+        .scalar_functions
+        .iter()
+        .flat_map(|function| {
+            function
+                .instructions()
+                .filter_map(move |row| match row.kind {
+                    Prepared::HostedWriteByteI32 {
+                        boundary,
+                        execution,
+                        ..
+                    } => Some((function.machine, row.operation, boundary, execution)),
+                    _ => None,
+                })
+        })
+        .collect();
+    let mut actual: Vec<ByteWriterRow> = current
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function
+                .boundary_settlements
+                .iter()
+                .filter_map(move |row| match row.settlement {
+                    Current::HostedWriteByteI32 {
+                        operation,
+                        boundary,
+                        execution,
+                        ..
+                    } => Some((function.machine, operation, boundary, execution)),
+                    _ => None,
+                })
+        })
+        .collect();
+    validate_byte_writer_rows(&mut expected, &mut actual)
+}
+
+fn validate_byte_writer_rows(
+    expected: &mut [ByteWriterRow],
+    actual: &mut [ByteWriterRow],
+) -> Result<(), Error> {
+    expected.sort_unstable_by_key(|row| (row.0, row.1));
+    actual.sort_unstable_by_key(|row| (row.0, row.1));
+    let duplicate = |rows: &[ByteWriterRow]| {
+        rows.windows(2).any(|pair| {
+            let (machine, operation, _, _) = pair[0];
+            let (next_machine, next_operation, _, _) = pair[1];
+            machine == next_machine && operation == next_operation
+        })
+    };
+    if duplicate(expected) || duplicate(actual) || expected != actual {
+        return Err(Error::Mismatch(
+            "byte output execution differs from its prepared source",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_block_parameter_rows(
+    expected: &[(
+        semantic_vocabulary::BlockId,
+        &[terminal_psi::StructuralParameterDeclaration],
+    )],
+    actual: &[selected_instructions::SelectedStructuralBlockParameters],
+) -> Result<(), Error> {
+    if expected.len() != actual.len()
+        || expected.iter().zip(actual).any(
+            |((block, parameters), (current_block, current_parameters))| {
+                block != current_block || *parameters != current_parameters.as_ref()
+            },
+        )
+    {
+        return Err(Error::Mismatch(
+            "current block parameters differ from their original declarations",
+        ));
+    }
+    Ok(())
+}
+
+pub(in crate::function_fragments) fn admit(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
+) -> Result<(), Error> {
+    let current_input =
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+    let fragments = fragments(&current_input);
+    if fragments.functions.is_empty()
+        || fragments.target.pointer_size != 8
+        || fragments.target.pointer_alignment != 8
+    {
+        return Err(Error::Unsupported(
+            "shared image publication requires a nonempty 64-bit function roster",
+        ));
+    }
+    let current = source.source().source().source().source();
+    let physical = current.original_physical_program().ok_or(Error::Mismatch(
+        "original physical instructions were not retained (ReplayUnavailable)",
+    ))?;
+    let published = original.target_for_correspondence().execution_plan().plan();
+    let contracts = &physical.contracts;
+    if contracts.profile() != published.profile
+        || contracts.function_abis().as_ref() != published.function_abis.as_ref()
+    {
+        return Err(Error::Mismatch(
+            "current publication contracts differ from the prepared ABI and profile",
+        ));
+    }
+    if contracts.publication() != &published.publication {
+        return Err(Error::Mismatch(
+            "current source sites and literals differ from the prepared publication",
+        ));
+    }
+    if contracts.execution() != published.execution.as_ref() {
+        return Err(Error::Mismatch(
+            "current callable facts differ from the prepared execution input",
+        ));
+    }
+    validate_image_selection_origins(source, original)?;
+    let mut original_functions: Vec<_> = original
+        .target_for_correspondence()
+        .optimized()
+        .plan()
+        .functions
+        .iter()
+        .collect();
+    original_functions.sort_by_key(|function| function.machine);
+    if original_functions
+        .windows(2)
+        .any(|pair| pair[0].machine == pair[1].machine)
+    {
+        return Err(Error::Mismatch(
+            "block declarations have no unique original function",
+        ));
+    }
+    for function in physical.functions.iter() {
+        let index = original_functions
+            .binary_search_by_key(&function.machine, |function| function.machine)
+            .map_err(|_| Error::Mismatch("block declarations have no unique original function"))?;
+        let original_function = original_functions[index];
+        let mut original_rows: Vec<_> = original_function
+            .blocks
+            .iter()
+            .filter(|block| !block.structural_parameters.is_empty())
+            .map(|block| (block.block, block.structural_parameters.as_slice()))
+            .collect();
+        original_rows.sort_by_key(|(block, _)| *block);
+        validate_block_parameter_rows(&original_rows, &function.structural_block_parameters)?;
+    }
+    validate_byte_writers(published, physical)?;
+    let abstract_plan = original.target_for_correspondence().optimized().plan();
+    placed_reference::backing_geometry::validate_activation_residence(
+        abstract_plan,
+        physical,
+        crate::retained_working_program::target_operations(original),
+        current
+            .installation_authority()
+            .installed_stack_requirements(),
+    )?;
+    let geometry_graph = abstract_plan
+        .operations()
+        .any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::EstablishAccessReference { .. }
+            )
+        })
+        .then(|| {
+            placed_reference::backing_geometry::completed_graph(
+                abstract_plan,
+                crate::retained_working_program::target_operations(original),
+            )
+        })
+        .flatten();
+    let mut geometry = geometry_graph.as_ref().map(|graph| {
+        placed_reference::backing_geometry::BackingGeometry::new(
+            abstract_plan,
+            physical,
+            crate::retained_working_program::target_operations(original),
+            graph,
+        )
+    });
+    let interrupt_helpers =
+        provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
+            abstract_plan.psi,
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .module(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .installed_interrupts(),
+        );
+    for fragment in &fragments.functions {
+        let (abstracted, targeted) = audited_function(source, original, fragment.machine)?;
+        let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
+        let selected = current
+            .original_physical_program()
+            .ok_or(Error::Mismatch(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            ))?
+            .function(fragment.machine)
+            .ok_or(Error::Mismatch("missing selected function"))?;
+        let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
+        installed_calls::validate(abstracted, targeted, selected)?;
+        let installed_scopes = installed_interrupts::validate(
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .module(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .installed_interrupts(),
+            current
+                .installation_authority()
+                .installed_stack_requirements(),
+            physical.target,
+            targeted,
+            selected,
+        )?;
+        let mut addresses = placed_reference::AddressReplay::new(targeted, selected);
+        let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
+            .map_err(Error::Mismatch)?;
+        let structural = selected.structural.as_ref();
+        let graph_result = aggregate_results::header(abstracted, targeted, selected);
+        let mut declarations = original
+            .target_for_correspondence()
+            .optimized()
+            .unit()
+            .functions
+            .iter()
+            .filter(|row| row.machine == fragment.machine);
+        let declaration = declarations
+            .next()
+            .ok_or(Error::Mismatch("missing canonical function declaration"))?;
+        if declarations.next().is_some()
+            || declaration.attachment != abstracted.attachment
+            || declaration.entry_claim_declarations != abstracted.entry_claims
+            || declaration.published_service_ceiling != abstracted.published_service_ceiling
+        {
+            return Err(Error::Mismatch(
+                "function declaration metadata differs from canonical source",
+            ));
+        }
+        if abstracted.attachment != fragment.attachment
+            || targeted.provenance != fragment.provenance
+            || (!abstracted.structural_parameters.is_empty() && structural.is_none())
+            || (structural.is_some_and(|contract| !contract.parameters.is_empty())
+                && !unit
+                && !graph_result
+                && targeted.mixed_structural_scalar_abi.is_none())
+            || (structural.is_none() && !abstracted.entry_claims.is_empty())
+            || (unit
+                && (targeted
+                    .scalar_abi
+                    .as_ref()
+                    .is_some_and(|abi| abi.result.is_some())
+                    || targeted.mixed_structural_scalar_abi.is_some()))
+            || (!unit
+                && !graph_result
+                && (targeted.scalar_abi.is_some()
+                    == targeted.mixed_structural_scalar_abi.is_some()))
+        {
+            return Err(Error::Unsupported(
+                "shared function has unsupported ABI or boundary effects",
+            ));
+        }
+        if let Some(abi) = &targeted.mixed_structural_scalar_abi {
+            crate::function_fragments::mixed_scalar_abi::admit(
+                abstracted, targeted, selected, abi,
+            )?;
+        }
+        if unit && (!abstracted.parameters.is_empty() || parameter_abi(targeted).is_some())
+            || graph_result
+        {
+            let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
+                .ok_or(Error::Mismatch(
+                    "shared function has no retained parameter/result ABI",
+                ))?;
+            if scalar_parameters.len() != abstracted.parameters.len()
+                || call_plan.parameters.len()
+                    != abstracted.parameters.len() + abstracted.structural_parameters.len()
+                || call_plan.result.is_some() != graph_result
+                || structural_parameters.len() != abstracted.structural_parameters.len()
+                || structural.is_some_and(|contract| {
+                    contract.parameters.len() != structural_parameters.len()
+                        || contract
+                            .parameters
+                            .iter()
+                            .zip(structural_parameters)
+                            .any(|(selected, target)| selected.target != *target)
+                })
+                || structural_parameters
+                    .iter()
+                    .zip(&call_plan.parameters[scalar_parameters.len()..])
+                    .any(|(parameter, placement)| parameter.placement != *placement)
+                || scalar_parameters
+                    .iter()
+                    .zip(&abstracted.parameters)
+                    .zip(&call_plan.parameters)
+                    .any(|((row, declaration), placement)| {
+                        row.value != declaration.value
+                            || row.scalar_type != declaration.scalar_type
+                            || row.placement != *placement
+                    })
+            {
+                return Err(Error::Mismatch(
+                    "parameter/result ABI differs from current source",
+                ));
+            }
+        } else if parameter_abi(targeted).is_some() {
+            return Err(Error::Mismatch("unexpected parameter/result ABI"));
+        }
+        let correspondence = correspondence::Function::new(abstracted, targeted, declaration)?;
+        for (operation_ordinal, (operation, matched)) in correspondence.operations().enumerate() {
+            let admitted = match operation {
+                AbstractOperation::ReadSegmentSelector { .. }
+                | AbstractOperation::ReadTaskRegister { .. }
+                | AbstractOperation::ReloadSegmentDescriptors { .. }
+                | AbstractOperation::ActivateTaskRegister { .. }
+                | AbstractOperation::GlobalDescriptorTable { .. } => {
+                    descriptor_replay.validate(operation, &mut addresses).map_err(|reason| Error::UnaccountedOperation {
+                        machine: fragment.machine,
+                        operation_ordinal,
+                        operation_description: format!("{operation:?}: {reason}"),
+                    })?;
+                    true
+                }
+
+                AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
+                    let mut instructions = selected.instructions().filter(|instruction| {
+                        instruction.provenance.operations.contains(psi_operation)
+                    });
+                    match (instructions.next(), instructions.next()) {
+                        (Some(instruction), None) => {
+                            instruction.kind == selected_instructions::SelectedInstructionKind::RegisterAccess { operation: event.operation() }
+                                && instruction.provenance.operations.as_slice() == [*psi_operation]
+                                && instruction.provenance.values.iter().copied().eq(
+                                    event.inputs().copied().chain(result.map(|result| result.value))
+                                )
+                        }
+                        _ => false,
+                    }
+                }
+                AbstractOperation::PortWrite { psi_operation, service, port, value } => {
+                    selected.instructions().any(|instruction| {
+                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { service: *service, port: *port, value: *value }
+                            && instruction.provenance.operations.as_slice() == [*psi_operation]
+                    })
+                }
+
+                AbstractOperation::AtomicEvent {
+                    event: AbstractAtomicEvent::Load { .. }
+                        | AbstractAtomicEvent::Store { .. }
+                        | AbstractAtomicEvent::ReadModifyWrite { .. }
+                        | AbstractAtomicEvent::Swap { .. }
+                        | AbstractAtomicEvent::CompareExchange { .. }
+                        | AbstractAtomicEvent::CompareExchangeOnce { .. }
+                        | AbstractAtomicEvent::Fence { .. },
+                    ..
+                } => {
+                    true
+                }
+                AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
+                    structural_fields::indexed_store_retained(abstracted, operation, targeted)
+                        && structural_fields::indexed_store_footprint_retained(operation, &selected.memory_accesses)
+                }
+                AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
+                    structural_fields::indexed_read_retained(abstracted, operation, targeted)
+                        && addresses.geometry().is_some_and(|native_geometry| structural_fields::indexed_read_footprint_retained(
+                            abstracted,
+                            targeted,
+                            native_geometry,
+                            operation,
+                            &selected.memory_accesses,
+                        ))
+                }
+                AbstractOperation::StructuralByteViewFieldStore { .. } => {
+                    structural_fields::view_replacement_retained(abstracted, operation, targeted)
+                        && structural_fields::view_replacement_footprints_retained(
+                            abstracted,
+                            targeted,
+                            operation,
+                            &selected.memory_accesses,
+                        )
+                }
+                abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
+                    structural_fields::replacement_retained(abstracted, operation, targeted)
+                        && structural_fields::replacement_footprints_retained(
+                            abstracted,
+                            operation,
+                            Some(targeted),
+                            &selected.memory_accesses,
+                            &original.target_for_correspondence().optimized().plan().structural_types,
+                        )
+                }
+                AbstractOperation::StorageAddress { .. }
+                | AbstractOperation::PrimitiveScalarRead { .. }
+                | AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
+                    primitive_accesses::retained(operation, targeted)
+                }
+                AbstractOperation::StructuralScalarFieldRead { .. } => {
+                    structural_fields::retained(abstracted, operation, targeted)
+                }
+                AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
+                    structural_fields::retained(abstracted, operation, targeted)
+                        && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
+                }
+                AbstractOperation::EstablishAccessReference { psi_operation, result, source, correspondence } => {
+                    let retained = geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
+                        *psi_operation, result, source, correspondence, geometry, &mut addresses,
+                    ).is_some());
+                    if !retained && let Some(reason) = addresses.failure_reason() {
+                        return Err(Error::UnaccountedOperation {
+                            machine: fragment.machine,
+                            operation_ordinal,
+                            operation_description: format!("{operation:?}: {reason}"),
+                        });
+                    }
+                    retained
+                }
+                AbstractOperation::StructuralCaseMembership { .. }
+                | abstract_operations::establish_record_or_case_pattern!(..)
+                | AbstractOperation::StructuralLeafCopy { .. }
+                | AbstractOperation::MoveStructuralValue { .. }
+                | AbstractOperation::TransformContent { .. }
+                | AbstractOperation::DecomposeStructuralValue { .. }
+                | abstract_operations::move_or_store_structural_field_pattern!()
+                | AbstractOperation::EstablishTrivialAffineLocal { .. }
+                | AbstractOperation::EstablishReference { .. }
+                | AbstractOperation::ReleaseReference { .. }
+                | AbstractOperation::EstablishScalarArray { .. }
+                | AbstractOperation::EstablishStructuralArray { .. }
+                | AbstractOperation::EstablishZeroedStructural { .. }
+                | AbstractOperation::EstablishStructuralLocal { .. }
+                | AbstractOperation::EstablishNativeCodeLayout { .. }
+                | AbstractOperation::EstablishActivationClaim { .. }
+                | AbstractOperation::SplitActivationClaim { .. }
+                | AbstractOperation::MergeActivationClaim { .. }
+                | AbstractOperation::ReleaseActivationClaim { .. }
+                | AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { .. },
+                    ..
+                }
+                | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, matched, &mut addresses),
+                AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::PrimitiveLocalStore { .. } => {
+                    crate::function_fragments::structural::primitive_operation_retained(abstracted, selected, operation)
+                }
+                AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.instructions().filter(|instruction|
+                    matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
+                    && instruction.provenance.operations.contains(psi_operation)).count()==1,
+                AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
+                    let catalog=&original.target_for_correspondence().optimized().plan().dynamic_dispatch;
+                    catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
+                        && selected.calls.iter().filter(|row|row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
+                            && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
+                            && row.call.result_placement.is_some() && row.call.result_placement==row.call.call_plan.result).count()==1
+                }
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    callee:abstract_operations::AbstractCallTarget::Machine(callee),
+                    result: AbstractStructuralCallResult::Scalar(result),
+                    ..
+                } => {
+                    let (body, target) = audited_function(source, original, *callee)?;
+                    let call_plan = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
+                        (Some(abi), None) => Some(&abi.call_plan),
+                        (None, Some(abi)) => Some(&abi.call_plan),
+                        (None, None) => parameter_abi(target).map(|(plan, _, _)| plan),
+                        _ => None,
+                    };
+                    selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
+                        && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                        && row.call.result_placement.as_ref().is_some_and(|placement| {
+                            body.result.scalar().is_some_and(|returned|
+                                returned.scalar_type == result.scalar_type)
+                                && call_plan.is_some_and(|plan|
+                                    plan.result.as_ref() == Some(placement)
+                                        && *plan == row.call.call_plan)
+                        })).count() == 1
+                }
+                AbstractOperation::IntegerConstant { .. }
+                | AbstractOperation::BooleanConstant { .. } => true,
+                AbstractOperation::IeeeFloatConstant { .. } => {
+                    ieee_literal_retained(operation, targeted.graph.operations())
+                }
+                AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
+                    byte_concatenation_retained(operation, targeted.graph.operations())
+                }
+                AbstractOperation::EstablishByteSequenceLiteral {
+                    psi_operation, place, structural_type, bytes, qualifications,
+                } => {
+                    targeted.graph.operations().filter(|operation| matches!(operation,
+                            target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
+                                psi_operation: actual_operation, place: actual_place,
+                                structural_type: actual_type, bytes: actual_bytes,
+                                qualifications: actual_qualifications,
+                            } if actual_operation == psi_operation && actual_place == place
+                                && actual_type == structural_type && actual_bytes == bytes
+                                && actual_qualifications == qualifications
+                        )).count() == 1
+                }
+                AbstractOperation::ByteSequenceLength { .. } => {
+                    byte_operation_retained(operation, targeted)
+                        || fixed_byte_length_is_static(
+                            abstracted,
+                            original.target_for_correspondence()
+                                .optimized()
+                                .plan()
+                                .structural_types
+                                .as_slice(),
+                            operation,
+                        )
+                }
+                AbstractOperation::ByteSequenceWrite { .. }
+                | abstract_operations::byte_read_predicate_equal_pattern!(..)
+                | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
+                AbstractOperation::EstablishElementView { .. }
+                | AbstractOperation::ElementViewLength { .. }
+                | abstract_operations::element_view_read_write_pair_pattern!(..)
+                | AbstractOperation::ElementViewSubslice { .. } => {
+                    element_operation_retained(operation, targeted.graph.operations())
+                }
+                AbstractOperation::Call {
+                    psi_operation,
+                    callee,
+                    arguments,
+                    crash_continuations,
+                    ..
+                } => {
+                    let (body, target) = audited_function(source, original, *callee)?;
+                    let call_plan = target
+                        .scalar_abi
+                        .as_ref()
+                        .map(|abi| &abi.call_plan)
+                        .or_else(|| parameter_abi(target).map(|(plan, _, _)| plan));
+                    call_plan.is_some_and(|plan|
+                        plan.parameters.len() == arguments.len()
+                            && selected.calls.iter().filter(|row|
+                                row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                                    && row.call.call_plan == *plan
+                                    && row.call.result_placement == plan.result
+                                    && row.call.crash_continuations == *crash_continuations
+                            ).count() == 1)
+                        && !matches!(body.result, AbstractFunctionResult::Unit)
+                        && arguments.len() == body.parameters.len()
+                }
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    crash_continuations,
+                    result: AbstractStructuralCallResult::Unit,
+                    callee,
+                    ..
+                } => selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
+                AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
+                    || installed_scopes.binary_search(psi_operation).is_ok()
+                    || program_image_retained(psi_operation, boundary, targeted, selected)
+                    || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
+                    || access_lifecycle_retained(operation, targeted)
+                    || empty_run_release_retained(operation, targeted, abstract_plan)
+                    || static_interrupts::retained(abstracted.machine, operation, &interrupt_helpers, &interrupt_replay)?
+                    || placed_scalar_retained(operation, targeted, selected)
+                    || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
+                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
+                AbstractOperation::EliminateEmpty { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::InvokeNoNormal {
+                    psi_edge, callee, arguments, structural_arguments, claim_transfers,
+                    requirement_obligations, crash_continuations,
+                } => {
+                    let (_, target) = audited_function(source, original, *callee)?;
+                    let call_plan = &target.graph.call_plan;
+                    selected.calls.iter().filter(|row| {
+                        row.owner == target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+                            && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                            && row.call.call_plan == *call_plan
+                            && row.call.result_placement == call_plan.result
+                            && row.call.structural_result.is_none()
+                            && row.call.descriptor_origins.is_empty()
+                            && row.call.claim_transfers == *claim_transfers
+                            && row.call.requirement_obligations == *requirement_obligations
+                            && row.call.crash_continuations == *crash_continuations
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(*source),
+                                _ => None,
+                            }).eq(arguments.iter().copied())
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } => Some(semantic),
+                                _ => None,
+                            }).eq(structural_arguments)
+                    }).count() == 1 && control_flow::retained(operation, targeted)
+                }
+                AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
+                    let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
+                    (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
+                        + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
+                        + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
+                            && matches!(&row.call.source,
+                                legalized_operations::NativeCallOrigin::InstalledProvider { boundary: required, .. }
+                                if required == boundary)).count()) == 1
+                        && control_flow::retained(operation, targeted)
+                },
+                AbstractOperation::Return {
+                    cleanup_actions, ..
+                } => cleanup_actions.is_empty()
+                        || control_flow::retained(operation, targeted),
+                AbstractOperation::ReturnUnit {
+                    cleanup_actions, ..
+                } => cleanup_actions.is_empty()
+                        || control_flow::retained(operation, targeted)
+                        || crate::function_fragments::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
+                AbstractOperation::BooleanEqual { .. }
+                | AbstractOperation::IeeeFloatCompare { .. }
+                | abstract_operations::integer_equal_less_pair_pattern!(..)
+                | AbstractOperation::IntegerLessOrEqual { .. }
+                | AbstractOperation::BooleanNot { .. }
+                | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
+                | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
+                | abstract_operations::bitwise_or_xor_pair_pattern!(..)
+                | AbstractOperation::IntegerBitwiseNot { .. }
+                | AbstractOperation::IntegerArithmetic { .. }
+                | AbstractOperation::IntegerShift { .. }
+                | AbstractOperation::TrappingInteger { .. }
+                | AbstractOperation::FloatResultPolicy { .. } => true,
+                AbstractOperation::StructuralScalarFieldStore { .. } => {
+                    structural_fields::scalar_store_retained(abstracted, operation, targeted)
+                }
+                AbstractOperation::Jump { .. }
+                | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::StructuralCase { psi_block, source, path, cases } => {
+                    structural_case::retained(
+                        selected,
+                        &abstracted.blocks,
+                        &abstracted.structural_parameters,
+                        targeted,
+                        *psi_block,
+                        *source,
+                        path,
+                        cases,
+                        original.target_for_correspondence().optimized().unit(),
+                        &mut addresses,
+                    )
+                }
+                _ => false,
+            };
+            if !admitted {
+                return Err(Error::UnaccountedOperation {
+                    machine: abstracted.machine,
+                    operation_ordinal,
+                    operation_description: format!("{operation:?}"),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+impl crate::FragmentReplay {
+    pub fn verify_access_geometry(&self) -> Result<(), diagnostics::Diagnostic> {
+        let original = self.target_source().ok_or_else(|| {
+            diagnostics::Diagnostic::error(
+                "target-operation audit requires retained target operations",
+            )
+        })?;
+        establish_geometry(self.fragment_source(), original)
+            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod current_contract_tests {
+    use super::*;
+    use target_vocabulary::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, ProviderExecutionBinding,
+        ProviderPlanReportIdentity,
+    };
+
+    #[test]
+    fn block_declarations_are_compared_independently_of_current_identity() {
+        let block = semantic_vocabulary::BlockId::new(1).unwrap();
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(2).unwrap(),
+            position: 0,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(3).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+        let original = [parameter.clone()];
+        let expected = [(block, original.as_slice())];
+        let row = (block, std::sync::Arc::from(original.as_slice()));
+        assert!(validate_block_parameter_rows(&expected, std::slice::from_ref(&row)).is_ok());
+        let mut changed = parameter;
+        changed.access = terminal_psi::StructuralAccess::MutableBorrow;
+        for actual in [
+            Vec::new(),
+            vec![row.clone(), row],
+            vec![(block, vec![changed].into())],
+        ] {
+            assert!(matches!(
+                validate_block_parameter_rows(&expected, &actual),
+                Err(Error::Mismatch(
+                    "current block parameters differ from their original declarations"
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn a_current_writer_must_keep_its_exact_source_execution_and_occurrence() {
+        let row = (
+            MachineId::new(1).unwrap(),
+            semantic_vocabulary::OperationId::new(2).unwrap(),
+            semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+        );
+        assert!(validate_byte_writer_rows(&mut [row], &mut [row]).is_ok());
+        let mut other = row;
+        other.3 = BoundaryExecutionBinding::AdmittedProvider(
+            ProviderExecutionBinding::from_execution_record(
+                ProviderPlanReportIdentity::new(11).unwrap(),
+                12,
+                13,
+                14,
+                15,
+            )
+            .unwrap(),
+        );
+        for mut actual in [vec![other], Vec::new(), vec![row, row]] {
+            assert!(matches!(
+                validate_byte_writer_rows(&mut [row], &mut actual),
+                Err(Error::Mismatch(
+                    "byte output execution differs from its prepared source"
+                ))
+            ));
+        }
+    }
+}

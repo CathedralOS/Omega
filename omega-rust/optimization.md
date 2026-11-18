@@ -5,7 +5,7 @@ defines exact selection, identity phases, semantic preservation, rollback and
 policy authority. This page says where the code starts; it is no rule inventory. The [pipeline architecture](pipeline.md#discoverability-architecture)
 governs source layout; it sets no file-size limits.
 
-The [exact-rule inventory](omega/foundation/optimization-core/rules.md)
+The [exact-rule inventory](omega/compilation/representations/optimization-contracts/rules.md)
 records each rule's experimental status, applicability and composition limits.
 
 ## Selection and portable publication
@@ -16,7 +16,7 @@ accepts the exact names. Shared Build declarations put the
 into the toolchain prelude from one mapping. The
 [checked result](omega/compilation/products/src/checked_compilation.rs)
 keeps the whole evaluated Build, including selection and report requests.
-[Rollback settlement](omega/foundation/optimization-core/src/rollback.rs)
+[Rollback settlement](omega/compilation/products/optimization-requests/src/rollback.rs)
 validates exact names, subtracts rolled-back rules and produces the receipt.
 The compiler uses the result before producing artifacts, without
 changing the authored selection; product-specific phase admission stays in
@@ -26,7 +26,7 @@ The [Psi X-to-X entrance](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi
 consumes complete unsealed `LoweredPsi`, records the carrier's Terminal Psi
 identity before and after the selected passes, and returns the only
 optimization-stage result accepted by Terminal publication. Its
-[Psi-local vocabulary](psi/foundation/optimization/src/lib.rs)
+[Psi-local vocabulary](psi/compilation/representations/optimization-policy/src/lib.rs)
 does not import native target vocabulary and names nine members. The
 [entrance's exhaustive dispatch](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/psi_optimization.rs)
 executes five of them here, in canonical order: control-flow cleanup, sparse
@@ -200,5 +200,5 @@ Before deploying, run the affected target/workload checks and keep the
 command, log, compiler identity, target and output digest. Drop the
 rollback flag only after semantic/corruption, differential, determinism,
 target, measurement and rollback tests pass; do not replace
-exact selection with a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
+exact selection with a broad optimization level. [Promotion evidence](omega/compilation/representations/optimization-contracts/README.md#exact-rule-promotion-records)
 remains a separate owner-reviewed requirement.

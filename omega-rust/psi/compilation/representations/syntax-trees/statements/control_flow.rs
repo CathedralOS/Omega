@@ -1,10 +1,13 @@
 use crate::assembly::AssemblyTable;
-pub use crate::assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyExit};
+pub use crate::assembly::{
+    AssemblyBlock, AssemblyControlFlow, AssemblyExit, AssemblyInstruction, AssemblyOperands,
+    AuthoredAssembly, AuthoredAssemblyBlock,
+};
 use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
 use crate::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan};
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
 
@@ -31,12 +34,25 @@ paged_roster! {
         arena identifier_path_members: Identifier,
         arena transition_targets: TransitionTargetNode,
         arena transition_patterns: TransitionPattern,
+        arena dispatches: TableDispatch,
         arena outcome_proof_selectors: TableOutcomeProofSelector,
         roster assembly: AssemblyTable => crate::assembly::AssemblyTableAppendCheckpoint,
     }
 }
 
 impl StatementTable {
+    pub fn insert_dispatch(&mut self, dispatch: TableDispatch) -> Handle<TableDispatch> {
+        self.dispatches.insert(dispatch)
+    }
+
+    pub fn dispatch(&self, handle: Handle<TableDispatch>) -> &TableDispatch {
+        self.dispatches.get(handle)
+    }
+
+    pub fn has_dispatches(&self) -> bool {
+        !self.dispatches.is_empty()
+    }
+
     pub fn insert_transition_patterns(
         &mut self,
         patterns: impl IntoIterator<Item = TransitionPattern>,
@@ -64,6 +80,19 @@ impl StatementTable {
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
         self.statements.append(statement)
+    }
+
+    pub fn insert_authored_assembly(
+        &mut self,
+        graph: AuthoredAssembly,
+    ) -> Handle<AuthoredAssembly> {
+        self.assembly.insert_authored(graph)
+    }
+    pub fn authored_assembly(&self, handle: Handle<AuthoredAssembly>) -> &AuthoredAssembly {
+        self.assembly.authored(handle)
+    }
+    pub fn has_authored_assemblies(&self) -> bool {
+        self.assembly.has_authored()
     }
 
     pub fn insert_assembly(&mut self, graph: AssemblyControlFlow) -> Handle<AssemblyControlFlow> {
@@ -198,6 +227,8 @@ pub enum StatementNode {
     Expression(ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+    Dispatch(Handle<TableDispatch>),
+    AuthoredAssembly(Handle<AuthoredAssembly>),
 }
 
 #[derive(
@@ -338,6 +369,115 @@ pub struct TransitionPattern {
     pub subject: ExpressionHandle,
     pub capture: Handle<crate::expression::MatchSubjectCapture>,
     pub pattern: crate::expression::TableDestructurePattern,
+}
+
+/// A single authored dispatch. Each patterned arm has one slot per subject;
+/// wildcards keep their position. A bare `_` or subjectless guard has no slots.
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub struct TableDispatch {
+    pub subjects_span: Option<SourceSpan>,
+    pub subjects: HandleSpan<ExpressionHandle>,
+    pub arms: Box<[DispatchArm]>,
+    pub source_span: SourceSpan,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub struct DispatchPattern {
+    pub pattern: crate::expression::MatchPattern,
+    /// A destructuring binder may refer to this subject from its guard or target.
+    pub capture: Handle<crate::expression::MatchSubjectCapture>,
+}
+
+impl TableDispatch {
+    /// Visit each source expression of the dispatch once at its authored position.
+    pub fn visit_operands(
+        &self,
+        trees: &crate::SyntaxTrees,
+        mut visit: impl FnMut(ExpressionHandle),
+    ) {
+        for &subject in trees.statements.expression_handles(self.subjects) {
+            visit(subject);
+        }
+        for arm in &self.arms {
+            for slot in &arm.patterns {
+                match slot.pattern {
+                    crate::expression::MatchPattern::Wildcard => {}
+                    crate::expression::MatchPattern::Value(value) => visit(value),
+                    crate::expression::MatchPattern::Destructure(pattern) => {
+                        visit(pattern.head);
+                        for field in trees.expressions.match_fields(pattern.fields) {
+                            if let crate::expression::MatchFieldAction::Equal(value) = field.action
+                            {
+                                visit(value);
+                            }
+                        }
+                        if pattern.guard.is_valid() {
+                            visit(pattern.guard);
+                        }
+                    }
+                }
+            }
+            if let TransitionGuardNode::When(guard) = arm.guard {
+                visit(guard);
+            }
+            match trees.statements.transition_target(arm.target) {
+                TransitionTargetNode::Named { arguments, .. } => {
+                    for &argument in trees.statements.expression_handles(*arguments) {
+                        visit(argument);
+                    }
+                }
+                TransitionTargetNode::Value(value) => visit(*value),
+                TransitionTargetNode::Terminal => {}
+            }
+        }
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, syntax_trees_derive::SyntaxRelocate, compiler_storage::Record,
+)]
+pub struct DispatchArm {
+    pub patterns: Box<[DispatchPattern]>,
+    pub guard: TransitionGuardNode,
+    pub target: TransitionTargetHandle,
+    pub source_span: SourceSpan,
+}
+
+impl DispatchPattern {
+    pub fn proof_selectors(&self) -> HandleSpan<TableOutcomeProofSelector> {
+        match self.pattern {
+            crate::expression::MatchPattern::Destructure(pattern) => pattern.proof_selectors,
+            _ => HandleSpan::empty(),
+        }
+    }
+}
+
+impl DispatchArm {
+    /// Only a single exact result-case pattern can carry proof selectors.
+    pub fn proof_selectors(&self) -> HandleSpan<TableOutcomeProofSelector> {
+        match self.patterns.as_ref() {
+            [pattern] => pattern.proof_selectors(),
+            _ => HandleSpan::empty(),
+        }
+    }
 }
 
 #[derive(

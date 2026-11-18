@@ -3,8 +3,8 @@
 //! requirements borrow Product's accepted module. Neither may infer a body for
 //! a declaration supplied elsewhere.
 
-use super::PackageReviewInput;
 use super::declarations::{nominal_identity, unavailable};
+use super::input::PolicySource;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash, PackagePolicyCrashGuard,
     PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
@@ -21,16 +21,16 @@ use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 
 struct CallableInventory<'a> {
     accepted: &'a source_compiler::AcceptedTerminalSource,
-    exact_sources: &'a [(source::SourceId, [u8; 32])],
+    exact_sources: &'a [(source_text::SourceId, [u8; 32])],
     service_names: &'a [(ServiceId, PackageReviewNominalIdentity)],
 }
 
-impl PackageReviewInput<'_> {
+impl PolicySource<'_> {
     pub(super) fn build_callable(
         &self,
         package: PackageKeyIdentity,
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
-        let computed = self.compilation().build();
+        let computed = self.build();
         let Some(selected) = computed.selected_build_machine_symbol else {
             return Ok(None);
         };
@@ -57,20 +57,18 @@ impl PackageReviewInput<'_> {
             return Err(unavailable("an unambiguous accepted Build declaration"));
         }
         let source = accepted.source();
-        let retained = symbols::RetainedDeclaration::capture(&source.symbols, *original)
-            .map_err(unavailable)?;
-        let rejoined = retained
-            .rejoin(
-                &self.typed().symbols,
-                self.typed().machines().iter().map(|machine| machine.symbol),
-            )
-            .map_err(unavailable)?;
+        let retained =
+            source_compiler::source_symbols::retain_declaration(&source.symbols, *original)
+                .map_err(unavailable)?;
+        let rejoined = source_compiler::source_symbols::rejoin_declaration(
+            &retained,
+            &self.typed().symbols,
+            self.typed().machines().iter().map(|machine| machine.symbol),
+        )
+        .map_err(unavailable)?;
         if rejoined != selected
             || computed.selected_machine_identity(self.typed())?
-                != self
-                    .compilation()
-                    .build_admission()
-                    .selected_build_machine_identity
+                != self.admission.selected_build_machine_identity
         {
             return Err(unavailable("the exact selected Build/source association"));
         }
@@ -80,13 +78,17 @@ impl PackageReviewInput<'_> {
                 "a selected Build owned by the reviewed package",
             ));
         }
-        let exact_sources =
-            source::source_identity::toolchain_source_identities(source.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let exact_sources = source_admission::source_identity::toolchain_source_identities(
+            source.symbols.source_files(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let service_names = service_identities(
             source,
             &exact_sources,
-            &service_origins(accepted, source::DependencyScope::Build)?,
+            &service_origins(
+                accepted,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            )?,
         )?;
         validate_body_effect_inventory(accepted.module())?;
         self.callable(
@@ -110,8 +112,8 @@ impl PackageReviewInput<'_> {
         service_names: &[(ServiceId, PackageReviewNominalIdentity)],
     ) -> Result<Vec<PackagePolicyCallable>, Vec<Diagnostic>> {
         let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
-        let accepted = self.compilation().terminal_publication().accepted()?;
-        let exact_sources = self.compilation().sources().exact_toolchain_sources();
+        let accepted = self.accepted();
+        let exact_sources = self.sources().exact_toolchain_sources();
         let mut inventory = None;
         let mut effects_validated = false;
         let mut bodies: Vec<_> = accepted
@@ -130,15 +132,15 @@ impl PackageReviewInput<'_> {
                 continue;
             }
             let (role, supply) = match declaration.supply_mode {
-                language_semantics::MachineSupplyMode::CheckedBody => (
+                declaration_contracts::MachineSupplyMode::CheckedBody => (
                     PackagePolicyCallableRole::Public,
                     PackageReviewCallableSupply::CheckedBody,
                 ),
-                language_semantics::MachineSupplyMode::Requirement => (
+                declaration_contracts::MachineSupplyMode::Requirement => (
                     PackagePolicyCallableRole::Public,
                     PackageReviewCallableSupply::Requirement,
                 ),
-                language_semantics::MachineSupplyMode::TopLevelRequirement => (
+                declaration_contracts::MachineSupplyMode::TopLevelRequirement => (
                     PackagePolicyCallableRole::Boundary,
                     PackageReviewCallableSupply::TopLevelRequirement,
                 ),
@@ -227,7 +229,7 @@ impl PackageReviewInput<'_> {
                 let exact = source
                     .exact_owner_nominal_identity(
                         original,
-                        self.compilation().sources().exact_toolchain_sources(),
+                        self.sources().exact_toolchain_sources(),
                     )
                     .and_then(|identity| source.type_identity_text(identity))
                     .ok_or_else(|| unavailable("a bodyless callable's exact identity"))?;
@@ -277,7 +279,7 @@ impl PackageReviewInput<'_> {
             }
             source
                 .exact_owner_type_identity(
-                    typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
+                    source_compiler::source_state::type_identity::ExactOwnerTypeIdentityRequest {
                         lifetime_scope: None,
                         type_reference: reference,
                         binders: &[],
@@ -341,10 +343,10 @@ impl PackageReviewInput<'_> {
             .interface
             .published()
             .map(|guarantee| match guarantee {
-                language_semantics::TerminationGuarantee::NoGuarantee => {
+                declaration_contracts::TerminationGuarantee::NoGuarantee => {
                     Ok(PackagePolicyTermination::NoGuarantee)
                 }
-                language_semantics::TerminationGuarantee::Terminates { premises }
+                declaration_contracts::TerminationGuarantee::Terminates { premises }
                     if premises.is_empty() =>
                 {
                     Ok(PackagePolicyTermination::Terminates {
@@ -433,8 +435,8 @@ impl PackageReviewInput<'_> {
     }
     fn callable_contracts(
         &self,
-        declaration: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        declaration: &source_compiler::source_state::machine::Machine,
+        state: &source_compiler::source_state::state::State,
     ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
         let typed = self.typed();
         self.signature_contracts(
@@ -455,15 +457,17 @@ impl PackageReviewInput<'_> {
 
     pub(super) fn signature_contracts<'clause>(
         &self,
-        clauses: impl IntoIterator<Item = &'clause typed_trees::signature::SignatureContract>,
+        clauses: impl IntoIterator<
+            Item = &'clause source_compiler::source_state::signature::SignatureContract,
+        >,
         scope: super::declarations::ContractScope<'_>,
-        return_type: typed_trees::types::TypeReferenceHandle,
+        return_type: source_compiler::source_state::types::TypeReferenceHandle,
     ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
         use crate::record::{
             PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
             PackageReviewResultCaseIdentity,
         };
-        use typed_trees::signature::SignatureContractKind;
+        use source_compiler::source_state::signature::SignatureContractKind;
         let typed = self.typed();
         let mut rows = Vec::new();
         for clause in clauses {
@@ -492,18 +496,18 @@ impl PackageReviewInput<'_> {
                 .ok_or_else(|| unavailable("a callable clause's retained facts"))?;
             for fact in facts {
                 let fact = match fact {
-                    typed_trees::domain::ProofFact::Expression(expression) => {
+                    source_compiler::source_state::domain::ProofFact::Expression(expression) => {
                         PackageReviewContractFact::Expression(self.scoped_expression(
                             *expression,
                             scope,
                             0,
                         )?)
                     }
-                    typed_trees::domain::ProofFact::Membership(membership) => {
+                    source_compiler::source_state::domain::ProofFact::Membership(membership) => {
                         let application = typed
                             .runtime_membership_domain_identity(
                                 membership,
-                                self.compilation().sources().exact_toolchain_sources(),
+                                self.sources().exact_toolchain_sources(),
                                 &[],
                                 &[],
                             )
@@ -538,9 +542,11 @@ impl PackageReviewInput<'_> {
 /// there is no boundary method whose correspondence could name their owner.
 pub(super) fn service_origins(
     accepted: &source_compiler::AcceptedTerminalSource,
-    purpose: source::DependencyScope,
+    purpose: declaration_contracts::source_identity::DependencyScope,
 ) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
-    use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+    use source_compiler::source_state::trait_definition::{
+        AppliedTraitScope, TraitApplicationArguments,
+    };
     let source = accepted.source();
     let module = accepted.module();
     let application = |owner| {
@@ -652,8 +658,8 @@ pub(super) fn service_origins(
 }
 
 pub(super) fn service_identities(
-    source: &typed_trees::TypedTrees,
-    exact_sources: &[(source::SourceId, [u8; 32])],
+    source: &source_compiler::source_state::TypedTrees,
+    exact_sources: &[(source_text::SourceId, [u8; 32])],
     origins: &[(ServiceId, symbols::SymbolHandle)],
 ) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
     origins

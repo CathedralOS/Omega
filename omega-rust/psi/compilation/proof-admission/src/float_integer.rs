@@ -6,7 +6,7 @@
 //! only at a finite nonzero literal, whose meaning has one representation.
 //! In particular, an equality with zero cannot discard a negative zero sign.
 
-use numerics::bignum::BigInt;
+use bignum::BigInt;
 use numerics::float_semantics::{
     FloatMeaning, FloatSemanticEvaluationError, FloatSemanticOperand, FloatSemanticOperation,
     FloatSemanticResult, FloatToIntegerError,

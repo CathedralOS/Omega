@@ -19,9 +19,10 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Library](subsystems/library.md) | Bundled declarations and target providers. |
 | [Original map](artifacts/pipeline-map/original.html) | Preserved authored presentation, clearly labeled historical. |
 | [Interactive architecture](artifacts/architecture.md) | One connected SVG canvas with shared components and pinned source. |
-| [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
+| [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Pre-migration routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
 | [Extra-arrow audit](plans/foundation-and-backend.md#start-with-the-extra-arrows) | Source-backed detours, required repairs and a handler before/after view; focused recheck at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f`. |
+| [Four-host native execution](plans/foundation-and-backend.md#native-execution-on-four-matching-hosts) | The selected-provider fixture built by both compilers and run on matching Linux, macOS and Windows hosts. |
 | [Questions](questions.md) | Open decisions and recommendations. |
 | [Owner rulings](rulings.md) | Dated decisions governing the destination. |
 
@@ -37,12 +38,13 @@ The [atlas index](index.html) starts with the compiler map, repair plan and
 subsystem reference. A shared header links those three destinations, a searchable
 All pages menu exposes the full directory, and long pages have local section
 navigation. The [original map](pages/pipeline-map.html) remains a historical page. The
-[interactive architecture](pages/architecture.html) maps current
-implementation with the same boxes, arrows and colors. Psi forms
-are outlined, native forms filled, checker acceptance green and extra paths red.
+[interactive architecture](pages/architecture.html) opens on **Stages 00–10**.
+Every numbered stage links to the Rust implementation at `c329436ed22`. **Before
+migration** preserves the compiler at `3f9ce43f0c9d`. Psi forms are outlined,
+native forms filled, checker acceptance green and extra paths red.
 Pan and zoom the connected canvas; select boxes or arrows for their connections and source.
 The grouped footer also reaches all 15 subject pages, including the
-[reviewed current account](pages/pipeline-current.html) and
+[pre-migration pipeline account](pages/pipeline-current.html) and
 [plan](pages/foundation-backend-plan.html). Counts come from generated evidence.
 
 The publishing workflow copies only `index.html`, `pages/` and `design/` to
@@ -50,11 +52,11 @@ The publishing workflow copies only `index.html`, `pages/` and `design/` to
 review candidate; it does not update that site. The generated pages link
 Markdown sources and evidence on GitHub because those files are not deployed.
 
-Reviewed pages distinguish two revisions. **Compiler snapshot** is the source
-reviewed for the map: `3f9ce43f0c9d179048911d18faa91ba93f60176d`. **Atlas content**
-is the committed prose, evidence and rendering sources recorded in
-[content-revision.txt](content-revision.txt). Publishing newer atlas pages does
-not refresh the compiler observations or imply a compiler run.
+The **pre-migration snapshot** at `3f9ce43f0c9d179048911d18faa91ba93f60176d` supplies
+the repository inventory and historical routes. The **numbered implementation**
+links to `c329436ed22f18b41352985cff202b46129e6538`. Each execution record
+names the build it exercised. **Atlas content** identifies the prose, evidence
+and rendering sources used to build the pages. [Content pin](content-revision.txt)
 
 The [original pipeline map](https://claude.ai/artifact/CbgTtPhFpp1FXGAidywf9P)
 and [original plan](https://claude.ai/artifact/4Eff6G2RrUR4vdu5WjQVwM) are
@@ -107,7 +109,7 @@ match their recorded content revision; the checker also verifies links and
 source line bounds against the **cited Git objects**, not the current files.
 Neither check proves the prose's interpretation of that source.
 
-Full verification needs both recorded commits locally. A shallow clone, or a
+Full verification needs the cited commits locally. A shallow clone, or a
 fresh clone after a squash merge, may lack them. Fetch the missing SHA named
 by the checker (`git fetch origin <sha>`) before verifying; offline mode does
 not claim those objects are present.
@@ -164,20 +166,16 @@ templates and build entrypoints have been removed.
 ## Explore locally
 
 The [interactive architecture page](pages/architecture.html) has one connected
-SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
-remembers the position and zoom on each side of a detour comparison. Trace shows the code in Current and the planned handoffs in Proposed. The proposed graph cites its recorded migration plan, uses its named
-stages numbered 00–10, and exposes unresolved contracts on
-selection. It remains a proposal, separate from the compiler snapshot.
+SVG canvas with a **Stages 00–10 / Before migration** toggle. The first view links each numbered stage
+to a pinned implementation. Its operation-level detail retains the design contracts
+and the evidence for particular routes. The [verification record](plans/foundation-and-backend.md#compiler-verification) identifies which compiler ran each check.
+The second view preserves the earlier source compiler, provider selection, native
+execution and interpreter. Trace a detour and switch views to see its repair. Both
+views remember your position and zoom.
 
-In Current, one source compiler and one Psi interpreter serve all their callers.
-Build, source checking and provider selection lead to native and interpreted
-execution. The source and policy evaluators connect to the same interpreter as
-the runtime host. Provider closure repeats policy-input preparation using
-accepted code. Extra inputs terminate at the operations that consume them.
-
-Drag to pan and scroll to zoom in either view. In Proposed, use Stage to jump to a numbered group. Find reaches individual components in either view.
+Drag to pan and scroll to zoom in either view. In Stages 00–10, use Stage to jump to a numbered group. Find reaches individual components in either view.
 Select a box or arrow to highlight its connections and open pinned source.
-Current opens at Build at 100% zoom. Follow the arrows across the stage groups. Orange marks a path in the repair plan. Trace isolates its handoffs and links to the recorded code.
+Before migration opens at Build at 100% zoom. Follow the arrows across the stage groups. Orange marks a path in the repair plan. Trace isolates its handoffs and links to the recorded code.
 Start returns to Build; the minimap and Fit whole compiler locate the view.
 100% restores natural-scale type. Expand
 keeps the same graph and camera. Arrow keys pan, F fits all, and Escape clears
@@ -185,17 +183,17 @@ selection or closes expansion. Without JavaScript, the same SVG scrolls inside
 its frame and the source disclosures remain available.
 
 `artifacts/overview.py` defines the unique nodes and cited connections.
-`artifacts/proposed.py` defines the recorded proposed contracts and plan citations;
-both models use the same SVG renderer. Proposed stages use the column layout in `artifacts/stage_flow.py`. Only one graph is mounted in
+`artifacts/proposed.py` defines the numbered stage contracts, their implementation
+sources and their original plan citations. Both models use the same SVG renderer.
+Numbered stages use the column layout in `artifacts/stage_flow.py`. Only one graph is mounted in
 the interactive canvas. The proposed contract list remains readable without JS.
 `artifacts/layout.mjs` places the numbered runs in columns and draws each call and return to its named endpoint.
 `artifacts/connected.js` uses D3 Zoom to move the SVG and highlight connections.
 `artifacts/architecture.css` keeps the original fonts, colors, boxes and arrows.
 The stage and supporting-owner records live in `artifacts/whole_map.py`.
 The [design kit](design/README.md) defines their visual meaning.
-These are source traces of the recorded compiler snapshot, not a current-main
-compiler audit or a fresh execution result. Proposed architecture remains in
-the marked planning pages. Supporting owners remain in the source disclosures.
+Source traces, numbered stage implementations and test runs each carry their
+own pins. Supporting owners remain in the source disclosures.
 
 The immutable original HTML is `artifacts/pipeline-map/original.html`, copied
 from the recorded #3899 publication. The builder preserves every SVG byte and

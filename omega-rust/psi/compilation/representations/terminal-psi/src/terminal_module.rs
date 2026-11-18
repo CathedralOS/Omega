@@ -368,7 +368,7 @@ pub mod scalar_applications {
 pub mod scalar_conditions {
 
     use arena::{Arena, Handle, HandleSpan};
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use numerics::integer_bounds::IntegerBoundStep;
     use numerics::scalar_predicates::{
         PredicateNode, PredicateValueKind, ScalarValue, evaluate_nodes,
@@ -954,9 +954,8 @@ pub use scalar_conditions::{
     ScalarPredicateNode, ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
 };
 pub mod quotients {
-    use language_semantics::quotient_correspondence::{
-        QuotientPositionalRelation, QuotientRelationIdentity,
-    };
+    use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
+    use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1008,7 +1007,7 @@ pub mod task_activation {
     use crate::{
         LayoutApplicationId, StructuralTypeDeclaration, terminal_module::TerminalIdentityIndex,
     };
-    use language_semantics::CarryPolicy;
+    use declaration_contracts::CarryPolicy;
     use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

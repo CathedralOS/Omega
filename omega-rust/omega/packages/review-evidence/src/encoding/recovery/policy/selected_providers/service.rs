@@ -4,14 +4,19 @@
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::calling_application;
 use crate::record::PackagePolicyServiceMethod;
+use declaration_contracts::CarryAddress;
+use declaration_contracts::CarryCpu;
+use declaration_contracts::CarryHostThread;
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::CarrySuspension;
+use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
+};
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim,
-};
-use language_semantics::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
-use language_semantics::{
-    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
 };
 
 pub(in crate::encoding::recovery) fn method(

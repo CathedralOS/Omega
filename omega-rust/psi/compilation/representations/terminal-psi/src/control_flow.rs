@@ -71,8 +71,8 @@ pub(crate) mod atomic {
         /// Keep the same atomic family and ordering when an operand consumer
         /// asks what access the instruction performs. Ordinary read/write labels
         /// cannot express the atomic contract or its shared receiver.
-        pub const fn access_operation(self) -> access_plans::AtomicAccessOperation {
-            use access_plans::AtomicAccessOperation as Access;
+        pub const fn access_operation(self) -> access_vocabulary::AtomicAccessOperation {
+            use access_vocabulary::AtomicAccessOperation as Access;
             match self {
                 Self::Load { ordering } => Access::Load(ordering),
                 Self::Store { ordering, .. } => Access::Store(ordering),
@@ -1351,7 +1351,7 @@ pub(crate) mod operations {
             }
         }
 
-        optimization::structural_variant_accessor!(StructuralOperationResult; Self::Unit | Self::Scalar(_));
+        compiler_storage::enum_variant_accessor!(structural, Structural; StructuralOperationResult; Self::Unit | Self::Scalar(_));
 
         pub const fn expect_scalar(&self) -> ValueDeclaration {
             match self {

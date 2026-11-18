@@ -456,16 +456,17 @@ mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
 
-`mbx xtask check-boundary` walks Cargo's declared production path dependencies,
-including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-compiler`.
-This is a check of the native facade, not a claim that all workspace topology
-has converged to the two-driver contract. Its firewall rules reject an
-Omega compilation crate depending on source-side Psi, and an Omega stage
-depending on another. Edges that predate those rules sit in `FIREWALL_ALLOWANCES`
-with a reason each; a
-removed edge's row must be deleted, so the list only shrinks. The post-merge
-check runs the boundary audit on main; admission does not run it for a PR.
+`mbx xtask check-boundary` walks Cargo's production path dependencies,
+including optional, build and target-specific edges. It checks the direction
+of numbered-stage dependencies through shared crates, the lexer and parser
+boundaries, and the source, package and interpreter dependencies reachable
+from `native-compiler`. Package dependency editing uses a scoped allowance
+for the Build text reader. The same command checks restricted program access
+and the reviewed field and export inventory. The post-merge workflow runs
+the audit on main. [Dependency rules](../xtask/src/boundary.rs)
+· [Transitive graph checks](../xtask/src/boundary/linear_pipeline.rs)
+· [Reviewed inventory](../../omega-rust/pipeline-contracts.json)
+· [Post-merge workflow](../../.github/workflows/post-merge-check.yml)
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.

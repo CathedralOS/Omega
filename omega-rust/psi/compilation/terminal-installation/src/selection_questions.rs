@@ -23,6 +23,67 @@ pub trait InvocationSelectionConsent {
     ) -> bool;
 }
 
+/// Product custody for the source declarations that own this program’s calling policies.
+#[derive(Debug)]
+pub struct ProductSchemaCustody {
+    artifact: terminal_codec::TerminalExecutionIdentity,
+    declarations:
+        std::collections::BTreeMap<terminal_psi::TerminalIdentityIndex, Option<DeclarationCustody>>,
+}
+impl ProductSchemaCustody {
+    pub fn from_selections(
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        questions: &SelectionQuestions,
+    ) -> Self {
+        let module = artifact.module();
+        let mut names = std::collections::BTreeMap::new();
+        for request in &module.calling_policy_requests {
+            if let Ok(declaration) = request.declaration.as_ref()
+                && let Some(name) = module.identities.text(*declaration)
+            {
+                names.insert(name, *declaration);
+            }
+        }
+        let mut declarations = std::collections::BTreeMap::new();
+        for (_, row) in questions
+            .declarations
+            .iter()
+            .filter(|(_, row)| row.purpose == SelectionPurpose::Product)
+        {
+            if let Some(&declaration) = names.get(row.identity.as_str()) {
+                declarations
+                    .entry(declaration)
+                    .and_modify(|prior| {
+                        if *prior != Some(row.custody) {
+                            *prior = None;
+                        }
+                    })
+                    .or_insert(Some(row.custody));
+            }
+        }
+        Self {
+            artifact: artifact.custody_identity(),
+            declarations,
+        }
+    }
+
+    pub fn requester(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        schema: terminal_psi::TerminalIdentityIndex,
+    ) -> Result<DeclarationCustody, String> {
+        if artifact.custody_identity() != self.artifact {
+            return Err(
+                "source declaration custody belongs to another program or invocation".into(),
+            );
+        }
+        self.declarations
+            .get(&schema)
+            .ok_or("selected declaration has no authenticated source custody")?
+            .ok_or_else(|| "selected declaration has conflicting source package custody".to_owned())
+    }
+}
+
 pub struct SelectionAuthorities<'a> {
     pub build: Option<&'a dyn DeclarationSelectionAuthority>,
     pub product: Option<&'a dyn DeclarationSelectionAuthority>,

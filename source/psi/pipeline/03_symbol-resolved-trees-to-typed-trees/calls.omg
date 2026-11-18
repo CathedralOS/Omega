@@ -1,16 +1,8 @@
 // Calls and constructions (wiki/spec/language/expressions.md#calls-places-and-temporaries).
-// Resolution bound a callee to the first machine of its overload family:
-// every machine the call's unit can see with the same path, a member's
-// owner being its trait or conformance. Typing selects the one family
-// member whose parameters admit the authored arguments; none or several
-// reject. A transition target supplies its state's parameters. A
-// shared-reference parameter may lend its argument implicitly; every other
-// loan is explicit. A trait requirement or default runs only through a
-// selected conformance, a member of a generic conformance needs that
-// conformance's arguments, and a target-scoped family's body is chosen by
-// realization: each rejects as unsupported here. A proposition application
-// selects nothing: it is a Boolean statement whose arguments meet the
-// proposition's parameters.
+// Name resolution supplies the callee's visible overloads in declaration
+// order. Typing selects the member whose parameters admit these arguments.
+// Calls through static machine binders and proposition calls follow their
+// respective signatures.
 // The explicit static arguments of a call `path<arguments>(...)`: a run of
 // `SyntaxTrees::type_arguments`. A plain call has none.
 public data StaticArguments [copy] {
@@ -18,20 +10,20 @@ public data StaticArguments [copy] {
     count: u64 in Trapping;
 }
 
-public machine type_call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+public machine type_call(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let callee: Expression = syntax_trees_expression(syntax, expression.left);
     transition callee.kind == ExpressionKind::Apply {
-        true -> applied(typer, sources, syntax, resolution, index, expression, callee)
-        _ -> plain(typer, sources, syntax, resolution, index, expression)
+        true -> applied(typer, syntax, resolution, index, expression, callee)
+        _ -> plain(typer, syntax, resolution, index, expression)
     }
 
-    machine plain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine plain(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         let binding: ValueBinding = value_binding(resolution, expression.left);
         let statics: StaticArguments = StaticArguments { first: 0, count: 0 };
         transition binding {
-            ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
+            ValueBinding::Overloads { representative, candidates } -> supplied(typer, syntax, resolution, index, expression, representative, candidates, statics)
             ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, resolution, index, expression, proposition, statics)
             ValueBinding::GenericParameter { parameter } -> binder(typer, syntax, resolution, index, expression, parameter)
             ValueBinding::BytePredicate { predicate } -> byte_predicate(typer, syntax, index, expression)
@@ -56,11 +48,11 @@ crashes Trap
 
     // `path<arguments>(...)` names a machine whose generic parameters the
     // static arguments supply in order.
-    machine applied(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, callee: Expression) {
+    machine applied(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, callee: Expression) {
         let binding: ValueBinding = value_binding(resolution, callee.left);
         let statics: StaticArguments = StaticArguments { first: callee.first, count: callee.count };
         transition binding {
-            ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
+            ValueBinding::Overloads { representative, candidates } -> supplied(typer, syntax, resolution, index, expression, representative, candidates, statics)
             ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, resolution, index, expression, proposition, statics)
             ValueBinding::LayoutQuery { query } -> layout_query(typer, syntax, index, expression, statics)
             _ -> not_callable(typer, syntax, expression)
@@ -81,57 +73,40 @@ crashes Trap
 
     machine supplied(
         typer: &mut Typer,
-        sources: &SourceSet,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         index: u64 in Trapping,
         expression: Expression,
         handle: u64 in Trapping,
+        candidates: VisibleOverloads,
         statics: StaticArguments
     ) {
         let unsupplied: bool = unsupplied_callee(syntax, resolution, handle);
         transition unsupplied {
             true -> reject(typer, expression, TypeDiagnosticCode::UnsupportedExpression)
-            _ -> family(typer, sources, syntax, resolution, index, expression, handle, statics)
+            _ -> family(typer, syntax, resolution, index, expression, candidates, statics)
         }
     }
 
-    machine family(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        index: u64 in Trapping,
-        expression: Expression,
-        handle: u64 in Trapping,
-        statics: StaticArguments
-    ) {
-        let matches: u64 in Trapping = matching_machines(typer, sources, syntax, resolution, expression, handle, statics, 0, 0);
-        transition matches == 1 {
-            true -> select(typer, sources, syntax, resolution, index, expression, handle, statics, 0)
-            _ -> unmatched(typer, expression, matches)
+    machine family(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, candidates: VisibleOverloads, statics: StaticArguments) {
+        let matched: OverloadMatch = match_overloads(typer, syntax, resolution, expression, statics, candidates.first, candidates.public_only, OverloadMatch::None);
+        transition matched {
+            OverloadMatch::None -> reject(typer, expression, TypeDiagnosticCode::NoMatchingMachine)
+            OverloadMatch::Ambiguous -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
+            OverloadMatch::One { handle } -> finish_match(typer, syntax, resolution, index, expression, statics, handle)
         }
     }
 
-    // Find the one admitted family member again, which leaves its generic
-    // bindings live, and bind its arguments and result through them.
-    machine select(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        index: u64 in Trapping,
-        expression: Expression,
-        named: u64 in Trapping,
-        statics: StaticArguments,
-        candidate: u64 in Trapping
-    ) {
-        let member: bool = family_admits(typer, sources, syntax, resolution, expression, named, statics, candidate);
-        transition member {
-            true -> selected(typer, syntax, index, expression, statics, candidate)
-            _ -> select(typer, sources, syntax, resolution, index, expression, named, statics, candidate + 1)
+    // Trying another generic candidate can overwrite the inferred bindings.
+    // Reapply admission to the selected declaration to publish its bindings.
+    machine finish_match(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, statics: StaticArguments, handle: u64 in Trapping) {
+        let admitted: bool = candidate_admits(typer, syntax, resolution, expression, statics, handle);
+        transition admitted {
+            true -> selected(typer, syntax, index, expression, statics, handle)
+            false -> invalid()
         }
     }
+    machine invalid() { crash Trap; }
 
     machine selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, statics: StaticArguments, candidate: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, candidate);
@@ -141,13 +116,6 @@ crashes Trap
         set_selection(&mut typer.output, index, Selection::Machine { handle: candidate });
         set_expression_type(&mut typer.output, index, result);
         bind_arguments(typer, syntax, expression, item.first_parameter, generic, 0);
-    }
-
-    machine unmatched(typer: &mut Typer, expression: Expression, matches: u64 in Trapping) {
-        transition matches == 0 {
-            true -> reject(typer, expression, TypeDiagnosticCode::NoMatchingMachine)
-            _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
-        }
     }
 
     machine not_callable(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
@@ -179,111 +147,45 @@ crashes Trap
     }
 }
 
-// How many machines from `candidate` on are family members of `named` that
-// admit the call's arguments.
-machine matching_machines(
-    typer: &mut Typer,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    expression: Expression,
-    named: u64 in Trapping,
-    statics: StaticArguments,
-    candidate: u64 in Trapping,
-    count: u64 in Trapping
-) -> u64 in Trapping
+data OverloadMatch [copy] {
+    case None;
+    case One(handle: u64 in Trapping);
+    case Ambiguous;
+}
+
+machine match_overloads(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, statics: StaticArguments, cursor: u64 in Trapping, public_only: bool, matched: OverloadMatch) -> OverloadMatch
 crashes Trap
 {
-    transition candidate < syntax.machine_count {
-        true -> test(typer, sources, syntax, resolution, expression, named, statics, candidate, count)
-        _ -> result(count)
+    transition cursor > 0 {
+        true -> candidate(typer, syntax, resolution, expression, statics, cursor - 1, public_only, matched)
+        false -> matched
     }
-
-    machine test(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        named: u64 in Trapping,
-        statics: StaticArguments,
-        candidate: u64 in Trapping,
-        count: u64 in Trapping
-    ) -> u64 in Trapping {
-        let member: bool = family_admits(typer, sources, syntax, resolution, expression, named, statics, candidate);
-        transition member {
-            true -> next(typer, sources, syntax, resolution, expression, named, statics, candidate + 1, count + 1)
-            _ -> next(typer, sources, syntax, resolution, expression, named, statics, candidate + 1, count)
+    machine candidate(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, statics: StaticArguments, handle: u64 in Trapping, public_only: bool, matched: OverloadMatch) -> OverloadMatch {
+        let admitted: bool = candidate_admits(typer, syntax, resolution, expression, statics, handle);
+        let next: u64 in Trapping = next_overload(&resolution.overloads, handle, public_only);
+        transition admitted {
+            true -> found(typer, syntax, resolution, expression, statics, handle, next, public_only, matched)
+            false -> match_overloads(typer, syntax, resolution, expression, statics, next, public_only, matched)
         }
     }
-
-    machine next(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        named: u64 in Trapping,
-        statics: StaticArguments,
-        candidate: u64 in Trapping,
-        count: u64 in Trapping
-    ) -> u64 in Trapping {
-        transition candidate < syntax.machine_count {
-            true -> test(typer, sources, syntax, resolution, expression, named, statics, candidate, count)
-            _ -> result(count)
+    machine found(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, statics: StaticArguments, handle: u64 in Trapping, next: u64 in Trapping, public_only: bool, matched: OverloadMatch) -> OverloadMatch {
+        transition matched {
+            OverloadMatch::None -> match_overloads(typer, syntax, resolution, expression, statics, next, public_only, OverloadMatch::One { handle: handle })
+            _ -> match_overloads(typer, syntax, resolution, expression, statics, next, public_only, OverloadMatch::Ambiguous)
         }
-    }
-
-    machine result(count: u64 in Trapping) -> u64 in Trapping {
-        count
     }
 }
 
-// Whether machine `candidate` belongs to the family of machine `named` (the
-// same path) as the call's unit sees it, needs nothing typing does not
-// supply, and has parameters admitting the call's arguments. A generic
-// candidate first binds its parameters from the static arguments and by
-// unifying each parameter with its argument (generics.omg); every parameter
-// must be bound, and each argument is then admitted at the substituted
-// parameter type. The bindings stay live after an admitted candidate.
-machine family_admits(
-    typer: &mut Typer,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    expression: Expression,
-    named: u64 in Trapping,
-    statics: StaticArguments,
-    candidate: u64 in Trapping
-) -> bool
+// A generic candidate binds its parameters from the authored static arguments
+// and the argument types. Successful admission leaves those bindings live.
+machine candidate_admits(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, statics: StaticArguments, candidate: u64 in Trapping) -> bool
 crashes Trap
 {
-    let representative: MachineItem = machine_item(syntax, named);
-    let path: MachineOwner = machine_owner(resolution, named);
     let item: MachineItem = machine_item(syntax, candidate);
-    let spelled: bool = machine_spells(resolution, sources, item, candidate, path.has_owner, path.owner.source_span,
-        representative.name.source_span);
     let unsupplied: bool = unsupplied_callee(syntax, resolution, candidate);
-    transition item.parent == representative.parent && spelled && !unsupplied && item.parameter_count == expression.count {
-        true -> visible(typer, sources, syntax, resolution, expression, statics, item, candidate)
-        _ -> no()
-    }
-
-    machine visible(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        statics: StaticArguments,
-        item: MachineItem,
-        candidate: u64 in Trapping
-    ) -> bool {
-        let seen: bool = machine_visible_if(resolution, sources, syntax, true, expression.source_span.source, item, candidate);
-        transition seen {
-            true -> shape(typer, syntax, resolution, expression, statics, item)
-            _ -> no()
-        }
+    transition !unsupplied && item.parameter_count == expression.count {
+        true -> shape(typer, syntax, resolution, expression, statics, item)
+        false -> no()
     }
 
     machine shape(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, statics: StaticArguments, item: MachineItem) -> bool {

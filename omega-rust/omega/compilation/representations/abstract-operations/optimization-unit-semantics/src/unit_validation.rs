@@ -1011,14 +1011,14 @@ pub(crate) mod affine_authority {
         #[cfg(test)]
         mod tests {
             use super::*;
-            use semantic_vocabulary::PsiSemanticId;
+            use arena::NumericId;
             use terminal_psi::StructuralPathSegment as Segment;
             use terminal_psi::{
                 ArrayExtent, StructuralAffineDiscard, StructuralPlaceDeclaration,
                 StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
             };
 
-            fn id<T: PsiSemanticId>(raw: u64) -> T {
+            fn id<T: NumericId>(raw: u64) -> T {
                 T::new(raw).unwrap()
             }
 
@@ -17078,7 +17078,7 @@ pub(crate) mod structural_catalog {
                     identities,
                     types,
                 )
-                && language_semantics::content::terminal_projection_report_fingerprint(
+                && declaration_contracts::content::terminal_projection_report_fingerprint(
                     &projection.algebra,
                     &projection.expression,
                 ) == projection.identity.projection_report_fingerprint

@@ -752,15 +752,15 @@ fn git_paths_use_native_separators_without_changing_portable_identity() {
         path.as_os_str(),
         Path::new(".agents").join("skills").as_os_str()
     );
-    let tree = source::CapturedSourceTree::new([
+    let tree = source_capture::CapturedSourceTree::new([
         (
             PathBuf::from(".agents"),
-            source::CapturedSourceNode::Directory,
+            source_capture::CapturedSourceNode::Directory,
         ),
-        (path.clone(), source::CapturedSourceNode::Directory),
+        (path.clone(), source_capture::CapturedSourceNode::Directory),
         (
             path.join("main.omg"),
-            source::CapturedSourceNode::File {
+            source_capture::CapturedSourceNode::File {
                 bytes: Arc::from(b"source".as_slice()),
                 executable: false,
             },

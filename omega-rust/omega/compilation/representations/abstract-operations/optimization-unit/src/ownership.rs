@@ -21,7 +21,7 @@ pub enum OwnershipFrontierFactIndexError {
     NonCanonicalSnapshot,
 }
 
-optimization_core::invalid_error_display!(
+wire::invalid_error_display!(
     OwnershipFrontierFactIndexError,
     "ownership frontier fact index"
 );

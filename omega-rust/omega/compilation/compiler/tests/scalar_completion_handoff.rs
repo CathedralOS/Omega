@@ -12,11 +12,15 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("{fixture} discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
-        retain_native_inputs: false, retain_native_stage_inputs: false,
-        installation_assumptions: Vec::new(), image: Default::default(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(),
+        image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,
@@ -61,7 +65,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
             .is_some(),
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
-    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let mut changed = build_settings::scalar_completion::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),
@@ -83,23 +87,25 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         .into_report()
         .expect("a completed native report");
     let artifact = report.retained_native_artifact().expect("a native product");
-    let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: Some(artifact),
-        entry: None,
-        filesystem: Default::default(),
-        native_services: Default::default(),
-        native_provider: None,
-        x86_flags: None,
-        memory_ordering: None,
-        provider_proposal: None,
-        artifact: artifact.psi_artifact(),
-        target: Some("linux_x86_64"),
-        provisions: report.runtime_provisions(),
-        work_budget: 100_000,
-        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    })
+    let observed = orchestration::execute_published_terminal(
+        terminal_runtime::TerminalRuntimeRequest {
+            entry: None,
+            filesystem: Default::default(),
+            native_services: Default::default(),
+            native_provider: None,
+            x86_flags: None,
+            memory_ordering: None,
+            provider_proposal: None,
+            artifact: artifact.psi_artifact(),
+            target: Some("linux_x86_64"),
+            provisions: report.runtime_provisions(),
+            work_budget: 100_000,
+            domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+            standard_input: None,
+            clock: None,
+        },
+        Some(artifact),
+    )
     .expect("Psi executes the completed application");
     // The authored entry returns unit, which the CLI's native/Psi comparison
     // maps to exit 0. It does not invoke an external exit operation.

@@ -15,7 +15,7 @@ refused.
 use crate::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment as PathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
@@ -183,109 +183,10 @@ pub fn referent_type<'a>(
     root: StructuralTypeId,
     path: &[PathSegment],
 ) -> Option<StructuralTypeId> {
-    let unique = |matches: &mut dyn Iterator<Item = &'a StructuralTypeDeclaration>| match (
-        matches.next(),
-        matches.next(),
-    ) {
-        (Some(declaration), None) => Some(declaration),
-        _ => None,
-    };
-    let mut current = unique(
-        &mut declarations
-            .clone()
-            .filter(|declaration| declaration.id == root),
-    )?;
-    let mut payload_fields = None;
-    for segment in path {
-        if let PathSegment::Case(identity) = segment {
-            if payload_fields.is_some() {
-                return None;
-            }
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &current.shape
-            else {
-                return None;
-            };
-            let mut matching = cases.iter().filter(|case| case.id == *identity);
-            let selected = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
-            payload_fields = Some(selected.fields.as_slice());
-            continue;
-        }
-        if payload_fields.is_some() && !matches!(segment, PathSegment::Field(_)) {
-            return None;
-        }
-        let next = match (segment, &current.shape) {
-            (PathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => unique(
-                &mut declarations
-                    .clone()
-                    .filter(|declaration| declaration.id == *referent),
-            )?,
-            (PathSegment::Field(identity), shape) => {
-                let fields = match payload_fields.take() {
-                    Some(fields) => fields,
-                    None => match shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
-                        _ => return None,
-                    },
-                };
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let field = match (matching.next(), matching.next()) {
-                    (Some(field), None)
-                        if !field.relevance.is_erased()
-                            && fields
-                                .iter()
-                                .filter(|candidate| candidate.id == field.id)
-                                .count()
-                                == 1 =>
-                    {
-                        field
-                    }
-                    _ => return None,
-                };
-                match &field.field_type {
-                    StructuralFieldType::Structural(child) => unique(
-                        &mut declarations
-                            .clone()
-                            .filter(|declaration| declaration.id == *child),
-                    )?,
-                    leaf => super::owner_loans::loaned_field_type(leaf)?
-                        .leaf_declaration(declarations.clone())?,
-                }
-            }
-            (
-                PathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray {
-                    element,
-                    length: terminal_psi::ArrayExtent::Literal(length),
-                },
-            ) if index < length => unique(
-                &mut declarations
-                    .clone()
-                    .filter(|declaration| declaration.id == *element),
-            )?,
-            (
-                PathSegment::FixedIndex(_) | PathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element, .. },
-            ) => unique(
-                &mut declarations
-                    .clone()
-                    .filter(|declaration| declaration.id == *element),
-            )?,
-            (PathSegment::RuntimeIndex { .. }, StructuralTypeShape::FixedArray { element, .. }) => {
-                unique(
-                    &mut declarations
-                        .clone()
-                        .filter(|declaration| declaration.id == *element),
-                )?
-            }
-            _ => return None,
-        };
-        current = next;
+    if !is_address_projection(path) {
+        return None;
     }
-    payload_fields.is_none().then_some(current.id)
+    terminal_semantics::borrowed_projection_type(declarations, root, path)
 }
 
 #[cfg(test)]
@@ -410,6 +311,112 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn a_shared_reference_keeps_its_referent_and_access() {
+        let mut types = catalog();
+        let mut reference = types[0].clone();
+        reference.id = type_id(5);
+        reference.shape = StructuralTypeShape::Reference {
+            access: StructuralAccess::SharedBorrow,
+            referent: type_id(1),
+        };
+        types.push(reference);
+        assert_eq!(
+            borrowed_referent_type(
+                types.iter(),
+                type_id(5),
+                &[StructuralPathSegment::Referent],
+                StructuralAccess::SharedBorrow,
+            ),
+            Some(type_id(1))
+        );
+        let field = [
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::Field(idx("line")),
+        ];
+        assert_eq!(
+            borrowed_referent_type(
+                types.iter(),
+                type_id(5),
+                &field,
+                StructuralAccess::SharedBorrow
+            ),
+            Some(type_id(2))
+        );
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            assert_eq!(
+                borrowed_referent_type(types.iter(), type_id(5), &field, access),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn byte_element_addresses_use_the_existing_scalar_declaration() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, ScalarType, ValueId};
+
+        let mut types = catalog();
+        let element = [StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(1).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        }];
+        let selected = |types: &[StructuralTypeDeclaration], root, path: &[_]| {
+            borrowed_referent_type(types.iter(), root, path, StructuralAccess::SharedBorrow)
+        };
+        // The byte carrier cannot invent a scalar declaration or select a
+        // different integer merely because that declaration is available.
+        assert_eq!(selected(&types, type_id(3), &element), None);
+        let mut byte = types[2].clone();
+        byte.id = type_id(7);
+        byte.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+        ));
+        types.push(byte);
+        assert_eq!(selected(&types, type_id(3), &element), None);
+        types.last_mut().unwrap().shape = StructuralTypeShape::PrimitiveScalar(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+        );
+        assert_eq!(selected(&types, type_id(3), &element), Some(type_id(7)));
+        assert!(super::loan_access_permitted(
+            types.iter(),
+            type_id(3),
+            &element,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow,
+        ));
+        assert!(!super::loan_access_permitted(
+            types.iter(),
+            type_id(3),
+            &element,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ));
+        assert_eq!(
+            selected(&types, type_id(2), &[StructuralPathSegment::FixedIndex(31)]),
+            Some(type_id(7))
+        );
+        assert_eq!(
+            selected(&types, type_id(2), &[StructuralPathSegment::FixedIndex(32)]),
+            None
+        );
+        assert_eq!(
+            selected(
+                &types,
+                type_id(3),
+                &[element[0].clone(), StructuralPathSegment::FixedIndex(0)],
+            ),
+            None
+        );
+        let mut duplicate = types.last().unwrap().clone();
+        duplicate.id = type_id(8);
+        types.push(duplicate);
+        assert_eq!(selected(&types, type_id(3), &element), None);
+    }
+
     #[test]
     fn stored_access_views_cross_edges_as_values_but_references_keep_addresses() {
         use super::{is_address_join_in, is_descriptor_join_in};

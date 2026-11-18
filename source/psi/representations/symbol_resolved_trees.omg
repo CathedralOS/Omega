@@ -68,8 +68,8 @@ public data BinderContract [copy] {
 // `SyntaxTrees::expressions`. A membership `value in Type::Case` binds the
 // case whose implied domain it names; other expressions that are not names
 // stay `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
-// binding names the first declaration of its overload family; typing selects
-// among the family. A trait requirement or a conformance member is a machine
+// lookup supplies a representative. A bound callee also carries the overload
+// candidates visible at this use; typing selects among them. A trait requirement or a conformance member is a machine
 // like any other, named through its container. A generic parameter binding
 // names a value or machine binder of the enclosing machine (or of the trait
 // or conformance containing it) by its `SyntaxTrees::generic_parameters`
@@ -83,6 +83,8 @@ public data ValueBinding [copy] {
     case Local(statement: u64 in Trapping);
     case Parameter(parameter: u64 in Trapping);
     case PatternBinder(field: u64 in Trapping);
+    // An exact requirement or a name lookup's representative. At an
+    // expression use the resolver publishes Overloads before returning.
     case Machine(handle: u64 in Trapping);
     case Data(item: u64 in Trapping);
     case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
@@ -109,6 +111,20 @@ public data ValueBinding [copy] {
     // `result` in a callable binder contract belongs to that exact signature,
     // independently of the enclosing machine's result type.
     case ContractReturnedValue(contract: u64 in Trapping);
+    case Overloads(representative: u64 in Trapping, candidates: VisibleOverloads);
+}
+
+// A candidate is a machine handle plus one; zero ends the family. Every call
+// in the declaring package shares the full chain. Imports from other packages
+// share the chain of public members. Both preserve declaration order.
+public data VisibleOverloads [copy] {
+    first: u64 in Trapping;
+    public_only: bool;
+}
+
+public data OverloadLinks [copy] {
+    all: u64 in Trapping;
+    exported: u64 in Trapping;
 }
 
 // The primitive byte predicates over a byte view
@@ -276,6 +292,7 @@ requires
     value_binding_count: u64;
     path_bindings: [PathBinding; 2048];
     path_binding_count: u64;
+    overloads: OverloadTable;
     machine_owners: [MachineOwner; 10240];
     machine_owner_count: u64;
     // Each clause's exact trait requirement, by clause handle: a `satisfies`
@@ -300,6 +317,47 @@ requires
     component_fields: [u64; 32000];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
+}
+
+public data OverloadTable {
+    successors: [OverloadLinks; 10240];
+}
+
+// Build in reverse order so a member can share the suffix of both lists.
+public machine prepend_overload(table: &mut OverloadTable, handle: u64 in Trapping, heads: OverloadLinks, exported: bool) -> OverloadLinks
+crashes Trap
+{
+    transition handle < 10240 {
+        true -> store(table, handle, heads, exported)
+        _ -> invalid()
+    }
+    machine store(table: &mut OverloadTable, handle: u64 in Trapping, heads: OverloadLinks, exported: bool) -> OverloadLinks
+    requires handle < 10240
+    {
+        table.successors[handle as -Trapping] = heads;
+        let cursor: u64 in Trapping = handle + 1;
+        transition exported {
+            true -> OverloadLinks { all: cursor, exported: cursor }
+            false -> OverloadLinks { all: cursor, exported: heads.exported }
+        }
+    }
+    machine invalid() -> OverloadLinks { crash Trap; }
+}
+
+public machine next_overload(table: &OverloadTable, handle: u64 in Trapping, public_only: bool) -> u64 in Trapping
+crashes Trap
+{
+    transition handle < 10240 {
+        true -> read(table, handle, public_only)
+        _ -> invalid()
+    }
+    machine read(table: &OverloadTable, handle: u64 in Trapping, public_only: bool) -> u64 in Trapping
+    requires handle < 10240
+    {
+        let links: OverloadLinks = table.successors[handle as -Trapping];
+        transition public_only { true -> links.exported false -> links.all }
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
 public machine name_resolution_clear(resolution: &mut NameResolution, source: SourceId) {

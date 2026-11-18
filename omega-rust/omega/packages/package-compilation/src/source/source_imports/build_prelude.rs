@@ -11,36 +11,24 @@ use super::SourceStorage;
 
 pub(crate) struct BuildPrelude {
     pub source: build_declarations::BuildPrelude,
-    pub alias_for: Option<source::SourceId>, // Optional `build.omg` `SourceId` requiring a scoped `Build` alias.
+    pub alias_for: Option<source_text::SourceId>, // Optional `build.omg` `SourceId` requiring a scoped `Build` alias.
 }
 
 pub(crate) fn prepare_build_prelude(
     source_storage: &SourceStorage,
-    build_source_id: Option<source::SourceId>,
+    build_source_id: Option<source_text::SourceId>,
 ) -> Option<BuildPrelude> {
     let mut has_build_machine = false;
     let mut build_source_declares_build_data = false;
     let mut program_declares_build_data = false;
     for (_, file) in source_storage.source_roots.iter() {
         let is_build_file = Some(file.source_id) == build_source_id;
-        for root_item in &file.root_items {
-            match source_storage.syntax_trees.root_item(*root_item) {
-                syntax_trees::item::Item::Machine(machine)
-                    if is_build_file
-                        && machine.name.as_str(&source_storage.syntax_trees) == "build" =>
-                {
-                    has_build_machine = true;
-                }
-                syntax_trees::item::Item::Data(data)
-                    if data.name.as_str(&source_storage.syntax_trees) == "Build" =>
-                {
-                    if is_build_file {
-                        build_source_declares_build_data = true;
-                    } else {
-                        program_declares_build_data = true;
-                    }
-                }
-                _ => {}
+        has_build_machine |= is_build_file && file.root_items.declares_build_machine();
+        if file.root_items.declares_build_data() {
+            if is_build_file {
+                build_source_declares_build_data = true;
+            } else {
+                program_declares_build_data = true;
             }
         }
     }

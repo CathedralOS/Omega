@@ -256,7 +256,7 @@ pub enum CanonicalTerminalArtifactError {
     Envelope(CanonicalTerminalArtifactEnvelopeError),
 }
 
-optimization::truncated_from_adapter!(CanonicalTerminalArtifactError => Self::Envelope(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd));
+::wire::truncated_from_adapter!(CanonicalTerminalArtifactError => Self::Envelope(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd));
 
 impl From<CanonicalTerminalArtifactEnvelopeError> for CanonicalTerminalArtifactError {
     fn from(error: CanonicalTerminalArtifactEnvelopeError) -> Self {
@@ -283,7 +283,7 @@ impl std::fmt::Display for CanonicalTerminalArtifactError {
 
 impl std::error::Error for CanonicalTerminalArtifactError {}
 
-optimization::truncated_from_adapter!(CanonicalTerminalArtifactEnvelopeError => Self::UnexpectedEnd);
+::wire::truncated_from_adapter!(CanonicalTerminalArtifactEnvelopeError => Self::UnexpectedEnd);
 
 fn section_len(
     cursor: &mut Cursor,

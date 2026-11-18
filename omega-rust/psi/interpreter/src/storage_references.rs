@@ -1150,7 +1150,7 @@ pub(crate) mod placed {
             carrier: semantic_vocabulary::StructuralTypeId,
             owner: StructuralRuntimePlace,
             binding: crate::storage::provider_storage::ProviderStorageBinding,
-            compatibility: access_plans::AccessResourceCompatibility,
+            compatibility: access_admission::AccessResourceCompatibility,
         },
     }
 

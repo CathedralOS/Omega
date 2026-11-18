@@ -41,6 +41,8 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
     assert_eq!(
         snapshot,
         SyntaxTreesSnapshot {
+            mathematical_definitions: Vec::new(),
+            constant_extent_probes: Vec::new(),
             source_id: 0,
             root_items: vec![ItemSnapshot::Data {
                 name: crate::snapshot::IdentifierSnapshot {

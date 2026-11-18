@@ -4,12 +4,12 @@
 // and attaches target provider proposals without consulting checked source.
 
 use diagnostics::Diagnostic;
-use std::sync::Arc;
-use terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy;
-use terminal_psi_to_abstract_operations::{
+use native_program_planning::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest,
     project_terminal_native_realization_proposal,
 };
+use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
+use std::sync::Arc;
 
 pub struct TerminalApplication {
     pub artifact: terminal_installation::AuthorizedTerminalArtifact,
@@ -49,7 +49,7 @@ pub fn admit_package_permissions(
     permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     identities: terminal_psi::TerminalIdentityTable,
 ) -> Result<TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
-    use terminal_psi_to_abstract_operations::provider_admission::{
+    use provider_admission::provider_admission::{
         terminal_authority_permission_policy_with_rows,
         terminal_authority_permissions::validate_package_terminal_authority_permission_custody,
     };

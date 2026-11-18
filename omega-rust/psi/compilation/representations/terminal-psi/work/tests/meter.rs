@@ -348,8 +348,9 @@ fn operation() -> Operation {
 }
 
 fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor {
-    use evaluation_accounting::{
-        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+    use evaluation_accounting::BuildEvaluationSponsor;
+    use evaluation_contracts::{
+        BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };
     BuildEvaluationSponsor::new_with_measurement(
@@ -364,7 +365,7 @@ fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor
 
 #[test]
 fn invocation_payment_is_atomic_with_local_attribution_and_shared_between_meters() {
-    use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
+    use evaluation_contracts::{EvaluationAccountingError, EvaluationResource};
     let sponsor = terminal_sponsor(2);
     let invocation = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
     let mut meter = WorkMeter::with_invocation(invocation.clone(), Some(0)).unwrap();

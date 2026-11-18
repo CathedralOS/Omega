@@ -147,7 +147,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     }
 
     let root = repo_root()?;
-    let semantic_ids = semantic_id_names(&root);
+    let semantic_ids = semantic_id_names(&root).map_err(|error| {
+        eprintln!("check_rules: {error}");
+        1u8
+    })?;
 
     if !update_flags.is_empty() {
         for (idx, spec) in RATCHET_SPECS.iter().enumerate() {

@@ -869,15 +869,13 @@ mod tests {
     use semantic_vocabulary::IntegerType;
 
     fn canonical_filesystem_module() -> terminal_psi::TerminalModule {
+        use application_identity::type_identity::encoding::{
+            CoordinateTag, atom, bare, byte_atom, compound,
+        };
+        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+        use declaration_contracts::service_surface::{ServiceReceiverApplication, ServiceSurface};
         use language_core::core_vocabulary::{
             CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
-        };
-        use language_semantics::{
-            service_surface::{ServiceReceiverApplication, ServiceSurface},
-            type_identity::{
-                encoding::{CoordinateTag, atom, bare, byte_atom, compound},
-                vocabulary::{NameForm, OwnerForm},
-            },
         };
         use terminal_psi::{
             ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule, TerminalServiceSchema,
@@ -889,9 +887,9 @@ mod tests {
             let site =
                 CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(service))
                     .unwrap();
-            let revision = source::source_identity::owned_toolchain_source_identity_digest(
+            let revision = declaration_contracts::source_identity::toolchain_owned_identity_digest(
                 "core",
-                &[site.file.to_str().unwrap()],
+                vec![site.file.to_str().unwrap().to_owned()],
                 site.source,
             )
             .unwrap();

@@ -8,8 +8,8 @@ use package_compilation::{
 };
 use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::source_state::service_declarations::ProviderSchemaDeclaration;
 use std::path::Path;
-use typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 #[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {
@@ -81,7 +81,7 @@ pub fn candidate_target_entry_binding(
         .require_source_owner(program)
         .map_err(|error| missing(vec![error]))?;
     checked.terminal_publication().accepted().map_err(missing)?;
-    let consumed = source::source_identity::consumed_source_unit(source, false)
+    let consumed = source_admission::source_identity::consumed_source_unit(source, false)
         .map_err(|error| missing(vec![Diagnostic::error(error)]))?;
     if !checked
         .sources()

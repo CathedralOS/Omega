@@ -13,7 +13,9 @@ contracts (`evidence`) used to replay six-byte-near to two-byte-short branch
 rewrites without embedding optimizer heuristics into the baseline layout.
 */
 
+mod relaxation_record;
 pub mod text_section;
+pub use relaxation_record::X86BranchRelaxationRecord;
 
 use std::sync::Arc;
 
@@ -259,6 +261,8 @@ impl ResolvedMachineLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FramedMachineProgram {
+    pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
+    pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
@@ -269,9 +273,13 @@ pub struct FramedMachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachineProgram {
+    pub exit_requirements: Arc<crate::exit_requirements::EncodedExitRequirements>,
+    pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
+    pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
+    pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
-    pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
@@ -280,9 +288,13 @@ pub struct EncodedMachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedMachineProgram {
+    pub exit_requirements: Arc<crate::exit_requirements::EncodedExitRequirements>,
+    pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
+    pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
+    pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
     pub frame_identity: TargetFrameLayoutIdentity,
     pub protocol_identity: TargetFrameProtocolEncodingIdentity,
-    pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
