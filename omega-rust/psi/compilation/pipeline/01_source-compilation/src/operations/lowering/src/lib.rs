@@ -1730,7 +1730,7 @@ fn lower_program<'source>(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let component = components.members(id)?;
+        let component = components.invocation_members(id)?;
         let contract = u64::try_from(module.declaration_contracts.len())
             .ok()
             .and_then(|count| count.checked_add(id.get()))

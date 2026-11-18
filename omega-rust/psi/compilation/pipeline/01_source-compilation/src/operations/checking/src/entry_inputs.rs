@@ -37,6 +37,8 @@ use crate::checking::{
     terminal_machine,
 };
 
+mod integer_cases;
+
 /// Ordinary callers precede helpers. A recursive component's internal calls
 /// are block arrivals: discover their conditions without an inductive
 /// assumption, then check every internal and external arrival normally.
@@ -1181,6 +1183,28 @@ fn formed(
     predicate: Proposition,
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Checked<Option<Proposition>> {
+    // Projecting a branch condition can leave all outcomes of a comparison
+    // in a helper's inferred input. Omit these universal conditions before
+    // assigning them to callers. Written requirements keep their own checks.
+    let predicate = match predicate {
+        Proposition::Disjunction(ref parts) if integer_cases::exhaustive(parts) => {
+            return Ok(None);
+        }
+        Proposition::Conjunction(mut parts) => {
+            parts.retain(|part| {
+                !matches!(part, Proposition::Disjunction(arms) if integer_cases::exhaustive(arms))
+            });
+            match parts.len() {
+                0 => return Ok(None),
+                1 => parts.pop().expect("one inferred conjunct"),
+                _ => Proposition::Conjunction(parts),
+            }
+        }
+        other => other,
+    };
+    if predicate == Proposition::Truth {
+        return Ok(None);
+    }
     let contract = &terminal_machine(&elaboration.module.machines, callee, callee)?.contract;
     // A defect in the module itself is still reported, never left out.
     let forms = |clause: &Proposition, activity: &mut crate::checking::ProofSearchActivity| {
