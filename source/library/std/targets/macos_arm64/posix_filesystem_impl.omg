@@ -608,7 +608,7 @@ machine macos_arm64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8; 1
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
-    PosixFilesystemHost::read_metadata_at(-2, path as -Path, buffer, 0)
+    macos_arm64_posix_query_metadata_at(-2, path as -Path, buffer, 0)
 }
 
 machine macos_arm64_posix_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
@@ -626,13 +626,19 @@ machine macos_arm64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &mu
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
-    PosixFilesystemHost::read_metadata_at(-2, path as -Path, buffer, 32)
+    macos_arm64_posix_query_metadata_at(-2, path as -Path, buffer, 32)
 }
 
 // The kernel writes one complete native record into caller-owned storage.
 // Only path termination needs scratch; undersized output never reaches libc.
 machine macos_arm64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     satisfies PosixFilesystemHost::read_metadata_at
+reaches FilesystemMetadataQuery
+{
+    macos_arm64_posix_query_metadata_at(directory_descriptor, name, buffer, flags)
+}
+
+machine macos_arm64_posix_query_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
 reaches FilesystemMetadataQuery
 {
     prepare(directory_descriptor, name, buffer, flags)
