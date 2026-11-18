@@ -109,6 +109,9 @@ pub struct Plan {
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
     pub reference_ends: Vec<ReferenceEnd>,
+    /// Fully restored borrowed names that the settled ownership walk ends
+    /// on this edge. The loan checker still accounts for their resources.
+    pub borrowed_header_ends: Vec<(EdgeId, PlaceId)>,
     pub claims: Option<ClaimsPlan>,
 }
 
@@ -416,6 +419,7 @@ struct Arrival {
     target: Option<semantic_vocabulary::BlockId>,
     outgoing: State,
     actions: Vec<TerminalAffineCleanupAction>,
+    borrowed_header_ends: Vec<PlaceId>,
 }
 
 struct Residence {
@@ -1896,6 +1900,7 @@ fn analyze(
     analysis.reference_ends.clear();
     analysis.unavailable_roots = vec![None; analysis.roots.len()];
     let mut cleanup = Vec::new();
+    let mut borrowed_header_ends = Vec::new();
     for block in &machine.blocks {
         let Some(state) = entering[index(block.id.get())?].clone() else {
             if let Some(flow) = &mut analysis.claim_flow {
@@ -1922,9 +1927,16 @@ fn analyze(
             if !arrival.actions.is_empty() {
                 cleanup.push((arrival.edge, arrival.actions));
             }
+            borrowed_header_ends.extend(
+                arrival
+                    .borrowed_header_ends
+                    .into_iter()
+                    .map(|place| (arrival.edge, place)),
+            );
         }
     }
     cleanup.sort_by_key(|(edge, _)| *edge);
+    borrowed_header_ends.sort_unstable();
     analysis.stores.sort_by_key(|(operation, _)| *operation);
     Ok(Plan {
         affine_roots,
@@ -1933,6 +1945,7 @@ fn analyze(
         stores: analysis.stores,
         unavailable: analysis.unavailable,
         reference_ends: analysis.reference_ends,
+        borrowed_header_ends,
         claims: analysis
             .claim_flow
             .map(|flow| flow.finish(machine))
@@ -2532,16 +2545,21 @@ impl<'a> Analysis<'a> {
             // value that needs cleanup. End a dead name before the next header
             // is bound, leaving its backing and all loan checks untouched.
             // A surviving use still needs a name established on every arrival.
+            let mut borrowed_header_ends = Vec::new();
             for place in &self.borrowed_headers {
                 let raw = index(place.get())?;
-                let forgotten = !needed.is_some_and(|needed| needed.contains(*place))
-                    || owned_there.is_some_and(|there| there.regions[raw].is_none());
+                let unused = !needed.is_some_and(|needed| needed.contains(*place));
+                let forgotten =
+                    unused || owned_there.is_some_and(|there| there.regions[raw].is_none());
                 if forgotten && let Some(region) = &outgoing.regions[raw] {
                     if !region.available(&[]) {
                         return Err(Error::unsupported(
                             "borrowed block storage still owes restoration at its last use",
                         )
                         .at(Site::Edge(edge)));
+                    }
+                    if unused && target.is_some() && bound_output && entering.is_some() {
+                        borrowed_header_ends.push(*place);
                     }
                     outgoing.regions[raw] = None;
                 }
@@ -2703,6 +2721,7 @@ impl<'a> Analysis<'a> {
                 target,
                 outgoing,
                 actions,
+                borrowed_header_ends,
             });
         }
         Ok(arrivals)

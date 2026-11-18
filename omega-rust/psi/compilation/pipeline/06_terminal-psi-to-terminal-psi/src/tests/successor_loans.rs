@@ -321,12 +321,219 @@ machine entry(first: bool) -> bool {
         &mut references,
     )
     .unwrap();
-    let (_, conflicts) = storage.loans(&mut references, module, tables).unwrap();
+    let (_, conflicts) = storage
+        .loans(&mut references, module, tables, None)
+        .unwrap();
     assert!(
         conflicts
             .iter()
             .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
         "cleanup on the continuing edge must preserve the packet's live view"
+    );
+}
+
+#[test]
+fn successor_capture_precedes_disposal_of_its_owned_backing() {
+    let source = r#"data Packet {
+    left: u8;
+    bytes: [u8; 3];
+    value: u8;
+    right: u8;
+}
+
+machine read_value(packet: &Packet) -> u8 {
+    packet.value
+}
+
+machine main() crashes Trap {
+    transition { _ -> block round(false) }
+
+    machine round(second: bool) {
+        let expected: u8 = match second { true -> 42u8 _ -> 17u8 };
+        let packet: Packet = Packet {
+            left: 11u8,
+            bytes: [2u8, 3u8, 5u8],
+            value: expected,
+            right: 99u8
+        };
+        transition { _ -> block visit(second, expected, &packet) }
+    }
+
+    machine visit(second: bool, expected: u8, packet: &Packet) {
+        let actual: u8 = read_value(packet);
+        transition actual == expected && packet.left == 11u8 && packet.right == 99u8 {
+            true -> block next(second)
+            _ -> bad()
+        }
+    }
+
+    machine next(second: bool) {
+        transition second {
+            true -> done()
+            _ -> block round(true)
+        }
+    }
+
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+    let prepare = |text: &str| {
+        let typed = super::boundary_calls::typed(text);
+        let main = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .expect("the cycle declares main")
+            .symbol;
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[main],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    };
+    let direct_field = source.replace("read_value(packet);", "packet.value;");
+    for text in [source, direct_field.as_str()] {
+        let positive = prepare(text);
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(program) = &positive
+        else {
+            panic!("the shared borrow cycle must lower");
+        };
+        let expected_verdicts = 1 + program.forms.len() + program.witnesses.len();
+        let verdicts = crate::judge_compilation(positive);
+        assert_eq!(verdicts.len(), expected_verdicts);
+        assert!(
+            verdicts
+                .iter()
+                .all(|result| matches!(result, Ok(RouteVerdict::Accepted(_)))),
+            "the shared borrow cycle must accept: {verdicts:?}"
+        );
+    }
+
+    // Accepted elaborations carry successful checking knowledge. Prepare a
+    // fresh input for the mutation instead of reusing or clearing that evidence.
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        prepare(source)
+    else {
+        panic!("the unchanged cycle must prepare its actual closure");
+    };
+    let mut input = prepared
+        .closure
+        .expect("the unchanged cycle must lower without a source refusal");
+    assert!(
+        input
+            .tables
+            .machines
+            .iter()
+            .all(|(_, tables)| tables.knowledge.is_empty()),
+        "the negative must start from fresh, unpopulated checking tables"
+    );
+    let (identity, selected, owner) = input
+        .module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.blocks.iter().find_map(|block| {
+                let Terminator::Jump {
+                    edge,
+                    target,
+                    structural_arguments,
+                    ..
+                } = &block.terminator
+                else {
+                    return None;
+                };
+                let target = machine.blocks.iter().find(|block| block.id == *target)?;
+                structural_arguments
+                    .iter()
+                    .zip(&target.structural_parameters)
+                    .find_map(|(argument, parameter)| {
+                        let source = machine
+                            .structural_places
+                            .iter()
+                            .find(|place| place.id == argument.place)?;
+                        (argument.access == StructuralAccess::SharedBorrow
+                            && parameter.access == StructuralAccess::SharedBorrow
+                            && argument.path.is_empty()
+                            && matches!(
+                                source.kind,
+                                StructuralPlaceKind::OperationResult { .. }
+                                    | StructuralPlaceKind::TrivialAffineLocal { .. }
+                            ))
+                        .then_some((
+                            machine.id,
+                            *edge,
+                            argument.place,
+                        ))
+                    })
+            })
+        })
+        .expect("real lowering lends a fresh owned Packet to a shared block header");
+    let machine = input
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == identity)
+        .unwrap();
+    let cleanup = machine
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            Terminator::Jump {
+                edge,
+                cleanup_actions,
+                ..
+            } if *edge == selected => Some(cleanup_actions),
+            _ => None,
+        })
+        .unwrap();
+    assert!(cleanup.iter().all(|action| action.place() != owner));
+    // The actual has already been captured for the destination header when
+    // this cleanup runs. Keep every other operation, argument and table row.
+    cleanup.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        owner,
+    ));
+
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
+    let (formed, domains, checking, _, _) = scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(identity).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let mut references = prepared.references(&module.structural_types);
+    let storage = crate::places::Storage::new(
+        identity,
+        module.machine(identity).unwrap(),
+        module,
+        domains,
+        &prepared.graph,
+        tables,
+        &prepared.types,
+        &mut references,
+    )
+    .unwrap();
+    // Exercise the independent edge guard, rather than rejecting the forged
+    // affine schedule before loan checking or borrowing a pre-mutation plan.
+    let refusal = storage
+        .loans(&mut references, module, tables, None)
+        .expect_err("cleanup cannot destroy a newly captured borrow's owner");
+    assert_eq!(refusal.reason, RefusalReason::Conflict);
+    assert_eq!(refusal.machine, identity);
+    assert_eq!(refusal.concerns, Construct::Edge(selected));
+    assert_eq!(
+        refusal.detail,
+        "successor cleanup changes the backing of a captured borrow"
     );
 }
 
@@ -916,7 +1123,9 @@ requires index < 2 {
         &mut references,
     )
     .unwrap();
-    let (loans, conflicts) = storage.loans(&mut references, module, tables).unwrap();
+    let (loans, conflicts) = storage
+        .loans(&mut references, module, tables, None)
+        .unwrap();
     assert!(
         loans.is_empty(),
         "continuing an input must not create a loan"

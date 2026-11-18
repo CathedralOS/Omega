@@ -24,6 +24,8 @@ pub(crate) struct Components {
     /// index `m` are `callers[caller_offsets[m]..caller_offsets[m + 1]]`.
     caller_offsets: Vec<usize>,
     callers: Vec<(usize, usize)>,
+    /// Entry bodies whose incoming reference first use stays outside the loop.
+    separate_entries: Vec<bool>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -155,6 +157,7 @@ impl Components {
             members,
             caller_offsets: reverse_offsets,
             callers: reverse_calls,
+            separate_entries: vec![false; count],
             #[cfg(test)]
             discovery_edge_visits,
         }
@@ -183,6 +186,14 @@ impl Components {
             }
             self.components[component].reaches_unranked_cycle = reaches_cycle;
         }
+    }
+
+    pub(super) fn separate_entry(&mut self, machine: MachineId) {
+        self.separate_entries[index(machine)] = true;
+    }
+
+    pub(crate) fn has_separate_entry(&self, machine: MachineId) -> bool {
+        self.separate_entries[index(machine)]
     }
 
     /// Every component's members in `MachineId` order, callees' components
@@ -246,6 +257,7 @@ mod tests {
         let mut calls = CallGraph {
             sites: Vec::new(),
             offsets: vec![0],
+            has_designated: vec![false; adjacencies.len()],
         };
         for callees in adjacencies {
             calls.sites.extend(callees.iter().map(|&callee| CallSite {

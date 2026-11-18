@@ -540,6 +540,7 @@ impl Program<'_> {
                     declaration: machine,
                     ordinal,
                 }
+
             }))
             .collect()
     }
