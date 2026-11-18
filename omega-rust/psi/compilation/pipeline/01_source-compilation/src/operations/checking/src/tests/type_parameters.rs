@@ -2071,26 +2071,29 @@ fn nested_helpers_keep_mixed_inherited_static_parameters() {
     }
 }
 
+fn judge_prepared_source(
+    source: &str,
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    let (typed, _) = crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(source),
+        &crate::preparation::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::build_purpose::symbol(&typed, "main");
+    let prepared = crate::lowering::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[None],
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    crate::checking::judge_compilation(prepared.program)
+}
+
 #[test]
 fn a_callback_retains_its_supplied_slice_type_and_access() {
-    let judge_source = |source: &str| {
-        let (typed, _) = crate::preparation::prepare_typed_trees(
-            super::boundary_calls::typed(source),
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .unwrap();
-        let entry = super::build_purpose::symbol(&typed, "main");
-        let prepared = crate::lowering::prepare_compilation(
-            &typed,
-            super::build_purpose::roster(
-                &[entry],
-                &[None],
-                declaration_contracts::source_identity::DependencyScope::Product,
-            ),
-            terminal_codec::TerminalPublication::Invocation,
-        );
-        crate::checking::judge_compilation(prepared.program)
-    };
     let summarize = |verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>]| {
         verdicts
             .iter()
@@ -2109,7 +2112,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../tests/fixtures/run/calls/constructed_slice_callback/main.omg"
     ));
-    let accepted = judge_source(source);
+    let accepted = judge_prepared_source(source);
     assert!(
         !accepted.is_empty()
             && accepted
@@ -2122,7 +2125,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../tests/fixtures/fail/calls/constructed_slice_callback/main.omg"
     ));
-    let rejected = judge_source(invalid);
+    let rejected = judge_prepared_source(invalid);
     assert!(
         rejected.iter().any(|verdict| {
             let refusal = match verdict {
@@ -2137,5 +2140,34 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         }),
         "the callback cannot strengthen shared access to mutable access: {:?}",
         summarize(&rejected)
+    );
+}
+
+#[test]
+fn a_selected_callback_keeps_its_exact_applied_record_result() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/closed_result_callback/main.omg"
+    ));
+    let accepted = judge_prepared_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "the callback's applied result must keep its data view: {accepted:?}"
+    );
+    let invalid = source.replace("invoke<make>", "invoke<other>");
+    assert_ne!(source, invalid);
+    let rejected = match crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(&invalid),
+        &crate::preparation::PreparationRequest::settled(),
+    ) {
+        Err(rejected) => rejected,
+        Ok(_) => panic!("a different callback result type must be refused"),
+    };
+    assert!(
+        format!("{rejected:?}").contains("its result type is not the binder's"),
+        "the same-shaped Other record cannot replace Payload: {rejected:?}"
     );
 }

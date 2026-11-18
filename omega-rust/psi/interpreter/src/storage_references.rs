@@ -2370,7 +2370,7 @@ impl TerminalExecution<'_> {
                         self.structural_types().values(),
                         root_type,
                         &source.path,
-                        None,
+                        Some(referent_type),
                     )
                 })
                 .flatten();

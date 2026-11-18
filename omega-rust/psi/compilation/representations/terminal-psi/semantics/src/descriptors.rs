@@ -17411,6 +17411,58 @@ pub mod descriptor_results {
                                             result.place,
                                             result.structural_type,
                                         )?;
+                                        let mut lifetime_dependencies = Vec::new();
+                                        if !inventory.unknown_contents.is_empty() {
+                                            for (position, formal) in public
+                                                .as_ref()?
+                                                .contract()
+                                                .structural_parameters
+                                                .iter()
+                                                .enumerate()
+                                            {
+                                                let ty = module
+                                                    .structural_type(formal.structural_type)?;
+                                                if formal.access != StructuralAccess::Owned
+                                                    && !ty.shape.is_view_descriptor()
+                                                {
+                                                    lifetime_dependencies.push(DescriptorLifetimeDebt {
+                                                        origin: DescriptorStoredOrigin::Parameter {
+                                                            position,
+                                                            projection: Projection::new(&[]),
+                                                        },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                                if formal.access
+                                                    == StructuralAccess::WriteOnlyBorrow
+                                                {
+                                                    continue;
+                                                }
+                                                let inputs = DescriptorSlotKind::BorrowedStorage
+                                                    .owned_inventory(
+                                                        &module.structural_types,
+                                                        formal.place,
+                                                        formal.structural_type,
+                                                    )?;
+                                                let locations = inputs.slots.into_iter().chain(
+                                                    inputs
+                                                        .unknown_contents
+                                                        .into_iter()
+                                                        .map(|packet| packet.location),
+                                                );
+                                                for location in locations {
+                                                    lifetime_dependencies
+                                                        .push(DescriptorLifetimeDebt {
+                                                        origin:
+                                                            DescriptorStoredOrigin::IncomingSlot {
+                                                                position,
+                                                                path: location.path,
+                                                            },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                            }
+                                        }
                                         for packet in inventory.unknown_contents {
                                             let path = packet.location.path;
                                             let (last, prefix) = path.split_last()?;
@@ -17430,6 +17482,8 @@ pub mod descriptor_results {
                                                     },
                                                     path: path.clone(),
                                                     structural_type,
+                                                    lifetime_dependencies: lifetime_dependencies
+                                                        .clone(),
                                                 };
                                             contents.push(DescriptorResultSlot {
                                                 path,

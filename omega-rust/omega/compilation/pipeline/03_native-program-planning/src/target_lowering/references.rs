@@ -1467,8 +1467,8 @@ mod stored_calls {
             DescriptorStoredOrigin::Carried { .. } => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
             }
-            DescriptorStoredOrigin::ProducedContents(contents) => eprintln!(
-                "CHECKSITE stored-reference-origin machine={machine:?} kind=opaque-call-result contents={contents:?}"
+            DescriptorStoredOrigin::ProducedContents(_) => eprintln!(
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=opaque-call-result"
             ),
         }
     }

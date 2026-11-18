@@ -394,6 +394,17 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        if operator == BinaryOperator::Equal
+            && let (ExpressionNode::TypeExpression(left), ExpressionNode::TypeExpression(right)) = (
+                typed.expression_table.expression(binary.left),
+                typed.expression_table.expression(binary.right),
+            )
+            && let Some(equation) = self.nominal_type_equation(id, scope, *left, *right)?
+        {
+            let owner = self.contract_operator_owner(id, scope)?;
+            self.complete_type_equation(id, owner, expression)?;
+            return Ok(equation);
+        }
         if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
             *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
         }

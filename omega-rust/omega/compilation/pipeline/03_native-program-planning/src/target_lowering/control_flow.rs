@@ -2411,6 +2411,7 @@ mod transfers {
                 root,
                 &argument.path,
                 argument.access,
+                Some(parameter.structural_type),
             )
         }) == Some(parameter.structural_type)
     }

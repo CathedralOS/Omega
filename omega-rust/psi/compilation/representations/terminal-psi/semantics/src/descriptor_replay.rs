@@ -1214,6 +1214,20 @@ pub(crate) mod analysis {
             })
         }
 
+        pub(crate) fn call_result_contents(
+            &self,
+            identity: MachineId,
+            at: DescriptorPosition,
+            operation: semantic_vocabulary::OperationId,
+        ) -> Option<Vec<DescriptorResultSlot>> {
+            let machine = self.replay.machine(identity)?;
+            let call = crate::exactly_one::exactly_one(machine.calls_at(at).iter(), |call| {
+                call.owner == DescriptorInvocationOwner::Operation(operation)
+            })?;
+            let summary = self.replay.cached_invocation_summary(call)?;
+            Some(summary.result.contents().to_vec())
+        }
+
         /// A helper can update referenced storage while leaving its descriptor
         /// unchanged. Every normal return must retain the invocation's original
         /// descriptor; facts about the stored data still need invalidation.
@@ -1871,7 +1885,6 @@ pub(crate) mod analysis {
                         Ok::<(), DescriptorGraphError>(())
                     })?;
                 }
-                let mut unresolved_destinations = Vec::new();
                 for packet in summary.result.contents() {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&packet.path);
@@ -1889,13 +1902,12 @@ pub(crate) mod analysis {
                         }
                         continue;
                     }
-                    let mut has_producer = false;
                     for origin in &packet.origins {
                         if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
                             if produced.structural_type != expected {
                                 return Err(incomplete_step());
                             }
-                            has_producer = true;
+                            outputs.push((destination.clone(), std::slice::from_ref(origin), true));
                             continue;
                         }
                         let DescriptorStoredOrigin::IncomingSlot {
@@ -1922,9 +1934,6 @@ pub(crate) mod analysis {
                         step.inputs.push((Some(source.clone()), None));
                         step.derivations.push((source, destination.clone()));
                     }
-                    if has_producer {
-                        unresolved_destinations.push(destination);
-                    }
                 }
                 // A result slot of unknown origin may be any descriptor
                 // the call was given, or reach through one: everything
@@ -1949,9 +1958,6 @@ pub(crate) mod analysis {
                     if !step.definitions.contains(&destination) {
                         step.definitions.push(destination.clone());
                     }
-                    unresolved_destinations.push(destination);
-                }
-                for destination in unresolved_destinations {
                     for (argument, contents) in call.arguments.iter().zip(&call.argument_contents) {
                         match argument {
                             Some(source) => step
@@ -1997,24 +2003,30 @@ pub(crate) mod analysis {
                     .map(|origin| (origin, true))
                     .collect::<Vec<_>>();
                 while let Some((origin, spatial)) = pending.pop() {
-                    if let DescriptorStoredOrigin::Provider(provider) = origin {
+                    let dependencies = match origin {
+                        DescriptorStoredOrigin::Provider(provider) => {
+                            Some(&provider.lifetime_dependencies)
+                        }
+                        DescriptorStoredOrigin::ProducedContents(contents) => {
+                            Some(&contents.lifetime_dependencies)
+                        }
+                        _ => None,
+                    };
+                    if let Some(dependencies) = dependencies {
                         pending.extend(
-                            provider
-                                .lifetime_dependencies
+                            dependencies
                                 .iter()
                                 .map(|dependency| (&dependency.origin, false)),
                         );
                         continue;
                     }
                     let source = match origin {
-                        DescriptorStoredOrigin::ProducedContents(_) => {
-                            return Err(incomplete_step());
-                        }
                         DescriptorStoredOrigin::Invocation { .. }
                         | DescriptorStoredOrigin::Literal { .. }
                         | DescriptorStoredOrigin::Empty
                         | DescriptorStoredOrigin::Carried { .. }
                         | DescriptorStoredOrigin::Provider(_)
+                        | DescriptorStoredOrigin::ProducedContents(_)
                         | DescriptorStoredOrigin::AccessFormation { .. } => {
                             continue;
                         }
@@ -4991,7 +5003,7 @@ pub(crate) mod engine {
         Backing(DescriptorCallOrigin),
         Incoming(DescriptorLocation),
         IncomingContents(DescriptorContentsQuery, Projection),
-        ProducedContents(ProducedContents),
+        ProducedContents(ProducedContents<Origin>),
         Storage(DescriptorLocation),
         /// A borrowed header captures an address account, not a fresh lookup
         /// through a descriptor that may subsequently be replaced.
@@ -7686,7 +7698,18 @@ pub(crate) mod engine {
                             if produced.structural_type != expected {
                                 return Err("returned contents changed their generic value type");
                             }
-                            origins.insert(Origin::ProducedContents(produced.clone()));
+                            let dependencies = self
+                                .substitute_lifetime_dependencies(
+                                    machine,
+                                    before,
+                                    call,
+                                    &produced.lifetime_dependencies,
+                                    reads,
+                                )
+                                .ok_or("returned contents do not retain their input loans")?;
+                            origins.insert(Origin::ProducedContents(
+                                produced.with_dependencies(dependencies),
+                            ));
                             continue;
                         }
                         origins.extend(
@@ -8707,7 +8730,19 @@ pub(crate) mod engine {
         ) -> Option<DescriptorStoredOrigin> {
             match origin {
                 Origin::ProducedContents(produced) => {
-                    Some(DescriptorStoredOrigin::ProducedContents(produced.clone()))
+                    let dependencies = produced
+                        .lifetime_dependencies
+                        .iter()
+                        .map(|debt| {
+                            Some(DescriptorLifetimeDebt {
+                                origin: self.exported(machine, &debt.origin)?,
+                                access: debt.access,
+                            })
+                        })
+                        .collect::<Option<_>>()?;
+                    Some(DescriptorStoredOrigin::ProducedContents(
+                        produced.with_dependencies(dependencies),
+                    ))
                 }
                 Origin::CapturedStorage(account) => {
                     self.exported(machine, &self.legacy_storage_origin(account)?)
@@ -12422,21 +12457,24 @@ pub(crate) mod provider {
     }
 
     impl Replay<'_> {
-        pub(crate) fn substitute_provider_with_depth(
+        pub(crate) fn substitute_lifetime_dependencies(
             &self,
             machine: &DescriptorMachine,
             state: &State,
             call: &DescriptorInvocation,
-            provider: &DescriptorProviderOrigin<DescriptorStoredOrigin>,
+            stored: &[DescriptorLifetimeDebt<DescriptorStoredOrigin>],
             reads: &DescriptorReadDepth<'_>,
-        ) -> Value {
+        ) -> Option<Vec<DescriptorLifetimeDebt<Origin>>> {
             let mut dependencies = BTreeSet::new();
-            for dependency in &provider.lifetime_dependencies {
+            for dependency in stored {
                 for captured in
                     self.substitute_with_depth(machine, state, call, &dependency.origin, reads)?
                 {
                     match captured {
                         Origin::Provider(previous) => {
+                            dependencies.extend(previous.lifetime_dependencies);
+                        }
+                        Origin::ProducedContents(previous) => {
                             dependencies.extend(previous.lifetime_dependencies);
                         }
                         ordinary => {
@@ -12448,6 +12486,24 @@ pub(crate) mod provider {
                     }
                 }
             }
+            Some(dependencies.into_iter().collect())
+        }
+
+        pub(crate) fn substitute_provider_with_depth(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            call: &DescriptorInvocation,
+            provider: &DescriptorProviderOrigin<DescriptorStoredOrigin>,
+            reads: &DescriptorReadDepth<'_>,
+        ) -> Value {
+            let lifetime_dependencies = self.substitute_lifetime_dependencies(
+                machine,
+                state,
+                call,
+                &provider.lifetime_dependencies,
+                reads,
+            )?;
             let mut invocations = vec![DescriptorInvocationSite {
                 machine: machine.id,
                 owner: call.owner,
@@ -12459,7 +12515,7 @@ pub(crate) mod provider {
                     output: provider.output.clone(),
                     invocations,
                     projection: provider.projection.clone(),
-                    lifetime_dependencies: dependencies.into_iter().collect(),
+                    lifetime_dependencies,
                 },
             )]))
         }
@@ -12586,10 +12642,25 @@ pub struct DescriptorResultContents {
 /// still generic. The producing call and field identify the value without
 /// giving the caller a reference to its hidden backing.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ProducedContents {
+pub struct ProducedContents<Dependency> {
     pub(crate) producer: DescriptorInvocationSite,
     pub(crate) path: Vec<DescriptorPathSegment>,
     pub(crate) structural_type: StructuralTypeId,
+    pub(crate) lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,
+}
+
+impl<Dependency> ProducedContents<Dependency> {
+    fn with_dependencies<Mapped>(
+        &self,
+        lifetime_dependencies: Vec<DescriptorLifetimeDebt<Mapped>>,
+    ) -> ProducedContents<Mapped> {
+        ProducedContents {
+            producer: self.producer.clone(),
+            path: self.path.clone(),
+            structural_type: self.structural_type,
+            lifetime_dependencies,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -12620,7 +12691,7 @@ pub enum DescriptorStoredOrigin {
         steps: Vec<DescriptorContentsStep>,
         projection: Projection,
     },
-    ProducedContents(ProducedContents),
+    ProducedContents(ProducedContents<DescriptorStoredOrigin>),
     Literal {
         machine: MachineId,
         place: PlaceId,

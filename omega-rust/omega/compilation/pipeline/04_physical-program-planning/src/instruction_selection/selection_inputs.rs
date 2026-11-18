@@ -172,6 +172,7 @@ pub(crate) mod address_join_input {
             root,
             &argument.path,
             argument.access,
+            Some(parameter.structural_type),
         ) != Some(parameter.structural_type)
         {
             return None;

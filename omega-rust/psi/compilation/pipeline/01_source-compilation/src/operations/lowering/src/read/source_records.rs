@@ -65,7 +65,7 @@ pub(super) fn source_application(
     source_application_in_scope(typed, data, reference, machine, Default::default())
 }
 
-fn source_application_in_scope(
+pub(super) fn source_application_in_scope(
     typed: &crate::source_state::TypedTrees,
     data: &DataDefinition,
     reference: TypeReferenceHandle,
@@ -1268,6 +1268,7 @@ mod tests {
             authored_layout: false,
         };
         let source = RecordSource {
+            constant_input_owner: None,
             declaration: data.symbol,
             cleanup: None,
             application: Some(SourceTypeApplication {

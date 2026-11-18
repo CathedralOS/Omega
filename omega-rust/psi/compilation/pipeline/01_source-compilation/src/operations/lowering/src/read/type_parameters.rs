@@ -105,6 +105,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
             application: Some(crate::source_state::SourceTypeApplication {

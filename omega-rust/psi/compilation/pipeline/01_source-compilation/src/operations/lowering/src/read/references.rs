@@ -107,11 +107,14 @@ impl Program<'_> {
             .unconstrained_type_reference(referee);
         let referent = self.storage_type(machine, bare_referee, bare)?;
         let shape = StorageShape::Reference { referent, access };
-        if let Some((id, row)) = self
-            .records
-            .iter()
-            .find(|(_, record)| record.identity == identity)
-        {
+        if let Some((id, row)) = self.records.iter().find(|(id, record)| {
+            record.identity == identity
+                && self.record_sources.get(*id).is_some_and(|source| {
+                    source
+                        .constant_input_owner
+                        .is_none_or(|owner| owner == machine)
+                })
+        }) {
             if row.shape != shape {
                 return Err(refuse(
                     machine,
@@ -121,6 +124,7 @@ impl Program<'_> {
             }
             return Ok(Some(ValueType::Record(id, qualification, regions)));
         }
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let id = self.records.push(RecordType {
             multiplicity: if access == StructuralAccess::SharedBorrow {
                 terminal_psi::StructuralMultiplicity::Unrestricted
@@ -134,6 +138,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner,
             declaration: symbols::SymbolHandle::invalid(),
             cleanup: None,
             application: Some(crate::source_state::SourceTypeApplication {

@@ -106,8 +106,12 @@ pub fn loan_access_permitted<'a>(
     destination: StructuralAccess,
 ) -> bool {
     use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
-    if !is_address_projection(path)
-        || borrowed_referent_type(declarations.clone(), root, path, destination).is_none()
+    if borrowed_address_access(declarations.clone(), root, path, destination).is_none()
+        || (referent_type(declarations.clone(), root, path).is_none()
+            && !matches!(
+                terminal_semantics::runtime_read_projection_tip(declarations.clone(), root, path),
+                Some(terminal_semantics::Position::ByteElement)
+            ))
     {
         return false;
     }
@@ -148,7 +152,18 @@ pub fn borrowed_referent_type<'a>(
     root: StructuralTypeId,
     path: &[PathSegment],
     access: StructuralAccess,
+    expected: Option<StructuralTypeId>,
 ) -> Option<StructuralTypeId> {
+    borrowed_address_access(declarations.clone(), root, path, access)?;
+    terminal_semantics::borrowed_projection_type(declarations, root, path, expected)
+}
+
+fn borrowed_address_access<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[PathSegment],
+    access: StructuralAccess,
+) -> Option<()> {
     if !is_address_projection(path) || access == StructuralAccess::Owned {
         return None;
     }
@@ -175,7 +190,7 @@ pub fn borrowed_referent_type<'a>(
             return None;
         }
     }
-    referent_type(declarations, root, path)
+    Some(())
 }
 
 pub fn referent_type<'a>(
@@ -186,7 +201,7 @@ pub fn referent_type<'a>(
     if !is_address_projection(path) {
         return None;
     }
-    terminal_semantics::borrowed_projection_type(declarations, root, path)
+    terminal_semantics::borrowed_projection_type(declarations, root, path, None)
 }
 
 #[cfg(test)]
@@ -287,12 +302,18 @@ mod tests {
             StructuralAccess::SharedBorrow,
         ] {
             assert_eq!(
-                borrowed_referent_type(types.iter(), type_id(1), &line, access),
+                borrowed_referent_type(types.iter(), type_id(1), &line, access, None),
                 Some(type_id(2))
             );
         }
         assert_eq!(
-            borrowed_referent_type(types.iter(), type_id(1), &line, StructuralAccess::Owned),
+            borrowed_referent_type(
+                types.iter(),
+                type_id(1),
+                &line,
+                StructuralAccess::Owned,
+                None
+            ),
             None
         );
     }
@@ -306,7 +327,8 @@ mod tests {
                 types.iter(),
                 type_id(1),
                 &name,
-                StructuralAccess::SharedBorrow
+                StructuralAccess::SharedBorrow,
+                None
             ),
             None
         );
@@ -328,6 +350,7 @@ mod tests {
                 type_id(5),
                 &[StructuralPathSegment::Referent],
                 StructuralAccess::SharedBorrow,
+                None,
             ),
             Some(type_id(1))
         );
@@ -340,7 +363,8 @@ mod tests {
                 types.iter(),
                 type_id(5),
                 &field,
-                StructuralAccess::SharedBorrow
+                StructuralAccess::SharedBorrow,
+                None
             ),
             Some(type_id(2))
         );
@@ -349,7 +373,7 @@ mod tests {
             StructuralAccess::WriteOnlyBorrow,
         ] {
             assert_eq!(
-                borrowed_referent_type(types.iter(), type_id(5), &field, access),
+                borrowed_referent_type(types.iter(), type_id(5), &field, access, None),
                 None
             );
         }
@@ -365,7 +389,13 @@ mod tests {
             obligation: ObligationId::new(1).unwrap(),
         }];
         let selected = |types: &[StructuralTypeDeclaration], root, path: &[_]| {
-            borrowed_referent_type(types.iter(), root, path, StructuralAccess::SharedBorrow)
+            borrowed_referent_type(
+                types.iter(),
+                root,
+                path,
+                StructuralAccess::SharedBorrow,
+                None,
+            )
         };
         // The byte carrier cannot invent a scalar declaration or select a
         // different integer merely because that declaration is available.

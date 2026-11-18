@@ -897,6 +897,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner: None,
             declaration: SymbolHandle::invalid(),
             cleanup: None,
             application: Some(self.storage_source_application(reference)),
@@ -1027,6 +1028,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner: None,
             declaration: SymbolHandle::invalid(),
             cleanup: None,
             application: None,

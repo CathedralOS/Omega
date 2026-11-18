@@ -901,6 +901,7 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let id = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
@@ -912,6 +913,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         let mut source = physical_source_application(application);
+        source.constant_input_owner = constant_input_owner;
         source.region_owner = self.lifetime_owner;
         self.record_sources.push(source);
         Ok(ValueType::Record(id, Qualification::NONE, regions))
@@ -993,6 +995,7 @@ impl Program<'_> {
         );
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let id = self.records.push(RecordType {
             multiplicity,
             cleanup: None,
@@ -1001,8 +1004,9 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
         });
-        self.record_sources
-            .push(physical_source_application(application));
+        let mut source = physical_source_application(application);
+        source.constant_input_owner = constant_input_owner;
+        self.record_sources.push(source);
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
@@ -1130,6 +1134,7 @@ pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
 
 fn physical_source_application(application: SourceTypeApplication) -> RecordSource {
     RecordSource {
+        constant_input_owner: None,
         declaration: SymbolHandle::invalid(),
         cleanup: None,
         application: Some(application),

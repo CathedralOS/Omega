@@ -42,6 +42,9 @@ use crate::lowering::{SourceOrigin, Unserved, refuse};
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
 /// body holds positions.
 pub(super) struct RecordSource {
+    /// Symbolic array lengths name inputs of this checking machine. Closed
+    /// storage has no such owner and may be shared across machine readings.
+    pub(super) constant_input_owner: Option<MachineId>,
     pub(super) declaration: SymbolHandle,
     pub(super) application: Option<crate::source_state::SourceTypeApplication>,
     pub(super) cleanup: Option<crate::source_state::domain::CleanupSelection>,
@@ -208,6 +211,63 @@ impl Program<'_> {
         Ok(self.source(id, record)?.declaration)
     }
 
+    /// Cache the input context with the shape that uses it. A child was formed
+    /// before its parent, so its saved owner avoids walking the whole graph
+    /// each time a nominal type is read. This metadata grants no access.
+    pub(super) fn storage_constant_input_owner(
+        &self,
+        machine: MachineId,
+        shape: &StorageShape,
+    ) -> Checked<Option<MachineId>> {
+        let mut owner = match shape {
+            StorageShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { owner, .. },
+                ..
+            } => Some(*owner),
+            _ => None,
+        };
+        let mut include = |child| -> Checked<()> {
+            let child_owner = self.source(machine, child)?.constant_input_owner;
+            match (owner, child_owner) {
+                (Some(left), Some(right)) if left != right => Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("storage combines constants from different checking machines"),
+                )),
+                (None, child) => {
+                    owner = child;
+                    Ok(())
+                }
+                _ => Ok(()),
+            }
+        };
+        match shape {
+            StorageShape::Reference { referent, .. } => include(*referent)?,
+            StorageShape::ElementView { element, .. }
+            | StorageShape::FixedArray { element, .. } => include(*element)?,
+            StorageShape::Record(fields) => {
+                for field in fields {
+                    if let ValueType::Record(child, ..) = field.value_type {
+                        include(child)?;
+                    }
+                }
+            }
+            StorageShape::Sum(cases) => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let ValueType::Record(child, ..) = field.value_type {
+                        include(child)?;
+                    }
+                }
+            }
+            StorageShape::Opaque
+            | StorageShape::TypeParameter(_)
+            | StorageShape::ByteSequence(_)
+            | StorageShape::AtomicCell(_)
+            | StorageShape::PrimitiveScalar { .. } => {}
+        }
+        Ok(owner)
+    }
+
     fn record_definition(
         &mut self,
         id: MachineId,
@@ -260,7 +320,9 @@ impl Program<'_> {
             refusal
         })?;
         let known = self.record_sources.iter().find_map(|(record, source)| {
-            same(source.declaration, &source.application).then_some(record)
+            (source.constant_input_owner.is_none_or(|owner| owner == id)
+                && same(source.declaration, &source.application))
+            .then_some(record)
         });
         if let Some(record) = known {
             // A description cannot authorize a later value use, including
@@ -413,17 +475,19 @@ impl Program<'_> {
         {
             return Err(unserved("copy data with an owned field"));
         }
+        let shape = if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
+            crate::lowering::StorageShape::Opaque
+        } else if case_types.is_empty() {
+            crate::lowering::StorageShape::Record(declared)
+        } else {
+            crate::lowering::StorageShape::Sum(case_types)
+        };
+        let constant_input_owner = self.storage_constant_input_owner(id, &shape)?;
         let record: StructuralTypeId = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
-            shape: if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
-                crate::lowering::StorageShape::Opaque
-            } else if case_types.is_empty() {
-                crate::lowering::StorageShape::Record(declared)
-            } else {
-                crate::lowering::StorageShape::Sum(case_types)
-            },
+            shape,
             requires: Vec::new(),
             authored_layout: application.as_ref().is_some_and(|application| {
                 typed
@@ -432,6 +496,7 @@ impl Program<'_> {
             }),
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner,
             declaration: symbol,
             cleanup: data.cleanup_selection,
             application: application.clone(),

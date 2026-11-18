@@ -68,6 +68,7 @@ mod storage_path;
 mod subjects;
 mod traits;
 mod transitions;
+mod type_equations;
 mod type_parameters;
 mod types;
 
@@ -807,6 +808,7 @@ mod tests {
             crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
+            constant_input_owner: None,
             declaration: SymbolHandle::invalid(),
             cleanup: None,
             application: None,
@@ -2601,6 +2603,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
+            constant_input_owner: None,
             declaration: point,
             cleanup: None,
             application: None,
