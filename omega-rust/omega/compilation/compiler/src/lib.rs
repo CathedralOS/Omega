@@ -87,7 +87,3 @@ pub const fn compiler_identity() -> [u8; 32] {
 pub const fn compiler_optimization_level() -> &'static str {
     env!("OMEGA_COMPILER_OPT_LEVEL")
 }
-
-#[cfg(test)]
-#[path = "../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;

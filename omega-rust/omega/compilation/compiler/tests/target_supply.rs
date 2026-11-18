@@ -1866,7 +1866,18 @@ machine build(builder: &mut Build) {{
             let refusal = wrong.validate_plain_execution(module,
                 realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
                 .expect_err("an unrelated Calling ABI cannot execute this requirement");
-            assert!(refusal.contains("public declaration ABI"), "{refusal}");
+            assert_eq!(refusal, "direct ABI instance changes its original declared method");
+
+            let mut wrong = leaf.clone();
+            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+                panic!("the selected plain leaf is foreign")
+            };
+            binding.calling_applications.first_mut().expect("actual Calling result")
+                .requirement_identity.push_str("::wrong");
+            let refusal = wrong.validate_plain_execution(module,
+                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
+                .expect_err("the Calling application must still name its public requirement");
+            assert_eq!(refusal, "direct foreign execution changed its public declaration ABI");
             Ok::<(), Vec<diagnostics::Diagnostic>>(())
         }).unwrap().join().unwrap()
     }).unwrap_or_else(|refused| panic!("completed plain binding: {refused:?}"));

@@ -856,6 +856,18 @@ pub(in crate::function_fragments) fn admit(
     Ok(())
 }
 
+impl crate::FragmentReplay {
+    pub fn verify_access_geometry(&self) -> Result<(), diagnostics::Diagnostic> {
+        let original = self.target_source().ok_or_else(|| {
+            diagnostics::Diagnostic::error(
+                "target-operation audit requires retained target operations",
+            )
+        })?;
+        establish_geometry(self.fragment_source(), original)
+            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod current_contract_tests {
     use super::*;
@@ -925,17 +937,5 @@ mod current_contract_tests {
                 ))
             ));
         }
-    }
-}
-
-impl crate::FragmentReplay {
-    pub fn verify_access_geometry(&self) -> Result<(), diagnostics::Diagnostic> {
-        let original = self.target_source().ok_or_else(|| {
-            diagnostics::Diagnostic::error(
-                "target-operation audit requires retained target operations",
-            )
-        })?;
-        establish_geometry(self.fragment_source(), original)
-            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }
 }
