@@ -1,23 +1,23 @@
 # Compilation
 
-The compilers and their machinery, grouped by responsibility. The build system
-that calls them is in [../build-system/](../build-system/README.md).
+A source build admits the request at 00, compiles source in Psi at 01, and
+publishes a portable program at 02. A native request continues from that
+program with the target's bindings at 03. Stages 04–09 turn the plan into an
+image. Stage 10 installs the requested artifacts and returns their receipts.
+The [connected program route](../../pipeline.md#connected-program-route) names
+the input and output of each stage.
 
 | Directory | Responsibility |
 | --- | --- |
-| [compiler/](compiler/README.md) | Product compilation coordination; Cargo package `compiler` |
-| `native-compiler/` | The native compiler: Terminal Psi to a native image; Cargo package `native-compiler` |
-| [products/](products/README.md) | Requests, retained results, reports and publication |
-| [pipeline/](../../pipeline.md#connected-program-route) | Numbered transformations and optimization passes |
-| [representations/](representations/README.md) | Independent native program forms and their support packages |
-| `realization/` | Provider planning, selected execution and trust reconstruction |
-| `backend/` | Target, ISA, ABI, encoding, layout, image and runtime mechanisms |
+| [compiler](compiler/README.md) | Coordinates source, Build, target batches and the requested product. |
+| [Psi source compiler](../../psi/compilation/pipeline/01_source-compilation/src/lib.rs) | Streams each source unit through the lexer and parser, then resolves, types, lowers and checks the program. |
+| [native compiler](native-compiler/README.md) | Runs the native stages for a published program, selected target and admitted execution inputs. |
+| [pipeline](pipeline/) | Owns admission, portable publication, native stages 03–09 and product publication at 10. |
+| [representations](representations/) | Defines the program records, selected provider plans and physical evidence that stages pass forward. |
+| [target descriptions](target-description/) | Defines target profiles, instruction sets, calling conventions, register models and layout contracts. |
+| [verification](verification/) | Checks provider correspondence, installation authority, encoding, frames and published objects. |
+| [products](products/README.md) | Defines compilation requests, retained results, measurements and reports. |
 
-The compiler crate sequences independent owners. Representations keep their
-own manifests and APIs, apart from the transformations that consume them.
-Package-owned source composition is in
-[../packages/package-compilation/](../packages/package-compilation/README.md).
-
-[Psi](../../psi/README.md) owns target-neutral source processing through Terminal
-Psi. The [pipeline contract](../../pipeline.md) documents that boundary and the
-remaining work to make realization consume only Terminal Psi.
+The Build system calls the product coordinator. Packages supply admitted
+source and dependency custody. [Build system](../build-system/README.md) ·
+[Package compilation](../packages/package-compilation/README.md)

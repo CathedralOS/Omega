@@ -21,7 +21,7 @@ correspondence an obligation carries back to the source: an operation's site
 is its operator, which lies inside exactly one binding's expression tree.
 */
 
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 /// One machine's names, for diagnostics only.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

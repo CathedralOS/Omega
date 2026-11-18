@@ -15,8 +15,8 @@ use super::{ReconciledPackageImport, SourceStorage, reconciled_package_import};
 use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
+use source_compiler::ParsedSourceBatch;
 use std::path::PathBuf;
-use syntax_trees::{ParsedSources, item::Item};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProductQueryDependency {
@@ -34,7 +34,7 @@ mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageDependencyBinding, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
-    use source::{CapturedSourceNode, CapturedSourceTree};
+    use source_capture::{CapturedSourceNode, CapturedSourceTree};
     use std::sync::Arc;
 
     fn package(number: u8, name: &str, text: &str) -> PackageSourceBinding {
@@ -376,12 +376,14 @@ impl ProductQueryInputs {
     /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts").
     fn mounted_for(
         &self,
-        scope: source::DependencyScope,
+        scope: declaration_contracts::source_identity::DependencyScope,
         alias: &str,
     ) -> Option<&ProductQueryDependency> {
         let staged: &[ProductQueryDependency] = match scope {
-            source::DependencyScope::Product => &[],
-            source::DependencyScope::Build => &self.build_dependencies,
+            declaration_contracts::source_identity::DependencyScope::Product => &[],
+            declaration_contracts::source_identity::DependencyScope::Build => {
+                &self.build_dependencies
+            }
         };
         self.dependencies
             .iter()
@@ -461,23 +463,23 @@ impl ProductQueryInputs {
 
     pub(crate) fn discover(
         &self,
-        parsed: &ParsedSources,
+        parsed: &ParsedSourceBatch,
         storage: &mut SourceStorage,
-    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
-        let syntax = &storage.syntax_trees;
+    ) -> Result<
+        Vec<(
+            PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
+        Vec<Diagnostic>,
+    > {
         let mut imports = Vec::new();
         for authored in parsed.sources.span_or_empty(parsed.batch) {
             let owner = self
                 .graphs()
                 .find(|inputs| inputs.package_for_source(&authored.path).is_some());
-            for (offset, item) in authored.root_items[authored.import_root_range.clone()]
-                .iter()
-                .enumerate()
-            {
-                let Item::Use(import) = syntax.root_item(*item) else {
-                    continue;
-                };
-                let members = syntax.items.identifier_path_members(import.path);
+            for import in &authored.imports {
+                let ordinal = import.ordinal;
+                let members = &import.members;
                 let (root, paths, prefix) = if let Some(inputs) = owner {
                     let requester = inputs.package_for_source(&authored.path);
                     // A mounted dependency's sources resolve through its own
@@ -493,7 +495,10 @@ impl ProductQueryInputs {
                         .as_ref()
                         .is_some_and(|original| std::ptr::eq(original, inputs));
                     let (purpose, importer) = if mounted {
-                        (DependencyPurpose::Product, source::DependencyScope::Product)
+                        (
+                            DependencyPurpose::Product,
+                            declaration_contracts::source_identity::DependencyScope::Product,
+                        )
                     } else {
                         (
                             super::source_import_scope(inputs, authored.scope, &authored.path),
@@ -501,7 +506,6 @@ impl ProductQueryInputs {
                         )
                     };
                     let selected = reconciled_package_import(
-                        syntax,
                         &authored.path,
                         members,
                         requester,
@@ -537,9 +541,9 @@ impl ProductQueryInputs {
                     let first = members
                         .first()
                         .ok_or_else(|| vec![Diagnostic::error("empty Product query import")])?;
-                    let (root, prefix) = if is_bundled_core_path(syntax, members) {
+                    let (root, prefix) = if is_bundled_core_path(members) {
                         (super::bundled_core_root()?, 3)
-                    } else if is_bundled_omega_path(syntax, members) {
+                    } else if is_bundled_omega_path(members) {
                         return Err(vec![Diagnostic::error(
                             "Product query library imports require an issued Product dependency",
                         )]);
@@ -556,7 +560,7 @@ impl ProductQueryInputs {
                         }
                         (core, 0)
                     } else if let Some(dependency) =
-                        self.mounted_for(authored.scope, first.as_str(syntax))
+                        self.mounted_for(authored.scope, first.as_str())
                     {
                         let root = dependency
                             .inputs
@@ -572,11 +576,12 @@ impl ProductQueryInputs {
                     };
                     let logical = members[prefix..]
                         .iter()
-                        .map(|name| name.as_str(syntax).to_owned())
+                        .map(|name| name.as_str().to_owned())
                         .collect::<Vec<_>>();
                     // The Build sources of the unbound root keep their
                     // deferred imports while a query is answered.
-                    let own_build_import = authored.scope == source::DependencyScope::Build
+                    let own_build_import = authored.scope
+                        == declaration_contracts::source_identity::DependencyScope::Build
                         && prefix == 0
                         && root == storage.default_package_root();
                     let paths = if own_build_import {
@@ -605,9 +610,8 @@ impl ProductQueryInputs {
                 for path in paths {
                     storage.resolved_imports.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
-                            syntax,
                             authored.source_id,
-                            authored.import_root_range.start + offset,
+                            ordinal,
                             members,
                             prefix,
                         ),
@@ -622,9 +626,18 @@ impl ProductQueryInputs {
 
     pub(crate) fn validate_frontier(
         &self,
-        frontier: Vec<(PathBuf, source::DependencyScope)>,
+        frontier: Vec<(
+            PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
         storage: &SourceStorage,
-    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+    ) -> Result<
+        Vec<(
+            PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
+        Vec<Diagnostic>,
+    > {
         let core = super::bundled_core_root()?;
         let mut validated = Vec::with_capacity(frontier.len());
         for (path, scope) in frontier {

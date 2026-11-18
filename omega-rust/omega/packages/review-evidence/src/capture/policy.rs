@@ -4,6 +4,8 @@
 
 use super::PackageReviewInput;
 use super::declarations::unavailable;
+use super::input::PolicySource;
+use super::provider_rows::{self, ProviderChoice};
 use crate::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
@@ -11,9 +13,9 @@ use crate::record::{
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
-use build_time_evaluation::product_declarations::ServiceAuditRegistration;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
 use std::path::Path;
 use target::TargetProfile;
 
@@ -31,43 +33,102 @@ pub(super) fn project(
             "a policy for a different package or target activation",
         ));
     }
-    let declarations = input;
-    let accepted = checked.terminal_publication().accepted()?;
+    let module = input.module()?;
+    let choices = provider_rows::from_selected(checked.execution().plans().plans(), module);
+    prepare(&input.source, target, package, choices.clone())?.finish(checked, || choices)
+}
+
+pub(super) struct PreparedPolicy {
+    package: PackageKeyIdentity,
+    target: TargetProfile,
+    native: super::native_bindings::PreparedNativeBindings,
+    providers: Result<super::providers::PreparedProviders, Vec<Diagnostic>>,
+    inventory: Result<(), Vec<Diagnostic>>,
+    declarations: Result<PolicyDeclarations, Vec<Diagnostic>>,
+}
+
+struct PolicyDeclarations {
+    public_api: PackagePolicyPublicApi,
+    callables: Vec<crate::record::PackagePolicyCallable>,
+    representation: PackageReviewRepresentationTarget,
+    restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
+    audits: Vec<PackageReviewNominalIdentity>,
+}
+
+pub(super) fn prepare(
+    declarations: &PolicySource<'_>,
+    target: TargetProfile,
+    package: PackageKeyIdentity,
+    choices: Result<Vec<ProviderChoice>, Vec<Diagnostic>>,
+) -> Result<PreparedPolicy, Vec<Diagnostic>> {
+    let accepted = declarations.accepted();
     let source = accepted.source();
-    let origins = super::callables::service_origins(accepted, source::DependencyScope::Product)?;
+    let origins = super::callables::service_origins(
+        accepted,
+        declaration_contracts::source_identity::DependencyScope::Product,
+    )?;
     let services = super::callables::service_identities(
         source,
-        checked.sources().exact_toolchain_sources(),
+        declarations.sources().exact_toolchain_sources(),
         &origins,
     )?;
     let accepted_declarations = super::providers::AcceptedDeclarations::new(
         accepted,
         &origins,
         &services,
-        checked.execution().plans().plans(),
+        choices
+            .as_ref()
+            .is_ok_and(|providers| !providers.is_empty()),
     );
-    let native_bindings =
-        declarations.native_binding_policy(package, target, &accepted_declarations)?;
-    let providers = declarations.selected_providers(
+    let native =
+        super::native_bindings::prepare(declarations, package, target, &accepted_declarations)?;
+    let providers = choices.and_then(|choices| {
+        declarations.prepare_providers(
+            package,
+            target,
+            &accepted_declarations,
+            native.declared(),
+            choices,
+        )
+    });
+    let inventory = providers
+        .as_ref()
+        .map_err(Clone::clone)
+        .and_then(|providers| {
+            require_supported_inventory(declarations, package, &providers.review.slots)
+        });
+    let source_declarations = inventory
+        .as_ref()
+        .map_err(Clone::clone)
+        .and_then(|()| declaration_policy(declarations, target, package, &services));
+    Ok(PreparedPolicy {
         package,
         target,
-        &accepted_declarations,
-        &native_bindings,
-    )?;
-    require_supported_inventory(&declarations, package, &providers.slots)?;
+        native,
+        providers,
+        inventory,
+        declarations: source_declarations,
+    })
+}
+
+fn declaration_policy(
+    declarations: &PolicySource<'_>,
+    target: TargetProfile,
+    package: PackageKeyIdentity,
+    services: &[(semantic_vocabulary::ServiceId, PackageReviewNominalIdentity)],
+) -> Result<PolicyDeclarations, Vec<Diagnostic>> {
     // The owned declaration census above refuses unserved admission claims,
     // including unused private claims. The provider inventory's separate
     // root-grant census also contains unrelated imported toolchain claims;
     // it cannot substitute for this package's own review subject.
-    let config = &checked.build().config;
-    if !checked.execution().plans().assumed_bindings().is_empty()
-        || !config.default_provider_selections.is_empty()
+    let config = &declarations.build().config;
+    if !config.default_provider_selections.is_empty()
         || !config.assumed_bindings.is_empty()
         || !config.opaque_representation_selections.is_empty()
         || !config.wire_compatibility_demands.is_empty()
         || !config.grants.is_empty()
         || !config.behavior_exclusions.is_empty()
-        || checked
+        || declarations
             .sources()
             .accepted_semantic_bindings()
             .iter()
@@ -77,7 +138,7 @@ pub(super) fn project(
             "selected provider, representation or authority contracts",
         ));
     }
-    let module = input.module()?;
+    let module = declarations.accepted().module();
     if !module.external_providers.is_empty()
         || !module.provider_instance_requirements.is_empty()
         || !module.boundary_application_candidates.is_empty()
@@ -108,7 +169,7 @@ pub(super) fn project(
         return Err(unavailable("register-operation authority"));
     }
     let public_api = PackagePolicyPublicApi {
-        traits: providers.public_traits,
+        traits: Vec::new(),
         conformances: Vec::new(),
         domains: declarations.public_domains(package)?,
         propositions: Vec::new(),
@@ -116,67 +177,111 @@ pub(super) fn project(
         operators: Vec::new(),
         data: declarations.public_data(package)?,
     };
-    let mut callables = declarations.callables(package, &services)?;
-    callables.extend(providers.callables);
-    callables.sort_by(|left, right| left.identity.cmp(&right.identity));
-    let mut policy = PackagePolicyBaseline {
-        package,
-        target,
+    let callables = declarations.callables(package, services)?;
+    let representation = representation_target(target)?;
+    let restricted_build_requests = declarations
+        .admission
+        .restricted_build_requests
+        .iter()
+        .map(PackagePolicyRestrictedBuildRequest::from)
+        .collect();
+    let audits = service_audits(declarations, &config.service_audits)?;
+    Ok(PolicyDeclarations {
         public_api,
-        callables: PackagePolicyCallables {
+        callables,
+        representation,
+        restricted_build_requests,
+        audits,
+    })
+}
+
+impl PreparedPolicy {
+    pub(super) fn finish(
+        &self,
+        checked: &products::CheckedCompilation,
+        choices: impl FnOnce() -> Result<Vec<ProviderChoice>, Vec<Diagnostic>>,
+    ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
+        let package = self.package;
+        let target = self.target;
+        if checked.sources().package_identity() != Some(package)
+            || checked.execution().target_profile() != Some(target)
+            || checked.execution().native_target() != Some(target.native_target())
+        {
+            return Err(unavailable(
+                "a policy for a different package or target activation",
+            ));
+        }
+        let native_bindings = self.native.finish(checked, target)?;
+        let providers =
+            self.providers
+                .as_ref()
+                .map_err(Clone::clone)?
+                .finish(checked, target, choices()?)?;
+        self.inventory.as_ref().map_err(Clone::clone)?;
+        if !checked.execution().plans().assumed_bindings().is_empty() {
+            return Err(unavailable(
+                "selected provider, representation or authority contracts",
+            ));
+        }
+        let source = self.declarations.as_ref().map_err(Clone::clone)?;
+        let mut public_api = source.public_api.clone();
+        public_api.traits = providers.public_traits;
+        let mut callables = source.callables.clone();
+        callables.extend(providers.callables);
+        callables.sort_by(|left, right| left.identity.cmp(&right.identity));
+        let mut policy = PackagePolicyBaseline {
             package,
             target,
-            callables,
-        },
-        selected_providers: PackagePolicySelectedProviders {
-            package,
-            target,
-            plans: providers.plans,
-            families: Vec::new(),
-        },
-        terminal_permissions: PackagePolicyTerminalPermissions {
-            package,
-            target,
-            services: Vec::new(),
-        },
-        representation: PackagePolicyRepresentation {
-            package,
-            target: representation_target(target)?,
-            declarations: Vec::new(),
-            producer_availability: Vec::new(),
-            selected_availability: Vec::new(),
-            demands: Vec::new(),
-        },
-        native_bindings: native_bindings
-            .into_iter()
-            .map(|(binding, _)| binding)
-            .collect(),
-        external_supplies: Vec::new(),
-        dangerous_capabilities: Vec::new(),
-        slack_uses: Vec::new(),
-        semantic_dependencies: providers.semantic_dependencies,
-        boundary_applications: PackagePolicyBoundaryApplications {
-            demands: Vec::new(),
-            realizations: providers.applications,
-        },
-        assumed_bindings: Vec::new(),
-        service_audits: Vec::new(),
-        restricted_build_requests: checked
-            .build_admission()
-            .restricted_build_requests
-            .iter()
-            .map(PackagePolicyRestrictedBuildRequest::from)
-            .collect(),
-        component_assumptions: Vec::new(),
-    };
-    let audits = service_audits(&declarations, &config.service_audits)?;
-    policy.apply_service_audit_policy(&audits);
-    policy.validate_canonical_structure().map_err(unavailable)?;
-    Ok(policy)
+            public_api,
+            callables: PackagePolicyCallables {
+                package,
+                target,
+                callables,
+            },
+            selected_providers: PackagePolicySelectedProviders {
+                package,
+                target,
+                plans: providers.plans,
+                families: Vec::new(),
+            },
+            terminal_permissions: PackagePolicyTerminalPermissions {
+                package,
+                target,
+                services: Vec::new(),
+            },
+            representation: PackagePolicyRepresentation {
+                package,
+                target: source.representation,
+                declarations: Vec::new(),
+                producer_availability: Vec::new(),
+                selected_availability: Vec::new(),
+                demands: Vec::new(),
+            },
+            native_bindings: native_bindings
+                .into_iter()
+                .map(|(binding, _)| binding)
+                .collect(),
+            external_supplies: Vec::new(),
+            dangerous_capabilities: Vec::new(),
+            slack_uses: Vec::new(),
+            semantic_dependencies: providers.semantic_dependencies,
+            boundary_applications: PackagePolicyBoundaryApplications {
+                demands: Vec::new(),
+                realizations: providers.applications,
+            },
+            assumed_bindings: Vec::new(),
+            service_audits: Vec::new(),
+            restricted_build_requests: source.restricted_build_requests.clone(),
+            component_assumptions: Vec::new(),
+        };
+        policy.apply_service_audit_policy(&source.audits);
+        policy.validate_canonical_structure().map_err(unavailable)?;
+        Ok(policy)
+    }
 }
 
 fn service_audits(
-    declarations: &PackageReviewInput<'_>,
+    declarations: &PolicySource<'_>,
     registrations: &[ServiceAuditRegistration],
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     if registrations.is_empty() {
@@ -214,21 +319,27 @@ fn service_audits(
             let coordinate = declaration_coordinate(declaration.source(), declaration.span());
             let first = boundaries.partition_point(|&(candidate, _)| candidate < coordinate);
             let end = boundaries.partition_point(|&(candidate, _)| candidate <= coordinate);
-            let symbol = declaration
-                .rejoin(
-                    &typed.symbols,
-                    boundaries[first..end].iter().map(|&(_, symbol)| symbol),
-                )
-                .map_err(unavailable)?;
+            let symbol = source_compiler::source_symbols::rejoin_declaration(
+                declaration,
+                &typed.symbols,
+                boundaries[first..end].iter().map(|&(_, symbol)| symbol),
+            )
+            .map_err(unavailable)?;
             declarations.nominal(symbol)
         })
         .collect()
 }
 
 fn declaration_coordinate(
-    source: &source::SourceFile,
-    span: source::Span,
-) -> (&Path, &Path, source::DependencyScope, usize, usize) {
+    source: &source_admission::SourceFile,
+    span: source_text::Span,
+) -> (
+    &Path,
+    &Path,
+    declaration_contracts::source_identity::DependencyScope,
+    usize,
+    usize,
+) {
     (
         &source.path,
         &source.package_root,
@@ -239,18 +350,23 @@ fn declaration_coordinate(
 }
 
 fn require_supported_inventory(
-    declarations: &PackageReviewInput<'_>,
+    declarations: &PolicySource<'_>,
     package: PackageKeyIdentity,
     reviewed_boundary_slots: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = declarations.typed();
     let owned = |symbol| {
         for purpose in [
-            source::DependencyScope::Product,
-            source::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Build,
         ] {
-            if typed_trees::source_subjects::contains(typed, symbol, &[Some(package)], purpose)
-                .map_err(unavailable)?
+            if source_compiler::source_state::source_subjects::contains(
+                typed,
+                symbol,
+                &[Some(package)],
+                purpose,
+            )
+            .map_err(unavailable)?
             {
                 return Ok(true);
             }
@@ -258,7 +374,7 @@ fn require_supported_inventory(
         Ok::<_, Vec<Diagnostic>>(false)
     };
     for declaration in typed.data_definitions() {
-        if declaration.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        if declaration.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
             && owned(declaration.symbol)?
         {
             return Err(unavailable(
@@ -266,11 +382,11 @@ fn require_supported_inventory(
             ));
         }
         if declaration.is_public
-            && typed_trees::source_subjects::contains(
+            && source_compiler::source_state::source_subjects::contains(
                 typed,
                 declaration.symbol,
                 &[Some(package)],
-                source::DependencyScope::Build,
+                declaration_contracts::source_identity::DependencyScope::Build,
             )
             .map_err(unavailable)?
         {
@@ -282,11 +398,11 @@ fn require_supported_inventory(
         .iter()
         .filter(|row| row.is_public)
     {
-        if typed_trees::source_subjects::contains(
+        if source_compiler::source_state::source_subjects::contains(
             typed,
             declaration.symbol,
             &[Some(package)],
-            source::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Build,
         )
         .map_err(unavailable)?
         {
@@ -315,7 +431,7 @@ fn require_supported_inventory(
         row.is_public
             || matches!(
                 row.body,
-                typed_trees::proposition::PropositionBody::Primitive
+                source_compiler::source_state::proposition::PropositionBody::Primitive
             )
     }) {
         if owned(declaration.symbol)? {
@@ -326,7 +442,7 @@ fn require_supported_inventory(
         row.is_public
             || matches!(
                 row.body,
-                typed_trees::mathematical::MathematicalBody::Assumption
+                source_compiler::source_state::mathematical::MathematicalBody::Assumption
             )
     }) {
         if owned(declaration.symbol)? {
@@ -361,10 +477,7 @@ fn require_supported_inventory(
         if !owned(declaration.symbol)? {
             continue;
         }
-        let selected_build = declarations
-            .compilation()
-            .build()
-            .selected_build_machine_symbol;
+        let selected_build = declarations.build().selected_build_machine_symbol;
         if Some(declaration.symbol) != selected_build
             && !declarations.owns(declaration.symbol, package)?
             && (declaration.is_public || !declaration.supplies_checked_body())

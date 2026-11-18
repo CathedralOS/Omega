@@ -1,7 +1,7 @@
 //! Token storage retains source spelling and owns decoded literal bytes.
 //! Start with `TokenStream`; its lexemes, spelling views and file batches follow below.
 
-pub use source::Span;
+pub use source_text::Span;
 pub use sources::{LexedSource, LexedSources};
 pub use token::Token;
 pub use token_kind::{
@@ -165,12 +165,12 @@ impl<'source> TokenStream<'source> {
     }
 
     /// The decoded contents of a quoted byte literal, which may contain arbitrary bytes.
-    pub fn literal_bytes(&self, token: &Token) -> Option<source::SourceBytes> {
+    pub fn literal_bytes(&self, token: &Token) -> Option<source_text::SourceBytes> {
         if !token.decoded.is_valid() {
             return None;
         }
         let range = self.decoded_ranges.get(token.decoded);
-        Some(source::SourceBytes::from_shared(
+        Some(source_text::SourceBytes::from_shared(
             self.decoded_bytes
                 .as_ref()
                 .expect("decoded payload has backing bytes")

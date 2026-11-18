@@ -31,12 +31,20 @@ machine second(builder: &mut Build) {
 
 fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
     for (path, text, origin) in [
-        ("package/build.omg", build, source::SourceOrigin::User),
-        ("<build-prelude>", PRELUDE, source::SourceOrigin::Toolchain),
+        (
+            "package/build.omg",
+            build,
+            source_admission::SourceOrigin::User,
+        ),
+        (
+            "<build-prelude>",
+            PRELUDE,
+            source_admission::SourceOrigin::Toolchain,
+        ),
     ] {
         let id = sources
             .add_checked_instance(
@@ -45,8 +53,8 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
                 "package".into(),
                 Some(package),
                 origin,
-                source::SourceResolutionStratum::Base,
-                source::DependencyScope::Build,
+                source_admission::SourceResolutionStratum::Base,
+                declaration_contracts::source_identity::DependencyScope::Build,
             )
             .source_id;
         ids.push(id);
@@ -63,29 +71,27 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
             }
         }
     }
-    let mut request =
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
-    request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
-        ids[0], ids[1], "Build",
-    )];
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    request.top_level_bindings = vec![
+        source_compiler::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+    ];
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let frozen: typed_trees::FrozenTypedTrees = typed.into();
+    let frozen: source_compiler::source_state::FrozenTypedTrees = typed.into();
     let accepted = source_compiler::AcceptedTerminalSource::judge(
         Arc::new(frozen),
         source_compiler::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
-            purpose: source::DependencyScope::Build,
+            purpose: declaration_contracts::source_identity::DependencyScope::Build,
             selected: &[],
             calling: None,
             providers: None,

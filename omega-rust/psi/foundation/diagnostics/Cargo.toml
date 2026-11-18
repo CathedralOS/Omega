@@ -9,5 +9,5 @@ name = "diagnostics"
 path = "src/lib.rs"
 
 [dependencies]
+source-text = { path = "../source-text" }
 compiler-storage = { path = "../compiler-storage" }
-source = { path = "../source" }

@@ -1,5 +1,5 @@
 use arena::{Handle, HandleSpan};
-use source::{SourceId, SourceSpan};
+use source_text::{SourceId, SourceSpan};
 use std::sync::Arc;
 
 /// The private coordinates of a standalone unit page and the admitted
@@ -94,12 +94,12 @@ coordinate_free!(
     u64,
     i64,
     String,
-    source::Span,
-    source::SourceBytes,
+    source_text::Span,
+    source_text::SourceBytes,
     language_core::PatternComponent,
     language_core::OperatorSpelling,
-    numerics::literals::FloatFormat,
-    numerics::literals::IntegerLiteral,
+    numeric_literals::FloatFormat,
+    numeric_literals::IntegerLiteral,
     language_core::LocalBindingRole,
     language_core::BindingRelevance,
     language_core::DataSupplyMode,

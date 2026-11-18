@@ -29,10 +29,10 @@ use std::{
     time::Duration,
 };
 
-pub(crate) const CHANNEL_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_CHANNEL";
-pub(crate) const PARENT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_PARENT";
-pub(crate) const ROOT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_ROOT";
-pub(crate) const TIMEOUT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_TIMEOUT_MS";
+pub const CHANNEL_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_CHANNEL";
+pub const PARENT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_PARENT";
+pub const ROOT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_ROOT";
+pub const TIMEOUT_ENV: &str = "OMEGA_INTERNAL_NATIVE_PROVIDER_TIMEOUT_MS";
 
 struct Adapter {
     entry: LoadedFrame,

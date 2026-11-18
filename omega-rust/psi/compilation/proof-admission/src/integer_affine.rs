@@ -1629,7 +1629,7 @@ mod remainder {
     };
     use crate::integer_rules::closed_integer::big_integer_literal;
     use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, fixed_integer_term};
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{
         IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType,
         IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,

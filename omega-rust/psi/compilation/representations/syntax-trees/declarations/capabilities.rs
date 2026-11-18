@@ -86,7 +86,7 @@ pub struct CapabilityState {
 )]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
-    pub keyword_source_span: Option<source::SourceSpan>,
+    pub keyword_source_span: Option<source_text::SourceSpan>,
     pub binding: Option<Identifier>,
     pub facts: HandleSpan<ProofFact>,
     pub token_count: usize,

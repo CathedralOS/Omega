@@ -14,16 +14,17 @@ use crate::{
 };
 use artifacts::compile_timings::PhaseTiming;
 use diagnostics::Diagnostic;
-use optimization_core::{
+use optimization_core::OptimizationSelections;
+use optimization_requests::{
     OptimizationRollback, OptimizationRollbackReceipt, OptimizationRollbackSettlement,
-    OptimizationSelections,
 };
 use package_compilation::BuildObservationIdentity;
+use product_publication::{CompletedProduct, FinishedNativeImage};
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 
 pub enum CheckedProductReport {
-    Complete(CompileReport),
+    Complete(Box<CompileReport>),
     Terminal {
         settlement: CompileReportSettlement,
         rollback: OptimizationRollbackSettlement,
@@ -82,7 +83,14 @@ impl ProductReportPlan {
     }
 
     pub fn needs_terminal(&self, admission: &BuildAdmission) -> bool {
-        !matches!(self.requested, ProductReportRequest::Check) && !admission.artifact_only()
+        !Self::reports_advisories(self.requested.kind(), admission)
+    }
+
+    pub fn reports_advisories(
+        request: RequestedCompileProduct,
+        admission: &BuildAdmission,
+    ) -> bool {
+        request == RequestedCompileProduct::Check || admission.artifact_only()
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {
@@ -91,7 +99,7 @@ impl ProductReportPlan {
 }
 
 pub struct CompileReportSettlement {
-    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     expected_kind: CompileOutputKind,
     root_path: PathBuf,
     source_file_count: usize,
@@ -123,13 +131,13 @@ impl ProductReportPlan {
                 .admit_build_requirements(checked.build_admission().artifact_only(), &rollback)?;
             return CompileReport::check_only(root_path, source_file_count)
                 .map(|report| {
-                    CheckedProductReport::Complete(
+                    CheckedProductReport::Complete(Box::new(
                         report
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
                             .with_timings(timings),
-                    )
+                    ))
                 })
                 .map_err(diagnostics);
         }
@@ -141,13 +149,13 @@ impl ProductReportPlan {
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
             return CompileReport::from_build_outputs(root_path, source_file_count, outputs)
                 .map(|report| {
-                    CheckedProductReport::Complete(
+                    CheckedProductReport::Complete(Box::new(
                         report
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
                             .with_timings(timings),
-                    )
+                    ))
                 })
                 .map_err(diagnostics);
         }
@@ -193,7 +201,7 @@ impl CompileReportSettlement {
 
     pub fn source_completion_accounting_mut(
         &mut self,
-    ) -> &mut build_time_evaluation::SourceCompletionAccounting {
+    ) -> &mut source_compiler::evaluation::SourceCompletionAccounting {
         &mut self.source_completion_accounting
     }
 
@@ -207,20 +215,15 @@ impl CompileReportSettlement {
         artifact: RetainedTerminalArtifact,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let report = CompileReport::from_retained_terminal_artifact(
-            self.root_path.clone(),
-            self.source_file_count,
-            artifact,
-        )
-        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .map_err(diagnostics)?;
-        self.finish(report)
+        let product =
+            CompletedProduct::from_terminal(artifact, None, rollback).map_err(diagnostics)?;
+        self.finish_product(product)
     }
 
     pub fn finish_terminal_runtime(
         mut self,
         artifact: RetainedTerminalArtifact,
-        provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+        provisions: Option<crate::TerminalRuntimeProvisions>,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         if self.expected_kind != CompileOutputKind::RetainedNativeArtifact {
@@ -229,30 +232,30 @@ impl CompileReportSettlement {
             ));
         }
         self.expected_kind = CompileOutputKind::TerminalArtifact;
-        let report = CompileReport::from_retained_terminal_artifact(
-            self.root_path.clone(),
-            self.source_file_count,
-            artifact,
-        )
-        .and_then(|report| report.with_terminal_runtime_provisions(provisions))
-        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .map_err(diagnostics)?;
-        self.finish(report)
+        let product =
+            CompletedProduct::from_terminal(artifact, provisions, rollback).map_err(diagnostics)?;
+        self.finish_product(product)
     }
 
     pub fn finish_native(
         self,
-        artifact: native_artifact::RequestedNativeArtifact,
+        artifact: impl Into<FinishedNativeImage>,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let report = CompileReport::from_requested_native_artifact(
-            self.root_path.clone(),
+        let product =
+            CompletedProduct::from_native(artifact.into(), rollback, self.application.clone());
+        self.finish_product(product)
+    }
+
+    fn finish_product(
+        mut self,
+        product: CompletedProduct,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        let report = CompileReport::from_completed_product(
+            std::mem::take(&mut self.root_path),
             self.source_file_count,
-            artifact,
-            rollback,
-        )
-        .and_then(|report| report.with_application_metadata(self.application.clone()))
-        .map_err(diagnostics)?;
+            product,
+        );
         self.finish(report)
     }
 

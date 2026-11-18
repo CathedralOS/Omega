@@ -101,13 +101,13 @@ pub(super) struct DependencyRow {
 pub(super) fn discover_build_layout(
     source: &str,
 ) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
-    let source_compiler::ParsedText { tokens, syntax } = source_compiler::parse_text(source)
-        .map_err(|error| {
+    let source_syntax::ParsedText { tokens, syntax } =
+        source_syntax::parse_text(source).map_err(|error| {
             BuildDependencyEditError::InvalidBuild(match error {
-                source_compiler::SourceParseError::Lex { message } => {
+                source_syntax::SourceParseError::Lex { message } => {
                     DependencyProjectionError::Lex { message }
                 }
-                source_compiler::SourceParseError::Parse { message } => {
+                source_syntax::SourceParseError::Parse { message } => {
                     DependencyProjectionError::Parse { message }
                 }
             })

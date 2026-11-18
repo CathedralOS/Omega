@@ -6,7 +6,8 @@ version.workspace = true
 
 
 [dependencies]
+wire = { path = "../../../psi/foundation/wire" }
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
-filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-optimization-core = { path = "../../foundation/optimization-core" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }

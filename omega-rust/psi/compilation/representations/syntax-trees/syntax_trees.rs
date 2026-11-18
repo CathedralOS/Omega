@@ -16,7 +16,7 @@ use crate::item::{
 };
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
-use source::SourceId;
+use source_text::SourceId;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, compiler_storage::Record)]

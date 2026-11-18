@@ -29,7 +29,7 @@ use diagnostics::Diagnostic;
 pub enum StageValidator {
     /// Rejoins each target's retained target operations to the optimized
     /// abstract operations they were lowered from
-    /// (`native_preparation::verify_target_operation_plan_with_closed_module`).
+    /// (`native_program_planning::replay::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
     /// Compare fixed-frame machine output with its original allocation,
     /// encoding and baseline layout inputs.
@@ -253,13 +253,15 @@ impl StageValidator {
                 };
                 let checked = match self {
                     Self::TargetOperationCorrespondence => {
-                        image_emission::verify_retained_target_operations(object)
+                        published_object_verification::verify_retained_target_operations(object)
                     }
                     Self::FixedFrameCorrespondence => {
-                        image_emission::verify_retained_fixed_frame(object)
+                        published_object_verification::verify_retained_fixed_frame(object)
                     }
                     Self::SelectedInstructionRewriteReplay => {
-                        match image_emission::verify_retained_selected_optimization(object) {
+                        match published_object_verification::verify_retained_selected_optimization(
+                            object,
+                        ) {
                             Ok(true) => Ok(()),
                             Ok(false) => {
                                 return StageValidationResult::Inapplicable(

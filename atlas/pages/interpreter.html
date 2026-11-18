@@ -579,8 +579,8 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Psi interpreter</h1>
       <p class="lede">How portable Terminal Psi is loaded, supplied with runtime capabilities, and executed.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/interpreter.md">Page source</a></span></div>
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+      <div class="meta"><span>Pre-migration snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1fe5ae10eef6469a3537e78030000ffaee704272/atlas"><code>1fe5ae10eef6</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/subsystems/interpreter.md">Page source</a></span></div>
+      <p class="publication">The pre-migration snapshot supplies the repository inventory and historical routes. Implementation links and execution records identify the compiler revision they cover. Atlas content identifies the sources used to build this page.</p></details>
 
     </header>
 <aside class="page-sections"><details class="contents" open><summary>On this page</summary><div class="toc">
@@ -1107,7 +1107,7 @@ or execution-safety claim.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1411,10 +1411,17 @@ or execution-safety claim.</p></main>
     button('Close ×',()=>{traceDetour(comparing,false);selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
-      const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
-      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.implementation){
+        const observation=document.createElement('p');
+        const label=document.createElement('strong');label.textContent='Implemented on the migration branch. ';
+        observation.append(label,chosen.implementation.description);
+        for(const [title,url] of chosen.implementation.evidence){observation.append(' · ');link(title,url,observation);}
+        detail.append(observation);
+      }
+      const p=document.createElement('p');p.textContent=(view==='proposed'?'Recorded design. ':'')+chosen.description;detail.append(p);
+      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Obligation in the recorded plan. '+chosen.gate;detail.append(gate);}
       if(chosen.evidence){
-        const sources=document.createElement('p');sources.textContent='Current compiler';
+        const sources=document.createElement('p');sources.textContent='Pinned compiler source';
         for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
         detail.append(sources);
       }
@@ -1454,7 +1461,7 @@ or execution-safety claim.</p></main>
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
     root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
-    svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
+    svg.setAttribute('aria-label',view==='proposed'?'Compiler stages 00–10 with Rust implementation sources':'Compiler architecture before migration');
   }
   function comparisonTrace(){
     if(traceSelect.value || view!=='current' || !selected)return traceSelect.value;
@@ -1539,9 +1546,13 @@ or execution-safety claim.</p></main>
     switchView('proposed');traceDetour('handlers',!binding);
     if(binding)visitStage('binding-summarize');
   }
-  window.addEventListener('hashchange',openHandlerHandoff);
-  openHandlerHandoff();
-  if(location.hash==='#proposed')switchView('proposed');
+  function openLinkedView(){
+    if(!location.hash||location.hash==='#stages'||location.hash==='#proposed')switchView('proposed');
+    else if(location.hash==='#before-migration')switchView('current');
+    else openHandlerHandoff();
+  }
+  window.addEventListener('hashchange',openLinkedView);
+  openLinkedView();
 })();
 </script>
 </body>

@@ -14,7 +14,7 @@ use arena::{Handle, HandleSpan};
     compiler_storage::Record,
 )]
 pub struct AuthoredAssembly {
-    pub source_span: source::SourceSpan,
+    pub source_span: source_text::SourceSpan,
     pub requires: Box<[ExpressionHandle]>,
     pub ensures: Box<[ExpressionHandle]>,
     pub clobbers: Option<Box<[Identifier]>>,
@@ -83,7 +83,7 @@ pub struct AuthoredAssemblyBlock {
 pub struct AssemblyInstruction {
     pub mnemonic: Identifier,
     pub operands: AssemblyOperands,
-    pub source_span: source::SourceSpan,
+    pub source_span: source_text::SourceSpan,
 }
 
 #[derive(

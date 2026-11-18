@@ -21,8 +21,8 @@ checkpoints, page adoption and root publication stay beside those structures.
 | Constant declarations | [constants.rs](declarations/constants.rs) keeps the parsed initializer. [constant_preparation.rs](declarations/constant_preparation.rs) records the materialized value and obligations for that occurrence when resolution needs them. |
 | Diagnostic snapshots | [inspection/snapshot.rs](inspection/snapshot.rs): the snapshot representation; adjacent files expand the grammar domains |
 
-The [parser](../../pipeline/01_tokens-to-syntax-trees/parser.rs) produces this
-representation. [Symbol resolution](../../pipeline/02_syntax-trees-to-symbol-resolved-trees/)
+The [parser](../../pipeline/01_source-compilation/src/operations/parsing/parser.rs) produces this
+representation. [Symbol resolution](../../pipeline/01_source-compilation/src/operations/resolution/)
 is its next consumer. Source spelling, syntax structure and storage identity
 remain distinct; these trees do not claim that names, types or proofs are valid.
 

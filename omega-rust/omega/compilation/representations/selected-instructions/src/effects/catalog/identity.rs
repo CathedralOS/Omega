@@ -31,7 +31,7 @@ impl MachineIdentityBytes for sha2::Sha256 {
     }
 }
 
-impl MachineIdentityBytes for optimization_core::digest_encoder::DomainDigestEncoder {
+impl MachineIdentityBytes for ::wire::digest_encoder::DomainDigestEncoder {
     fn identity_bytes(&mut self, bytes: &[u8]) {
         self.raw(bytes);
     }

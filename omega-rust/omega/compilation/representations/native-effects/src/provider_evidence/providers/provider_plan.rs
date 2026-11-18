@@ -1,0 +1,1003 @@
+/*
+We define the `ProviderPlan` carrier — one value per `(provider type, service
+schema, target)` — unifying checked `satisfies` closures and irreducible
+external leaves (`ProviderBinding`) with structural schema coverage checks and
+canonical SHA-256 commitments (`ProviderPlanDigest`). Construction is free, and
+no author-selected trust field exists on these types; admission and trust
+classification belong to downstream review receipts.
+*/
+
+mod digest_encoder;
+pub(crate) use digest_encoder::DigestFeed;
+mod evaluated_bindings;
+mod retained_inputs;
+pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
+mod service_schemas;
+
+pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
+pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+pub use evaluated_bindings::{
+    BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
+    EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
+    EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
+};
+pub use service_schemas::{BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise};
+pub use service_schemas::{
+    ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
+    ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+    ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    ServiceSurface,
+};
+
+use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderBinding {
+    Import {
+        evaluated: EvaluatedForeignImport,
+    },
+    Syscall {
+        number: i64,
+    },
+    CompilerIntrinsic {
+        machine: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
+    VtableField {
+        table: String,
+        field: String,
+        storage: Result<TableFieldStorage, String>,
+    },
+    TableFunction {
+        table: String,
+        field: String,
+        storage: Result<TableFieldStorage, String>,
+    },
+    CheckedAdapter {
+        machine_identity: ProviderIdentityId,
+        machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableFieldStorage {
+    pub table_application: String,
+    pub field_declaration: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderPlanRow {
+    pub method: String,
+    pub requirement_identity: ProviderIdentityId,
+    // Several closed calls can implement one declared method. Keep the method
+    // contract separately so their distinct bindings share one whole schema.
+    pub declared_requirement_identity: ProviderIdentityId,
+    pub calling_signature: Option<semantic_vocabulary::CallingSignatureId>,
+    pub requirement_lifetime_partition: Vec<u32>,
+    pub admitted_same_stack_bytes: u64,
+    pub binding: ProviderBinding,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ProviderPlan {
+    pub name: String,
+    pub provider_type: String,
+    pub provider_application: ProviderIdentityId,
+    pub provider_type_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Exact selecting declaration and row-aligned external declarations.
+    /// These retain selection custody, not a different ABI meaning: the
+    /// semantic plan digest excludes them; the selected-closure digest binds them.
+    pub provider_declaration: Option<String>,
+    pub row_numeric_realizations: Vec<Option<String>>,
+    pub target: String,
+    pub schema: ServiceSchema,
+    pub identities: ProviderIdentityTable,
+    pub rows: Vec<ProviderPlanRow>,
+    pub origin_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub origin_package: String,
+    pub digest_memo: ProviderPlanDigestMemo,
+}
+
+#[derive(Default)]
+pub struct ProviderPlanDigestMemo {
+    digest: std::sync::OnceLock<ProviderPlanDigest>,
+    report_fingerprint: std::sync::OnceLock<u64>,
+    schema_digest: std::sync::OnceLock<ServiceSchemaDigest>,
+}
+
+impl Clone for ProviderPlanDigestMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for ProviderPlanDigestMemo {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ProviderPlanDigestMemo {}
+
+impl std::fmt::Debug for ProviderPlanDigestMemo {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ProviderPlanDigestMemo")
+    }
+}
+
+fn push_package_identity(
+    rendered: &mut String,
+    label: &str,
+    identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+) {
+    rendered.push('\n');
+    rendered.push_str(label);
+    rendered.push(':');
+    match identity {
+        Some(identity) => {
+            for byte in identity.digest() {
+                rendered.push_str(&format!("{byte:02x}"));
+            }
+        }
+        None => rendered.push_str("<unbound>"),
+    }
+}
+
+impl PartialEq for ProviderPlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.provider_type == other.provider_type
+            && self.identity_text(self.provider_application)
+                == other.identity_text(other.provider_application)
+            && self.provider_type_package_identity == other.provider_type_package_identity
+            && self.provider_declaration == other.provider_declaration
+            && self.row_numeric_realizations == other.row_numeric_realizations
+            && self.target == other.target
+            && self.schema == other.schema
+            && self.rows.len() == other.rows.len()
+            && self
+                .rows
+                .iter()
+                .zip(&other.rows)
+                .all(|(left, right)| left.eq_in(&self.identities, right, &other.identities))
+            && self.origin_package_identity == other.origin_package_identity
+            && self.origin_package == other.origin_package
+    }
+}
+
+impl Eq for ProviderPlan {}
+
+impl ProviderPlanRow {
+    fn eq_in(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        self.method == other.method
+            && left_table.text(self.requirement_identity)
+                == right_table.text(other.requirement_identity)
+            && left_table.text(self.declared_requirement_identity)
+                == right_table.text(other.declared_requirement_identity)
+            && self.calling_signature == other.calling_signature
+            && self.requirement_lifetime_partition == other.requirement_lifetime_partition
+            && self.admitted_same_stack_bytes == other.admitted_same_stack_bytes
+            && match (&self.binding, &other.binding) {
+                (
+                    ProviderBinding::CheckedAdapter {
+                        machine_identity: left_identity,
+                        machine_package_identity: left_package,
+                    },
+                    ProviderBinding::CheckedAdapter {
+                        machine_identity: right_identity,
+                        machine_package_identity: right_package,
+                    },
+                ) => {
+                    left_table.text(*left_identity) == right_table.text(*right_identity)
+                        && left_package == right_package
+                }
+                (left, right) => left == right,
+            }
+    }
+}
+
+impl ProviderPlan {
+    pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
+        self.identities.text(identity)
+    }
+
+    pub fn application_identity(&self) -> Option<&str> {
+        let identity = self.identity_text(self.provider_application);
+        (!identity.is_empty()).then_some(identity)
+    }
+
+    pub fn identity_digest(&self) -> ProviderPlanDigest {
+        *self
+            .digest_memo
+            .digest
+            .get_or_init(|| self.encode_identity_digest())
+    }
+
+    pub fn schema_identity_digest(&self) -> ServiceSchemaDigest {
+        *self
+            .digest_memo
+            .schema_digest
+            .get_or_init(|| self.schema.identity_digest())
+    }
+
+    fn encode_identity_digest(&self) -> ProviderPlanDigest {
+        ProviderPlanDigest::from_digest(
+            self.encode_identity(ProviderPlanDigestEncoder::for_provider_plan())
+                .finish(),
+        )
+    }
+
+    pub fn identity_preimage(&self) -> Vec<u8> {
+        self.encode_identity(ProviderPlanDigestEncoder::for_provider_plan_preimage())
+            .finish_preimage()
+    }
+
+    fn encode_identity(&self, mut encoder: ProviderPlanDigestEncoder) -> ProviderPlanDigestEncoder {
+        encoder.string(&self.name);
+        encoder.string(&self.provider_type);
+        encoder.string(self.identity_text(self.provider_application));
+        encoder.package_identity(self.provider_type_package_identity);
+        encoder.string(&self.target);
+        self.schema
+            .declaration
+            .encode_contract(&mut encoder, |method, encoder| {
+                encoder.calling_applications(
+                    self.schema
+                        .calling_for_requirement(method.requirement_identity),
+                );
+            });
+
+        let mut rows = self.rows.iter().collect::<Vec<_>>();
+        rows.sort_by_cached_key(|row| {
+            (
+                row.method.clone(),
+                self.identities.text(row.requirement_identity).to_owned(),
+                row.requirement_lifetime_partition.clone(),
+            )
+        });
+        encoder.len(rows.len());
+        for row in rows {
+            encoder.string(&row.method);
+            encoder.string(self.identities.text(row.requirement_identity));
+            encoder.string(self.identities.text(row.declared_requirement_identity));
+            match row.calling_signature {
+                Some(signature) => {
+                    encoder.byte(1);
+                    encoder.u64(signature.get());
+                }
+                None => encoder.byte(0),
+            }
+            encoder.len(row.requirement_lifetime_partition.len());
+            for ordinal in &row.requirement_lifetime_partition {
+                encoder.u64(u64::from(*ordinal));
+            }
+            encoder.u64(row.admitted_same_stack_bytes);
+            encoder.provider_binding(&row.binding, &self.identities);
+        }
+        encoder.package_identity(self.origin_package_identity);
+        encoder
+    }
+
+    pub fn report_fingerprint(&self) -> u64 {
+        *self
+            .digest_memo
+            .report_fingerprint
+            .get_or_init(|| self.compute_report_fingerprint())
+    }
+
+    fn compute_report_fingerprint(&self) -> u64 {
+        let mut rendered = format!(
+            "{}\n{}\n{}\n{}",
+            self.name,
+            self.provider_type,
+            self.target,
+            self.schema
+                .identity_text(self.schema.declaration.trait_name)
+        );
+        push_package_identity(
+            &mut rendered,
+            "provider-type-package",
+            self.provider_type_package_identity,
+        );
+        push_package_identity(
+            &mut rendered,
+            "schema-package",
+            self.schema.declaration.trait_package_identity,
+        );
+        rendered.push_str("\npackage:");
+        match self.origin_package_identity {
+            Some(identity) => {
+                for byte in identity.digest() {
+                    rendered.push_str(&format!("{byte:02x}"));
+                }
+            }
+            None => rendered.push_str("<unbound>"),
+        }
+        let mut methods: Vec<&ServiceMethod> = self.schema.declaration.methods.iter().collect();
+        methods.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        });
+        for method in methods {
+            push_package_identity(
+                &mut rendered,
+                "requirement-owner-package",
+                method.requirement_owner_package_identity,
+            );
+            rendered.push_str(&format!("\ncompletion:{:?}", method.completion));
+            rendered.push_str(&format!(
+                "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
+                method.name,
+                self.schema.identity_text(method.requirement_identity),
+                method.parameter_count,
+                method.has_result,
+                method.service_reach.join("+"),
+                method.synchronous_invocations.join("+"),
+                method.may_suspend,
+                method.may_block,
+                method.terminates_guarantee,
+            ));
+            let mut premises = method.termination_premises.iter().collect::<Vec<_>>();
+            premises.sort_by(|left, right| {
+                left.profile
+                    .cmp(&right.profile)
+                    .then_with(|| left.subject.cmp(&right.subject))
+                    .then_with(|| left.subject_projections.cmp(&right.subject_projections))
+            });
+            for premise in premises {
+                rendered.push_str(&format!(
+                    "\nmt:{}/{}/{}",
+                    premise.profile,
+                    match premise.subject {
+                        ServiceProgressSubject::Parameter(index) => format!("parameter:{index}"),
+                    },
+                    premise.subject_projections.join("::")
+                ));
+                let mut establishment_routes =
+                    premise.establishment_routes.iter().collect::<Vec<_>>();
+                establishment_routes.sort_by(|left, right| {
+                    left.kind.cmp(&right.kind).then_with(|| {
+                        self.schema
+                            .identity_text(left.requirement_identity)
+                            .cmp(self.schema.identity_text(right.requirement_identity))
+                    })
+                });
+                for route in establishment_routes {
+                    rendered.push_str(&format!(
+                        "\nmtr:{}/{}",
+                        route.kind.as_str(),
+                        self.schema.identity_text(route.requirement_identity),
+                    ));
+                }
+            }
+            for parameter in &method.parameter_type_identities {
+                rendered.push_str("\nmp:");
+                rendered.push_str(self.schema.declaration.identities.text(*parameter));
+            }
+            let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
+            entry_claims.sort_by(|left, right| {
+                left.parameter_index
+                    .cmp(&right.parameter_index)
+                    .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
+                    .then_with(|| left.domain.cmp(&right.domain))
+            });
+            for claim in entry_claims {
+                rendered.push_str(&format!(
+                    "\nmc:{}/{}/{}/{}/{}/{}",
+                    claim.parameter_index,
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(claim.carrier_identity),
+                    claim.domain,
+                    claim.predicate_presence.as_str(),
+                    claim.authority_flow.as_str(),
+                    claim.effective_carry,
+                ));
+            }
+            if method.result_type_identity.is_valid() {
+                rendered.push_str("\nmr:");
+                rendered.push_str(
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(method.result_type_identity),
+                );
+            }
+            for membership in &method.normal_result_memberships {
+                rendered.push_str(&format!("\nnormal-membership:{membership:?}"));
+            }
+            let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
+            result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+            for claim in result_claims {
+                rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry));
+            }
+            for calling in self
+                .schema
+                .calling_for_requirement(method.requirement_identity)
+            {
+                let fingerprint = calling.plan.report_fingerprint;
+                rendered.push_str(&format!("/calling:{:?}:{fingerprint:016x}", calling.abi));
+            }
+        }
+        let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
+        rows.sort_by_cached_key(|row| {
+            (
+                row.method.clone(),
+                self.identities.text(row.requirement_identity).to_owned(),
+            )
+        });
+        for row in rows {
+            let binding_identity = match &row.binding {
+                ProviderBinding::Import { evaluated } => {
+                    let locator = evaluated.locator();
+                    let receipt = evaluated
+                        .receipt()
+                        .identity_digest()
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    format!(
+                        "EvaluatedImport:{:016x}/{receipt}",
+                        locator.non_authoritative_compatibility_fingerprint(),
+                    )
+                }
+                ProviderBinding::CompilerIntrinsic { machine, .. } => {
+                    format!("CompilerIntrinsic {{ machine: {machine:?} }}")
+                }
+                ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    machine_package_identity,
+                } => {
+                    let mut identity =
+                        format!("CheckedAdapter:{}", self.identity_text(*machine_identity));
+                    push_package_identity(
+                        &mut identity,
+                        "checked-adapter-package",
+                        *machine_package_identity,
+                    );
+                    identity
+                }
+                binding => format!("{binding:?}"),
+            };
+            rendered.push_str(&format!(
+                "\nr:{}/{}/declared:{}/calling:{:?}/lifetimes:{:?}/stack:{}/{}",
+                row.method,
+                self.identities.text(row.requirement_identity),
+                self.identities.text(row.declared_requirement_identity),
+                row.calling_signature,
+                row.requirement_lifetime_partition,
+                row.admitted_same_stack_bytes,
+                binding_identity
+            ));
+        }
+        let mut hash = wire::fnv1a::Fnv1a::new();
+        hash.bytes(rendered.as_bytes());
+        hash.bytes(self.schema_identity_digest().as_bytes());
+        hash.finish()
+    }
+
+    pub fn selection_order(&self, other: &ProviderPlan) -> std::cmp::Ordering {
+        self.name
+            .cmp(&other.name)
+            .then_with(|| {
+                self.origin_package_identity
+                    .cmp(&other.origin_package_identity)
+            })
+            .then_with(|| {
+                self.provider_type_package_identity
+                    .cmp(&other.provider_type_package_identity)
+            })
+            .then_with(|| {
+                self.schema
+                    .declaration
+                    .trait_package_identity
+                    .cmp(&other.schema.declaration.trait_package_identity)
+            })
+            .then_with(|| self.report_fingerprint().cmp(&other.report_fingerprint()))
+    }
+
+    pub fn validate_against_schema(&self) -> Vec<String> {
+        let mut errors = self.validate_candidate_against_schema();
+        for method in &self.schema.declaration.methods {
+            let count = self
+                .rows
+                .iter()
+                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
+                .count();
+            if count == 0 {
+                errors.push(format!(
+                    "plan `{}` does not bind `{}::{}`",
+                    self.name,
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
+                    method.name
+                ));
+            }
+        }
+        errors
+    }
+
+    pub fn validate_candidate_against_schema(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self
+            .provider_declaration
+            .as_ref()
+            .is_some_and(String::is_empty)
+        {
+            errors.push("selected provider has an empty selecting declaration".to_owned());
+        }
+        if !self.row_numeric_realizations.is_empty()
+            && self.row_numeric_realizations.len() != self.rows.len()
+        {
+            errors.push("selected provider has incomplete external row declarations".to_owned());
+        }
+        if let Err(reason) = self.schema.validate_receiver_applications() {
+            errors.push(format!(
+                "plan `{}` has an invalid applied receiver roster: {reason}",
+                self.name
+            ));
+        }
+        if self.name.is_empty() {
+            errors.push("provider plan has no exact selection name".to_owned());
+        }
+        if self
+            .schema
+            .identity_text(self.schema.declaration.trait_name)
+            .is_empty()
+        {
+            errors.push(format!(
+                "plan `{}` schema has no exact boundary-slot identity",
+                self.name
+            ));
+        }
+        for (method_index, method) in self.schema.declaration.methods.iter().enumerate() {
+            let context = || {
+                format!(
+                    "plan `{}` schema method `{}::{}`",
+                    self.name,
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
+                    method.name
+                )
+            };
+            if self
+                .schema
+                .calling_for_requirement(method.requirement_identity)
+                .iter()
+                .any(|application| application.plan.commitment.is_zero())
+            {
+                errors.push(format!(
+                    "{} retains an empty calling-plan commitment",
+                    context()
+                ));
+            }
+            if method.name.is_empty() {
+                errors.push(format!(
+                    "plan `{}` schema `{}` has a method with no readable drift name",
+                    self.name,
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
+                ));
+            }
+            if method.requirement_owner.is_empty() {
+                errors.push(format!("{} has no exact requirement owner", context()));
+            }
+            if !method.requirement_identity.is_valid() {
+                errors.push(format!("{} has no exact requirement identity", context()));
+            } else if let Some(previous_index) = self.schema.declaration.methods[..method_index]
+                .iter()
+                .position(|previous| previous.requirement_identity == method.requirement_identity)
+            {
+                errors.push(format!(
+                    "plan `{}` schema methods at indexes {previous_index} and {method_index} repeat exact requirement identity `{}`",
+                    self.name, self.schema.identity_text(method.requirement_identity),
+                ));
+            }
+            if method.parameter_type_identities.len() != method.parameter_count {
+                errors.push(format!(
+                    "{} declares {} parameters but retains {} exact parameter type identities",
+                    context(),
+                    method.parameter_count,
+                    method.parameter_type_identities.len()
+                ));
+            }
+            for (parameter_index, identity) in method.parameter_type_identities.iter().enumerate() {
+                if !identity.is_valid() {
+                    errors.push(format!(
+                        "{} parameter {} has no exact semantic type identity",
+                        context(),
+                        parameter_index
+                    ));
+                }
+            }
+            for premise in &method.termination_premises {
+                if !method.terminates_guarantee {
+                    errors.push(format!(
+                        "{} retains a progress premise without a termination guarantee",
+                        context()
+                    ));
+                }
+                if premise.profile.is_empty() {
+                    errors.push(format!(
+                        "{} has a progress premise with no exact profile identity",
+                        context()
+                    ));
+                }
+                if premise.establishment_routes.is_empty() {
+                    errors.push(format!(
+                        "{} progress premise `{}` has no authorized establishment route",
+                        context(),
+                        premise.profile
+                    ));
+                }
+                if premise
+                    .establishment_routes
+                    .iter()
+                    .any(|route| !route.requirement_identity.is_valid())
+                {
+                    errors.push(format!("{} progress premise `{}` has an establishment route with no exact requirement identity", context(), premise.profile));
+                }
+                if premise.establishment_routes.iter().any(|route| {
+                    route.kind != ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+                }) {
+                    errors.push(format!(
+                        "{} progress premise `{}` has a non-boundary establishment route",
+                        context(),
+                        premise.profile
+                    ));
+                }
+                let mut normalized_routes = premise.establishment_routes.clone();
+                normalized_routes.sort_by(|left, right| {
+                    left.kind.cmp(&right.kind).then_with(|| {
+                        self.schema
+                            .identity_text(left.requirement_identity)
+                            .cmp(self.schema.identity_text(right.requirement_identity))
+                    })
+                });
+                normalized_routes.dedup();
+                if normalized_routes.len() != premise.establishment_routes.len() {
+                    errors.push(format!(
+                        "{} progress premise `{}` repeats an establishment route",
+                        context(),
+                        premise.profile
+                    ));
+                }
+                if let ServiceProgressSubject::Parameter(index) = premise.subject
+                    && index >= method.parameter_count
+                {
+                    errors.push(format!(
+                        "{} progress premise names out-of-range parameter {index} of {}",
+                        context(),
+                        method.parameter_count
+                    ));
+                }
+                if premise
+                    .subject_projections
+                    .iter()
+                    .any(|projection| projection.is_empty())
+                {
+                    errors.push(format!(
+                        "{} progress premise has an empty subject projection identity",
+                        context()
+                    ));
+                }
+            }
+            for claim in &method.entry_claims {
+                if claim.parameter_index >= method.parameter_count {
+                    errors.push(format!(
+                        "{} entry claim names out-of-range parameter {} of {}",
+                        context(),
+                        claim.parameter_index,
+                        method.parameter_count
+                    ));
+                }
+                if claim.domain.is_empty() {
+                    errors.push(format!(
+                        "{} entry claim for parameter {} has no exact semantic domain identity",
+                        context(),
+                        claim.parameter_index
+                    ));
+                }
+                if !claim.carrier_identity.is_valid() {
+                    errors.push(format!(
+                        "{} entry claim for parameter {} has no exact carrier identity",
+                        context(),
+                        claim.parameter_index
+                    ));
+                }
+                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
+                    errors.push(format!(
+                        "{} entry claim for parameter {} and domain `{}` is not born-strict",
+                        context(),
+                        claim.parameter_index,
+                        claim.domain
+                    ));
+                }
+            }
+            for (index, pair) in method.entry_claims.windows(2).enumerate() {
+                let left = (
+                    pair[0].parameter_index,
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(pair[0].carrier_identity),
+                    pair[0].domain.as_str(),
+                );
+                let right = (
+                    pair[1].parameter_index,
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(pair[1].carrier_identity),
+                    pair[1].domain.as_str(),
+                );
+                if left >= right {
+                    errors.push(format!(
+                        "{} entry claims are not strictly increasing at indexes {index} and {}",
+                        context(),
+                        index + 1
+                    ));
+                }
+            }
+            // Result presence describes the logical declaration, including an
+            // empty result. Canonical callable admission owns whether normal
+            // completion is possible; opaque type identity presence cannot
+            // establish that semantic judgment here.
+            if method.has_result == !method.result_type_identity.is_valid() {
+                errors.push(format!(
+                    "{} result presence disagrees with its exact result type identity",
+                    context()
+                ));
+            }
+            if method.has_result
+                && self
+                    .schema
+                    .declaration
+                    .identities
+                    .text(method.result_type_identity)
+                    .is_empty()
+            {
+                errors.push(format!(
+                    "{} result has no exact semantic type identity",
+                    context()
+                ));
+            }
+            if (!method.normal_result_memberships.is_empty() && !method.has_result)
+                || method
+                    .normal_result_memberships
+                    .iter()
+                    .any(|row| !row.has_exact_identity())
+                || method
+                    .normal_result_memberships
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+            {
+                errors.push(format!(
+                    "{} normal-result membership roster has no exact canonical meaning",
+                    context()
+                ));
+            }
+            for claim in &method.result_claims {
+                if !method.has_result || !method.result_type_identity.is_valid() {
+                    errors.push(format!(
+                        "{} retains a result claim without a real result",
+                        context()
+                    ));
+                }
+                if claim.domain.is_empty() {
+                    errors.push(format!(
+                        "{} result claim has no exact semantic domain identity",
+                        context()
+                    ));
+                }
+                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
+                    errors.push(format!(
+                        "{} result claim for domain `{}` is not born-strict",
+                        context(),
+                        claim.domain
+                    ));
+                }
+            }
+            for (index, pair) in method.result_claims.windows(2).enumerate() {
+                if pair[0].domain.as_str() >= pair[1].domain.as_str() {
+                    errors.push(format!(
+                        "{} result claims are not strictly increasing at indexes {index} and {}",
+                        context(),
+                        index + 1
+                    ));
+                }
+            }
+            for (axis, identities) in [
+                ("service-reach", method.service_reach.as_slice()),
+                (
+                    "synchronous-invocation",
+                    method.synchronous_invocations.as_slice(),
+                ),
+            ] {
+                for (index, identity) in identities.iter().enumerate() {
+                    if identity.is_empty() {
+                        errors.push(format!(
+                            "{} {axis} identity at index {index} is empty",
+                            context()
+                        ));
+                    }
+                }
+                for (index, pair) in identities.windows(2).enumerate() {
+                    if pair[0] >= pair[1] {
+                        errors.push(format!("{} {axis} identities are not strictly increasing at indexes {index} and {}", context(), index + 1));
+                    }
+                }
+            }
+        }
+        let mut selected_requirements = self
+            .rows
+            .iter()
+            .map(|row| row.requirement_identity)
+            .collect::<Vec<_>>();
+        selected_requirements.sort_unstable();
+        for pair in selected_requirements
+            .windows(2)
+            .filter(|pair| pair[0] == pair[1])
+        {
+            errors.push(format!(
+                "plan `{}` repeats selected requirement `{}`",
+                self.name,
+                self.identities.text(pair[0])
+            ));
+        }
+        for row in &self.rows {
+            if !row.declared_requirement_identity.is_valid()
+                || self
+                    .identities
+                    .text(row.declared_requirement_identity)
+                    .is_empty()
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no declared method coordinate",
+                    self.name, row.method
+                ));
+            }
+            if row.requirement_identity != row.declared_requirement_identity
+                && (row.calling_signature.is_none()
+                    || !matches!(
+                        row.binding,
+                        ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
+                    ))
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no exact native application ABI",
+                    self.name, row.method
+                ));
+            }
+            if !row.requirement_identity.is_valid()
+                || self.identities.text(row.requirement_identity).is_empty()
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no exact requirement identity",
+                    self.name, row.method
+                ));
+            }
+            if application_identity::type_identity::normalize_requirement_lifetime_partition(
+                &row.requirement_lifetime_partition,
+            ) != row.requirement_lifetime_partition
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has a noncanonical requirement lifetime partition",
+                    self.name, row.method,
+                ));
+            }
+            match &row.binding {
+                ProviderBinding::Import { evaluated } => {
+                    let locator = evaluated.locator();
+                    if self.target != locator.target().target_name() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` normalized import targets `{}`, but the provider plan targets `{}`",
+                            self.name,
+                            row.method,
+                            locator.target().target_name(),
+                            self.target,
+                        ));
+                    }
+                }
+                ProviderBinding::Syscall { number } => {
+                    if u32::try_from(*number).is_err() {
+                        errors.push(format!(
+                            "provider binding `{}::{}` has syscall number {number}, but the target syscall plan requires a value in 0..={}",
+                            self.schema.identity_text(self.schema.declaration.trait_name),
+                            row.method,
+                            u32::MAX,
+                        ));
+                    }
+                }
+                ProviderBinding::CompilerIntrinsic { machine } => {
+                    if machine.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` compiler intrinsic has no exact realization-machine identity",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::VtableSlot { index } => {
+                    if *index < 0 {
+                        errors.push(format!(
+                            "plan `{}` row `{}` vtable slot index {index} is negative",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::VtableField { table, field, .. }
+                | ProviderBinding::TableFunction { table, field, .. } => {
+                    if table.is_empty() {
+                        errors.push(format!(
+                            "external leaf for `{}::{}` uses a table field, but its first parameter is not a readable borrow of a data declaration",
+                            self.schema.identity_text(self.schema.declaration.trait_name),
+                            row.method,
+                        ));
+                    }
+                    if field.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` table binding has no exact field identity",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+                ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    machine_package_identity,
+                } => {
+                    if !machine_identity.is_valid() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` checked adapter has no exact machine identity",
+                            self.name, row.method,
+                        ));
+                    }
+                    if self.provider_type.is_empty() {
+                        errors.push(format!(
+                            "checked adapter `{}` for `{}::{}` has no nominal provider type; attach it as an ordinary checked machine satisfying {}::{}` and select that provider for the boundary slot",
+                            self.identity_text(*machine_identity),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
+                            row.method,
+                            self.schema.identity_text(self.schema.declaration.trait_name),
+                            row.method,
+                        ));
+                    }
+                    if *machine_package_identity != self.origin_package_identity {
+                        errors.push(format!(
+                            "plan `{}` row `{}` checked-adapter package identity does not match the realizing package",
+                            self.name, row.method,
+                        ));
+                    }
+                }
+            }
+        }
+        for row in &self.rows {
+            if !self
+                .schema
+                .declaration
+                .methods
+                .iter()
+                .any(|method| self.schema.row_binds_method(row, method, &self.identities))
+            {
+                errors.push(format!(
+                    "plan `{}` binds `{}`, which is not a `{}` method",
+                    self.name,
+                    row.method,
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name)
+                ));
+            }
+        }
+        errors
+    }
+}

@@ -14,7 +14,7 @@ paged_roster! {
         arena generic_application_origins: GenericApplicationOrigin,
         arena const_argument_normalizations: RetainedConstArgumentNormalization,
         arena const_argument_origins: ConstArgumentOrigin,
-        arena const_argument_builtin_operators: source::SourceSpan,
+        arena const_argument_builtin_operators: source_text::SourceSpan,
         arena pending_const_arguments: PendingConstArgument,
         arena supplied_operand_owners: SuppliedOperandOwner,
         arena type_alias_applications: TypeAliasApplicationOrigin,
@@ -35,8 +35,8 @@ paged_roster! {
 pub struct TypeAliasApplicationOrigin {
     pub instance: TypeReferenceHandle,
     pub application: TypeReferenceHandle,
-    pub declaration: source::SourceSpan,
-    pub definition_references: Vec<source::SourceSpan>,
+    pub declaration: source_text::SourceSpan,
+    pub definition_references: Vec<source_text::SourceSpan>,
 }
 
 #[derive(
@@ -80,9 +80,9 @@ struct PendingConstArgument {
     compiler_storage::Record,
 )]
 pub struct ConstArgumentOrigin {
-    pub reference: source::SourceSpan,
-    pub declaration: source::SourceSpan,
-    pub initializer: source::SourceSpan,
+    pub reference: source_text::SourceSpan,
+    pub declaration: source_text::SourceSpan,
+    pub initializer: source_text::SourceSpan,
     pub evaluated_value: language_core::constant_value::EvaluatedConstant,
 }
 
@@ -113,10 +113,10 @@ struct RetainedConstArgumentNormalization {
 pub struct ConstArgumentNormalization {
     pub authored_expression: ExpressionHandle,
     pub materialized_expression: ExpressionHandle,
-    pub reference: source::SourceSpan,
+    pub reference: source_text::SourceSpan,
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
-    pub builtin_operators: HandleSpan<source::SourceSpan>,
+    pub builtin_operators: HandleSpan<source_text::SourceSpan>,
 }
 
 #[derive(
@@ -333,10 +333,10 @@ impl TypeReferenceTable {
     pub fn retain_const_argument_normalization(
         &mut self,
         argument: TypeReferenceHandle,
-        reference: source::SourceSpan,
+        reference: source_text::SourceSpan,
         canonical_result_encoding: String,
         origins: impl IntoIterator<Item = ConstArgumentOrigin>,
-        builtin_operators: impl IntoIterator<Item = source::SourceSpan>,
+        builtin_operators: impl IntoIterator<Item = source_text::SourceSpan>,
     ) {
         assert!(argument.is_valid());
         assert!(self.const_argument_normalization(argument).is_none());
@@ -402,8 +402,8 @@ impl TypeReferenceTable {
 
     pub fn const_argument_builtin_operators(
         &self,
-        operators: HandleSpan<source::SourceSpan>,
-    ) -> &[source::SourceSpan] {
+        operators: HandleSpan<source_text::SourceSpan>,
+    ) -> &[source_text::SourceSpan] {
         self.preparation
             .const_argument_builtin_operators
             .span_or_empty(operators)
@@ -465,7 +465,7 @@ impl TypeReferenceTable {
     pub fn alias_use_at(
         &mut self,
         source: TypeReferenceHandle,
-        declaration: source::SourceSpan,
+        declaration: source_text::SourceSpan,
         head: Identifier,
     ) -> Option<TypeReferenceHandle> {
         let mut applications = self

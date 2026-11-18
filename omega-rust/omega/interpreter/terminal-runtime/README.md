@@ -6,20 +6,16 @@ an explicit host request. It admits the requested target and bindings, sets up
 private entry storage, installs host adapters and runs it on the Psi
 interpreter. Replenishing work resumes the same instance.
 
-If a native image supplied for code-layout observations fails inspection,
-that is an execution error, not a missing host capability.
-So the CLI fails `--both` rather than skip comparison with a successful
-native exit. A truly missing host provision can still make comparison unavailable.
+The portable `execute` and `execute_sliced` entrances run without a native
+image. A program that observes a machine's linked code layout uses Build's
+`execute_published_terminal` or `execute_published_terminal_sliced`. Their
+image argument is the retained native artifact. Build checks its target and
+canonical Terminal identity, replays the final image against its object, and
+reads root machine descriptors from the linked sections. A failed inspection
+is an execution error. The CLI reports it when running `--both`.
 
-The language engine stays in `psi/interpreter`.
-Target-aware ABI/locator checks, finite input replay, buffered output,
-virtual clocks and isolated-domain exit delegation belong here, not in a
-compiler. The CLI and embedders call this package directly; there is
-no `compiler::runtime` compatibility route.
-
-This move changed ownership, not runtime semantics. It does not
-complete **TERMINAL-RUNTIME-DRIVERS**: provisions come straight from their
-source-free `native-artifact` owner, not through the source-aware `products`
-re-export. The common loaded/borrowed Terminal view and production
-artifact-execution command are still needed. Moving host code must not put
-target knowledge into Psi or replace missing execution with native fallback.
+The language engine lives in `psi/interpreter`. Its low-level embedding API
+accepts explicit host environments. This crate supplies target-aware host
+bindings, private entry storage, finite input replay, buffered output, clocks
+and isolated-domain exit delegation. The public portable request accepts
+the source-free execution provisions published for its canonical program.

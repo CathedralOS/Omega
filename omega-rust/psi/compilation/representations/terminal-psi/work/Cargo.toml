@@ -9,7 +9,8 @@ name = "terminal_work"
 path = "src/lib.rs"
 
 [dependencies]
+evaluation-contracts = { path = "../../../../evaluation/evaluation-contracts" }
 compiler-storage = { path = "../../../../foundation/compiler-storage" }
-evaluation-accounting = { path = "../../../../foundation/evaluation-accounting" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
+evaluation-accounting = { path = "../../../../evaluation/evaluation-accounting" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
 terminal-psi = { path = ".." }

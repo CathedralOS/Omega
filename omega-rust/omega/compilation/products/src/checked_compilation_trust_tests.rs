@@ -1,7 +1,7 @@
-use language_semantics::trust_declarations::{
+use declaration_contracts::trust_declarations::{
     AcceptedContractDeclaration, AcceptedMachineDeclaration, TrustDeclarations,
 };
-use trust_model::{RootTrustPolicy, reconstruct_trust_obligations};
+use provider_correspondence::trust::{RootTrustPolicy, reconstruct_trust_obligations};
 
 fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
     AcceptedMachineDeclaration {
@@ -19,7 +19,7 @@ fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
 
 #[test]
 fn authored_provider_grants_do_not_reselect_by_display_name() {
-    use language_semantics::declaration_selection::{AuthoredRootGrant, RootGrantSubject};
+    use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
     let mut plan = effects::provider_plan::ProviderPlan {
         name: "linux_x86_64::Selected::satisfies::Service".into(),
         provider_type: "package-a::Selected".into(),
@@ -33,7 +33,7 @@ fn authored_provider_grants_do_not_reselect_by_display_name() {
     schema.trait_name = schema.identities.intern("Service");
     let argument = schema.identities.intern("package-a::Tag");
     schema.receiver_applications.push(
-        language_semantics::service_surface::ServiceReceiverApplication {
+        declaration_contracts::service_surface::ServiceReceiverApplication {
             application: schema.identities.intern("Service<package-a::Tag>"),
             trait_name: schema.trait_name,
             trait_package_identity: None,
@@ -55,19 +55,20 @@ fn authored_provider_grants_do_not_reselect_by_display_name() {
         },
         subject_package: None,
         selecting_machine: symbols::SymbolHandle::from_arena_index(9),
-        source_span: source::SourceSpan::default(),
+        source_span: source_text::SourceSpan::default(),
     };
-    let admit = |grants: &[AuthoredRootGrant]| {
-        reconstruct_trust_obligations(
-            &declarations,
-            grants,
-            &[&plan],
-            &selected,
-            &[],
-            RootTrustPolicy::Unpackaged,
-        )
+    let admit_for = |grants: &[AuthoredRootGrant], policy| {
+        reconstruct_trust_obligations(&declarations, grants, &[&plan], &selected, &[], policy)
     };
-    assert_eq!(admit(&[grant.clone(), grant.clone()]).unwrap().len(), 1);
+    let admit = |grants: &[AuthoredRootGrant]| admit_for(grants, RootTrustPolicy::Unpackaged);
+    let accepted = admit(&[grant.clone(), grant.clone()]).unwrap();
+    assert_eq!(accepted.len(), 1);
+    // Package review excludes individual claims. A checked provider grant
+    // with the same display name still joins its exact provider application.
+    assert_eq!(
+        admit_for(std::slice::from_ref(&grant), RootTrustPolicy::PackageReview).unwrap(),
+        accepted
+    );
     let mut other_owner = grant.clone();
     let RootGrantSubject::Provider { declaration, .. } = &mut other_owner.subject else {
         unreachable!()
@@ -151,7 +152,7 @@ fn authored_provider_grants_do_not_reselect_by_display_name() {
 
 #[test]
 fn application_grants_require_the_root_claim_owner() {
-    use language_semantics::declaration_selection::{AuthoredRootGrant, RootGrantSubject};
+    use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
     let root = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap();
     let dependency = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
     let mut own = machine(1, "root::Claim");
@@ -166,7 +167,7 @@ fn application_grants_require_the_root_claim_owner() {
         },
         subject_package: row.package_identity,
         selecting_machine: symbols::SymbolHandle::from_arena_index(9),
-        source_span: source::SourceSpan::default(),
+        source_span: source_text::SourceSpan::default(),
     };
     let own_grant = grant(&own);
     let imported_grant = grant(&imported);

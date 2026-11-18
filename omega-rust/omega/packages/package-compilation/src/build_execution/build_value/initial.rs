@@ -13,13 +13,13 @@ use super::{BuildValueAdmission, vocabulary};
 use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use build_time_evaluation::{BuildMachineFilesystemGrantRootIdentity, BuildTimeValue};
-use typed_trees::TypedTrees;
+use source_compiler::evaluation::{BuildMachineFilesystemGrantRootIdentity, BuildTimeValue};
+use source_compiler::source_state::TypedTrees;
 
 pub(super) fn initial_value(
     admission: &BuildValueAdmission,
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &source_compiler::source_state::machine::Machine,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> BuildTimeValue {
     let mut build_fields = Vec::new();

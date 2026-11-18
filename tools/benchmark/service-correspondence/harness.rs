@@ -5,8 +5,8 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
-use typed_trees::provider_declarations::ProviderPlanningContext;
-use typed_trees::service_declarations::projection;
+use source_compiler::source_state::provider_declarations::ProviderPlanningContext;
+use source_compiler::source_state::service_declarations::projection;
 
 #[path = "../../../tests/support/frontend.rs"]
 mod frontend_fixture;
@@ -54,29 +54,29 @@ unsafe impl GlobalAlloc for MeasuredAllocator {
     }
 }
 
-fn typed(text: &str) -> typed_trees::TypedTrees {
-    let mut sources = source::SourceMap::default();
+fn typed(text: &str) -> source_compiler::source_state::TypedTrees {
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             "service/main.omg".into(),
             text,
             "service".into(),
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Product,
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Product,
         )
         .source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
     let syntax = frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
 fn projected<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program source_compiler::source_state::TypedTrees,
     name: &str,
 ) -> projection::ProjectedServiceSurface<'program> {
     let declaration = program
@@ -85,7 +85,7 @@ fn projected<'program>(
         .find(|row| row.name.as_str() == name)
         .unwrap();
     projection::from_typed(
-        ProviderPlanningContext::new(program, source::DependencyScope::Product),
+        ProviderPlanningContext::new(program, declaration_contracts::source_identity::DependencyScope::Product),
         declaration,
     )
     .unwrap()
@@ -115,15 +115,12 @@ fn family(methods: usize, inherited: bool) -> String {
 }
 
 fn workloads() -> Vec<(String, String, &'static str)> {
-    let console = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/console.omg"
-    ));
+    let console = include_str!("../../../source/library/std/console.omg");
     let console = &console
         [console.find("public data ByteRead").unwrap()..console.find("// Text adapters").unwrap()];
     let mut rows = vec![
         ("one".into(), family(1, false), "Service"),
-        ("target_selected".into(), include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../../tests/fixtures/run/providers/target_selected_implementation/main.omg")).into(), "TargetConstants"),
+        ("target_selected".into(), include_str!("../../../tests/fixtures/run/providers/target_selected_implementation/main.omg").into(), "TargetConstants"),
         ("console_declarations".into(), console.into(), "Console"),
     ];
     for methods in [16, 64] {

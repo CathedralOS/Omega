@@ -5,8 +5,7 @@ Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
 inline SVG, and opens in any browser. The architecture overview places source compilation, evaluation and selection, native lowering, and publication on a connected canvas. The canvas uses the original map’s Ink palette and Omega Serif. Outlines mark portable forms, ivory fills mark native forms, and teal marks the checker. Dotted gray paths show supporting work, while dashed coral paths mark audited detours and late code generation. Trace follows a detour to its endpoints and source. Selecting a component shows its immediate neighbors. D3 Zoom moves the diagram in the browser.
 
-Current and Proposed share a canvas and remember their own camera positions. The proposed stages 00–10 cite their recorded plan and expose open contracts. Their forward chain carries requests and facts through successive representations.
-The current-source and proposed-plan labels remain distinct. The
+Stages 00–10 and Before migration share one canvas and remember their own camera positions. Each numbered stage links to the Rust implementation at the indicated compiler revision. Its original plan contracts and historical source observations retain their own pins. The
 source disclosures and scrollable SVG remain available without JavaScript. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.

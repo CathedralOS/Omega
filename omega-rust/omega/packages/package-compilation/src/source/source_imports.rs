@@ -29,10 +29,8 @@ Provenance:
 mod bindings;
 mod build_prelude;
 mod entry_contract_seed;
-mod entry_contract_selection;
-pub use entry_contract_selection::{
-    SelectedProgramEntryContractSource, select_program_entry_contract,
-};
+mod source_targets;
+pub use source_targets::{source_target, source_targets};
 mod frontier;
 mod generated;
 mod import_queue;
@@ -49,7 +47,6 @@ pub(crate) use bindings::{
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::EntryContractSource;
 pub(crate) use entry_contract_seed::entry_contract_seeds;
-pub use entry_contract_seed::selected_program_entry_boundary;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
@@ -72,18 +69,16 @@ pub use project::project_roots;
 
 use crate::PackageCompilationInputs;
 use bindings::ImportOccurrence;
+use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
 use paths::{identifier_path_text, is_bundled_omega_path};
-use source::DependencyScope;
+use source_compiler::ParsedSourceBatch;
 use std::path::{Path, PathBuf};
-use syntax_trees::item::Item;
-use syntax_trees::{ParsedSources, SyntaxTrees};
 
 pub(crate) fn discover_imports(
-    parsed: &ParsedSources,
-    syntax_trees: &SyntaxTrees,
+    parsed: &ParsedSourceBatch,
     root_path: &Path,
-    filesystem: &source::SourceFileSystem,
+    filesystem: &source_capture::SourceFileSystem,
     retained: &mut Vec<ResolvedSourceImport>,
     discovery: &mut impl LogicalSourceDiscovery,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
@@ -100,17 +95,12 @@ pub(crate) fn discover_imports(
         } else {
             default_root
         };
-        for (offset, item) in unit.root_items[unit.import_root_range.clone()]
-            .iter()
-            .enumerate()
-        {
-            let Item::Use(import) = syntax_trees.root_item(*item) else {
-                continue;
-            };
-            let members = syntax_trees.items.identifier_path_members(import.path);
-            let (root, prefix) = if paths::is_bundled_core_path(syntax_trees, members) {
+        for import in &unit.imports {
+            let ordinal = import.ordinal;
+            let members = &import.members;
+            let (root, prefix) = if paths::is_bundled_core_path(members) {
                 (core.as_path(), 3)
-            } else if is_bundled_omega_path(syntax_trees, members) {
+            } else if is_bundled_omega_path(members) {
                 return Err(vec![Diagnostic::error(
                     "ordinary library imports require a declared dependency",
                 )]);
@@ -119,7 +109,7 @@ pub(crate) fn discover_imports(
             };
             let logical = members[prefix..]
                 .iter()
-                .map(|name| name.as_str(syntax_trees).to_owned())
+                .map(|name| name.as_str().to_owned())
                 .collect::<Vec<_>>();
             // modules.md, "Names and imports": in Build source "a logical
             // `use dependency;` may remain deferred until explicit dependency
@@ -141,18 +131,12 @@ pub(crate) fn discover_imports(
                 }
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` selects no logical source namespace",
-                    identifier_path_text(syntax_trees, members)
+                    identifier_path_text(members)
                 ))]);
             }
             for path in selected {
                 retained.push(ResolvedSourceImport {
-                    occurrence: ImportOccurrence::new(
-                        syntax_trees,
-                        unit.source_id,
-                        unit.import_root_range.start + offset,
-                        members,
-                        prefix,
-                    ),
+                    occurrence: ImportOccurrence::new(unit.source_id, ordinal, members, prefix),
                     path: path.clone(),
                 });
                 imports.push((path, unit.scope));
@@ -163,18 +147,16 @@ pub(crate) fn discover_imports(
 }
 
 pub(crate) fn discover_imports_with_packages(
-    parsed: &ParsedSources,
-    syntax_trees: &SyntaxTrees,
+    parsed: &ParsedSourceBatch,
     packages: &PackageCompilationInputs,
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
     discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source::SourceFileSystem,
+    filesystem: &source_capture::SourceFileSystem,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
-        syntax_trees,
         packages,
         PackageImportPhase::ExactTarget(generated_owner),
         retained,
@@ -192,14 +174,13 @@ pub(crate) enum PackageImportPhase {
 }
 
 pub(crate) fn discover_package_imports(
-    parsed: &ParsedSources,
-    syntax_trees: &SyntaxTrees,
+    parsed: &ParsedSourceBatch,
     packages: &PackageCompilationInputs,
     phase: PackageImportPhase,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
     discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source::SourceFileSystem,
+    filesystem: &source_capture::SourceFileSystem,
 ) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
@@ -212,17 +193,10 @@ pub(crate) fn discover_package_imports(
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
-        for (offset, root_item) in parsed_source.root_items[parsed_source.import_root_range.clone()]
-            .iter()
-            .enumerate()
-        {
-            let ordinal = parsed_source.import_root_range.start + offset;
-            let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
-                continue;
-            };
-            let members = syntax_trees.items.identifier_path_members(use_item.path);
+        for import in &parsed_source.imports {
+            let ordinal = import.ordinal;
+            let members = &import.members;
             match reconciled_package_import(
-                syntax_trees,
                 &parsed_source.path,
                 members,
                 requester,
@@ -237,13 +211,12 @@ pub(crate) fn discover_package_imports(
                     if selected.is_empty() {
                         return Err(vec![Diagnostic::error(format!(
                             "import `{}` selects no logical toolchain namespace",
-                            identifier_path_text(syntax_trees, members)
+                            identifier_path_text(members)
                         ))]);
                     }
                     for path in selected {
                         retained.push(ResolvedSourceImport {
                             occurrence: ImportOccurrence::new(
-                                syntax_trees,
                                 parsed_source.source_id,
                                 ordinal,
                                 members,
@@ -258,7 +231,6 @@ pub(crate) fn discover_package_imports(
                     let prefix = members.len() - request.relative_path.components().count();
                     let pending = PendingPackageImport {
                         occurrence: ImportOccurrence::new(
-                            syntax_trees,
                             parsed_source.source_id,
                             ordinal,
                             members,

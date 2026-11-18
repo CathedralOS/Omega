@@ -12,9 +12,9 @@ activation.
 
 use super::{BindingState, TerminalBuildBindingHost, lock_state};
 use evaluation_accounting::EvaluationStorageLease;
-use language_semantics::declaration_selection::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-};
+use source_compiler::declaration_selection::DescribedProductEntry;
+use source_compiler::declaration_selection::DescribedProductProvider;
+use source_compiler::declaration_selection::DescribedProductSchema;
 use source_compiler::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 use std::sync::Arc;
 use terminal_interpreter::{
@@ -24,10 +24,10 @@ use terminal_interpreter::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildProductQuery {
     pub operation: TerminalBuildQueryOperation,
-    pub occurrence: source::SourceSpan,
+    pub occurrence: source_text::SourceSpan,
     pub path: Vec<u8>,
     pub slot: Option<Vec<u8>>,
-    pub selecting_machine: Option<source::SourceSpan>,
+    pub selecting_machine: Option<source_text::SourceSpan>,
 }
 
 #[derive(Debug, Clone)]
@@ -315,9 +315,9 @@ impl TerminalBuildBindingHost {
                 .validate_shape()
                 .map_err(TerminalEffectRejection::new)?;
             let expected = if call.action == TerminalBuildQueryOperation::Parameter {
-                language_semantics::declaration_selection::BuildOperation::ParameterDescription
+                source_compiler::declaration_selection::BuildOperation::ParameterDescription
             } else {
-                language_semantics::declaration_selection::BuildOperation::FieldDescription
+                source_compiler::declaration_selection::BuildOperation::FieldDescription
             };
             if selected.operation != expected
                 || call.selecting_machine.is_none()

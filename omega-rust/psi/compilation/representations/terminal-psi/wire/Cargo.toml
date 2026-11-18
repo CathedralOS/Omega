@@ -10,18 +10,25 @@ name = "terminal_wire"
 path = "src/lib.rs"
 
 [dependencies]
-language-core = { path = "../../../../foundation/language-core" }
+access-vocabulary = { path = "../../access-vocabulary" }
+declaration-contracts = { path = "../../declaration-contracts" }
+schema-reflection = { path = "../../schema-reflection" }
+application-identity = { path = "../../application-identity" }
+storage-access = { path = "../../../../runtime/storage-access" }
+numeric-literals = { path = "../../numeric-literals" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
+language-core = { path = "../../source-vocabulary" }
 arena = { path = "../../../../foundation/arena" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
-language-semantics = { path = "../../../../foundation/language-semantics" }
-optimization = { path = "../../../../foundation/optimization" }
-numerics = { path = "../../../../foundation/numerics" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
+optimization = { path = "../../optimization-policy" }
+numerics = { path = "../../scalar-values" }
 proof-admission = { path = "../../../proof-admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
 
-access-plans = { path = "../../../../foundation/access-plans" }
-layout-plans = { path = "../../../../foundation/layout-plans" }
+access-admission = { path = "../../../access-admission" }
+layout-plans = { path = "../../storage-layout" }
 
 [features]
 # Lets terminal-codec's tests encode deliberately malformed modules.

@@ -1,0 +1,404 @@
+//! Source diagnostics around the shared canonical contract operations.
+
+use semantic_vocabulary::{CrashCause, MachineId, Proposition, ScalarTerm, ValueId};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
+
+pub(crate) use terminal_codec::contract_forms::RepeatedClauses as Repeated;
+
+fn refusal(id: MachineId, detail: String) -> Refusal {
+    Refusal {
+        source_span: None,
+        reason: RefusalReason::Unsupported,
+        machine: id,
+        concerns: Construct::Machine,
+        detail: format!("contract {detail}"),
+    }
+}
+
+pub(crate) fn equal(left: ScalarTerm, right: ScalarTerm, id: MachineId) -> Checked<Proposition> {
+    terminal_codec::contract_forms::equal(left, right).map_err(|detail| refusal(id, detail))
+}
+
+pub(crate) fn clauses(
+    propositions: Vec<Proposition>,
+    repeated: Repeated,
+    id: MachineId,
+) -> Checked<Vec<Proposition>> {
+    terminal_codec::contract_forms::clauses(propositions, repeated)
+        .map_err(|detail| refusal(id, detail))
+}
+
+/// Keep a clause's source description beside its canonical proposition.
+/// Associated data never participates in proposition identity or ordering.
+pub(crate) fn associated_clauses<T>(
+    propositions: Vec<(Proposition, T)>,
+    repeated: Repeated,
+    id: MachineId,
+) -> Checked<Vec<(Proposition, T)>> {
+    let mut keyed = Vec::with_capacity(propositions.len());
+    for (proposition, associated) in propositions {
+        let key = terminal_codec::canonical_proposition_order_key(&proposition)
+            .map_err(|_| refusal(id, "unencodable proposition".into()))?;
+        keyed.push((key, proposition, associated));
+    }
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    if matches!(repeated, Repeated::Refuse) && keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(refusal(id, "duplicate clause".into()));
+    }
+    keyed.dedup_by(|later, earlier| later.0 == earlier.0);
+    Ok(keyed
+        .into_iter()
+        .map(|(_, proposition, associated)| (proposition, associated))
+        .collect())
+}
+
+pub(crate) fn conjunction(conjuncts: Vec<Proposition>, id: MachineId) -> Checked<Proposition> {
+    terminal_codec::contract_forms::conjunction(conjuncts).map_err(|detail| refusal(id, detail))
+}
+
+pub(crate) fn routes(
+    alternatives: impl IntoIterator<Item = (CrashCause, CrashRouteGuard)>,
+) -> Vec<CrashRouteBucket> {
+    terminal_codec::contract_forms::routes(alternatives)
+}
+
+pub fn substituted_routes(
+    routes: &[CrashRouteBucket],
+    actuals: &[ValueId],
+    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    id: MachineId,
+) -> Checked<Vec<CrashRouteBucket>> {
+    let mut alternatives = Vec::new();
+    for bucket in routes {
+        for guard in &bucket.alternatives {
+            let guard = match guard {
+                CrashRouteGuard::Truth => CrashRouteGuard::Truth,
+                CrashRouteGuard::Predicate(predicate) => {
+                    CrashRouteGuard::Predicate(CrashPredicateTerm::new(substitute(
+                        predicate.proposition(),
+                        actuals,
+                        values,
+                        id,
+                    )?))
+                }
+            };
+            alternatives.push((bucket.cause, guard));
+        }
+    }
+    Ok(self::routes(alternatives))
+}
+
+pub(crate) fn substitute(
+    proposition: &Proposition,
+    actuals: &[ValueId],
+    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    id: MachineId,
+) -> Checked<Proposition> {
+    substitute_parameters(proposition, actuals, &[], values, id)
+}
+
+/// Restate a loop header's contract over its actual scalar and storage formals.
+/// Each incoming edge still owes the resulting predicate.
+pub(crate) fn substitute_parameters(
+    proposition: &Proposition,
+    actuals: &[ValueId],
+    places: &[semantic_vocabulary::PlaceId],
+    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    id: MachineId,
+) -> Checked<Proposition> {
+    let substituted = terminal_semantics::substitution::clauses::substitute_clause(
+        proposition,
+        &mut ScalarFormals {
+            actuals,
+            places,
+            values,
+        },
+    )
+    .map_err(|detail| refusal(id, detail.into()))?;
+    canonical_clause(substituted, id)
+}
+
+/// Substitution can reverse equality order or make conjuncts identical. Restore
+/// the artifact's canonical form without changing the retained clause's meaning.
+pub(crate) fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
+    match proposition {
+        Proposition::Equal(left, right) => equal(left, right, id),
+        Proposition::IntegerMathEqual(left, right) if left > right => {
+            Ok(Proposition::IntegerMathEqual(right, left))
+        }
+        Proposition::Conjunction(parts) => {
+            let parts = parts
+                .into_iter()
+                .map(|part| canonical_clause(part, id))
+                .collect::<Checked<Vec<_>>>()?;
+            conjunction(parts, id)
+        }
+        Proposition::Disjunction(parts) => {
+            let parts = parts
+                .into_iter()
+                .map(|part| canonical_clause(part, id))
+                .collect::<Checked<Vec<_>>>()?;
+            let mut parts = clauses(parts, Repeated::Merge, id)?;
+            Ok(match parts.len() {
+                0 => Proposition::Falsehood,
+                1 => parts.remove(0),
+                _ => Proposition::Disjunction(parts),
+            })
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Ok(Proposition::Implication {
+            premise: Box::new(canonical_clause(*premise, id)?),
+            conclusion: Box::new(canonical_clause(*conclusion, id)?),
+        }),
+        other => Ok(other),
+    }
+}
+
+struct ScalarFormals<'a> {
+    actuals: &'a [ValueId],
+    values: &'a arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    places: &'a [semantic_vocabulary::PlaceId],
+}
+
+impl ScalarFormals<'_> {
+    fn place(
+        &self,
+        formal: semantic_vocabulary::PlaceId,
+    ) -> Result<semantic_vocabulary::PlaceId, &'static str> {
+        usize::try_from(formal.get())
+            .ok()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|position| self.places.get(position))
+            .copied()
+            .ok_or("clause names storage that is not a structural formal")
+    }
+}
+
+impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
+    type Error = &'static str;
+
+    fn value(
+        &mut self,
+        formal: ValueId,
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        let actual = usize::try_from(formal.get())
+            .ok()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|position| self.actuals.get(position))
+            .ok_or("clause names a value that is not a formal")?;
+        Ok(ScalarTerm::value(*actual, scalar_type))
+    }
+
+    fn field(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        if version != semantic_vocabulary::ContentPlaceVersion::Current {
+            return Err("a loop header cannot restate a prior invocation's storage snapshot");
+        }
+        let root = self.place(root)?;
+        let path = path.to_vec();
+        Ok(match scalar_type {
+            semantic_vocabulary::ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            semantic_vocabulary::ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            semantic_vocabulary::ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            },
+            semantic_vocabulary::ScalarType::Callable(_) => {
+                return Err("clause restatement cannot observe a callable scalar field");
+            }
+        })
+    }
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        use terminal_check_tables::values::ValueOrigin;
+        match source {
+            ScalarTerm::IeeeFloatLiteral(_) => Ok(()),
+            ScalarTerm::Value { id, scalar_type } => {
+                let row = self
+                    .values
+                    .get(*id)
+                    .ok_or("float meaning restatement names no lowered value")?;
+                if row.scalar_type != *scalar_type || row.rigid.is_some() {
+                    return Err("float meaning restatement changes its lowered value type");
+                }
+                match row.origin {
+                    ValueOrigin::MachineParameter { .. }
+                    | ValueOrigin::BlockParameter { .. }
+                    | ValueOrigin::Operation(_) => Ok(()),
+                    ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => {
+                        Err("float meaning restatement has no executable scalar producer")
+                    }
+                }
+            }
+            _ => Err("float meaning restatement needs an exact scalar producer or literal"),
+        }
+    }
+
+    fn extent(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::ViewExtent {
+            root: self.place(root)?,
+            path: path.to_vec(),
+            scalar_type,
+        })
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.place(root)?,
+            path.to_vec(),
+        ))
+    }
+
+    fn case(
+        &mut self,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err("clause restatement has no captured structural entry case")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, ScalarType};
+
+    fn values(
+        scalar_type: ScalarType,
+    ) -> arena::IdTable<ValueId, terminal_check_tables::values::ValueRow> {
+        let mut values = arena::IdTable::default();
+        for position in 0..8 {
+            values.push(terminal_check_tables::values::ValueRow {
+                scalar_type,
+                origin: terminal_check_tables::values::ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+        }
+        values
+    }
+
+    #[test]
+    fn clause_substitution_preserves_nested_operations_and_actual_identity() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+        let clause = Proposition::IntegerMathLessThan(
+            IntegerMathTerm::embed(ScalarTerm::WrappingIntegerAdd {
+                scalar_type: integer,
+                left: Box::new(value(1)),
+                right: Box::new(value(2)),
+            })
+            .unwrap(),
+            IntegerMathTerm::embed(value(2)).unwrap(),
+        );
+        let actuals = [ValueId::new(8).unwrap(), ValueId::new(3).unwrap()];
+        let mut expected = clause.clone();
+        expected.remap_value_ids(|formal| actuals[(formal.get() - 1) as usize]);
+        assert_eq!(
+            substitute(
+                &clause,
+                &actuals,
+                &values(scalar),
+                MachineId::new(1).unwrap()
+            )
+            .unwrap(),
+            expected
+        );
+        assert!(
+            substitute(
+                &clause,
+                &actuals[..1],
+                &values(scalar),
+                MachineId::new(1).unwrap()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn clause_substitution_reorders_equalities_without_rewriting_their_operands() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+        let mathematical = |raw| IntegerMathTerm::embed(value(raw)).unwrap();
+        let clause = Proposition::Conjunction(vec![
+            Proposition::Equal(value(1), value(2)),
+            Proposition::IntegerMathEqual(mathematical(1), mathematical(2)),
+        ]);
+        let actuals = [ValueId::new(8).unwrap(), ValueId::new(3).unwrap()];
+        let machine = MachineId::new(1).unwrap();
+        assert_eq!(
+            substitute(&clause, &actuals, &values(scalar), machine).unwrap(),
+            conjunction(
+                vec![
+                    equal(value(3), value(8), machine).unwrap(),
+                    Proposition::IntegerMathEqual(mathematical(3), mathematical(8)),
+                ],
+                machine,
+            )
+            .unwrap()
+        );
+    }
+    #[test]
+    fn meaning_restatement_requires_the_actual_minted_value_and_format() {
+        use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let clause = Proposition::FloatMeaningEqual(
+            FloatMeaningClause::conversion_roundtrip(
+                ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
+                IeeeFloatFormat::Binary32,
+            )
+            .unwrap(),
+        );
+        let actuals = [ValueId::new(8).unwrap()];
+        let machine = MachineId::new(1).unwrap();
+        let mut roster = values(scalar);
+        let mapped = substitute(&clause, &actuals, &roster, machine).unwrap();
+        let Proposition::FloatMeaningEqual(mapped) = mapped else {
+            unreachable!()
+        };
+        assert_eq!(
+            mapped.sources().collect::<Vec<_>>(),
+            [&ScalarTerm::value(actuals[0], scalar)]
+        );
+        assert!(substitute(&clause, &[ValueId::new(9).unwrap()], &roster, machine).is_err());
+        roster.get_mut(actuals[0]).unwrap().scalar_type =
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        assert!(substitute(&clause, &actuals, &roster, machine).is_err());
+        let row = roster.get_mut(actuals[0]).unwrap();
+        row.scalar_type = scalar;
+        row.origin = terminal_check_tables::values::ValueOrigin::MachineResult;
+        assert!(substitute(&clause, &actuals, &roster, machine).is_err());
+    }
+}

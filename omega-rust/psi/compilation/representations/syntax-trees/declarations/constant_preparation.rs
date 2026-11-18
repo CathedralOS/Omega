@@ -52,7 +52,7 @@ pub struct ConstQualification {
     compiler_storage::Record,
 )]
 pub struct ConstDestinationObligation {
-    pub declaration: source::SourceSpan,
+    pub declaration: source_text::SourceSpan,
     pub destination: TypeReferenceHandle,
     pub initializer: ExpressionHandle,
 }
@@ -68,8 +68,8 @@ pub struct ConstDestinationObligation {
 )]
 pub struct ConstInitializerCustody {
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub builtin_operators: Vec<source_text::SourceSpan>,
+    pub call_selections: Vec<(source_text::SourceSpan, source_text::SourceSpan)>,
 }
 
 #[derive(
@@ -88,6 +88,6 @@ pub struct ConstInitializerNormalization {
     pub authored_expression: ExpressionHandle,
     pub result_value: language_core::constant_value::EvaluatedConstant,
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub builtin_operators: Vec<source_text::SourceSpan>,
+    pub call_selections: Vec<(source_text::SourceSpan, source_text::SourceSpan)>,
 }

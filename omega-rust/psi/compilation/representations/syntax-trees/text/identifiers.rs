@@ -2,7 +2,7 @@ use crate::text_owner::{RetainedSource, SyntaxTextContext};
 use arena::Handle;
 use std::fmt;
 
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 #[derive(Clone, Default, compiler_storage::Record)]
 pub struct Identifier {
@@ -44,7 +44,7 @@ impl Identifier {
             members.joined_path_in(context),
             SourceSpan::new(
                 first.source_id,
-                source::Span::new(first.span.start, last.span.end),
+                source_text::Span::new(first.span.start, last.span.end),
             ),
         )
     }

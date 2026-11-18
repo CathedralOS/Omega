@@ -436,7 +436,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .map(|account| {
                     let storage = account.reserve_site(0, 1, count)?;
                     account.charge_build_log_bytes(count)?;
-                    Ok::<_, evaluation_accounting::EvaluationAccountingError>(storage)
+                    Ok::<_, evaluation_contracts::EvaluationAccountingError>(storage)
                 })
                 .transpose()
                 .map_err(|error| {

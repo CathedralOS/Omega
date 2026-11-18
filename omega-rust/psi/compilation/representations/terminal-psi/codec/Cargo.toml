@@ -10,8 +10,9 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
-optimization = { path = "../../../../foundation/optimization" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
+wire = { path = "../../../../foundation/wire" }
+optimization = { path = "../../optimization-policy" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
 terminal-psi = { path = ".." }
 terminal-wire = { path = "../wire" }
 

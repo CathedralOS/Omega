@@ -9,7 +9,7 @@ Each directory owns one kind of work:
 | [compilation/](compilation/README.md) | The compilers and their machinery: pipeline, representations, realization and backend |
 | `interpreter/` | Hosted interpretation: the Terminal runtime that runs programs and the native-provider runtime it hosts |
 | [packages/](packages/README.md) | Package operations, acquisition, review and compilation inputs |
-| [foundation/](foundation/README.md) | Primitives shared across these domains |
+| [host-support/](host-support/README.md) | Bounded processes, filesystem custody and publication mechanisms |
 
 The application is Cargo package `omega` in `application/`; run it from the
 workspace root with `mbx run -p omega -- run <root.omg>`.
@@ -19,7 +19,9 @@ keeps its own manifest and API; Cargo dependencies enforce the boundaries.
 The build system in `build-system/` calls the compilers; compiler machinery,
 including its independent IR packages, is in `compilation/`. Hosted program
 execution is in `interpreter/`, a library any embedder can use without the
-`omega` executable. Shared utilities are in `foundation/`.
+`omega` executable. Generic primitives are in [Psi foundation](../psi/foundation/README.md).
+Native identity and optimization records are in `compilation/representations/`;
+product measurements and request records are in `compilation/products/`.
 
 Source processing through Terminal Psi is in [Psi](../psi/README.md),
 including [target-neutral interpretation](../psi/interpreter/README.md).

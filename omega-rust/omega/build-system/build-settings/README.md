@@ -144,33 +144,27 @@ Product root scopes and rejoins the selected Build source after parsing.
 `admit_dependency_generated_sources` checks scope-qualified paths before source
 assembly loads any generated unit.
 
-## Pure execution across target requests
+## Build execution across target requests
 
-One `CompilationSession` keeps each completed Pure Build that wrote no outputs,
-keyed by the exact checked program, initial value, captured source and
-dependency custody. Ordinary `CompileRequest` calls, which have no shared
-sponsor, may reuse a result too. The optional sponsor's identity and limits are part of the match, so a
-result computed without a sponsor cannot serve a later limited account. No
-account or grant is kept. Each occurrence still passes semantic and authority
-admission before it looks for a completed result, and every target row stays in
-that result. Builds that generate sources or require outputs are not reused.
+For package builds, `CompletedBuild::select_target` carries one settled Build
+to each requested Product target. The targets share its captured source and
+executed bindings. A standalone `check_source` request starts its own
+activation after admission, even when the caller retains the
+`CompilationSession` between requests. The current `PureBuildCompilation`
+handle holds no completed Build results.
 
-A sponsored cache hit pays its recorded logical work, BuildLog and result-custody
-cost to the current account before it is published. Its recorded live demand
-must fit beside current reservations. A refusal changes no counters and reruns
-nothing. The returned usage keeps the measured counts but reports
-the current sponsor's limits and peaks; the cached result never changes.
-This follows [result caching](../../../../wiki/spec/language/evaluation.md#result-caching-and-published-evidence):
-a cached result cannot exceed a limit a fresh evaluation would hit.
+Run `mbx run -p compiler --example build_charge -- --source-accounting` to
+measure the standalone source entry. Two requests run the Windows and Linux
+target selections against one sponsor. The exact combined work and result
+storage allowances admit both. A work allowance one unit short or a result
+storage allowance one cell short refuses the second request.
 
-`mbx run -p compiler --example build_session` (from the repository root) requires two target products from one Build execution, a later one-unit
-work account to be refused, and a different source input to run its own Build.
-This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a claim
-about other hosts. Generated sources and completing target rows remain open.
-
-In `mbx run -p compiler --example build_charge`, two target rows run one pure Build and pay two logical charges; a fresh account
-with the same policy pays its own charge, and an account one work unit short
-refuses the cached occurrence without running it.
+`build_charge --accounting` and `build_session` retain the controls for
+cross-request reuse. The standalone route currently lacks the source-bound
+completed-result cache they require. Reusing a pure result would have to
+preserve its bindings and log, repeat admission for the current occurrence,
+and charge the recorded work and custody against the current sponsor.
+[Result caching and published evidence](../../../../wiki/spec/language/evaluation.md#result-caching-and-published-evidence)
 
 ## Root-binding implementation boundary
 

@@ -7,14 +7,16 @@
 //! One program pins the accounted forms from source, and five twins each
 //! break one rule and are rejected with a diagnostic that names the domain.
 
-use typed_trees::deferred_refusals::DeferredRequest;
-use typed_trees::expression::ExpressionNode;
+use source_compiler::source_state::deferred_refusals::DeferredRequest;
+use source_compiler::source_state::expression::ExpressionNode;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Psi 00 through 04 on one fixture, without its Build.
-fn typed_frontier(name: &str) -> Result<typed_trees::FrozenTypedTrees, Vec<String>> {
+fn typed_frontier(
+    name: &str,
+) -> Result<source_compiler::source_state::FrozenTypedTrees, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

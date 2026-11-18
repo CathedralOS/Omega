@@ -201,9 +201,9 @@ fn structural_observations_read_only_the_active_case_at_the_selected_call() {
     );
 }
 use crate::embedding::instance::TerminalInstance;
-use evaluation_accounting::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
-    TerminalStorageScheduleIdentity,
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::{
+    BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::{ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
 use std::sync::Arc;

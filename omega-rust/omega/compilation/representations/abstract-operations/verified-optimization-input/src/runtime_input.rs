@@ -36,6 +36,10 @@ impl AdmittedRuntimeInput<'_> {
         self.artifact.artifact().view().identity()
     }
 
+    pub fn manifest_identity(&self) -> [u8; 32] {
+        *self.artifact.artifact().manifest().identity().as_bytes()
+    }
+
     pub const fn entry(&self) -> MachineId {
         self.entry
     }

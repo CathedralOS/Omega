@@ -14,27 +14,29 @@ pub fn execute_report_with_completion(
         .psi_artifact();
     let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("named Product publishes portable Terminal");
-    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: report.retained_native_artifact(),
-        entry: None,
-        filesystem: Default::default(),
-        native_services: Default::default(),
-        native_provider: None,
-        x86_flags: None,
-        memory_ordering: None,
-        provider_proposal: None,
-        artifact: &reloaded,
-        target: Some(
-            target::TargetProfile::host_if_supported()
-                .unwrap()
-                .target_name(),
-        ),
-        provisions: report.runtime_provisions(),
-        work_budget: 100_000,
-        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    })
+    let observation = orchestration::execute_published_terminal(
+        terminal_runtime::TerminalRuntimeRequest {
+            entry: None,
+            filesystem: Default::default(),
+            native_services: Default::default(),
+            native_provider: None,
+            x86_flags: None,
+            memory_ordering: None,
+            provider_proposal: None,
+            artifact: &reloaded,
+            target: Some(
+                target::TargetProfile::host_if_supported()
+                    .unwrap()
+                    .target_name(),
+            ),
+            provisions: report.runtime_provisions(),
+            work_budget: 100_000,
+            domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+            standard_input: None,
+            clock: None,
+        },
+        report.retained_native_artifact(),
+    )
     .expect("execute joined Terminal Product");
     let completed = match process_exit {
         None => matches!(

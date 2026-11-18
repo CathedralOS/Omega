@@ -3,11 +3,12 @@
 use super::{Error, reader::Reader};
 use crate::encoding::intrinsic_tags::IntrinsicTag;
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-use provider_planning::{
+use effects::{
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
+use numeric_literals::FloatFormat;
+use numerics::arithmetic::ArithmeticDomain;
 
 pub(in crate::encoding::recovery) fn execution(
     reader: &mut Reader<'_>,

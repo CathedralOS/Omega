@@ -62,7 +62,7 @@ impl TerminalPermissionAcceptance {
             })
             .map(|row| {
                 let component = row.kind() == PackagePolicyRowKind::ComponentAssumption;
-                let key = optimization_core::digest_encoder::content_identity(row.key_bytes());
+                let key = ::wire::digest_encoder::content_identity(row.key_bytes());
                 let text = row.into_canonical_text();
                 if component
                     && !self

@@ -12,8 +12,8 @@ use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
-use numerics::literals::IntegerLiteral;
-use source::{SourceId, SourceSpan, Span};
+use numeric_literals::IntegerLiteral;
+use source_text::{SourceId, SourceSpan, Span};
 
 fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHandle) {
     use crate::expression::{TableIndexedExpression, TableMembershipExpression};
@@ -414,7 +414,7 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
 #[test]
 fn semantic_nan_declaration_survives_copy_without_encoding() {
     use language_core::constant_value::EvaluatedConstant;
-    use numerics::literals::FloatFormat;
+    use numeric_literals::FloatFormat;
     for format in [FloatFormat::F32, FloatFormat::F64] {
         let mut source = SyntaxTrees::new(Default::default());
         let value = source
@@ -1176,7 +1176,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
 
 #[test]
 fn retained_name_pages_survive_clone_copy_and_owner_retirement() {
-    use source::{SourceId, SourceSpan, Span};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::sync::Arc;
     let source: Arc<str> = Arc::from("first second");
     let mut original = SyntaxTrees::new(SourceId(1));
@@ -1219,7 +1219,7 @@ fn retained_name_pages_survive_clone_copy_and_owner_retirement() {
 
 #[test]
 fn contextual_syntax_equality_includes_detached_nodes_and_logical_name_text() {
-    use source::{SourceId, SourceSpan, Span};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::sync::Arc;
     fn forest(spelling: &str) -> SyntaxTrees {
         let mut syntax = SyntaxTrees::new(SourceId(1));

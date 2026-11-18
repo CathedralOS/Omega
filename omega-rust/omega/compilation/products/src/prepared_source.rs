@@ -11,44 +11,11 @@ use package_compilation::source_assembly::{
     DeferredProductSources, ImmutableSourceParseCheckpoint,
 };
 use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceAssemblyInputs};
+use source_compiler::SourcePreparation;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Default)]
-pub struct SourcePreparation {
-    catalogue: Arc<Mutex<source::SourceCatalogue>>,
-    pub frontends: source_compiler::SourceFrontends,
-}
-
-impl SourcePreparation {
-    pub fn catalogue(
-        &self,
-    ) -> Result<std::sync::MutexGuard<'_, source::SourceCatalogue>, Vec<Diagnostic>> {
-        self.catalogue
-            .lock()
-            .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
-    }
-}
-
-/// Which stage of how many the Build entry of a typed frontier is. A Build
-/// entry is divided at its top-level dependency preparations
-/// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages"), and a
-/// frontier holds the statements of one stage, or the whole entry when it was
-/// not divided.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildStage {
-    pub index: usize,
-    pub count: usize,
-}
-
-impl BuildStage {
-    /// The whole entry: no preparation divides it, or nothing divided it.
-    pub const WHOLE: Self = Self { index: 0, count: 1 };
-
-    pub fn is_last(self) -> bool {
-        self.index + 1 == self.count
-    }
-}
+use declaration_contracts::build_stage::BuildStage;
 
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
@@ -59,8 +26,9 @@ pub struct TypedCompilationFrontier {
     pub product_sources: Option<DeferredProductCompilation>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub source_file_count: usize,
-    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    pub base_sources: Arc<source::SourceMap>,
+    pub generated_source_custody:
+        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
+    pub base_sources: Arc<source_compiler::source_inputs::SourceMap>,
 }
 
 #[derive(Clone)]
@@ -251,7 +219,7 @@ impl TypedCompilationFrontier {
     fn rejoin_current_authority(self, packages: Option<&PackageCompilationInputs>) -> Option<Self> {
         let authority = packages.map(|packages| {
             Arc::new(packages.clone())
-                as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+                as Arc<dyn source_compiler::evaluation::BuildTimeSelectionAuthority>
         });
         match self.source.rejoin_current_authority(authority) {
             Ok(source) => Some(Self { source, ..self }),

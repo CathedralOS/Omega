@@ -24,7 +24,7 @@ pub struct PackagePolicyServiceMethod {
     pub(crate) has_result: bool,
     pub(crate) result_type_identity: Option<String>,
     pub(crate) normal_result_memberships:
-        Vec<language_semantics::service_surface::ServiceNormalResultMembership>,
+        Vec<declaration_contracts::service_surface::ServiceNormalResultMembership>,
     pub(crate) result_claims: Vec<ServiceResultClaim>,
     pub(crate) service_reach: Vec<String>,
     pub(crate) synchronous_invocations: Vec<String>,
@@ -56,7 +56,7 @@ impl PackagePolicyServiceMethod {
         self.result_type_identity.as_deref()
     }
 
-    field_projection_accessors!(sliced normal_result_memberships: &[language_semantics::service_surface::ServiceNormalResultMembership]);
+    field_projection_accessors!(sliced normal_result_memberships: &[declaration_contracts::service_surface::ServiceNormalResultMembership]);
     field_projection_accessors!(sliced result_claims: &[ServiceResultClaim]);
     field_projection_accessors!(sliced service_reach: &[String]);
     field_projection_accessors!(sliced synchronous_invocations: &[String]);

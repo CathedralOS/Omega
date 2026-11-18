@@ -564,3 +564,96 @@ pub fn constant_fold_steps<E>(
         })
         .ok_or_else(overflow)
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PreAllocationPolicy {
+    enabled: u32,
+}
+
+impl PreAllocationPolicy {
+    const SAME_BLOCK_COPY_I64_V1_BIT: u32 = 1 << 0;
+    const REDUNDANT_EXTENSION_V1_BIT: u32 = 1 << 1;
+    const ADDRESS_FOLD_V1_BIT: u32 = 1 << 2;
+    const CONSTANT_BOOLEAN_V1_BIT: u32 = 1 << 3;
+    const CONSTANT_BRANCH_V1_BIT: u32 = 1 << 4;
+    const DEAD_COMPARE_V1_BIT: u32 = 1 << 5;
+    const REDUNDANT_COMPARE_V1_BIT: u32 = 1 << 6;
+    const EQUIVALENT_COMPARE_V1_BIT: u32 = 1 << 7;
+    const COPIED_CALL_OPERAND_V1_BIT: u32 = 1 << 8;
+    const STORED_LOAD_FORWARDING_V1_BIT: u32 = 1 << 9;
+    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
+        | Self::REDUNDANT_EXTENSION_V1_BIT
+        | Self::ADDRESS_FOLD_V1_BIT
+        | Self::CONSTANT_BOOLEAN_V1_BIT
+        | Self::CONSTANT_BRANCH_V1_BIT
+        | Self::DEAD_COMPARE_V1_BIT
+        | Self::REDUNDANT_COMPARE_V1_BIT
+        | Self::EQUIVALENT_COMPARE_V1_BIT
+        | Self::COPIED_CALL_OPERAND_V1_BIT
+        | Self::STORED_LOAD_FORWARDING_V1_BIT;
+
+    pub const SAME_BLOCK_COPY_I64_V1: Self = Self {
+        enabled: Self::SAME_BLOCK_COPY_I64_V1_BIT,
+    };
+
+    pub const REDUNDANT_EXTENSION_V1: Self = Self {
+        enabled: Self::REDUNDANT_EXTENSION_V1_BIT,
+    };
+
+    pub const ADDRESS_FOLD_V1: Self = Self {
+        enabled: Self::ADDRESS_FOLD_V1_BIT,
+    };
+
+    pub const CONSTANT_BOOLEAN_V1: Self = Self {
+        enabled: Self::CONSTANT_BOOLEAN_V1_BIT,
+    };
+
+    pub const CONSTANT_BRANCH_V1: Self = Self {
+        enabled: Self::CONSTANT_BRANCH_V1_BIT,
+    };
+
+    pub const DEAD_COMPARE_V1: Self = Self {
+        enabled: Self::DEAD_COMPARE_V1_BIT,
+    };
+
+    pub const REDUNDANT_COMPARE_V1: Self = Self {
+        enabled: Self::REDUNDANT_COMPARE_V1_BIT,
+    };
+
+    pub const EQUIVALENT_COMPARE_V1: Self = Self {
+        enabled: Self::EQUIVALENT_COMPARE_V1_BIT,
+    };
+
+    pub const COPIED_CALL_OPERAND_V1: Self = Self {
+        enabled: Self::COPIED_CALL_OPERAND_V1_BIT,
+    };
+
+    pub const STORED_LOAD_FORWARDING_V1: Self = Self {
+        enabled: Self::STORED_LOAD_FORWARDING_V1_BIT,
+    };
+
+    pub const fn empty() -> Self {
+        Self { enabled: 0 }
+    }
+
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            enabled: self.enabled | other.enabled,
+        }
+    }
+
+    pub const fn contains(self, other: Self) -> bool {
+        self.enabled & other.enabled == other.enabled
+    }
+
+    pub const fn canonical_bits(self) -> u32 {
+        self.enabled
+    }
+
+    pub const fn from_canonical_bits(bits: u32) -> Option<Self> {
+        if bits & !Self::KNOWN_BITS != 0 {
+            return None;
+        }
+        Some(Self { enabled: bits })
+    }
+}

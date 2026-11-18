@@ -10,43 +10,59 @@
 //!
 //! The default compile takes this path: when the checker accepts a compilation
 //! and its module publishes, the Terminal product is that artifact and its
-//! seals stay beside it for Omega 00. An executable child requests its calling
-//! declarations before publication and receives a new judgment over the same
-//! source and full roster.
+//! seals stay beside it for native planning. The shared source roster includes
+//! the Build-selected entry declaration before publication.
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
+use source_compiler::checking::RoutePublication;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
-use terminal_psi_to_terminal_psi::RoutePublication;
 use terminal_work::WorkMeter;
 
-// Fixture compilation shares process-wide counters; run one at a time.
-static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+// The lock serializes access to process-wide counters. It stores no fixture
+// state, so each test can still report its own result after an earlier panic.
+fn serialize_fixture_compilation() -> std::sync::MutexGuard<'static, ()> {
+    static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 #[test]
 fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     use optimization_unit::{AcceptedObligationFact, AcceptedObligationOwner};
 
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (publication, _, _, _) =
-        published_fixture("tests/fixtures/run/calls/indexed_case_discriminator");
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
-        &artifact_trust::authorize(&publication.artifact),
-        Some(publication.seals.clone()),
+    let _compilation = serialize_fixture_compilation();
+    let product = default_product("tests/fixtures/run/calls/indexed_case_discriminator");
+    let proposal = product
+        .native_realization_proposal()
+        .expect("the selected application retains its native proposal");
+    let seals = product
+        .evidence()
+        .expect("the checker sealed the indexed read");
+    let execution = proposal
+        .prepare_native_execution(product.authorization(), &[])
+        .unwrap()
+        .with_operation_evidence(product.artifact(), Some(seals.clone()))
+        .unwrap();
+    let (input, _) =
+        native_program_planning::lower_native_execution(proposal, execution, &[], None)
+            .expect("lower the checked entry and its selected callees with their evidence");
+    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input.into_optimization_input(),
+        terminal_work::WorkSchedule::CURRENT.identity(),
     )
     .unwrap()
-    .into_optimization_artifact()
-    .into_optimization_input();
-    let (_, unit) =
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
-            input,
-            terminal_work::WorkSchedule::CURRENT.identity(),
+    .into_parts();
+    let frontiers =
+        optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(
+            &unit, &[],
         )
-        .unwrap()
-        .into_parts();
+        .unwrap();
+    let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers).unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
         &unit,
         &[],
@@ -62,8 +78,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     let AcceptedObligationOwner::Terminator(block) = fact.owner else {
         unreachable!()
     };
-    let seal = publication
-        .seals
+    let seal = seals
         .seals
         .iter()
         .find(|seal| seal.machine == fact.machine && seal.obligation == fact.obligation)
@@ -92,7 +107,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
         ), "a numerically equal operation or chosen edge cannot own the discriminator's read");
     }
 
-    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module()).unwrap();
+    let bytes = terminal_codec::encode_module(product.artifact().semantic_module()).unwrap();
     let mut execution =
         TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
             .unwrap();
@@ -171,8 +186,9 @@ fn published_fixture(
         .closure()
         .publish()
         .expect("the accepted module publishes");
-    let (signature, application) = compiler::prepare_program_entry(&checked)
-        .expect("the Build-selected entry has a real producer");
+    let (signature, application) =
+        compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+            .expect("the Build-selected entry has a real producer");
     let receipt = application
         .receipt
         .expect("entry preparation")
@@ -192,7 +208,7 @@ fn published_fixture(
 
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = serialize_fixture_compilation();
     let (publication, root, signature, checked) =
         published_fixture("tests/fixtures/run/calls/scalar_contract_route_exit");
 
@@ -224,7 +240,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         "a same-leaf root from another owner cannot join"
     );
 
-    // Omega 00 attaches the seals to that module, and each accepted
+    // Native planning joins the seals to this module. Each accepted
     // operation obligation carries its certificate's fingerprint.
     let expected: Vec<[u8; 32]> = publication
         .seals
@@ -236,20 +252,19 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("Omega 00 lowers the published module with its seals")
+    .expect("native planning lowers the published module with its seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) =
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
-            input,
-            terminal_work::WorkSchedule::CURRENT.identity(),
-        )
-        .expect("Omega 01 builds the verified unit")
-        .into_parts();
+    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input,
+        terminal_work::WorkSchedule::CURRENT.identity(),
+    )
+    .expect("native planning constructs the verified optimization unit")
+    .into_parts();
     let sealed: Vec<[u8; 32]> = unit
         .accepted_obligation_facts
         .iter()
@@ -284,31 +299,30 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
-/// The executable product uses its own fully judged descriptor request over
-/// the same source and complete roster. Its artifact and evidence must equal
-/// that accepted module's publication, rather than reusing the earlier Check
-/// artifact, which has no calling metadata.
+/// The executable product carries the calling metadata already requested by
+/// the shared source roster. Rejudging that roster reproduces its artifact
+/// and its operation evidence.
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = serialize_fixture_compilation();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (check_publication, _, _, checked) = published_fixture(fixture);
-    let (signature, _) = compiler::prepare_program_entry(&checked).unwrap();
+    let (signature, _) =
+        compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
     let accepted = checked.terminal_publication().accepted().unwrap();
     let catalog = checked
         .source_inspection()
         .inventory()
         .services_for(accepted.source().as_ref())
         .expect("the accepted source's retained Product service catalog");
-    let boundary = package_compilation::selected_program_entry_boundary(
+    let boundary = source_compiler::entry_contracts::selected_program_entry_boundary(
         catalog,
-        signature.target_slot(),
-        None,
+        &package_compilation::source_imports::source_target(signature.target_slot().owner, None),
     )
     .expect("the selected target's authenticated entry declaration");
-    let mut roster = checked.terminal_publication().roster().unwrap().clone();
-    roster.declaration_metadata.push(boundary);
-    let executable = products::ProductTerminalPublication::judge(
+    let roster = checked.terminal_publication().roster().unwrap().clone();
+    assert!(roster.declaration_metadata.contains(&boundary));
+    let executable = source_compiler::SourcePublication::judge(
         std::sync::Arc::clone(accepted.source()),
         roster,
         checked.terminal_publication().optimizations().clone(),
@@ -327,10 +341,12 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
             .calling_abi_signatures
             .is_empty()
     );
-    assert_ne!(
+    assert_eq!(
         check_publication.artifact.manifest().semantic(),
-        publication.artifact.manifest().semantic()
+        publication.artifact.manifest().semantic(),
+        "the same frozen source and full roster produce the same artifact"
     );
+    assert_eq!(check_publication.seals, publication.seals);
     let product = default_product(fixture);
 
     assert_eq!(
@@ -350,7 +366,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 }
 
 /// The Terminal product the default compile builds for `fixture`.
-fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
+fn default_product(fixture: &str) -> native_program_planning::RetainedTerminalArtifact {
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -384,7 +400,7 @@ fn repo_root() -> &'static std::path::Path {
 
 #[test]
 fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = serialize_fixture_compilation();
     let product = default_product("tests/fixtures/run/calls/uninhabited_payload_coverage");
     let module = product.artifact().semantic_module();
     assert!(
@@ -438,7 +454,7 @@ fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
 /// uses those canonical identities rather than a display name.
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = serialize_fixture_compilation();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (publication, _, _, checked) = published_fixture(fixture);
     let published = publication.artifact.semantic_module();
@@ -481,10 +497,42 @@ fn the_published_module_states_each_machines_declaration_identity() {
         .iter()
         .filter_map(|machine| machine.declaration.as_ref())
         .collect();
+    let source = checked.source_inspection().program();
+    let main = repo_root()
+        .join(fixture)
+        .join("main.omg")
+        .canonicalize()
+        .unwrap();
+    let mut authored = Vec::new();
+    for machine in source.machines() {
+        let file = source
+            .symbols
+            .symbol_source_span(machine.symbol)
+            .and_then(|span| source.symbols.source_file(span));
+        if file.is_some_and(|file| file.path == main) {
+            let identity = source
+                .exact_owner_nominal_identity(machine.symbol, &[])
+                .and_then(|id| source.type_identity_text(id))
+                .expect("each authored machine has its exact package declaration");
+            let root =
+                terminal_psi::PreparedNominalRoot::new(&identity, machine.name.as_str(), None)
+                    .unwrap();
+            root.resolve(published)
+                .expect("the published module contains this exact declaration once");
+            authored.push(machine.name.as_str());
+        }
+    }
+    authored.sort_unstable();
     assert_eq!(
-        published.machines.len(),
-        6,
-        "the fixture declares six machines"
+        authored,
+        [
+            "main",
+            "report_large",
+            "report_small",
+            "scaled",
+            "settle",
+            "within"
+        ]
     );
     for machine in &published.machines {
         let declaration = machine

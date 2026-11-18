@@ -2123,7 +2123,7 @@ pub(crate) mod declaration_foundations {
     pub(crate) mod opaque_representations {
 
         use crate::codec_error::{CodecError, malformed};
-        use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
+        use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
         use terminal_psi::{
             StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
             StructuralTypeShape, TerminalModule,
@@ -3079,7 +3079,7 @@ pub(crate) mod installed_interrupts {
                 || registration.registrar_requirement.is_empty()
                 || registration.slot_encoding.is_empty()
                 || registration.slot_commitment == [0; 32]
-                || language_semantics::conformance_identity::source_identity_commitments(
+                || application_identity::conformance_identity::source_identity_commitments(
                     &registration.slot_encoding,
                 )
                 .1 != registration.slot_commitment
@@ -10483,7 +10483,7 @@ pub(crate) mod task_activation {
             for frame in &demand.frames {
                 identity(frame.machine_callable_identity)?;
                 identity(frame.entry)?;
-                let mut hash = semantic_vocabulary::Fnv1a::new();
+                let mut hash = wire::fnv1a::Fnv1a::new();
                 hash.byte(0x57);
                 hash.string_terminated(
                     module
@@ -13726,7 +13726,7 @@ mod installed_interrupt_owner_tests {
                 registrar_requirement: "test::install".into(),
                 slot_declaration: nominal,
                 slot_commitment:
-                    language_semantics::conformance_identity::source_identity_commitments(
+                    application_identity::conformance_identity::source_identity_commitments(
                         &slot_encoding,
                     )
                     .1,
