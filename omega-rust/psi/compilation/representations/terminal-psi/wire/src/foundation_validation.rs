@@ -12550,21 +12550,10 @@ fn validate_operation_foundation(
             "public requirement contract is attached to an operation that is not a module call",
         );
     }
-    if let OperationKind::ReadScalarApplication { application } = operation.kind {
-        let Some(carrier) = module
-            .scalar_applications
-            .declaration(application)
-            .and_then(|declaration| declaration.scalar_type())
-        else {
-            return malformed("scalar application read has no catalog declaration");
-        };
-        if operation
-            .result
-            .scalar_ref()
-            .is_none_or(|result| result.scalar_type != carrier)
-        {
-            return malformed("scalar application read result differs from its declared carrier");
-        }
+    if let Err(reason) =
+        terminal_semantics::scalar_application_read_equation(&module.scalar_applications, operation)
+    {
+        return malformed(reason);
     }
     if operation
         .kind

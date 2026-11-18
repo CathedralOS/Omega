@@ -443,3 +443,63 @@ mod float_fields {
         }
     }
 }
+
+#[test]
+fn application_reads_use_only_the_exact_proved_application_equality() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarApplicationId};
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let carrier = ScalarType::Integer(integer);
+    let id = ValueId::new(1).unwrap();
+    let context = PropositionContext::from_value_types([(id, carrier)]).unwrap();
+    let application = |identity| ScalarTerm::Application {
+        application: ScalarApplicationId::new(identity).unwrap(),
+        scalar_type: carrier,
+    };
+    let value = ScalarTerm::value(id, carrier);
+    let four = ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap();
+    let read = Proposition::Equal(value.clone(), application(1));
+    let goal = Proposition::Equal(value, four.clone());
+    let observed = [
+        (
+            "exact application",
+            Proposition::Equal(application(1), four.clone()),
+            true,
+            true,
+        ),
+        (
+            "another application",
+            Proposition::Equal(application(2), four.clone()),
+            true,
+            false,
+        ),
+        (
+            "missing read",
+            Proposition::Equal(application(1), four),
+            false,
+            false,
+        ),
+    ]
+    .map(|(name, requirement, include_read, accepted)| {
+        let assumptions = [requirement.clone()];
+        let axioms = [read.clone()];
+        let mut equalities = vec![ProofNode {
+            conclusion: requirement,
+            rule: ProofRule::Assumption { index: 0 },
+        }];
+        if include_read {
+            equalities.push(ProofNode {
+                conclusion: read.clone(),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            });
+        }
+        let proof = transport(goal.clone(), equalities);
+        let result = accept_certificate(&context, &goal, &assumptions, &axioms, &proof);
+        let missing = accept_certificate(&context, &goal, &[], &axioms, &proof);
+        eprintln!("{name}: {result:?}; missing requirement: {missing:?}");
+        (name, result.is_ok(), missing.is_err(), accepted)
+    });
+    for (name, result, missing_refused, accepted) in observed {
+        assert_eq!(result, accepted, "{name}");
+        assert!(missing_refused, "{name} must retain its proved requirement");
+    }
+}

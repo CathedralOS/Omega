@@ -1026,8 +1026,13 @@ impl<'a> Storage<'a> {
             // does not know of.
             _ => {
                 if produced.is_some()
-                    || crate::checking::result_equation(self.machine, operation, value_types)?
-                        .is_none()
+                    || crate::checking::result_equation(
+                        self.module,
+                        self.machine,
+                        operation,
+                        value_types,
+                    )?
+                    .is_none()
                 {
                     return Err(
                         self.unsupported(concerns, "an operation whose stores are not derived")

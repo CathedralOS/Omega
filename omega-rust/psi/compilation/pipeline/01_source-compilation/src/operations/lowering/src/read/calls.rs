@@ -1091,17 +1091,12 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
-    /// A sealed ordinary borrow returns the source's existing permission.
-    /// Its closed result belongs to the actual application, never to the
-    /// type a caller hopes to receive. Other interpretations still need
-    /// their evaluated policy, content, profile and resident correspondence.
     /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
-    /// take data types"). The operand is read as an ordinary value type, so
-    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
-    /// the observation measures exactly that row. Only a record row has a
-    /// storage geometry this reader can name; a scalar, a rigid type
-    /// parameter and the value form `align_of(view)` stay refused here
-    /// rather than receive a fabricated measurement.
+    /// take data types") measure the operand's existing physical storage.
+    /// Records keep their selected layout; primitive carriers use their
+    /// registered builtin storage. Forming a qualified type for this query
+    /// establishes no value or permission. The selected target supplies the
+    /// actual measurement.
     pub(super) fn layout_query(
         &mut self,
         id: MachineId,
@@ -1119,9 +1114,12 @@ impl<'t> Program<'t> {
         {
             return unserved("layout query without exactly one type operand");
         }
-        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
-        else {
-            return unserved("layout query of a carrier with no record row");
+        let subject = match self.value_type(id, query.operand.type_reference)? {
+            ValueType::Record(subject, _, _) => subject,
+            ValueType::Scalar(scalar, _) => self.plain_scalar_storage(id, scalar)?,
+            ValueType::Rigid(_) => {
+                return unserved("layout query with an unresolved storage carrier");
+            }
         };
         let measurement = match query.kind {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
@@ -1143,6 +1141,10 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// A sealed ordinary borrow returns the source's existing permission.
+    /// Its closed result belongs to the actual application, never to the
+    /// type a caller hopes to receive. Other interpretations still need
+    /// their evaluated policy, content, profile and resident correspondence.
     fn borrow_factory_call(
         &mut self,
         id: MachineId,

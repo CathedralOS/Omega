@@ -3921,6 +3921,27 @@ pub(crate) mod reference_storage_geometry {
         Some((width, width))
     }
 
+    // Placement follows the existing native default, not the stricter
+    // byte-view codec query. Address placement remains target-owned.
+    fn primitive_scalar_geometry(
+        scalar: ScalarType,
+        carriers: Option<TargetCarrierLayout>,
+    ) -> Result<(u64, u64), StorageGeometryError> {
+        match scalar {
+            ScalarType::Integer(integer) if integer.is_address() => {
+                let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+                carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment)
+            }
+            ScalarType::Integer(integer) => {
+                let integer = semantic_vocabulary::ClosedIntegerType::try_from(integer)
+                    .map_err(|_| StorageGeometryError::UnsupportedScalar(scalar))?;
+                let layout = layout_planning::standalone_integer_geometry(integer);
+                Ok((layout.byte_size, layout.byte_alignment))
+            }
+            _ => scalar_geometry(scalar).ok_or(StorageGeometryError::UnsupportedScalar(scalar)),
+        }
+    }
+
     fn field_geometry<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
         owner: StructuralTypeId,
@@ -4738,9 +4759,9 @@ pub(crate) mod reference_storage_geometry {
             StructuralTypeShape::AtomicCell(cell) => scalar_geometry(cell.scalar_type())
                 .map(Some)
                 .ok_or(StorageGeometryError::UnsupportedScalar(cell.scalar_type())),
-            StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar)
-                .map(Some)
-                .ok_or(StorageGeometryError::UnsupportedScalar(*scalar)),
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                primitive_scalar_geometry(*scalar, carriers).map(Some)
+            }
             StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::TargetLayout(application),
                 ..
@@ -5390,6 +5411,67 @@ pub(crate) mod reference_storage_geometry {
                 field_type,
                 storage,
             }
+        }
+
+        #[test]
+        fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
+            let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+            let narrow = scalar(13);
+            let types = [address, narrow, scalar(32)]
+                .into_iter()
+                .enumerate()
+                .map(|(position, scalar)| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: identity(position as u64 + 1),
+                    identity: TerminalIdentityIndex(position as u32 + 1),
+                    shape: StructuralTypeShape::PrimitiveScalar(scalar),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                })
+                .collect::<Vec<_>>();
+            let target = |size, alignment| TargetCarrierLayout {
+                pointer_byte_size: size,
+                pointer_byte_alignment: alignment,
+                descriptor_byte_size: 16,
+                descriptor_byte_alignment: 8,
+                case_tag_byte_size: 4,
+                case_tag_byte_alignment: 4,
+            };
+            let layout = |root, carriers| {
+                ReferenceStorageGeometry::new(types.iter(), |application| {
+                    Err(StorageGeometryError::UnresolvedExtent(application))
+                })
+                .with_target_carriers(carriers)
+                .layout(root)
+            };
+            // The displayed 64-bit carrier supplies no target placement.
+            assert_eq!(
+                layout(identity(1), None),
+                Err(StorageGeometryError::MissingCarrierLayout)
+            );
+            assert_eq!(layout(identity(1), Some(target(4, 2))), Ok((4, 2)));
+            assert_eq!(layout(identity(1), Some(target(16, 8))), Ok((16, 8)));
+            assert_eq!(
+                layout(identity(1), Some(target(0, 8))),
+                Err(StorageGeometryError::InvalidCarrierLayout)
+            );
+            assert_eq!(
+                layout(identity(1), Some(target(8, 3))),
+                Err(StorageGeometryError::InvalidCarrierLayout)
+            );
+            assert_eq!(layout(identity(2), None), Ok((2, 2)));
+            assert_eq!(layout(identity(3), None), Ok((4, 4)));
+            assert_eq!(crate::reference_storage_byte_width(address), None);
+            assert_eq!(crate::reference_storage_byte_width(narrow), None);
+            assert!(!crate::reference_storage_view_is_compatible(
+                address, address
+            ));
         }
 
         #[test]

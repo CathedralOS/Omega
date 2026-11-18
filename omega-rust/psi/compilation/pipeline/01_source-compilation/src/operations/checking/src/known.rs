@@ -18,8 +18,8 @@ use proof_admission::{
     ProofNode, ProofRule, check_value_equality_denotation, check_value_equality_substitution,
 };
 use semantic_vocabulary::{
-    IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ScalarType,
-    ValueId,
+    IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarApplicationId,
+    ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
@@ -185,7 +185,28 @@ pub(crate) struct Known {
 pub(crate) struct TransportInputs {
     used: Vec<bool>,
     pub(crate) selected: Vec<usize>,
-    pending: Vec<ValueId>,
+    pending: Vec<DefinitionSubject>,
+    applications: Vec<(ScalarApplicationId, ScalarType, usize)>,
+    indexed_equations: usize,
+}
+
+#[derive(Clone, Copy)]
+enum DefinitionSubject {
+    Value(ValueId),
+    Application(ScalarApplicationId, ScalarType),
+}
+
+impl DefinitionSubject {
+    fn of(term: &ScalarTerm) -> Option<Self> {
+        match *term {
+            ScalarTerm::Value { id, .. } => Some(Self::Value(id)),
+            ScalarTerm::Application {
+                application,
+                scalar_type,
+            } => Some(Self::Application(application, scalar_type)),
+            _ => None,
+        }
+    }
 }
 
 impl TransportInputs {
@@ -194,6 +215,8 @@ impl TransportInputs {
             used: vec![false; equations],
             selected: Vec::new(),
             pending: Vec::new(),
+            applications: Vec::new(),
+            indexed_equations: 0,
         }
     }
 }
@@ -288,6 +311,25 @@ impl Known {
                 &mut conjuncts,
             );
         }
+        // A supplied equality can name the application on either side.
+        // Orient its proved symmetry for substitution; operation equations
+        // keep their original read-to-application direction.
+        for index in 0..facts.len() {
+            let fact = &facts[index];
+            let Proposition::Equal(left, right @ ScalarTerm::Application { .. }) =
+                &fact.proposition
+            else {
+                continue;
+            };
+            if fact.axiom.is_some() || matches!(left, ScalarTerm::Application { .. }) {
+                continue;
+            }
+            facts.push(Fact {
+                proposition: Proposition::Equal(right.clone(), left.clone()),
+                origin: Origin::EqualitySymmetry { premise: index },
+                axiom: None,
+            });
+        }
         let mut deferred_storage_aliases = Vec::new();
         let equations: Vec<_> = facts
             .iter()
@@ -326,6 +368,9 @@ impl Known {
                                     && matches!(subject.scalar_type(), ScalarType::Integer(_)))
                         }
                     }
+                }
+                Proposition::Equal(subject @ ScalarTerm::Application { .. }, definition) => {
+                    subject != definition
                 }
                 _ => false,
             })
@@ -615,8 +660,8 @@ impl Known {
         }
     }
 
-    /// Cite the first definition of each value the predicate actually uses,
-    /// following definitions transitively. Including every earlier derived
+    /// Cite the first definition of each value or application the predicate
+    /// actually uses, following definitions transitively. Including every earlier derived
     /// equality would duplicate unrelated proof trees at every new step.
     pub(crate) fn transport_inputs(
         facts: &[Fact],
@@ -629,27 +674,55 @@ impl Known {
             used,
             selected: inputs,
             pending,
+            applications,
+            indexed_equations,
         } = scratch;
+        // Applications are immutable values with module-owned identities.
+        // Index their checked equations once, including the carrier so a
+        // different typed occurrence cannot borrow the same substitution.
+        // Arrival equations extend the ordinary list. Reusing this lookup
+        // for its shorter prefix must not expose an appended equation.
+        let first_application = applications.len();
+        for index in *indexed_equations..equations.len() {
+            if let Proposition::Equal(
+                ScalarTerm::Application {
+                    application,
+                    scalar_type,
+                },
+                _,
+            ) = &facts[equations[index]].proposition
+            {
+                applications.push((*application, *scalar_type, index));
+            }
+        }
+        *indexed_equations = (*indexed_equations).max(equations.len());
+        if applications.len() != first_application {
+            applications.sort_unstable();
+            applications.dedup_by(|later, earlier| (later.0, later.1) == (earlier.0, earlier.1));
+        }
         // Reset only the preceding traversal's selected definitions. New
         // equations append, so the invocation-owned marks only grow.
         for index in inputs.drain(..) {
             used[index] = false;
         }
         used.resize(equations.len(), false);
-        proposition.visit_value_ids(|value| pending.push(value));
-        while let Some(value) = pending.pop() {
-            let Some(Some(index)) = defined.get(value) else {
-                continue;
+        proposition.visit_scalar_terms(|term| pending.extend(DefinitionSubject::of(term)));
+        while let Some(subject) = pending.pop() {
+            let index = match subject {
+                DefinitionSubject::Value(value) => defined.get(value).copied().flatten(),
+                DefinitionSubject::Application(application, scalar_type) => applications
+                    .binary_search_by_key(&(application, scalar_type), |row| (row.0, row.1))
+                    .ok()
+                    .map(|position| applications[position].2)
+                    .filter(|index| *index < equations.len()),
             };
-            if std::mem::replace(&mut used[*index], true) {
+            let Some(index) = index else { continue };
+            if std::mem::replace(&mut used[index], true) {
                 continue;
             }
-            inputs.push(*index);
-            if let Proposition::Equal(_, definition) = &facts[equations[*index]].proposition {
-                definition.visit_value_ids(|value| {
-                    pending.push(value);
-                    true
-                });
+            inputs.push(index);
+            if let Proposition::Equal(_, definition) = &facts[equations[index]].proposition {
+                definition.visit_terms(|term| pending.extend(DefinitionSubject::of(term)));
             }
         }
         inputs.sort_unstable();
