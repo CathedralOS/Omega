@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - work/compiler-linear-pipeline-host-proof
+    paths:
+      - 'native-host-proof/images/**'
+      - 'native-host-proof/images.json'
+      - 'native-host-proof/verify.py'
 
 permissions:
   contents: read
