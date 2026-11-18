@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Compiler repair plan</h1>
       <p class="lede">The observed architecture problems, their proposed repairs, and the contracts the replacement must preserve.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas"><code>cfd68d7bfee9</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas"><code>427f763820e3</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -686,9 +686,9 @@ commands and artifact contracts must still work after the Rust compiler cutover.
 </tr>
 </tbody>
 </table></div>
-<p><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/graph.json">graph</a>,
-<a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/usage_be.json">backend usage</a>
-are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
+<p><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/graph.json">graph</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/usage_be.json">backend usage</a>
+are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
 <code>src_rs_lines</code> is a path scope, not production-only code. The backend has 221,538
 lines under <code>src/</code>. Dependencies are declarations: 1,318 normal, 1 build and
 160 dev. Neither a Cargo edge nor a text reference proves a production call.
@@ -2382,8 +2382,57 @@ roster from retained target operations, 04 ordering handlers ahead of their
 installers, and 05 comparing complete handler demand with the installation.
 Its ordering tests include a shared handler, an unreachable cycle and a
 demanded cycle. <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153">Body roster</a> · <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs">Handler order and tests</a> · <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41">Installation checks</a></p>
+<h4 id="native-execution-on-four-matching-hosts">Native execution on four matching hosts</h4>
+<p>Both compilers built the selected-provider fixture with the official <code>f658f30ec966</code> library. Each target got a byte-identical pair of executables. Four GitHub-hosted machines ran the programs directly. All eight processes returned the fixture’s expected exit code of 0. The program calls a service and checks the constants returned by the provider chosen for that target. <a href="https://github.com/CathedralOS/Omega/blob/f658f30ec9660b8d66c8b3c2fd704def734fab7c/tests/fixtures/run/providers/target_selected_implementation/main.omg">Fixture source</a> · <a href="https://github.com/CathedralOS/Omega/actions/runs/44227027634">Host workflow</a></p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Host reported by the job</th>
+<th>Native format</th>
+<th style="text-align: right;">Official exit</th>
+<th style="text-align: right;">Migration exit</th>
+<th>Job log</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x86-64</td>
+<td>Ubuntu 24.04, x86-64</td>
+<td>ELF64</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td><a href="https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580486">Linux x86-64</a></td>
+</tr>
+<tr>
+<td>Linux arm64</td>
+<td>Ubuntu 24.04, AArch64</td>
+<td>ELF64</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td><a href="https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580741">Linux arm64</a></td>
+</tr>
+<tr>
+<td>macOS arm64</td>
+<td>macOS 15, arm64</td>
+<td>Mach-O 64</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td><a href="https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580862">macOS arm64</a></td>
+</tr>
+<tr>
+<td>Windows x86-64</td>
+<td>Windows Server 2022, AMD64</td>
+<td>PE32+</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td><a href="https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580769">Windows x86-64</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>The official compiler came from the <code>f658f30ec966</code> warm build. The migration build integrated that release at <code>683122d180a9</code> and includes the provider change <code>3d14fe87dff4</code>. Its binary SHA-256, beginning <code>bbd2ab8002de</code>, identifies the executable tested. The exact migration checkout is <span class="flag warn">unverified</span>. The host jobs checked out <code>edc830ed21a3</code>, which pins the test runner and the eight published images. Each job checked its actual OS, CPU, executable format and image digest before launching both programs. <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/checkpoints/native-host-execution-f658.json">Compiler, fixture, library and image identities</a> · <a href="https://github.com/CathedralOS/Omega/actions/runs/44219307162">Official warm build</a> · <a href="https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/verify.py#L44-L69">Host checks</a> · <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/README.md#verify-the-four-matching-native-hosts">Replay this checkpoint</a></p>
 <h4 id="measured-public-cli-checkpoint">Measured public CLI checkpoint</h4>
-<p>Official compiler <code>46502a522a16</code> and migration compiler <code>fcb284a45c40</code> compiled the same selected-provider fixture against the official toolchain library. The fixture selects an implementation separately for each target. Both compilers emitted byte-identical executables on all four targets. <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/checkpoints/target-execution-4650.json">Inputs and complete hashes</a> · <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/README.md#compare-the-two-published-compiler-builds">Reproduction commands</a></p>
+<p>Official compiler <code>46502a522a16</code> and migration compiler <code>fcb284a45c40</code> compiled the same selected-provider fixture against the official toolchain library. The fixture selects an implementation separately for each target. Both compilers emitted byte-identical executables on all four targets. <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/checkpoints/target-execution-4650.json">Inputs and complete hashes</a> · <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/README.md#compare-the-two-published-compiler-builds">Reproduction commands</a></p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
 <thead>
 <tr>
@@ -2415,8 +2464,8 @@ demanded cycle. <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855f
 </tr>
 </tbody>
 </table></div>
-<p>The Psi interpreter exited 0 on the same fixture for each of the four target profiles. The separate factorial example returned 120 in both the native and Psi engines. The Console example exited 200 before either engine ran. Both compilers reported the same missing callback origin. These results belong to the two recorded compiler builds. <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/checkpoints/target-execution-4650.json">Commands, exit codes and output hashes</a></p>
-<p><strong>Independent components remain unverified end to end.</strong> Changing only the fixture’s Linux provider selection to <code>CompositionMode::Independent</code> made both compilers refuse the missing canonical component evidence. Each left its output-owner marker and produced no executable or component index. The standalone scalar-lending example stops earlier during source checking. The execution matrix above uses the ordinary selected provider. <a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/checkpoints/target-execution-4650.json">Measured control</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L405-L426">Component request</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L349-L366">Native composition</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/components.rs#L101-L141">Export emission</a></p>
+<p>The Psi interpreter exited 0 on the same fixture for each of the four target profiles. The separate factorial example returned 120 in both the native and Psi engines. The Console example exited 200 before either engine ran. Both compilers reported the same missing callback origin. These results belong to the two recorded compiler builds. <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/checkpoints/target-execution-4650.json">Commands, exit codes and output hashes</a></p>
+<p><strong>Independent components remain unverified end to end.</strong> Changing only the fixture’s Linux provider selection to <code>CompositionMode::Independent</code> made both compilers refuse the missing canonical component evidence. Each left its output-owner marker and produced no executable or component index. The standalone scalar-lending example stops earlier during source checking. The execution matrix above uses the ordinary selected provider. <a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/checkpoints/target-execution-4650.json">Measured control</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L405-L426">Component request</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L349-L366">Native composition</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/components.rs#L101-L141">Export emission</a></p>
 <h2 id="11-decisions-still-to-settle">11. Decisions still to settle</h2>
 <p><a href="questions.html">Questions</a> keeps Q-A/B/C/D/F/G aligned with this design. The
 recommendation is explicit: narrow host support; no source custody in leaves;
@@ -2446,7 +2495,7 @@ piecemeal migration.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
