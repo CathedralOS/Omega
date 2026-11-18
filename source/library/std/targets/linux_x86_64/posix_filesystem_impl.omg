@@ -432,7 +432,7 @@ machine linux_x86_64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8; 
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
-    PosixFilesystemHost::read_metadata_at(-100, path as -Path, buffer, 0)
+    linux_x86_64_posix_query_metadata_at(-100, path as -Path, buffer, 0)
 }
 
 machine linux_x86_64_posix_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
@@ -449,11 +449,17 @@ machine linux_x86_64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &m
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
-    PosixFilesystemHost::read_metadata_at(-100, path as -Path, buffer, 256)
+    linux_x86_64_posix_query_metadata_at(-100, path as -Path, buffer, 256)
 }
 
 machine linux_x86_64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     satisfies PosixFilesystemHost::read_metadata_at
+reaches FilesystemMetadataQuery
+{
+    linux_x86_64_posix_query_metadata_at(directory_descriptor, name, buffer, flags)
+}
+
+machine linux_x86_64_posix_query_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
 reaches FilesystemMetadataQuery
 {
     prepare(directory_descriptor, name, buffer, flags)
