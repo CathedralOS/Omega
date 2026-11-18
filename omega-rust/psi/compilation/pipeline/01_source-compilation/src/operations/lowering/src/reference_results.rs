@@ -35,14 +35,21 @@ pub(crate) fn publish(
         publish_parents(elaboration, &successor_loans)
     })();
     published.map_err(|mut refusal| {
-        if refusal.source_span.is_none()
-            && let Construct::Operation(operation) = refusal.concerns
-        {
-            refusal.source_span = elaboration
-                .sources
-                .get(refusal.machine)
-                .and_then(|source| source.operations.get(operation))
-                .and_then(|origin| origin.span());
+        if refusal.source_span.is_none() {
+            let operation_span = match refusal.concerns {
+                Construct::Operation(operation) => elaboration
+                    .sources
+                    .get(refusal.machine)
+                    .and_then(|source| source.operations.get(operation))
+                    .and_then(|origin| origin.span()),
+                _ => None,
+            };
+            refusal.source_span = operation_span.or_else(|| {
+                elaboration
+                    .names
+                    .get(refusal.machine)
+                    .and_then(|names| names.declared)
+            });
         }
         refusal
     })

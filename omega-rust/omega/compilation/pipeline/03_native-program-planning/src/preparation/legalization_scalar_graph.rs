@@ -252,7 +252,9 @@ pub(crate) mod address_joins {
                                 plan.structural_types.iter(),
                                 root,
                                 &binding.argument.path,
-                                binding.argument.access, Some(declaration.structural_type),)
+                                binding.argument.access,
+                                Some(declaration.structural_type),
+                            )
                         })
                         .is_some_and(|referent| referent == declaration.structural_type)
                 })
