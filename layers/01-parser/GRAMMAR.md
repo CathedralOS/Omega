@@ -408,19 +408,19 @@ left out.
 
 ## Decisions
 
-Answered by Jarod on 2026-11-18. Eight are decided; two are waiting on one
+Answered by Jarod on 2026-11-18. Nine are decided; one is waiting on one
 more exchange. The grammar text above has not yet been rewritten to match;
 that happens once the last two are settled.
 
 | # | Question | Evidence | Jarod's answer | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Is there an `if` statement? | V1 retired it 2026-07-02; the spec example is rot. | "obviously not" | **Decided: no.** `if` only as an arm guard. |
-| 2 | What ends an arm? | V1's `source` tree has about 11,350 arm lines ending with nothing and 87 ending in a comma. Every spec example omits the comma. Rust requires a comma unless the arm's result is a block. | "comma I think? what does rust do?" | **Open.** Requiring a comma invalidates nearly every existing arm; accepting a comma or a newline does not. |
+| 2 | What ends an arm? | V1's `source` tree has about 11,350 arm lines ending with nothing and 87 ending in a comma. Every spec example omits the comma. Rust requires a comma unless the arm's result is a block. | "comma I think? what does rust do?" then "rewrite is fine we are on v2" | **Decided: a comma.** Arms are separated by commas as in Rust, with an optional comma after the last. Newlines never matter. Existing arms and the spec's examples must be rewritten. |
 | 3 | Tuples in both `match` and `transition`? | The spec says the two share one pattern vocabulary. | "match and transition are identical, only differing in that transition is at the end" | **Decided: one grammar for both.** `transition` is the form in tail position. |
 | 4 | Punctuation after `requires` before a body? | In V1's `source` tree, 775 of 794 such clauses end with nothing, 7 with a comma, 12 with a semicolon. | "whitespace is possibly fine" | **Decided: nothing.** |
 | 5 | Which words are reserved? | V1 reserves none in effect. | `self` matters only inside data and domain predicates; `iN` and `uN` cannot be declared as type names. | **Decided: no reserved words.** `self` is contextual. Refusing a declaration named `u7` is a naming rule for a later layer, not this one. |
 | 6 | Operator precedence? | V1's table, checked in its code. | "same as it was" | **Decided: V1's table.** |
-| 7 | Generic arguments versus less-than? | In a declaration or a type, `<` can only be generics. In an expression, `apply<set_time>(x)` and `a < b` start alike, and a parser cannot know what `apply` is: names are resolved in the next layer. | Expects it to be decidable at once, without seeking. | **Open.** True for declarations and types; not for expressions. |
+| 7 | Generic arguments versus less-than? | In a declaration or a type, `<` can only be generics. In an expression, `apply<set_time>(x)` and `a < b` start alike, and a parser cannot know what `apply` is: names are resolved in the next layer. Writing `apply::<set_time>(x)` removes the ambiguity with no lookahead. V1's `source` tree has roughly 600 generic applications in expressions; the spec's examples have about 41. | "is ambiguity? :: would resolve it?" | **Open.** Yes, `::` before `<` resolves it completely. Waiting on whether to adopt it. |
 | 8 | Is assembly in the first parser? | The spec defines it; V1 has only part. | "just parse it" | **Decided: in**, as the spec defines it. |
 | 9 | `(m satisfies T::r)` and `some S`? | Both in the spec since 2026-11-10; neither in V1. | "obviously in" | **Decided: in.** |
 | 10 | How is the spec corpus tagged for testing? | 132 examples of mixed kinds. | "I dont care" | **Decided: Claude's choice.** Each example is tagged by what it is. |

@@ -185,8 +185,9 @@ Psi to native code) are not planned yet.
 - **Decisions:** eight of the grammar's ten are decided (2026-11-18): no `if`
   statement, `match` and `transition` share one grammar, nothing after a
   `requires` before a body, no reserved words, V1's operator precedence,
-  assembly is parsed, and the spec's newer forms are in. Two are open: what
-  ends an arm, and how `<` is told from less-than in expressions.
+  assembly is parsed, and the spec's newer forms are in. Arms are separated
+  by commas, as in Rust. One is open: how `<` is told from less-than in
+  expressions.
 
 ### L2 to L4
 
@@ -523,6 +524,7 @@ decided by Jarod, and the spec text has not been changed to match.
 | 4 | A Build suspends itself. `suspend Build::await_provider<Requirement, Implementation>(builder)` installs a provider from a build dependency and resumes the same program, and Build code is checked in stages as dependencies arrive. ([Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness), [Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)) | No suspension. A stage's inputs and backings are settled before it starts; anything it discovers or selects is used by a later stage. | 2026-11-18 |
 | 5 | A package has one Build, then its product. | A chain of any number of stages, each an ordinary Omega program. It always starts with a core-supplied stage and then the project's `build.omg`. | 2026-11-18 |
 | 6 | The Build has special standing: a toolchain-supplied default environment and a `Build` context only it receives. | `build.omg` is an ordinary program. What it can do is exactly what the previous stage selected and the invocation granted. | 2026-11-18 |
+| 7 | `match` and `transition` arms are written one per line with no separator, in every spec example. | Arms are separated by commas, as in Rust, with an optional comma after the last. Newlines never matter. The spec's examples and existing Omega code must be rewritten. | 2026-11-18 |
 
 ## Owner questions
 
