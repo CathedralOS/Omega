@@ -4533,7 +4533,8 @@ pub(crate) mod storage_dependencies {
             StructuralStorageUse::Type(structural_type) => {
                 roots.insert(structural_type);
             }
-            StructuralStorageUse::Projection(projection) => {
+            StructuralStorageUse::Projection(projection)
+            | StructuralStorageUse::Custody(projection) => {
                 projection_storage_dependencies(
                     declarations.values().copied(),
                     place_type(projection.root)?,

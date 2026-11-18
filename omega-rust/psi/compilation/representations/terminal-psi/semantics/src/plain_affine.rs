@@ -332,6 +332,12 @@ impl Region {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct RootMemberships {
+    declared: crate::structural_qualifications::Memberships,
+    additional_input: Vec<terminal_psi::StructuralPathQualification>,
+}
+
 #[derive(Debug, Clone)]
 struct Root {
     structural_type: StructuralTypeId,
@@ -347,6 +353,7 @@ struct Root {
     /// Decomposition may end a linear wrapper, but cannot settle qualifications
     /// or independent content custody attached to its storage.
     unqualified_owned: bool,
+    memberships: RootMemberships,
     parameter: bool,
     /// A machine or block header lent with `&mut`. A block's incoming edges
     /// authenticate the requested access; renaming storage grants none.
@@ -507,7 +514,8 @@ fn storage_root(used: terminal_psi::StructuralStorageUse<'_>) -> Option<PlaceId>
         StructuralStorageUse::Place(root)
         | StructuralStorageUse::Canonical { root, .. }
         | StructuralStorageUse::ObservedField { root, .. } => Some(root),
-        StructuralStorageUse::Projection(projection) => Some(projection.root),
+        StructuralStorageUse::Projection(projection)
+        | StructuralStorageUse::Custody(projection) => Some(projection.root),
         StructuralStorageUse::Element { descriptor, .. } => Some(descriptor.root),
         StructuralStorageUse::Type(_) => None,
     }
@@ -1364,6 +1372,22 @@ fn analyze(
     // Read static whole-origin restrictions once with the custody declarations.
     // Actual loan authority and the current value remain separate judgments.
     let mut whole_restoration = vec![true; machine.structural_places.len()];
+    let mut membership_rows = vec![RootMemberships::default(); machine.structural_places.len()];
+    let mut remember_memberships = |place: PlaceId,
+                                    whole: &[semantic_vocabulary::StructuralDomainId],
+                                    projected: &[terminal_psi::StructuralPathQualification],
+                                    additional: &[terminal_psi::StructuralPathQualification]|
+     -> Result<(), Error> {
+        let row = membership_rows
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed(
+                "membership contract is outside the machine",
+            ))?;
+        row.declared.whole = whole.to_vec();
+        row.declared.projected = projected.to_vec();
+        row.additional_input = additional.to_vec();
+        Ok(())
+    };
     let mut unqualified_owned = vec![true; machine.structural_places.len()];
     let mut exclude_decomposition = |place: PlaceId| -> Result<(), Error> {
         *unqualified_owned
@@ -1412,6 +1436,12 @@ fn analyze(
         .iter()
         .chain(machine.block_structural_parameters())
     {
+        remember_memberships(
+            parameter.place,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+            &parameter.additional_input_qualifications,
+        )?;
         if parameter.access != StructuralAccess::Owned
             || !parameter.is_unqualified_root()
             || !parameter.additional_input_qualifications.is_empty()
@@ -1472,6 +1502,12 @@ fn analyze(
             terminal_psi::OperationKind::MoveStructuralField { .. }
         );
         if let Some(result) = operation.result.as_structural() {
+            remember_memberships(
+                result.place,
+                &result.qualifications,
+                &result.projected_qualifications,
+                &result.additional_input_qualifications,
+            )?;
             if !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.additional_input_qualifications.is_empty()
@@ -1688,6 +1724,7 @@ fn analyze(
                 multiplicity,
                 whole_restoration: owned && whole_restoration[roots.len()],
                 unqualified_owned: owned && unqualified_owned[roots.len()],
+                memberships: std::mem::take(&mut membership_rows[roots.len()]),
                 parameter,
                 exclusive,
             }),
@@ -2857,6 +2894,17 @@ impl<'a> Analysis<'a> {
             | StructuralStorageUse::ObservedField { root, path, .. } => {
                 self.read(state, root, path, site)
             }
+            StructuralStorageUse::Custody(_) => {
+                // The claim flow checks its exact IDs and obligations. This use
+                // keeps the home allocated but does not restore its payload.
+                if self.claim_flow.is_some() {
+                    Ok(())
+                } else {
+                    Err(Error::unsupported(
+                        "content custody requires exact claim replay",
+                    ))
+                }
+            }
             StructuralStorageUse::Type(_) => Ok(()),
         }
     }
@@ -2896,10 +2944,16 @@ impl<'a> Analysis<'a> {
             let root = self.root(subject.place)?.ok_or(Error::unsupported(
                 "decomposition requires tracked owned storage",
             ))?;
-            if !root.owned || !root.affine || !root.unqualified_owned {
-                return Err(Error::unsupported(
-                    "decomposition requires unqualified owned custody without independent content",
-                ));
+            if !root.owned || !root.affine {
+                return Err(Error::unsupported("decomposition requires owned custody"));
+            }
+            if !root.unqualified_owned {
+                self.claim_flow
+                    .as_ref()
+                    .ok_or(Error::unsupported(
+                        "qualified decomposition requires exact claim replay",
+                    ))?
+                    .check_decomposition(&state.claims, subject, root)?;
             }
             let path = self.canonical(subject.place, &subject.path)?;
             // Independent claims and qualifications are not a wrapper's disposition.
@@ -3132,6 +3186,47 @@ impl<'a> Analysis<'a> {
                     return Err(Error::unsupported("owned extraction from borrowed storage"));
                 }
                 self.argument(state, source, site, true)?;
+            }
+            Op::TransformContent {
+                source, parents, ..
+            } => {
+                self.argument(state, source, site, true)?;
+                for parent in parents {
+                    let path = self.canonical(parent.place, &parent.path)?;
+                    let region = state.regions[index(parent.place.get())?]
+                        .as_ref()
+                        .ok_or(Error::malformed("content parent home has ended"))?
+                        .view(&path);
+                    if region.mode == Mode::Components {
+                        let root = self
+                            .root(parent.place)?
+                            .ok_or(Error::malformed("content parent has no owned declaration"))?;
+                        let ty = crate::runtime_structural_path_tip(
+                            self.types.iter(),
+                            root.structural_type,
+                            &parent.path,
+                        )
+                        .ok_or(Error::malformed("content parent has no exact carrier"))?
+                        .id;
+                        let mut remaining = Vec::new();
+                        self.dispose_components(
+                            parent.place,
+                            ty,
+                            &region,
+                            parent.path.clone(),
+                            usize::MAX,
+                            &mut remaining,
+                        )?;
+                        if !remaining.is_empty() {
+                            return Err(Error::unsupported(
+                                "content parent still owes component cleanup",
+                            ));
+                        }
+                        self.vacate(state, parent.place, &path)?;
+                    } else {
+                        self.argument(state, parent, site, true)?;
+                    }
+                }
             }
             Op::ReleaseReference { source, path } => {
                 if !self.root(*source)?.is_some_and(|root| root.owned) {
@@ -5575,6 +5670,7 @@ mod tests {
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 whole_restoration: true,
                 unqualified_owned: true,
+                memberships: RootMemberships::default(),
                 parameter: false,
                 exclusive: false,
             })],

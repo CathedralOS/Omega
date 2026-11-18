@@ -397,6 +397,7 @@ fn publish_claims(contract: &mut MachineContract, cache: &mut Catalogues<'_>) ->
 pub(super) struct Flow<'types> {
     mode: Mode,
     catalogues: Catalogues<'types>,
+    projections: Option<crate::content_claims::ClaimProjections<'types>>,
     fresh_results: Vec<OperationClaims>,
     pub plan: ClaimsPlan,
 }
@@ -405,7 +406,7 @@ impl<'types> Flow<'types> {
         machine: &TerminalMachine,
         types: &'types [StructuralTypeDeclaration],
         mode: Mode,
-        module: Option<&terminal_psi::TerminalModule>,
+        module: Option<&'types terminal_psi::TerminalModule>,
     ) -> Result<(Self, ClaimsState), Error> {
         let mut contract = machine.contract.clone();
         let mut cache = Catalogues::new(types)?;
@@ -632,6 +633,7 @@ impl<'types> Flow<'types> {
             Self {
                 mode,
                 catalogues: cache,
+                projections: content,
                 fresh_results,
                 plan: ClaimsPlan {
                     entry_claims: contract.entry_claims,
@@ -666,6 +668,203 @@ impl<'types> Flow<'types> {
             })
             .map(|row| row.projections.clone())
             .unwrap_or_default()
+    }
+    fn check_content_roster(
+        &self,
+        claims: &[ClaimLocation],
+        derivations: &[terminal_psi::ContentTransformationDerivation],
+        input: bool,
+        carrier: &impl Fn(PlaceId) -> Result<StructuralTypeId, Error>,
+    ) -> Result<(), Error> {
+        let projections = self
+            .projections
+            .as_ref()
+            .ok_or_else(|| Error::unsupported("content claim replay requires its exact module"))?;
+        let mut claims = claims.iter().collect::<Vec<_>>();
+        claims.sort_unstable_by_key(|claim| claim.identity);
+        if claims
+            .windows(2)
+            .any(|pair| pair[0].identity == pair[1].identity)
+        {
+            return Err(Error::malformed(
+                "content transformation repeats a live claim",
+            ));
+        }
+        let mut expected = claims
+            .iter()
+            .flat_map(|claim| {
+                claim
+                    .content
+                    .iter()
+                    .cloned()
+                    .map(move |projection| (claim.identity, projection))
+            })
+            .collect::<Vec<_>>();
+        let mut supplied = Vec::new();
+        for derived in derivations {
+            for binding in if input {
+                &derived.inputs
+            } else {
+                &derived.outputs
+            } {
+                let claim = claims
+                    .binary_search_by_key(&binding.claim, |claim| claim.identity)
+                    .ok()
+                    .map(|position| claims[position])
+                    .ok_or_else(|| {
+                        Error::malformed("content equation names no consumed or produced claim")
+                    })?;
+                let path = projections
+                    .resolve_subject(carrier(binding.subject.root)?, &binding.subject)
+                    .map_err(Error::malformed)?;
+                if binding.subject.version != semantic_vocabulary::ContentPlaceVersion::Current
+                    || binding.subject.root != claim.place
+                    || path != claim.path
+                {
+                    return Err(Error::malformed(
+                        "content equation changes the current claim subject",
+                    ));
+                }
+                supplied.push((
+                    claim.identity,
+                    terminal_psi::ClaimContentProjection {
+                        projection: binding.projection,
+                        algebra: derived.conservation.algebra().clone(),
+                    },
+                ));
+            }
+        }
+        expected.sort();
+        supplied.sort();
+        if expected != supplied {
+            return Err(Error::malformed(
+                "content equation omits or changes a live projection obligation",
+            ));
+        }
+        Ok(())
+    }
+    fn transform_content(
+        &self,
+        state: &mut ClaimsState,
+        operation: &Operation,
+        root_type: &impl Fn(PlaceId) -> Result<StructuralTypeId, Error>,
+    ) -> Result<(), Error> {
+        let Op::TransformContent {
+            source,
+            parents,
+            derivations,
+        } = &operation.kind
+        else {
+            return Err(Error::malformed(
+                "content replay received another operation",
+            ));
+        };
+        let result = operation
+            .result
+            .as_structural()
+            .ok_or_else(|| Error::malformed("content transformation has no structural result"))?;
+        let projections = self.projections.as_ref().ok_or_else(|| {
+            Error::unsupported("content transformation requires its exact module")
+        })?;
+        let mut consumed = Vec::new();
+        for parent in parents {
+            let mut claims = state.take(parent)?;
+            if claims.is_empty() || claims.iter().any(|claim| claim.content.is_empty()) {
+                return Err(Error::unsupported(
+                    "content parent has an independent obligation outside its content roster",
+                ));
+            }
+            // take() makes paths relative; a custody equation names
+            // the actual occurrence, including its selected prefix.
+            for claim in &mut claims {
+                let mut path = parent.path.clone();
+                path.append(&mut claim.path);
+                claim.path = path;
+            }
+            consumed.extend(claims);
+        }
+        self.check_content_roster(&consumed, derivations, true, root_type)?;
+        Self::relocate(state, source, result.place, &[])?;
+        let output = projections
+            .at_subject(
+                crate::content_claims::Subject {
+                    place: result.place,
+                    carrier: result.structural_type,
+                    qualifications: &result.qualifications,
+                    projected_qualifications: &result.projected_qualifications,
+                },
+                state
+                    .at(result.place)
+                    .map(|claim| (claim.identity, claim.path.as_slice())),
+                semantic_vocabulary::ContentPlaceVersion::Current,
+            )
+            .map_err(Error::malformed)?;
+        for row in output {
+            let slot = state
+                .claim_ids
+                .binary_search(&row.claim)
+                .map_err(|_| Error::malformed("content output names an undeclared claim"))?;
+            let claim = state.claims[slot]
+                .as_mut()
+                .ok_or_else(|| Error::malformed("content output names no live payload claim"))?;
+            if claim
+                .content
+                .iter()
+                .any(|held| !row.projections.contains(held))
+            {
+                return Err(Error::malformed(
+                    "content transformation drops an inherited projection",
+                ));
+            }
+            claim.content = row.projections;
+        }
+        let produced = state.at(result.place).cloned().collect::<Vec<_>>();
+        self.check_content_roster(&produced, derivations, false, root_type)?;
+        Ok(())
+    }
+
+    pub fn check_decomposition(
+        &self,
+        state: &ClaimsState,
+        subject: &StructuralArgument,
+        root: &super::Root,
+    ) -> Result<(), Error> {
+        if root
+            .memberships
+            .additional_input
+            .iter()
+            .any(|row| crate::structural_paths_may_overlap(&row.path, &subject.path))
+        {
+            return Err(Error::unsupported(
+                "decomposition cannot discharge additional input obligations",
+            ));
+        }
+        let projections = self.projections.as_ref().ok_or_else(|| {
+            Error::unsupported("qualified decomposition requires its exact module")
+        })?;
+        let expected = projections
+            .decomposition(
+                crate::content_claims::Subject {
+                    place: subject.place,
+                    carrier: root.structural_type,
+                    qualifications: &root.memberships.declared.whole,
+                    projected_qualifications: &root.memberships.declared.projected,
+                },
+                &subject.path,
+            )
+            .map_err(Error::unsupported)?;
+        let mut retained = state
+            .at(subject.place)
+            .filter(|claim| claim.path == subject.path)
+            .flat_map(|claim| claim.content.iter().cloned())
+            .collect::<Vec<_>>();
+        retained.sort();
+        if retained != expected {
+            return Err(Error::malformed(
+                "decomposition does not retain its complete content obligations",
+            ));
+        }
+        Ok(())
     }
     fn record_result(&mut self, operation: &Operation, state: &ClaimsState) -> Result<(), Error> {
         if let Some(result) = operation.result.as_structural() {
@@ -859,10 +1058,13 @@ impl<'types> Flow<'types> {
                         });
                     }
                 }
-                Op::MoveStructuralValue { source } | Op::TransformContent { source, .. } => {
+                Op::MoveStructuralValue { source } => {
                     if let Some(result) = operation.result.as_structural() {
                         Self::relocate(state, source, result.place, &[])?;
                     }
+                }
+                Op::TransformContent { .. } => {
+                    self.transform_content(state, operation, &root_type)?;
                 }
                 Op::MoveStructuralField {
                     source,

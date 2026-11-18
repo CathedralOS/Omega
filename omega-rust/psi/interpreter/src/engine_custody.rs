@@ -1632,8 +1632,8 @@ pub(crate) fn validate_complete_affine_frontier<'claims>(
 }
 
 /// Decomposition changes custody, never the allocation or its payload bytes.
-/// The exact intrinsic claim or affine wrapper entry ends here. Each component
-/// keeps its own claims and is consumed through the ordinary projection machinery.
+/// The intrinsic value claim or affine wrapper entry ends here. Independent
+/// content debt stays on its claim; components keep their ordinary custody.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn decompose_owned_subject(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
@@ -1647,6 +1647,7 @@ pub(crate) fn decompose_owned_subject(
     claims: &mut BTreeMap<ClaimId, LiveClaim>,
     subject: &StructuralArgument,
     structural_type: StructuralTypeId,
+    retained_content: &[terminal_psi::ClaimContentProjection],
 ) -> Result<(), TerminalInterpretError> {
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
     let root = verified_structural_place(values, subject.place)?;
@@ -1666,8 +1667,14 @@ pub(crate) fn decompose_owned_subject(
     let mut exact = claims
         .iter()
         .filter(|(_, claim)| claim.place == Some(subject.place) && claim.path == subject.path);
-    let intrinsic_claim = exact.next().map(|(identity, _)| *identity);
-    if exact.next().is_some() || declaration.owns_linear_claim != intrinsic_claim.is_some() {
+    let intrinsic = exact.next();
+    let intrinsic_claim = intrinsic.map(|(identity, _)| *identity);
+    if exact.next().is_some()
+        || declaration.owns_linear_claim != intrinsic_claim.is_some()
+        || intrinsic
+            .is_some_and(|(_, claim)| claim.multiplicity != Some(StructuralMultiplicity::Linear))
+        || !retained_content.is_empty() && intrinsic_claim.is_none()
+    {
         return Err(invalid());
     }
     let expected = validate_complete_affine_frontier(
@@ -1701,7 +1708,13 @@ pub(crate) fn decompose_owned_subject(
         }
     }
     if let Some(identity) = intrinsic_claim {
-        claims.remove(&identity);
+        if retained_content.is_empty() {
+            claims.remove(&identity);
+        } else {
+            // The same claim still owes its conserved content, but it no longer
+            // supplies a complete owned value for another decomposition or move.
+            claims.get_mut(&identity).ok_or_else(invalid)?.multiplicity = None;
+        }
     }
     for entry in expected {
         frontier.remove(&entry);
@@ -2628,7 +2641,8 @@ pub(crate) mod tests {
                 &mut frontier,
                 &mut BTreeMap::from([(claim(1), linear(1, Vec::new()))]),
                 &subject,
-                structural_type(1)
+                structural_type(1),
+                &[],
             )
             .is_err()
         );
@@ -2642,6 +2656,7 @@ pub(crate) mod tests {
             &mut BTreeMap::new(),
             &subject,
             structural_type(1),
+            &[],
         )
         .unwrap();
         assert_eq!(values.get(&place(1)), Some(&home));
@@ -2662,7 +2677,8 @@ pub(crate) mod tests {
                 &mut frontier,
                 &mut BTreeMap::new(),
                 &subject,
-                structural_type(1)
+                structural_type(1),
+                &[],
             )
             .is_err()
         );
@@ -2676,6 +2692,77 @@ pub(crate) mod tests {
             )
             .is_err()
         );
+
+        // A content-bearing intrinsic leaf has no affine frontier entry.
+        // Its retained debt must still distinguish the ended value from a
+        // whole value, including an empty record with no component entries.
+        let mut leaf = declarations[0].clone();
+        leaf.shape = StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::Packed,
+            fields: Vec::new(),
+        };
+        leaf.multiplicity = StructuralMultiplicity::Linear;
+        leaf.owns_linear_claim = true;
+        let leaf_declarations = [leaf];
+        let leaf_types = crate::embedding::program::ProgramDeclarations::new(&leaf_declarations);
+        let retained_content = (1..=2)
+            .map(|id| terminal_psi::ClaimContentProjection {
+                projection: semantic_vocabulary::ContentProjectionIdentity {
+                    domain: semantic_vocabulary::ContentDomainId::new(id).unwrap(),
+                    projection_report_fingerprint: id,
+                },
+                algebra: semantic_vocabulary::ContentAlgebra {
+                    kind: semantic_vocabulary::ContentAlgebraKind::IntervalSet,
+                    parameter: "Nat".to_owned(),
+                },
+            })
+            .collect::<Vec<_>>();
+        let mut leaf_claims = BTreeMap::from([(claim(1), linear(1, Vec::new()))]);
+        let mut leaf_frontier = std::collections::BTreeSet::new();
+        super::decompose_owned_subject(
+            &leaf_types,
+            &values,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &mut leaf_frontier,
+            &mut leaf_claims,
+            &subject,
+            structural_type(1),
+            &retained_content,
+        )
+        .unwrap();
+        assert_eq!(leaf_claims[&claim(1)].multiplicity, None);
+        assert_eq!(leaf_claims[&claim(1)].place, Some(place(1)));
+        assert!(matches!(
+            super::require_owned_value_claims(
+                &leaf_types,
+                leaf_claims.values(),
+                structural_type(1),
+                &subject,
+                &|_, _| false,
+            ),
+            Err(TerminalInterpretError::OwnedValueCustodyMismatch {
+                reason: "owned value claim has no exact linear multiplicity",
+                ..
+            })
+        ));
+        let after = leaf_claims.clone();
+        assert_eq!(
+            super::decompose_owned_subject(
+                &leaf_types,
+                &values,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &mut leaf_frontier,
+                &mut leaf_claims,
+                &subject,
+                structural_type(1),
+                &retained_content,
+            ),
+            Err(TerminalInterpretError::AffineFrontierMismatch)
+        );
+        assert_eq!(leaf_claims, after);
+        assert!(leaf_frontier.is_empty());
 
         for has_sibling in [false, true] {
             let mut declarations = declarations.to_vec();
@@ -2726,6 +2813,7 @@ pub(crate) mod tests {
                 &mut claims,
                 &subject,
                 structural_type(1),
+                &[],
             )
             .unwrap();
             assert_eq!(claims, retained_claims);
@@ -2760,6 +2848,7 @@ pub(crate) mod tests {
                     &mut claims,
                     &subject,
                     structural_type(1),
+                    &[],
                 ),
                 Err(TerminalInterpretError::AffineFrontierMismatch)
             );

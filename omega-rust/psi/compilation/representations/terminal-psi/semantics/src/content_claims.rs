@@ -170,4 +170,79 @@ impl<'a> ClaimProjections<'a> {
         }
         Ok(())
     }
+
+    pub fn resolve_subject(
+        &self,
+        carrier: StructuralTypeId,
+        subject: &ContentStructuralPlace,
+    ) -> Result<Vec<StructuralPathSegment>, &'static str> {
+        crate::content_transformations::structural_path(
+            self.types.iter(),
+            self.identities,
+            carrier,
+            &subject.segments,
+        )
+        .ok_or("content claim subject has no exact typed path")
+    }
+
+    pub fn decomposition(
+        &self,
+        subject: Subject<'_>,
+        path: &[StructuralPathSegment],
+    ) -> Result<Vec<ClaimContentProjection>, &'static str> {
+        decomposition(
+            self.types,
+            |id| {
+                self.domains
+                    .binary_search_by_key(&id, |domain| domain.id)
+                    .ok()
+                    .map(|position| self.domains[position])
+            },
+            subject,
+            path,
+        )
+    }
+}
+
+/// Ending this wrapper leaves each child's qualification and custody intact.
+/// An ancestor qualification requires its own complete consuming operation.
+pub fn decomposition<'a>(
+    types: &[StructuralTypeDeclaration],
+    domain: impl Fn(StructuralDomainId) -> Option<&'a StructuralDomainDeclaration>,
+    subject: Subject<'_>,
+    path: &[StructuralPathSegment],
+) -> Result<Vec<ClaimContentProjection>, &'static str> {
+    let mut retained = Vec::new();
+    for (qualified, id) in subject.qualifications.iter().map(|id| (&[][..], id)).chain(
+        subject
+            .projected_qualifications
+            .iter()
+            .map(|row| (row.path.as_slice(), &row.domain)),
+    ) {
+        if !path.starts_with(qualified) {
+            continue;
+        }
+        if qualified != path {
+            return Err("decomposition crosses a qualified ancestor");
+        }
+        let domain = domain(*id).ok_or("decomposition qualification has no declaration")?;
+        let carrier = crate::runtime_structural_path_tip(types.iter(), subject.carrier, path)
+            .ok_or("decomposition qualification has no exact carrier")?;
+        if carrier.id != domain.carrier {
+            return Err("decomposition qualification names another carrier application");
+        }
+        let projection = domain
+            .content_projection
+            .as_ref()
+            .ok_or("decomposition cannot settle an independent non-content qualification")?;
+        retained.push(ClaimContentProjection {
+            projection: projection.identity,
+            algebra: projection.algebra.clone(),
+        });
+    }
+    retained.sort();
+    if retained.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("decomposition repeats a content obligation");
+    }
+    Ok(retained)
 }

@@ -1239,7 +1239,14 @@ impl TerminalExecution<'_> {
             &|current| storage.case_at_projection(self, &value, &current.path),
         )?;
         for parent in parents {
-            if !self.stage_constructor_operand(parent, &mut frontier, &mut consumed)? {
+            let held =
+                crate::engine::custody::projected_ownership_claims(&self.live_claims, parent)?;
+            if !held.is_empty() && held.iter().all(|(_, claim)| claim.multiplicity.is_none()) {
+                // content_parent_claims already checked every exact obligation,
+                // resident loan and affine component. Retire its ended payload
+                // with the same constructor transaction as an ordinary operand.
+                consumed.push(parent.clone());
+            } else if !self.stage_constructor_operand(parent, &mut frontier, &mut consumed)? {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
         }
@@ -1274,6 +1281,18 @@ impl TerminalExecution<'_> {
         .map_err(|_| malformed())?;
         self.require_owned_value_claims(subject)?;
         let root = self.structural_value(subject.place)?;
+        let retained_content = terminal_semantics::content_claims::decomposition(
+            &self.program.catalogs.structural_types,
+            |id| self.program.catalogs.structural_domain(id),
+            terminal_semantics::content_claims::Subject {
+                place: subject.place,
+                carrier: root.structural_type,
+                qualifications: &root.qualifications,
+                projected_qualifications: &root.projected_qualifications,
+            },
+            &subject.path,
+        )
+        .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
         self.validate_complete_owned_value_claims(
             subject.place,
             root.structural_type,
@@ -1288,6 +1307,7 @@ impl TerminalExecution<'_> {
             &mut self.live_claims,
             subject,
             structural_type,
+            &retained_content,
         )?;
         Ok(OperationFlow::Advance)
     }

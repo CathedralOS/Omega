@@ -1559,8 +1559,8 @@ pub(crate) mod operations {
             source: StructuralArgument,
         },
         /// Partition a complete owned record at its existing storage home.
-        /// End its intrinsic wrapper claim or authorized selected cleanup;
-        /// retain every component's independent claims and cleanup obligations.
+        /// End its value wrapper or authorized selected cleanup; retain its
+        /// independently conserved content and every component obligation.
         DecomposeStructuralValue {
             subject: StructuralArgument,
         },

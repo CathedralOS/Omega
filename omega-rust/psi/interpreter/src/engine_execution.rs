@@ -1634,7 +1634,6 @@ pub(crate) mod capabilities {
 pub(crate) mod content_transformations {
     use crate::boundary::errors::TerminalInterpretError;
     use crate::engine::execution::TerminalExecution;
-    use crate::storage::record::storage::ConstructorValue;
     use semantic_vocabulary::ClaimId;
     use terminal_psi::{ContentTransformationDerivation, StructuralArgument};
     use terminal_semantics::structural_paths_may_overlap;
@@ -1699,16 +1698,29 @@ pub(crate) mod content_transformations {
                 if parent.access != terminal_psi::StructuralAccess::Owned {
                     return Err(invalid());
                 }
-                let selected = ConstructorValue::resolve(self, parent)?;
-                if let ConstructorValue::Access(value) = &selected
-                    && (crate::engine::custody::has_live_loan(
-                        self.reference_referents.as_map(),
-                        value,
-                    ) || self.reference_referents.keys().any(|carrier| {
-                        carrier.opaque_identity == value.opaque_identity
-                            && structural_paths_may_overlap(&carrier.path, &value.path)
-                    }))
-                {
+                let root = self
+                    .structural_values
+                    .get(&parent.place)
+                    .ok_or_else(invalid)?;
+                crate::boundary::structural_inputs::case_membership::validate_case_projection(
+                    &self.structural_types(),
+                    &self.structural_values,
+                    self.structural_cases.as_map(),
+                    parent.place,
+                    &parent.path,
+                )?;
+                let selected = crate::engine::custody::project_structural_value(
+                    &self.structural_types(),
+                    root,
+                    &parent.path,
+                )?;
+                if crate::engine::custody::has_live_loan(
+                    self.reference_referents.as_map(),
+                    &selected,
+                ) || self.reference_referents.keys().any(|carrier| {
+                    carrier.opaque_identity == selected.opaque_identity
+                        && structural_paths_may_overlap(&carrier.path, &selected.path)
+                }) {
                     return Err(TerminalInterpretError::ContentTransformationMismatch(
                         "content parent retains a live loan or resident reference descriptor",
                     ));
@@ -1731,7 +1743,7 @@ pub(crate) mod content_transformations {
                 terminal_semantics::owned_structure::validate_accounted_descendants(
                 &types,
                 &boundaries,
-                selected.structural_type(),
+                selected.structural_type,
                 &parent.path,
                 &accounted,
                 &|path, case| {
@@ -1756,7 +1768,8 @@ pub(crate) mod content_transformations {
                 }) {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
-                let (whole, projected) = selected.memberships();
+                let (whole, projected) =
+                    (&selected.qualifications, &selected.projected_qualifications);
                 let root = self
                     .structural_values
                     .get(&parent.place)
@@ -1979,6 +1992,8 @@ pub(crate) mod execution {
     pub(crate) struct LiveClaim {
         pub(crate) place: Option<PlaceId>,
         pub(crate) path: Vec<StructuralPathSegment>,
+        /// Some owns the value; None retains only erased content custody.
+        /// Such a claim cannot justify another whole-value operation.
         pub(crate) multiplicity: Option<StructuralMultiplicity>,
     }
 

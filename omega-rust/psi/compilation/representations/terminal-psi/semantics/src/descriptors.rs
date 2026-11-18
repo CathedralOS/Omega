@@ -3854,7 +3854,9 @@ pub mod descriptor_results {
                     })();
                     (descriptor.root, query)
                 }
-                StructuralStorageUse::Type(_) => unreachable!("a type is not an operation operand"),
+                StructuralStorageUse::Custody(_) | StructuralStorageUse::Type(_) => {
+                    unreachable!("logical custody and types do not observe descriptor contents")
+                }
             };
             // A byte descriptor's address does not identify the bytes an
             // instruction observes. Until its index/window and backing are
@@ -16250,7 +16252,11 @@ pub mod descriptor_results {
                                     ),
                                 )
                             }
-                            StructuralStorageUse::Type(_) => continue,
+                            // Retained content is not a read of any resident
+                            // descriptor. Its loans keep their ordinary uses.
+                            StructuralStorageUse::Custody(_) | StructuralStorageUse::Type(_) => {
+                                continue;
+                            }
                         };
                         if let Some(selected) = selected {
                             let access = access.map(|access| {

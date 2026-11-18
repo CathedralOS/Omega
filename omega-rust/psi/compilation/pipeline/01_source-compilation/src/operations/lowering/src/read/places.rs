@@ -1031,14 +1031,6 @@ impl Program<'_> {
         };
         let noncopy = !self.data_type(id, record.record())?.is_copyable();
         if owned && (nominal || noncopy) {
-            if !subject
-                .result
-                .is_some_and(|value| value.qualification().is_none())
-            {
-                return Err(refused(Unserved::Statement(
-                    "nominal decomposition with qualified subject obligations",
-                )));
-            }
             Ok(Some(crate::lowering::body::Statement::Decompose {
                 subject,
             }))

@@ -2008,6 +2008,9 @@ pub mod values {
         pub enum StructuralStorageUse<'a> {
             Place(PlaceId),
             Projection(OperationProjection<'a>),
+            /// Consume retained logical custody without reading payload bytes
+            /// or requiring an already decomposed wrapper to be a whole value.
+            Custody(OperationProjection<'a>),
             Canonical {
                 root: PlaceId,
                 path: &'a [semantic_vocabulary::CanonicalStructuralPathSegment],
@@ -2217,6 +2220,7 @@ pub mod values {
                             projections.push(descriptor);
                         }
                         StructuralStorageUse::Place(_)
+                        | StructuralStorageUse::Custody(_)
                         | StructuralStorageUse::Canonical { .. }
                         | StructuralStorageUse::ObservedField { .. }
                         | StructuralStorageUse::Type(_) => {}
@@ -2324,7 +2328,10 @@ pub mod values {
                     } => {
                         push(argument_projection(source).into(), Some(CompoundMutation));
                         for parent in parents {
-                            push(argument_projection(parent).into(), Some(Read));
+                            push(
+                                StructuralStorageUse::Custody(argument_projection(parent)),
+                                None,
+                            );
                         }
                     }
                     Self::ElementViewWrite {
