@@ -1384,6 +1384,88 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
     );
 }
 
+#[test]
+fn an_unused_closed_callback_still_proves_its_type_requirement() {
+    let source = r#"
+        machine selected<T>(value: T) -> T requires T == u8 { move value }
+        machine consume<T, const Step: machine(value: T) -> T>(value: T) -> T {
+            move value
+        }
+        machine entry() -> u8 { consume<u8, selected<u8>>(7u8) }
+    "#;
+    let negative = source.replace("requires T == u8", "requires T == bool");
+    assert_ne!(source, negative, "the twin changes only the required type");
+    let results = [source, negative.as_str()].map(|text| {
+        let typed = super::boundary_calls::typed(text);
+        let (typed, _) = crate::preparation::prepare_typed_trees(
+            typed,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("preparation retains the callback for contract checking");
+        let entry = super::boundary_calls::entry(&typed);
+        let compilation = crate::lowering::prepare_compilation(
+            &typed,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[None],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        );
+        super::entryless::whole_subject_result(crate::checking::judge_compilation(
+            compilation.program,
+        ))
+    });
+    for (name, result) in ["matching callback type", "false callback type requirement"]
+        .into_iter()
+        .zip(&results)
+    {
+        match result {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+    }
+    let Ok(RouteVerdict::Accepted(accepted)) = &results[0] else {
+        panic!("{:?}", results[0]);
+    };
+    accepted
+        .publish()
+        .expect("the valid closed callback can publish executable Terminal Psi");
+    // The consumer never calls Step, so no concrete call can substitute for
+    // proving that its selection admits every input the binder permits.
+    let Ok(RouteVerdict::Rejected { violations, .. }) = &results[1] else {
+        panic!(
+            "the false callback type requirement must reject its selection: {:?}",
+            results[1]
+        );
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("the callback's type requirement must be the one failed rule: {violations:?}");
+    };
+    assert!(violation.statement.starts_with(
+        "the type arguments of this application do not meet its requirement `type == type`:"
+    ));
+    assert!(
+        violation
+            .statement
+            .contains("while reading the signature of `selected$specialized$")
+    );
+    let requirement = negative.find("T == bool").unwrap();
+    assert_eq!(
+        violation
+            .site
+            .expect("the failed requirement has its source location")
+            .span,
+        source_text::Span::new(requirement + 2, requirement + 4),
+    );
+}
+
 fn callback_form(text: &str) -> Checked<crate::lowering::Elaboration> {
     let source = super::boundary_calls::typed(text);
     let (source, _) = crate::preparation::prepare_typed_trees(
