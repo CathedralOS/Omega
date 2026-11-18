@@ -327,6 +327,8 @@ impl AcceptedClosure {
             || !self.elaboration.check_form_envelopes.is_empty()
             || !self.elaboration.generic_binders.is_empty()
             || !self.elaboration.generic_storage.is_empty()
+            || !self.elaboration.nominal_calls.is_empty()
+            || !self.elaboration.nominal_types.is_empty()
             || self
                 .elaboration
                 .module
@@ -1041,6 +1043,7 @@ fn examine(
         ))));
     }
     crate::checking::generic_storage::declared(&elaboration).map_err(fall_back_or_defect)?;
+    crate::checking::nominal_calls::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::checking::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::checking::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();

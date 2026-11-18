@@ -14770,6 +14770,7 @@ pub mod descriptor_results {
             machine: &terminal_psi::TerminalMachine,
             operation: &terminal_psi::Operation,
             scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Option<TerminalPostconditions> {
             use terminal_psi::{
                 OperationKind, OperationResult, StructuralAccess, TerminalMachineResult,
@@ -14840,10 +14841,11 @@ pub mod descriptor_results {
                 bindings.push((formal.id, scalar_expressions.expression(*actual)?));
             }
             let mut storage = Vec::new();
-            for (formal, actual) in callee
+            for (ordinal, (formal, actual)) in callee
                 .structural_parameters
                 .iter()
                 .zip(structural_arguments)
+                .enumerate()
             {
                 let root_type = machine.structural_place_type(actual.place)?;
                 let selected = runtime_structural_path_tip(
@@ -14854,6 +14856,20 @@ pub mod descriptor_results {
                 if actual.access != formal.access
                     || (!selected.is_some_and(|selected| {
                         selected.id == formal.structural_type
+                            || nominal_calls
+                                .binary_search_by_key(
+                                    &(machine.id, operation.id, ordinal as u32),
+                                    |row| (row.caller, row.operation, row.argument),
+                                )
+                                .ok()
+                                .is_some_and(|position| {
+                                    let row = &nominal_calls[position];
+                                    row.actual == selected.id
+                                        && row.expected == formal.structural_type
+                                        && crate::calls::nominal_argument_matches(
+                                            module, machine, callee, arguments, row,
+                                        )
+                                })
                             || crate::calls::const_array_argument_matches(
                                 module,
                                 machine,
@@ -15951,6 +15967,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
             // Setup failures have no operation. Reuse the same typed error
             // as the reader advances, so a later failure keeps its real site.
@@ -15967,6 +15984,7 @@ pub mod descriptor_results {
                 slot_kind,
                 selected_calls,
                 selector_graph,
+                nominal_calls,
                 &mut failure,
             )
             .ok_or(failure)
@@ -15979,6 +15997,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
             failure: &mut super::DescriptorGraphError,
         ) -> Option<DescriptorMachine> {
             let super::DescriptorGraphError::IncompleteMachine {
@@ -16098,6 +16117,7 @@ pub mod descriptor_results {
                         machine,
                         operation,
                         &scalar_expressions,
+                        nominal_calls,
                     ) {
                         graph
                             .payload_scalar_postconditions
@@ -19432,6 +19452,23 @@ pub mod descriptor_results {
         )
     }
 
+    pub fn terminal_borrowed_storage_graph_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+        terminal_graph_rows_with_nominal_calls(
+            module,
+            roots,
+            DescriptorSlotKind::BorrowedStorage,
+            selected_calls,
+            nominal_calls,
+        )
+        .into_iter()
+        .collect()
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum DescriptorGraphError {
         MissingOrAmbiguousMachine(MachineId),
@@ -19721,6 +19758,16 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
+        terminal_graph_rows_with_nominal_calls(module, roots, kind, selected_calls, &[])
+    }
+
+    fn terminal_graph_rows_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        kind: DescriptorSlotKind,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
         let machines = match terminal_machine_roster(module) {
             Ok(machines) => machines,
             Err(error) => return vec![Err(error)],
@@ -19738,14 +19785,21 @@ pub mod descriptor_results {
                 );
                 continue;
             };
-            let graph =
-                match terminal_flow::adapt(module, &machines, body, kind, selected_calls, None) {
-                    Ok(graph) => graph,
-                    Err(error) => {
-                        reached.insert(identity, Err(error));
-                        continue;
-                    }
-                };
+            let graph = match terminal_flow::adapt(
+                module,
+                &machines,
+                body,
+                kind,
+                selected_calls,
+                None,
+                nominal_calls,
+            ) {
+                Ok(graph) => graph,
+                Err(error) => {
+                    reached.insert(identity, Err(error));
+                    continue;
+                }
+            };
             for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -19807,6 +19861,7 @@ pub mod descriptor_results {
                 kind,
                 selected_calls,
                 Some(&initial),
+                nominal_calls,
             ));
         }
         rows.extend(failures);
@@ -19852,7 +19907,8 @@ pub mod descriptor_results {
             .machines
             .iter()
             .map(|machine| {
-                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None).ok()
+                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None, &[])
+                    .ok()
             })
             .collect::<Option<Vec<_>>>()?;
         if !module.machines.iter().any(|machine| {
@@ -19873,6 +19929,7 @@ pub mod descriptor_results {
                     kind,
                     selected_calls,
                     Some(&initial),
+                    &[],
                 )
                 .ok()
             })

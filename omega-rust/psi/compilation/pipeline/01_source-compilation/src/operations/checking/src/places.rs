@@ -106,7 +106,9 @@ mod goal_observations;
 mod loans;
 mod log;
 
+#[cfg(test)]
 pub(crate) use loans::reference_graph;
+pub(crate) use loans::reference_graph_with_nominal_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::collections::BTreeMap;

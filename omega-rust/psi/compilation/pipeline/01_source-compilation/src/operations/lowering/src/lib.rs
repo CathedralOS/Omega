@@ -1324,6 +1324,9 @@ fn finish_reading_into<'source>(
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
     program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
+    elaboration.nominal_types = program.nominal_type_inputs();
+    elaboration.nominal_calls =
+        program.publish_nominal_calls(&source.calls, &mut elaboration.module)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
@@ -1342,7 +1345,15 @@ fn finish_reading_into<'source>(
         &program,
         &program.requirements,
     )?;
-    reference_results::publish(&mut elaboration, &program.selections)?;
+    reference_results::publish(&mut elaboration, &program.selections).map_err(|refusal| {
+        let span = refusal.source_span.or_else(|| {
+            program
+                .names
+                .get(refusal.machine)
+                .and_then(|names| names.declared)
+        });
+        refusal.with_source_span(span)
+    })?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
     program.publish_opaque_carriers(
@@ -1935,6 +1946,8 @@ fn lower_program<'source>(
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             generic_storage: Vec::new(),
+            nominal_calls: Vec::new(),
+            nominal_types: Vec::new(),
             value_arguments: IdTable::default(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),

@@ -13,6 +13,10 @@ pub(super) struct ApplicationArguments<'source> {
     pub(super) types: Vec<ValueType>,
     pub(super) references: Option<Vec<crate::source_state::types::TypeReferenceHandle>>,
     pub(super) values: Vec<ScalarTerm>,
+    pub(super) const_sources: Vec<(
+        SymbolHandle,
+        crate::source_state::types::TypeReferenceHandle,
+    )>,
     pub(super) callables: Vec<(
         SymbolHandle,
         &'source crate::source_state::expression::StaticMachineArgument,
@@ -208,6 +212,7 @@ impl<'source> Program<'source> {
         let mut types = Vec::new();
         let mut references = Vec::new();
         let mut values = Vec::new();
+        let mut const_sources = Vec::new();
         let mut callables = Vec::new();
         for parameter in parameters {
             if let crate::source_state::data::TypeParameterKind::Machine { contract } =
@@ -326,6 +331,9 @@ impl<'source> Program<'source> {
                     ));
                 }
             } else {
+                if let Some(reference) = reference {
+                    const_sources.push((parameter.symbol, reference));
+                }
                 let scalar_type = self.scalar_type(id, type_reference)?;
                 values.push(if let Some(reference) = reference {
                     self.bound_scalar_value(id, scalar_type, reference, true)?
@@ -349,6 +357,7 @@ impl<'source> Program<'source> {
             types,
             references: (!inherited).then_some(references),
             values,
+            const_sources,
             callables,
         })
     }

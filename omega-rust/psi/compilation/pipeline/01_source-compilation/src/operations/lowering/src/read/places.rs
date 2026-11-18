@@ -37,6 +37,15 @@ use crate::lowering::body::{
 use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{SourceOrigin, Unserved, refuse};
 
+/// Different checking machines own different const-input storage rows.
+/// Their labels must be unique; type equality still uses source applications.
+pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<MachineId>) -> String {
+    match owner {
+        Some(owner) => format!("{identity} (checking machine {})", owner.get()),
+        None => identity,
+    }
+}
+
 /// The symbols a data type was resolved from: its declaration, each field
 /// and each case with its payload fields, in declaration order, beside the
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
@@ -483,6 +492,7 @@ impl Program<'_> {
             crate::lowering::StorageShape::Sum(case_types)
         };
         let constant_input_owner = self.storage_constant_input_owner(id, &shape)?;
+        let identity = storage_identity_for_inputs(identity, constant_input_owner);
         let record: StructuralTypeId = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,

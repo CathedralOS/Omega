@@ -46,6 +46,7 @@ mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
+mod nominal_applications;
 mod numeric_contracts;
 mod places;
 mod predicates;
@@ -255,6 +256,7 @@ pub(crate) struct Program<'t> {
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
     /// Static width binders retain the actual machine-local input identity.
     /// Sorted by source symbol within this declaration's selected telescope.
+    nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// The generic machines a generic check form's entry calls at its own
@@ -401,8 +403,9 @@ fn span<T, Rows>(
     read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
+    /// Each alternative in a finite family still checks the generic contract.
     pub(crate) fn is_generic_check_form(&self) -> bool {
-        self.rigid
+        self.rigid || self.alternative.is_some()
     }
     pub(crate) fn begin_declaration_storage(
         &mut self,
@@ -501,6 +504,7 @@ impl<'t> Program<'t> {
             reading_schema: false,
             rigid_storage: Vec::new(),
             scopes: IdTable::default(),
+            nominal_calls: Vec::new(),
             const_scope: Vec::new(),
             const_scopes: IdTable::default(),
             applications: Vec::new(),

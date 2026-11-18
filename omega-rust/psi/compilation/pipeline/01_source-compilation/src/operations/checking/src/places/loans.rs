@@ -226,9 +226,18 @@ fn competing_borrows(
 /// One canonical descriptor closure per machine judgment. If the module has
 /// no reference-bearing storage there is no reference work; otherwise a missing closure
 /// is an explicit refusal, never an empty approximation.
+#[cfg(test)]
 pub(crate) fn reference_graph(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
+) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
+    reference_graph_with_nominal_calls(module, machine, &[])
+}
+
+pub(crate) fn reference_graph_with_nominal_calls(
+    module: &terminal_psi::TerminalModule,
+    machine: semantic_vocabulary::MachineId,
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
         crate::checking::refusal(
@@ -271,10 +280,11 @@ pub(crate) fn reference_graph(
     if !demanded {
         return Ok(Vec::new());
     }
-    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
         module,
         [machine],
         &[],
+        nominal_calls,
     )
     .map_err(|error| graph_refusal(module, error))
 }

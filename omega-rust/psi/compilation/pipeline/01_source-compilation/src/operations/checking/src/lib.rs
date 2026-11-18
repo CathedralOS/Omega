@@ -67,6 +67,7 @@ mod known;
 mod machine_batch;
 mod machine_inputs;
 mod minted;
+mod nominal_calls;
 mod operational;
 mod owned_cleanup;
 mod places;
@@ -1461,7 +1462,8 @@ fn with_prepared_machine<Outcome>(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
-    let reference_graph = places::reference_graph(module, id)?;
+    let reference_graph =
+        places::reference_graph_with_nominal_calls(module, id, formed.nominal_calls())?;
     let (context, ranking_bindings, result) = {
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(

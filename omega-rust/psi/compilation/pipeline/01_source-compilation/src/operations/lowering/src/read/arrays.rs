@@ -902,6 +902,7 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
+        let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
         let id = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
@@ -996,6 +997,7 @@ impl Program<'_> {
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
+        let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
         let id = self.records.push(RecordType {
             multiplicity,
             cleanup: None,

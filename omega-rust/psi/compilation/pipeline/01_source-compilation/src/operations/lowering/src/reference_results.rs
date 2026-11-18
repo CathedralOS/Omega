@@ -29,27 +29,24 @@ pub(crate) fn publish(
     selections: &[crate::lowering::Selected],
 ) -> Checked<()> {
     let published = (|| {
-        publish_results(&mut elaboration.module, selections)?;
+        publish_results(
+            &mut elaboration.module,
+            selections,
+            &elaboration.nominal_calls,
+        )?;
         publish_retained_call_loans(elaboration)?;
         let successor_loans = publish_successor_loans(elaboration)?;
         publish_parents(elaboration, &successor_loans)
     })();
     published.map_err(|mut refusal| {
-        if refusal.source_span.is_none() {
-            let operation_span = match refusal.concerns {
-                Construct::Operation(operation) => elaboration
-                    .sources
-                    .get(refusal.machine)
-                    .and_then(|source| source.operations.get(operation))
-                    .and_then(|origin| origin.span()),
-                _ => None,
-            };
-            refusal.source_span = operation_span.or_else(|| {
-                elaboration
-                    .names
-                    .get(refusal.machine)
-                    .and_then(|names| names.declared)
-            });
+        if refusal.source_span.is_none()
+            && let Construct::Operation(operation) = refusal.concerns
+        {
+            refusal.source_span = elaboration
+                .sources
+                .get(refusal.machine)
+                .and_then(|source| source.operations.get(operation))
+                .and_then(|origin| origin.span());
         }
         refusal
     })
@@ -421,6 +418,7 @@ fn capture_argument(
 fn publish_results(
     module: &mut TerminalModule,
     selections: &[crate::lowering::Selected],
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
@@ -472,9 +470,19 @@ fn publish_results(
             .map_err(|reason| unavailable(selection.caller, reason))?;
         }
     }
-    let graph = terminal_borrowed_storage_graph_from(module, selected.iter().copied(), &[])
+    let graph =
+        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
+            module,
+            selected.iter().copied(),
+            &[],
+            nominal_calls,
+        )
         .map_err(|error| graph_unavailable(module, error))?;
-    let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
+    // A returned generic value can carry a loan from a view inside an input
+    // record. Keep those views during replay, even though the return header
+    // names only the references found by `reference_result_contents`.
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
         let machine = module
