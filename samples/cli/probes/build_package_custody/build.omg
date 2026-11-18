@@ -20,7 +20,6 @@ suspends
     let mut product_kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut product_kit_dependency, "product_kit");
     let product_kit_registration: DependencyRegistration = Build::dependency(builder, product_kit_dependency);
-    builder.freestanding = true;
     suspend Build::prepare_dependency(builder, kit_registration);
     let observed: i32 = kit::value();
     transition observed == 7 {
