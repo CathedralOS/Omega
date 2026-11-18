@@ -9,7 +9,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ArrayExtent, ByteSequencePredicateSet, StructuralAccess, StructuralArgument,
-    StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
 pub(super) fn argument_predicates(
@@ -31,16 +31,7 @@ pub(super) fn argument_predicates(
     }
     let carrier =
         crate::runtime_structural_path_tip(module.structural_types.iter(), root, &argument.path)?;
-    let StructuralTypeShape::FixedArray {
-        length: ArrayExtent::Literal(length),
-        ..
-    } = carrier.shape
-    else {
-        return None;
-    };
-    if !crate::byte_predicate_carrier(module.structural_types.iter(), carrier.id) {
-        return None;
-    }
+    let length = byte_array_length(module, carrier)?;
     let defaults = crate::structural_qualifications::DefaultRequirements::new(
         &module.structural_types,
         &module.structural_domains,
@@ -53,6 +44,75 @@ pub(super) fn argument_predicates(
         .map(|required| defaults.clause(required))
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
+    Some(consequences(length, &clauses))
+}
+
+fn byte_array_length(
+    module: &TerminalModule,
+    carrier: &terminal_psi::StructuralTypeDeclaration,
+) -> Option<u64> {
+    let StructuralTypeShape::FixedArray {
+        length: ArrayExtent::Literal(length),
+        ..
+    } = carrier.shape
+    else {
+        return None;
+    };
+    crate::byte_predicate_carrier(module.structural_types.iter(), carrier.id).then_some(length)
+}
+
+pub(super) fn referenced_array_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    operation: &terminal_psi::Operation,
+    source: &StructuralArgument,
+) -> Option<ByteSequencePredicateSet> {
+    if !source.path.contains(&StructuralPathSegment::Referent) {
+        return None;
+    }
+    let root = machine.structural_place_type(source.place)?;
+    let carrier =
+        crate::runtime_structural_path_tip(module.structural_types.iter(), root, &source.path)?;
+    let length = byte_array_length(module, carrier)?;
+    let (block, index) = machine.blocks.iter().find_map(|block| {
+        block
+            .operations
+            .iter()
+            .position(|candidate| candidate.id == operation.id)
+            .map(|index| (block.id, index))
+    })?;
+    // A cast may hide the array's domains. Use the memberships still held
+    // by its actual backing when the shared view is formed.
+    let contract = analysis
+        .payload_history(module, machine)
+        .current_selected_payload_facts_in(
+            analysis,
+            (block, u32::try_from(index).ok()?),
+            source.place,
+            &source.path,
+        )
+        .ok()?;
+    if contract.carrier != carrier.id {
+        return None;
+    }
+    let clauses = contract
+        .qualifications
+        .iter()
+        .filter_map(|id| module.structural_domain(*id))
+        .filter(|domain| {
+            domain.carrier == carrier.id
+                && domain.complete_predicate_theory
+                && domain.content_projection.is_none()
+        })
+        .filter_map(|domain| {
+            crate::structural_qualifications::default_domain_clause(
+                &module.structural_types,
+                domain,
+            )
+            .ok()
+        })
+        .collect::<Vec<_>>();
     Some(consequences(length, &clauses))
 }
 
