@@ -1,0 +1,538 @@
+# Omega-V2 plan
+
+Living document. Jarod edits it freely; Claude keeps the layer statuses, spec
+gaps and decision log current as work lands. Last updated 2026-11-18.
+
+For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
+nine diagrams and no prose beyond captions.
+
+Each statement below is marked by where it came from:
+
+- **Decided** — Jarod said it.
+- **Proposed** — Claude's suggestion, not yet confirmed. Change or strike it.
+- **Open** — nobody has chosen yet.
+
+## Why V2 exists
+
+Omega V1 (`C:\Development\Omega`) has had per-stage front-end directories
+since 2026-09-28, but the stages were never independent in practice: one
+coordinator owns resolution, typing and evaluation together (see
+[the loop](#why-v1-loops-back)). On 2026-11-17 `main` folded them into a
+single `01_source-compilation` stage (#4030). On 2026-11-18 worker-21 began
+splitting them back out into eight stages, and it is slow: its README says
+only the lexer and parser compile independently, with the other six still
+built together. That one agent session had run 11h24m, 3,850 steps and 589M
+input tokens across 34 commits at the time of writing.
+
+V2 takes the other route: build one layer at a time, from the spec, and do not
+start the next layer until the current one is proven by a test suite fast
+enough to run on every change. **Decided.**
+
+## What is authoritative
+
+- **The spec is the reference.** `wiki/spec/` (104 files, copied from V1 `main`
+  at `0b90bdba`) is the only source of rules, except for the departures listed
+  under [Where V2 departs from the spec](#where-v2-departs-from-the-spec).
+  **Decided.**
+- **The language guide is for humans**, not a source for V2. **Decided.**
+- **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
+- **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context
+  only. V2 does not follow it. **Decided.**
+- **The spec was largely agent-drafted.** Each layer treats it as a claim to
+  check, and records where it is silent or contradicts itself (see
+  [Spec gaps](#spec-gaps)).
+
+## How a layer gets built
+
+A layer is a function from one representation to the next: source bytes to
+tokens, tokens to a tree, and so on. The same loop runs for every layer:
+
+1. **Contract.** Write down the layer's input, output and every rule it
+   enforces, each rule citing the spec section it comes from. A rule with no
+   spec owner goes in [Spec gaps](#spec-gaps) and gets a decision from Jarod
+   before it is implemented.
+2. **Fixtures first.** For every rule, at least one input the layer must
+   accept and one it must reject, written before the code.
+3. **Implement** the layer as a library that depends only on the layers
+   before it.
+4. **Gate.** The layer passes the checks under [What solid means](#what-solid-means).
+5. **Sign-off.** Jarod reviews and marks the layer done here. Only then does
+   the next layer start.
+
+## What solid means
+
+A layer is done when all of these are true:
+
+- Every rule in its contract has an accept fixture and a reject fixture, and
+  all pass.
+- It runs over the whole spec example corpus (the 132 `omega` code blocks in
+  the spec) without crashing, and every result is either accepted or a
+  refusal the contract predicts.
+- Its independent invariant holds (see the test system below).
+- The suite's wall-clock time is measured and written in the layer table.
+- Spec gaps it uncovered are logged, each with a decision.
+- Jarod has signed it off.
+
+## Test system
+
+Built for L0 as described here; change it freely. The purpose is that
+changing a layer and knowing whether it still works takes about a second,
+with no compiler binary to build. Run it with `cargo test -p omega-lexer`;
+rewrite expected files with `OMEGA_BLESS=1` set.
+
+- **Where it lives:** `tools/golden` is the fixture runner and
+  `tools/spec-corpus` extracts the spec's examples. Both are small Rust
+  libraries used only by tests.
+
+- **One library per layer.** Tests call the layer's function directly,
+  in-process.
+- **Golden fixtures.** A fixture is an input file plus the expected text dump
+  of the layer's output. The dump is plain line-oriented text with source
+  positions, so a failure shows as a readable diff.
+- **Reject fixtures.** An input plus the expected diagnostic and its position.
+  A layer must prove what it refuses, not only what it accepts.
+- **Bless mode.** One command rewrites the expected files from current output;
+  the resulting diff is what gets reviewed.
+- **Spec corpus.** Every `omega` block in `wiki/spec` is read at test time,
+  with its source file and line, so the corpus cannot drift from the spec.
+  Every layer runs over it. Not done yet: examples the spec presents as
+  deliberately invalid are not tagged with the layer expected to refuse them.
+  The lexer did not need this, since all 132 are lexically valid.
+- **An independent invariant per layer**, cheap to check and not derived from
+  the layer's own logic. For the lexer: the tokens and skipped bytes, laid end
+  to end, reproduce the source file exactly. For the parser: printing the tree
+  and lexing the result gives the same tokens.
+- **V1 as a cross-check, where it helps.** V1's compiler can be run on the
+  same inputs to compare accept/reject verdicts. Not yet verified that V1
+  exposes per-layer output; treat as optional.
+
+## Layers
+
+The front-end split below follows the stage names V1 has used since
+2026-09-28 and worker-21 uses now. **Proposed.** Back-end layers (Terminal
+Psi to native code) are not planned yet.
+
+| Layer | Input → output | Status | Suite time |
+| --- | --- | --- | --- |
+| L0 Lexer | source bytes → tokens | built, awaiting sign-off | 0.2 s |
+| L1 Parser | tokens → syntax tree | not started | — |
+| L2 Resolver | syntax tree → names resolved | not started | — |
+| L3 Typer | resolved tree → typed tree | not started | — |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
+| L5 Lowering | typed tree → Terminal Psi | not started | — |
+| L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
+| L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
+| Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |
+
+### L0 Lexer
+
+- **Spec owners:** [Lexical profile](wiki/spec/language/data_and_literals.md#lexical-profile),
+  [Integer radix spellings](wiki/spec/language/data_and_literals.md#integer-radix-spellings),
+  [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes).
+- **Rules the spec states:** source is valid UTF-8 with ASCII syntax;
+  identifiers match `[A-Za-z_][A-Za-z0-9_]*`; whitespace is only space, tab,
+  CR and LF, and other Unicode whitespace rejects; integer literals in
+  decimal, `0x`, `0b`, `0o` with digit underscores and carrier suffixes;
+  quoted literals are bytes with seven escapes (`\n \r \t \0 \\ \" \xNN`), and
+  codepoint escapes and raw newlines inside quotes reject.
+- **Contract:** [layers/00-lexer/CONTRACT.md](layers/00-lexer/CONTRACT.md).
+  17 rules, each with its spec source and the fixtures that cover it.
+- **Built 2026-11-18, awaiting sign-off.** Gate results:
+  - 7 accept fixtures, 28 reject fixtures and 28 byte-level tests pass.
+  - All 132 spec examples lex. Each one tiles its source exactly, and each
+    token lexes to itself when taken alone.
+  - All 19,442 `.omg` files in V1's `source`, `samples` and `tests/fixtures`
+    lex with no refusals: 26 MB and 7.8 million tokens. Throughput is about
+    525 MB/s, 6.3 ns per token, after one measured fix took it from about
+    78 MB/s; see
+    [layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md). Run with
+    `cargo run --release -p omega-lexer --example lex_tree -- <directory>`.
+    None of those files is lexically invalid, so this checks what V2
+    accepts, not what it refuses.
+  - 60,000 random short inputs never panic. Accepted ones tile and relex;
+    refused ones always name a non-empty range inside the source that does
+    not split a character.
+  - Seven cases from V1's own lexer tests were added and agree with V1.
+  - Six deliberate breakages of the scanner (nesting, CR in quotes, the
+    fraction rule, the radix check, the suffix check, the line-comment end)
+    were each caught by at least one test.
+  - `cargo clippy -D warnings` and `cargo fmt --check` are clean.
+- **What sign-off has to decide:** the six gap proposals G1 to G6 in the
+  contract. The largest is G1: the lexer has no keyword list, so `machine` and
+  `foo` are the same kind of token and the parser decides.
+- **V1 and the spec disagree here:** V1's lexer has a `>>` token; the spec
+  says "no `>>` token is added". V2 follows the spec.
+- **Where this layer departed from the loop above:** the code was written
+  before the fixtures, not after, and the gap rules were implemented as
+  proposals before Jarod decided them. The byte-level tests were written with
+  hand-predicted results before their first run and all passed; the fixture
+  dumps were generated and then read line by line against the contract.
+
+### L1 Parser
+
+- **Spec owners:** none as a single document. The spec has no grammar; syntax
+  is carried by examples spread across `wiki/spec/language/`.
+- **First task:** derive a grammar from the spec's examples and prose, write
+  it down as the layer's contract, and have Jarod confirm it. That grammar
+  becomes a V2 document, since the spec does not have one.
+
+### L2 to L4
+
+Contracts are written when each layer starts. One thing is recorded now
+because it shapes what these layers' interfaces must look like.
+
+#### Why V1 loops back
+
+V1 runs the resolver and typer more than once per compile. The spec requires
+this, for three separate reasons:
+
+1. **Source discovery.** The full set of source files is not known up front;
+   imports found while parsing admit more files. This loops lexing and
+   parsing only. (Source: V1 `pipeline.md`, "Package import discovery can
+   admit another source frontier". Not yet traced to a spec rule.)
+2. **`build.omg` is checked and run in stages.** `build.omg` is ordinary Omega
+   that the compiler must check, lower and interpret. The spec requires
+   executing "only a completely checked and admitted prefix": when Build code
+   registers a dependency, the rest of `build.omg` may use that dependency's
+   declarations, so the rest cannot be resolved or typed until the dependency
+   is prepared. The Build suspends, the continuation is checked, and it
+   resumes without replay.
+   ([Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages),
+   [Admission before execution](wiki/spec/build/execution.md#admission-before-execution))
+3. **Generated source.** `Build::include_source` hands the compiler new source
+   bytes after the authored program is already checked. The spec makes these a
+   "later resolution stratum": generated code may refer to authored
+   declarations, authored code may not refer to generated ones, and final
+   checking "extends the retained checkpoint" without rebuilding the authored
+   front end. ([Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary))
+
+   The timing has one visible consequence: **hand-written code cannot call
+   code its own build generates.** The authored source is frozen before the
+   Build runs, so the Build can inspect it; letting it also depend on the
+   Build's output would be a cycle. V1 enforces this: the probe
+   `samples/cli/probes/build_retry_reseal/controls/invalid_authored_selects_generated`
+   expects `call 'generated_value' selects no declaration`, and the passing
+   fixture `tests/fixtures/pass/build/captured_source_generated_constant`
+   notes that "no authored body references the later stratum". The spec says a
+   generated entry "needs a separately staged compilation" and that "an
+   authored wrapper cannot call it".
+
+Jarod, 2026-11-18: source discovery is required, and `build.omg` must be able
+to augment itself by discovering files and running build-time code. V2 keeps
+both needs but not V1's mechanisms for reasons 2 and 3: under the Build model
+below, a later stage does what a suspended continuation or a later stratum
+does in V1.
+
+"Deferred bodies" are how V1 implements reason 2. It resolves declarations
+first and leaves machine bodies pending, completing only the bodies the
+current Build stage needs, because other bodies may name things that do not
+exist yet.
+
+#### V2's Build model: a chain of stages
+
+**Decided** by Jarod, 2026-11-18, in two steps: first as two insulated stages
+that talk through reflection, then generalized to any number of stages on
+Zac's proposal, with refinements from Astra's review. Cracks that show up
+later come back as [owner questions](#owner-questions) in this repo.
+
+The rule:
+
+> **A stage starts with its inputs and its service backings settled. Anything
+> it discovers or selects goes into the plan for a later compile.**
+
+The driver never suspends a half-checked program, extends what its names
+mean, and resumes it.
+
+1. **Every program is a stage, and `build.omg` is not special.** It is an
+   ordinary Omega program in its own universe: it resolves its own imports,
+   may pull source files into that universe, runs build-time code and
+   generates files. It is compiled and run to completion like any other
+   program.
+2. **A stage can use only the services it was given backings for.** The first
+   stage in a chain is given none. It can still compute and return a plan.
+3. **A stage's result is a plan, and a plan is inert data.** It holds
+   identities, discovered and generated files, selections and requests. It
+   never holds code or a live capability.
+4. **A plan says how the chain continues.** It asks the driver either to
+   compile and run another stage, or to compile an artifact and return it. A
+   cross-build therefore never tries to run its product on the host.
+5. **Stages talk through reflection, not strings.** A stage imports the
+   declaration it means (`use namespace::whatever`), so the reference is
+   resolved and type-checked when that stage compiles. Reflection turns it
+   into a stable identity that serializes, and the plan carries that identity
+   (for example requirement identity ↔ implementation identity). The next
+   compile binds the identity to its own copy of the declaration. Importing a
+   declaration to name it is not calling it: the spec says "selection alone
+   contributes no service reach".
+6. **Selecting a backing is not granting a resource.** Reflection answers
+   "which `Console`?". The invocation answers "which stream may it write
+   to?". The driver checks a plan's selections and requests and supplies only
+   the resources the invocation permits. Without this split, a first stage
+   with no services could hand its successor any host access it could name.
+   A backing that touches no real resource, such as a `Console` that captures
+   text in memory, is ordinary Omega all the way down and needs no grant.
+7. **The product is compiled once**, from its hand-written, discovered and
+   generated files together. Generated files are ordinary inputs, so
+   hand-written code may call generated code.
+
+The ordinary chain is three programs: a core-supplied first stage, the
+project's `build.omg`, and the product. **A normal project still writes one
+`build.omg`.** Another stage is authored only when something learned in this
+one changes what the next can compile or call. The chain's start is fixed: a
+project that needs a build service the default does not supply does not
+replace the first stage; its `build.omg` selects that backing for a stage
+after it.
+
+What follows from it:
+
+- **Every layer is a plain function, called once per stage.** No layer takes
+  a frozen base or produces an extension, and nothing is suspended. The
+  earlier `layer(frozen base, new input)` proposal is withdrawn.
+- **The driver is a loop over whole straight compiles:** compile a stage, run
+  it with the backings its predecessor selected and the invocation granted,
+  read its plan, repeat until a plan asks for an artifact. It is built after
+  L5 and a Terminal Psi interpreter exist, and it is not part of any layer.
+- **Requirement on L2:** a declaration's identity is the same in every
+  universe and serializes. It is built from what the declaration *is*
+  (package, namespace path, name, and its application), never from a
+  per-compile index. The spec says the same of reflection: graph-local indices
+  are "not compared as cross-artifact identities".
+- **Each compile checks every identity it is handed** lands on a declaration
+  matching the one the previous stage saw. Universes can disagree, since an
+  alias may denote different packages in different graphs. A mismatch is an
+  error, not a silent rebind.
+- **Two ways a chain can fail to end.** A cycle among known prerequisites is
+  refused outright. A program that keeps producing fresh stages is bounded by
+  a stage budget, and the user gets a trace of what kept running.
+- **Known costs:** a stage sees its own copy of a declaration, checked for
+  the host. Facts that exist only in a later universe (target layout,
+  anything depending on generated code) are not available to it, and a file a
+  stage imports cannot depend on files that stage generates. A stage that
+  needs such a fact asks for another stage.
+
+What the spec already has: separate universes with different dependency sets
+([Two checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts)),
+deterministic reflection encodings, typed product operands in `build.omg`
+such as `Build::select_provider<windows_x86_64::Console, TestConsole>(builder)`,
+and the rule that selection "does not construct provider rows or grant runtime
+permission" ([Provider selection](wiki/spec/build/provider_selection.md#provider-selection)).
+What differs is listed under [Where V2 departs from the spec](#where-v2-departs-from-the-spec).
+
+##### How the chain starts
+
+The first stage cannot find anything, because it has no services, not even a
+filesystem. So it is the **driver**, which is toolchain code and not Omega,
+that reads the command line, locates the project and its `build.omg`, and
+hands those to the first stage as plain input data. The first stage is a pure
+function from "what was invoked" to the first plan: next program is this
+`build.omg`, with these default backings selected.
+
+Two things follow:
+
+- **The first stage can start life as a constant inside the driver.** A plan
+  is data, so a hard-coded default plan and an Omega program that returns the
+  same plan are indistinguishable to everything after them. V2 can build the
+  driver with the constant and replace it with an Omega core stage later.
+- **What the first stage selects** is the ordinary set of build backings:
+  `Console`, reading the project's source, writing build output, and whatever
+  else a normal `build.omg` expects to call.
+
+##### Unused selections are inert
+
+A selection for a service the next stage never reaches is not an error and
+costs nothing; its backing is never set up. This has to hold, or every
+`build.omg` that prints nothing would fail for being handed a `Console`. The
+spec's rule is the same: "selection alone contributes no service reach". The
+error is the other direction only: a stage that can reach a service call with
+no usable backing is refused before it runs.
+
+The identity check follows the same line. An identity whose declaration the
+stage never loads is inert. An identity whose declaration the stage does load
+must match what the previous stage saw, or the compile fails.
+
+##### Backings do not carry over
+
+A backing selected for one stage does nothing for any other stage. Each plan
+selects backings for the next compile only, and that stage's own plan must
+select again for the one after it. This follows from the rule (a stage starts
+with *its* backings settled) and was confirmed in discussion relayed by Jarod,
+2026-11-18. A library helper that says "the usual build backings again" is
+fine; silent inheritance is not.
+
+##### Grants only narrow
+
+Relayed by Jarod, 2026-11-18. A grant can only be attenuated: a stage can
+pass on what it was given or less, and a virtual filesystem can never be
+upgraded to a real one further down the chain.
+
+Where the first narrowing happens is not settled. Two variants were floated:
+
+- **The command decides.** The driver reads the build or run arguments and
+  starts the chain with a virtual or a real filesystem.
+- **Always real at the top, then attenuate.** The chain always starts with
+  the real filesystem, and the core first stage reads the arguments and
+  narrows it for the next stage. This keeps the driver dumb and puts the
+  policy in Omega code. It also means the first stage *holds* a grant even
+  though it has no backings and calls no services: holding a resource to
+  pass on is different from being able to use it.
+
+Both obey the rule. This is the second
+half of "selecting is not granting": a plan may ask for less than the stage
+has, never for more than the invocation gave. The spec has the same idea
+under its `staged-build-capability-attenuation` decision.
+
+##### What gets invoked: leaning, not decided
+
+Relayed by Jarod, 2026-11-18, marked "maybe":
+
+- **`omega build build.omg`:** the full chain. The first stage plans for the
+  given build program, and that program plans for the product.
+- **`omega run main.omg`:** no build program needed. The first plan goes
+  straight to the given program with default settings, so a simple program or
+  script is a two-program chain. No default build file has to exist; the
+  first plan just says what a trivial one would have said. Put the other way
+  round: reaching `main` directly means the first stage did its own default
+  build, such as selecting a default `Console`.
+
+Commands are always `omega <subsystem> <action>` (Jarod, 2026-11-18). The
+command, not the file's name, picks the mode, and there may be no blessed
+file names at all: `build.omg` and `main.omg` here are only examples.
+
+This needs no new mechanism. The first plan already depends on what was
+invoked, and nothing has to be inspected before the chain starts.
+
+**Entry names are blessed; file names are not.** `omega build <file>` targets
+`machine build` in that file and `omega run <file>` targets `machine main`.
+Those two names have to stay stable for one reason: the core first stage is
+the only program in a chain that must name something it cannot import. It is
+handed a file path at run time, so it builds the entry's identity from that
+file and a fixed name, where every later stage names its next entry by
+importing it. Later entries can therefore be called anything; only the first
+needs a convention. Overriding the name with an argument is possible and
+probably overkill.
+
+**The first stage names the entry; it does not call it.** The user's file is
+not compiled when the first stage runs. The first stage's plan says "this
+file, entry `build`", and the driver compiles and runs it.
+
+**One file with both a build entry and a main entry** also falls out, if a
+plan names its next program as a set of files plus an entry point, with the
+entry given as a reflection identity like every other reference between
+stages. Such a file is a `build.omg` whose plan names itself, with a
+different entry, as the product: the outer stage runs one entry, and that
+entry recurses on the same file with the entry for the actual program.
+It is compiled twice, once per stage, each in its own universe. Its one
+limit: the whole file has to check in the build stage too, so `main` cannot
+use a package the build discovers or code the build generates. A project that
+needs either moves its build into its own file. The limit is the same loop
+this model removed, showing up where it should.
+
+Pruning by use does not lift that limit, because it can only happen after
+typing: knowing what an entry reaches needs resolved and typed calls. So in
+each stage the whole file is lexed, parsed, resolved and typed (L0 to L3),
+and only what the stage's entry reaches goes on to lowering and beyond. The
+other entry's code is checked but never lowered, run or published. The spec
+has both halves: "unreachable statements are still source", and source checks
+"do not force concrete layouts for unused bodies".
+
+##### Defaults: leaning, not decided
+
+Relayed by Jarod, 2026-11-18, as intuition and not a ruling:
+
+- **Permissive by default:** the real filesystem and no stage budget, with
+  command-line arguments to narrow either when someone cares.
+- **Interpreting need not differ.** `omega run` still has to run every stage
+  up to the product; only the last step changes, from emitting an artifact to
+  interpreting the program.
+- **One `omega.lock`** for the whole chain.
+
+How this fits the decided model: a permissive default is a default *value* of
+what the invocation grants. It changes no mechanism, and selection still does
+not grant anything by itself. Two things to decide deliberately if this
+becomes the ruling:
+
+- It departs from the spec, whose default is a confined snapshot with host
+  effects by explicit opt-in.
+- Whether a *dependency's* `build.omg` gets the same permissive grant as the
+  root project's. The spec says a root's grant is not automatically available
+  to dependency builds.
+
+Still to settle when the driver is designed: the two points above, how a
+stage's discovered packages reach `omega.lock` between stages, and the exact
+list of backings the first stage selects.
+
+The first test of the model, when the driver is designed, is to rewrite four
+real cases in it and see whether any needs something the model cannot give:
+bind an entry, select a provider, hand-written code using a generated
+constant, and a `build.omg` that itself writes to `Console`.
+
+### L5 to L7
+
+Spec owners are under `wiki/spec/terminal-psi/` (15 files, including a 199 KB
+encoding contract). Not planned in detail.
+
+## Spec gaps
+
+Places where the spec is silent, stale or inconsistent. Each needs a decision
+before the layer that depends on it is signed off.
+
+| # | Gap | Evidence | Affects | Decision |
+| --- | --- | --- | --- | --- |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Open |
+| 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Proposed in the L0 contract (G2): `//` and nesting `/* */` |
+| 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Proposed in the L0 contract (G1): the lexer has none; L1 decides |
+| 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Proposed in the L0 contract (G3): digits on both sides of the dot |
+| 7 | Case of `0x`, `0b`, `0o` and the exponent `e` is not stated. | The spec spells them lowercase and never says uppercase is refused. | L0 | Proposed in the L0 contract (G4): lowercase only |
+| 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Proposed in the L0 contract (G5): V1's table without `>>` |
+| 9 | Where `_` may appear in a number is not stated. | The spec says "digit underscores" and shows `0x1_0000u32`. | L0 | Proposed in the L0 contract (G6): anywhere after the first digit |
+| 3 | Three links from the spec point at V1 files that no longer exist. | Two under `omega-rust/psi/compilation`, one ELF backend source file. | none | Ignore unless a layer needs them |
+| 4 | "Pre-resolution evaluation" and its "post-typing continuation" are named but not defined. | The terms appear once, in `build/execution.md` under the generated-source boundary. V1 runs an evaluation step before name resolution that returns rewritten syntax. | L2 to L4 | Open |
+
+## Open decisions
+
+None at the plan level. The lexer's six gap proposals are in its contract and
+are decided at its sign-off.
+
+Settled 2026-11-18, recorded in the decision log: Rust on the stable
+toolchain (1.100.0; V1 pins `nightly-2026-09-04`), a `layers/NN-name/` folder
+per layer with its fixtures plus `tools/` for shared test tools, and a git
+repository. Nothing has been committed yet.
+
+## Where V2 departs from the spec
+
+The spec is the reference except for the departures listed here. Each one was
+decided by Jarod, and the spec text has not been changed to match.
+
+| # | Spec rule | V2 instead | Decided |
+| --- | --- | --- | --- |
+| 1 | Generated source is a "later resolution stratum"; hand-written code cannot call it. ([Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary)) | Generated files are ordinary inputs to the single product compile; hand-written code may call them. | 2026-11-18 |
+| 2 | Product operands in `build.omg` are resolved against the frozen, already-checked product while the Build runs. (`build/scoped_execution.md`, "Toolchain operations have designated product operands") | They are resolved in the Build's own universe, carried in the plan as reflection identities, and bound when the product compiles. | 2026-11-18 |
+| 3 | The running Build may query checked product facts such as target layout. | Not available during the Build; such a need becomes a later stage. | 2026-11-18 |
+| 4 | A Build suspends itself. `suspend Build::await_provider<Requirement, Implementation>(builder)` installs a provider from a build dependency and resumes the same program, and Build code is checked in stages as dependencies arrive. ([Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness), [Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)) | No suspension. A stage's inputs and backings are settled before it starts; anything it discovers or selects is used by a later stage. | 2026-11-18 |
+| 5 | A package has one Build, then its product. | A chain of any number of stages, each an ordinary Omega program. It always starts with a core-supplied stage and then the project's `build.omg`. | 2026-11-18 |
+| 6 | The Build has special standing: a toolchain-supplied default environment and a `Build` context only it receives. | `build.omg` is an ordinary program. What it can do is exactly what the previous stage selected and the invocation granted. | 2026-11-18 |
+
+## Owner questions
+
+Questions only Jarod can answer. Cracks in a decided design are raised here,
+not worked around in code.
+
+| # | Question | Raised | Affects | Answer |
+| --- | --- | --- | --- | --- |
+| 1 | May `build.omg` register a build-only package while it runs and then use it? If yes, `build.omg` itself still needs staged checking (reason 2 under [Why V1 loops back](#why-v1-loops-back)). If build-only packages must be known before it runs, the only loop left is source discovery. | 2026-11-18 | driver | Answered 2026-11-18: no. A stage may discover a package and put it in its plan; a later stage imports it. Nothing is used in the stage that registers it. |
+| 2 | Where do a Build's own services come from? `build.omg` may import a file that declares or uses a service such as `Console`, but calling it needs a provider, and the decided Build model does not say who supplies one. Raised by Zac. | 2026-11-18 | driver, interpreter | Answered 2026-11-18: from the stage before it. The core-supplied first stage selects the ordinary build backings for `build.omg`, and the invocation grants the resources. See the [Build model](#v2s-build-model-a-chain-of-stages). |
+| 3 | When `omega run main.omg` is run and a build program sits beside it, is that build program used or ignored? Using it makes the command do what the project intends; ignoring it keeps "what you pass is what runs" and lets a script be run without its project's build. | 2026-11-18 | driver | Open. Probably moot: if no file names are blessed, nothing beside the given file can be picked up implicitly. Not confirmed. |
+
+## Decision log
+
+| Date | Decision | By |
+| --- | --- | --- |
+| 2026-11-18 | V2 is a new folder built layer by layer, each tested solid before the next. | Jarod |
+| 2026-11-18 | Only `wiki/spec` and `wiki/README.md` were copied from V1. | Jarod |
+| 2026-11-18 | Spec is the reference; the language guide is for humans. | Jarod |
+| 2026-11-18 | V1's `pipeline.md` is a proposed pipeline and is not followed. | Jarod |
+| 2026-11-18 | Each layer needs a fast test system. | Jarod |
+| 2026-11-18 | Source discovery and a self-augmenting `build.omg` are required. | Jarod |
+| 2026-11-18 | Build model ratified: insulated stages plus reflection identities. Cracks return as owner questions in this repo. | Jarod |
+| 2026-11-18 | Rust on stable, `layers/NN-name/` layout, git repository; start with the lexer. | Jarod |
+| 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
