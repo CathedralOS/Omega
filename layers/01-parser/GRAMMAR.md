@@ -363,6 +363,32 @@ is to follow the spec; the last column says where that default looks wrong.
 | D6 | `(clear satisfies A::clear)` as an expression (language/conformances.md:197, :526) | `satisfies` is recognized only in declaration headers (*checked*). | |
 | D7 | The `some S` binder (language/data_and_literals.md:109) | Not recognized. | |
 
+### Rot, or the spec ahead of the code?
+
+Both, and the dates in V1's git history say which. "Last changed" is when the
+spec line showing the form was last edited.
+
+| # | Spec line last changed | What V1's history says | Verdict |
+| --- | --- | --- | --- |
+| D1 `if` | 2026-10-27, by a change to the integer API it calls | V1 retired `if` on 2026-07-02. The commit reads "the `if` statement is retired ('if isn't a thing', settled 2026-07-02)". The spec never mentions it. | **Rot.** The example outlived the decision by four months and was even edited in place without anyone noticing the `if`. |
+| D2 `requires ...;` | 2026-09-08 | The rule against it, `machine-clause-delimiters`, was confirmed 2026-10-30. | **Rot.** The example predates the rule and was not updated. |
+| D2 trailing `,` | 2026-09-20 | Same rule, same date. | Probably rot, though V1 still accepts it. |
+| D3 tuple `match` | 2026-11-10, under decision `record-or-sum-data` | V1's `match` has no tuple support. | **Spec ahead.** Written a week before the copy was taken; not implemented. |
+| D4 arm then `(` | 2026-11-10, same example | V1 has no rule and no test for it. | **A hole in both.** Nobody has run this example. |
+| D5 `asm machine` | 2026-10-29, under decision `checked-assembly-machine-bodies` | V1's parser has only the `asm` statement. | **Spec ahead.** Designed, not implemented. |
+| D6 `satisfies` expression | 2026-11-10 | Not in V1's parser. | **Spec ahead.** |
+| D7 `some S` | 2026-11-10 | Not in V1's parser. | **Spec ahead.** |
+
+What this does to the decisions below:
+
+- **Decisions 1 and 4 are already made**, by Zachary on 2026-07-02 and by the
+  2026-10-30 rule. V2 follows them; the spec's examples are wrong, not V1.
+- **Decisions 3 and 9 are the spec being newer than V1.** V2 follows the
+  spec.
+- **Decision 2 is new.** Neither the spec nor V1 has ever answered it.
+
+The two rotted examples are worth reporting to whoever maintains the spec:
+language/conformances.md:39 and language/generics.md:223.
 ## What V1 accepts that the spec never shows
 
 These are in V1's parser and in none of the spec's 132 examples. They are not
