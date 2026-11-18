@@ -10,6 +10,7 @@ use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
 use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
+use symbols::{BuiltinTypeAtom, PrimitiveType};
 use terminal_check_tables::{Checked, Construct};
 
 use super::authority::Access;
@@ -519,12 +520,8 @@ impl<'t> Program<'t> {
                     let right =
                         self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
-                    let left = self.expression(
-                        id,
-                        slots,
-                        binary.left,
-                        operand(quoted.0, hint.or(partner)),
-                    )?;
+                    let hint = arithmetic_operand_hint(id, binary.operator, partner, hint, false)?;
+                    let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     (left, right)
                 } else {
                     let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
@@ -540,12 +537,13 @@ impl<'t> Program<'t> {
                     } else {
                         None
                     };
-                    let right = self.expression(
-                        id,
-                        slots,
-                        binary.right,
-                        operand(quoted.1, if shift { count } else { hint.or(partner) }),
-                    )?;
+                    let hint = if shift {
+                        count
+                    } else {
+                        arithmetic_operand_hint(id, binary.operator, partner, hint, true)?
+                    };
+                    let right =
+                        self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     (left, right)
                 };
                 // Intrinsic storage equality compares byte contents or the
@@ -589,28 +587,6 @@ impl<'t> Program<'t> {
                     self.wholly_anonymous(binary.left),
                     self.wholly_anonymous(binary.right),
                 );
-                // An address is compared, never computed with here: address
-                // arithmetic relates counts to addresses under a fit proof
-                // (counts_and_addresses.md), which this reader does not form.
-                let address = |operand: &Expression| {
-                    matches!(
-                        operand.result.and_then(ValueType::scalar),
-                        Some(ScalarType::Integer(integer)) if integer.is_address()
-                    )
-                };
-                if (address(&left) || address(&right))
-                    && !matches!(
-                        binary.operator,
-                        BinaryOperator::Equal
-                            | BinaryOperator::NotEqual
-                            | BinaryOperator::Less
-                            | BinaryOperator::LessOrEqual
-                            | BinaryOperator::Greater
-                            | BinaryOperator::GreaterOrEqual
-                    )
-                {
-                    return unserved("arithmetic on an address");
-                }
                 return binary_expression(
                     id,
                     binary.operator,
@@ -1297,6 +1273,89 @@ pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
     }
 }
 
+/// An address subtraction's result context does not choose its operand roles.
+/// The shared source signature lands an anonymous offset in u64, while an
+/// address peer on the right makes the left operand another address.
+/// Other arithmetic retains its existing contextual and generic-width hints.
+fn arithmetic_operand_hint(
+    id: MachineId,
+    operator: BinaryOperator,
+    peer: Option<ScalarType>,
+    expected: Option<ScalarType>,
+    right_operand: bool,
+) -> Checked<Option<ScalarType>> {
+    let Some(ScalarType::Integer(address)) = peer else {
+        return Ok(expected.or(peer));
+    };
+    if operator != BinaryOperator::Subtract || !address.is_address() {
+        return Ok(expected.or(peer));
+    }
+    let selected = crate::source_state::operator::integer_peer_operand_carrier(
+        operator,
+        PrimitiveType::Addr,
+        right_operand,
+    );
+    match selected {
+        PrimitiveType::Addr => Ok(peer),
+        PrimitiveType::Integer(carrier) => {
+            super::types::atom_type(BuiltinTypeAtom::Integer(carrier), id).map(Some)
+        }
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Selector => {
+            Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("address subtraction operand carrier"),
+            ))
+        }
+    }
+}
+
+/// Reuse the source signature's two subtraction forms without identifying an
+/// address with a fixed integer of the same width. Terminal semantics checks
+/// the retained operand models and supplies the ordinary exact-fit obligation.
+fn address_subtraction_result(
+    id: MachineId,
+    left: ScalarType,
+    right: ScalarType,
+) -> Checked<ScalarType> {
+    let unserved = || {
+        refuse(
+            id,
+            Construct::Machine,
+            Unserved::Expression("arithmetic on an address"),
+        )
+    };
+    let primitive = |scalar| {
+        PrimitiveType::from_builtin_atom(super::types::scalar_atom(scalar, id)?)
+            .ok_or_else(unserved)
+    };
+    let selected = crate::source_state::operator::builtin_integer_result_carrier(
+        BinaryOperator::Subtract,
+        [primitive(left)?, primitive(right)?],
+    )
+    .ok_or_else(unserved)?;
+    let result = match selected {
+        PrimitiveType::Addr => left,
+        PrimitiveType::Integer(carrier) => {
+            super::types::atom_type(BuiltinTypeAtom::Integer(carrier), id)?
+        }
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Selector => {
+            return Err(unserved());
+        }
+    };
+    if !matches!((result, left, right),
+        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
+            if result.admits_exact_subtract_operands(left, right))
+    {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Typing("operand types"),
+        ));
+    }
+    Ok(result)
+}
+
 /// Builtin operator selection: which operation a binary operator names, and
 /// its operand and result types. Builtin meaning is all the subset has: an
 /// operator bound to a declared machine reaches the typed trees as a call.
@@ -1311,15 +1370,59 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
-    let (operation, policy, result) = binary_selection(
-        id,
+    let address = |operand: &Expression| matches!(operand.result.and_then(ValueType::scalar), Some(ScalarType::Integer(integer)) if integer.is_address());
+    let comparison = matches!(
         operator,
-        left.result,
-        right.result,
-        anonymous,
-        suffix,
-        (source, right.source),
-    )?;
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    );
+    let (operation, policy, result) = if (address(&left) || address(&right)) && !comparison {
+        let plain = |operand: &Expression| {
+            operand
+                .result
+                .is_some_and(|value| value.qualification().is_none())
+        };
+        if operator != BinaryOperator::Subtract
+            || suffix.is_some()
+            || !plain(&left)
+            || !plain(&right)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("arithmetic on an address"),
+            ));
+        }
+        let (Some(left_type), Some(right_type)) = (
+            left.result.and_then(ValueType::scalar),
+            right.result.and_then(ValueType::scalar),
+        ) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("operand types"),
+            ));
+        };
+        (
+            Some(Strict::Subtract),
+            None,
+            ValueType::plain(address_subtraction_result(id, left_type, right_type)?),
+        )
+    } else {
+        binary_selection(
+            id,
+            operator,
+            left.result,
+            right.result,
+            anonymous,
+            suffix,
+            (source, right.source),
+        )?
+    };
     let kind = match operation {
         Some(operation) => ExpressionKind::Strict {
             operation,
