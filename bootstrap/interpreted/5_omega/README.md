@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,363 lines / 828,232 bytes with SHA-256
-`e0f3332c083943e64a23e0f5a5c4366e7062835f07f555da28f34e005f7f523f`.
+manifest materializes 22,626 lines / 839,579 bytes with SHA-256
+`d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c`.
 The manifest itself is 1,674 bytes, SHA-256
-`ec12bab7203a544fe517a678a7f4b532924cc145a7c2f4d90e6d1a37c1861111`;
+`f3a5797dedaca00c159f07d96732737631804ed2a82e1f119b85eeb7778794e8`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -120,7 +120,7 @@ A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses beyond the requirements
-and crash ceilings described below, receivers,
+and the crash and blocking ceilings described below, receivers,
 other runtime carriers/policies, arithmetic beyond the checked unsigned families below, other dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
@@ -189,6 +189,19 @@ the selected entry. A forbidden unconditional first crash in an unconstrained
 entry rejects. Possible routes needing a path proof still return Incomplete,
 as do guarded clauses and Abort. Full product effect admission remains open.
 [Effect admission](../../../wiki/spec/language/effects.md)
+A bare `blocks` or `blocks true` publishes a possible block. Public machines
+with an omitted bound and machines declaring `blocks false` promise that
+their bodies cannot block. Private machines infer an omitted bound. The
+compiler follows ordinary calls from all bodies to derive these envelopes.
+Each call to a possibly blocking callee needs its own `block` acknowledgement,
+including calls nested in arguments. A redundant acknowledgement on a
+nonblocking call preserves its caller's bound. The marker changes no Alpha
+instructions. A possibly blocking machine with nested states stays Incomplete
+until the compiler can check the envelope of each transfer. Suspension,
+host services and their operational contracts
+remain outside this executable slice.
+[Call-site acknowledgements](../../../wiki/spec/language/effects.md#call-site-acknowledgements)
+
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
 
@@ -718,7 +731,18 @@ On the Omega sources at `b95769558667`, the independent Epsilon model ran the
 bootstrap compiler on 284 units / 3,822,481 source bytes, request
 `aa8891b09b5edbff0cb48bddb21eb20061b5e9ee1552e19a70339799211263dc`.
 Before crash support it returned `Incomplete` at the first `crashes Trap`
-clause in `application/construction/main.omg`. The updated compiler parses
-that declaration and its `crash Trap;` terminal, then returns `Incomplete`
+clause in `application/construction/main.omg`. The compiler at `0b29148fc65e` parsed
+that declaration and its `crash Trap;` terminal, then returned `Incomplete`
 at the `blocks` clause of `read_byte()` on line 30, packed source offset
 1,034 / unit offset 904. Both runs emitted only the refusal coordinate.
+
+With ordinary blocking-call checks, the independent model ran both that frozen
+input and the 284-unit source graph at `0b29148fc65e`. The latter contains
+3,822,250 source bytes, request
+`94895e169fd2f36b6a2b0c93f5db3a3911432d5de63d6210bd8bd9a762387d38`.
+Both runs passed the `read_byte()` header and ordinary call syntax, then
+returned `Incomplete` at packed byte 2,571 / unit byte 2,441. On line 71,
+`read_input()` uses `true -> block rows(...)` to enter a nested machine.
+That transfer needs its own checked envelope. Both observations ended at the
+refusal coordinate. The source graph has yet to reach checking of the
+`ByteRead` payload and the Console and ProcessExit services.

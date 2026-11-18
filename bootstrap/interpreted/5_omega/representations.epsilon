@@ -449,6 +449,8 @@ data OmegaMachineClauseKind {
     case Reaches;
     case CrashesTrap;
     case CrashesNone;
+    case Blocks;
+    case BlocksFalse;
     case Terminates;
 }
 
@@ -500,6 +502,7 @@ data OmegaStatementSyntax {
 }
 
 data OmegaCallStatementSyntax {
+    acknowledgements: i32;
     name_member_count: i32;
     first_receiver_member: i32;
     receiver_member_count: i32;
@@ -514,6 +517,7 @@ data OmegaCallStatementSyntax {
 }
 
 data OmegaCallExpressionSyntax {
+    acknowledgements: i32;
     has_receiver: i32;
     receiver: i32;
     // Named `::` members precede any value projections. This distinguishes
@@ -870,6 +874,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedUnitTypeEnd;
     case ExpectedCrashCause;
     case ExpectedCrashSemicolon;
+    case ExpectedAcknowledgedCall;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedExpressionPathMember;
@@ -937,6 +942,7 @@ data OmegaParserResource {
 // Parsing a call argument may enter another ordinary call. Save the enclosing
 // call's own header and pending-argument list, without retaining a host stack.
 data OmegaCallParseFrame {
+    acknowledgements: i32;
     first_machine_argument: i32;
     is_expression: i32;
     result_consumer: OmegaExpressionConsumer;
@@ -1186,6 +1192,13 @@ data OmegaParser {
     call_path_member_count: i32;
     call_starts_at_self: i32;
     call_name_member_count: i32;
+    // Call-site acknowledgements: bit 0 block, bit 1 suspend. A prefix
+    // belongs only to the call whose callee begins at pending_callee.
+    pending_callee: i32;
+    pending_acknowledgements: i32;
+    acknowledgement_start: i32;
+    acknowledgement_path_kind: i32;
+    call_acknowledgements: i32;
     call_start: i32;
     call_has_receiver: i32;
     call_receiver_expression: i32;
