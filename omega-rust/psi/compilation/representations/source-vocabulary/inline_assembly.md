@@ -82,9 +82,9 @@ postconditions whose places were written.
 Product and source-only preparation no longer carry the unused build-wide
 `AsmAuthorityAdmission` record. The [hardware authority contract](../../../../../wiki/spec/build/permissions.md#where-the-operation-can-run)
 requires each selected output's target to support the instruction and its
-selected provider contracts to cover the required authority. Legacy
-`Build.freestanding` and `Build.privileged_services` fields remain accepted during
-authored-build migration and grant no authority. Mixed firmware/hosted acceptance
+selected provider contracts to cover the required authority. The legacy
+`Build.freestanding` field remains accepted during authored Build migration.
+Mixed firmware/hosted acceptance
 with a selected controller remains unproved. The [code repair queue](../../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
 tracks that acceptance, remaining authored-field migration and interrupt-mask
 reach correction.
