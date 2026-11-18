@@ -799,7 +799,10 @@ impl TableTerm for ProofNode {
             ProofRule::PredicateDenotation { premise } => {
                 premises.push(premise);
             }
-            ProofRule::IeeeFloatOrderChain(children)
+            ProofRule::ContentIntervalNormalization {
+                premises: children, ..
+            }
+            | ProofRule::IeeeFloatOrderChain(children)
             | ProofRule::FloatMeaningNormalization(children)
             | ProofRule::ConjunctionIntroduction(children) => {
                 premises.extend(children.iter());
@@ -933,6 +936,20 @@ impl TableTerm for ProofNode {
 
 fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
     match &node.rule {
+        ProofRule::ContentIntervalNormalization {
+            endpoint_groups,
+            premises,
+        } => {
+            writer.u8(33);
+            writer.len("content endpoint groups", endpoint_groups.len())?;
+            for group in endpoint_groups {
+                writer.len("content equality group", group.len())?;
+                for endpoint in group {
+                    encode_integer_math_term(writer, endpoint)?;
+                }
+            }
+            writer.len("certificate children", premises.len())?;
+        }
         ProofRule::IntegerFloatExact => writer.u8(32),
         ProofRule::FloatIntegerConversion { computed, .. } => {
             writer.u8(31);
@@ -1168,6 +1185,28 @@ fn read_proof_row(
 ) -> Result<ProofNode, CodecError> {
     use ProofRule as R;
     match reader.u8()? {
+        33 => {
+            let groups = bounded_count(reader, 4)?;
+            let endpoint_groups = (0..groups)
+                .map(|_| {
+                    let count = bounded_count(reader, 5)?;
+                    (0..count)
+                        .map(|_| {
+                            crate::term_wire::integer_math_term_wire::decode_integer_math_term(
+                                reader,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, CodecError>>()
+                })
+                .collect::<Result<Vec<_>, CodecError>>()?;
+            let count = bounded_count(reader, 4)?;
+            read_node(reader, children, count, |premises| {
+                R::ContentIntervalNormalization {
+                    endpoint_groups,
+                    premises,
+                }
+            })
+        }
         0 => {
             let count = crate::semantic_module::wire::bounded_count(reader, 4)?;
             let total = count
@@ -1618,6 +1657,40 @@ mod tests {
         let mut writer = Writer::default();
         Certificate::write(&mut writer, certificate).unwrap();
         writer.finish()
+    }
+
+    #[test]
+    fn interval_certificate_retains_endpoint_groups_and_proofs() {
+        let endpoint = semantic_vocabulary::IntegerMathTerm::literal(
+            semantic_vocabulary::IntegerValue::Unsigned(3),
+        );
+        let certificate = envelope(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::ContentIntervalNormalization {
+                endpoint_groups: vec![vec![endpoint.clone()]],
+                premises: vec![truth()],
+            },
+        });
+        let bytes = encoded_envelope(&certificate);
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(Certificate::read(&mut reader).unwrap(), certificate);
+        let mut changed = certificate.clone();
+        if let ProofRule::ContentIntervalNormalization {
+            endpoint_groups, ..
+        } = &mut changed.proof.rule
+        {
+            endpoint_groups[0].push(endpoint);
+        } else {
+            unreachable!()
+        }
+        assert_ne!(encoded_envelope(&changed), bytes);
+        let mut changed = certificate;
+        if let ProofRule::ContentIntervalNormalization { premises, .. } = &mut changed.proof.rule {
+            premises[0].rule = ProofRule::Assumption { index: 9 };
+        } else {
+            unreachable!()
+        }
+        assert_ne!(encoded_envelope(&changed), bytes);
     }
 
     #[test]

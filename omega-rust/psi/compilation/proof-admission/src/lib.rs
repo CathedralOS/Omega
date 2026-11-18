@@ -37,6 +37,7 @@
 #![forbid(unsafe_code)]
 
 mod bounded_denotation;
+pub mod content_intervals;
 mod integer_affine;
 mod mathematical_typing;
 pub(crate) mod admission {

@@ -494,6 +494,9 @@ impl Transport<'_> {
                 .collect::<Result<Vec<_>, _>>()
         };
         let rule = match &node.rule {
+            // Endpoint interpretations are rebuilt at the destination's actual
+            // storage cut. Reprove this rule until that correspondence is carried.
+            ProofRule::ContentIntervalNormalization { .. } => return Err(None),
             ProofRule::Primitive(_) => node.rule.clone(),
             ProofRule::SemanticAxiom { index } => ProofRule::SemanticAxiom {
                 index: self.cited_axiom(*index)?,

@@ -309,6 +309,16 @@ pub(crate) mod content {
         }
     }
 
+    /// Concrete endpoint meaning rebuilt by the checking owner at one program
+    /// point. Certificates cannot supply or change this association.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ContentIntervalInterpretation {
+        pub projection: ContentProjectionIdentity,
+        pub subject: ContentStructuralPlace,
+        pub algebra: ContentAlgebra,
+        pub members: Vec<(crate::IntegerMathTerm, crate::IntegerMathTerm)>,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
     pub enum ContentTerm {
         Projection {

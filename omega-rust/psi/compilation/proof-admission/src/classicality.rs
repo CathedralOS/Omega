@@ -37,7 +37,8 @@ impl AcceptedProofRule {
             | Self::IntegerLessOrEqualTransitivity
             | Self::IntegerStrictOrderTransitivity
             | Self::IntegerOrderSubstitution => ProofRuleFoundation::Constructive,
-            Self::PredicateDenotation
+            Self::ContentIntervalNormalization
+            | Self::PredicateDenotation
             | Self::IeeeFloatOrderChain
             | Self::FloatMeaningNormalization
             | Self::FloatIntegerConversion
@@ -68,7 +69,8 @@ impl AcceptedProofRule {
     pub const fn is_provisional(self) -> bool {
         matches!(
             self,
-            Self::IntegerRemainderWithinDividend
+            Self::ContentIntervalNormalization
+                | Self::IntegerRemainderWithinDividend
                 | Self::IntegerQuotientAtMostDividend
                 | Self::IntegerMultipleRemainder
                 | Self::IntegerPowerOfTwoOrder
@@ -99,7 +101,8 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 36] = [
+    const ALL: [AcceptedProofRule; 37] = [
+        AcceptedProofRule::ContentIntervalNormalization,
         AcceptedProofRule::IeeeFloatOrderChain,
         AcceptedProofRule::FloatMeaningNormalization,
         AcceptedProofRule::FloatIntegerConversion,
@@ -189,7 +192,8 @@ mod tests {
                 rule.is_provisional(),
                 matches!(
                     rule,
-                    AcceptedProofRule::IntegerRemainderWithinDividend
+                    AcceptedProofRule::ContentIntervalNormalization
+                        | AcceptedProofRule::IntegerRemainderWithinDividend
                         | AcceptedProofRule::IntegerQuotientAtMostDividend
                         | AcceptedProofRule::IntegerMultipleRemainder
                         | AcceptedProofRule::IntegerPowerOfTwoOrder

@@ -24,6 +24,10 @@ pub enum CoreVocabulary {
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
+    /// The ordinary recursive natural-number data used by proof terms.
+    NaturalNumber,
+    /// The fixed content interface and its proof-only algebra declarations.
+    Content(ContentDeclaration),
     OpaqueRepresentation,
     PrivateCallbackSlot,
     FixedLayoutPlan,
@@ -68,6 +72,16 @@ pub enum CoreVocabulary {
     ExternalBinding(ExternalBindingVocabulary),
     /// Core `integer.omg`'s carrier metadata query or its result type.
     IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+/// Recognition of these declarations supplies their mathematical meaning,
+/// never a content claim, separation proof or permission to access storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ContentDeclaration {
+    Interface,
+    Project,
+    IntervalSet,
+    CountedQuantity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -223,6 +237,8 @@ const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
 const NEVER: &[u8] = core_source!("never.omg");
+const CONTENT: &[u8] = core_source!("content.omg");
+const NATURAL: &[u8] = core_source!("nat.omg");
 const FILESYSTEM_AUTHORITY: &[u8] = core_source!("filesystem_authority.omg");
 
 const fn row(
@@ -254,6 +270,31 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row("nat.omg", "Nat", NATURAL, CoreVocabulary::NaturalNumber),
+    row(
+        "content.omg",
+        "Content",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::Interface),
+    ),
+    row(
+        "content.omg",
+        "Content::project",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::Project),
+    ),
+    row(
+        "content.omg",
+        "IntervalSet",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::IntervalSet),
+    ),
+    row(
+        "content.omg",
+        "CountedQuantity",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::CountedQuantity),
+    ),
     row(
         "filesystem_authority.omg",
         "FilesystemContentRead",
@@ -703,6 +744,27 @@ impl CoreVocabularyCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_meaning_requires_the_exact_bundled_declaration() {
+        for declaration in [
+            ContentDeclaration::Interface,
+            ContentDeclaration::Project,
+            ContentDeclaration::IntervalSet,
+            ContentDeclaration::CountedQuantity,
+        ] {
+            let vocabulary = CoreVocabulary::Content(declaration);
+            let declared = CoreVocabularyCatalog::declaration(vocabulary).unwrap();
+            assert_eq!(CoreVocabularyCatalog::classify(declared), Some(vocabulary));
+            for changed in [
+                site("other.omg", declared.declaration, declared.source),
+                site("content.omg", "Lookalike", declared.source),
+                site("content.omg", declared.declaration, b"edited"),
+            ] {
+                assert_eq!(CoreVocabularyCatalog::classify(changed), None);
+            }
+        }
+    }
 
     #[test]
     fn filesystem_services_require_the_exact_bundled_declaration() {

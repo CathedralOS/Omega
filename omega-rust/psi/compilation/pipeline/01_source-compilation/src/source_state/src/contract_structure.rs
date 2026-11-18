@@ -274,3 +274,77 @@ pub fn is_true_crash_route(program: &TypedTrees, fact: &ProofFact) -> bool {
             )
     )
 }
+
+/// Retain one contract subject by its resolved root and declared members.
+/// This forms an identity path only. Its consumer still checks the path against
+/// the root's actual type and proves any required case or index formation.
+/// The caller supplies the permitted roots: a normal-result promise permits
+/// `result`, while a content clause may also name its ordinary parameters.
+pub fn structural_subject_with(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+    mut root: impl FnMut(
+        &crate::source_state::expression::TableNamePath,
+    ) -> Result<declaration_contracts::content::ContentPlaceRoot, &'static str>,
+) -> Result<declaration_contracts::content::ContentStructuralPlace, &'static str> {
+    use crate::source_state::expression::ExpressionNode;
+    use declaration_contracts::content::{
+        ContentCaseSegment, ContentFieldSegment, ContentPlaceSegment, ContentPlaceVersion,
+        ContentStructuralPlace,
+    };
+    let mut reversed = Vec::new();
+    let mut remaining = program.expression_table.expression_count();
+    loop {
+        if remaining == 0 || !program.expression_table.expression_is_valid(expression) {
+            return Err("contract subject expression is missing or cyclic");
+        }
+        remaining -= 1;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(name) if !name.static_application.is_valid() => {
+                reversed.reverse();
+                return Ok(ContentStructuralPlace {
+                    version: ContentPlaceVersion::Current,
+                    root: root(name)?,
+                    segments: reversed,
+                });
+            }
+            ExpressionNode::Member(member) => {
+                let symbol = member.selection.field_symbol();
+                let field = program
+                    .unique_declared_field_by_symbol(symbol)
+                    .ok_or("contract subject field has no exact declaration")?;
+                if !field.member_identity().is_valid() {
+                    return Err("contract subject field lost its member identity");
+                }
+                reversed.push(ContentPlaceSegment::Field(ContentFieldSegment {
+                    symbol,
+                    name: field.path_identity(),
+                }));
+                let parent = program.symbols.get(symbol).parent;
+                if !program.symbols.symbols().nodes().is_valid(parent) {
+                    return Err("contract subject field lost its owner");
+                }
+                if program.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+                    let (_, case) = program
+                        .variant_owner(parent)
+                        .ok_or("contract subject field lost its exact case")?;
+                    reversed.push(ContentPlaceSegment::Case(ContentCaseSegment {
+                        symbol: parent,
+                        name: case.path_identity(),
+                    }));
+                }
+                expression = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let index = program
+                    .closed_integer_expression_value_in(indexed.index, owner)
+                    .and_then(|value| value.to_u64())
+                    .ok_or("contract subject index is not an exact closed element")?;
+                reversed.push(ContentPlaceSegment::FixedIndex(index));
+                expression = indexed.collection;
+            }
+            _ => return Err("contract subject is not a resolved root or structural projection"),
+        }
+    }
+}

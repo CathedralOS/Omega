@@ -1245,3 +1245,161 @@ fn domain_family_discovery_preserves_visibility_without_importing_its_module() {
         }
     }
 }
+
+#[test]
+fn content_projection_reads_exact_owner_fields_without_executing_helpers() {
+    use declaration_contracts::content::{
+        ContentArithmeticOperator, ContentProjectionExpression, ContentScalarExpression,
+    };
+    let core = bundled_core_sources();
+    let text = "use omega::language::core::Content;\n\
+        use omega::language::core::IntervalSet;\n\
+        use omega::language::core::Nat;\n\
+        data Region { base: u64; length: u64; }\n\
+        domain Region::Bytes;\n\
+        machine helper(value: u64) -> u64 { value }\n\
+        machine Bytes::view(subject: &Region) -> IntervalSet<Nat>\n\
+        satisfies Content<Region, IntervalSet<Nat>>::project {\n\
+            IntervalSet { start: embed(subject.base) as Nat,\n\
+                end: (embed(subject.base) + embed(subject.length)) as Nat }\n\
+        }\n\
+        machine forward(value: Region) -> Region\n\
+        ensures core::Identity<IntervalSet<Nat>>(Bytes::view(old(&value)), Bytes::view(&result))\n\
+        { value }\n";
+    let read = |text: &str| {
+        let mut units = core
+            .iter()
+            .map(|(path, source)| (0, path.as_str(), source.as_str()))
+            .collect::<Vec<_>>();
+        let caller = units.len();
+        units.push((31, "content.omg", text));
+        let typed = packages(
+            &units,
+            &[],
+            &[
+                (caller, 0, "omega::language::core::Content", 3),
+                (caller, 0, "omega::language::core::IntervalSet", 3),
+                (caller, 0, "omega::language::core::Nat", 3),
+            ],
+        )
+        .unwrap();
+        crate::preparation::prepare_typed_trees(
+            typed,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the projection retains its applied algebra and field selections")
+        .0
+    };
+    let typed = read(text);
+    let changed = read(&text.replace(
+        "embed(subject.base) as Nat",
+        "embed(helper(subject.base)) as Nat",
+    ));
+    let observe = |typed: &crate::source_state::TypedTrees| {
+        let mut observed = Vec::new();
+        for machine in typed.machines().iter().filter(|machine| {
+            machine.name.as_str().rsplit("::").next() == Some("view")
+                && !machine.satisfies.is_empty()
+        }) {
+            let edges = typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(|edge| {
+                    let file = typed
+                        .symbols
+                        .symbol_source_span(edge.symbol)
+                        .and_then(|span| typed.symbols.source_file(span))
+                        .map(|file| (file.path.clone(), file.origin, file.package_identity));
+                    (
+                        edge.name.to_string(),
+                        typed.symbols.display_path(edge.symbol, "::"),
+                        typed.symbols.core_vocabulary(edge.symbol),
+                        typed.symbols.core_vocabulary(edge.requirement_symbol),
+                        file,
+                    )
+                })
+                .collect::<Vec<_>>();
+            eprintln!(
+                "projection candidate {}: package {:?}, span {:?}, parent {:?}, edges {edges:?}",
+                machine.name,
+                typed.symbols.symbol_package_identity(machine.symbol),
+                typed.symbols.symbol_source_span(machine.symbol),
+                typed
+                    .symbols
+                    .symbol_source_span(typed.declaration_scope_parent(machine.symbol))
+            );
+            observed.push(typed.content_projection(machine.symbol));
+        }
+        observed
+    };
+    let positive = observe(&typed);
+    let negative = observe(&changed);
+    let roster = typed.content_projections();
+    let forward = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let entry = typed.machine_states(forward).first().unwrap();
+    let clause = typed
+        .signature_contracts
+        .span_or_empty(entry.contracts)
+        .iter()
+        .find_map(|contract| {
+            typed
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .find_map(|fact| {
+                    let crate::source_state::domain::ProofFact::Expression(expression) = fact
+                    else {
+                        return None;
+                    };
+                    Some(typed.content_conservation_clause(
+                        entry.symbol,
+                        typed.state_parameters(entry),
+                        *expression,
+                    ))
+                })
+        })
+        .expect("the fixture retains its conservation clause");
+    eprintln!("forward content clause: {clause:?}");
+    eprintln!("valid projection: {positive:?}");
+    eprintln!("helper inside projection: {negative:?}");
+    eprintln!("complete owner projection roster: {roster:?}");
+    let [Ok(Some(projection))] = positive.as_slice() else {
+        panic!("{positive:?}")
+    };
+    let ContentProjectionExpression::IntervalSet { members } = &projection.expression else {
+        panic!("{projection:?}")
+    };
+    let [interval] = members.as_slice() else {
+        panic!("{members:?}")
+    };
+    let ContentScalarExpression::RuntimeScalarEmbedding(base) = interval.start() else {
+        panic!("{interval:?}")
+    };
+    assert_eq!(
+        base.iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["base"]
+    );
+    assert!(matches!(
+        interval.end(),
+        ContentScalarExpression::Arithmetic {
+            operator: ContentArithmeticOperator::Add,
+            ..
+        }
+    ));
+    assert!(roster.unwrap().contains(projection));
+    let clause = clause.unwrap().unwrap();
+    assert_eq!(clause.projections, [projection.clone()]);
+
+    assert_eq!(
+        negative,
+        [Err(
+            "contract subject is not a resolved root or structural projection"
+        )]
+    );
+}

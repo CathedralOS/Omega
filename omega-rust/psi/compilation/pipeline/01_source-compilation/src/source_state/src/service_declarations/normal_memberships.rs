@@ -12,7 +12,7 @@ use symbols::SymbolHandle;
 
 use crate::source_state::TypedTrees;
 use crate::source_state::domain::{DomainIssuance, ProofFact};
-use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+use crate::source_state::expression::ExpressionHandle;
 use crate::source_state::signature::{SignatureContract, SignatureContractKind};
 use crate::source_state::trait_definition::AppliedTraitScope;
 
@@ -98,58 +98,33 @@ impl<'program> NormalMemberships<'program> {
     fn result_path(
         &self,
         owner: SymbolHandle,
-        mut expression: ExpressionHandle,
+        expression: ExpressionHandle,
     ) -> Result<Vec<ServiceResultProjection>, &'static str> {
-        let program = self.program;
-        let mut reversed = Vec::new();
-        loop {
-            if !program.expression_table.expression_is_valid(expression) {
-                return Err("normal membership result expression does not resolve");
-            }
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Name(name)
-                    if name.reserved_result_of.is_valid() && name.reserved_result_of == owner =>
-                {
-                    reversed.reverse();
-                    return Ok(reversed);
-                }
-                ExpressionNode::Member(member) => {
-                    let symbol = member.selection.field_symbol();
-                    let field = program.unique_declared_field_by_symbol(symbol).ok_or(
-                        "normal membership result field has no unique declaration identity",
-                    )?;
-                    if !field.member_identity().is_valid() {
-                        return Err(
-                            "normal membership result field has no declared member identity",
-                        );
-                    }
-                    reversed.push(ServiceResultProjection::Field(field.path_identity()));
-                    let parent = program.symbols.get(symbol).parent;
-                    if !program.symbols.symbols().nodes().is_valid(parent) {
-                        return Err("normal membership result field lost its declaration owner");
-                    }
-                    if program.symbols.get(parent).kind == symbols::SymbolKind::Variant {
-                        let (_, case) = program
-                            .variant_owner(parent)
-                            .ok_or("normal membership result field lost its exact case")?;
-                        reversed.push(ServiceResultProjection::Case(case.path_identity()));
-                    }
-                    expression = member.receiver;
-                }
-                ExpressionNode::Indexed(indexed) => {
-                    let index = program
-                        .closed_integer_expression_value_in(indexed.index, owner)
-                        .and_then(|index| index.to_u64())
-                        .ok_or("normal membership result index is not an exact closed element")?;
-                    reversed.push(ServiceResultProjection::FixedIndex(index));
-                    expression = indexed.collection;
-                }
-                _ => {
-                    return Err(
+        use declaration_contracts::content::{ContentPlaceRoot, ContentPlaceSegment};
+        let subject = crate::source_state::contract_structure::structural_subject_with(
+            self.program,
+            owner,
+            expression,
+            |name| {
+                if name.reserved_result_of.is_valid() && name.reserved_result_of == owner {
+                    Ok(ContentPlaceRoot::Result)
+                } else {
+                    Err(
                         "normal membership guarantee does not name its exact result or result projection",
-                    );
+                    )
                 }
-            }
-        }
+            },
+        )?;
+        Ok(subject
+            .segments
+            .into_iter()
+            .map(|segment| match segment {
+                ContentPlaceSegment::Field(field) => ServiceResultProjection::Field(field.name),
+                ContentPlaceSegment::Case(case) => ServiceResultProjection::Case(case.name),
+                ContentPlaceSegment::FixedIndex(index) => {
+                    ServiceResultProjection::FixedIndex(index)
+                }
+            })
+            .collect())
     }
 }

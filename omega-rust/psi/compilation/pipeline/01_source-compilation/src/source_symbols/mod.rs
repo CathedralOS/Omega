@@ -1,5 +1,6 @@
 //! Source-owned declaration lookup, construction and exact-source correspondence.
 mod builtin;
+mod domain_names;
 mod retained_declaration;
 mod storage;
 mod table;
@@ -9,6 +10,7 @@ pub use builtin::{
     builtin_function_symbols, builtin_type_member_symbols, builtin_type_symbols,
     fixed_core_declaration_symbols, is_builtin_type_spelling,
 };
+pub use domain_names::{DomainMembership, membership_domain_lookup};
 pub use retained_declaration::{SourceSpanCandidates, rejoin_declaration, retain_declaration};
 pub use storage::{SymbolHierarchy, SymbolRows};
 use symbols::*;

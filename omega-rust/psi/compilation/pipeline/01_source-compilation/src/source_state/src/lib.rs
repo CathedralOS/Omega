@@ -52,6 +52,8 @@ pub mod boundary_values {
     }
 }
 pub mod callable_lifetimes;
+pub mod content_contracts;
+pub mod content_projections;
 pub mod source_names;
 pub(crate) mod source_review {
     use crate::source_state::{PlanLaidTargetLayout, types::TypeReferenceHandle};

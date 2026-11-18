@@ -30,6 +30,8 @@ use propositional_rules::{check_assumption, check_conjunction_introduction, chec
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AcceptedProofRule {
+    /// Fixed interval replay; provisional until derived by the mathematical core.
+    ContentIntervalNormalization,
     Primitive,
     SemanticAxiom,
     Assumption,
@@ -2799,7 +2801,10 @@ mod traversal {
                 }
                 pending.push(Action::Enter(premise));
             }
-            ProofRule::IeeeFloatOrderChain(children)
+            ProofRule::ContentIntervalNormalization {
+                premises: children, ..
+            }
+            | ProofRule::IeeeFloatOrderChain(children)
             | ProofRule::FloatMeaningNormalization(children) => {
                 pending.push(Action::Children(children));
             }
@@ -2982,6 +2987,22 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::ContentIntervalNormalization {
+            endpoint_groups,
+            premises,
+        } => {
+            crate::content_intervals::check(
+                context,
+                &proof.conclusion,
+                endpoint_groups,
+                premises.iter().map(|premise| &premise.conclusion),
+            )
+            .map_err(ProofError::RulePremiseMismatch)?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ContentIntervalNormalization);
+            Ok(())
+        }
         ProofRule::IntegerFloatExact => {
             crate::check_integer_float_exact(context, &proof.conclusion)
                 .map_err(|error| ProofError::FloatIntegerConversion(Box::new(error)))?;

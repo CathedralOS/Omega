@@ -400,6 +400,12 @@ pub(crate) mod proof_kernel {
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofRule {
+            /// Provisional interval-set normalization from independently checked
+            /// integer endpoint proofs and the context's exact interpretation.
+            ContentIntervalNormalization {
+                endpoint_groups: Vec<Vec<IntegerMathTerm>>,
+                premises: Vec<ProofNode>,
+            },
             /// Exact integer representability, including complete-carrier
             /// embedding. Provisional until derived in the mathematical core.
             IntegerFloatExact,

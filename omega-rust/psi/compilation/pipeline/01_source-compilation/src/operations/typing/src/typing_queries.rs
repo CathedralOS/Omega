@@ -924,6 +924,15 @@ impl<'program> DeclaredCallTargets<'program> {
         {
             return receiver.is_none_or(|receiver| static_namespace(program, receiver));
         }
+        // The kernel's fixed identity declaration has no authored body in
+        // mathematical_definitions. Binding it here proves only that the call
+        // names that declaration; the clause reader still forms both operands
+        // and checking must prove the identity.
+        if program.symbols.fixed_core_declaration_for_symbol(symbol)
+            == Some(symbols::FixedCoreDeclaration::Identity)
+        {
+            return receiver.is_none_or(|receiver| static_namespace(program, receiver));
+        }
         match program.symbols.get(symbol).kind {
             // mathematical_bindings.md, "Named mathematical definitions": a
             // top-level `let` with a parameter telescope is applied by name,
@@ -2702,6 +2711,54 @@ mod tests {
         };
         node.target_symbol = states[2];
         assert_eq!(deferred(&program).unwrap(), Vec::new());
+    }
+
+    #[test]
+    fn fixed_identity_is_bound_without_an_authored_mathematical_definition() {
+        use crate::source_symbols::{
+            builtin_function_symbols, builtin_type_symbols, fixed_core_declaration_symbols,
+        };
+        let mut symbols = crate::source_symbols::SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain(fixed_core_declaration_symbols())
+                .chain([
+                    (
+                        SymbolKind::MathematicalDefinition,
+                        symbols::SymbolNameRef::Static("core::Identity"),
+                    ),
+                    (SymbolKind::Local, symbols::SymbolNameRef::Static("value")),
+                ]),
+        );
+        let lookalike = children
+            .handles()
+            .skip(
+                symbols::BUILTIN_TYPE_COUNT
+                    + symbols::BuiltinFunction::COUNT
+                    + symbols::FixedCoreDeclaration::COUNT,
+            )
+            .collect::<Vec<_>>();
+        let program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let identity = program
+            .symbols
+            .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Identity)
+            .unwrap();
+        let level = program
+            .symbols
+            .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Level)
+            .unwrap();
+        let targets = DeclaredCallTargets::new(&program);
+        assert!(targets.declares(identity, None));
+        assert!(!targets.declares(identity, Some(lookalike[1])));
+        assert!(!targets.declares(lookalike[0], None));
+        assert!(!targets.declares(level, None));
     }
 
     #[test]

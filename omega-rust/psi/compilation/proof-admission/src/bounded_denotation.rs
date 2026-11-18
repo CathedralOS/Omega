@@ -7158,9 +7158,11 @@ mod elaboration {
                     FloatIntegerConversion { premise, computed } => {
                         Children::fixed([Some(premise), computed.as_deref(), None])
                     }
-                    IeeeFloatOrderChain(children) | FloatMeaningNormalization(children) => {
-                        Children::slice(children)
+                    ContentIntervalNormalization {
+                        premises: children, ..
                     }
+                    | IeeeFloatOrderChain(children)
+                    | FloatMeaningNormalization(children) => Children::slice(children),
                     ConjunctionElimination {
                         conjunction,
                         conjunct: _,
@@ -7752,6 +7754,31 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                ProofRule::ContentIntervalNormalization {
+                    endpoint_groups,
+                    premises,
+                } => {
+                    crate::content_intervals::check(
+                        self.context,
+                        &proof.conclusion,
+                        endpoint_groups,
+                        premises.iter().map(|premise| &premise.conclusion),
+                    )
+                    .map_err(|detail| certificate!(ProofError::RulePremiseMismatch(detail)))?;
+                    let evidence = premises
+                        .iter()
+                        .map(|premise| operands.take(premise))
+                        .collect();
+                    self.rule_instance(
+                        AcceptedProofRule::ContentIntervalNormalization,
+                        premises
+                            .iter()
+                            .map(|premise| premise.conclusion.clone())
+                            .collect(),
+                        evidence,
+                        &proof.conclusion,
+                    )
+                }
                 // Provisional float rules: the core has no IEEE model to
                 // derive them from, so each checked row denotes an instance
                 // of its statement, as `IntegerPowerOfTwoOrder` does. The

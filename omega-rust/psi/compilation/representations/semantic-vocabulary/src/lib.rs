@@ -970,12 +970,14 @@ pub use scalars::bounded_integer_type::BoundedIntegerType;
 pub use storage::authored_storage::{
     AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
 };
+mod interval_sets;
+pub use interval_sets::{CanonicalIntervalSet, IntervalSetError, NaturalInterval};
 pub use storage::content::ContentPlaceSegment as StructuralPlaceSegment;
 pub use storage::content::{
-    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceVersion,
-    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    ContentStructuralPlace, ContentTerm, content_conservation_report_fingerprint,
-    encode_fingerprint_string,
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentIntervalInterpretation,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    content_conservation_report_fingerprint, encode_fingerprint_string,
 };
 /// A content place orders case names before field names. Import this concrete
 /// type and qualify its variants, for example `ContentPlaceSegment::Case`.

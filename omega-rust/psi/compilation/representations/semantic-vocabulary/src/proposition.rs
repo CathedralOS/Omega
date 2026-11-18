@@ -2219,6 +2219,13 @@ mod propositions {
     pub struct PropositionContext {
         value_types: BTreeMap<ValueId, ScalarType>,
         structural_places: BTreeMap<PlaceId, StructuralPlaceKind>,
+        content_intervals: BTreeMap<
+            (
+                crate::ContentProjectionIdentity,
+                crate::ContentStructuralPlace,
+            ),
+            crate::ContentIntervalInterpretation,
+        >,
     }
 
     impl PropositionContext {
@@ -2256,6 +2263,42 @@ mod propositions {
                 }
             }
             Ok(context)
+        }
+
+        /// The caller constructs these interpretations from the checked module's
+        /// exact projection definition and the selected storage observations.
+        /// This validates their logical names; it does not authorize the caller
+        /// or turn an interpretation into a conservation theorem.
+        pub fn with_content_intervals(
+            mut self,
+            interpretations: impl IntoIterator<Item = crate::ContentIntervalInterpretation>,
+        ) -> Result<Self, PropositionError> {
+            for interpretation in interpretations {
+                if interpretation.algebra.kind != crate::ContentAlgebraKind::IntervalSet {
+                    return Err(PropositionError::InvalidContentIntervalInterpretation);
+                }
+                self.validate_content_term(&ContentTerm::Projection {
+                    projection: interpretation.projection,
+                    subject: interpretation.subject.clone(),
+                })?;
+                for (start, end) in &interpretation.members {
+                    self.validate_integer_math_term(start)?;
+                    self.validate_integer_math_term(end)?;
+                }
+                let key = (interpretation.projection, interpretation.subject.clone());
+                if self.content_intervals.insert(key, interpretation).is_some() {
+                    return Err(PropositionError::InvalidContentIntervalInterpretation);
+                }
+            }
+            Ok(self)
+        }
+
+        pub fn content_interval_projection(
+            &self,
+            projection: crate::ContentProjectionIdentity,
+            subject: &crate::ContentStructuralPlace,
+        ) -> Option<&crate::ContentIntervalInterpretation> {
+            self.content_intervals.get(&(projection, subject.clone()))
         }
 
         pub fn validate(&self, proposition: &Proposition) -> Result<(), PropositionError> {
@@ -2605,6 +2648,7 @@ mod propositions {
         NonCanonicalIeeeFloatComparisonOperands,
         EmptyByteSequenceStructuralFieldPath,
         NonCanonicalByteSequenceEqualOperands,
+        InvalidContentIntervalInterpretation,
         EmptyContentAlgebraParameter,
         EmptyContentCaseName,
         EmptyContentFieldName,
