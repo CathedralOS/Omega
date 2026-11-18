@@ -16532,9 +16532,9 @@
       "file": "omega-rust/omega/interpreter/terminal-runtime/src/execution/hosted_invocation.rs",
       "item": "function:execute#1",
       "kind": "host_operation",
-      "meaning": "Privately instantiate and sponsor PSI with the concrete host\u2019s verified image or portable absence; no public raw-layout call exists.",
+      "meaning": "Privately instantiate and sponsor Psi with the concrete host's verified image or portable absence. Drop the instance and release its held provider leases before finishing the worker; the public call accepts no raw layout.",
       "producer": "terminal hosted interpreter",
-      "signature": "47ed7bf1c92ab94f22a2549b0cb6df6fad9973f1460580eca954fc4676e01a94"
+      "signature": "964cd2ee06a02984e73ce3367849ec624af42ab92999b38b9ed5193c53870df7"
     },
     {
       "consumers": [
