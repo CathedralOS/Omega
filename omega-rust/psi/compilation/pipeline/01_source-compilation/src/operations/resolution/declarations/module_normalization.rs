@@ -44,13 +44,6 @@ use syntax_trees::item::Item;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeReferenceNode;
 
-pub(crate) fn validate_with_selection(
-    syntax: &SyntaxTrees,
-    selection: &crate::resolution::declarations::declaration_selection::ConstantSelection,
-) -> Result<(), Vec<Diagnostic>> {
-    validate_with_const_resolution_mode(syntax, selection, ConstResolutionMode::Complete)
-}
-
 pub(crate) fn validate_with_const_resolution_mode(
     syntax: &SyntaxTrees,
     selection: &crate::resolution::declarations::declaration_selection::ConstantSelection,

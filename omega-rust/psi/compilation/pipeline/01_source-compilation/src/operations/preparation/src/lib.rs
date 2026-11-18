@@ -15,7 +15,9 @@ mod product;
 pub use driver::{PreparationAdmission, PreparationRequest, TypedPreparation, prepare_typed_trees};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use driver::{PreparationRequest, prepare_typed_trees};
+#[cfg(any(test, feature = "test-support"))]
+pub use product::PreparedProductRequirement;
 pub use product::{
-    PreparedProductRequirement, prepare_product_operand_application,
-    prepare_product_requirement_operand, prepare_retained_product_application,
+    prepare_product_operand_application, prepare_product_requirement_operand,
+    prepare_retained_product_application,
 };

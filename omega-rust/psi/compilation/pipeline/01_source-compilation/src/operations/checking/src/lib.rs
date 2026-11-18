@@ -411,6 +411,7 @@ pub fn discharge(
 /// is not the form's body) is decided as in any closed machine, so carrying
 /// never accepts what the closed check would not, and never rejects what it
 /// accepts.
+#[cfg(any(test, feature = "test-support"))]
 pub fn discharge_carrying(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],

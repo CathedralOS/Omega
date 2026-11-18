@@ -114,8 +114,10 @@ pub fn synthesize_trait_defaults(
         syntax,
         Some(&selection),
     )?;
-    crate::resolution::declarations::module_normalization::validate_with_selection(
-        syntax, &selection,
+    super::module_normalization::validate_with_const_resolution_mode(
+        syntax,
+        &selection,
+        crate::resolution::lowering::lowerer::ConstResolutionMode::Complete,
     )?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)
 }
