@@ -51,6 +51,18 @@ pub(super) struct StaticMachineTarget {
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
 }
 
+struct RequiredCallback<'a> {
+    parameter: SymbolHandle,
+    source: &'a typed_trees::signature::StateSignature,
+    signature: Signature,
+}
+
+struct CallbackConformance {
+    selected: MachineId,
+    arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
+    ordinal: u32,
+}
+
 impl<'t> Program<'t> {
     /// Read a declaration without granting invocation authority. Actual
     /// calls check visibility before using this same retained boundary row.
@@ -2044,8 +2056,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Vec<terminal_psi::static_reach::StaticReachArgument>> {
         let mut bindings = Vec::with_capacity(arguments.len());
         for &(parameter, argument) in arguments {
-            self.static_argument_selection(caller, argument)?;
-            let contract = self
+            let required = self
                 .typed
                 .retained_static_machine_contract(parameter)
                 .ok_or_else(|| {
@@ -2054,8 +2065,8 @@ impl<'t> Program<'t> {
                         Construct::Machine,
                         Unserved::Call("callable argument lost its originating contract"),
                     )
-                })?;
-            let required = contract.signature();
+                })?
+                .signature();
             let scope = self.scopes.get(callee).cloned().ok_or_else(|| {
                 refuse(
                     caller,
@@ -2076,6 +2087,13 @@ impl<'t> Program<'t> {
             self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
+            let lexical_owner = *self.symbols.get(caller).ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its source owner"),
+                )
+            })?;
             let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
                 refuse(
                     caller,
@@ -2083,100 +2101,168 @@ impl<'t> Program<'t> {
                     Unserved::Call("callable argument lost its required header"),
                 )
             })?;
-            let target = self.entered_machine(argument.symbol).ok_or_else(|| {
-                refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("supplied callable has no declared machine body"),
-                )
-            })?;
-            let (body, nested) = if let Some(applied) = &argument.application {
-                if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
-                    return Err(refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call(
-                            "supplied callable has an unsupported member or lifetime application",
-                        ),
-                    ));
-                }
-                let actual = self.application_arguments(
-                    caller,
-                    target,
-                    argument.authored_machine_application,
-                    &applied.arguments,
-                )?;
-                let body = self.application(caller, target, actual.types, actual.references)?;
-                let nested =
-                    self.callable_application_arguments(caller, body, &actual.callables)?;
-                // A selected callable with scalar consts needs a fully applied
-                // required header; it cannot discard those values as metadata.
-                if !actual.values.is_empty() {
-                    return Err(refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("supplied callable retains scalar const inputs"),
-                    ));
-                }
-                (body, nested)
-            } else {
-                (self.machine(target)?, Vec::new())
-            };
-            self.fixed_inputs.push(body);
-            let application = self
-                .typed
-                .static_operand_identity(typed_trees::type_identity::StaticOperandIdentityRequest {
-                    operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
-                        argument,
-                    ),
-                    lexical_owner: *self.symbols.get(caller).ok_or_else(|| {
-                        refuse(
-                            caller,
-                            Construct::Machine,
-                            Unserved::Call("callable argument lost its source owner"),
-                        )
-                    })?,
-                    substitutions: &[],
-                })
-                .and_then(|identity| self.typed.type_identity_text(identity))
-                .filter(|identity| !identity.is_empty())
-                .ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("callable argument lost its exact application identity"),
-                    )
-                })?;
-            let envelope = self.static_envelope(caller, required, false)?;
-            let conformance =
-                u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("too many callback conformance questions"),
-                    )
-                })?;
+            let checked = self.callback_conformance(
+                caller,
+                RequiredCallback {
+                    parameter,
+                    source: required,
+                    signature,
+                },
+                argument,
+                lexical_owner,
+            )?;
             let position = self.static_reach_parameter(callee, parameter, requirement)?;
             bindings.push(terminal_psi::static_reach::StaticReachArgument {
                 parameter: position,
                 requirement,
-                selected: body,
-                arguments: nested,
-                conformance,
+                selected: checked.selected,
+                arguments: checked.arguments,
+                conformance: checked.ordinal,
             });
-            self.static_contracts
-                .conformances
-                .push(crate::static_contracts::SourceConformance {
-                    declaration: parameter,
-                    requirement: required.symbol,
-                    application,
-                    implementation: crate::static_contracts::SourceImplementation::Machine(body),
-                    signature,
-                    envelope,
-                    provider: None,
-                });
         }
         Ok(bindings)
+    }
+
+    /// Closing a generic application does not discharge its callback contracts.
+    /// Read their full applied headers and ask the ordinary refinement checker.
+    pub(super) fn closed_callback_requirements(
+        &mut self,
+        caller: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<()> {
+        let unavailable = |what| refuse(caller, Construct::Machine, Unserved::Call(what));
+        let Some(typed_trees::MachineInstantiation::Specialization(receipt)) = self
+            .typed
+            .machine_instantiation(symbol)
+            .map_err(unavailable)?
+        else {
+            return Ok(());
+        };
+        self.typed
+            .specialization_binding_declaration(receipt)
+            .map_err(unavailable)?;
+        let application = receipt.binding_application;
+        let invocation = self
+            .typed
+            .expression_table
+            .static_machine_application(application);
+        let lexical_owner = invocation.lexical_owner;
+        let contracts = self
+            .typed
+            .static_callback_requirements(application)
+            .map_err(unavailable)?;
+        for contract in contracts {
+            let requirement =
+                self.binder_requirement(contract.parameter, contract.required, &[])?;
+            self.callback_conformance(
+                caller,
+                RequiredCallback {
+                    parameter: contract.parameter,
+                    source: contract.required,
+                    signature,
+                },
+                contract.argument,
+                lexical_owner,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn callback_conformance(
+        &mut self,
+        caller: MachineId,
+        required: RequiredCallback<'_>,
+        argument: &StaticMachineArgument,
+        lexical_owner: SymbolHandle,
+    ) -> Checked<CallbackConformance> {
+        let RequiredCallback {
+            parameter,
+            source: required,
+            signature,
+        } = required;
+        self.static_argument_selection(caller, argument)?;
+        let target = self.entered_machine(argument.symbol).ok_or_else(|| {
+            refuse(
+                caller,
+                Construct::Machine,
+                Unserved::Call("supplied callable has no declared machine body"),
+            )
+        })?;
+        let (body, nested) = if let Some(applied) = &argument.application {
+            if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call(
+                        "supplied callable has an unsupported member or lifetime application",
+                    ),
+                ));
+            }
+            let actual = self.application_arguments(
+                caller,
+                target,
+                argument.authored_machine_application,
+                &applied.arguments,
+            )?;
+            let body = self.application(caller, target, actual.types, actual.references)?;
+            let nested = self.callable_application_arguments(caller, body, &actual.callables)?;
+            // A selected callable with scalar consts needs a fully applied
+            // required header; it cannot discard those values as metadata.
+            if !actual.values.is_empty() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("supplied callable retains scalar const inputs"),
+                ));
+            }
+            (body, nested)
+        } else {
+            (self.machine(target)?, Vec::new())
+        };
+        self.fixed_inputs.push(body);
+        let application = self
+            .typed
+            .static_operand_identity(typed_trees::type_identity::StaticOperandIdentityRequest {
+                operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                    argument,
+                ),
+                lexical_owner,
+                substitutions: &[],
+            })
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its exact application identity"),
+                )
+            })?;
+        let envelope = self.static_envelope(caller, required, false)?;
+        let conformance =
+            u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("too many callback conformance questions"),
+                )
+            })?;
+        self.static_contracts
+            .conformances
+            .push(crate::static_contracts::SourceConformance {
+                declaration: parameter,
+                requirement: required.symbol,
+                application,
+                implementation: crate::static_contracts::SourceImplementation::Machine(body),
+                signature,
+                envelope,
+                provider: None,
+            });
+        Ok(CallbackConformance {
+            selected: body,
+            arguments: nested,
+            ordinal: conformance,
+        })
     }
 
     /// The source binder and its full applied requirement travel together.

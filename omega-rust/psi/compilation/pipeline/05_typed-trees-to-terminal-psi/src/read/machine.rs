@@ -686,6 +686,7 @@ impl<'t> Program<'t> {
         self.scopes.push(scope);
         self.source_scopes.push(source_scope);
         self.const_scopes.push(widths);
+        self.closed_callback_requirements(id, symbol)?;
         Ok(())
     }
 
@@ -2749,6 +2750,17 @@ impl<'t> Program<'t> {
         let (mut lowered, _) = result?;
         self.complete_callable_signature(id, signature, &mut lowered)?;
         Ok(lowered)
+    }
+
+    /// Read a required callback header for refinement without registering an
+    /// abstract call target in the executable closure.
+    pub(super) fn callback_requirement_signature(
+        &mut self,
+        id: MachineId,
+        signature: &StateSignature,
+    ) -> Checked<Signature> {
+        self.applied_requirement_signature(id, signature, RequirementValues::Bound(&[]))
+            .map(|(signature, _)| signature)
     }
 
     fn applied_requirement_signature(

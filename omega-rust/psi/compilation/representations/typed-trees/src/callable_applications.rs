@@ -1,3 +1,7 @@
+#[path = "static_callback_contracts.rs"]
+mod static_callback_contracts;
+pub use static_callback_contracts::AppliedStaticCallbackRequirement;
+
 /*
 We represent closed callable applications (`callable_applications`), including
 applied machine instances, trait and conformance scopes, domain scopes, and
@@ -7267,6 +7271,7 @@ pub(crate) mod table {
         #[default]
         MachineSelection,
         Requirement(SymbolHandle),
+        StaticCallback,
     }
 
     fn invocation_owner(
@@ -7281,6 +7286,9 @@ pub(crate) mod table {
                 lexical_owner,
                 ..
             } => Some((application, InvocationPurpose::Requirement(lexical_owner))),
+            AppliedCallableOwner::StaticCallback { application, .. } => {
+                Some((application, InvocationPurpose::StaticCallback))
+            }
             _ => None,
         }
     }
@@ -7571,6 +7579,13 @@ pub(crate) mod table {
             self.invocation_groups.free(group);
         }
 
+        pub(crate) fn callback_rows(
+            &self,
+            invocation: StaticMachineApplicationHandle,
+        ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
+            self.invocation_rows(invocation, InvocationPurpose::StaticCallback)
+        }
+
         pub(crate) fn declaration_rows(
             &self,
             invocation: StaticMachineApplicationHandle,
@@ -7644,6 +7659,45 @@ pub(crate) mod table {
                 .machine_rows(invocation)
                 .map(|(handle, _)| handle)
                 .collect()
+        }
+
+        #[test]
+        fn callback_contract_rows_keep_their_promise_on_storage_recovery() {
+            let application = StaticMachineApplicationHandle::from_parts(3, 1);
+            let other_generation = StaticMachineApplicationHandle::from_parts(3, 2);
+            let source = StateSignature {
+                symbol: SymbolHandle::from_parts(7, 1),
+                termination_guarantee: language_semantics::TerminationGuarantee::Terminates {
+                    premises: Vec::new(),
+                },
+                ..Default::default()
+            };
+            let mut table = AppliedCallableTable::default();
+            let stored = table.insert(AppliedCallableSignature {
+                owner: AppliedCallableOwner::StaticCallback {
+                    parameter: source.symbol,
+                    application,
+                    lexical_owner: SymbolHandle::from_parts(8, 1),
+                    source: source.clone(),
+                    bindings: Default::default(),
+                    lifetimes: Default::default(),
+                },
+                signature: source.clone(),
+            });
+            let encoded = compiler_storage::encode(&table, Default::default()).unwrap();
+            let mut recovered: AppliedCallableTable =
+                compiler_storage::decode(&encoded, Default::default()).unwrap();
+            assert!(recovered.machine_rows(application).next().is_none());
+            assert!(recovered.callback_rows(other_generation).next().is_none());
+            let rows = recovered.callback_rows(application).collect::<Vec<_>>();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].0, stored);
+            assert_eq!(rows[0].1.signature, source);
+            assert!(
+                matches!(&rows[0].1.owner, AppliedCallableOwner::StaticCallback { source: retained, .. } if retained == &source)
+            );
+            assert!(recovered.free(stored));
+            assert!(recovered.callback_rows(application).next().is_none());
         }
 
         #[test]
@@ -8438,6 +8492,7 @@ impl TypedTrees {
                         source_required,
                         ..
                     } => [required.as_ref(), Some(source_required)],
+                    AppliedCallableOwner::StaticCallback { source, .. } => [Some(source), None],
                     _ => [None, None],
                 };
                 let trait_scope = match prepared.owner {
@@ -8460,6 +8515,7 @@ impl TypedTrees {
     fn callable_application_owner_is_live(&self, prepared: &AppliedCallableSignature) -> bool {
         match prepared.owner {
             AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
+            | AppliedCallableOwner::StaticCallback { lexical_owner, .. }
             | AppliedCallableOwner::Realization { lexical_owner, .. } => {
                 self.machine_by_symbol(lexical_owner).is_some()
             }
@@ -8504,6 +8560,10 @@ impl TypedTrees {
                 AppliedCallableOwner::Trait { declaration, .. }
                 | AppliedCallableOwner::RequirementInstance { declaration, .. }
                 | AppliedCallableOwner::RequirementInvocation { declaration, .. }
+                | AppliedCallableOwner::StaticCallback {
+                    parameter: declaration,
+                    ..
+                }
                 | AppliedCallableOwner::Realization { declaration, .. }
                     if removed(declaration) =>
                 {
@@ -8597,6 +8657,14 @@ pub(crate) enum AppliedCallableOwner {
         provider_lifetime_declaration: SymbolHandle,
         provider_lifetime_owner: SymbolHandle,
         provider_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
+    },
+    StaticCallback {
+        parameter: SymbolHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        lexical_owner: SymbolHandle,
+        source: signature::StateSignature,
+        bindings: arena::HandleSpan<crate::static_applications::StaticMachineBinding>,
+        lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
     },
 }
 

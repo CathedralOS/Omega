@@ -1234,6 +1234,87 @@ fn an_open_record_call_requires_its_actual_source_owner() {
     );
 }
 
+#[test]
+fn closed_callback_applications_prove_the_full_termination_contract() {
+    let source = r#"
+        data Ticket [linear] { value: u32; }
+        machine finish(value: Ticket) -> u32 reaches none crashes none terminates {
+            let { value as number } = move value;
+            number
+        }
+        machine invoke<T, const Step: machine(value: T) -> u32 reaches none crashes none terminates>(value: T) -> u32
+        reaches none crashes none { Step(move value) }
+        machine copy(value: u32) -> u32 reaches none crashes none terminates { value }
+        machine entry() -> u32 reaches none crashes none {
+            let ticket: u32 = invoke<Ticket, finish>(Ticket { value: 41u32 });
+            let scalar: u32 = invoke<u32, copy>(23u32);
+            match ticket == 41u32 && scalar == 23u32 { true -> 0u32, false -> 1u32 }
+        }
+    "#;
+    let negative = source.replace(
+        "machine finish(value: Ticket) -> u32 reaches none crashes none terminates {\n            let { value as number } = move value;\n            number\n        }",
+        "machine finish(value: Ticket) -> u32 reaches none crashes none { finish(move value) }",
+    );
+    assert_ne!(
+        negative, source,
+        "the twin must remove actual callback progress"
+    );
+    let results = [source, negative.as_str()].map(|text| {
+        let typed = super::boundary_calls::typed(text);
+        let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the closed application must retain its required contract");
+        let entry = super::boundary_calls::entry(&typed);
+        let compilation = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let verdicts = crate::judge_compilation(compilation.program);
+        for (position, verdict) in verdicts.iter().enumerate() {
+            match verdict {
+                Ok(RouteVerdict::Accepted(_)) => eprintln!("judgment {position}: accepted"),
+                refused => eprintln!("judgment {position}: {refused:?}"),
+            }
+        }
+        super::entryless::whole_subject_result(verdicts)
+    });
+    for (name, result) in ["terminating callback", "unranked callback"]
+        .into_iter()
+        .zip(&results)
+    {
+        match result {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+    }
+    let Ok(RouteVerdict::Accepted(accepted)) = &results[0] else {
+        panic!("{:?}", results[0]);
+    };
+    accepted
+        .publish()
+        .expect("a closed callback application must publish executable Terminal Psi");
+    assert!(
+        matches!(&results[1], Err(crate::CompilationRefusal::Elaboration(refusal))
+        if refusal.reason == RefusalReason::Conflict
+        && refusal.detail == "selected machine has no published callable termination guarantee"),
+        "the selected callback must prove the binder's progress promise: {:?}",
+        results[1]
+    );
+}
+
 fn callback_form(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     let source = super::boundary_calls::typed(text);
     let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
