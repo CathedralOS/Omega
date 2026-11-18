@@ -27,7 +27,7 @@ established by InterruptMaskControl::save_and_mask;
 // Saving returns the only authority that can restore that exact prior state.
 public boundary trait InterruptMaskControl {
     machine save_and_mask() -> InterruptMaskGuard in Active
-    reaches MachineControl
+    reaches InterruptControl
     ensures
         result in InterruptMaskGuard::Active
     crashes Trap crashes Abort;
@@ -51,7 +51,7 @@ public boundary trait InterruptEntry {
 
 public boundary trait InterruptMaskRestore {
     machine restore(guard: InterruptMaskGuard)
-    reaches MachineControl
+    reaches InterruptControl
     requires
         guard in InterruptMaskGuard::Active
     crashes Trap crashes Abort;

@@ -85,7 +85,8 @@ occurrence; no authored entry marker or parameter selector substitutes for it.
 
 ## Completion reach and lifetime
 
-Mask restoration reaches `MachineControl`. Acknowledgement has a provider-neutral
+Mask-only restoration reaches `InterruptControl` under
+[privileged services](permissions.md#privileged-services). Acknowledgement has a provider-neutral
 bounded abstract row beneath `MachineControl + PortIo`: PIC may select `PortIo`,
 LAPIC/x2APIC `MachineControl`, and another admitted mechanism both or empty when
 its actual contract warrants it. This upper bound grants no authority or Boolean
