@@ -879,9 +879,8 @@ pub mod nominal_cleanup {
         if fields.iter().any(|field| field.relevance.is_erased()) {
             return Err("nominal decomposition of erased components is not served");
         }
-        if !declaration.requires.is_empty() {
-            return Err("nominal decomposition with carrier predicates is not served");
-        }
+        // Default predicates constrain the established input. Ending the whole
+        // wrapper keeps each component's independent qualifications and custody.
         if let Some(selection) = &declaration.nominal_cleanup {
             if selection.declaration.identity() != declaration.identity {
                 return Err("decomposition carrier declaration relation is not served");
