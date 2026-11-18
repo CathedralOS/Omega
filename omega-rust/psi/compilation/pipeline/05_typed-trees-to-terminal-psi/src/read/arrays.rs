@@ -1064,7 +1064,24 @@ impl Program<'_> {
         }) {
             return Ok(id);
         }
-        let identity = self.storage_identity(machine, reference)?;
+        // A scalar reached through a type parameter has the actual argument's
+        // identity. Keep the same substitutions for the row and its source.
+        let application = typed_trees::SourceTypeApplication {
+            reference,
+            scope: self.source_scope.clone(),
+            substitutions: Vec::new(),
+        };
+        let identity = self
+            .typed
+            .type_identity_text(application.type_identity(self.typed))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Spelling("scalar storage type identity"),
+                )
+            })?;
         let id = self.records.push(RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
@@ -1076,7 +1093,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
         });
-        self.record_sources.push(physical_source(reference));
+        self.record_sources
+            .push(physical_source_application(application));
         Ok(id)
     }
 
@@ -1099,14 +1117,17 @@ impl Program<'_> {
 }
 
 pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
+    physical_source_application(typed_trees::SourceTypeApplication {
+        reference,
+        ..Default::default()
+    })
+}
+
+fn physical_source_application(application: typed_trees::SourceTypeApplication) -> RecordSource {
     RecordSource {
         declaration: SymbolHandle::invalid(),
         cleanup: None,
-        application: Some(typed_trees::SourceTypeApplication {
-            reference,
-            substitutions: Vec::new(),
-            scope: Default::default(),
-        }),
+        application: Some(application),
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),
         cases: Vec::new(),

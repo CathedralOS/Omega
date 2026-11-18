@@ -993,6 +993,7 @@ fn typed_const_records_forward_the_declared_value_and_reject_another_schema() {
             ..parameter.clone()
         },
         &forwarded,
+        advance,
     )
     .unwrap_or_else(|_| {
         panic!("forward the original Const value without changing its binder kind")

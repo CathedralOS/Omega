@@ -866,27 +866,43 @@ impl Program<'_> {
                         .declared_carrier_identity(self.typed, reference)
                         .and_then(|identity| self.typed.type_identity_text(identity))
                 };
-                let referent_source = self
-                    .record_sources
-                    .get(referent)
-                    .and_then(|source| source.application.as_ref());
                 if expected_access != access
                     || source.declaration.is_valid()
                     || !source.fields.is_empty()
                     || !source.cases.is_empty()
                     || !application.substitutions.is_empty()
-                    || identity(&application.scope, application.reference).as_deref()
-                        != Some(declaration.identity.as_str())
-                    || !referent_source.is_some_and(|source| {
-                        identity(&source.scope, source.reference).is_some()
-                            && identity(&source.scope, source.reference)
-                                == identity(&application.scope, *referee)
-                    })
                 {
                     return Err(malformed(
                         machine,
-                        "reference lost exact source/referent correspondence",
+                        "reference storage disagrees with its declared access or source metadata",
                     ));
+                }
+                let reference_identity = identity(&application.scope, application.reference);
+                if reference_identity.as_deref() != Some(declaration.identity.as_str()) {
+                    let mut refusal =
+                        malformed(machine, "reference storage has another declared type");
+                    refusal.detail.push_str(&format!(
+                        " (source {reference_identity:?}, storage {:?})",
+                        declaration.identity,
+                    ));
+                    return Err(refusal);
+                }
+                let expected = identity(&application.scope, *referee);
+                let actual = self
+                    .record_sources
+                    .get(referent)
+                    .and_then(|source| source.application.as_ref())
+                    .and_then(|source| identity(&source.scope, source.reference));
+                if actual.is_none() || actual != expected {
+                    let mut refusal = malformed(
+                        machine,
+                        "reference and its referent have different source types",
+                    );
+                    refusal.detail.push_str(&format!(
+                        " (reference {:?}, expected referent {expected:?}, retained referent {actual:?})",
+                        declaration.identity,
+                    ));
+                    return Err(refusal);
                 }
                 continue;
             }

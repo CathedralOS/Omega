@@ -540,9 +540,18 @@ fn specialize_application(
     program
         .expression_table
         .set_static_machine_application_arguments(application, arguments);
+    let supplying_owner = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-        operands.push(Operand::read(program, parameter, argument)?);
+        operands.push(Operand::read(
+            program,
+            parameter,
+            argument,
+            supplying_owner,
+        )?);
     }
     // Explicit groups keep the original callable's formals and the caller's
     // supplying scope. Authenticate that relation before copying; absent groups
@@ -912,6 +921,10 @@ fn bound_arguments(
     if selected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
         return Err(unserved("a captured selection repeats a static binder"));
     }
+    let supplying_owner = program
+        .expression_table
+        .static_machine_application(selection)
+        .lexical_owner;
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let position = selected
@@ -920,8 +933,8 @@ fn bound_arguments(
                 unserved("a captured selection has no argument for the requested binder")
             })?;
         let actual = &selected[position].1;
-        let operand = Operand::read(program, parameter, argument)?;
-        let existing = Operand::read(program, parameter, actual)?;
+        let operand = Operand::read(program, parameter, argument, supplying_owner)?;
+        let existing = Operand::read(program, parameter, actual, supplying_owner)?;
         if operand.is_open(program) || operand.identity != existing.identity {
             return Err(unserved(
                 "a captured static argument is open or differs from its selected value",
@@ -968,9 +981,18 @@ fn bind_requirement(
             "a requirement call needs one argument for each declared binder",
         ));
     }
+    let supplying_owner = program
+        .expression_table
+        .static_machine_application(applied.application)
+        .lexical_owner;
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, parameter, argument)?);
+        operands.push(Operand::read(
+            program,
+            parameter,
+            argument,
+            supplying_owner,
+        )?);
     }
     program
         .expression_table
@@ -1101,9 +1123,18 @@ pub(crate) fn prepare_requirement_in_scope(
     {
         return Ok(None);
     }
+    let supplying_owner = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, parameter, argument)?);
+        operands.push(Operand::read(
+            program,
+            parameter,
+            argument,
+            supplying_owner,
+        )?);
     }
     bind(program, application, &operands);
     // Open at a parameter of the enclosing generic machine: closed in each
@@ -1204,6 +1235,7 @@ impl Operand {
         program: &mut TypedTrees,
         binder: &typed_trees::data::TypeParameter,
         argument: &StaticMachineArgument,
+        supplying_owner: SymbolHandle,
     ) -> Served<Self> {
         use typed_trees::data::TypeParameterKind;
         let parameter = binder.symbol;
@@ -1218,9 +1250,12 @@ impl Operand {
         let mut scalar = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
-                let reference = named_type(program, argument)?;
+                let reference = named_type(program, argument, supplying_owner)?;
                 type_argument_meets_bounds(program, binder, reference)?;
-                let identity = if argument.symbol.is_valid()
+                let identity = if matches!(
+                    program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
+                ) && argument.symbol.is_valid()
                     && program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter
                 {
                     Identity::Declaration(argument.symbol)
@@ -1363,18 +1398,10 @@ impl Operand {
         }
     }
 
-    /// Whether the argument names a parameter of the enclosing generic
-    /// machine, of any kind.
+    /// Nested type and callable arguments stay open with their enclosing binders.
     fn is_open(&self, program: &TypedTrees) -> bool {
         self.argument.application.is_some()
-            || self.declaration().is_some_and(|declaration| {
-                matches!(
-                    program.symbols.get(declaration).kind,
-                    SymbolKind::TypeParameter
-                        | SymbolKind::ConformanceParameter
-                        | SymbolKind::MachineParameter
-                )
-            })
+            || !typed_trees::domain::static_argument_is_closed(program, &self.argument)
     }
 
     /// How this operand is spelled in a generated machine's name.
@@ -1753,41 +1780,51 @@ fn type_argument_meets_bounds(
     )))
 }
 
-/// A type parameter stays open until its enclosing call is specialized.
-/// Other type operands retain their complete applied data view, including
-/// lifetime owners that the shared copier preserves. Invocation lifetimes do
-/// not select another executable body; each call retains its own bindings.
+/// Type arguments may contain the supplying declaration's binders. They retain
+/// their complete type and scope; the application cannot generate executable
+/// code until the ordinary static-argument closure check succeeds.
 fn named_type(
     program: &mut TypedTrees,
     argument: &StaticMachineArgument,
+    supplying_owner: SymbolHandle,
 ) -> Served<TypeReferenceHandle> {
     if argument.type_reference.is_valid() {
         let reference = argument.type_reference;
-        if program
+        if !program
             .type_reference_table
             .contains_type_reference(reference)
-            && !matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::ConstExpression(_)
-            )
-            && (matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { symbol, .. }
-                    if *symbol == argument.symbol
-                        && program.data_type_parameter_by_symbol(*symbol).is_some_and(
-                            |parameter| parameter.kind == TypeParameterKind::Type
-                        )
-            ) || program
-                .prepare_data_application_view(reference)
-                .map_err(|_| {
-                    unserved("a static type operand has no closed data application view")
-                })?)
         {
-            return Ok(reference);
+            return Err(unserved("a static type operand lost its retained type"));
         }
-        return Err(unserved(
-            "a static type operand needs a closed retained type",
-        ));
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::ConstExpression(_) => {
+                return Err(unserved("a static type operand names a value"));
+            }
+            TypeReferenceNode::Named { symbol, .. }
+                if program
+                    .data_type_parameter_by_symbol(*symbol)
+                    .is_some_and(|parameter| {
+                        *symbol != argument.symbol || parameter.kind != TypeParameterKind::Type
+                    }) =>
+            {
+                return Err(unserved(
+                    "a static type operand changes its declared type binder",
+                ));
+            }
+            _ => {}
+        }
+        program
+            .require_declared_application_operands(&[reference], supplying_owner)
+            .map_err(unserved)?;
+        let closed_view = program
+            .prepare_data_application_view(reference)
+            .map_err(|reason| Stop::Rejected(format!("static type operand: {reason}")))?;
+        if !closed_view && typed_trees::domain::index_argument_is_closed(program, reference) {
+            return Err(unserved(
+                "a closed static type operand has no retained data view",
+            ));
+        }
+        return Ok(reference);
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;
@@ -1810,12 +1847,16 @@ fn named_type(
             "a static type operand names an unapplied data or lifetime parameter",
         ));
     };
-    Ok(program
+    let reference = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
             symbol,
             name: name.clone(),
-        }))
+        });
+    program
+        .require_declared_application_operands(&[reference], supplying_owner)
+        .map_err(unserved)?;
+    Ok(reference)
 }
 
 /// Records, on the application, which parameter each argument is for.

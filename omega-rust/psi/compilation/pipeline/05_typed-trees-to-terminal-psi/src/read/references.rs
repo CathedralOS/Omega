@@ -586,6 +586,95 @@ mod tests {
     };
 
     #[test]
+    fn reference_storage_uses_the_substituted_scalar_type() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Machine, SymbolNameRef::Static("borrow"))]),
+        );
+        let scalar_symbol = declarations
+            .handles()
+            .nth(
+                symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::unsigned(32),
+                )
+                .ordinal(),
+            )
+            .unwrap();
+        let owner = declarations.handles().last().unwrap();
+        let parameter = symbols
+            .insert_children(
+                owner,
+                [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+            )
+            .handles()
+            .next()
+            .unwrap();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        typed.push_machine(typed_trees::machine::Machine {
+            symbol: owner,
+            lifetime_parameters: vec![Identifier::from("a")],
+            ..Default::default()
+        });
+        let scalar = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: scalar_symbol,
+            name: "u32".into(),
+        });
+        let referee = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: parameter,
+            name: "T".into(),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some("a".into()),
+            });
+
+        let id = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program.lifetime_owner = owner;
+        let scalar_value = ValueType::plain(program.scalar_type(id, scalar).unwrap());
+        program.scope.push((parameter, scalar_value));
+        program.source_scope = Arc::new(typed_trees::SourceTypeScope {
+            substitutions: vec![(parameter, scalar)],
+            ..Default::default()
+        });
+
+        let Some(ValueType::Record(row, _, _)) = program.reference_type(id, reference).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(program.source_record_correspondence(id).unwrap().is_empty());
+        let StorageShape::Reference { referent, .. } = program.records.get(row).unwrap().shape
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            program.records.get(referent).unwrap().identity,
+            typed.normalized_type_identity_text(scalar)
+        );
+
+        // Drop just the referent's frame and keep its stored bits and access.
+        program
+            .record_sources
+            .get_mut(referent)
+            .unwrap()
+            .application
+            .as_mut()
+            .unwrap()
+            .scope = Default::default();
+        assert!(program.source_record_correspondence(id).is_err());
+    }
+
+    #[test]
     fn reference_occurrences_keep_their_own_domains_and_lifetime_owners() {
         // A receiving metadata model, not executable or domain authority.
         // Both declarations intentionally spell their parameter `a`.

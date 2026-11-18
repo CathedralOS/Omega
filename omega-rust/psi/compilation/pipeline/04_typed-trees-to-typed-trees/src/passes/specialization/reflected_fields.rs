@@ -413,7 +413,7 @@ fn record_fields(
     holder: &Machine,
     subject: &StaticMachineArgument,
 ) -> Served<Record> {
-    let type_reference = named_type(program, subject)?;
+    let type_reference = named_type(program, subject, holder.symbol)?;
     let symbol = subject.symbol;
     if subject.application.is_some()
         || subject.const_literal.is_some()
@@ -502,7 +502,7 @@ fn context_type(
                     .then_some(argument.type_reference)
                     .ok_or(unserved("a field context lost its retained runtime type"))
             } else {
-                named_type(program, argument)
+                named_type(program, argument, state.symbol)
             }
         })
         .transpose()?;
