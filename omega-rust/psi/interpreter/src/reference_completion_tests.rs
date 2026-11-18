@@ -1816,14 +1816,38 @@ fn live_reference_owner_ignores_inactive_cached_descendants_of_a_live_sum() {
     assert!(execution.actual_storage_type_from_owner(&phantom).is_err());
 }
 
-#[test]
-fn aggregate_reference_formation_keeps_admitted_target_geometry() {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AggregateReferenceControl {
+    Aligned,
+    Short,
+    Misaligned,
+    MissingTarget,
+    ReferencePermission,
+    PlainOverflow,
+    DependentOverflow,
+}
+
+fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
     use crate::boundary::structural_inputs::contents::TerminalStructuralContents;
     use crate::boundary::values::StructuralRuntimePlace;
     use semantic_vocabulary::{
         AuthoredFieldStorage, AuthoredRecordStorage, OperationId, TargetCarrierLayout, ValueId,
     };
 
+    let short = control == AggregateReferenceControl::Short;
+    let misaligned = control == AggregateReferenceControl::Misaligned;
+    let plain = control == AggregateReferenceControl::PlainOverflow;
+    let selected = control != AggregateReferenceControl::MissingTarget;
+    let overflow = matches!(
+        control,
+        AggregateReferenceControl::PlainOverflow | AggregateReferenceControl::DependentOverflow
+    );
+    let accepted = matches!(
+        control,
+        AggregateReferenceControl::Aligned | AggregateReferenceControl::PlainOverflow
+    );
+    let byte_length = if short { 31 } else { 32 };
+    let byte_field_id = if misaligned { 4 } else { 3 };
     let type_id = |id| StructuralTypeId::new(id).unwrap();
     let unsigned =
         |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
@@ -1845,7 +1869,7 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
     };
     // The captured source recipe contains a sibling sum before the byte field.
     // Its field walk needs admitted carrier facts even with no layout applications.
-    let types = vec![
+    let mut types = vec![
         ty(
             1,
             StructuralTypeShape::Sum {
@@ -1864,7 +1888,7 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             3,
             StructuralTypeShape::FixedArray {
                 element: type_id(2),
-                length: ArrayExtent::Literal(32),
+                length: ArrayExtent::Literal(byte_length),
             },
         ),
         ty(
@@ -1920,6 +1944,37 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             )
         },
     ];
+    let StructuralTypeShape::Record { fields, .. } = &mut types[3].shape else {
+        unreachable!()
+    };
+    if plain {
+        fields.remove(0);
+    }
+    if misaligned {
+        fields[2].id = StructuralFieldId::new(byte_field_id).unwrap();
+        fields.insert(2, field(3, 20, StructuralFieldType::Scalar(unsigned(8))));
+    }
+    if control == AggregateReferenceControl::ReferencePermission {
+        // A real, nonrecursive reference leaf has the same selected pointer
+        // footprint as the first word. Equal bytes cannot supply its permission.
+        types.push(StructuralTypeDeclaration {
+            multiplicity: StructuralMultiplicity::Affine,
+            ..ty(
+                10,
+                StructuralTypeShape::Reference {
+                    referent: type_id(5),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            )
+        });
+        let StructuralTypeShape::Record { fields, .. } = &mut types[5].shape else {
+            unreachable!()
+        };
+        fields[0].field_type = StructuralFieldType::Structural(type_id(10));
+        fields[0].inline_carrier = None;
+        types[5].multiplicity = StructuralMultiplicity::Affine;
+        types[7].multiplicity = StructuralMultiplicity::Affine;
+    }
     let source = StructuralArgument {
         place: PlaceId::new(1).unwrap(),
         path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(8))],
@@ -1927,7 +1982,7 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
     };
     let mut module: TerminalModule = (**empty_program().catalogs).clone();
     let mut identities = TerminalIdentityTableBuilder::default();
-    for index in 1..=16 {
+    for index in 1..=if misaligned { 20 } else { 16 } {
         assert_eq!(
             identities.intern(&format!("aggregate_view_{index}")),
             TerminalIdentityIndex(index)
@@ -1967,7 +2022,7 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
     let target = terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
     let facts = terminal_installation::LayoutTargetFacts {
         profile: "linux_x86_64".into(),
-        pointer_size: 8,
+        pointer_size: if overflow { 1 << 63 } else { 8 },
         pointer_alignment: 8,
         case_tag_size: 4,
         case_tag_alignment: 4,
@@ -1985,12 +2040,12 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             entry: artifact.semantic_module().entry,
             installation: None,
             host_imports: &[],
-            target_machines: Some(&target),
-            target_layouts: Some(&layouts),
+            target_machines: selected.then_some(&target),
+            target_layouts: selected.then_some(&layouts),
         })
         .unwrap();
     let owner = crate::TerminalStructuralValue::minted(1, type_id(4), Vec::new());
-    let mut bytes = [0; 32];
+    let mut bytes = vec![0; usize::try_from(byte_length).unwrap()];
     bytes[0] = 42;
     let mut values = vec![
         TerminalBoundaryStorageValue {
@@ -2007,13 +2062,25 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             },
         },
     ];
+    if plain {
+        values.remove(0);
+    }
+    if misaligned {
+        values.push(TerminalBoundaryStorageValue {
+            path: vec![Path::Field(StructuralFieldId::new(3).unwrap())],
+            contents: TerminalStorageContents::Scalar {
+                value: word(unsigned(8), 0),
+                stored_scalar: unsigned(8),
+            },
+        });
+    }
     values.extend(
         bytes
             .iter()
             .enumerate()
             .map(|(index, byte)| TerminalBoundaryStorageValue {
                 path: vec![
-                    Path::Field(StructuralFieldId::new(3).unwrap()),
+                    Path::Field(StructuralFieldId::new(byte_field_id).unwrap()),
                     Path::FixedIndex(index as u64),
                 ],
                 contents: TerminalStorageContents::Scalar {
@@ -2022,6 +2089,7 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
                 },
             }),
     );
+    values.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     let contents = [TerminalStructuralContents {
         argument_index: 0,
         values,
@@ -2037,26 +2105,76 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             Some(&supplies),
         )
         .unwrap();
-    assert_eq!(execution.program.target_layouts.as_deref(), Some(&layouts));
-    let mut geometry = terminal_semantics::ReferenceStorageGeometry::new(
-        artifact.semantic_module().structural_types.iter(),
-        |application| {
-            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                application,
-            ))
-        },
-    )
-    .with_target_carriers(Some(TargetCarrierLayout {
-        pointer_byte_size: facts.pointer_size,
-        pointer_byte_alignment: facts.pointer_alignment,
-        descriptor_byte_size: facts.pointer_size.checked_mul(2).unwrap(),
-        descriptor_byte_alignment: facts.pointer_alignment,
-        case_tag_byte_size: facts.case_tag_size,
-        case_tag_byte_alignment: facts.case_tag_alignment,
-    }));
-    assert_eq!(geometry.layout(type_id(4)).unwrap(), (48, 8));
-    let region = geometry.region(type_id(4), &source.path).unwrap();
-    assert_eq!((region.byte_offset, region.byte_length), (16, 32));
+    assert_eq!(
+        execution.program.target_layouts.as_deref(),
+        selected.then_some(&layouts)
+    );
+    if selected {
+        assert_eq!(layouts.target_facts(), &facts);
+    }
+    if plain {
+        let explicit = TargetLayoutInput {
+            target: "linux_x86_64".into(),
+            pointer_size: facts.pointer_size,
+            pointer_alignment: facts.pointer_alignment,
+            case_tag_size: facts.case_tag_size,
+            case_tag_alignment: facts.case_tag_alignment,
+            little_endian: facts.little_endian,
+        };
+        assert!(
+            matches!(
+                crate::storage::provider_storage::value_image::geometry::ImageGeometry::new(
+                    &execution,
+                    Some(&explicit)
+                ),
+                Err(crate::TerminalInterpretError::VerifiedOperationMalformed { .. })
+            ),
+            "explicit lifecycle geometry keeps its immediate overflow refusal"
+        );
+    }
+    let mut geometry =
+        terminal_semantics::ReferenceStorageGeometry::new(
+            artifact.semantic_module().structural_types.iter(),
+            |application| {
+                Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                    application,
+                ))
+            },
+        )
+        .with_target_carriers(facts.pointer_size.checked_mul(2).map(
+            |descriptor_byte_size| TargetCarrierLayout {
+                pointer_byte_size: facts.pointer_size,
+                pointer_byte_alignment: facts.pointer_alignment,
+                descriptor_byte_size,
+                descriptor_byte_alignment: facts.pointer_alignment,
+                case_tag_byte_size: facts.case_tag_size,
+                case_tag_byte_alignment: facts.case_tag_alignment,
+            },
+        ));
+    if control == AggregateReferenceControl::DependentOverflow {
+        assert_eq!(
+            geometry.layout(type_id(4)),
+            Err(terminal_semantics::StorageGeometryError::MissingCarrierLayout)
+        );
+        assert!(geometry.region(type_id(4), &source.path).is_none());
+    } else {
+        let (root_size, field_offset) = if plain {
+            (40, 8)
+        } else if misaligned {
+            (56, 17)
+        } else {
+            (48, 16)
+        };
+        assert_eq!(geometry.layout(type_id(4)).unwrap(), (root_size, 8));
+        let region = geometry.region(type_id(4), &source.path).unwrap();
+        assert_eq!(
+            (region.byte_offset, region.byte_length),
+            (field_offset, byte_length)
+        );
+    }
+    // The authority control really retains the same complete footprint; its
+    // refusal must come from the reference leaf, not extent or alignment.
+    assert_eq!(geometry.layout(type_id(8)).unwrap(), (32, 8));
     let mut backing = StructuralRuntimePlace::from(&owner);
     backing.path = source.path.clone();
     assert_eq!(execution.structural_values.get(&source.place), Some(&owner));
@@ -2102,6 +2220,8 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             storage,
         },
     );
+    let identities_before = execution.local_structural_identities.cursor();
+    let frontier_before = execution.live_affine_frontier.clone();
     let formed = execution.establish_reference(&operation, &source, storage);
     if let Err(error) = &formed {
         let crate::TerminalInterpretError::ReferenceFormation { stage, detail } = error else {
@@ -2115,6 +2235,19 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
         );
         assert!(!execution.structural_values.contains_key(&result.place));
         assert!(execution.reference_referents.is_empty());
+        assert!(execution.element_view_values.is_empty());
+        assert_eq!(
+            execution.local_structural_identities.cursor(),
+            identities_before
+        );
+        assert_eq!(execution.live_affine_frontier, frontier_before);
+    }
+    if !accepted {
+        assert!(
+            formed.is_err(),
+            "invalid aggregate reference unexpectedly formed: {control:?}"
+        );
+        return;
     }
     formed.expect("aligned aggregate reference formation must consume admitted target geometry");
     let carrier = execution.structural_values.get(&result.place).unwrap();
@@ -2143,4 +2276,27 @@ fn aggregate_reference_formation_keeps_admitted_target_geometry() {
             .bytes(),
         bytes
     );
+}
+
+#[test]
+fn aggregate_reference_formation_keeps_admitted_target_geometry() {
+    check_aggregate_reference_formation(AggregateReferenceControl::Aligned);
+}
+
+#[test]
+fn aggregate_reference_formation_refuses_invalid_views_without_publication() {
+    for control in [
+        AggregateReferenceControl::Short,
+        AggregateReferenceControl::Misaligned,
+        AggregateReferenceControl::MissingTarget,
+        AggregateReferenceControl::ReferencePermission,
+        AggregateReferenceControl::DependentOverflow,
+    ] {
+        check_aggregate_reference_formation(control);
+    }
+}
+
+#[test]
+fn aggregate_reference_formation_keeps_plain_views_when_descriptor_overflows() {
+    check_aggregate_reference_formation(AggregateReferenceControl::PlainOverflow);
 }
