@@ -3409,11 +3409,26 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state call_graph() {
         transition self.check_call_graph() {
-            1 -> check_acknowledgements(0)
+            1 -> check_blocking_states(0)
             _ -> return
         }
     }
 
+    // The call graph currently owns summaries per outer machine. It cannot
+    // decide which transfer enters a blocking nested state, or whether that
+    // state is ever entered. Refuse before using that summary at any caller.
+    state check_blocking_states(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> check_blocking_state_shape(index)
+            _ -> check_acknowledgements(0)
+        }
+    }
+    state check_blocking_state_shape(index: i32) {
+        transition (self.machine_may_block[index] != 0) && (self.parser.machine_items[index].state_count > 1) {
+            true -> incomplete(4, self.parser.machine_items[index].start)
+            _ -> check_blocking_states(index + 1)
+        }
+    }
     // Check every retained call against the resolved callee's published or
     // inferred envelope. A redundant block mark never widens the caller.
     state check_acknowledgements(edge: i32) {

@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,611 lines / 838,832 bytes with SHA-256
-`754ecb3fb03cea4bb68d07e51032773ef46d9ecba71780134083b4baa3aa46b0`.
+manifest materializes 22,626 lines / 839,579 bytes with SHA-256
+`d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c`.
 The manifest itself is 1,674 bytes, SHA-256
-`834afc8309acd5f8d9e6f2719620f0840cade406b9bd3aa48987a8965fce791e`;
+`f3a5797dedaca00c159f07d96732737631804ed2a82e1f119b85eeb7778794e8`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -196,7 +196,9 @@ compiler follows ordinary calls from all bodies to derive these envelopes.
 Each call to a possibly blocking callee needs its own `block` acknowledgement,
 including calls nested in arguments. A redundant acknowledgement on a
 nonblocking call preserves its caller's bound. The marker changes no Alpha
-instructions. Suspension, host services and their operational contracts
+instructions. A possibly blocking machine with nested states stays Incomplete
+until the compiler can check the envelope of each transfer. Suspension,
+host services and their operational contracts
 remain outside this executable slice.
 [Call-site acknowledgements](../../../wiki/spec/language/effects.md#call-site-acknowledgements)
 

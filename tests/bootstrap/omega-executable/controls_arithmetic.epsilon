@@ -122,6 +122,9 @@ machine Main::main(&mut self) {
         self.refusal("machine leaf()->u8 blocks {42} machine id(x:u8)->u8 blocks{x} machine main()->u8 blocks {block id(leaf())}",1,111);
         self.refusal("machine main()->u8 {let x:u8=42;block x}",1,112);
         self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {suspend block leaf()}",2,113);
+        // Nested machines need their own blocking summaries and transfer markers.
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",2,115);
+        self.refusal("machine leaf()->u8 blocks {42} public machine main()->u8 {transition true {true->quiet()} machine quiet()->u8 {42} machine unused()->u8 {block leaf()}}",2,116);
         self.positive("machine leaf()->u8 blocks false {59} public machine main()->u8 {block leaf()}",59,114);
     }
 

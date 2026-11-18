@@ -44,8 +44,8 @@ MEMBER_RECORDS = [
      "7e50e70d6f250fbd8279211233f512a845d69cbd2571ec235019836a5f92a514"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 245390,
-     "6e15180dd21c39ad3f9434c2e4601b1bf2ac3332d4bb680eca081d276031634c"),
+    ("scalar_compilation.epsilon", 246137,
+     "f38200b3fb428c3a7d109f5d2563e43dbce318c2727b8ac79e89e098b344ace9"),
     ("outcome.epsilon", 13989,
      "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
     ("source_set.epsilon", 6151,
@@ -54,8 +54,8 @@ MEMBER_RECORDS = [
      "d5327eeb7bb744f40653f17b37ef25505c92b782148070745d554ccb3a6f4329"),
 ]
 
-PACKED_RECORD = (838832,
-                 "754ecb3fb03cea4bb68d07e51032773ef46d9ecba71780134083b4baa3aa46b0")
+PACKED_RECORD = (839579,
+                 "d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
@@ -226,7 +226,7 @@ def customers():
         packed + check_only_main,
         b"", b"\x00\x00\x00\x00\x00",
         [("parser: invalid byte at packed 109979", byte_at(109979, 0x01)),
-         ("outcome: invalid byte at packed 794240", byte_at(794240, 0x01))]))
+         ("outcome: invalid byte at packed 794987", byte_at(794987, 0x01))]))
     # Preserve the six original composition subjects as well as their members.
     packed_records = (
         (42130, "4da97cfd36021165b6dfd609c0aca56e1242610b9444647d34a5ff0d641ff482"),
