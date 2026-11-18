@@ -346,7 +346,15 @@ pub(crate) mod reference_completion {
         Ok(BorrowedLoanSource::Incoming)
     }
 
-    /// Read the source from the descriptor's actual value and arrival flow.
+    /// Complete borrowed-resource correspondence at this use. A family keeps
+    /// every incoming storage identity; it does not select a new loan's parent.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum BorrowedLoanSources {
+        Single(BorrowedLoanSource),
+        Incoming(Vec<crate::descriptor_results::DescriptorCallOrigin>),
+    }
+
+    /// Select one immediate resource when a new borrow or result needs it.
     pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
         machine: &terminal_psi::TerminalMachine,
@@ -360,6 +368,31 @@ pub(crate) mod reference_completion {
             ),
         >,
     ) -> Result<BorrowedLoanSource, &'static str> {
+        match borrowed_loan_sources(module, machine, analysis, at, descriptor, candidates)? {
+            BorrowedLoanSources::Single(source) => Ok(source),
+            BorrowedLoanSources::Incoming(family) if family.len() == 1 => {
+                Ok(BorrowedLoanSource::Incoming)
+            }
+            BorrowedLoanSources::Incoming(_) => {
+                Err("reference descriptor has no single immediate incoming occurrence")
+            }
+        }
+    }
+
+    /// Authenticate the resources carried by this borrowed transport.
+    pub fn borrowed_loan_sources<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<BorrowedLoanSources, &'static str> {
         let mut parent = None;
         // Loans that may still own the descriptor here, but not on every
         // arrival: each arm of a join formed its own loan.
@@ -408,10 +441,13 @@ pub(crate) mod reference_completion {
                     "reference descriptor has an unresolved surviving immediate loan occurrence",
                 );
             }
-            return joined_incoming_loans(module, machine, analysis, at, descriptor);
+            return joined_incoming_loans(module, machine, analysis, at, descriptor)
+                .map(BorrowedLoanSources::Single);
         }
         if let Some(parent) = parent {
-            return Ok(BorrowedLoanSource::Loan(parent));
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Loan(
+                parent,
+            )));
         }
         // A borrowed block header can continue a borrowed machine input
         // without creating a new loan occurrence. Read its original storage
@@ -455,32 +491,58 @@ pub(crate) mod reference_completion {
                     })
             })
         {
-            return Ok(BorrowedLoanSource::Owner);
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Owner));
         }
-        if let Some(arrival) = crate::arrival_parameter(machine, descriptor.root)
-            && arrival.access != StructuralAccess::Owned
-            && let Some(crate::descriptor_results::DescriptorCallOrigin::Argument {
-                source,
-                projection,
-            }) = analysis.storage_projection(machine.id, at, descriptor)
-            && let Some(parameter) =
-                crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
-                    parameter.place == source
+        let source_origins = analysis.symbolic_source_origins(machine.id, at, descriptor);
+        let provider = source_origins.as_ref().is_some_and(|origins| {
+            !origins.is_empty()
+                && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                    )
                 })
-                .filter(|parameter| parameter.access != StructuralAccess::Owned)
-        {
-            // Arrival replay retains the original captured address, including
-            // indexed paths that cannot be named as descriptor-slot locations.
-            // That address continues an input loan only within its inline
-            // storage, with the same referent type and permitted access.
-            let path = projection
-                .captured_storage_path()
-                .ok_or("borrowed successor has no exact captured original input path")?;
-            if crate::projection_stays_in_inline_storage(
-                module.structural_types.iter(),
-                parameter.structural_type,
-                &path,
-            ) {
+        });
+        // An incoming storage argument can keep different original inputs
+        // on different arrivals. Authenticate every address without choosing
+        // one of those inputs as the parent of a new loan.
+        'incoming_storage: {
+            // A provider lends its payload independently of the variable that
+            // holds its view. Its invocation is checked below, not as an input address.
+            if provider {
+                break 'incoming_storage;
+            }
+            let Some(arrival) = crate::arrival_parameter(machine, descriptor.root)
+                .filter(|arrival| arrival.access != StructuralAccess::Owned)
+            else {
+                break 'incoming_storage;
+            };
+            let family = analysis.captured_storage_family(machine.id, at, descriptor)?;
+            for origin in &family {
+                let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                } = origin
+                else {
+                    break 'incoming_storage;
+                };
+                let Some(parameter) = crate::exactly_one::exactly_one(
+                    machine.structural_parameters.iter(),
+                    |parameter| parameter.place == *source,
+                )
+                .filter(|parameter| parameter.access != StructuralAccess::Owned) else {
+                    break 'incoming_storage;
+                };
+                let path = projection
+                    .captured_storage_path()
+                    .ok_or("borrowed successor has no exact captured original input path")?;
+                if !crate::projection_stays_in_inline_storage(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    &path,
+                ) {
+                    break 'incoming_storage;
+                }
                 let current_path = crate::descriptor_lifetimes::descriptor_path(
                     &module.structural_types,
                     arrival.structural_type,
@@ -512,11 +574,10 @@ pub(crate) mod reference_completion {
                 ) {
                     return Err("borrowed successor exceeds its original incoming access");
                 }
-                return Ok(BorrowedLoanSource::Incoming);
             }
+            return Ok(BorrowedLoanSources::Incoming(family));
         }
-        let origins = analysis
-            .symbolic_source_origins(machine.id, at, descriptor)
+        let origins = source_origins
             .ok_or("reference descriptor has no complete original loan correspondence")?;
         if !origins.is_empty()
             && origins.iter().all(|origin| {
@@ -584,11 +645,11 @@ pub(crate) mod reference_completion {
             {
                 return Err("a writable provider borrow needs its exact payload region");
             }
-            return Ok(BorrowedLoanSource::Provider);
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Provider));
         }
         if view {
             incoming_view_occurrence(module, machine, &origins)?;
-            return Ok(BorrowedLoanSource::Incoming);
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming));
         }
         let [origin] = origins.as_slice() else {
             return Err("reference descriptor has no single immediate incoming occurrence");
@@ -628,7 +689,7 @@ pub(crate) mod reference_completion {
         }
         // None denotes this verified caller-owned resource, not a failed
         // lookup. No local Loan identity is invented for an incoming leaf.
-        Ok(BorrowedLoanSource::Incoming)
+        Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming))
     }
 
     pub fn reference_loan_parent<'a>(

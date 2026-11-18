@@ -1,7 +1,8 @@
-//! Sufficient scalar goals after an indexed store. A selected cell contains
-//! either its prior value or the stored operand. Requiring a predicate for
-//! both preserves it without inventing an equality or assuming a domain from
-//! the destination's type. Ordinary reads still require one exact identity.
+//! Sufficient scalar goals after an indexed store. A goal at the store's
+//! normal continuation can use the operand for its exact direct cell. When
+//! the selected cell is uncertain, requiring a predicate of both its prior
+//! value and the stored operand preserves it. Ordinary reads still require
+//! one exact identity.
 
 use super::*;
 
@@ -45,7 +46,7 @@ impl Held<'_, '_> {
                 let row = storage.log[begin..end]
                     .iter()
                     .rev()
-                    .find(|row| row.position <= self.up_to && overlap(&row.lineage, &backed))
+                    .find(|row| row.position <= self.up_to && overlap(&row.backing, &backed))
                     .ok_or(crate::Unbound::Unproved(
                         "the scalar observation has no local indexed store correspondence",
                     ))?;
@@ -54,15 +55,21 @@ impl Held<'_, '_> {
                         "the last overlapping store supplies no scalar operand",
                     ));
                 };
-                if row.lineage.root != backed.root
-                    || row.lineage.segments.len() != backed.segments.len()
+                let written = row.backing.single_place().ok_or(crate::Unbound::Unproved(
+                    "an indexed store has more than one possible cell",
+                ))?;
+                let selected = backed.single_place().ok_or(crate::Unbound::Unproved(
+                    "an indexed observation has more than one possible cell",
+                ))?;
+                if written.root != selected.root
+                    || written.segments.len() != selected.segments.len()
                 {
                     return Err(crate::Unbound::Unproved(
                         "the store and observed cell have different storage paths",
                     ));
                 }
                 let mut uncertain = false;
-                for (written, observed) in row.lineage.segments.iter().zip(&backed.segments) {
+                for (written, observed) in written.segments.iter().zip(&selected.segments) {
                     if written == observed {
                         continue;
                     }
@@ -79,7 +86,36 @@ impl Held<'_, '_> {
                         ));
                     }
                 }
-                if !uncertain {
+                // Observe a direct mutable input immediately after this exact
+                // store. The runtime selectors still name the same SSA
+                // instances in this entry, with no intervening operation or
+                // descriptor crossing that could change the selected cell.
+                let exact_write = !uncertain
+                    && alternatives.is_empty()
+                    && self.point == Some(ProgramPoint::AfterOperation(row.operation))
+                    && row.position == self.up_to
+                    && &row.destination == written
+                    && &observed == selected
+                    && written
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+                    && written.segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            Segment::Field(_)
+                                | Segment::FixedIndex(_)
+                                | Segment::RuntimeIndex { .. }
+                        )
+                    })
+                    && matches!(
+                        storage
+                            .root_kind(written.root, self.concerns)
+                            .map_err(crate::Unbound::Refused)?,
+                        StructuralPlaceKind::Parameter { .. }
+                    )
+                    && storage.incoming(written.root) == Some(StructuralAccess::MutableBorrow);
+                if !uncertain && !exact_write {
                     return Err(crate::Unbound::Unproved(
                         "the scalar store has no uncertain selector",
                     ));
@@ -97,6 +133,10 @@ impl Held<'_, '_> {
                         "an indexed store operand has another scalar carrier",
                     ));
                 }
+                let operand = ScalarTerm::value(value, scalar_type);
+                if exact_write {
+                    return Ok(vec![operand]);
+                }
                 let position = row
                     .position
                     .checked_sub(1)
@@ -109,10 +149,10 @@ impl Held<'_, '_> {
                     .map_or(ProgramPoint::BlockEntry(self.block), |previous| {
                         ProgramPoint::AfterOperation(block.operations[previous].id)
                     });
-                alternatives.push(ScalarTerm::value(value, scalar_type));
+                alternatives.push(operand);
                 self.up_to = position;
                 self.point = Some(before);
-                observed = backed;
+                observed = backed.place;
             }
         })();
         (self.up_to, self.point) = saved;

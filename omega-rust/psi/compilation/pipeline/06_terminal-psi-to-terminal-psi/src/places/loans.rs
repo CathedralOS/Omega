@@ -56,6 +56,7 @@ certificate, as the initialization judgment has none. Two refusals, each
   mutable child.
 */
 
+use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{InvocationSite, ObligationId};
@@ -69,7 +70,7 @@ use terminal_semantics::descriptor_lifetimes::{
     DescriptorFlowStep, DescriptorLocation, descriptor_path,
 };
 
-use super::{Storage, index, lineage, overlap};
+use super::{Backing, Storage, index, lineage};
 
 /// Why two loans of one call may not both be formed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -144,7 +145,7 @@ pub(super) enum BorrowedResource {
 
 #[derive(Debug)]
 enum LoanRegion {
-    Storage(super::Lineage),
+    Storage(Backing),
     /// An admitted provider establishes a stable shared permission. Its input
     /// loans are retained separately; its address remains unavailable.
     Provider,
@@ -153,9 +154,7 @@ enum LoanRegion {
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
-            (Self::Storage(child), Self::Storage(parent)) => {
-                child.root == parent.root && child.segments.starts_with(&parent.segments)
-            }
+            (Self::Storage(child), Self::Storage(parent)) => parent.definitely_contains(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
             (Self::Provider, Self::Provider) => true,
@@ -363,11 +362,11 @@ impl<'a> Storage<'a> {
                     .ok_or_else(|| {
                         self.foreign(concerns, "incoming view lost its exact input field")
                     })?;
-                    self.stored_at(original.root, &path, concerns)?
+                    Backing::direct(self.stored_at(original.root, &path, concerns)?)
                 }
                 DescriptorSourceOrigin::Backing(
                     DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
-                ) => raw.clone(),
+                ) => Backing::direct(raw.clone()),
                 DescriptorSourceOrigin::Provider(_) => {
                     if !matches!(
                         terminal_semantics::borrowed_loan_source(
@@ -394,7 +393,11 @@ impl<'a> Storage<'a> {
                     ));
                 }
             };
-            if captured.as_ref().is_some_and(|previous| *previous != next) {
+            if next.single_place().is_none()
+                || captured
+                    .as_ref()
+                    .is_some_and(|previous: &Backing| !previous.same_single_region(&next))
+            {
                 return Err(
                     self.unsupported(concerns, "view loan has multiple possible backing regions")
                 );
@@ -1195,13 +1198,9 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
-                    let backing = LoanRegion::Storage(self.backing(
-                        references,
-                        &cleaned,
-                        block.id,
-                        block.operations.len(),
-                        concerns,
-                    )?);
+                    let backing = LoanRegion::Storage(
+                        self.cleanup_backing(references, &cleaned, edge, ordinal, concerns)?,
+                    );
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
@@ -1214,9 +1213,9 @@ impl<'a> Storage<'a> {
                     }
                     if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
                     {
-                        for (raw, backing, access) in self.cleanup_reference_accesses(
-                            references, block.id, edge, ordinal, cleanup,
-                        )? {
+                        for (raw, backing, access) in
+                            self.cleanup_reference_accesses(references, edge, ordinal, cleanup)?
+                        {
                             if competing_borrows(
                                 loan.access,
                                 &loan.lineage,
@@ -1412,11 +1411,10 @@ impl<'a> Storage<'a> {
     fn cleanup_reference_accesses(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
-        block: semantic_vocabulary::BlockId,
         edge: semantic_vocabulary::EdgeId,
         ordinal: u32,
         cleanup: &terminal_psi::OwnedCleanupInvocation,
-    ) -> Checked<Vec<(super::Lineage, super::Lineage, ReferenceAccess)>> {
+    ) -> Checked<Vec<(super::Lineage, Backing, ReferenceAccess)>> {
         let concerns = Construct::Edge(edge);
         let mut accesses = self
             .cleanup_writes
@@ -1432,10 +1430,10 @@ impl<'a> Storage<'a> {
                         root: write.captured.root,
                         segments: write.captured.path.clone(),
                     },
-                    super::Lineage {
+                    Backing::direct(super::Lineage {
                         root: write.backing.root,
                         segments: write.backing.path.clone(),
-                    },
+                    }),
                     ReferenceAccess::Mutable,
                 )
             })
@@ -1466,37 +1464,13 @@ impl<'a> Storage<'a> {
                 continue;
             }
             let raw = self.stored_at(cleanup.subject.place, &actual, concerns)?;
-            let descriptor = raw.descriptor_location().ok_or_else(|| {
+            // Keep the exact typed descriptor-coordinate admission. The
+            // backing query then uses this cleanup action's own prestate.
+            raw.descriptor_location().ok_or_else(|| {
                 self.unsupported(concerns, "cleanup read has no exact captured path")
             })?;
-            let at = (
-                block,
-                crate::position(self.block(block)?.operations.len(), self.machine)?,
-            );
-            let backing = references
-                .location_at(
-                    self.machine,
-                    at,
-                    terminal_psi::InvocationOwner::Cleanup {
-                        edge,
-                        action_ordinal: ordinal,
-                    },
-                    &descriptor,
-                )
-                .ok_or_else(|| {
-                    self.unsupported(
-                        concerns,
-                        "cleanup read has no actual owner-prestate backing",
-                    )
-                })?;
-            accesses.push((
-                raw,
-                super::Lineage {
-                    root: backing.root,
-                    segments: backing.path,
-                },
-                ReferenceAccess::Shared,
-            ));
+            let backing = self.cleanup_backing(references, &raw, edge, ordinal, concerns)?;
+            accesses.push((raw, backing, ReferenceAccess::Shared));
         }
         Ok(accesses)
     }
@@ -1600,7 +1574,9 @@ impl<'a> Storage<'a> {
                     }
                     let backing = self.borrow_backing(references, &raw, resource, at, concerns)?;
                     if let Some(descriptor) = from {
-                        terminal_semantics::borrowed_loan_source(
+                        // Forwarding checks every input permission; it does not
+                        // select one immediate parent for a new loan.
+                        terminal_semantics::borrowed_loan_sources(
                             self.module,
                             self.lowered,
                             references,
@@ -2161,17 +2137,30 @@ impl<'a> Storage<'a> {
         };
         let backing = self.backing(references, &selected, at.0, at.1 as usize, concerns)?;
         if name.path.is_empty()
-            && matches!(&loan.lineage, LoanRegion::Storage(region) if *region == backing)
+            && matches!(&loan.lineage, LoanRegion::Storage(region) if region.same_single_region(&backing))
         {
             return Ok(false);
         }
-        if backing == selected {
+        if backing
+            .single_place()
+            .is_some_and(|place| *place == selected)
+        {
             return Err(self.unsupported(
                 concerns,
                 "retained reference has no original arrival backing",
             ));
         }
-        Ok(self.incoming(backing.root).is_some())
+        if name.path.is_empty() && backing.single_place().is_none() {
+            // A list of possible addresses cannot distinguish an address
+            // loan from a different loan stored through that same carrier.
+            return Err(self.unsupported(
+                concerns,
+                "retained reference needs exact arrival-loan correspondence across its backings",
+            ));
+        }
+        // Caller-storage retention is a MAY property: one caller-backed
+        // alternative is enough to require its checked output correspondence.
+        Ok(!backing.all_roots(|root| self.incoming(root).is_none()))
     }
 
     /// Returning a child keeps its incoming backing, but cannot leave an

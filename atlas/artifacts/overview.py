@@ -350,7 +350,7 @@ def render_scene(model):
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             parts.append(f'<text class="stage-title" x="{x+22}" y="{y+36}">{esc(n["title"])}</text>')
             for i,line in enumerate(n.get('notes',[])):
-                style="handoff-status" if line.startswith("Open ·") else "overview-step-note"
+                style="handoff-status" if line=="Handler stack" else "overview-step-note"
                 parts.append(f'<text class="{style}" x="{x+22}" y="{y+63+i*24}">{esc(line)}</text>')
             if n['reference']:
                 parts.append(f'<text class="overview-step-note" x="{x+22}" y="{y+63+len(n["notes"])*24}">{esc(n["reference"])}</text>')

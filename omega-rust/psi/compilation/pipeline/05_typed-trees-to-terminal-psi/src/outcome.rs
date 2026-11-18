@@ -442,13 +442,10 @@ impl<'b> Walk<'b> {
     /// The row `machine` publishes on `axis`, given what its body's calls
     /// contribute: one rule for reach and for synchronous entries.
     ///
-    /// A requirement that omits `reaches` is open: effects.md, "defer to the
-    /// selected implementation's published reach". The generic form keeps
-    /// no row dependency, so it publishes nothing for one, as it does for a
-    /// deferred crash route. A written ceiling over such a call cannot be
-    /// compared with a contribution nobody knows yet ("The template must
-    /// remain valid for every admitted selection"), so that machine is
-    /// refused when its row is published (`judged`).
+    /// Open callback reach stays deferred here. The lowered-form checker
+    /// substitutes the exact callback contracts before comparing a call with
+    /// its caller's ceiling. A still-open projection cannot prove a finite
+    /// bound; an unresolved set is never an asserted empty contribution.
     fn published_row(
         &self,
         machine: MachineId,
@@ -459,7 +456,7 @@ impl<'b> Walk<'b> {
         let signature = self.signatures.get(machine.into(), machine)?;
         let contributed = &reached.contributed[axis as usize];
         Ok(match signature.ceiling(axis) {
-            Ceiling::Authored(_) if judged && contributed.open => {
+            Ceiling::Authored(_) if judged && contributed.open && axis != Axis::Reach => {
                 return Err(refuse(
                     machine,
                     Construct::Machine,

@@ -380,7 +380,6 @@ mod authored_completion {
 use authored_completion::AuthoredCompletions;
 mod product_policy {
     use super::SourceContinuation;
-    use crate::source_checking::ProductRepresentationInput;
     use build_time_evaluation::native_bindings::{
         CapturedNativeDeclaration, NativeBindingSelection,
     };
@@ -456,13 +455,6 @@ mod product_policy {
             &mut self,
             request: ProductPolicyRequest<'_>,
         ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
-            ProductRepresentationInput {
-                activation: request.activation,
-                declared: request.declared,
-                executed: request.executed,
-                retained: &[],
-            }
-            .require_none_requested()?;
             use language_semantics::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
@@ -515,7 +507,12 @@ mod product_policy {
                 }
             }
             let typed = self.typed();
-            let representations = Vec::new();
+            let representations = build_time_evaluation::opaque_representations::collect(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
             let native_bindings = build_time_evaluation::native_bindings::collect(
                 typed,
                 request.activation,

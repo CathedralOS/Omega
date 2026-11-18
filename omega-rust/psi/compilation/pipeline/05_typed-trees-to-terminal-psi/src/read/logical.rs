@@ -1486,6 +1486,7 @@ pub(crate) fn projected_arrival(
                 // separate contract must be substituted into this proof call.
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments,
                 designated: None,
             },

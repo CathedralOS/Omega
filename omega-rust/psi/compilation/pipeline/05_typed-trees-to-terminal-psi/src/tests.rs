@@ -176,6 +176,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
             designated: None,
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
         },
         result,
     )
@@ -1592,6 +1593,7 @@ fn a_never_returning_record_base_stops_its_field_projection() {
                     callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     required_contract: None,
                     static_reach_binding: None,
+                    static_reach_arguments: Vec::new(),
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -2186,6 +2188,7 @@ fn settle_both(
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                     },
                     None,
                 )),
@@ -2781,6 +2784,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                     },
                     point(),
                 ),
@@ -3437,11 +3441,10 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     assert_eq!(
         kinds,
         [
-            "constant", "home", "constant", "constant", "zeroed", "constant", "write", "read",
-            "store", "read"
+            "constant", "home", "zeroed", "constant", "write", "read", "store", "read"
         ]
     );
-    let (x, p) = (produced(&operations[1]), produced(&operations[4]));
+    let (x, p) = (produced(&operations[1]), produced(&operations[2]));
     // The scalar home has the primitive structural type declared after the
     // two records, and the module with it still encodes.
     let home = operations[1]
@@ -3460,7 +3463,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     // constant emitted just before the establishment, then what the store
     // wrote. `u32` admits zero, so the zero is an established value.
     let x_zero = operations[0].result.scalar().unwrap().id;
-    let three = operations[5].result.scalar().unwrap().id;
+    let three = operations[3].result.scalar().unwrap().id;
     let x_root = *tables.roots.get(x).unwrap();
     assert_eq!(
         written(tables, x_root),
@@ -3471,43 +3474,43 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
             ),
             (
                 Content::Value(three),
-                ProgramPoint::AfterOperation(operations[6].id)
+                ProgramPoint::AfterOperation(operations[4].id)
             )
         ]
     );
-    // The data declaration is zero-established: one row for the root's new
-    // contents, then on each scalar leaf the zero constant emitted for it
-    // just before the establishment. (Until the owner settled the data half
-    // of `local-without-initializer`, it wrote no row.)
-    let zeroed = ProgramPoint::AfterOperation(operations[4].id);
+    // The data declaration names its whole zero establishment once. Only
+    // later operations that actually select a leaf intern that projection.
+    let zeroed = ProgramPoint::AfterOperation(operations[2].id);
     assert_eq!(
         written(tables, *tables.roots.get(p).unwrap()),
         [(Content::Overwritten, zeroed)]
     );
-    let zero = |position: usize| operations[position].result.scalar().unwrap().id;
-    assert_eq!(
-        written(tables, projected(tables, p, &[2])),
-        [(Content::Value(zero(3)), zeroed)]
+    let p_root = *tables.roots.get(p).unwrap();
+    assert!(
+        tables
+            .places
+            .get(p_root)
+            .unwrap()
+            .children
+            .iter()
+            .all(|(segment, _)| *segment != Segment::Field(id(2)))
     );
     // Each use of `x` is a fresh read of its home, and the store into `p.x`
-    // stores that read's value after the zero the declaration logged.
-    let read = operations[7].result.scalar().unwrap().id;
+    // records that read's value independently of the whole zero establishment.
+    let read = operations[5].result.scalar().unwrap().id;
     assert!(matches!(
-        &operations[7].kind,
+        &operations[5].kind,
         OperationKind::PrimitiveScalarRead { source, path } if *source == x && path.is_empty()
     ));
     assert_eq!(
         written(tables, projected(tables, p, &[1])),
-        [
-            (Content::Value(zero(2)), zeroed),
-            (
-                Content::Value(read),
-                ProgramPoint::AfterOperation(operations[8].id)
-            )
-        ]
+        [(
+            Content::Value(read),
+            ProgramPoint::AfterOperation(operations[6].id)
+        )]
     );
-    // Two rows on the scalar home, four on the record and its leaves.
-    assert_eq!(tables.writes.len(), 6);
+    // Two rows on the scalar home, one on the record and one on its written leaf.
+    assert_eq!(tables.writes.len(), 4);
     // `Point` has no `requires`, so its zero establishment owes nothing.
     assert!(tables.obligations.is_empty());
     // A scalar home with no type identity cannot be declared.
@@ -4153,7 +4156,8 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     assert_eq!(elaboration.domains.get(id(2)), Some(&declared[1].requires));
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
-    let operations = &block(machine, 1).operations;
+    let entry_block = block(machine, 1);
+    let operations = &entry_block.operations;
     let owing = |select: fn(&OperationKind) -> bool| {
         let operation = operations
             .iter()
@@ -4176,7 +4180,11 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
                     // after it.
                     assert_eq!(
                         row.created_at,
-                        ProgramPoint::AfterOperation(operations[before - 1].id)
+                        before
+                            .checked_sub(1)
+                            .map_or(ProgramPoint::BlockEntry(entry_block.id), |previous| {
+                                ProgramPoint::AfterOperation(operations[previous].id)
+                            },)
                     );
                     Some(clause)
                 }
@@ -4543,6 +4551,7 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
                 designated: None,
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
             },
             result: Some(pair),
             source: nowhere(),

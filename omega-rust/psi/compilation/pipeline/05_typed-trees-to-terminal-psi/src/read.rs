@@ -22,6 +22,7 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod applications;
 mod arrays;
 mod atomics;
 mod authority;
@@ -153,6 +154,10 @@ pub(crate) struct Program<'t> {
     /// Requirement headers keep their exact source parameter origins until
     /// the call closure completes their omitted bounds.
     declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
+    /// Known invocation and operational limits survive an unrelated open reach.
+    /// These checking headers never enter the executable callable catalog.
+    pub(crate) checking_envelopes:
+        IdTable<MachineId, Option<crate::static_contracts::StaticSourceEnvelope>>,
     /// Contracts and exact code selections named by the read program. A
     /// selection retains code without adding an invocation to its call graph.
     pub callables: crate::callables::CallableNamespace,
@@ -272,6 +277,7 @@ pub(crate) struct Program<'t> {
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
     pub generic_binders: Vec<SymbolHandle>,
+    pub static_reach_parameters: Vec<terminal_psi::static_reach::StaticReachParameter>,
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
@@ -383,6 +389,9 @@ fn span<T, Rows>(
     read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
+    pub(crate) fn is_generic_check_form(&self) -> bool {
+        self.rigid
+    }
     pub(crate) fn begin_declaration_storage(
         &mut self,
         entry: MachineId,
@@ -445,6 +454,7 @@ impl<'t> Program<'t> {
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declared_envelope_policies: IdTable::default(),
+            checking_envelopes: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
             boundaries: crate::boundaries::BoundaryNamespace::default(),
             external_providers: crate::external_providers::ExternalProviderNamespace::default(),
@@ -483,6 +493,7 @@ impl<'t> Program<'t> {
             premise_reading: false,
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
+            static_reach_parameters: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
@@ -2123,6 +2134,7 @@ mod tests {
                 designated: None,
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
             },
             result: None,
             source,

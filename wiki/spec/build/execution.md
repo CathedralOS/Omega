@@ -148,6 +148,11 @@ to a file or overlay cannot change it. Source consumption retains the matching
 compiler-owned generated-source namespace and product purpose. This replaces
 the BuildOutput filesystem-specific source-publication route.
 
+The parent directory in that authorized logical name determines the unit's
+[language namespace](../language/modules.md#directory-namespaces) within the
+owning package. For example, including `audio/tables.omg` places its declarations
+in `audio` regardless of where the generator computed or staged the bytes.
+
 Own generated source is a later resolution stratum:
 
 - It may refer to admitted authored declarations, and generated units may
