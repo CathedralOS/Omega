@@ -236,7 +236,8 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
     }
     machine inspect(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        transition position > 0 && windows_filesystem_separator(path as -Path, path[position]) {
+        // A builtin index takes an unqualified view (domains.md, "Operands").
+        transition position > 0 && windows_filesystem_separator(path as -Path, (path as -Path)[position]) {
             true -> block create(path, position)
             false -> block walk(path, position + 1)
         }

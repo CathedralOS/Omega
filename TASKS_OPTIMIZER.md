@@ -100,7 +100,7 @@ advanced rewrites and promotion are not needed for the first useful compiler.
   red-zone, probing, unwind, callee-save and call alignment have owners.
   - No claim roster reaches `PostAllocationMachineFunction`. Agree its
     transport with the upstream producer, then join claim sites to
-    [native frame realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization/frame.rs).
+    [native frame realization](omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization/frame.rs).
     `compose_claim_bounds` in `omega-rust/psi/foundation/extents/src/activation_claims/mod.rs`
     computes aligned sums and branch maxima over supplied rows; it is not
     placement.
@@ -324,7 +324,7 @@ advanced rewrites and promotion are not needed for the first useful compiler.
   - The common physical route is
     `omega-rust/omega/compilation/compiler/src/native/physical_pipeline.rs` plus
     machine-emission's frame realization
-    (`omega-rust/omega/compilation/backend/machine-emission/src/function_realization/frame.rs`);
+    (`omega-rust/omega/compilation/pipeline/04_native-layout/function-layout/src/function_realization/frame.rs`);
     native-artifact owns `publish_fragment_object`
     (`omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs`).
   - Current frontier, measured at `71c7be81a957` in native-artifact: the
@@ -363,7 +363,7 @@ advanced rewrites and promotion are not needed for the first useful compiler.
   rollback, composition with its neighbours, budget, and determinism. Follow
   the [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage)
   minus its replay/corruption axes. Keep the
-  [rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
+  [rule inventory](omega-rust/omega/compilation/representations/optimization-contracts/rules.md)
   tied to current catalogs and fixtures.
   - Reuse the corpus runner's `rollback.txt` support and rolled/unrolled
     Terminal comparison. `pass/optimizer/rollback_to_no_selection_empty_entry`
@@ -406,13 +406,13 @@ advanced rewrites and promotion are not needed for the first useful compiler.
 - **WORKSPACE-ROLLOUT.** Complete release evidence for any exact rule proposed
   for promotion under the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
-  Keep the [inventory](omega-rust/omega/foundation/optimization-core/rules.md)
+  Keep the [inventory](omega-rust/omega/compilation/representations/optimization-contracts/rules.md)
   explicit, opt-in and Experimental until the frozen-tree command
   `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
   passes (doctests included; `--all-targets` is not equivalent) and the owner
   approves that exact rule. The six candidates' incomplete evidence is in the
   [promotion draft](wiki/drafts/measurements/optimizer_promotion_evidence.md);
-  [promotion records](omega-rust/omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
+  [promotion records](omega-rust/omega/compilation/representations/optimization-contracts/README.md#exact-rule-promotion-records)
   holds no completed record. PER-RULE-COVERAGE owns behavioral evidence,
   BENCHMARKS owns measurement.
   Acceptance: the full command passes at a recorded clean revision; every

@@ -101,6 +101,22 @@ impl SelectedFunction {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
 
+    /// Complete executable roster, including non-returning calls held by a
+    /// terminator. Resource and body discovery must include those calls even
+    /// though they have no normal successor instruction.
+    pub fn instructions_and_terminators(
+        &self,
+    ) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
+        self.blocks.iter().flat_map(|block| {
+            block
+                .instructions
+                .iter()
+                .chain(std::iter::once(super::terminator_instruction(
+                    &block.terminator,
+                )))
+        })
+    }
+
     pub fn block_mut(&mut self, block: SelectedBlockId) -> Option<&mut SelectedBlock> {
         let index = self.block_index(block)?;
         self.blocks.get_mut(index)

@@ -38,6 +38,8 @@ mod descriptor_replay;
 pub mod descriptors;
 pub mod float_meaning_sources;
 pub mod inhabitation;
+mod membership_facts;
+pub use membership_facts::validate_boundary_normal_memberships;
 pub mod normal_completion;
 pub mod numeric_primitives;
 pub mod plain_affine;
@@ -56,6 +58,7 @@ pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
 
+pub(crate) use ::wire::digest_encoder;
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
     validate_access_lifecycle_plans, validate_access_view_content,
@@ -74,7 +77,6 @@ pub use access::accessor_scalar_boundaries::{
 pub use calls::closed_conformances;
 pub use calls::closed_reach;
 pub use descriptors::descriptor_results;
-pub(crate) use optimization::digest_encoder;
 pub use references::resident_references::{
     resident_reference_plan, validate_resident_owner_fields,
 };
@@ -649,13 +651,14 @@ pub use structural::partial_affine::{
 };
 pub use structural::primitive_place::{
     Position, RuntimeIndexGoalError, StructuralStorageSelection,
-    borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
-    canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
-    canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, inline_descriptor_type, preceding_element_view_length,
-    primitive_operation_projection_type, primitive_place_type, primitive_projection_declaration,
-    primitive_projection_restriction, primitive_projection_type, primitive_read_field,
-    primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
+    borrowed_primitive_projection_declaration, borrowed_projection_type,
+    borrowed_storage_field_type, byte_carrier_geometry_matches, canonical_inline_region,
+    canonical_primitive_path, canonical_primitive_read_path, canonical_primitive_read_type,
+    canonical_static_projection, fixed_array_place_shape, inline_backing_container,
+    inline_descriptor_type, preceding_collection_length, primitive_operation_projection_type,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
     runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };
@@ -844,8 +847,9 @@ mod symbolic_integer_widths {
 #[cfg(test)]
 mod trapping_integer_tests {
     use super::*;
+    use arena::IdTable;
     use semantic_vocabulary::{
-        IdTable, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
+        IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
     };
     use terminal_psi::{
         Operation, OperationKind, OperationResult, TrappingIntegerOperation as Trap,
@@ -972,3 +976,7 @@ mod trapping_integer_tests {
         }
     }
 }
+
+pub mod provider_candidates;
+
+pub mod logical_providers;

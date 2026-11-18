@@ -296,6 +296,23 @@ pub mod types {
         macro_rules! requirement_queries {
             ($declaration:ty, $id:ty) => {
                 impl $declaration {
+            pub fn authorizes_boundary_requirement(
+                &self,
+                requirement: crate::TerminalIdentityIndex,
+                declaration: Option<&crate::NominalDeclarationIdentity>,
+            ) -> bool {
+                self.establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|route| {
+                        matches!(route, crate::StructuralEstablishmentRoute::BoundaryRequirement {
+                        requirement_identity: authorized,
+                        declaration: owner,
+                    } if *authorized == requirement && Some(owner) == declaration)
+                    })
+            }
+
                     pub fn has_no_required_memberships(&self) -> bool {
                         self.required().is_some_and(<[DomainSemanticId]>::is_empty)
                     }
@@ -349,13 +366,13 @@ pub mod types {
         /// Keep the same plan while linking its descriptions to this module's
         /// checked fields and functions. Erased fields keep their description
         /// but have no storage path. These links supply no backing by themselves.
-        pub type StructuralDomainAccessPlan = access_plans::AccessPlan<
+        pub type StructuralDomainAccessPlan = access_admission::AccessPlan<
             (
-                language_semantics::reflection::SchemaNodeHandle,
+                schema_reflection::SchemaNodeHandle,
                 Option<Vec<StructuralPathSegment>>,
             ),
             (
-                language_semantics::reflection::CallableDescription,
+                schema_reflection::CallableDescription,
                 StructuralEstablishmentRoute,
             ),
         >;
@@ -424,30 +441,10 @@ pub mod types {
                     && self.has_no_required_memberships()
                     && self.establishment_routes.is_none()
                     && self.content_projection.is_none()
-                    && self.access_policy.as_ref().is_none_or(|plan| {
-                        plan.issuance.is_none()
-                            && plan.readers.is_empty()
-                            && plan.writers.is_empty()
-                            && plan.observations.is_empty()
-                            && plan.reach.services().len() == 0
-                    })
-            }
-
-            pub fn authorizes_boundary_requirement(
-                &self,
-                requirement: TerminalIdentityIndex,
-                declaration: Option<TerminalIdentityIndex>,
-            ) -> bool {
-                self.establishment_routes
-                    .as_deref()
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|route| {
-                        matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
-                        requirement_identity: authorized,
-                        declaration: owner,
-                    } if *authorized == requirement && Some(owner.identity()) == declaration)
-                    })
+                    && self
+                        .access_policy
+                        .as_ref()
+                        .is_none_or(|plan| plan.issuance.is_none() && !plan.has_operation_rules())
             }
 
             pub fn carrier_qualified_identity(family: &str, carrier_identity: &str) -> String {
@@ -2234,9 +2231,12 @@ pub mod values {
                 &self,
             ) -> Vec<(
                 StructuralStorageUse<'_>,
-                Option<access_plans::AccessOperation>,
+                Option<access_vocabulary::AccessOperation>,
             )> {
-                use access_plans::AccessOperation::{CompoundMutation, Read, Take, Write};
+                use access_vocabulary::AccessOperation::CompoundMutation;
+                use access_vocabulary::AccessOperation::Read;
+                use access_vocabulary::AccessOperation::Take;
+                use access_vocabulary::AccessOperation::Write;
                 let mut uses = Vec::new();
                 let mut push = |storage, operation| uses.push((storage, operation));
                 match self {
@@ -2395,7 +2395,7 @@ pub mod values {
                         place, path, event, ..
                     } => {
                         let operation =
-                            access_plans::AccessOperation::Atomic(event.access_operation());
+                            access_vocabulary::AccessOperation::Atomic(event.access_operation());
                         push(
                             OperationProjection {
                                 root: *place,
@@ -2708,9 +2708,9 @@ pub mod values {
 
         fn projected_transfer_operation(
             argument: &crate::StructuralArgument,
-        ) -> Option<access_plans::AccessOperation> {
+        ) -> Option<access_vocabulary::AccessOperation> {
             (argument.access == StructuralAccess::Owned && !argument.path.is_empty())
-                .then_some(access_plans::AccessOperation::Take)
+                .then_some(access_vocabulary::AccessOperation::Take)
         }
 
         fn argument_projection(argument: &crate::StructuralArgument) -> OperationProjection<'_> {
@@ -2759,10 +2759,11 @@ pub mod values {
             #[test]
             fn storage_uses_keep_field_effects_separate_from_descriptor_transport() {
                 use crate::{AtomicAccessEvent, MemoryOrdering, StructuralStorageUse};
-                use access_plans::{
-                    AccessOperation::{Atomic, Read, Take, Write},
-                    AtomicAccessOperation,
-                };
+                use access_vocabulary::AccessOperation::Atomic;
+                use access_vocabulary::AccessOperation::Read;
+                use access_vocabulary::AccessOperation::Take;
+                use access_vocabulary::AccessOperation::Write;
+                use access_vocabulary::AtomicAccessOperation;
                 let field = StructuralFieldId::new(7).unwrap();
                 let read = OperationKind::StructuralByteSequenceFieldLength {
                     source: place(1),
@@ -3233,7 +3234,7 @@ pub mod values {
                 }
             }
 
-            optimization::structural_variant_accessor!(StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
+            compiler_storage::enum_variant_accessor!(structural, Structural; StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -38,9 +38,10 @@ pub mod values;
 
 use std::num::NonZeroU64;
 
+pub use arena::{IdTable, NumericId};
 pub use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId, PlaceId,
-    PropositionId, PsiSemanticId, ValueId,
+    BlockId, EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, PropositionId,
+    ValueId,
 };
 
 macro_rules! check_id {
@@ -49,7 +50,7 @@ macro_rules! check_id {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(NonZeroU64);
 
-        impl PsiSemanticId for $name {
+        impl NumericId for $name {
             fn new(raw: u64) -> Option<Self> {
                 NonZeroU64::new(raw).map(Self)
             }
@@ -239,13 +240,13 @@ pub struct Refusal {
     pub machine: MachineId,
     pub concerns: Construct,
     /// The retained source span, when the authored construct carries one.
-    pub source_span: Option<source::SourceSpan>,
+    pub source_span: Option<source_text::SourceSpan>,
     /// Diagnostic text only. Nothing may branch on it or compare it.
     pub detail: String,
 }
 
 impl Refusal {
-    pub fn with_source_span(mut self, source_span: Option<source::SourceSpan>) -> Self {
+    pub fn with_source_span(mut self, source_span: Option<source_text::SourceSpan>) -> Self {
         self.source_span = source_span;
         self
     }
@@ -263,7 +264,7 @@ pub type Checked<T> = Result<T, Refusal>;
 /// every checking API takes exactly one `MachineTables` and only identities
 /// read from it. Crossing machines goes through an `InvocationRow`, which
 /// holds a `MachineId` and positions, never the callee's local identities.
-pub fn row<Id: PsiSemanticId, T>(
+pub fn row<Id: NumericId, T>(
     table: &IdTable<Id, T>,
     identity: Id,
     machine: MachineId,

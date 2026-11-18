@@ -3,7 +3,7 @@
 use super::*;
 
 fn account() -> EvaluationInvocationAccount {
-    let limits = evaluation_accounting::BuildEvaluationSponsorLimits::new(
+    let limits = evaluation_contracts::BuildEvaluationSponsorLimits::new(
         1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
     )
     .unwrap();

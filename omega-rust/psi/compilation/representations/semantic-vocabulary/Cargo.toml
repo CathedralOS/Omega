@@ -1,0 +1,18 @@
+[package]
+name = "semantic-vocabulary"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "semantic_vocabulary"
+path = "src/lib.rs"
+
+[dependencies]
+language-core = { path = "../source-vocabulary" }
+bignum = { path = "../../../foundation/bignum" }
+wire = { path = "../../../foundation/wire" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }
+numerics = { path = "../scalar-values" }
+arena = { path = "../../../foundation/arena" }
+optimization = { path = "../optimization-policy" }

@@ -5,7 +5,7 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BuildSourceSelection {
-    source_id: source::SourceId,
+    source_id: source_text::SourceId,
     kind: BuildSourceKind,
 }
 
@@ -16,25 +16,25 @@ enum BuildSourceKind {
 }
 
 impl BuildSourceSelection {
-    pub fn source_id(self) -> source::SourceId {
+    pub fn source_id(self) -> source_text::SourceId {
         self.source_id
     }
     pub fn is_default(self) -> bool {
         self.kind == BuildSourceKind::CompilerDefault
     }
-    pub(super) fn authored(source_id: source::SourceId) -> Self {
+    pub(super) fn authored(source_id: source_text::SourceId) -> Self {
         Self {
             source_id,
             kind: BuildSourceKind::Authored,
         }
     }
-    pub(super) fn compiler_default(source_id: source::SourceId) -> Self {
+    pub(super) fn compiler_default(source_id: source_text::SourceId) -> Self {
         Self {
             source_id,
             kind: BuildSourceKind::CompilerDefault,
         }
     }
-    pub(super) fn rejoined(self, source_id: source::SourceId) -> Self {
+    pub(super) fn rejoined(self, source_id: source_text::SourceId) -> Self {
         Self { source_id, ..self }
     }
 }

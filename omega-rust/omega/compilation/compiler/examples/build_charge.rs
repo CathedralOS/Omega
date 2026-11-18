@@ -1,4 +1,4 @@
-//! A pure Build cache hit owes the current occurrence its recorded logical charge.
+//! Source Build execution accounting and the separate completed-result reuse controls.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -10,8 +10,8 @@ mod default_build_workflow;
 use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
-use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use compiler::{CheckedCompileRequest, CompilationSession};
+use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 
 /// Resolve one project's sources with the host-profile execution defaults that
 /// every single-root case shares.
@@ -48,13 +48,16 @@ fn exclusive_workspace(name: &str) -> platform_custody::temporary_directory::Tem
 fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
-        evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-            storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+            storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
         },
     )
     .expect("current Terminal measurement")
 }
+
+#[path = "build_charge/source_accounting.rs"]
+mod source_accounting;
 
 #[path = "build_charge/restricted_consent.rs"]
 mod restricted_consent;
@@ -101,6 +104,10 @@ fn main() {
         settled_build_product_contexts();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--source-accounting")) {
+        source_accounting::run();
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--accounting")) {
         pure_build_accounting();
         logged_build_reuse();
@@ -137,6 +144,7 @@ fn main() {
     source_discovery_root_resources();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
+    source_accounting::run();
     pure_build_accounting();
     logged_build_reuse();
     anonymous_build_completes_before_product();
@@ -145,22 +153,14 @@ fn main() {
 
 fn pure_build_accounting() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg");
+        .join("tests/fixtures/run/calls/installed_entry_contract_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
     )
     .expect("fixture admission");
-    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, name| {
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(name));
-        request.package_inputs = prepared.package_inputs.clone();
-        request.build.profile = target::TargetProfile::host_if_supported();
-        request.build.snapshot =
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(
-                request.package_inputs.as_ref(),
-            );
-        request.build.evaluation_sponsor = Some(sponsor.clone());
-        orchestration::check_source(session, request)
+    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, target| {
+        source_accounting::check(&prepared, session, sponsor, target)
     };
     let measured = sponsor(limits(1_000_000));
     check(
@@ -565,15 +565,16 @@ fn source_discovery_root_resources() {
     ] {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
-        let filesystem = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
-            workspace.join("caller"),
-            build_time_evaluation::BuildMachineFilesystemSponsorLimits {
-                maximum_entries: 32,
-                maximum_total_logical_bytes: bytes,
-                maximum_object_extent: 1024,
-            },
-        )
-        .unwrap();
+        let filesystem =
+            source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+                workspace.join("caller"),
+                source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
+                    maximum_entries: 32,
+                    maximum_total_logical_bytes: bytes,
+                    maximum_object_extent: 1024,
+                },
+            )
+            .unwrap();
         let output = filesystem.session_root().unwrap().join("output");
         let evaluation = sponsor(limits(work));
         let mut session = orchestration::BuildSession::create(&workspace.join("session")).unwrap();
@@ -1048,9 +1049,9 @@ fn terminal_build_filesystem() {
     );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
-    let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");
@@ -1091,7 +1092,7 @@ fn initial_build_source_isolation() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/fixtures/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
-    let mut catalogue = source::SourceCatalogue::default();
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
@@ -1109,7 +1110,8 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("naming.omg")
-                && file.dependency_scope == source::DependencyScope::Build)
+                && file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build)
     );
     assert!(
         syntax
@@ -1138,7 +1140,8 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("result.omg")
-                && file.dependency_scope == source::DependencyScope::Product)
+                && file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Product)
     );
     let retained = product.sources.get(original.source_id).unwrap();
     assert_eq!(retained.path, original.path);
@@ -1149,7 +1152,8 @@ fn initial_build_source_isolation() {
             sources
                 .files()
                 .any(|file| file.path.ends_with("float_operations.omg")
-                    && file.dependency_scope == source::DependencyScope::Build)
+                    && file.dependency_scope
+                        == declaration_contracts::source_identity::DependencyScope::Build)
         );
     }
     println!("product_preparation_retained_the_exact_build_source_bytes");
@@ -1174,7 +1178,7 @@ fn deferred_product_uses_captured_imports() {
     }
     let root = std::fs::canonicalize(&temporary).expect("temporary root");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
-    let mut catalogue = source::SourceCatalogue::default();
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
@@ -1967,20 +1971,24 @@ fn completed_build_target_fanout() {
             .message
             .contains("cannot change its source or semantic admission")
     }));
-    products.push(((host, true), compiler::PreparedPackageProduct {
-        build,
-        product: compiler::CompilationProduct::Native(products::NativeProductRequest {
-            installation_assumptions: Vec::new(),
-            retain_native_inputs: false,
-            retain_native_stage_inputs: false,
-            image: Default::default(),
-            private_entry_ram: Vec::new(),
-            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-            terminal_authority_permission_policy: None,
-            optimization_rollback: Default::default(),
-        }),
-        permissions: None,
-    }));
+    products.push((
+        (host, true),
+        compiler::PreparedPackageProduct {
+            build,
+            product: compiler::CompilationProduct::Native(products::NativeProductRequest {
+                installation_assumptions: Vec::new(),
+                retain_native_inputs: false,
+                retain_native_stage_inputs: false,
+                image: Default::default(),
+                private_entry_ram: Vec::new(),
+                terminal_authority_policy:
+                    provider_admission::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: Default::default(),
+            }),
+            permissions: None,
+        },
+    ));
     let completions = counters::product_source_completion_count();
     let outcomes = session
         .compiler()
@@ -2310,7 +2318,7 @@ fn production_project_discovery() {
 
 fn unbound_join_inputs(
     capture: &package_compilation::CapturedLocalSource,
-    tree: std::sync::Arc<source::CapturedSourceTree>,
+    tree: std::sync::Arc<source_capture::CapturedSourceTree>,
     name: &str,
 ) -> package_compilation::PackageCompilationInputs {
     let identity = fixture_package_inputs::fixture_package_identity(71);
@@ -2733,16 +2741,8 @@ fn logged_build_reuse() {
     )
     .expect("logging fixture admission");
     let expected = b"omega build log witness\n";
-    let check = |session: &mut CompilationSession, account: &BuildEvaluationSponsor, target| {
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
-        request.package_inputs = prepared.package_inputs.clone();
-        request.build.profile = target::TargetProfile::host_if_supported();
-        request.build.snapshot =
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(
-                request.package_inputs.as_ref(),
-            );
-        request.build.evaluation_sponsor = Some(account.clone());
-        orchestration::check_source(session, request)
+    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, target| {
+        source_accounting::check(&prepared, session, sponsor, target)
     };
     let mut session = CompilationSession::default();
     let account = sponsor(limits(1_000_000));

@@ -2123,7 +2123,7 @@ pub(crate) mod declaration_foundations {
     pub(crate) mod opaque_representations {
 
         use crate::codec_error::{CodecError, malformed};
-        use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
+        use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
         use terminal_psi::{
             StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
             StructuralTypeShape, TerminalModule,
@@ -2907,7 +2907,7 @@ pub(crate) mod declaration_foundations {
             boundary
                 .declaration
                 .as_ref()
-                .map(|callable| callable.source.semantic_declaration),
+                .map(|callable| &callable.source.state),
             domains,
         ) {
             return malformed("provider candidate result disagrees with its boundary");
@@ -3079,7 +3079,7 @@ pub(crate) mod installed_interrupts {
                 || registration.registrar_requirement.is_empty()
                 || registration.slot_encoding.is_empty()
                 || registration.slot_commitment == [0; 32]
-                || language_semantics::conformance_identity::source_identity_commitments(
+                || application_identity::conformance_identity::source_identity_commitments(
                     &registration.slot_encoding,
                 )
                 .1 != registration.slot_commitment
@@ -5425,6 +5425,7 @@ pub(crate) mod scalar_applications {
                 structural_parameters: Vec::new(),
                 result: terminal_psi::BoundaryMachineResult::Unit,
                 requires: Vec::new(),
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 scalar_requires: Vec::new(),
@@ -6212,7 +6213,8 @@ pub(crate) mod scalar_qualifications {
     pub(crate) fn validate(module: &terminal_psi::TerminalModule) -> Result<(), crate::CodecError> {
         use terminal_semantics::scalar_qualifications::ScalarQualificationError as Error;
         terminal_semantics::scalar_qualifications::validate(module).map_err(|error| match error {
-            Error::MalformedStructuralFoundation(detail) => {
+            Error::MalformedStructuralFoundation(detail)
+            | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }
             Error::MalformedProposition(error) => crate::CodecError::MalformedProposition(error),
@@ -10481,7 +10483,7 @@ pub(crate) mod task_activation {
             for frame in &demand.frames {
                 identity(frame.machine_callable_identity)?;
                 identity(frame.entry)?;
-                let mut hash = semantic_vocabulary::Fnv1a::new();
+                let mut hash = wire::fnv1a::Fnv1a::new();
                 hash.byte(0x57);
                 hash.string_terminated(
                     module
@@ -13692,6 +13694,7 @@ mod installed_interrupt_owner_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),
@@ -13723,7 +13726,7 @@ mod installed_interrupt_owner_tests {
                 registrar_requirement: "test::install".into(),
                 slot_declaration: nominal,
                 slot_commitment:
-                    language_semantics::conformance_identity::source_identity_commitments(
+                    application_identity::conformance_identity::source_identity_commitments(
                         &slot_encoding,
                     )
                     .1,

@@ -15,7 +15,8 @@ Provenance:
 */
 
 use diagnostics::Diagnostic;
-use source::{SourceFile, SourceOrigin};
+use source_admission::SourceFile;
+use source_admission::SourceOrigin;
 
 #[path = "source_consumption_checked_sources.rs"]
 mod checked_sources;
@@ -23,8 +24,9 @@ pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
 
 const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
 
-use source::source_identity::append_canonical_consumed_unit;
-pub use source::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
+pub use declaration_contracts::source_identity::ConsumedSourceUnit;
+pub use declaration_contracts::source_identity::ConsumedSourceUnitKind;
+use declaration_contracts::source_identity::append_canonical_consumed_unit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageSourceConsumptionCommitment {
@@ -131,7 +133,7 @@ fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
 #[doc(hidden)]
 pub(crate) fn derive_consumed_source_units<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
-    generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
+    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
     let generated_by_id = GeneratedSourceOrder::new(generated_sources);
     if (1..generated_sources.len())
@@ -178,12 +180,14 @@ pub(crate) fn derive_consumed_source_units<'source>(
 }
 
 struct GeneratedSourceOrder<'source> {
-    sources: &'source [(source::SourceId, build_output::PackageGeneratedSource)],
+    sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
     positions: Option<Vec<usize>>,
 }
 
 impl<'source> GeneratedSourceOrder<'source> {
-    fn new(sources: &'source [(source::SourceId, build_output::PackageGeneratedSource)]) -> Self {
+    fn new(
+        sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    ) -> Self {
         let positions = sources
             .windows(2)
             .any(|pair| pair[0].0.0 > pair[1].0.0)
@@ -198,7 +202,7 @@ impl<'source> GeneratedSourceOrder<'source> {
     fn at(
         &self,
         position: usize,
-    ) -> &'source (source::SourceId, build_output::PackageGeneratedSource) {
+    ) -> &'source (source_text::SourceId, build_output::PackageGeneratedSource) {
         &self.sources[self
             .positions
             .as_ref()
@@ -207,7 +211,7 @@ impl<'source> GeneratedSourceOrder<'source> {
 
     fn find(
         &self,
-        source_id: source::SourceId,
+        source_id: source_text::SourceId,
     ) -> Option<(usize, &'source build_output::PackageGeneratedSource)> {
         let position = match &self.positions {
             Some(positions) => {
@@ -241,9 +245,10 @@ fn validate_generated_source_join(
                 source.path.display()
             ))]
         })?;
-    let logical_path = source::source_identity::canonical_path_components(relative, &source.path)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?
-        .join("/");
+    let logical_path =
+        source_admission::source_identity::canonical_path_components(relative, &source.path)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .join("/");
     let expected_path = [b".omega/generated/".as_slice(), generated.relative_path()].concat();
     if logical_path.as_bytes() != expected_path {
         return Err(vec![Diagnostic::error(format!(
@@ -258,7 +263,7 @@ fn validate_generated_source_join(
 pub fn derive_package_compilation_subject<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
     inputs: &crate::PackageCompilationInputs,
-    generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
+    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
     let consumed_units = derive_consumed_source_units(sources, generated_sources)?;
     let source_consumption_commitment =
@@ -275,7 +280,7 @@ fn consumed_source_unit(
     source: &SourceFile,
     generated: bool,
 ) -> Result<ConsumedSourceUnit, Vec<Diagnostic>> {
-    source::source_identity::consumed_source_unit(source, generated)
+    source_admission::source_identity::consumed_source_unit(source, generated)
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
@@ -288,13 +293,13 @@ fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit)
 
 pub fn toolchain_source_identities<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
-) -> Result<Vec<(source::SourceId, [u8; 32])>, Vec<Diagnostic>> {
-    source::source_identity::toolchain_source_identities(sources)
+) -> Result<Vec<(source_text::SourceId, [u8; 32])>, Vec<Diagnostic>> {
+    source_admission::source_identity::toolchain_source_identities(sources)
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
 #[doc(hidden)]
 pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], Vec<Diagnostic>> {
-    source::source_identity::toolchain_source_identity_digest(source)
+    source_admission::source_identity::toolchain_source_identity_digest(source)
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }

@@ -127,8 +127,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
     use calling_conventions::{MachineState as State, MachineStateSet};
     let vector = MachineStateSet::new([State::VectorRegisters]);
     let generated_vector = bridge
-        .generated()
-        .effects
+        .adapter_effects()
         .machine_state()
         .contains_all(vector);
     let body_vector = bridge
@@ -175,10 +174,9 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         return Err("native vector control must remove exactly vector permission".into());
     }
     if !generated_vector_control {
-        let scalar = machine_emission::native_entry_bridge::emit_native_entry_bridge(missing)
-            .map_err(|error| {
-                format!("scalar entry unexpectedly needs vector permission: {error:?}")
-            })?;
+        let scalar = image_fixtures::emit_native_entry_bridge(missing).map_err(|error| {
+            format!("scalar entry unexpectedly needs vector permission: {error:?}")
+        })?;
         if scalar.bytes() != bridge.bytes()
             || scalar.complete_effects() != bridge.complete_effects()
         {
@@ -189,11 +187,10 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
     // This check isolates generated instructions from the callback body's
     // effects. The complete-emission refusal below must survive as well.
     bridge
-        .generated()
-        .effects
+        .adapter_effects()
         .validate(&bridge.request().inbound.state)
         .map_err(|reason| format!("unchanged generated vector evidence: {reason}"))?;
-    match bridge.generated().effects.validate(&missing.inbound.state) {
+    match bridge.adapter_effects().validate(&missing.inbound.state) {
         Err("complete entry code uses machine state outside its declared ceiling") => {}
         Err(reason) => {
             return Err(format!(
@@ -202,9 +199,9 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         }
         Ok(()) => return Err("generated entry accepted undeclared vector use".into()),
     }
-    match machine_emission::native_entry_bridge::emit_native_entry_bridge(missing) {
+    match image_fixtures::emit_native_entry_bridge(missing) {
         Err(
-            machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+            physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                 reason,
             ),
         ) if reason.starts_with(
@@ -349,13 +346,14 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
             }
         }
         "scalar calls" => {
-            let rows = object
-                .native_instruction_source_rows()
-                .ok_or("scalar CPU-state control lacks retained instruction rows")?;
-            let source = rows.frame_application.source().source();
+            let retained = object
+                .retained_fragment_source()
+                .ok_or("CPU-state audit requires retained fragments")?;
+            let source = retained.source().source().source().source();
             let model = source.register_environment().physical().model();
             let actual_abi_vector_clobber = source
-                .physical_program()
+                .original_physical_program()
+                .ok_or("CPU-state audit requires retained originals")?
                 .machine
                 .functions
                 .iter()
@@ -449,8 +447,11 @@ fn inspect_instruction_sources(
     let rows = object
         .native_instruction_source_rows()
         .ok_or("native instruction controls require retained source rows")?;
-    inspect_relative_branches(rows.frame_application)?;
-    use image_emission::correlate_native_instruction_sources as correlate;
+    let retained = object
+        .retained_fragment_source()
+        .ok_or("relative-branch audit requires retained fragments")?;
+    inspect_relative_branches(retained.source().source())?;
+    use installation_admission::selected::correlate_native_instruction_sources as correlate;
     let original = correlate(rows.selected, rows.physical.iter().copied())
         .map_err(|error| format!("unchanged native instruction correspondence: {error:?}"))?;
     if original.len() != rows.physical.len()
@@ -499,20 +500,20 @@ fn inspect_instruction_sources(
         .ok_or("native instruction control needs two distinct IDs in one function")?;
     block.instructions[0].id = duplicate_id;
     require_instruction_refusal(
-        correlate(&duplicate_selected, rows.physical.iter().copied()),
+        correlate(&duplicate_selected, rows.physical.iter().copied()).map_err(Into::into),
         "installed fault analysis has duplicate selected instructions",
     )?;
 
     let mut duplicate_physical = rows.physical.clone();
     duplicate_physical.push(*rows.physical.first().ok_or("physical rows are empty")?);
     require_instruction_refusal(
-        correlate(rows.selected, duplicate_physical),
+        correlate(rows.selected, duplicate_physical).map_err(Into::into),
         "installed physical instruction is duplicated",
     )?;
     let mut omitted = rows.physical.clone();
     omitted.pop().ok_or("physical rows are empty")?;
     require_instruction_refusal(
-        correlate(rows.selected, omitted),
+        correlate(rows.selected, omitted).map_err(Into::into),
         "installed physical closure omits a selected instruction",
     )?;
 
@@ -537,17 +538,17 @@ fn inspect_instruction_sources(
     let mut wrong_owner = rows.physical.clone();
     wrong_owner[position] = replacement;
     require_instruction_refusal(
-        correlate(rows.selected, wrong_owner),
+        correlate(rows.selected, wrong_owner).map_err(Into::into),
         "installed physical instruction has no exact selected source",
     )?;
     Ok(())
 }
 
 fn inspect_relative_branches(
-    framed: &machine_emission::StagedFunctionFragmentFrameApplication,
+    framed: &function_layout::StagedFunctionFragmentFrameApplication,
 ) -> Result<(), String> {
+    use function_layout::FunctionFragmentFrameApplicationError as Error;
     use machine_code::FunctionFragmentBranchEvidence as Branch;
-    use machine_emission::FunctionFragmentFrameApplicationError as Error;
     let mut observed = [false; 2];
     for function in &framed.fragments().functions {
         let rows: Vec<_> = function

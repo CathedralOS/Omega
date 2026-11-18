@@ -9,12 +9,12 @@ use crate::realization::{ComponentExportImage, ComponentExportRequest, Component
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use native_artifact::NativeComponentProduct;
-use std::sync::Arc;
-use terminal_psi::TerminalIdentityTable;
-use terminal_psi_to_abstract_operations::provider_admission::{
+use native_program_planning::{AdmittedNativeComponentCall, ComponentNativeInputs};
+use provider_admission::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
-use terminal_psi_to_abstract_operations::{AdmittedNativeComponentCall, ComponentNativeInputs};
+use std::sync::Arc;
+use terminal_psi::TerminalIdentityTable;
 
 pub struct ComponentCompilation<'input> {
     pub input: ComponentNativeInputs<'input>,
@@ -30,7 +30,7 @@ pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
     pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
-    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeExecution>,
+    exports: Vec<native_program_planning::PreparedNativeExecution>,
 }
 
 pub(crate) fn prepare_components<'input>(
@@ -115,9 +115,8 @@ pub(crate) fn emit_components<'input>(
         let exports = crate::realization::emit_component_exports(
             &component.input,
             work,
-            scalars.map(|completed| {
-                terminal_psi_to_abstract_operations::NativeScalarApplications { completed }
-            }),
+            scalars
+                .map(|completed| native_program_planning::NativeScalarApplications { completed }),
             ComponentExportRequest {
                 retain_native_stage_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,

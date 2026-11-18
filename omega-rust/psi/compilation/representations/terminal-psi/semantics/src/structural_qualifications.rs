@@ -20,10 +20,11 @@
 //! parameter, so the edge into it proves them. No other operation produces
 //! a qualified value, except provisioning that adds only free domains.
 
-use language_semantics::type_identity::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_static_argument_package_owners,
-    visit_type_identity_package_owners, vocabulary::OwnerForm,
-};
+use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+use application_identity::type_identity::TypeIdentityVisitError;
+use application_identity::type_identity::visit_static_argument_package_owners;
+use application_identity::type_identity::visit_type_identity_package_owners;
+use application_identity::type_identity::vocabulary::OwnerForm;
 
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, EdgeId, IntegerType, MachineId,
@@ -85,6 +86,48 @@ impl Memberships {
             StructuralPathQualification::select(&self.whole, &self.projected, path);
         Self { whole, projected }
     }
+}
+
+/// Recognize boundary requirements already expressed by the input types.
+/// This establishes no actual membership: the structural-call judgment must
+/// still require each actual to deliver its formal's exact domains. Normalize
+/// each formal once, then compare complete domain identities at exact paths.
+pub fn formal_domains_cover_requirements(
+    formals: &[terminal_psi::StructuralParameterDeclaration],
+    requirements: &[terminal_psi::StructuralDomainRequirement],
+) -> bool {
+    if requirements.is_empty() {
+        return true;
+    }
+    let memberships = formals
+        .iter()
+        .map(|formal| Memberships::of(&formal.qualifications, &formal.projected_qualifications))
+        .collect::<Vec<_>>();
+    requirements.iter().all(|requirement| {
+        let Ok(position) = usize::try_from(requirement.argument_index) else {
+            return false;
+        };
+        let Some(formal) = formals.get(position) else {
+            return false;
+        };
+        if formal.position != requirement.argument_index {
+            return false;
+        }
+        let declared = &memberships[position];
+        if requirement.path.is_empty() {
+            declared.whole.binary_search(&requirement.domain).is_ok()
+        } else {
+            declared
+                .projected
+                .binary_search_by(|membership| {
+                    membership
+                        .path
+                        .cmp(&requirement.path)
+                        .then_with(|| membership.domain.cmp(&requirement.domain))
+                })
+                .is_ok()
+        }
+    })
 }
 
 struct Declared<'a> {
@@ -249,11 +292,12 @@ pub fn operation_writes_default_storage(kind: &OperationKind) -> bool {
         })
 }
 
-fn writes_default_storage(effect: Option<access_plans::AccessOperation>) -> bool {
+fn writes_default_storage(effect: Option<access_vocabulary::AccessOperation>) -> bool {
     effect.is_some_and(|effect| {
         matches!(
             effect,
-            access_plans::AccessOperation::Write | access_plans::AccessOperation::Atomic(_)
+            access_vocabulary::AccessOperation::Write
+                | access_vocabulary::AccessOperation::Atomic(_)
         ) && effect.reads_and_writes().1
     })
 }
@@ -1375,6 +1419,7 @@ fn validate_change(
     source: &StructuralArgument,
     destination: &Memberships,
     target: BlockId,
+    facts: &crate::membership_facts::MembershipFacts,
 ) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -1409,12 +1454,7 @@ fn validate_change(
             !shown.contains(id)
                 && domain(module, id.0)
                     .and_then(|row| row.access_policy.as_ref())
-                    .is_some_and(|plan| {
-                        !plan.readers.is_empty()
-                            || !plan.writers.is_empty()
-                            || !plan.observations.is_empty()
-                            || plan.reach.services().len() != 0
-                    })
+                    .is_some_and(|plan| plan.has_operation_rules())
         }) {
             return malformed(
                 machine,
@@ -1479,7 +1519,8 @@ fn validate_change(
         let missing = declared
             .missing_membership_requirements(&module.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
-        if missing {
+        let forwarded = facts.structural_on_edge(module, change, *referent, *id);
+        if missing && !forwarded {
             return malformed(
                 machine,
                 "a structural cast adds a domain without its required memberships",
@@ -1491,10 +1532,11 @@ fn validate_change(
             (None, Some(_)) => {
                 return malformed(machine, "a structural cast names a route its domain lacks");
             }
+            (Some(_), None) if forwarded => {}
             (Some(_), None) => {
                 return malformed(
                     machine,
-                    "a structural cast adds a routed domain without its issuer route",
+                    "a structural cast lacks both an existing membership and an authorized issuer route",
                 );
             }
             (Some(routes), Some(row)) => {
@@ -1547,6 +1589,26 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
+    byte_change_judgment(module, places, change, source, destination)
+}
+
+fn byte_change_judgment(
+    module: &TerminalModule,
+    places: &Declared<'_>,
+    change: &StructuralQualificationChange,
+    source: &StructuralArgument,
+    destination: &Memberships,
+) -> Judged<Option<bool>> {
+    let machine = places.machine();
+    if !source.path.is_empty() || change.source != source.place {
+        return malformed(machine, "a byte qualification change names another source");
+    }
+    let (held, _) = displayed(&places.argument(source));
+    let (shown, _) = displayed(destination);
+    let added = shown
+        .into_iter()
+        .filter(|domain| !held.contains(domain))
+        .collect::<Vec<_>>();
     let mut byte_domain = false;
     let mut established = true;
     for (id, referent) in &added {
@@ -1607,6 +1669,7 @@ fn validate_change(
 fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    facts: &crate::membership_facts::MembershipFacts,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
@@ -1663,6 +1726,7 @@ fn validate_machine(
                             argument,
                             &expected,
                             target.id,
+                            facts,
                         )? {
                             byte_establishments.push((edge, established));
                         }
@@ -2125,7 +2189,7 @@ impl TypeIdentityPackageOwnerVisitor for MachineCallerDescription {
 
 fn read_machine_caller_declaration(
     module: &TerminalModule,
-    description: &language_semantics::reflection::CallableDescription,
+    description: &schema_reflection::CallableDescription,
     declaration: &terminal_psi::NominalDeclarationIdentity,
     callable: terminal_psi::TerminalIdentityIndex,
 ) -> Judged<MachineCallerDescription> {
@@ -2166,7 +2230,8 @@ fn read_machine_caller_declaration(
         ));
     };
     let declared = &described.machine[0];
-    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision =
+        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
     let same_owner = match (actual.0, declared.0) {
         (OwnerForm::Package, OwnerForm::Package) => actual.1 == declared.1,
         (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => actual.1 == Some(revision),
@@ -2194,14 +2259,15 @@ fn read_machine_caller_declaration(
 fn machine_caller_application_matches(
     module: &TerminalModule,
     current: &TerminalMachine,
-    description: &language_semantics::reflection::CallableDescription,
+    description: &schema_reflection::CallableDescription,
     described: &MachineCallerDescription,
 ) -> Judged<bool> {
     let error = |detail| StructuralQualificationError {
         machine: Some(current.id),
         detail,
     };
-    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision =
+        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
     let declaration = current
         .declaration
         .as_ref()
@@ -2291,7 +2357,7 @@ pub fn caller_matches_machine(
     module: &TerminalModule,
     current: MachineId,
     caller: &(
-        language_semantics::reflection::CallableDescription,
+        schema_reflection::CallableDescription,
         StructuralEstablishmentRoute,
     ),
 ) -> Judged<bool> {
@@ -2371,7 +2437,7 @@ pub fn validate_access_policy(
         |(node, _)| Ok::<_, StructuralQualificationError>(node),
         |(description, _)| Ok(description),
     )?;
-    let normalized = access_plans::normalize_access_plan(projected.clone()).map_err(|_| {
+    let normalized = access_admission::normalize_access_plan(projected.clone()).map_err(|_| {
         error("domain access rules have invalid semantic coordinates or descriptions")
     })?;
     if normalized != projected {
@@ -2422,7 +2488,7 @@ pub fn validate_access_policy(
         .members
         .iter()
         .filter_map(|member| match plan.schema.node(*member) {
-            language_semantics::reflection::SchemaNode::Case(case) => Some(case),
+            schema_reflection::SchemaNode::Case(case) => Some(case),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2480,9 +2546,7 @@ pub fn validate_access_policy(
             .map_err(|_| error("domain access schema lost its source field"))?;
         let (_, case, field) = fields[index];
         let described_case = match plan.schema.node(description.owner_case) {
-            language_semantics::reflection::SchemaNode::Case(case)
-                if description.owner_case.is_valid() =>
-            {
+            schema_reflection::SchemaNode::Case(case) if description.owner_case.is_valid() => {
                 Some(case.member_identity.as_str())
             }
             _ if !description.owner_case.is_valid() => None,
@@ -2505,7 +2569,7 @@ pub fn validate_access_policy(
         }
     }
     let region = |(node, path): &(
-        language_semantics::reflection::SchemaNodeHandle,
+        schema_reflection::SchemaNodeHandle,
         Option<Vec<StructuralPathSegment>>,
     )|
      -> Judged<()> {
@@ -2602,12 +2666,9 @@ pub fn same_access_policy(
         module: &TerminalModule,
         domain: &StructuralDomainDeclaration,
     ) -> Option<
-        access_plans::AccessPlan<
-            language_semantics::reflection::SchemaNodeHandle,
-            (
-                language_semantics::reflection::CallableDescription,
-                (u8, String, String),
-            ),
+        access_admission::AccessPlan<
+            schema_reflection::SchemaNodeHandle,
+            (schema_reflection::CallableDescription, (u8, String, String)),
         >,
     > {
         validate_access_policy(module, domain).ok()?;
@@ -2667,7 +2728,7 @@ mod operation_permissions {
         require_unchanged_produced_payload_in, terminal_borrowed_storage_graph_from,
         terminal_payload_contract,
     };
-    use access_plans::AccessOperation;
+    use access_vocabulary::AccessOperation;
 
     // Reuse a judgment only for this function, instruction and value. The
     // same helper can receive different storage on its separate invocations.
@@ -2678,7 +2739,7 @@ mod operation_permissions {
         source: DescriptorSourceOrigin,
     }
     type Caller = (
-        language_semantics::reflection::CallableDescription,
+        schema_reflection::CallableDescription,
         StructuralEstablishmentRoute,
     );
 
@@ -3369,9 +3430,26 @@ fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
 /// Check the exact membership transfers, domain theories and issuer routes.
 /// Byte predicate truth is a separate establishment judgment at each cast edge.
 pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
+    let bodies = module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    validate_shape_for_bodies(module, &bodies)
+}
+
+/// Check the complete vocabulary and prove returned memberships for the exact
+/// checked bodies. Artifact ingress uses every module body through validate_shape.
+pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) -> Judged<()> {
     validate_access_policies(module)?;
+    let facts = crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
+        StructuralQualificationError {
+            machine: error.machine,
+            detail: error.detail,
+        }
+    })?;
     for machine in &module.machines {
-        validate_machine(module, machine)?;
+        validate_machine(module, machine, &facts)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
@@ -3398,14 +3476,90 @@ pub fn byte_qualification_change_judgments(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Judged<Vec<(EdgeId, bool)>> {
-    validate_machine(module, machine)
+    let places = Declared::new(machine)?;
+    let mut changes = std::collections::BTreeMap::new();
+    for change in module
+        .structural_qualification_changes
+        .iter()
+        .filter(|change| change.machine == machine.id)
+    {
+        if changes
+            .insert((change.edge, change.argument_ordinal), change)
+            .is_some()
+        {
+            return malformed(
+                Some(machine.id),
+                "byte qualification change repeats an exact successor argument",
+            );
+        }
+    }
+    let mut used = std::collections::BTreeSet::new();
+    let mut judgments = Vec::new();
+    for block in &machine.blocks {
+        let edges = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        if edges.len() != arguments.len() {
+            return malformed(
+                Some(machine.id),
+                "byte qualification successor lost its edge",
+            );
+        }
+        for ((edge, target), arguments) in edges.into_iter().zip(arguments) {
+            let target = machine.block(&target).ok_or(StructuralQualificationError {
+                machine: Some(machine.id),
+                detail: "byte qualification successor names an absent block",
+            })?;
+            for (ordinal, source) in arguments.iter().enumerate() {
+                let ordinal = u32::try_from(ordinal).map_err(|_| StructuralQualificationError {
+                    machine: Some(machine.id),
+                    detail: "byte qualification argument ordinal overflow",
+                })?;
+                let Some(change) = changes.get(&(edge, ordinal)) else {
+                    continue;
+                };
+                let parameter = target
+                    .structural_parameters
+                    .get(ordinal as usize)
+                    .filter(|parameter| parameter.place == change.destination)
+                    .ok_or(StructuralQualificationError {
+                        machine: Some(machine.id),
+                        detail: "byte qualification change names another destination",
+                    })?;
+                used.insert((edge, ordinal));
+                if let Some(established) = byte_change_judgment(
+                    module,
+                    &places,
+                    change,
+                    source,
+                    &Memberships::of(
+                        &parameter.qualifications,
+                        &parameter.projected_qualifications,
+                    ),
+                )? {
+                    judgments.push((edge, established));
+                }
+            }
+        }
+    }
+    if used.len() != changes.len() {
+        return malformed(
+            Some(machine.id),
+            "byte qualification change names no successor argument",
+        );
+    }
+    Ok(judgments)
 }
 
 /// The complete structural membership judgment required at artifact ingress.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
+    let facts =
+        crate::membership_facts::analyze(module).map_err(|error| StructuralQualificationError {
+            machine: error.machine,
+            detail: error.detail,
+        })?;
     for machine in &module.machines {
-        if byte_qualification_change_judgments(module, machine)?
+        if validate_machine(module, machine, &facts)?
             .iter()
             .any(|(_, established)| !established)
         {

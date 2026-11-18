@@ -21,8 +21,8 @@ pub(in crate::encoding::recovery) fn domain_shape(
         target_type: type_identity(reader)?,
         index_arguments: reader.sequence(8, type_identity)?,
         predicate_presence: super::super::tag!(reader => {
-            0 => language_semantics::DomainPredicatePresence::Absent,
-            1 => language_semantics::DomainPredicatePresence::Present,
+            0 => declaration_contracts::DomainPredicatePresence::Absent,
+            1 => declaration_contracts::DomainPredicatePresence::Present,
         }),
         predicate_facts: reader.sequence(2, contract_fact)?,
         alias_expansion: reader.option(|reader| reader.sequence(2, alias_atom))?,

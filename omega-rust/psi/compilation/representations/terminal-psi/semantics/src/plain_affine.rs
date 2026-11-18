@@ -9,9 +9,9 @@
 mod claims;
 pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
 
+use arena::IdSet;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Segment, EdgeId, IdSet, OperationId, PlaceId,
-    StructuralTypeId,
+    CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId,
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
@@ -109,6 +109,9 @@ pub struct Plan {
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
     pub reference_ends: Vec<ReferenceEnd>,
+    /// Fully restored borrowed names that the settled ownership walk ends
+    /// on this edge. The loan checker still accounts for their resources.
+    pub borrowed_header_ends: Vec<(EdgeId, PlaceId)>,
     pub claims: Option<ClaimsPlan>,
 }
 
@@ -417,6 +420,7 @@ struct Arrival {
     target: Option<semantic_vocabulary::BlockId>,
     outgoing: State,
     actions: Vec<TerminalAffineCleanupAction>,
+    borrowed_header_ends: Vec<PlaceId>,
 }
 
 struct Residence {
@@ -556,7 +560,7 @@ fn reference_backing_uses(
     references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     candidates: Option<&crate::reference_ends::Candidates>,
 ) -> Result<
-    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, IdSet<PlaceId>>,
+    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, Vec<PlaceId>>,
     Error,
 > {
     use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
@@ -603,9 +607,7 @@ fn reference_backing_uses(
                     // An unknown packet has no address we can resolve. Keep
                     // its entire carrier live; this supplies no access to its
                     // hidden referents and does not authorize their release.
-                    uses.entry(*at)
-                        .or_insert_with(IdSet::new)
-                        .insert(input.root);
+                    uses.entry(*at).or_insert_with(Vec::new).push(input.root);
                 }
             }
             'slots: for mut slot in inventory.slots {
@@ -640,11 +642,13 @@ fn reference_backing_uses(
                 if !graph.place_types.contains_key(&source.root) {
                     return Err(Error::malformed("reference backing is outside its machine"));
                 }
-                uses.entry(*at)
-                    .or_insert_with(IdSet::new)
-                    .insert(source.root);
+                uses.entry(*at).or_insert_with(Vec::new).push(source.root);
             }
         }
+    }
+    for roots in uses.values_mut() {
+        roots.sort_unstable();
+        roots.dedup();
     }
     Ok(uses)
 }
@@ -655,9 +659,46 @@ fn live_entries(
     reference_candidates: Option<&crate::reference_ends::Candidates>,
     reference_backing: &std::collections::BTreeMap<
         crate::descriptor_lifetimes::DescriptorPosition,
-        IdSet<PlaceId>,
+        Vec<PlaceId>,
     >,
 ) -> Result<Vec<IdSet<PlaceId>>, Error> {
+    let valid = |place: PlaceId| -> Result<PlaceId, Error> {
+        if index(place.get())? < machine.structural_places.len() {
+            Ok(place)
+        } else {
+            Err(Error::malformed("live place is outside the machine"))
+        }
+    };
+    let mut header_backing = std::collections::BTreeMap::new();
+    for block in &machine.blocks {
+        for parameter in &block.structural_parameters {
+            if parameter.access == StructuralAccess::Owned
+                || crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+            {
+                continue;
+            }
+            header_backing.insert(parameter.place, (block.id, None));
+        }
+    }
+    // A borrowed header observes its captured backing in any block that
+    // uses it. Add those dependencies at each use, so preceding definitions
+    // still stop the backward walk at their establishment points.
+    let mut observe = |before: &mut IdSet<PlaceId>, place| -> Result<(), Error> {
+        before.insert(valid(place)?);
+        if let Some((block, backing)) = header_backing.get_mut(&place) {
+            let roots = backing.get_or_insert_with(|| {
+                let names = crate::storage_names(machine, *block, place);
+                let mut roots: Vec<_> = names.captured_roots().collect();
+                roots.sort_unstable();
+                roots.dedup();
+                roots
+            });
+            for &root in roots.iter() {
+                before.insert(valid(root)?);
+            }
+        }
+        Ok(())
+    };
     let mut live = vec![IdSet::new(); machine.blocks.len()];
     loop {
         let mut changed = false;
@@ -669,20 +710,17 @@ fn live_entries(
                         .ok_or(Error::malformed("edge target is outside the machine"))?,
                 );
             }
-            let valid = |place: PlaceId| -> Result<PlaceId, Error> {
-                if index(place.get())? < machine.structural_places.len() {
-                    Ok(place)
-                } else {
-                    Err(Error::malformed("live place is outside the machine"))
-                }
-            };
             for root in terminator_roots(&block.terminator) {
-                before.insert(valid(root)?);
+                observe(&mut before, root)?;
             }
             let end = u32::try_from(block.operations.len())
                 .map_err(|_| Error::malformed("reference observation position overflows"))?;
-            if let Some(backing) = reference_backing.get(&(block.id, end)) {
-                before.union_with(backing);
+            for &root in reference_backing
+                .get(&(block.id, end))
+                .into_iter()
+                .flatten()
+            {
+                observe(&mut before, root)?;
             }
             for (position, operation) in block.operations.iter().enumerate().rev() {
                 if let Some(result) = operation.result.as_structural() {
@@ -694,7 +732,7 @@ fn live_entries(
                     .into_iter()
                     .filter_map(|(storage, _)| storage_root(storage))
                 {
-                    before.insert(valid(used)?);
+                    observe(&mut before, used)?;
                 }
                 // A planned release is a real future use of its owned
                 // descriptor home. Keep that home until the planner can emit
@@ -702,32 +740,22 @@ fn live_entries(
                 // child still runs. The final verifier reads emitted uses.
                 let position = u32::try_from(position)
                     .map_err(|_| Error::malformed("reference end position overflows"))?;
-                if let Some(backing) = reference_backing.get(&(block.id, position)) {
-                    before.union_with(backing);
+                for &root in reference_backing
+                    .get(&(block.id, position))
+                    .into_iter()
+                    .flatten()
+                {
+                    observe(&mut before, root)?;
                 }
                 for candidate in reference_candidates
                     .and_then(|candidates| candidates.get(&(block.id, position)))
                     .into_iter()
                     .flatten()
                 {
-                    before.insert(valid(candidate.argument.place)?);
+                    observe(&mut before, candidate.argument.place)?;
                 }
             }
             for parameter in &block.structural_parameters {
-                if parameter.access != StructuralAccess::Owned
-                    && before.contains(parameter.place)
-                    && !crate::descriptor_results::is_descriptor(
-                        types.iter(),
-                        parameter.structural_type,
-                    )
-                {
-                    // The new name still borrows the captured home. Keep its
-                    // original owners until the last use of that name.
-                    let captures = crate::storage_names(machine, block.id, parameter.place);
-                    for root in captures.captured_roots() {
-                        before.insert(valid(root)?);
-                    }
-                }
                 before.remove(valid(parameter.place)?);
             }
             let old = live
@@ -1732,6 +1760,7 @@ fn analyze(
     analysis.reference_ends.clear();
     analysis.unavailable_roots = vec![None; analysis.roots.len()];
     let mut cleanup = Vec::new();
+    let mut borrowed_header_ends = Vec::new();
     for block in &machine.blocks {
         let Some(state) = entering[index(block.id.get())?].clone() else {
             if let Some(flow) = &mut analysis.claim_flow {
@@ -1758,9 +1787,16 @@ fn analyze(
             if !arrival.actions.is_empty() {
                 cleanup.push((arrival.edge, arrival.actions));
             }
+            borrowed_header_ends.extend(
+                arrival
+                    .borrowed_header_ends
+                    .into_iter()
+                    .map(|place| (arrival.edge, place)),
+            );
         }
     }
     cleanup.sort_by_key(|(edge, _)| *edge);
+    borrowed_header_ends.sort_unstable();
     analysis.stores.sort_by_key(|(operation, _)| *operation);
     Ok(Plan {
         affine_roots,
@@ -1769,6 +1805,7 @@ fn analyze(
         stores: analysis.stores,
         unavailable: analysis.unavailable,
         reference_ends: analysis.reference_ends,
+        borrowed_header_ends,
         claims: analysis
             .claim_flow
             .map(|flow| flow.finish(machine))
@@ -1820,8 +1857,8 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        if crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
-            .is_none_or(|selected| selected.id != parameter.structural_type)
+        if crate::borrowed_projection_type(types.iter(), source, &argument.path)
+            != Some(parameter.structural_type)
         {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
@@ -2368,16 +2405,21 @@ impl<'a> Analysis<'a> {
             // value that needs cleanup. End a dead name before the next header
             // is bound, leaving its backing and all loan checks untouched.
             // A surviving use still needs a name established on every arrival.
+            let mut borrowed_header_ends = Vec::new();
             for place in &self.borrowed_headers {
                 let raw = index(place.get())?;
-                let forgotten = !needed.is_some_and(|needed| needed.contains(*place))
-                    || owned_there.is_some_and(|there| there.regions[raw].is_none());
+                let unused = !needed.is_some_and(|needed| needed.contains(*place));
+                let forgotten =
+                    unused || owned_there.is_some_and(|there| there.regions[raw].is_none());
                 if forgotten && let Some(region) = &outgoing.regions[raw] {
                     if !region.available(&[]) {
                         return Err(Error::unsupported(
                             "borrowed block storage still owes restoration at its last use",
                         )
                         .at(Site::Edge(edge)));
+                    }
+                    if unused && target.is_some() && bound_output && entering.is_some() {
+                        borrowed_header_ends.push(*place);
                     }
                     outgoing.regions[raw] = None;
                 }
@@ -2539,6 +2581,7 @@ impl<'a> Analysis<'a> {
                 target,
                 outgoing,
                 actions,
+                borrowed_header_ends,
             });
         }
         Ok(arrivals)
@@ -4002,7 +4045,7 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{StructuralFieldId, StructuralPlaceKind};
 
-    fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
+    fn id<T: arena::NumericId>(raw: u64) -> T {
         T::new(raw).unwrap()
     }
 
@@ -4772,7 +4815,9 @@ mod tests {
 
     #[test]
     fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
-        use terminal_psi::{Operation, OperationKind, OperationResult, StructuralMultiplicity};
+        use terminal_psi::{
+            Block, Operation, OperationKind, OperationResult, StructuralMultiplicity, Terminator,
+        };
         let types = reconvergence_types();
         let mut machine = transferring(
             &[id(3)],
@@ -4785,7 +4830,7 @@ mod tests {
         let target = &mut machine.blocks[1];
         target.structural_parameters[0].access = StructuralAccess::SharedBorrow;
         target.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
-        target.operations.push(Operation::unsuspended(
+        let observation = Operation::unsuspended(
             id(1),
             OperationResult::Unit,
             OperationKind::CallUnit {
@@ -4801,8 +4846,28 @@ mod tests {
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
             },
-        ));
+        );
+        let finish = std::mem::replace(
+            &mut target.terminator,
+            Terminator::Jump {
+                edge: id(3),
+                target: id(3),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        let mut later = Block::plain(id(3), Vec::new(), finish);
+        later.operations.push(observation);
+        machine.blocks.push(later);
         let checked = plan(&machine, &types).unwrap();
+        assert!(
+            !checked.cleanup.iter().any(|(edge, actions)| *edge == id(3)
+                && actions.iter().any(|action| action.place() == id(1))),
+            "the borrowed name keeps its backing in the later observation block"
+        );
         assert!(checked.unavailable.is_empty());
         assert!(
             !checked.cleanup.iter().any(|(edge, actions)| *edge == id(1)

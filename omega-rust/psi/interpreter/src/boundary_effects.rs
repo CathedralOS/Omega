@@ -680,6 +680,7 @@ pub(crate) mod boundary_predicates {
             let identity = terminal_psi::TerminalIdentityIndex(0);
             terminal_psi::BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 declaration: None,
@@ -2711,7 +2712,10 @@ pub(crate) mod results {
             boundary: &BoundaryMachineDeclaration,
             result: &OperationResult,
         ) -> Result<(), TerminalInterpretError> {
-            if boundary.requires_checked_result(&self.program.catalogs.structural_domains) {
+            if boundary.requires_checked_result(
+                &self.program.catalogs.structural_domains,
+                &self.program.catalogs.scalar_qualifications.domains,
+            ) {
                 return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                     boundary: boundary.id,
                     reason: "host import cannot establish result provenance owned by another issuer",
@@ -3119,8 +3123,9 @@ pub(crate) mod results {
     pub(crate) mod tests {
         use super::*;
         use crate::engine::calls::frames::tests::empty_program;
-        use evaluation_accounting::{
-            BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        use evaluation_accounting::BuildEvaluationSponsor;
+        use evaluation_contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
             TerminalStorageScheduleIdentity,
         };
         use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -4311,6 +4316,54 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
 }
 
 impl TerminalRuntimeSupplies {
+    /// Bind compiler evaluation to the same provider installation and target
+    /// that source consent admitted. Ordinary instantiation checks code custody;
+    /// this join additionally prevents swapping another accepted supply set.
+    pub fn require_compiler_evaluation(
+        &self,
+        code: terminal_codec::TerminalExecutionView<'_>,
+        admission: &terminal_installation::AdmittedCompilerEvaluation,
+        scalars: Option<&terminal_installation::AdmittedScalarApplications>,
+    ) -> Result<(), String> {
+        if self.code_identity != code.custody_identity()
+            || self.provider_selections.as_ref() != Some(admission.providers())
+            || self.target_machines.as_ref().is_some_and(|targets| {
+                targets.terminal_psi() != code.identity()
+                    || Some(targets.target()) != admission.target()
+            })
+            || self.target_layouts.as_ref().is_some_and(|layouts| {
+                layouts.terminal_psi() != code.identity()
+                    || Some(layouts.target()) != admission.target()
+            })
+            || self
+                .entry
+                .is_some_and(|entry| Some(entry) != code.module().entry)
+            || self
+                .supplies
+                .values()
+                .any(|supply| !matches!(supply, AdmittedBoundarySupply::CheckedProvider(_)))
+            || self.native_code_layouts.is_some()
+            || self.x86_flags.is_some()
+            || self.memory_ordering.is_some()
+        {
+            return Err("compiler evaluation supplies differ from its admitted invocation".into());
+        }
+        if let Some(scalars) = scalars {
+            let primary = scalars.primary();
+            if scalars.execution_identity() != &code.custody_identity()
+                || primary.providers() != admission.providers()
+                || primary.targets() != self.target_machines.as_ref()
+                || primary.layouts() != self.target_layouts.as_deref()
+            {
+                return Err(
+                    "compiler evaluation scalar observations differ from its admitted invocation"
+                        .into(),
+                );
+            }
+        }
+        Ok(())
+    }
+
     pub fn with_component_provider(
         mut self,
         selected: &terminal_installation::AdmittedComponentProvider,

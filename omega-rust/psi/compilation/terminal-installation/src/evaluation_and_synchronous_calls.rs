@@ -1770,7 +1770,7 @@ pub(crate) mod synchronous_calls {
         /// Symbolic child rows are resolved once in dependency order; an absent
         /// child or cycle cannot establish a parent's finite bound.
         pub fn validate_installed_service_reach(&self, root: MachineId) -> Result<(), String> {
-            use flow_effects::installation_reach::{ReachResolutionError, ReachRow, resolve};
+            use graphs::reach::{ReachResolutionError, ReachRow, resolve};
             let closure = self.from_root(root)?;
             let mut required = Vec::new();
             for id in &closure.boundaries {

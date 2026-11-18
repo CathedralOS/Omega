@@ -4,7 +4,7 @@ Completing one machine body in a 4,096-machine package took 5.39 ms, down from 1
 
 ## Resolver operations
 
-The scaling input defines `main` and enough independent, constant-returning machines to reach the stated count. Every body sample requests only `main` from an already-open package. The smaller checked-in examples exercise cross-file overloads, a generic array extent, and explicit boundary-service reaches. The [stage guide](../../../omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/README.md) describes the operation boundaries.
+The scaling input defines `main` and enough independent, constant-returning machines to reach the stated count. Every body sample requests only `main` from an already-open package. The smaller checked-in examples exercise cross-file overloads, a generic array extent, and explicit boundary-service reaches. The [stage guide](../../../omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/README.md) describes the operation boundaries.
 
 Times are median microseconds per operation. The paired change is the median percentage difference within each pair. The last column is its 95% bootstrap interval. Lower times are faster.
 

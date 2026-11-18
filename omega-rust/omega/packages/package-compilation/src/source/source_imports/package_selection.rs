@@ -17,10 +17,9 @@
 use super::paths::{identifier_path_text, is_bundled_core_path, is_bundled_omega_path};
 use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
+use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
-use source::DependencyScope;
 use std::path::{Path, PathBuf};
-use syntax_trees::identifier::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReconciledPackageImport {
@@ -184,9 +183,8 @@ pub(crate) fn source_import_scope(
 }
 
 pub(crate) fn reconciled_package_import(
-    syntax_trees: &syntax_trees::SyntaxTrees,
     requesting_source: &Path,
-    members: &[Identifier],
+    members: &[String],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
     purpose: DependencyPurpose,
     contract_root: Option<&Path>,
@@ -198,19 +196,19 @@ pub(crate) fn reconciled_package_import(
             requesting_source.display()
         ))]);
     };
-    if is_bundled_core_path(syntax_trees, members) {
+    if is_bundled_core_path(members) {
         return Ok(ReconciledPackageImport::Toolchain {
             root: super::bundled_core_root()?,
             logical_path: members[3..]
                 .iter()
-                .map(|name| name.as_str(syntax_trees).to_owned())
+                .map(|name| name.as_str().to_owned())
                 .collect(),
         });
     }
-    if is_bundled_omega_path(syntax_trees, members) {
+    if is_bundled_omega_path(members) {
         return Err(vec![Diagnostic::error(format!(
             "package-aware import `{}` in {} cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias",
-            identifier_path_text(syntax_trees, members),
+            identifier_path_text(members),
             requesting_source.display(),
         ))]);
     }
@@ -220,7 +218,7 @@ pub(crate) fn reconciled_package_import(
                 root: contract_root.to_path_buf(),
                 logical_path: members
                     .iter()
-                    .map(|name| name.as_str(syntax_trees).to_owned())
+                    .map(|name| name.as_str().to_owned())
                     .collect(),
             });
         }
@@ -230,7 +228,7 @@ pub(crate) fn reconciled_package_import(
                 root: core,
                 logical_path: members
                     .iter()
-                    .map(|name| name.as_str(syntax_trees).to_owned())
+                    .map(|name| name.as_str().to_owned())
                     .collect(),
             });
         }
@@ -240,7 +238,7 @@ pub(crate) fn reconciled_package_import(
         ))]);
     };
     let (package, source_root, path_members, missing_edge) = match packages
-        .dependency_target_for_purpose(requester, purpose, first.as_str(syntax_trees))
+        .dependency_target_for_purpose(requester, purpose, first.as_str())
     {
         Some(package) => (
             package,
@@ -250,7 +248,7 @@ pub(crate) fn reconciled_package_import(
             &members[1..],
             None,
         ),
-        None if packages.package_name(requester) == Some(first.as_str(syntax_trees)) => (
+        None if packages.package_name(requester) == Some(first.as_str()) => (
             requester,
             packages
                 .package_root(requester)
@@ -261,20 +259,20 @@ pub(crate) fn reconciled_package_import(
         None => {
             let other = other_purpose(purpose);
             if let Some(target) =
-                packages.dependency_target_for_purpose(requester, other, first.as_str(syntax_trees))
+                packages.dependency_target_for_purpose(requester, other, first.as_str())
             {
                 let declaration = purpose.operation().name();
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies -- register it with `Build::{}(builder, description)` under alias `{}` in the root build.omg to select that package for the {} scope",
-                    identifier_path_text(syntax_trees, members),
+                    identifier_path_text(members),
                     requesting_source.display(),
                     other.name(),
-                    first.as_str(syntax_trees),
+                    first.as_str(),
                     packages.package_label(target),
                     purpose.name(),
                     purpose.name(),
                     declaration,
-                    first.as_str(syntax_trees),
+                    first.as_str(),
                     purpose.name(),
                 ))]);
             }
@@ -282,22 +280,22 @@ pub(crate) fn reconciled_package_import(
                 .package_root(requester)
                 .expect("validated requester retains a source root");
             let missing_edge =
-                known_package_spelling(packages, requester, first.as_str(syntax_trees)).map(
-                    |package| MissingDependencyEdge {
-                        authored_path: identifier_path_text(syntax_trees, members),
-                        alias: first.as_str(syntax_trees).to_owned(),
+                known_package_spelling(packages, requester, first.as_str()).map(|package| {
+                    MissingDependencyEdge {
+                        authored_path: identifier_path_text(members),
+                        alias: first.as_str().to_owned(),
                         package,
                         requester: packages.package_label(requester),
                         purpose,
-                    },
-                );
+                    }
+                });
             (requester, requester_root, members, missing_edge)
         }
     };
     let relative_path = path_members
         .iter()
         .fold(PathBuf::new(), |mut path, member| {
-            path.push(member.as_str(syntax_trees));
+            path.push(member.as_str());
             path
         });
     Ok(ReconciledPackageImport::Package(
@@ -374,10 +372,12 @@ fn declared_package_name(build_source: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageSourceBinding};
-    use source::{CapturedSourceNode, CapturedSourceTree, LoadedSource, SourceId};
+    use source_admission::LoadedSource;
+    use source_capture::{CapturedSourceNode, CapturedSourceTree};
+    use source_compiler::SourceSyntax;
     use source_compiler::{SourceInput, UnmeasuredProduction};
+    use source_text::SourceId;
     use std::sync::Arc;
-    use syntax_trees::{SyntaxTrees, item::Item};
 
     #[test]
     fn core_local_import_keeps_its_logical_path_and_issued_contract_precedence() {
@@ -405,7 +405,7 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        let mut syntax = SyntaxTrees::default();
+        let mut syntax = SourceSyntax::default();
         let parsed = SourceInput(
             [LoadedSource {
                 source_id: SourceId(0),
@@ -420,14 +420,10 @@ mod tests {
         .append(&mut syntax, &mut UnmeasuredProduction)
         .unwrap();
         let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
-        let Item::Use(import) = syntax.root_item(unit.root_items[0]) else {
-            panic!("expected authored import");
-        };
-        let members = syntax.items.identifier_path_members(import.path);
+        let members = &unit.imports[0].members;
         let core = super::super::bundled_core_root().unwrap();
         let path = core.join("nested/unit.omg");
         let relative = reconciled_package_import(
-            &syntax,
             &path,
             members,
             None,
@@ -445,7 +441,6 @@ mod tests {
         );
         let issued = core.join("issued-contract");
         let contract = reconciled_package_import(
-            &syntax,
             &path,
             members,
             None,
@@ -463,7 +458,6 @@ mod tests {
         );
         assert!(
             reconciled_package_import(
-                &syntax,
                 Path::new("/unknown/unit.omg"),
                 members,
                 None,

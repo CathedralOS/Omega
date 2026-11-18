@@ -25,3 +25,5 @@ pub(crate) mod source_consumption;
 pub mod source_imports;
 pub(crate) mod source_snapshot;
 pub mod toolchain_library;
+
+mod source_loading;

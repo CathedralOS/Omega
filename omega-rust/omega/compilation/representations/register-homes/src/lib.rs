@@ -44,7 +44,7 @@ version, and 32-byte domain-separated SHA-256 identity before returning a
 decoded record, and rejects trailing bytes or out-of-vocabulary tags closed.
 */
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 
 #[macro_export]
 macro_rules! decode_error_display {
@@ -64,9 +64,9 @@ macro_rules! decode_error {
     ($error:ty, $description:literal) => {
         $crate::decode_error_display!($error, $description);
 
-        optimization_core::truncated_from_adapter!($error);
+        ::wire::truncated_from_adapter!($error);
 
-        optimization_core::take_error_from_adapter!($error);
+        ::wire::take_error_from_adapter!($error);
     };
 }
 
@@ -91,8 +91,8 @@ macro_rules! identity_newtype {
 
 pub(crate) mod codec_bytes {
     #[cfg(test)]
-    pub(crate) use optimization_core::codec_bytes::patch_encoded;
-    pub(crate) use optimization_core::codec_bytes::push_encoded;
+    pub(crate) use ::wire::codec_bytes::patch_encoded;
+    pub(crate) use ::wire::codec_bytes::push_encoded;
 
     pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
         bytes.extend_from_slice(
@@ -215,7 +215,7 @@ pub(crate) mod codec_bytes {
 }
 
 pub(crate) mod cursor {
-    pub(crate) use optimization_core::cursor::{Cursor, TakeError, Truncated};
+    pub(crate) use ::wire::cursor::{Cursor, TakeError, Truncated};
 
     pub(crate) fn optional<T, E>(
         cursor: &mut Cursor<'_>,
@@ -968,3 +968,12 @@ mod tests {
         );
     }
 }
+
+mod pressure_rematerialization;
+pub use pressure_rematerialization::{
+    FunctionPressureRematerialization, PressureRematerializationAction,
+    PressureRematerializationDecodeError, PressureRematerializationPlan,
+    PressureRematerializationRewrite, pressure_rematerialization_identity,
+};
+
+pub mod literal_fold;

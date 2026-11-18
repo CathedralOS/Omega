@@ -85,7 +85,8 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     let pattern = table.insert(ExpressionNode::Boolean(false));
     let first = table.insert(ExpressionNode::String("first".as_bytes().into()));
     let fallback = table.insert(ExpressionNode::String("fallback".as_bytes().into()));
-    let source_span = source::SourceSpan::new(source::SourceId(7), source::Span::new(11, 29));
+    let source_span =
+        source_text::SourceSpan::new(source_text::SourceId(7), source_text::Span::new(11, 29));
     let arms = table.insert_match_arms([
         TableMatchArm {
             pattern: MatchPattern::Value(pattern),
@@ -138,7 +139,8 @@ fn call_acknowledgement_preserves_shared_forest_and_call_payload() {
         evidence_arguments: vec![Identifier::generated("evidence")].into_boxed_slice(),
         operational_acknowledgement: Default::default(),
     }));
-    let span = source::SourceSpan::new(source::SourceId(7), source::Span::new(11, 29));
+    let span =
+        source_text::SourceSpan::new(source_text::SourceId(7), source_text::Span::new(11, 29));
     table.set_source_span(call, span);
     table.share_pages();
     let snapshot = table.clone();

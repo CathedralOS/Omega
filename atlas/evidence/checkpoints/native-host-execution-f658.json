@@ -1,0 +1,125 @@
+{
+  "workflow": "https://github.com/CathedralOS/Omega/actions/runs/44227027634",
+  "proof_commit": "edc830ed21a353efd63ac94e19503c7224e13a01",
+  "compilers": {
+    "baseline": {
+      "source_revision": "f658f30ec9660b8d66c8b3c2fd704def734fab7c",
+      "sha256": "3dc4e95e2a7682affd4ca5298dd094fcd6d46be841402cf634d539a2e5397793"
+    },
+    "candidate": {
+      "integrated_base": "683122d180a90b6c339904e1c07c0a3ad028b61b",
+      "includes_provider_change": "3d14fe87dff4fc08ed0d6ee8cbf2f5d8bde00348",
+      "exact_checkout": null,
+      "sha256": "bbd2ab8002deb40bd0e8818319d986e8e007888add114dc21dbeca1ea6724f8a"
+    }
+  },
+  "source_library": {
+    "git_tree": "c154c19b9c3ee838d3c0561b13b183a4cfb27102"
+  },
+  "fixture": {
+    "path": "tests/fixtures/run/providers/target_selected_implementation",
+    "git_tree": "76a5066e4a170a1bfa8eb5e19ccd22e18ef52c6a",
+    "sha256": {
+      "build.omg": "31e68edcbf8db17bc38023054b2a635cf0179316d8434e05f43e8501c6b459e3",
+      "main.omg": "4b155a4dde0f626bafdaf1845c85cffe200ddc5bb906796e5e2b90dbc2f1b7ec"
+    }
+  },
+  "targets": {
+    "linux_arm64": {
+      "job": "https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580741",
+      "runner": [
+        "ubuntu-24.04-arm"
+      ],
+      "host": [
+        "Linux",
+        "aarch64",
+        "ARM64"
+      ],
+      "format": "ELF64",
+      "images": {
+        "baseline": {
+          "sha256": "3abfd3b356ee196144a0e36089f5bf172d188e6915e5c463a6d527330286dc4e",
+          "bytes": 65536,
+          "exit": 0
+        },
+        "candidate": {
+          "sha256": "3abfd3b356ee196144a0e36089f5bf172d188e6915e5c463a6d527330286dc4e",
+          "bytes": 65536,
+          "exit": 0
+        }
+      }
+    },
+    "linux_x86_64": {
+      "job": "https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580486",
+      "runner": [
+        "ubuntu-24.04"
+      ],
+      "host": [
+        "Linux",
+        "x86_64",
+        "X64"
+      ],
+      "format": "ELF64",
+      "images": {
+        "baseline": {
+          "sha256": "2cb9906f86e3e3deeb725ce1c9e1eb47f6b9e8d1400aed1516bd18f3de0a72c4",
+          "bytes": 65536,
+          "exit": 0
+        },
+        "candidate": {
+          "sha256": "2cb9906f86e3e3deeb725ce1c9e1eb47f6b9e8d1400aed1516bd18f3de0a72c4",
+          "bytes": 65536,
+          "exit": 0
+        }
+      }
+    },
+    "macos_arm64": {
+      "job": "https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580862",
+      "runner": [
+        "macos-15"
+      ],
+      "host": [
+        "Darwin",
+        "arm64",
+        "ARM64"
+      ],
+      "format": "Mach-O 64",
+      "images": {
+        "baseline": {
+          "sha256": "b57d205ba8e07a110f41c48e1ce035ace24a9f772f3ce7c053d2f615c865dd75",
+          "bytes": 16640,
+          "exit": 0
+        },
+        "candidate": {
+          "sha256": "b57d205ba8e07a110f41c48e1ce035ace24a9f772f3ce7c053d2f615c865dd75",
+          "bytes": 16640,
+          "exit": 0
+        }
+      }
+    },
+    "windows_x86_64": {
+      "job": "https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580769",
+      "runner": [
+        "windows-2022"
+      ],
+      "host": [
+        "Windows",
+        "amd64",
+        "X64"
+      ],
+      "format": "PE32+",
+      "images": {
+        "baseline": {
+          "sha256": "eb6997b1bd44f195d308cc59d670407efad323b1cd08e605ee320775da1952d1",
+          "bytes": 1024,
+          "exit": 0
+        },
+        "candidate": {
+          "sha256": "eb6997b1bd44f195d308cc59d670407efad323b1cd08e605ee320775da1952d1",
+          "bytes": 1024,
+          "exit": 0
+        }
+      }
+    }
+  }
+}

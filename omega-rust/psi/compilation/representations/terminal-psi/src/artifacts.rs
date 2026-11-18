@@ -157,10 +157,10 @@ pub(crate) mod debug_map {
 pub(crate) mod machine_provenance {
 
     use semantic_vocabulary::MachineId;
-    use source::SourceSpan;
+    use source_text::SourceSpan;
     use std::collections::BTreeMap;
 
-    #[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalMachineProvenance {
         machines: BTreeMap<MachineId, (String, Option<SourceSpan>)>,
         callers: BTreeMap<MachineId, MachineId>,

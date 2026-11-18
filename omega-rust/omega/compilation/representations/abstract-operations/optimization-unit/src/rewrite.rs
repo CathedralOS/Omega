@@ -1276,7 +1276,7 @@ mod contracts {
         ProofWitnessSafetyMismatch,
     }
 
-    optimization_core::invalid_error_display!(PsiRewriteCandidateError, "Psi rewrite candidate");
+    wire::invalid_error_display!(PsiRewriteCandidateError, "Psi rewrite candidate");
 }
 
 mod declarations {

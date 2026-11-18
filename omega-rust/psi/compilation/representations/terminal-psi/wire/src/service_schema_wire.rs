@@ -9,15 +9,24 @@ use crate::wire_fields::{
     BoundaryPackage, Custody, Digest, Field, Flag, Id, Index, List, Optional, Text, wire_enum,
     wire_record,
 };
-use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
-use language_semantics::DomainPredicatePresence;
-use language_semantics::declaration_selection::CompositionMode;
-use language_semantics::service_surface::identities::{ProviderIdentityId, ProviderIdentityTable};
-use language_semantics::service_surface::{
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceReceiverApplication, ServiceResultClaim, ServiceSurface,
+use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::selection::CompositionMode;
+use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
+use declaration_contracts::service_surface::ServiceEntryClaim;
+use declaration_contracts::service_surface::ServiceMethod;
+use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
+use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
+use declaration_contracts::service_surface::ServiceProgressPremise;
+use declaration_contracts::service_surface::ServiceProgressSubject;
+use declaration_contracts::service_surface::ServiceReceiverApplication;
+use declaration_contracts::service_surface::ServiceResultClaim;
+use declaration_contracts::service_surface::ServiceSurface;
+use declaration_contracts::service_surface::identities::ProviderIdentityId;
+use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
 };
+use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
 use std::sync::Arc;
 use terminal_psi::{
     TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
@@ -97,6 +106,11 @@ wire_enum! {
         1 => CheckedRequirement,
         2 => BoundaryRequirement,
     }
+    ResultProjection: ServiceResultProjection, "ServiceResultProjection" {
+        1 => Field(name: Text),
+        2 => Case(name: Text),
+        3 => FixedIndex(index: crate::wire_fields::U64),
+    }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -119,6 +133,7 @@ wire_record! {
         effective_carry: Carry,
         authority_flow: AuthorityFlow,
     }
+    NormalMembership: ServiceNormalResultMembership { path: List<ResultProjection>, domain: Text }
     ResultClaim: ServiceResultClaim {
         domain: Text,
         effective_carry: Carry,
@@ -146,6 +161,7 @@ wire_record! {
         has_result: Flag,
         result_type_identity: ProviderIdentity,
         result_claims: List<ResultClaim>,
+        normal_result_memberships: List<NormalMembership>,
         service_reach: List<Text>,
         synchronous_invocations: List<Text>,
         may_suspend: Flag,
@@ -201,7 +217,7 @@ wire_record! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use language_semantics::CarryPolicy;
+    use declaration_contracts::CarryPolicy;
     use terminal_psi::{TerminalIdentityTableBuilder, TerminalModule};
 
     #[test]
@@ -211,11 +227,12 @@ mod tests {
         let application = identities.intern("applied(Service)");
         let requirement = identities.intern("Service::exchange");
         let scalar = identities.intern("named(u32)");
-        let declared_type_signature = language_semantics::service_surface::declared_type_signature(
-            std::iter::once(identities.text(scalar)),
-            identities.text(scalar),
-        )
-        .unwrap();
+        let declared_type_signature =
+            declaration_contracts::service_surface::declared_type_signature(
+                std::iter::once(identities.text(scalar)),
+                identities.text(scalar),
+            )
+            .unwrap();
         let surface = Arc::new(ServiceSurface {
             trait_name: owner,
             identities,
@@ -247,6 +264,7 @@ mod tests {
                 }],
                 has_result: true,
                 result_type_identity: scalar,
+                normal_result_memberships: Vec::new(),
                 result_claims: vec![ServiceResultClaim {
                     domain: "ResultDomain".into(),
                     effective_carry: CarryPolicy::STRICT,
@@ -324,7 +342,7 @@ mod tests {
         surface.methods[0].result_type_identity = ProviderIdentityId::default();
         surface.methods[0].result_claims.clear();
         surface.methods[0].declared_type_signature =
-            language_semantics::service_surface::declared_type_signature(
+            declaration_contracts::service_surface::declared_type_signature(
                 std::iter::once(surface.identities.text(scalar)),
                 "unit",
             )

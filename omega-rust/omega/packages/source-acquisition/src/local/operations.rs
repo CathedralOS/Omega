@@ -71,22 +71,22 @@ pub fn capture_selected_local_source_input(
     let mut entries = Vec::with_capacity(captured.entries.len());
     for entry in captured.entries {
         let node = match entry.kind {
-            CapturedLocalEntryKind::Directory => source::CapturedSourceNode::Directory,
+            CapturedLocalEntryKind::Directory => source_capture::CapturedSourceNode::Directory,
             CapturedLocalEntryKind::File { bytes, executable } => {
-                source::CapturedSourceNode::File {
+                source_capture::CapturedSourceNode::File {
                     bytes: Arc::from(bytes),
                     executable,
                 }
             }
             CapturedLocalEntryKind::Symlink { target_bytes } => {
-                source::CapturedSourceNode::Symlink {
+                source_capture::CapturedSourceNode::Symlink {
                     target: captured_link_path(target_bytes, &requested_root)?,
                 }
             }
         };
         entries.push((entry.relative_path, node));
     }
-    let tree = source::CapturedSourceTree::new(entries)
+    let tree = source_capture::CapturedSourceTree::new(entries)
         .map_err(|error| crate::tree::filesystem::io_error(&requested_root, error))?;
     Ok(CapturedLocalSource {
         requested_root,

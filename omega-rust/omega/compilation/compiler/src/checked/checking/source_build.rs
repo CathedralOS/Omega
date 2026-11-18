@@ -18,7 +18,7 @@ pub(super) struct SourceBuild {
 impl SourceBuild {
     pub(super) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.invocation.source_completion_accounting()
     }
 

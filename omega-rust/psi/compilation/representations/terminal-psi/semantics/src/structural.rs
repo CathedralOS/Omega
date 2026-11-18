@@ -214,10 +214,12 @@ pub(crate) mod inline_carriers {
         // establishment must use the same pure-predicate classification.
         #[test]
         fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
-            use language_semantics::reflection::{
-                DeclarationDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
-                SchemaShape, SemanticSchemaGraph,
-            };
+            use schema_reflection::DeclarationDescription;
+            use schema_reflection::SchemaNode;
+            use schema_reflection::SchemaNodeHandle;
+            use schema_reflection::SchemaQueryAuthority;
+            use schema_reflection::SchemaShape;
+            use schema_reflection::SemanticSchemaGraph;
             use semantic_vocabulary::{
                 DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
             };
@@ -877,9 +879,8 @@ pub mod nominal_cleanup {
         if fields.iter().any(|field| field.relevance.is_erased()) {
             return Err("nominal decomposition of erased components is not served");
         }
-        if !declaration.requires.is_empty() {
-            return Err("nominal decomposition with carrier predicates is not served");
-        }
+        // Default predicates constrain the established input. Ending the whole
+        // wrapper keeps each component's independent qualifications and custody.
         if let Some(selection) = &declaration.nominal_cleanup {
             if selection.declaration.identity() != declaration.identity {
                 return Err("decomposition carrier declaration relation is not served");
@@ -2760,6 +2761,44 @@ pub(crate) mod primitive_place {
         }
     }
 
+    /// The storage carrier of an inline field when its address is lent. An
+    /// owned byte carrier keeps its storage type rather than a copied view.
+    pub fn borrowed_storage_field_type(field: &StructuralFieldType) -> Option<StructuralFieldType> {
+        match field.byte_sequence_carrier() {
+            Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+                Some(StructuralFieldType::ByteSequence(carrier))
+            }
+            _ => field.canonical_leaf_type(),
+        }
+    }
+
+    /// Resolve the actual type selected by a storage path, including scalar
+    /// leaves without a separate inline declaration. This supplies neither
+    /// bounds evidence nor permission to access the selected storage.
+    pub fn borrowed_projection_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        if let Some(selected) = runtime_structural_path_tip(declarations.clone(), root, path) {
+            return Some(selected.id);
+        }
+        if matches!(path.last(), Some(StructuralPathSegment::Field(_))) {
+            let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
+            // A field can spell its carrier without an inline type ID. An
+            // explicit but invalid ID cannot be replaced by another row.
+            if field.relevance.is_erased() || field.inline_carrier.is_some() {
+                return None;
+            }
+            let carrier = borrowed_storage_field_type(&field.field_type)?
+                .leaf_declaration(declarations.clone())?;
+            return crate::structural_declaration(declarations, carrier.id).map(|row| row.id);
+        }
+        let scalar =
+            borrowed_primitive_projection_declaration(declarations.clone(), root, path, None)?;
+        crate::structural_declaration(declarations, scalar).map(|row| row.id)
+    }
+
     pub fn runtime_structural_copy_type<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
@@ -3304,30 +3343,43 @@ pub(crate) mod primitive_place {
     /// Find a live extent immediately before a projection. Only adjacent length
     /// observations may intervene; no mutation can change the descriptor between
     /// this measurement and the access whose bound it establishes.
-    pub fn preceding_element_view_length(
+    pub fn preceding_collection_length(
         operations: &[terminal_psi::Operation],
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Option<semantic_vocabulary::ValueId> {
         for operation in operations.iter().rev() {
-            let terminal_psi::OperationKind::ElementViewLength { source } = &operation.kind else {
-                break;
+            let matches = match &operation.kind {
+                terminal_psi::OperationKind::ElementViewLength { source }
+                | terminal_psi::OperationKind::ByteSequenceLength { source } => {
+                    source.place == root
+                        && crate::structural_paths_select_same_location(&source.path, path)
+                        && source.access == StructuralAccess::SharedBorrow
+                }
+                terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                    source,
+                    path: observed,
+                    field: selected,
+                } => {
+                    *source == root
+                        && Some(*selected) == field
+                        && path.split_last().is_some_and(|(step, prefix)| {
+                            matches!(step, StructuralPathSegment::Field(_))
+                                && crate::structural_paths_select_same_location(observed, prefix)
+                        })
+                }
+                _ => return None,
             };
-            if source.place == root
-                && crate::structural_paths_select_same_location(&source.path, path)
-            {
+            if matches {
                 let result = operation.result.scalar_ref()?;
                 let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
-                return (source.access == StructuralAccess::SharedBorrow
-                    && result.scalar_type == count)
-                    .then_some(result.id);
+                return (result.scalar_type == count).then_some(result.id);
             }
         }
         None
     }
 
-    /// Recover each bound from the array reached immediately before its index.
-    /// The enclosing operation checks the path after its last index separately.
     /// Use the visited goals only when the indexed prefix is valid.
     pub fn visit_runtime_index_goals<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -3417,7 +3469,15 @@ pub(crate) mod primitive_place {
                             upper
                         })
                     }
-                    StructuralTypeShape::ElementView { .. } => {
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                        capacity,
+                        ..
+                    }) => super::static_path::runtime_index_bound(index, carrier, capacity),
+                    StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { .. }
+                        | ByteSequenceCarrier::BoundedOwned { .. },
+                    ) => {
                         let count = ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
                         );

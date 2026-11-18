@@ -3,7 +3,7 @@
 // value (`u64` little-endian or length-prefixed byte slice) while framing and
 // field order remain with the caller.
 
-pub(crate) use optimization_core::codec_bytes::push_encoded;
+pub(crate) use ::wire::codec_bytes::push_encoded;
 
 pub(crate) fn push_u64(buffer: &mut Vec<u8>, value: u64) {
     buffer.extend_from_slice(&value.to_le_bytes());

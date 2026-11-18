@@ -5,10 +5,11 @@ use crate::encoding::encode::{
     calling::encode_application, values::providers::encode_carry_policy,
 };
 use crate::record::PackagePolicyServiceMethod;
+use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::service_surface::ServiceResultProjection;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use language_semantics::DomainPredicatePresence;
 use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(
@@ -72,6 +73,27 @@ pub(in crate::encoding::encode) fn method(
     encoder.field("result_type_identity", |encoder| {
         encoder.option(method.result_type_identity.as_ref(), |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
+        })
+    })?;
+    encoder.field("normal_result_memberships", |encoder| {
+        encoder.sequence(&method.normal_result_memberships, |encoder, membership| {
+            encoder.field("path", |encoder| {
+                encoder.sequence(&membership.path, |encoder, step| match step {
+                    ServiceResultProjection::Field(identity) => {
+                        encoder.tag("field", 1);
+                        encoder.string_field("identity", identity)
+                    }
+                    ServiceResultProjection::Case(identity) => {
+                        encoder.tag("case", 2);
+                        encoder.string_field("identity", identity)
+                    }
+                    ServiceResultProjection::FixedIndex(index) => {
+                        encoder.tag("fixed_index", 3);
+                        encoder.u64_field("index", *index)
+                    }
+                })
+            })?;
+            encoder.string_field("domain", &membership.domain)
         })
     })?;
     encoder.field("result_claims", |encoder| {

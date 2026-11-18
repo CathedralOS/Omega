@@ -65,10 +65,15 @@ pub(crate) fn encode_contract_fact(
             encoder.field_by("value", value, encode_contract_expression)?;
             encoder.field_by("permission", *permission, encode_carry_permission)
         }
-        PackageReviewContractFact::Membership { value, domain } => {
+        PackageReviewContractFact::Membership {
+            value,
+            domain,
+            application,
+        } => {
             encoder.tag("membership", 1);
             encoder.field_by("value", value, encode_contract_expression)?;
-            encoder.field("domain", |encoder| encode_nominal(encoder, domain))
+            encoder.field("domain", |encoder| encode_nominal(encoder, domain))?;
+            encoder.string_field("application", application)
         }
         PackageReviewContractFact::Proposition(application) => {
             encoder.tag("proposition", 2);
@@ -174,7 +179,7 @@ mod codec_tests {
 
     #[test]
     fn closed_carry_fact_has_stable_distinct_wire_tags() {
-        for (tag, permission) in language_semantics::CarryPermission::ALL
+        for (tag, permission) in declaration_contracts::CarryPermission::ALL
             .into_iter()
             .enumerate()
         {

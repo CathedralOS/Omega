@@ -11,14 +11,13 @@ path = "src/lib.rs"
 [dependencies]
 target-vocabulary = { path = "target-vocabulary" }
 native-vocabulary = { path = "../native-vocabulary" }
-language-core = { path = "../../../../psi/foundation/language-core" }
-calling-conventions = { path = "../../backend/calling-conventions" }
-function-identity = { path = "../../../foundation/function-identity" }
-target = { path = "../../backend/target" }
-task-plans = { path = "../../backend/runtime/task-plans" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+function-identity = { path = "../function-identity" }
+target = { path = "../../target-description/target" }
+task-plans = { path = "../task-plans" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 
-installation-evidence = { path = "../../backend/runtime/installation-evidence" }
-runtime-abi = { path = "../../backend/runtime/runtime-abi" }
-terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+installation-evidence = { path = "../installation-evidence" }
+runtime-abi = { path = "../../target-description/runtime-abi" }

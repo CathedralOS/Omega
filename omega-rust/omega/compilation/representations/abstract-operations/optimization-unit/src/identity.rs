@@ -8,13 +8,14 @@ any structural or semantic drift produces a distinct identity hash.
 */
 
 use abstract_operations::{AbstractFunctionResult, CompletionClaimSource, ValueBinding};
+use arena::NumericId;
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
     IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
-    IntegerSign, IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
+    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
     StructuralCaseSubject, StructuralPlaceKind,
 };
 use terminal_psi::{
@@ -65,7 +66,7 @@ pub use unit_encoding::{
 
 pub(crate) mod carrier_encoding {
     use super::{
-        CanonicalBytes, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
+        CanonicalBytes, IntegerSign, IntegerType, IntegerValue, NumericId, ScalarType,
         StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralParameterDeclaration, StructuralPathSegment, ValueBinding,
         structural_encoding::encode_structural_operation_result,
@@ -76,10 +77,7 @@ pub(crate) mod carrier_encoding {
         encode_scalar_type(bytes, binding.scalar_type);
     }
 
-    pub(super) fn encode_optional_id<T: PsiSemanticId>(
-        bytes: &mut CanonicalBytes,
-        value: Option<&T>,
-    ) {
+    pub(super) fn encode_optional_id<T: NumericId>(bytes: &mut CanonicalBytes, value: Option<&T>) {
         bytes.boolean(value.is_some());
         if let Some(value) = value {
             bytes.id(*value);
@@ -97,7 +95,7 @@ pub(crate) mod carrier_encoding {
         }
     }
 
-    pub(super) fn encode_ids<T: PsiSemanticId>(bytes: &mut CanonicalBytes, ids: &[T]) {
+    pub(super) fn encode_ids<T: NumericId>(bytes: &mut CanonicalBytes, ids: &[T]) {
         bytes.len(ids.len());
         for id in ids {
             bytes.id(*id);
@@ -820,6 +818,34 @@ pub(crate) mod proposition_encoding {
             }
         }
     }
+    pub(super) fn encode_runtime_membership(
+        bytes: &mut CanonicalBytes,
+        row: &terminal_psi::RuntimeDomainMembership,
+    ) {
+        match row {
+            terminal_psi::RuntimeDomainMembership::Scalar { subject, domain } => {
+                bytes.u8(1);
+                encode_scalar_term(bytes, subject);
+                bytes.id(*domain);
+            }
+            terminal_psi::RuntimeDomainMembership::Structural {
+                root,
+                path,
+                version,
+                domain,
+            } => {
+                bytes.u8(2);
+                bytes.id(*root);
+                encode_canonical_path(bytes, path);
+                bytes.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 1,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 2,
+                });
+                bytes.id(*domain);
+            }
+        }
+    }
+
     fn encode_float_projection_contract(
         bytes: &mut CanonicalBytes,
         contract: &numerics::float_projection::FloatProjectionContractIdentity,
@@ -1163,7 +1189,7 @@ pub(crate) mod structural_encoding {
         encode_structural_path_segment,
     };
     use super::proposition_encoding::{
-        encode_content_term, encode_float_format, encode_proposition,
+        encode_content_term, encode_float_format, encode_proposition, encode_runtime_membership,
     };
     use super::{
         BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration,
@@ -1190,7 +1216,7 @@ pub(crate) mod structural_encoding {
             MachineContract, OutcomeSpecificCallEvidence,
         };
 
-        use super::super::proposition_encoding::encode_proposition;
+        use super::super::proposition_encoding::{encode_proposition, encode_runtime_membership};
 
         pub(in super::super) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
             bytes.u8(match cause {
@@ -1305,6 +1331,7 @@ pub(crate) mod structural_encoding {
                 bytes.u32(formal.source_position);
                 bytes.u32(formal.type_identity.0);
             });
+            bytes.slice(&contract.membership_ensures, encode_runtime_membership);
             bytes.slice(&contract.requires, encode_proposition);
             bytes.slice(&contract.source_checked_requires, encode_proposition);
             bytes.slice(&contract.ensures, |bytes, clause| {
@@ -1502,6 +1529,7 @@ pub(crate) mod structural_encoding {
                 });
             });
         }
+        bytes.slice(&declaration.membership_ensures, encode_runtime_membership);
         bytes.slice(&declaration.requires, encode_domain_requirement);
         bytes.slice(
             &declaration.normal_qualifications,
@@ -2477,6 +2505,7 @@ pub(crate) mod structural_encoding {
                 }],
                 result: BoundaryMachineResult::Unit,
                 requires: vec![requirement(Vec::new())],
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 scalar_requires: Vec::new(),
@@ -2551,6 +2580,39 @@ pub(crate) mod structural_encoding {
         }
 
         #[test]
+        fn optimization_unit_identity_commits_normal_membership_meaning() {
+            use terminal_psi::RuntimeDomainMembership;
+            let mut unit = unit();
+            let absent = recompute_psi_optimization_unit_identity(&unit);
+            unit.boundary_machines[0].membership_ensures.push(
+                RuntimeDomainMembership::Structural {
+                    root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    domain: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
+                },
+            );
+            let whole = recompute_psi_optimization_unit_identity(&unit);
+            let RuntimeDomainMembership::Structural { path, .. } =
+                &mut unit.boundary_machines[0].membership_ensures[0]
+            else {
+                unreachable!()
+            };
+            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1));
+            let field = recompute_psi_optimization_unit_identity(&unit);
+            let RuntimeDomainMembership::Structural { domain, .. } =
+                &mut unit.boundary_machines[0].membership_ensures[0]
+            else {
+                unreachable!()
+            };
+            *domain = semantic_vocabulary::StructuralDomainId::new(2).unwrap();
+            let application = recompute_psi_optimization_unit_identity(&unit);
+            assert_ne!(absent, whole);
+            assert_ne!(whole, field);
+            assert_ne!(field, application);
+        }
+
+        #[test]
         fn optimization_unit_identity_commits_boundary_result_lifetime_availability() {
             let original = unit();
             let mut changed = unit();
@@ -2590,11 +2652,11 @@ pub(crate) mod unit_encoding {
         encode_provider_candidate, encode_structural_domain, encode_structural_type,
     };
     use super::{
-        AbstractFunctionResult, AcceptedObligationFact, EffectLink, OptimizationEdge,
+        AbstractFunctionResult, AcceptedObligationFact, EffectLink, NumericId, OptimizationEdge,
         OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
         OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiSemanticId,
-        ServiceDeclaration, StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
+        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ServiceDeclaration,
+        StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
@@ -2936,7 +2998,7 @@ pub(crate) mod unit_encoding {
             self.bytes(&value.to_le_bytes());
         }
 
-        pub(super) fn id(&mut self, value: impl PsiSemanticId) {
+        pub(super) fn id(&mut self, value: impl NumericId) {
             self.u64(value.get());
         }
 

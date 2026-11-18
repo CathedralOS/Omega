@@ -2,8 +2,8 @@ use crate::FloatSpelling;
 use crate::identifier::Identifier;
 use crate::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan, PagedArenaFrontier};
-use numerics::literals::IntegerLiteral;
-use source::SourceSpan;
+use numeric_literals::IntegerLiteral;
+use source_text::SourceSpan;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
@@ -117,6 +117,16 @@ impl ExpressionTable {
             purpose: SubjectCapturePurpose::Transition,
             subject,
         })
+    }
+
+    pub fn set_transition_subject(
+        &mut self,
+        capture: Handle<MatchSubjectCapture>,
+        subject: ExpressionHandle,
+    ) {
+        let captured = self.match_subjects.get_mut(capture);
+        debug_assert_eq!(captured.purpose, SubjectCapturePurpose::Transition);
+        captured.subject = subject;
     }
 
     pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
@@ -275,7 +285,7 @@ pub enum ExpressionNode {
     Cast(TableCastExpression),
     Call(TableCallExpression),
     Float(FloatSpelling),
-    UndeterminedNaN(numerics::literals::FloatFormat),
+    UndeterminedNaN(numeric_literals::FloatFormat),
     Indexed(TableIndexedExpression),
     Integer(IntegerLiteral),
     Membership(TableMembershipExpression),
@@ -289,7 +299,7 @@ pub enum ExpressionNode {
     },
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
-    String(source::SourceBytes),
+    String(source_text::SourceBytes),
     Unary(TableUnaryExpression),
     TypeExpression(crate::types::TypeReferenceHandle),
     ZeroValue(crate::types::TypeReferenceHandle),
@@ -477,7 +487,7 @@ pub struct StaticMachineArgument {
     pub type_reference: crate::types::TypeReferenceHandle,
     pub path: Box<[Identifier]>,
     pub application: Option<Box<StaticSymbolApplication>>,
-    pub const_literal: Option<numerics::literals::IntegerLiteral>,
+    pub const_literal: Option<numeric_literals::IntegerLiteral>,
     pub evidence_projection: Option<EvidenceProjection>,
 }
 

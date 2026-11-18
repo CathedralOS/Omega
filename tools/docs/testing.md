@@ -321,29 +321,28 @@ native oracles. It uses the role-aware
 nested build roots and non-`main.omg` entries. Libraries qualify through consumers;
 external submodules use their own gates.
 
-`mbx xtask sample-gate` runs each sample's `omega packages update`, then builds
-and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
-(direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
-(`target/`, or `CARGO_TARGET_DIR`) and measures that. By default a sample's
+`mbx xtask sample-gate` first builds the opt-level 1 CLI from the invoking
+checkout with `mbx` and authenticates its Cargo artifacts, fingerprints and
+effective Rust flags. It rejects `--cli`: an external executable cannot supply
+the required current-source build evidence. Builds use the checkout's own Cargo
+target directory (`target/`, or `CARGO_TARGET_DIR`). The gate then runs each
+sample's `omega packages update`, builds it and runs it. By default a sample's
 inputs are its files, assets and module subdirectories, stopping at nested
 projects with their own `build.omg` or `sample.json`, which are found
 separately. A `source_inputs` list in the sample replaces that default. The
 gate passes the same input list to preparation, checking and execution.
 Package review of a sample using std takes minutes with an unoptimized binary:
 31 projects took 66 s with the optimized CLI and 436 s unoptimized, with the
-same results. The dev profile is opt-level 1, so the gate's build and a plain
-`mbx build -p omega` share every artifact, and a compiler the session already
-built costs the gate under a second. (A separate gate directory used to
-rebuild the whole compiler, 12 minutes cold on a 4-core cloud session.)
-A run copies the built binary aside under `build/gate-cli.lock` and runs the
-copy, so two gates can share and rebuild the target directory without one
-holding open a binary the other's build must replace (seen 2026-10-17: the
-second of two concurrent gates failed with
-`failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
-An explicit `--cli` older than the checkout's last compiler change gets a
-warning, and the run record marks it stale. Each run is recorded under the main checkout's
-`build/sample-gate-runs/`, shared by every worktree, with per-sample and
-per-phase times. Programs run from a scratch directory under
+same results. The dev profile is opt-level 1, so compatible gate builds and a
+plain `mbx build -p omega` reuse existing build outputs. The gate runs the
+authenticated Cargo executable directly. Source identity must stay unchanged
+during producer preparation, and the gate rechecks recorded binary digests
+after the samples finish.
+
+Each run is recorded under the invoking checkout's `build/sample-gate-runs/`,
+with producer evidence under `producer/` and per-sample command receipts and
+times under the sample's relative path. Worktrees keep separate run directories.
+Programs run from a scratch directory under
 their own ignored `build/`, so files they write stay out of the checkout. A
 failure caused by this checkout's stale package state (an accepted lock or
 review left by an interrupted run or another compiler build) is measured once
@@ -362,7 +361,7 @@ no-oracle/freestanding reporting and positive package-review behavior are unchan
 
 `mbx xtask sample-gate --programs-only` omits probe and control trees.
 `mbx xtask sample-gate --facts` limits the run to `samples/cli/facts`.
-`--filter` selects path fragments, and `--cli` uses an existing compiler.
+`--filter` selects path fragments.
 The unfiltered gate still checks every discovered project.
 `--jobs <n>` verifies that many samples at once (each in its own directory and
 evidence folder; the default is one), and `--out <file.json>` writes one row per
@@ -456,16 +455,17 @@ mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
 
-`mbx xtask check-boundary` walks Cargo's declared production path dependencies,
-including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-compiler`.
-This is a check of the native facade, not a claim that all workspace topology
-has converged to the two-driver contract. Its firewall rules reject an
-Omega compilation crate depending on source-side Psi, and an Omega stage
-depending on another. Edges that predate those rules sit in `FIREWALL_ALLOWANCES`
-with a reason each; a
-removed edge's row must be deleted, so the list only shrinks. The post-merge
-check runs the boundary audit on main; admission does not run it for a PR.
+`mbx xtask check-boundary` walks Cargo's production path dependencies,
+including optional, build and target-specific edges. It checks the direction
+of numbered-stage dependencies through shared crates, the lexer and parser
+boundaries, and the source, package and interpreter dependencies reachable
+from `native-compiler`. Package dependency editing uses a scoped allowance
+for the Build text reader. The same command checks restricted program access
+and the reviewed field and export inventory. The post-merge workflow runs
+the audit on main. [Dependency rules](../xtask/src/boundary.rs)
+· [Transitive graph checks](../xtask/src/boundary/linear_pipeline.rs)
+· [Reviewed inventory](../../omega-rust/pipeline-contracts.json)
+· [Post-merge workflow](../../.github/workflows/post-merge-check.yml)
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.

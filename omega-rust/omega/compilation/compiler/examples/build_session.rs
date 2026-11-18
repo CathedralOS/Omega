@@ -47,7 +47,7 @@ fn main() {
 
     // The same source under a different resource policy is a new admission.
     // In particular, an unsponsored result cannot bypass this account's limit.
-    let limits = build_time_evaluation::BuildEvaluationSponsorLimits::new(
+    let limits = source_compiler::evaluation::BuildEvaluationSponsorLimits::new(
         1, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
     )
     .expect("nonzero limits");
@@ -59,11 +59,11 @@ fn main() {
         limited.package_inputs.as_ref(),
     );
     limited.build.evaluation_sponsor = Some(
-        build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
+        source_compiler::evaluation::BuildEvaluationSponsor::new_with_measurement(
             limits,
-            evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+            evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
                 work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-                storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+                storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
             },
         )
         .expect("current Terminal measurement"),

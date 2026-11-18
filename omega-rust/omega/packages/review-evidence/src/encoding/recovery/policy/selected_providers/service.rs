@@ -4,13 +4,19 @@
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::calling_application;
 use crate::record::PackagePolicyServiceMethod;
+use declaration_contracts::CarryAddress;
+use declaration_contracts::CarryCpu;
+use declaration_contracts::CarryHostThread;
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::CarrySuspension;
+use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
+};
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim,
-};
-use language_semantics::{
-    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
 };
 
 pub(in crate::encoding::recovery) fn method(
@@ -48,6 +54,18 @@ pub(in crate::encoding::recovery) fn method(
         }),
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
+        normal_result_memberships: reader.sequence(16, |reader| {
+            Ok(ServiceNormalResultMembership {
+                path: reader.sequence(9, |reader| {
+                    Ok(super::super::tag!(reader => {
+                        1 => ServiceResultProjection::Field(reader.string()?),
+                        2 => ServiceResultProjection::Case(reader.string()?),
+                        3 => ServiceResultProjection::FixedIndex(reader.u64()?),
+                    }))
+                })?,
+                domain: reader.string()?,
+            })
+        })?,
         result_claims: reader.sequence(12, |reader| {
             Ok(ServiceResultClaim {
                 domain: reader.string()?,

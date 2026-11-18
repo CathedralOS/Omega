@@ -117,7 +117,7 @@ public machine schema_node<'graph>(graph: &'graph TypeSchema, handle: u64) -> Sc
 machine graph_node<'graph>(graph: &'graph [u8], handle: u64) -> SchemaNode<'graph> crashes Trap {
     let version: u64 = schema_word(graph, 0u64);
     let count: u64 = schema_word(graph, 8u64);
-    transition version == 1u64 && graph.len >= 64u64 {
+    transition version == 2u64 && graph.len >= 64u64 {
         true -> directory(graph, handle, count)
         false -> bad(graph)
     }

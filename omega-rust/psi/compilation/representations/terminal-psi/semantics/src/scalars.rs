@@ -2023,7 +2023,7 @@ pub(crate) mod scalar_leaf_semantics {
         }
     }
 
-    impl ValueTypes for semantic_vocabulary::IdTable<ValueId, ScalarType> {
+    impl ValueTypes for arena::IdTable<ValueId, ScalarType> {
         fn value_type(&self, value: ValueId) -> Option<ScalarType> {
             self.get(value).copied()
         }

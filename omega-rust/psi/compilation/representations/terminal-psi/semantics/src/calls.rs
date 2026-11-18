@@ -784,13 +784,19 @@ pub mod closed_conformances {
     }
 
     fn hosted_process_exit_identities() -> &'static HostedProcessExitIdentities {
+        use application_identity::type_identity::encoding::CoordinateTag;
+        use application_identity::type_identity::encoding::atom;
+        use application_identity::type_identity::encoding::bare;
+        use application_identity::type_identity::encoding::byte_atom;
+        use application_identity::type_identity::encoding::callable_declaration_path;
+        use application_identity::type_identity::encoding::compound;
+        use application_identity::type_identity::vocabulary::Label;
+        use application_identity::type_identity::vocabulary::NameForm;
+        use application_identity::type_identity::vocabulary::OwnerForm;
+        use application_identity::type_identity::vocabulary::TypeForm;
         use language_core::sealed_intrinsics::{
             HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
         };
-        use language_semantics::type_identity::encoding::{
-            CoordinateTag, atom, bare, byte_atom, callable_declaration_path, compound,
-        };
-        use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
         static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
             std::sync::OnceLock::new();
         IDENTITIES.get_or_init(|| {
@@ -821,19 +827,13 @@ pub mod closed_conformances {
                 ))
             );
             let exact_nominal = |(file, _, bytes): (&str, &str, &[u8]), declaration: &str| {
-                let file = source::SourceFile {
-                    source_id: source::SourceId(0),
-                    path: std::path::Path::new("/compiler/core").join(file),
-                    package_root: "/compiler/core".into(),
-                    package_identity: None,
-                    dependency_scope: source::DependencyScope::Product,
-                    origin: source::SourceOrigin::Toolchain,
-                    resolution_stratum: source::SourceResolutionStratum::Base,
-                    source: std::str::from_utf8(bytes)
-                        .expect("bundled core source is UTF-8")
-                        .into(),
-                };
-                let digest = source::source_identity::toolchain_source_identity_digest(&file)
+                std::str::from_utf8(bytes).expect("bundled core source is UTF-8");
+                let digest =
+                    declaration_contracts::source_identity::toolchain_owned_identity_digest(
+                        "core",
+                        file.split('/').map(str::to_owned).collect(),
+                        bytes,
+                    )
                     .expect("bundled core source has canonical custody");
                 compound(
                     NameForm::Nominal,
@@ -1010,6 +1010,7 @@ pub mod closed_conformances {
             || boundary.crash_routes != canonical.crash_routes
             || boundary.scalar_requires != canonical.scalar_requires
             || boundary.scalar_ensures != canonical.scalar_ensures
+            || boundary.membership_ensures != canonical.membership_ensures
             || boundary.requires != canonical.requires
             || boundary.normal_qualifications != canonical.normal_qualifications
             || boundary.scalar_domain_requirements != canonical.scalar_domain_requirements
@@ -1025,6 +1026,7 @@ pub mod closed_conformances {
             || !boundary.crash_routes.is_empty()
             || !boundary.scalar_requires.is_empty()
             || !boundary.scalar_ensures.is_empty()
+            || !boundary.membership_ensures.is_empty()
             || !boundary.requires.is_empty()
             || !boundary.normal_qualifications.is_empty()
             || !boundary.scalar_domain_requirements.is_empty()
@@ -1457,10 +1459,9 @@ pub mod closed_conformances {
         identities: &terminal_psi::TerminalIdentityTable,
         identity: TerminalIdentityIndex,
     ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, &'static str> {
-        use language_semantics::type_identity::{
-            TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
-            visit_type_identity_package_owners,
-        };
+        use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+        use application_identity::type_identity::TypeIdentityVisitError;
+        use application_identity::type_identity::visit_type_identity_package_owners;
         struct Owner {
             package: Option<semantic_vocabulary::PackageKeyIdentity>,
             depth: usize,
@@ -1921,7 +1922,7 @@ pub mod closed_conformances {
                             );
                         }
                         let arguments = method.method_arguments.iter().map(|argument| {
-                            use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                            use application_identity::conformance_identity::MachineOperandSelectionIdentity;
                             match argument {
                                 ClosedReachArgument::Type(index) => {
                                     Ok(MachineOperandSelectionIdentity::Type(identity(module, *index)?.to_owned()))
@@ -1932,7 +1933,7 @@ pub mod closed_conformances {
                                 _ => Err("selected public member needs a complete type or value tuple"),
                             }
                         }).collect::<Result<Vec<_>, _>>()?;
-                        let commitment = language_semantics::conformance_identity::requirement_application_commitment(
+                        let commitment = application_identity::conformance_identity::requirement_application_commitment(
                             identity(module, specialization.template_callable)?, &arguments,
                         )?;
                         if commitment != specialization.commitment {
@@ -2087,7 +2088,9 @@ pub mod closed_reach {
             .text(specialization.template_callable)
             .ok_or("machine application has no original callable identity")?;
         let mut commitment =
-            language_semantics::conformance_identity::MachineApplicationCommitment::new(callable)?;
+            application_identity::conformance_identity::MachineApplicationCommitment::new(
+                callable,
+            )?;
         for parameter in &application.telescope {
             match parameter {
                 ClosedReachParameter::Type { argument } => commitment.type_argument(argument)?,

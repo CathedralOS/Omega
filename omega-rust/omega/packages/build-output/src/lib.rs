@@ -36,7 +36,7 @@ Module layout:
 #![forbid(unsafe_code)]
 #![cfg_attr(windows, feature(windows_by_handle))]
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 mod capture;
 mod captured_source;
 mod materialization;

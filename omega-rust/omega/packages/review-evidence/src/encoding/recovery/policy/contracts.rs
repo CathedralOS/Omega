@@ -46,6 +46,7 @@ pub(in crate::encoding::recovery) fn contract_fact(
         1 => PackageReviewContractFact::Membership {
             value: expression(reader)?,
             domain: nominal(reader)?,
+            application: reader.string()?,
         },
         4 => PackageReviewContractFact::CarryMembership {
             value: expression(reader)?,
@@ -143,8 +144,43 @@ mod codec_tests {
     use crate::record::PackageReviewContractExpression;
 
     #[test]
+    fn membership_contract_keeps_its_exact_application() {
+        use crate::encoding::encode::{encode_contract_fact, encoder::Encoder};
+        use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
+        let owner = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let mut previous = None;
+        for application in ["exact-domain<u32>", "exact-domain<u64>"] {
+            let fact = PackageReviewContractFact::Membership {
+                value: PackageReviewContractExpression::Result,
+                domain: PackageReviewNominalIdentity {
+                    owner: PackageReviewNominalOwner::Package(owner),
+                    path: "Stamped".into(),
+                },
+                application: application.into(),
+            };
+            let mut encoder = Encoder::bounded(4096);
+            encode_contract_fact(&mut encoder, &fact).unwrap();
+            let bytes = encoder.finish().unwrap();
+            if let Some(previous) = previous {
+                assert_ne!(bytes, previous);
+            }
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(contract_fact(&mut reader).unwrap(), fact);
+            reader.finish().unwrap();
+            let truncated = &bytes[..bytes.len() - application.len() - 8];
+            let mut reader =
+                Reader::new(truncated, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(
+                contract_fact(&mut reader).is_err(),
+                "an older row without the application must refuse"
+            );
+            previous = Some(bytes);
+        }
+    }
+
+    #[test]
     fn closed_carry_fact_recovers_without_a_nominal_domain() {
-        for (tag, permission) in language_semantics::CarryPermission::ALL
+        for (tag, permission) in declaration_contracts::CarryPermission::ALL
             .into_iter()
             .enumerate()
         {

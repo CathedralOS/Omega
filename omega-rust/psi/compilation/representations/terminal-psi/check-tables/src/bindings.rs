@@ -22,7 +22,8 @@ child by segment (`PlaceRow::children`), and the writes to a place
 (`PlaceRow::writes`).
 */
 
-use semantic_vocabulary::{IdTable, MachineId, PlaceId, ValueId};
+use arena::IdTable;
+use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 
 use crate::{ExactPlaceId, ProgramPoint, WriteId};
 
@@ -152,7 +153,8 @@ pub fn record_write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IdTable, PsiSemanticId, StructuralFieldId};
+    use arena::{IdTable, NumericId};
+    use semantic_vocabulary::StructuralFieldId;
 
     #[test]
     fn children_are_interned_once_per_segment_by_binary_search() {

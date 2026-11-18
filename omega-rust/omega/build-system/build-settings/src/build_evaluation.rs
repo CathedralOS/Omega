@@ -39,22 +39,21 @@ use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
 use products::CompileFailure;
+use source_compiler::source_state::TypedTrees;
 use std::path::Path;
 use std::sync::Arc;
-use typed_trees::TypedTrees;
 
 pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
-    pub typed: &'request mut TypedTrees,
-    pub pre_checks: &'request mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    pub typed: &'request TypedTrees,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
-    pub sources: &'request source::SourceMap,
+    pub sources: &'request source_compiler::source_inputs::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
-        &'request [(source::SourceId, build_output::PackageGeneratedSource)],
+        &'request [(source_text::SourceId, build_output::PackageGeneratedSource)],
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
 }
@@ -63,7 +62,7 @@ pub struct BuildEvaluationRequest<'request> {
 /// (`admission/build_stages.rs`), to be judged and admitted under the
 /// activation its first stage began.
 pub struct BuildStageRequest<'request> {
-    pub typed: &'request typed_trees::TypedTrees,
+    pub typed: &'request source_compiler::source_state::TypedTrees,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
@@ -76,7 +75,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: products::BuildConstants,
-    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     dependency_activation: bool,
 }
@@ -161,7 +160,7 @@ impl PreparedBuildEvaluation {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 
@@ -264,9 +263,6 @@ pub fn prepare_build_evaluation(
         pure_build_compilation: _,
         root_path,
         typed,
-        // Build admission prepares its own captured source request; the
-        // Product's pending work stays whole (`admission/checking.rs`).
-        pre_checks: _,
         build_source,
         sources,
         package_inputs,

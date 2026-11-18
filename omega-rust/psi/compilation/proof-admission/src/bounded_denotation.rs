@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use numerics::bignum::BigInt;
+use bignum::BigInt;
 use semantic_vocabulary::{
     ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerType, IntegerValue,
     Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -41,7 +41,7 @@ mod addition {
     use std::cmp::Ordering;
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{
         IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
         ScalarType,
@@ -1266,7 +1266,7 @@ mod addition {
 mod binary_numerals {
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 
     use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
@@ -7034,6 +7034,7 @@ mod elaboration {
         roster: Vec<Proposition>,
         positions: Vec<u32>,
         depth: u32,
+        syntax_terms: HashMap<Term, TermHandle>,
         steps: u64,
         rules: BTreeSet<AcceptedProofRule>,
         assumptions: PremiseRoster,
@@ -7420,6 +7421,10 @@ mod elaboration {
             if elaboration.steps > MAX_ELABORATION_NODES {
                 return Err(BoundedDenotationError::DepthLimitExceeded);
             }
+            if crate::proof::cites_validated_premise(proof, &elaboration.roster, elaboration.axioms)
+            {
+                return Ok(());
+            }
             elaboration
                 .context
                 .validate(&proof.conclusion)
@@ -7652,7 +7657,7 @@ mod elaboration {
                 domain: elaboration.denotation.two,
                 body,
             });
-            let tag = elaboration.denotation.arena.insert(Term::Fst {
+            let tag = elaboration.proof_term(Term::Fst {
                 pair: parts.case.scrutinee,
             });
             let elimination = elaboration.denotation.arena.insert(Term::CaseTwo {
@@ -7661,7 +7666,7 @@ mod elaboration {
                 one_branch: one,
                 scrutinee: tag,
             });
-            let payload = elaboration.denotation.arena.insert(Term::Snd {
+            let payload = elaboration.proof_term(Term::Snd {
                 pair: parts.case.scrutinee,
             });
             elaboration.denotation.arena.insert(Term::Apply {
@@ -7679,6 +7684,14 @@ mod elaboration {
             semantic_axioms: &'a [Proposition],
             machine_parameter_values: &'a BTreeSet<ValueId>,
         ) -> Result<Self, BoundedDenotationError> {
+            context.validate(goal).map_err(|error| {
+                BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
+            })?;
+            for proposition in assumptions.iter().chain(semantic_axioms) {
+                context.validate(proposition).map_err(|error| {
+                    BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
+                })?;
+            }
             let mut denotation = Denotation::new();
             let mut context_bindings =
                 Vec::with_capacity(assumptions.len() + semantic_axioms.len());
@@ -7703,6 +7716,7 @@ mod elaboration {
                 roster: assumptions.to_vec(),
                 positions,
                 depth,
+                syntax_terms: HashMap::new(),
                 steps: 0,
                 rules: BTreeSet::new(),
                 assumptions: PremiseRoster::default(),
@@ -7710,9 +7724,19 @@ mod elaboration {
             })
         }
 
+        /// Repeated evidence keeps one raw syntax node. A variable's meaning
+        /// still comes from the exact context checked by the mathematical kernel.
+        fn proof_term(&mut self, term: Term) -> TermHandle {
+            let arena = &mut self.denotation.arena;
+            *self
+                .syntax_terms
+                .entry(term)
+                .or_insert_with_key(|term| arena.insert(term.clone()))
+        }
+
         fn variable(&mut self, position: u32) -> TermHandle {
             let index = self.depth - 1 - position;
-            self.denotation.arena.insert(Term::Variable(index))
+            self.proof_term(Term::Variable(index))
         }
 
         pub(super) fn node(
@@ -7820,17 +7844,17 @@ mod elaboration {
                 }
                 ProofRule::Assumption { index } => self.cited(*index, &proof.conclusion),
                 ProofRule::SemanticAxiom { index } => {
-                    let Some(axiom) = self.semantic_axiom(*index) else {
+                    let Some(axiom) = self.axioms.get(*index) else {
                         return Err(certificate!(ProofError::UnknownSemanticAxiom(*index)));
                     };
-                    if !propositions_match(&axiom, &proof.conclusion) {
+                    if !propositions_match(axiom, &proof.conclusion) {
                         return Err(certificate!(ProofError::SemanticAxiomConclusionMismatch(
                             *index
                         )));
                     }
-                    self.same_denotation(&axiom, &proof.conclusion)?;
+                    Self::same_denotation(&mut self.denotation, axiom, &proof.conclusion)?;
                     self.rules.insert(AcceptedProofRule::SemanticAxiom);
-                    self.semantic_axioms.record(*index, &axiom);
+                    self.semantic_axioms.record(*index, axiom);
                     let position = self.ambient + *index;
                     let position = u32::try_from(position)
                         .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
@@ -7880,10 +7904,10 @@ mod elaboration {
                     let last = conjuncts.len() - 1;
                     let mut term = pair;
                     for _ in 0..(*conjunct).min(last) {
-                        term = self.denotation.arena.insert(Term::Snd { pair: term });
+                        term = self.proof_term(Term::Snd { pair: term });
                     }
                     if *conjunct < last {
-                        term = self.denotation.arena.insert(Term::Fst { pair: term });
+                        term = self.proof_term(Term::Fst { pair: term });
                     }
                     Ok(term)
                 }
@@ -8582,42 +8606,34 @@ mod elaboration {
             index: usize,
             conclusion: &Proposition,
         ) -> Result<TermHandle, BoundedDenotationError> {
-            let Some(assumption) = self.roster.get(index).cloned() else {
+            let Some(assumption) = self.roster.get(index) else {
                 return Err(certificate!(ProofError::UnknownAssumption(index)));
             };
-            if !propositions_match(&assumption, conclusion) {
+            if !propositions_match(assumption, conclusion) {
                 return Err(certificate!(ProofError::AssumptionConclusionMismatch(
                     index
                 )));
             }
-            self.same_denotation(&assumption, conclusion)?;
+            Self::same_denotation(&mut self.denotation, assumption, conclusion)?;
             self.rules.insert(AcceptedProofRule::Assumption);
             if index < self.ambient {
-                self.assumptions.record(index, &assumption);
+                self.assumptions.record(index, assumption);
             }
             let position = self.positions[index];
             Ok(self.variable(position))
         }
 
-        fn semantic_axiom(&self, index: usize) -> Option<Proposition> {
-            self.axioms.get(index).cloned()
-        }
-
         fn same_denotation(
-            &mut self,
+            denotation: &mut Denotation,
             retained: &Proposition,
             requested: &Proposition,
         ) -> Result<(), BoundedDenotationError> {
             if retained == requested {
                 return Ok(());
             }
-            let retained = self.denotation.denote(retained)?;
-            let requested = self.denotation.denote(requested)?;
-            if self
-                .denotation
-                .arena
-                .structurally_equal(retained, requested)
-            {
+            let retained = denotation.denote(retained)?;
+            let requested = denotation.denote(requested)?;
+            if denotation.arena.structurally_equal(retained, requested) {
                 Ok(())
             } else {
                 Err(BoundedDenotationError::Unsupported(
@@ -10655,7 +10671,7 @@ mod forbidden_roots {
 mod integer_operations {
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{IntegerType, IntegerValue};
 
     use super::{
@@ -14377,14 +14393,6 @@ fn denote_bounded_certificate_with_machine_parameters(
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     #[cfg(test)]
     crate::mathematical_core::bounded_observations::record_denotation();
-    context.validate(goal).map_err(|error| {
-        BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
-    })?;
-    for proposition in assumptions.iter().chain(semantic_axioms) {
-        context.validate(proposition).map_err(|error| {
-            BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
-        })?;
-    }
     let mut elaboration = Elaboration::new(
         context,
         goal,
@@ -14752,6 +14760,82 @@ mod tests {
 
     fn budget() -> Budget {
         Budget::new(DEFAULT_CONVERSION_STEPS)
+    }
+
+    #[test]
+    fn repeated_conjunction_fields_share_their_generated_prefixes() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let values = (1..=16)
+            .map(|position| (ValueId::new(position).unwrap(), scalar))
+            .collect::<Vec<_>>();
+        let context = PropositionContext::from_value_types(values.iter().copied()).unwrap();
+        let fields = values
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| {
+                Proposition::Equal(
+                    ScalarTerm::value(pair[0].0, scalar),
+                    ScalarTerm::value(pair[1].0, scalar),
+                )
+            })
+            .collect::<Vec<_>>();
+        let goal = Proposition::Conjunction(fields.clone());
+        let assumptions = [goal.clone()];
+        let mut proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(
+                fields
+                    .iter()
+                    .enumerate()
+                    .map(|(conjunct, field)| ProofNode {
+                        conclusion: field.clone(),
+                        rule: ProofRule::ConjunctionElimination {
+                            conjunction: Box::new(assumption_proof(goal.clone(), 0)),
+                            conjunct,
+                        },
+                    })
+                    .collect(),
+            ),
+        };
+        let denoted =
+            verify_bounded_certificate(&context, &goal, &assumptions, &[], &proof, &mut budget())
+                .unwrap();
+        let mut term = denoted.certificate.term;
+        let mut prefixes = Vec::new();
+        for _ in 1..fields.len() {
+            let Term::Pair { first, second } = denoted.arena.get(term) else {
+                panic!("each output field has its own pair component")
+            };
+            let Term::Fst { pair } = denoted.arena.get(first) else {
+                panic!("each field selects its exact input component")
+            };
+            prefixes.push(pair);
+            term = second;
+        }
+        prefixes.push(term);
+        for pair in prefixes.windows(2) {
+            assert!(
+                matches!(denoted.arena.get(pair[1]), Term::Snd { pair: previous } if previous == pair[0])
+            );
+        }
+
+        let ProofRule::ConjunctionIntroduction(children) = &mut proof.rule else {
+            unreachable!()
+        };
+        let ProofRule::ConjunctionElimination { conjunct, .. } =
+            &mut children.last_mut().unwrap().rule
+        else {
+            unreachable!()
+        };
+        *conjunct = 0;
+        assert!(matches!(
+            denote_bounded_certificate(&context, &goal, &assumptions, &[], &proof),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::ConjunctConclusionMismatch
+            ))
+        ));
     }
 
     fn unsigned64() -> IntegerType {

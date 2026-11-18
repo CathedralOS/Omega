@@ -3,8 +3,9 @@
 
 use crate::CheckTables;
 use crate::names::MachineNames;
+use arena::IdTable;
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, StructuralTypeId,
+    BlockId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_psi::TerminalModule;
@@ -15,7 +16,7 @@ use terminal_psi::TerminalModule;
 /// to source never guesses").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceOrigin {
-    Authored(source::SourceSpan),
+    Authored(source_text::SourceSpan),
     Unpositioned(Unpositioned),
 }
 
@@ -48,14 +49,14 @@ pub enum Unpositioned {
 }
 
 impl SourceOrigin {
-    pub fn span(self) -> Option<source::SourceSpan> {
+    pub fn span(self) -> Option<source_text::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
             Self::Unpositioned(_) => None,
         }
     }
 
-    pub fn of(span: source::SourceSpan) -> Self {
+    pub fn of(span: source_text::SourceSpan) -> Self {
         if span.span.start < span.span.end {
             Self::Authored(span)
         } else {
@@ -63,7 +64,7 @@ impl SourceOrigin {
         }
     }
 
-    pub fn authored_span(self) -> Option<source::SourceSpan> {
+    pub fn authored_span(self) -> Option<source_text::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
             Self::Unpositioned(_) => None,
@@ -265,8 +266,8 @@ pub struct Elaboration {
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
-    /// The subject's generic machines. Each is a declaration the compilation
-    /// must judge, and none is a machine of this module: a generic body is
+    /// The subject's generic declarations, including data predicates. Each
+    /// must be judged in its own form; none is a machine of this module. A body is
     /// checked once as written, with its parameters rigid, or once per
     /// alternative of a finite family it lists (`elaborate_generic_forms`).
     /// The machines stage 04 generated from them for the program's own
@@ -340,7 +341,7 @@ pub struct PredicateSource {
     pub declaration: terminal_psi::TerminalIdentityIndex,
     pub name: String,
     pub machine: MachineId,
-    pub source_span: Option<source::SourceSpan>,
+    pub source_span: Option<source_text::SourceSpan>,
 }
 
 /// One call through an implementation parameter in a machine stage 04

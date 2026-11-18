@@ -4,7 +4,8 @@
 //! distinct from structural value equality: NaNs never equal themselves and
 //! signed zeros compare equal. Both directions tie the Boolean result to it.
 
-use language_semantics::numeric_intrinsics::{NumericIntrinsic, PrimitiveFloatBinaryOperation};
+use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation;
 use semantic_vocabulary::{IeeeFloatComparisonKind, Proposition, ScalarTerm, ScalarType, ValueId};
 
 /// One semantic relation serves a comparison's full result contract and its
@@ -23,8 +24,8 @@ impl Comparison {
             return Err("numeric primitive has no canonical result contract yet");
         };
         let format = match format {
-            numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-            numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+            numeric_literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            numeric_literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
         };
         let (kind, reverse_operands) = match operation {
             Operation::Equal => (IeeeFloatComparisonKind::Equal, false),
@@ -92,7 +93,7 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
             ) && source.is_float()
                 && matches!(
                     target,
-                    language_semantics::numeric_intrinsics::NumericType::Integer(_)
+                    declaration_contracts::numeric_intrinsics::NumericType::Integer(_)
                 )) =>
         {
             Ok(format!(
@@ -161,7 +162,7 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         .map_err(|error| error.description())?;
         return Ok(vec![Proposition::FloatIntegerConversion(relation)]);
     }
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::float_semantics::{
         FloatSemanticOperation,
         FloatSemanticValueKind::{Format, Integer, Meaning},
@@ -279,7 +280,7 @@ fn integer_conversion(
     numerics::integer_carrier::FixedInteger,
     numerics::arithmetic::ArithmeticDomain,
 )> {
-    use language_semantics::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::arithmetic::ArithmeticDomain;
     match meaning {
         NumericIntrinsic::Conversion {
@@ -385,7 +386,7 @@ pub fn result_matches(
 /// The selected primitive's actual scalar result, including its permanent
 /// float format. Catalog rows with structural results stay outside this path.
 pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'static str> {
-    use language_semantics::numeric_intrinsics::NumericResult;
+    use declaration_contracts::numeric_intrinsics::NumericResult;
     let signature = meaning
         .signature()
         .ok_or("numeric primitive has no scalar signature")?;
@@ -398,8 +399,8 @@ pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'sta
     }
 }
 
-fn carrier_name(carrier: language_semantics::numeric_intrinsics::NumericType) -> String {
-    use language_semantics::numeric_intrinsics::NumericType;
+fn carrier_name(carrier: declaration_contracts::numeric_intrinsics::NumericType) -> String {
+    use declaration_contracts::numeric_intrinsics::NumericType;
     match carrier {
         NumericType::F32 => "f32".to_owned(),
         NumericType::F64 => "f64".to_owned(),
@@ -565,7 +566,7 @@ pub fn validate_boundary(
         "formation and crash clauses"
     );
     require!(
-        boundary.scalar_ensures == expected_ensures,
+        boundary.scalar_ensures == expected_ensures && boundary.membership_ensures.is_empty(),
         "full canonical result contract"
     );
     require!(
@@ -625,14 +626,18 @@ fn coordinates(
     result: &str,
     policy: Option<numerics::arithmetic::ArithmeticDomain>,
 ) -> Result<[String; 6], &'static str> {
+    use application_identity::type_identity::encoding::CoordinateTag;
+    use application_identity::type_identity::encoding::atom;
+    use application_identity::type_identity::encoding::bare;
+    use application_identity::type_identity::encoding::byte_atom;
+    use application_identity::type_identity::encoding::compound;
+    use application_identity::type_identity::vocabulary::ConstraintForm;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::NameForm;
+    use application_identity::type_identity::vocabulary::OwnerForm;
+    use application_identity::type_identity::vocabulary::TypeForm;
     use language_core::sealed_intrinsics::{
         SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
-    };
-    use language_semantics::type_identity::encoding::{
-        CoordinateTag, atom, bare, byte_atom, compound,
-    };
-    use language_semantics::type_identity::vocabulary::{
-        ConstraintForm, Label, NameForm, OwnerForm, TypeForm,
     };
     let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
     if SealedIntrinsicCatalog::classify(SealedDeclarationSite {
@@ -646,18 +651,12 @@ fn coordinates(
     static SOURCE: std::sync::OnceLock<Result<[u8; 32], &'static str>> = std::sync::OnceLock::new();
     let digest = SOURCE
         .get_or_init(|| {
-            source::source_identity::toolchain_source_identity_digest(&source::SourceFile {
-                source_id: source::SourceId(0),
-                path: std::path::Path::new("/compiler/core").join(file),
-                package_root: "/compiler/core".into(),
-                package_identity: None,
-                dependency_scope: source::DependencyScope::Product,
-                origin: source::SourceOrigin::Toolchain,
-                resolution_stratum: source::SourceResolutionStratum::Base,
-                source: std::str::from_utf8(bytes)
-                    .map_err(|_| "numeric catalog is not UTF-8")?
-                    .into(),
-            })
+            std::str::from_utf8(bytes).map_err(|_| "numeric catalog is not UTF-8")?;
+            declaration_contracts::source_identity::toolchain_owned_identity_digest(
+                "core",
+                file.split('/').map(str::to_owned).collect(),
+                bytes,
+            )
             .map_err(|_| "numeric catalog source has no exact identity")
         })
         .as_ref()
@@ -736,7 +735,7 @@ fn coordinates(
         if kind == semantic_vocabulary::BoundaryRequirementKind::Machine {
             format!(
                 "toolchain::{}",
-                language_semantics::type_identity::encoding::callable_declaration_path(
+                application_identity::type_identity::encoding::callable_declaration_path(
                     declaration,
                     &callable
                 )

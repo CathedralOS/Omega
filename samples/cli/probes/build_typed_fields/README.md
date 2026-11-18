@@ -1,6 +1,5 @@
 # build_typed_fields
 
-Builder fields are typed places: `builder.freestanding = "yes"`
-rejects "stores text into a `bool` place" — field writes are
-type-checked like any other assignment, not swallowed as
-configuration strings.
+The positive probe writes `true` to `builder.tests.disabled`. The
+negative writes `"yes"` to the same Boolean field and rejects it as a
+shared byte view. Build field assignments use ordinary type checking.

@@ -67,6 +67,7 @@ mod build_session;
 mod compile;
 mod package;
 mod project;
+mod published_terminal;
 pub use compile::build_execution::execute_build as execute_build_activation;
 pub use compile::native_completion::complete_product;
 pub use compile::source_compilation::{
@@ -76,6 +77,7 @@ pub use project::publication;
 pub use project::stage_validators::{
     StageValidationResult, StageValidationRow, StageValidator, StageValidatorRequest,
 };
+pub use published_terminal::{execute_published_terminal, execute_published_terminal_sliced};
 
 pub use build::build;
 pub use build_session::BuildSession;

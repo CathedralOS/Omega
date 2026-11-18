@@ -1,7 +1,8 @@
 //! Compose service reach from checked calls and exact static substitutions.
 //! An open callback contributes a projection, never an empty service row.
 
-use semantic_vocabulary::{MachineId, ServiceId};
+use semantic_vocabulary::{InvocationSite, MachineId, ServiceId};
+use std::fmt;
 use terminal_psi::static_reach::{
     StaticReachApplication, StaticReachArgument, StaticReachParameter, StaticReachSummary,
     StaticReachTerm,
@@ -9,6 +10,64 @@ use terminal_psi::static_reach::{
 use terminal_psi::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 
 type Result<T> = std::result::Result<T, &'static str>;
+
+/// A failed derivation retains the invocation that exposed a missing callback
+/// binding. Other derivation failures keep their existing static reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivationError {
+    pub reason: &'static str,
+    pub call: Option<CallContext>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallContext {
+    pub caller: MachineId,
+    pub site: InvocationSite,
+    pub callee: MachineId,
+    pub binding: Option<u32>,
+    /// Actual rows naming this caller or this required callback.
+    pub parameters: Vec<StaticReachParameter>,
+}
+
+impl From<&'static str> for DerivationError {
+    fn from(reason: &'static str) -> Self {
+        Self { reason, call: None }
+    }
+}
+
+impl fmt::Display for CallContext {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "caller={:?}, site={:?}, callee={:?}, static_reach_binding={:?}, parameter rows={:?}",
+            self.caller,
+            self.site,
+            self.callee,
+            self.binding,
+            &self.parameters[..self.parameters.len().min(8)],
+        )?;
+        if self.parameters.len() > 8 {
+            write!(
+                formatter,
+                " ({} further rows omitted)",
+                self.parameters.len() - 8
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for DerivationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.reason)?;
+        if let Some(call) = &self.call {
+            write!(formatter, "; {call}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for DerivationError {}
 
 enum Contribution<'a> {
     Fixed(Vec<ServiceId>),
@@ -100,7 +159,7 @@ pub fn derive<'bounds>(
     parameters: &[StaticReachParameter],
     applications: &[StaticReachApplication],
     abstract_reach: impl Fn(MachineId) -> Option<Option<&'bounds [ServiceId]>>,
-) -> Result<Vec<StaticReachSummary>> {
+) -> std::result::Result<Vec<StaticReachSummary>, DerivationError> {
     if module
         .machines
         .windows(2)
@@ -110,7 +169,7 @@ pub fn derive<'bounds>(
             .windows(2)
             .any(|pair| (pair[0].caller, pair[0].site) >= (pair[1].caller, pair[1].site))
     {
-        return Err("static reach coordinates are not strictly ordered");
+        return Err("static reach coordinates are not strictly ordered".into());
     }
     let machines = module
         .machines
@@ -122,7 +181,7 @@ pub fn derive<'bounds>(
         position(&machines, parameter.owner)?;
         let requirement = &module.machines[position(&machines, parameter.requirement)?];
         if !requirement.blocks.is_empty() || requirement.declaration.is_some() {
-            return Err("static callback projection has an executable requirement");
+            return Err("static callback projection has an executable requirement".into());
         }
         projections.push(parameter.requirement);
     }
@@ -187,7 +246,23 @@ pub fn derive<'bounds>(
                         .is_err()
                 })
             {
-                return Err("abstract callback call lost its exact originating parameter");
+                return Err(DerivationError {
+                    reason: "abstract callback call lost its exact originating parameter",
+                    call: Some(CallContext {
+                        caller: machine.id,
+                        site: invocation.site,
+                        callee: invocation.inputs.callee,
+                        binding: invocation.static_reach_binding,
+                        parameters: parameters
+                            .iter()
+                            .copied()
+                            .filter(|row| {
+                                row.owner == machine.id
+                                    || row.requirement == invocation.inputs.callee
+                            })
+                            .collect(),
+                    }),
+                });
             }
             let application = applications
                 .binary_search_by_key(&(machine.id, invocation.site), |row| (row.caller, row.site))
@@ -195,7 +270,7 @@ pub fn derive<'bounds>(
             let callee = position(&machines, invocation.inputs.callee)?;
             if let Some(contract) = invocation.inputs.required_contract {
                 if application.is_some() {
-                    return Err("a static substitution changed its required public contract");
+                    return Err("a static substitution changed its required public contract".into());
                 }
                 let header = module
                     .invocation_machine_contract(invocation.inputs.callee, Some(contract))
@@ -207,7 +282,7 @@ pub fn derive<'bounds>(
                 let arguments = if let Some(index) = application {
                     let application = &applications[index];
                     if application.callee != invocation.inputs.callee {
-                        return Err("static substitution names another called machine");
+                        return Err("static substitution names another called machine".into());
                     }
                     used[index] = true;
                     &application.arguments[..]
@@ -259,7 +334,7 @@ pub fn derive<'bounds>(
         contributions.push(calls);
     }
     if used.iter().any(|used| !used) {
-        return Err("static callback substitution has no exact lowered invocation");
+        return Err("static callback substitution has no exact lowered invocation".into());
     }
     for callers in &mut predecessors {
         callers.sort_unstable();
@@ -353,7 +428,7 @@ pub fn template_commitment<'identity>(
     }
     projections.sort_unstable();
     projections.dedup();
-    let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.generic-callable-reach-contract.v1\0",
     );
     digest.raw(&base);

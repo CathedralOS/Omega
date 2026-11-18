@@ -108,3 +108,6 @@ pub use operations::{
 mod storage_mutations;
 
 pub mod quotients;
+
+mod replay_requirements;
+pub use replay_requirements::requires_graph_storage_replay;

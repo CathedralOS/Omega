@@ -1,0 +1,25 @@
+[package]
+name = "image-pe"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_pe"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+arena = { path = "../../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+object-file = { path = "../../08_object-construction" }
+target = { path = "../../../target-description/target" }
+
+machine-code = { path = "../../../representations/machine-code" }
+
+[dev-dependencies]
+physical-planning = { path = "../../04_physical-program-planning" }
+native-encoding = { path = "../../06_native-encoding" }
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+runtime-abi = { path = "../../../target-description/runtime-abi" }

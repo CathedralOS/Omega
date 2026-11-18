@@ -12,23 +12,23 @@ use super::LogicalSourceDiscovery as _;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use source::SourceMap;
-use source::SourceOrigin;
+use source_admission::SourceOrigin;
+use source_compiler::ParsedSourceBatch;
+use source_compiler::SourceSyntax;
+use source_compiler::source_inputs::SourceMap;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use syntax_trees::ParsedSources;
-use syntax_trees::SyntaxTrees;
 
 #[derive(Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceStorage {
-    pub filesystem: source::SourceFileSystem, // Captured virtual source filesystem.
-    pub source_roots: Arena<SourceRoots>,     // Per-source parsed root `ItemHandle` lists.
-    pub sources: SourceMap,                   // Active `SourceMap` selection cohort.
-    pub syntax_trees: SyntaxTrees,            // Parsed syntax forest for the active cohort.
+    pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
+    pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
+    pub sources: SourceMap,                           // Active `SourceMap` selection cohort.
+    pub syntax_trees: SourceSyntax,                   // Parsed syntax forest for the active cohort.
     pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
     default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
-    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
+    anonymous_capture: Option<std::sync::Arc<source_capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
     toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
@@ -45,8 +45,8 @@ pub(crate) struct RegisteredPackageRoot {
 impl SourceStorage {
     pub(crate) fn seal_product_owner(
         &mut self,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<Option<Vec<source::LoadedSource>>, Vec<Diagnostic>> {
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    ) -> Result<Option<Vec<source_admission::LoadedSource>>, Vec<Diagnostic>> {
         let Some(capture) = self.retain_anonymous_owner(&[])? else {
             return Ok(None);
         };
@@ -118,7 +118,7 @@ impl SourceStorage {
                 )]);
             }
         }
-        let mut supplier_filesystem = source::SourceFileSystem::new();
+        let mut supplier_filesystem = source_capture::SourceFileSystem::new();
         supplier_filesystem
             .add_capture(root.clone(), capture.tree().clone())
             .map_err(|error| {
@@ -137,7 +137,7 @@ impl SourceStorage {
         Ok(())
     }
 
-    pub(crate) fn root_sources(&self) -> Vec<source::SourceId> {
+    pub(crate) fn root_sources(&self) -> Vec<source_text::SourceId> {
         self.sources
             .selected_files()
             .filter(|file| {
@@ -158,13 +158,19 @@ impl SourceStorage {
     pub(crate) fn logical_siblings(
         &mut self,
         path: &Path,
-        scope: source::DependencyScope,
-    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
-        if scope != source::DependencyScope::Product {
+        scope: declaration_contracts::source_identity::DependencyScope,
+    ) -> Result<
+        Vec<(
+            PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        if scope != declaration_contracts::source_identity::DependencyScope::Product {
             return Ok(Vec::new());
         }
         let (root, _, origin) = self.source_metadata(path, None);
-        if origin == source::SourceOrigin::Toolchain {
+        if origin == source_admission::SourceOrigin::Toolchain {
             return Ok(Vec::new());
         }
         let excluded = self
@@ -182,7 +188,7 @@ impl SourceStorage {
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         if package_inputs.is_some() && source_capture.is_some() {
             return Err(vec![Diagnostic::error(
@@ -329,9 +335,9 @@ impl SourceStorage {
 
     pub(crate) fn reselect_current_sources(
         &mut self,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<Vec<source::LoadedSource>, Vec<Diagnostic>> {
-        let primary_source = self.syntax_trees.source_id;
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    ) -> Result<Vec<source_admission::LoadedSource>, Vec<Diagnostic>> {
+        let primary_source = self.syntax_trees.primary_source();
         let previous = std::mem::replace(&mut self.sources, catalogue.begin_selection());
         let mut admitted = Vec::new();
         let mut correspondence = Vec::new();
@@ -343,7 +349,7 @@ impl SourceStorage {
                 let current = catalogue
                     .admit_source_occurrence(&mut self.sources, file)
                     .map_err(|message| vec![Diagnostic::error(message)])?;
-                source::LoadedSource {
+                source_admission::LoadedSource {
                     source_id: current.source_id,
                     path: current.path.clone(),
                     source: current.source.clone(),
@@ -352,7 +358,7 @@ impl SourceStorage {
                 }
             } else {
                 self.admit_source(
-                    source::SourceContents {
+                    source_admission::SourceContents {
                         path: file.path.clone(),
                         source: file.source.clone(),
                         scope: file.dependency_scope,
@@ -382,7 +388,7 @@ impl SourceStorage {
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
         self.syntax_trees = if admitted.is_empty() {
-            SyntaxTrees::default()
+            SourceSyntax::default()
         } else {
             let primary = correspondence
                 .iter()
@@ -392,7 +398,7 @@ impl SourceStorage {
                         "consumer cohort lost its parser's primary source coordinate",
                     )]
                 })?;
-            SyntaxTrees::new(primary)
+            SourceSyntax::new(primary)
         };
         self.source_roots = Arena::default();
         self.resolved_imports.clear();
@@ -401,7 +407,7 @@ impl SourceStorage {
 
     pub(crate) fn retain_anonymous_owner(
         &mut self,
-        generated: &[(source::SourceId, build_output::PackageGeneratedSource)],
+        generated: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
     ) -> Result<Option<crate::AnonymousSourceCapture>, Vec<Diagnostic>> {
         if self.default_package_identity.is_some() {
             return Ok(None);
@@ -469,7 +475,7 @@ impl SourceStorage {
         default_package_root: PathBuf,
         default_package_identity: PackageKeyIdentity,
         toolchain_root: PathBuf,
-        filesystem: source::SourceFileSystem,
+        filesystem: source_capture::SourceFileSystem,
     ) -> Self {
         Self {
             default_package_root: filesystem
@@ -612,11 +618,11 @@ impl SourceStorage {
 
     pub fn admit_source(
         &mut self,
-        contents: source::SourceContents,
+        contents: source_admission::SourceContents,
         origin_override: Option<SourceOrigin>,
-        resolution_stratum: source::SourceResolutionStratum,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<source::LoadedSource, Vec<Diagnostic>> {
+        resolution_stratum: source_admission::SourceResolutionStratum,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    ) -> Result<source_admission::LoadedSource, Vec<Diagnostic>> {
         let (package_root, package_identity, origin) =
             self.source_metadata(&contents.path, origin_override);
         let admitted = catalogue
@@ -631,7 +637,7 @@ impl SourceStorage {
                 contents.scope,
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        Ok(source::LoadedSource {
+        Ok(source_admission::LoadedSource {
             source_id: admitted.source_id,
             path: admitted.path.clone(),
             source: admitted.source.clone(),
@@ -640,7 +646,7 @@ impl SourceStorage {
         })
     }
 
-    pub fn attach_parsed(&mut self, mut parsed: ParsedSources) {
+    pub fn attach_parsed(&mut self, mut parsed: ParsedSourceBatch) {
         for parsed_source in parsed.sources.span_mut_or_empty(parsed.batch) {
             self.source_roots.append(SourceRoots {
                 source_id: parsed_source.source_id,
@@ -734,15 +740,24 @@ impl ToolchainContractCustody {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub(crate) struct SourceRoots {
-    pub source_id: source::SourceId,
-    pub root_items: Vec<syntax_trees::item::ItemHandle>,
+    pub source_id: source_text::SourceId,
+    pub root_items: source_compiler::SourceItems,
 }
 
 pub(crate) fn validate_package_source_frontier(
-    frontier: Vec<(PathBuf, source::DependencyScope)>,
+    frontier: Vec<(
+        PathBuf,
+        declaration_contracts::source_identity::DependencyScope,
+    )>,
     package_inputs: &crate::PackageCompilationInputs,
     source_storage: &SourceStorage,
-) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<(
+        PathBuf,
+        declaration_contracts::source_identity::DependencyScope,
+    )>,
+    Vec<Diagnostic>,
+> {
     let toolchain_root = super::bundled_core_root()?;
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
@@ -794,22 +809,23 @@ pub(crate) fn validate_package_source_frontier(
 #[cfg(test)]
 mod tests {
     use super::SourceStorage;
-    use source::{
-        DependencyScope, SourceId, SourceOrigin, SourceResolutionStratum, SourceSpan, Span,
-    };
+    use declaration_contracts::source_identity::DependencyScope;
+    use source_admission::SourceOrigin;
+    use source_admission::SourceResolutionStratum;
+    use source_compiler::{ParsedSourceBatch, ParsedSourceSummary};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::{path::PathBuf, sync::Arc};
-    use syntax_trees::{ParsedSource, ParsedSources};
 
     #[test]
     fn parsed_instances_retain_source_bytes_with_independent_checked_scopes() {
         let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
         let retained = Arc::downgrade(&text);
         let mut storage = SourceStorage::default();
-        let mut catalogue = source::SourceCatalogue::default();
+        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let loaded = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
             storage
                 .admit_source(
-                    source::SourceContents {
+                    source_admission::SourceContents {
                         path: PathBuf::from("shared.omg"),
                         source: text.clone(),
                         scope,
@@ -820,18 +836,19 @@ mod tests {
                 )
                 .unwrap()
         });
-        let mut parsed = ParsedSources::default();
-        parsed.batch = parsed
-            .sources
-            .insert_many(loaded.into_iter().map(|loaded| ParsedSource {
-                source_id: loaded.source_id,
-                path: loaded.path,
-                source: loaded.source,
-                origin: loaded.origin,
-                root_items: Vec::new(),
-                import_root_range: 0..0,
-                scope: loaded.scope,
-            }));
+        let mut parsed = ParsedSourceBatch::default();
+        parsed.batch =
+            parsed
+                .sources
+                .insert_many(loaded.into_iter().map(|loaded| ParsedSourceSummary {
+                    source_id: loaded.source_id,
+                    path: loaded.path,
+                    source: loaded.source,
+                    origin: loaded.origin,
+                    root_items: Default::default(),
+                    imports: Vec::new(),
+                    scope: loaded.scope,
+                }));
         storage.attach_parsed(parsed);
         let build = storage.sources.get(SourceId(0)).expect("build instance");
         let product = storage.sources.get(SourceId(1)).expect("product instance");
@@ -881,9 +898,9 @@ mod tests {
                 core.parent().unwrap().join("capture-admission-consumer"),
                 semantic_vocabulary::PackageKeyIdentity::from_digest([31; 32]).unwrap(),
                 core.clone(),
-                source::SourceFileSystem::new(),
+                source_capture::SourceFileSystem::new(),
             );
-            let mut catalogue = source::SourceCatalogue::default();
+            let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
             storage.sources = catalogue.begin_selection();
             let text: std::sync::Arc<str> = if substituted {
                 format!("{original}\n// different parsed source bytes\n").into()
@@ -892,7 +909,7 @@ mod tests {
             };
             storage
                 .admit_source(
-                    source::SourceContents {
+                    source_admission::SourceContents {
                         path: core.join("float.omg"),
                         source: text,
                         scope: DependencyScope::Build,
@@ -926,7 +943,7 @@ mod tests {
 
     #[test]
     fn issued_contract_roots_keep_their_role_and_only_expand_product_siblings() {
-        use source::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
+        use source_capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
         let entry = root.join("entry.omg");
         let mut entries = std::collections::BTreeMap::new();
@@ -986,7 +1003,7 @@ mod tests {
     #[test]
     fn product_join_retains_closed_contract_capture_and_refuses_owner_shadowing() {
         use crate::{BuildDeclarationKind, PackageCompilationInputs, PackageSourceBinding};
-        use source::{CapturedSourceNode, CapturedSourceTree};
+        use source_capture::{CapturedSourceNode, CapturedSourceTree};
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-join-capture");
         let application = base.join("application");
         let contract = base.join("std");
@@ -1101,7 +1118,7 @@ mod tests {
             base.join("application"),
             semantic_vocabulary::PackageKeyIdentity::from_digest([29; 32]).unwrap(),
             core,
-            source::SourceFileSystem::new(),
+            source_capture::SourceFileSystem::new(),
         );
         assert_eq!(
             implicit,

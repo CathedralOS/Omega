@@ -40,7 +40,7 @@ pub use checking::{
     PreparedPackageBuild, RestrictedBuildGrants, SourceCompilation,
 };
 pub use compilation_session::CompilationSession;
-pub use optimization_core::{
+pub use optimization_requests::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };
 pub use package_compilation::{
@@ -49,8 +49,8 @@ pub use package_compilation::{
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub(crate) use target_preparation::PreparedProductTarget;
-pub use target_preparation::{
+pub use source_compiler::{
     ChosenDefaultLayout, ProductSupplySource, SuppliedProduct, SupplyJudgment, TargetSupplySource,
     judge_supplied_product, prepare_supplied_target,
 };
+pub(crate) use target_preparation::{PreparedProductTarget, PreparedRuntimeConsent};

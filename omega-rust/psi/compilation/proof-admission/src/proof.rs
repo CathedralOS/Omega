@@ -2683,10 +2683,27 @@ pub(crate) mod subtract_order {
             .ok_or(ProofError::IntegerOrderConclusionMismatch)
     }
 }
+/// The caller validates every premise before adding it to these rosters.
+/// Reusing that formation check does not establish the premise: the citation
+/// rule still checks its index and records it. Different spellings, including
+/// normalized citations, retain their own complete validation.
+pub(crate) fn cites_validated_premise(
+    proof: &ProofNode,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let retained = match &proof.rule {
+        ProofRule::Assumption { index } => assumptions.get(*index),
+        ProofRule::SemanticAxiom { index } => semantic_axioms.get(*index),
+        _ => None,
+    };
+    retained.is_some_and(|retained| *retained == proof.conclusion)
+}
+
 mod traversal {
     use super::{
         AcceptanceBuilder, BTreeSet, ProofError, ProofNode, ProofRule, Proposition,
-        PropositionContext, ValueId, check_node_locally,
+        PropositionContext, ValueId, check_node_locally, cites_validated_premise,
     };
     enum Action<'proof> {
         Enter(&'proof ProofNode),
@@ -2712,9 +2729,11 @@ mod traversal {
         while let Some(action) = pending.pop() {
             match action {
                 Action::Enter(proof) => {
-                    context
-                        .validate(&proof.conclusion)
-                        .map_err(ProofError::MalformedProposition)?;
+                    if !cites_validated_premise(proof, &assumptions, semantic_axioms) {
+                        context
+                            .validate(&proof.conclusion)
+                            .map_err(ProofError::MalformedProposition)?;
+                    }
                     pending.push(Action::Post(proof));
                     schedule_children(proof, &mut pending)?;
                 }
@@ -3488,6 +3507,136 @@ mod tests {
             },
         };
         (context, axioms, proof)
+    }
+
+    #[test]
+    fn exact_citations_use_the_current_local_premise() {
+        let implication = |premise: Proposition| ProofNode {
+            conclusion: Proposition::Implication {
+                premise: Box::new(premise.clone()),
+                conclusion: Box::new(premise.clone()),
+            },
+            rule: ProofRule::ImplicationIntroduction {
+                body: Box::new(assumption_proof(premise, 0)),
+            },
+        };
+        let first = implication(Proposition::Atom(PropositionId::new(1).unwrap()));
+        let second = implication(Proposition::Atom(PropositionId::new(2).unwrap()));
+        let goal =
+            Proposition::Conjunction(vec![first.conclusion.clone(), second.conclusion.clone()]);
+        let mut proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(vec![first, second]),
+        };
+        let context = PropositionContext::default();
+        let accepted = accept_certificate(&context, &goal, &[], &[], &proof).unwrap();
+        assert!(matches!(
+            accepted.mathematical_core,
+            MathematicalCoreDecision::Judged(_)
+        ));
+        assert!(accepted.assumptions.is_empty());
+        assert!(accepted.semantic_axioms.is_empty());
+
+        let ProofRule::ConjunctionIntroduction(children) = &mut proof.rule else {
+            unreachable!()
+        };
+        let ProofRule::ImplicationIntroduction { body } = &mut children[1].rule else {
+            unreachable!()
+        };
+        body.conclusion = Proposition::Atom(PropositionId::new(1).unwrap());
+        assert!(matches!(
+            accept_certificate(&context, &goal, &[], &[], &proof),
+            Err(ProofError::AssumptionConclusionMismatch(0))
+        ));
+        assert!(matches!(
+            crate::denote_bounded_certificate(&context, &goal, &[], &[], &proof),
+            Err(crate::BoundedDenotationError::Certificate(
+                ProofError::AssumptionConclusionMismatch(0)
+            ))
+        ));
+    }
+
+    #[test]
+    fn exact_citations_still_require_formed_headers_and_existing_indices() {
+        let context = PropositionContext::default();
+        let missing = ValueId::new(99).unwrap();
+        let value = ScalarTerm::value(missing, ScalarType::Boolean);
+        let malformed = Proposition::Equal(value.clone(), value);
+        let truth = ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+        };
+        for is_axiom in [false, true] {
+            let assumptions = if is_axiom {
+                &[][..]
+            } else {
+                from_ref(&malformed)
+            };
+            let axioms = if is_axiom {
+                from_ref(&malformed)
+            } else {
+                &[][..]
+            };
+            let accepted =
+                accept_certificate(&context, &Proposition::Truth, assumptions, axioms, &truth);
+            assert!(matches!(
+                accepted,
+                Err(ProofError::MalformedProposition(
+                    semantic_vocabulary::PropositionError::UnknownValue(id)
+                )) if id == missing
+            ));
+            let denoted = crate::denote_bounded_certificate(
+                &context,
+                &Proposition::Truth,
+                assumptions,
+                axioms,
+                &truth,
+            );
+            assert!(matches!(
+                denoted,
+                Err(crate::BoundedDenotationError::Certificate(
+                    ProofError::MalformedProposition(
+                        semantic_vocabulary::PropositionError::UnknownValue(id)
+                    )
+                )) if id == missing
+            ));
+
+            let proof = if is_axiom {
+                semantic_axiom_proof(Proposition::Truth, 1)
+            } else {
+                assumption_proof(Proposition::Truth, 1)
+            };
+            let assumptions = if is_axiom {
+                &[][..]
+            } else {
+                from_ref(&Proposition::Truth)
+            };
+            let axioms = if is_axiom {
+                from_ref(&Proposition::Truth)
+            } else {
+                &[][..]
+            };
+            let expected = if is_axiom {
+                ProofError::UnknownSemanticAxiom(1)
+            } else {
+                ProofError::UnknownAssumption(1)
+            };
+            assert_eq!(
+                accept_certificate(&context, &Proposition::Truth, assumptions, axioms, &proof),
+                Err(expected.clone())
+            );
+            let denoted = crate::denote_bounded_certificate(
+                &context,
+                &Proposition::Truth,
+                assumptions,
+                axioms,
+                &proof,
+            );
+            assert!(matches!(
+                denoted,
+                Err(crate::BoundedDenotationError::Certificate(error)) if error == expected
+            ));
+        }
     }
 
     #[test]
@@ -4661,7 +4810,17 @@ mod tests {
         let expected = arena.insert(crate::Term::Id { ty: two, left: endpoints[0], right: endpoints[1] });
         let evidence = arena.insert(crate::Term::Variable(0));
         let certificate = crate::MathematicalCertificate::closed(vec![expected], evidence, expected);
-        assert!(matches!(crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::default()), Err(crate::CoreError::StepCeiling)));
+        let mut independent_budget = crate::Budget::default();
+        crate::verify_mathematical_certificate(&mut arena, &certificate, &mut independent_budget)
+            .expect("sharing equal syntax lets the unchanged judgment fit the default allowance");
+        let consumed = crate::DEFAULT_CONVERSION_STEPS - independent_budget.remaining();
+        assert!(consumed > 0);
+        crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::new(consumed))
+            .expect("the complete judgment fits its measured reduction debit");
+        assert!(matches!(
+            crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::new(consumed - 1)),
+            Err(crate::CoreError::StepCeiling)
+        ));
         for (depth, valid) in [(8192, true), (64, true), (64, false)] {
             let goal = statement(depth, true);
             let context = PropositionContext::default();
@@ -4681,9 +4840,7 @@ mod tests {
             let proof = ProofNode { conclusion: statement(depth, valid), rule: ProofRule::Assumption { index: 0 } };
             let before = bounded_verification_entries();
             let result = super::accept_certificate_with_machine_parameters(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
-            if depth == 8192 {
-                assert!(matches!(result, Err(ProofError::MathematicalCore(ref error)) if matches!(error.as_ref(), crate::BoundedDenotationError::Kernel(crate::CoreError::StepCeiling))), "the deep source question must preserve the independent kernel's resource refusal");
-            } else if valid {
+            if valid {
                 let accepted = result.expect("within the kernel's existing allowance, the complete exact scalar premise is kernel judged");
                 assert_eq!(accepted.assumptions.len(), 1);
                 assert_eq!(accepted.assumptions[0].index, 0);

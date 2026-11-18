@@ -1,8 +1,8 @@
 // Normalized Build settings decoded from an evaluated `BuildTimeValue`, separate from executed selection receipts.
 //
 // `EvaluatedBuildSettings` captures the authored presentation intent (`application_intent`),
-// optional `application_identifier`, PE `subsystem` word, `freestanding` flag, root
-// `optimizations`, `x86_deployment_claim`, granular `privileged_services` grants, and
+// optional `application_identifier`, PE `subsystem` word, `freestanding` setting, root
+// `optimizations`, `x86_deployment_claim`, legacy `privileged_services` settings, and
 // per-target `elf_interpreters`. Optional facets (`identifier`, `privileged_services`,
 // `elf_interpreter`) default cleanly when omitted by builds that predate those surfaces.
 // The `x86_deployment_claim` is a single Build value that each realized x86 profile
@@ -10,8 +10,8 @@
 // to bind AArch64 targets alongside x86 targets without conflict.
 
 use super::optimization;
-use build_time_evaluation::BuildTimeValue;
 use optimization_core::OptimizationSelections;
+use source_compiler::evaluation::BuildTimeValue;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,10 +19,10 @@ pub struct EvaluatedBuildSettings {
     pub application_intent: Option<HostedApplicationIntent>, // Authored hosted presentation intent, independent of PE loader metadata.
     pub application_identifier: Option<ApplicationIdentifier>, // Build-validated authored application identifier (`None` when omitted or empty).
     pub subsystem: u16, // PE optional-header Subsystem word (console 3 when unstated).
-    pub freestanding: bool, // Legacy build-wide assembly grant. See wiki/spec/build/permissions.md#freestanding-machine-owner-authority.
+    pub freestanding: bool, // Legacy Build setting. Per-output target/provider authority: wiki/spec/build/permissions.md#freestanding-machine-owner-authority.
     pub optimizations: OptimizationSelections, // Exact root-build optimization selections.
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
-    pub privileged_services: PrivilegedServicesGrants, // Authored granular privileged-service grants (`port_io`, `interrupt_table`).
+    pub privileged_services: PrivilegedServicesGrants, // Legacy privileged-service settings (`port_io`, `interrupt_table`).
     pub elf_interpreters: ElfInterpreterSelections, // Authored per-target ELF loader selections (`PT_INTERP`).
     pub tests_disabled: bool, // Authored `builder.tests.disabled`: registered groups stay checked but are reported disabled, never run or passed.
 }
@@ -74,8 +74,8 @@ impl ElfInterpreterSelections {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PrivilegedServicesGrants {
-    pub port_io: bool, // Admit port I/O instructions (`in`/`out` authority class).
-    pub interrupt_table: bool, // Admit interrupt-table publication instructions (`lidt` class).
+    pub port_io: bool,         // Legacy port-I/O setting (`in`/`out`).
+    pub interrupt_table: bool, // Legacy interrupt-table setting (`lidt`).
 }
 
 impl Default for EvaluatedBuildSettings {
@@ -137,7 +137,7 @@ pub(crate) fn extract_build_settings(
 ) -> Result<
     (
         EvaluatedBuildSettings,
-        optimization_core::OptimizationReportRequest,
+        optimization_requests::OptimizationReportRequest,
     ),
     String,
 > {

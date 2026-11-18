@@ -2,7 +2,7 @@
 // installed private-RAM recipes (`CheckedPrivateEntryRamRecipe`). No ordinary
 // reference receives zeroed backing inferred solely from its parameter signature.
 
-use native_artifact::TerminalRuntimeProvisions;
+use published_runtime_input::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalEstablishedErasedField, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,
@@ -10,7 +10,7 @@ use terminal_interpreter::{
 
 use super::TerminalRuntimeError;
 
-pub(super) struct EstablishedEntry {
+pub struct EstablishedEntry {
     arguments: Vec<TerminalStructuralValue>,
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
@@ -19,7 +19,7 @@ pub(super) struct EstablishedEntry {
 }
 
 impl EstablishedEntry {
-    pub(super) fn inputs(&self) -> TerminalStructuralInputs<'_> {
+    pub fn inputs(&self) -> TerminalStructuralInputs<'_> {
         TerminalStructuralInputs {
             arguments: &self.arguments,
             zero_initialized_arguments: &self.zero_initialized,
@@ -31,7 +31,7 @@ impl EstablishedEntry {
     }
 }
 
-pub(super) fn establish(
+pub fn establish(
     program: &TerminalProgram,
     installation: &terminal_interpreter::TerminalRuntimeSupplies,
     provisions: Option<&TerminalRuntimeProvisions>,
@@ -40,7 +40,7 @@ pub(super) fn establish(
         .entry_installed(installation)
         .map_err(TerminalRuntimeError::Requirements)?;
     let recipes = provisions
-        .map(TerminalRuntimeProvisions::private_entry_ram)
+        .map(|provisions| provisions.private_entry_ram())
         .unwrap_or_default();
     if !entry.scalar_parameters.is_empty() || entry.access_view_inputs().count() != recipes.len() {
         return Err(TerminalRuntimeError::missing(

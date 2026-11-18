@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 pub struct CallableFormationFailure {
     pub slot: String,
     pub implementation: SymbolHandle,
-    pub source_span: Option<source::SourceSpan>,
+    pub source_span: Option<source_text::SourceSpan>,
     pub cause: CallableFormationCause,
     pub detail: String,
 }
@@ -64,7 +64,7 @@ pub struct PreparedCompilation {
     pub forms: Vec<GenericForms>,
     pub witnesses: Vec<Checked<Elaboration>>,
     /// Exact generated machine to template correspondence, fixed by preparation.
-    pub specializations: semantic_vocabulary::IdTable<MachineId, Option<SymbolHandle>>,
+    pub specializations: arena::IdTable<MachineId, Option<SymbolHandle>>,
     /// Root selection position to its independently judged conformance module.
     pub selection_witnesses: Vec<(usize, usize)>,
 }
@@ -93,7 +93,7 @@ pub struct NominalPremiseOrigin {
     pub atom: semantic_vocabulary::PropositionId,
     pub occurrence: symbols::ParameterOccurrence,
     pub path: symbols::SymbolPath,
-    pub domain: symbols::RetainedDeclaration,
+    pub domain: source_admission::RetainedDeclaration,
 }
 
 /// An ordinary symbolic call under the complete installed source premises.
@@ -103,12 +103,12 @@ pub struct NominalPremiseOrigin {
 pub struct CallableArrivalWitness {
     /// Diagnostic label; the retained declarations and model own identity.
     pub slot: String,
-    pub semantic_schema: symbols::RetainedDeclaration,
-    pub requirement: symbols::RetainedDeclaration,
-    pub implementation: symbols::RetainedDeclaration,
+    pub semantic_schema: source_admission::RetainedDeclaration,
+    pub requirement: source_admission::RetainedDeclaration,
+    pub implementation: source_admission::RetainedDeclaration,
     /// The authenticated applied interface through which a declared conformer
     /// is called. Its member body remains a separate executable check.
-    pub callee_requirement: Option<symbols::RetainedDeclaration>,
+    pub callee_requirement: Option<source_admission::RetainedDeclaration>,
     pub elaboration: Elaboration,
     pub required_inputs: Vec<CallableInputOrigin>,
     pub supplied_inputs: Vec<CallableInputOrigin>,

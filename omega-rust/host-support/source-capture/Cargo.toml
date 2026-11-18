@@ -1,0 +1,8 @@
+[package]
+name = "source-capture"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+compiler-storage = { path = "../../psi/foundation/compiler-storage" }

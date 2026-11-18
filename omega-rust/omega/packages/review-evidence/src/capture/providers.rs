@@ -2,39 +2,40 @@
 //! A package may disclose its public requirement without installing a
 //! realization.
 
-use super::PackageReviewInput;
 use super::callables::reviewed_services;
 use super::declarations::unavailable;
+use super::input::PolicySource;
+use super::provider_rows::ProviderChoice;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash,
-    PackagePolicyInferredCrash, PackagePolicyMutation, PackagePolicyNativeBinding,
-    PackagePolicyProviderBinding, PackagePolicyProviderPlan, PackagePolicyProviderRow,
-    PackagePolicyServiceAuthority, PackagePolicyServiceMethod, PackagePolicyServiceReachDependency,
-    PackagePolicyServiceSignature, PackagePolicyTargetContext, PackagePolicyTermination,
-    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewInstallationReach,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
-};
-use backend_plan::SelectedCheckedInvocationRow;
-use build_time_evaluation::provider_declarations::{
-    ProviderSelectionIdentity, ProviderSelectionSubject,
+    PackagePolicyInferredCrash, PackagePolicyMutation, PackagePolicyProviderBinding,
+    PackagePolicyProviderPlan, PackagePolicyProviderRow, PackagePolicyServiceAuthority,
+    PackagePolicyServiceMethod, PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
+    PackagePolicyTargetContext, PackagePolicyTermination, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewCrashInterface, PackageReviewInstallationReach, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, PackageReviewSelectedInstallationReach,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation,
+    PackageReviewWriteFrameCompleteness,
 };
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
+use source_compiler::evaluation::provider_declarations::{
+    ProviderSelectionIdentity, ProviderSelectionSubject,
+};
+use source_compiler::source_state::signature::StateSignature;
+use source_compiler::source_state::trait_definition::TraitDefinition;
 use symbols::SymbolHandle;
 use target::TargetProfile;
 use terminal_psi::{
     BoundaryDeclarationRole, BoundaryMachineDeclaration, CheckedBoundaryExecution, TerminalMachine,
     UnoptimizedMachineBehavior,
 };
-use typed_trees::signature::StateSignature;
-use typed_trees::trait_definition::TraitDefinition;
 
+#[derive(Clone)]
 pub(super) struct ReviewedProviders {
     pub slots: Vec<SymbolHandle>,
     pub callables: Vec<PackagePolicyCallable>,
@@ -53,13 +54,22 @@ pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 struct AuthoredProvider<'source> {
     subject: &'source ProviderSelectionIdentity,
     provider: &'source ProviderSelectionIdentity,
+    provider_identity: String,
 }
 
 impl<'source> AuthoredProvider<'source> {
-    fn key(&self) -> (Option<PackageKeyIdentity>, &'source str, &'source str) {
+    fn key(
+        &self,
+    ) -> (
+        Option<PackageKeyIdentity>,
+        &str,
+        Option<PackageKeyIdentity>,
+        &str,
+    ) {
         (
             self.provider.package,
-            &self.provider.canonical_path,
+            &self.provider_identity,
+            self.subject.package,
             &self.subject.canonical_path,
         )
     }
@@ -80,12 +90,12 @@ impl<'module> AcceptedDeclarations<'module> {
         accepted: &'module source_compiler::AcceptedTerminalSource,
         service_origins: &'module [(ServiceId, SymbolHandle)],
         service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
-        plans: &[ProviderPlan],
+        has_providers: bool,
     ) -> Self {
         let module = accepted.module();
         let mut boundaries = module.boundary_machines.iter().collect::<Vec<_>>();
         boundaries.sort_unstable_by_key(|boundary| boundary.id);
-        let (bodies, behaviors) = if plans.is_empty() {
+        let (bodies, behaviors) = if !has_providers {
             (Vec::new(), Vec::new())
         } else {
             let mut bodies = module.machines.iter().collect::<Vec<_>>();
@@ -147,16 +157,212 @@ impl<'module> AcceptedDeclarations<'module> {
     }
 }
 
-impl PackageReviewInput<'_> {
-    pub(super) fn selected_providers(
+pub(super) struct PreparedProviders {
+    pub(super) review: ReviewedProviders,
+    choices: Vec<PreparedProvider>,
+    numeric: Option<super::numeric::PreparedNumeric>,
+    service_names: Vec<(ServiceId, PackageReviewNominalIdentity)>,
+    service_ids: Vec<(String, ServiceId)>,
+}
+
+struct PreparedProvider {
+    choice: ProviderChoice,
+    schema: PackageReviewNominalIdentity,
+    provider: PackageReviewNominalIdentity,
+    methods: Vec<PackagePolicyServiceMethod>,
+    rows: Vec<PreparedRow>,
+}
+
+struct PreparedRow {
+    canonical: String,
+    requirement: PackageReviewNominalIdentity,
+    realization: PackageReviewNominalIdentity,
+    installation_bound: bool,
+    upper_bound: Vec<ServiceId>,
+}
+
+impl PreparedProviders {
+    pub(super) fn finish(
+        &self,
+        checked: &products::CheckedCompilation,
+        target: TargetProfile,
+        actual: Vec<ProviderChoice>,
+    ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
+        let selected = checked.execution().plans();
+        let plans = selected.plans();
+        if actual.len() != self.choices.len() {
+            return Err(unavailable("the exact Build provider selection custody"));
+        }
+        let mut review = self.review.clone();
+        let mut prepared: Vec<_> = self.choices.iter().collect();
+        prepared.sort_by(|a, b| a.choice.key().cmp(&b.choice.key()));
+        if prepared
+            .windows(2)
+            .any(|pair| pair[0].choice.key() == pair[1].choice.key())
+        {
+            return Err(unavailable("the exact Build provider selection custody"));
+        }
+        let mut used = vec![false; prepared.len()];
+        for (plan, actual) in plans.iter().zip(actual) {
+            let index = prepared
+                .binary_search_by(|p| p.choice.key().cmp(&actual.key()))
+                .map_err(|_| unavailable("the exact Build provider selection custody"))?;
+            let captured = prepared[index];
+            if std::mem::replace(&mut used[index], true)
+                || !captured.choice.same_declarations(&actual)
+            {
+                return Err(unavailable("the exact Build provider selection custody"));
+            }
+            let mut rows = Vec::with_capacity(captured.rows.len());
+            let mut declarations: Vec<_> = captured.rows.iter().collect();
+            declarations.sort_unstable_by_key(|row| &row.canonical);
+            for row in &plan.rows {
+                let canonical = plan.identity_text(row.declared_requirement_identity);
+                let i = declarations
+                    .binary_search_by(|r| r.canonical.as_str().cmp(canonical))
+                    .map_err(|_| unavailable("one selected row for the exact service method"))?;
+                rows.push(declarations[i].finish(
+                    selected,
+                    plan,
+                    row,
+                    &self.service_ids,
+                    &self.service_names,
+                )?);
+            }
+            rows.sort_by(|a, b| a.requirement.cmp(&b.requirement));
+            review.plans.push(PackagePolicyProviderPlan {
+                plan_name: plan.name.clone(),
+                realizing_package: plan.origin_package_identity,
+                schema_declaration: captured.schema.clone(),
+                provider_type: captured.provider.path().to_owned(),
+                provider_type_declaration: Some(captured.provider.clone()),
+                target: plan.target.clone(),
+                methods: captured.methods.clone(),
+                rows,
+                grants: Vec::new(),
+            });
+        }
+        let mut applications = Vec::new();
+        if let Some(numeric) = &self.numeric {
+            for projected in numeric.finish(checked, target)? {
+                review.semantic_dependencies.push(projected.dependency);
+                if let Some((plan, application)) = projected.realization {
+                    review.plans.push(plan);
+                    applications.push(application);
+                }
+            }
+        }
+        review.semantic_dependencies.sort_unstable();
+        review.semantic_dependencies.dedup();
+        review
+            .plans
+            .sort_by(PackagePolicyProviderPlan::compare_canonical);
+        review.applications = applications
+            .into_iter()
+            .map(|application| application.finish(&review.plans))
+            .collect::<Result<_, _>>()?;
+        review
+            .applications
+            .sort_by(|left, right| left.application_key().cmp(&right.application_key()));
+        Ok(review)
+    }
+}
+
+impl PreparedRow {
+    fn finish(
+        &self,
+        selected: &effects::SelectedProviderPlanFacts,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+        service_ids: &[(String, ServiceId)],
+        services: &[(ServiceId, PackageReviewNominalIdentity)],
+    ) -> Result<PackagePolicyProviderRow, Vec<Diagnostic>> {
+        let ProviderBinding::CheckedAdapter {
+            machine_identity,
+            machine_package_identity,
+        } = row.binding
+        else {
+            return Err(unavailable("the selected provider's checked realization"));
+        };
+        let installation_reach =
+            self.installation_reach(selected, plan, row, service_ids, services)?;
+        if row.calling_signature.is_some() {
+            return Err(unavailable(
+                "the selected provider's complete effect or calling policy",
+            ));
+        }
+        Ok(PackagePolicyProviderRow {
+            method: row.method.clone(),
+            requirement: self.requirement.clone(),
+            requirement_application: None,
+            realization: Some(self.realization.clone()),
+            native_build: None,
+            requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
+            admitted_same_stack_bytes: row.admitted_same_stack_bytes,
+            binding: PackagePolicyProviderBinding::CheckedAdapter {
+                machine_identity: plan.identity_text(machine_identity).to_owned(),
+                machine_package_identity,
+            },
+            compiler_intrinsic_execution: None,
+            installation_reach,
+        })
+    }
+    fn installation_reach(
+        &self,
+        selected: &effects::SelectedProviderPlanFacts,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+        service_ids: &[(String, ServiceId)],
+        services: &[(ServiceId, PackageReviewNominalIdentity)],
+    ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
+        let matches = selected
+            .installation_reach_resolutions()
+            .iter()
+            .filter(|reach| {
+                reach.provider_plan_report_identity == plan.report_fingerprint()
+                    && selected.identity_text(reach.requirement_identity)
+                        == plan.identity_text(row.requirement_identity)
+            })
+            .collect::<Vec<_>>();
+        let reach = match (self.installation_bound, matches.as_slice()) {
+            (false, []) => return Ok(None),
+            (true, [reach]) => *reach,
+            _ => return Err(unavailable("the exact selected installation reach row")),
+        };
+        let project = |names: &[String]| -> Result<_, Vec<Diagnostic>> {
+            let mut ids = Vec::with_capacity(names.len());
+            for name in names {
+                let first = service_ids.partition_point(|(canonical, _)| canonical < name);
+                let last = service_ids.partition_point(|(canonical, _)| canonical <= name);
+                let [(_, id)] = &service_ids[first..last] else {
+                    return Err(unavailable(
+                        "the selected reach's exact service declaration",
+                    ));
+                };
+                ids.push(*id);
+            }
+            reviewed_services(services, &ids)
+        };
+        let upper_bound = project(&reach.upper_bound)?;
+        if upper_bound != reviewed_services(services, &self.upper_bound)? {
+            return Err(unavailable("the selected reach's published upper bound"));
+        }
+        Ok(Some(PackageReviewSelectedInstallationReach {
+            upper_bound,
+            resolved: project(&reach.resolved_row)?,
+        }))
+    }
+}
+
+impl PolicySource<'_> {
+    pub(super) fn prepare_providers(
         &self,
         package: PackageKeyIdentity,
         target: TargetProfile,
         declarations: &AcceptedDeclarations<'_>,
-        native_bindings: &[(PackagePolicyNativeBinding, PackagePolicyCallable)],
-    ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
-        let checked = self.compilation();
-        let selected = checked.execution().plans();
+        native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
+        choices: Vec<ProviderChoice>,
+    ) -> Result<PreparedProviders, Vec<Diagnostic>> {
         let service_origins = declarations.service_origins;
         let accepted = declarations.accepted;
         let module = accepted.module();
@@ -173,11 +379,17 @@ impl PackageReviewInput<'_> {
         if module.services.is_empty()
             && module.boundary_machines.is_empty()
             && module.provider_candidates.is_empty()
-            && selected.plans().is_empty()
-            && checked.build().config.provider_selections.is_empty()
+            && choices.is_empty()
+            && self.build().config.provider_selections.is_empty()
         {
             self.project_memberless_services(package, &mut review)?;
-            return Ok(review);
+            return Ok(PreparedProviders {
+                review,
+                choices: Vec::new(),
+                numeric: None,
+                service_names: Vec::new(),
+                service_ids: Vec::new(),
+            });
         }
         super::callables::validate_body_effect_inventory(module)?;
         if accepted.closure().elaboration.boundaries.len() != declarations.boundaries.len() {
@@ -186,23 +398,15 @@ impl PackageReviewInput<'_> {
             ));
         }
         let (authored, mut supplied_slots) = self.authored_providers(target)?;
-        let provider_rows =
-            backend_plan::selected_checked_invocation_rows(selected.plans(), module)
-                .map_err(|reason| unavailable(&reason))?;
-        let mut remaining = provider_rows.as_slice();
-        for plan in selected.plans() {
-            if plan.target != target.target_name() || plan.origin_package_identity != Some(package)
-            {
+        let mut providers = Vec::with_capacity(choices.len());
+        let mut provider_bodies = Vec::new();
+        for selected in choices {
+            if selected.target != target.target_name() || selected.package != Some(package) {
                 return Err(unavailable(
                     "the selected provider's exact package and deployment",
                 ));
             }
-            let key = (
-                plan.origin_package_identity,
-                plan.provider_type.as_str(),
-                plan.schema
-                    .identity_text(plan.schema.declaration.trait_name),
-            );
+            let key = selected.key();
             let first = authored.partition_point(|choice| choice.key() < key);
             let last = authored.partition_point(|choice| choice.key() <= key);
             let [choice] = &authored[first..last] else {
@@ -210,17 +414,14 @@ impl PackageReviewInput<'_> {
                     "the plan's exact authored provider and service selection",
                 ));
             };
-            // The backend returns each plan's checked rows contiguously.
-            let count = remaining
-                .iter()
-                .take_while(|row| std::ptr::eq(row.plan, plan))
-                .count();
-            let (plan_rows, rest) = remaining.split_at(count);
-            remaining = rest;
-            let projected =
-                self.project_provider(declarations, plan, choice, plan_rows, &mut review)?;
+            provider_bodies.extend(
+                selected
+                    .rows
+                    .iter()
+                    .flat_map(|row| row.candidates.iter().map(|&(_, body)| body)),
+            );
+            providers.push(self.prepare_provider(declarations, selected, choice, &mut review)?);
             review.slots.push(choice.subject.symbol);
-            review.plans.push(projected);
         }
         review.boundaries.sort_unstable();
         review
@@ -240,25 +441,9 @@ impl PackageReviewInput<'_> {
         }
         // Canonical numeric declarations obtain execution from the target,
         // independently of the Build's authored provider selections.
-        let mut numeric_applications = Vec::new();
-        let roots = accepted
-            .entry()
-            .into_iter()
-            .chain(provider_rows.iter().flat_map(|row| {
-                row.candidates
-                    .iter()
-                    .map(|candidate| candidate.conformance.candidate)
-            }));
-        for numeric in super::numeric::project(self, accepted, target, roots)? {
-            review.boundaries.push(numeric.boundary);
-            review.semantic_dependencies.push(numeric.dependency);
-            if let Some((plan, application)) = numeric.realization {
-                review.plans.push(plan);
-                numeric_applications.push(application);
-            }
-        }
-        review.semantic_dependencies.sort_unstable();
-        review.semantic_dependencies.dedup();
+        let numeric = super::numeric::prepare(self, target, provider_bodies)?;
+        review.boundaries.extend(numeric.boundaries());
+        review.boundaries.sort_unstable();
         self.project_remaining_requirements(
             package,
             declarations,
@@ -292,17 +477,26 @@ impl PackageReviewInput<'_> {
                 "the accepted module's complete boundary/service inventory",
             ));
         }
-        review
-            .plans
-            .sort_by(PackagePolicyProviderPlan::compare_canonical);
-        review.applications = numeric_applications
-            .into_iter()
-            .map(|application| application.finish(&review.plans))
-            .collect::<Result<Vec<_>, _>>()?;
-        review
-            .applications
-            .sort_by(|left, right| left.application_key().cmp(&right.application_key()));
-        Ok(review)
+        let mut service_ids = Vec::new();
+        if providers
+            .iter()
+            .any(|provider| provider.rows.iter().any(|row| row.installation_bound))
+        {
+            service_ids.extend(module.services.iter().filter_map(|service| {
+                module
+                    .identities
+                    .text(service.identity)
+                    .map(|name| (name.to_owned(), service.id))
+            }));
+            service_ids.sort_unstable();
+        }
+        Ok(PreparedProviders {
+            service_ids,
+            review,
+            choices: providers,
+            numeric: Some(numeric),
+            service_names: declarations.service_names.to_vec(),
+        })
     }
 
     fn project_remaining_requirements(
@@ -310,13 +504,13 @@ impl PackageReviewInput<'_> {
         package: PackageKeyIdentity,
         declarations: &AcceptedDeclarations<'_>,
         service_origins: &[(ServiceId, SymbolHandle)],
-        native_bindings: &[(PackagePolicyNativeBinding, PackagePolicyCallable)],
+        native_bindings: &[(PackagePolicyServiceMethod, PackagePolicyCallable)],
         review: &mut ReviewedProviders,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         let mut native_owners = native_bindings
             .iter()
-            .map(|(binding, _)| binding.method.requirement_owner())
+            .map(|(method, _)| method.requirement_owner())
             .collect::<Vec<_>>();
         native_owners.sort_unstable();
         native_owners.dedup();
@@ -390,7 +584,7 @@ impl PackageReviewInput<'_> {
                     .ok_or_else(|| unavailable("one exact public service requirement"))?;
                 let identity = self.nominal(original)?;
                 let callable = match native_bindings
-                    .binary_search_by(|(binding, _)| binding.method.requirement.cmp(&identity))
+                    .binary_search_by(|(method, _)| method.requirement.cmp(&identity))
                 {
                     Ok(index) => native_bindings[index].1.clone(),
                     Err(_) if publish_trait => {
@@ -475,8 +669,7 @@ impl PackageReviewInput<'_> {
         &self,
         target: TargetProfile,
     ) -> Result<(Vec<AuthoredProvider<'_>>, Vec<SymbolHandle>), Vec<Diagnostic>> {
-        let compilation = self.compilation();
-        let roster = compilation.terminal_publication().roster()?;
+        let roster = self.publication.roster()?;
         let mut supplies = roster
             .supplies
             .iter()
@@ -485,7 +678,7 @@ impl PackageReviewInput<'_> {
         supplies.sort_unstable();
         let mut authored = Vec::new();
         let mut supplied_slots = Vec::new();
-        for selection in &compilation.build().config.provider_selections {
+        for selection in &self.build().config.provider_selections {
             let ProviderSelectionSubject::BoundaryTrait(subject) = &selection.subject else {
                 return Err(unavailable("the complete Build provider selection"));
             };
@@ -503,23 +696,40 @@ impl PackageReviewInput<'_> {
                 .target
                 .is_none_or(|selected| selected.canonical_name() == target.target_name())
             {
-                authored.push(AuthoredProvider { subject, provider });
+                let typed = self.typed();
+                for selected in [subject, provider] {
+                    if typed.symbols.symbol_package_identity(selected.symbol) != selected.package
+                        || typed.symbols.display_path(selected.symbol, "::")
+                            != selected.canonical_path
+                    {
+                        return Err(unavailable("the exact Build provider selection custody"));
+                    }
+                }
+                // Terminal identifies the selected provider by the hermetic identity
+                // of the exact declaration. The Build also retains its nominal path.
+                let provider_identity = typed
+                    .normalized_hermetic_symbol_identity(provider.symbol)
+                    .map_err(|reason| unavailable(&reason))?;
+                authored.push(AuthoredProvider {
+                    subject,
+                    provider,
+                    provider_identity,
+                });
             }
         }
-        authored.sort_unstable_by_key(AuthoredProvider::key);
+        authored.sort_unstable_by(|left, right| left.key().cmp(&right.key()));
         Ok((authored, supplied_slots))
     }
 
-    fn project_provider(
+    fn prepare_provider(
         &self,
         declarations: &AcceptedDeclarations<'_>,
-        plan: &ProviderPlan,
+        plan: ProviderChoice,
         choice: &AuthoredProvider<'_>,
-        provider_rows: &[SelectedCheckedInvocationRow<'_, '_>],
         review: &mut ReviewedProviders,
-    ) -> Result<PackagePolicyProviderPlan, Vec<Diagnostic>> {
+    ) -> Result<PreparedProvider, Vec<Diagnostic>> {
         let source = self.typed();
-        if provider_rows.len() != plan.rows.len() {
+        if plan.rows.len() != plan.method_count {
             return Err(unavailable(
                 "one complete checked installation for the selected provider",
             ));
@@ -530,7 +740,7 @@ impl PackageReviewInput<'_> {
             .ok_or_else(|| unavailable("the selected provider's declared service"))?;
         let methods = source.trait_machine_signatures(service);
         let package = plan
-            .origin_package_identity
+            .package
             .ok_or_else(|| unavailable("the selected provider's package"))?;
         let schema_declaration = self.nominal(service.symbol)?;
         let service_package = choice
@@ -540,7 +750,7 @@ impl PackageReviewInput<'_> {
         let local_service = service_package == package;
         if !closed_service(source, service)
             || methods.len() != plan.schema.declaration.methods.len()
-            || methods.len() != plan.rows.len()
+            || methods.len() != plan.method_count
             || schema_declaration.owner != PackageReviewNominalOwner::Package(service_package)
             || !self.owns(service.symbol, service_package)?
             || (!local_service && !service.is_public)
@@ -560,14 +770,10 @@ impl PackageReviewInput<'_> {
         let declaration_symbols = &declarations.accepted.closure().elaboration.boundaries;
         let mut signatures = methods.iter().collect::<Vec<_>>();
         signatures.sort_unstable_by_key(|signature| symbol_key(signature.symbol));
-        let row_identity = |row: &SelectedCheckedInvocationRow<'_, '_>| {
-            plan.identity_text(row.row.declared_requirement_identity)
-        };
-        let mut provider_rows = provider_rows.iter().collect::<Vec<_>>();
-        provider_rows.sort_unstable_by_key(|row| row_identity(row));
+        let provider_rows = &plan.rows;
         if provider_rows
             .windows(2)
-            .any(|pair| row_identity(pair[0]) == row_identity(pair[1]))
+            .any(|pair| pair[0].requirement == pair[1].requirement)
         {
             return Err(unavailable("one selected row for the exact service method"));
         }
@@ -577,18 +783,17 @@ impl PackageReviewInput<'_> {
         for method in &plan.schema.declaration.methods {
             let canonical = plan.schema.identity_text(method.requirement_identity);
             let index = provider_rows
-                .binary_search_by_key(&canonical, |row| row_identity(row))
+                .binary_search_by(|row| row.requirement.as_str().cmp(canonical))
                 .map_err(|_| unavailable("one selected row for the exact service method"))?;
-            let selected = provider_rows[index];
-            let [candidate] = selected.candidates.as_slice() else {
+            let selected = &provider_rows[index];
+            let &[(boundary_id, candidate)] = selected.candidates.as_slice() else {
                 return Err(unavailable(
                     "one complete checked installation for the selected provider",
                 ));
             };
-            let candidate = candidate.conformance;
             let index = declarations
                 .boundaries
-                .binary_search_by_key(&candidate.boundary, |boundary| boundary.id)
+                .binary_search_by_key(&boundary_id, |boundary| boundary.id)
                 .map_err(|_| unavailable("the accepted service requirement contract"))?;
             let boundary = declarations.boundaries[index];
             let service_id = boundary
@@ -607,11 +812,11 @@ impl PackageReviewInput<'_> {
                 return Err(unavailable("one exact authored service requirement"));
             }
             let requirement = self.nominal(signature.symbol)?;
-            let row = self.checked_row(
+            let row = self.prepare_row(
                 declarations,
-                plan,
-                selected.row,
-                candidate.candidate,
+                canonical,
+                signature.service_reach_is_installation_bound,
+                candidate,
                 boundary,
                 requirement.clone(),
             )?;
@@ -647,100 +852,24 @@ impl PackageReviewInput<'_> {
                 public_requirements,
             ));
         }
-        rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
-        Ok(PackagePolicyProviderPlan {
-            plan_name: plan.name.clone(),
-            realizing_package: plan.origin_package_identity,
-            schema_declaration,
-            provider_type: plan.provider_type.clone(),
-            provider_type_declaration: Some(provider_type_declaration),
-            target: plan.target.clone(),
+        Ok(PreparedProvider {
+            choice: plan,
+            schema: schema_declaration,
+            provider: provider_type_declaration,
             methods: projected_methods,
             rows,
-            grants: Vec::new(),
         })
     }
 
-    fn checked_installation_reach(
+    fn prepare_row(
         &self,
         declarations: &AcceptedDeclarations<'_>,
-        plan: &ProviderPlan,
-        row: &ProviderPlanRow,
-        boundary: &BoundaryMachineDeclaration,
-    ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
-        let source = declarations
-            .accepted
-            .closure()
-            .elaboration
-            .boundaries
-            .get(boundary.id)
-            .and_then(|symbol| self.typed().trait_machine_signature(*symbol))
-            .ok_or_else(|| unavailable("the installation reach requirement declaration"))?;
-        let selected = self.compilation().execution().plans();
-        let matches = selected
-            .installation_reach_resolutions()
-            .iter()
-            .filter(|reach| {
-                reach.provider_plan_report_identity == plan.report_fingerprint()
-                    && selected.identity_text(reach.requirement_identity)
-                        == plan.identity_text(row.requirement_identity)
-            })
-            .collect::<Vec<_>>();
-        let reach = match (
-            source.1.service_reach_is_installation_bound,
-            matches.as_slice(),
-        ) {
-            (false, []) => return Ok(None),
-            (true, [reach]) => *reach,
-            _ => return Err(unavailable("the exact selected installation reach row")),
-        };
-        let module = declarations.accepted.module();
-        let project = |names: &[String]| -> Result<_, Vec<Diagnostic>> {
-            let mut ids = Vec::with_capacity(names.len());
-            for name in names {
-                let mut matches = module.services.iter().filter(|service| {
-                    module.identities.text(service.identity) == Some(name.as_str())
-                });
-                let service = matches
-                    .next()
-                    .filter(|_| matches.next().is_none())
-                    .ok_or_else(|| unavailable("the selected reach's exact service declaration"))?;
-                ids.push(service.id);
-            }
-            reviewed_services(declarations.service_names, &ids)
-        };
-        let upper_bound = project(&reach.upper_bound)?;
-        if upper_bound
-            != reviewed_services(
-                declarations.service_names,
-                &boundary.published_service_ceiling,
-            )?
-        {
-            return Err(unavailable("the selected reach's published upper bound"));
-        }
-        Ok(Some(PackageReviewSelectedInstallationReach {
-            upper_bound,
-            resolved: project(&reach.resolved_row)?,
-        }))
-    }
-
-    fn checked_row(
-        &self,
-        declarations: &AcceptedDeclarations<'_>,
-        plan: &ProviderPlan,
-        row: &ProviderPlanRow,
+        canonical: &str,
+        installation_bound: bool,
         candidate: MachineId,
         boundary: &BoundaryMachineDeclaration,
         requirement: PackageReviewNominalIdentity,
-    ) -> Result<PackagePolicyProviderRow, Vec<Diagnostic>> {
-        let ProviderBinding::CheckedAdapter {
-            machine_identity,
-            machine_package_identity,
-        } = row.binding
-        else {
-            return Err(unavailable("the selected provider's checked realization"));
-        };
-        let callable = plan.identity_text(machine_identity);
+    ) -> Result<PreparedRow, Vec<Diagnostic>> {
         let index = declarations
             .bodies
             .binary_search_by_key(&candidate, |body| body.id)
@@ -767,8 +896,6 @@ impl PackageReviewInput<'_> {
         // The selected method publishes both ceilings. The exact checked
         // realization may use a subset of each, regardless of whether the
         // reach ceiling is fixed or settled at installation.
-        let installation_reach =
-            self.checked_installation_reach(declarations, plan, row, boundary)?;
         let outside_reach = reach
             .iter()
             .chain(&body.contract.published_service_ceiling)
@@ -794,26 +921,17 @@ impl PackageReviewInput<'_> {
             || !body.contract.crash_routes.is_empty()
             || body.contract.published_may_block
             || body.contract.published_may_suspend
-            || row.calling_signature.is_some()
         {
             return Err(unavailable(
                 "the selected provider's complete effect or calling policy",
             ));
         }
-        Ok(PackagePolicyProviderRow {
-            method: row.method.clone(),
+        Ok(PreparedRow {
+            canonical: canonical.to_owned(),
             requirement,
-            requirement_application: None,
-            realization: Some(self.nominal(realization)?),
-            native_build: None,
-            requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
-            admitted_same_stack_bytes: row.admitted_same_stack_bytes,
-            binding: PackagePolicyProviderBinding::CheckedAdapter {
-                machine_identity: callable.to_owned(),
-                machine_package_identity,
-            },
-            compiler_intrinsic_execution: None,
-            installation_reach,
+            realization: self.nominal(realization)?,
+            installation_bound,
+            upper_bound: boundary.published_service_ceiling.clone(),
         })
     }
 
@@ -1042,7 +1160,7 @@ impl PackageReviewInput<'_> {
             .iter()
             .map(|parameter| {
                 use crate::record::PackagePolicyTypeParameterKind as Kind;
-                use typed_trees::data::TypeParameterKind as Source;
+                use source_compiler::source_state::data::TypeParameterKind as Source;
                 let kind = match parameter.kind {
                     Source::Type => Kind::Type,
                     Source::Const { type_reference } => {
@@ -1153,7 +1271,10 @@ impl PackageReviewInput<'_> {
     }
 }
 
-fn closed_service(source: &typed_trees::TypedTrees, service: &TraitDefinition) -> bool {
+fn closed_service(
+    source: &source_compiler::source_state::TypedTrees,
+    service: &TraitDefinition,
+) -> bool {
     service.is_boundary
         && service.lifetime_parameters.is_empty()
         && service.conformance_bounds.is_empty()
@@ -1232,6 +1353,7 @@ pub(super) fn service_method_policy(
         result_type_identity: method
             .has_result
             .then(|| schema.identity_text(method.result_type_identity).to_owned()),
+        normal_result_memberships: method.normal_result_memberships.clone(),
         result_claims: method.result_claims.clone(),
         service_reach: method.service_reach.clone(),
         synchronous_invocations: method.synchronous_invocations.clone(),

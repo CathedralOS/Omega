@@ -75,12 +75,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Source preparation scans unchanged declarations twice
-- Category: Re-deriving
-- Where: [request preparation](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L457), [continuation completion](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L1276)
-- Saw: `evaluate_or_defer_recorded` inventories all source-evaluation requests, constructs empty accounting, then calls `evaluate`, which immediately inventories them again. Recording refusal rows changes neither scan's inputs. `complete_authored` repeats this for each retained continuation; each inventory also visits operand owners when requests exist.
-- Cost: Source preparation repeats whole-program walks without new source to inspect. A short sample of the original Console compilation caught this path; its share of the total run time is unmeasured. Prepare the inventory once per typed-source revision and pass it to the existing consumers, preserving authority checks and refusal of unevaluated work. Body completion changes the source and needs a fresh inventory.
-- Reported: 2026-11-17, Codex, while tracing the original Console compilation before its indexed-count failure
+### Focused compiler checks rebuild the implementation three times
+- Category: Verifying costs more than writing
+- Where: [source-compiler unit tests](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/source_selection_publication.rs#L1985), [integration-test feature](omega-rust/omega/compilation/compiler/Cargo.toml#L107), [source-compiler feature](omega-rust/psi/compilation/pipeline/01_source-compilation/Cargo.toml#L8)
+- Saw: One machine-type identity repair rebuilt `source-compiler` as its unit-test executable, as a library with `test-support` for a compiler integration test, and as the default library for the CLI. The three Rust builds took 13m39s, 10m29s and 11m06s; the four selected tests themselves took 21.098 seconds.
+- Cost: A narrow validation cycle spends over 35 minutes rebuilding before the original program can run. Let small test targets consume the same optimized implementation as the CLI. Measure a warm test-only edit and a production edit, retaining the tests' real compilation and publication paths.
+- Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
+
+### Native failure reports discard the instruction context
+- Category: Verifying costs more than writing
+- Where: [operand errors](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/machine_effects.rs#L946), [compile and retention order](omega-rust/omega/application/src/execution/mod.rs#L201)
+- Saw: The stored-machine program failed with only `SelectedInstructionId(4)`. That number is local to a function, but the error drops the function, instruction kind, operands and expected constraint. Failed compilation returns before artifact retention, and the temporary directory is removed.
+- Cost: Finding the failed instruction can require repeating the 175-second compilation. Preserve the available instruction and constraint context in the error, or retain the failed stage input for debugging.
+- Reported: 2026-11-17, Codex, while repairing native calls through stored machines
+
 
 ### Capture comparisons leave their time scope implicit
 - Category: A verdict with nothing behind it
@@ -88,14 +96,6 @@ framework or a list of unimplemented features.
 - Saw: Captured paths record static `(BlockId, u32)` positions. `Backing::same_single_region` and `Backing::definitely_contains` compare those paths without receiving an entry version. Lifetime and whole-value consumption checks live elsewhere; a static position alone does not distinguish separate loop entries.
 - Cost: Reviewers must trace each caller to establish which execution the comparison covers. A loop that retires a binding and changes its index at the same capture point remains unverified; no accepted invalid program was observed. Make that time-scope premise explicit in the comparison API or establish one common caller rule.
 - Reported: 2026-11-17, Codex, while checking reference transport through nested-machine loops
-
-### Typed conversion leaves operand formation as an implicit caller obligation
-- Category: A verdict with nothing behind it
-- Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
-- Saw: Conversion accepts raw term handles and checks their shared type; callers must separately establish the operands' types. A lambda annotation `((λ z:Empty. Two) TwoZero)` was accepted because reduction hid its ill-typed argument. The local lambda check is repaired here, but the conversion API still carries no evidence of those operand premises.
-- Cost: Another caller can repeat the same omission. Reviewers must trace operand formation through each conversion call instead of seeing the required premises at its interface.
-- Reported: 2026-11-17, Codex, while repairing the table's pair-certificate checking cost
-
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
@@ -128,13 +128,6 @@ framework or a list of unimplemented features.
 - Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
-
-### Emission libraries still name earlier stage outputs
-- Category: knowledge crossing a boundary
-- Where: [emission facts](omega-rust/omega/compilation/backend/machine-emission/src/emission_facts.rs), [function realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
-- Saw: Fragment emission no longer keeps stage 02's output, and machine emission no longer depends on stages 05 to 09: it reads stage 09's output as `machine_code::OptimizedMachineLayout` and runs stage validators only through the `FunctionStageAudit` the driver attaches. Two reaches remain. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side.
-- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes. The [Atlas extra-arrow audit](atlas/plans/foundation-and-backend.md#start-with-the-extra-arrows) rechecks these mechanisms at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f` and links related source/evaluation, handler, generated-code and verifier repairs. Its contracts remain plan-first work for one coordinated cutover; consult the current plan before restructuring these routes.
-- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output, and by pi after machine emission stopped naming stages 05 to 09.
 
 ### Borrowed field recasts lose the target carrier layout of the enclosing record
 - Category: re-deriving

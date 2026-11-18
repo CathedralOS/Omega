@@ -18,7 +18,7 @@ pub struct ProjectRoots {
 
 pub fn project_roots(
     root_path: &std::path::Path,
-    filesystem: &source::SourceFileSystem,
+    filesystem: &source_capture::SourceFileSystem,
 ) -> ProjectRoots {
     if filesystem.is_dir(root_path) {
         return directory_project_roots(root_path, filesystem);
@@ -52,7 +52,7 @@ pub fn project_roots(
 
 fn directory_project_roots(
     directory: &std::path::Path,
-    filesystem: &source::SourceFileSystem,
+    filesystem: &source_capture::SourceFileSystem,
 ) -> ProjectRoots {
     let mut roots = Vec::new();
     let mut build = None;
@@ -83,14 +83,17 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
 }
 
 pub(crate) struct ProjectSourceSelection {
-    sources: Vec<(std::path::PathBuf, source::DependencyScope)>,
+    sources: Vec<(
+        std::path::PathBuf,
+        declaration_contracts::source_identity::DependencyScope,
+    )>,
     build_path: Option<std::path::PathBuf>,
 }
 
 impl ProjectSourceSelection {
     pub fn prepare(
         root_path: &std::path::Path,
-        filesystem: &source::SourceFileSystem,
+        filesystem: &source_capture::SourceFileSystem,
     ) -> Result<Self, Vec<Diagnostic>> {
         let roots = project_roots(root_path, filesystem);
         let build_path = roots
@@ -111,9 +114,9 @@ impl ProjectSourceSelection {
             .map(|path| {
                 let canonical = filesystem.canonicalize(&path).ok();
                 let scope = if canonical.is_some() && canonical == build_path {
-                    source::DependencyScope::Build
+                    declaration_contracts::source_identity::DependencyScope::Build
                 } else {
-                    source::DependencyScope::Product
+                    declaration_contracts::source_identity::DependencyScope::Product
                 };
                 (path, scope)
             })
@@ -124,14 +127,19 @@ impl ProjectSourceSelection {
         })
     }
 
-    pub fn sources(&self) -> &[(std::path::PathBuf, source::DependencyScope)] {
+    pub fn sources(
+        &self,
+    ) -> &[(
+        std::path::PathBuf,
+        declaration_contracts::source_identity::DependencyScope,
+    )] {
         &self.sources
     }
 
     pub fn build_source_id(
         &self,
         storage: &SourceStorage,
-    ) -> Result<Option<source::SourceId>, Vec<Diagnostic>> {
+    ) -> Result<Option<source_text::SourceId>, Vec<Diagnostic>> {
         self.build_path
             .as_deref()
             .map(|selected| {
@@ -143,7 +151,8 @@ impl ProjectSourceSelection {
                             .filesystem
                             .canonicalize(&file.path)
                             .is_ok_and(|loaded| loaded == selected)
-                            && file.dependency_scope == source::DependencyScope::Build
+                            && file.dependency_scope
+                                == declaration_contracts::source_identity::DependencyScope::Build
                     })
                     .map(|file| file.source_id)
                     .ok_or_else(|| {

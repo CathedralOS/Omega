@@ -1,0 +1,21 @@
+//! Settle the provider values the accepted Psi program actually chooses.
+//!
+//! Source selection and Build-over-default precedence finish before judgment.
+//! This owner consumes canonical service schemas, selected declaration values,
+//! proved candidate rows and actual native execution inputs. Retained code and
+//! schemas are not invocation roots; the caller supplies the reached boundaries.
+
+mod plan_realization;
+mod realized_supply;
+
+pub use plan_realization::{
+    TargetSupplyExecutionInputs, TargetSupplyRealizationError, TargetSupplyRealizationRequest,
+    realize_target_supply,
+};
+pub use realized_supply::{
+    ProviderPlanRealizationInput, RealizedTargetSupply, SelectedProviderRealization,
+    TargetSupplyRealizationInput,
+};
+
+mod installation_reach;
+pub use installation_reach::{NormalizedNativeSupplies, NormalizedNativeSupply};

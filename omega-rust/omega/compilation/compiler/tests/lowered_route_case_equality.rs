@@ -21,8 +21,8 @@ mod fixture_package_inputs;
 #[path = "support/joined_product_execution.rs"]
 mod joined_product_execution;
 
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees_to_terminal_psi::{Compilation, elaborate};
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -47,7 +47,7 @@ fn frontier_verdict(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerd
 
 fn frontier_elaboration(
     frontier: &compiler::TypedFrontier,
-) -> terminal_check_tables::Checked<typed_trees_to_terminal_psi::Elaboration> {
+) -> terminal_check_tables::Checked<source_compiler::lowering::Elaboration> {
     elaborate(
         &frontier.typed,
         Compilation {
@@ -60,7 +60,7 @@ fn frontier_elaboration(
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
             supplies: &[],
@@ -168,7 +168,9 @@ fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
 
 #[test]
 fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+    use source_compiler::source_state::expression::{
+        BinaryOperator, ExpressionNode, TableBinaryExpression,
+    };
 
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
@@ -246,7 +248,8 @@ fn enum_comparison_observes_each_operand_once_in_native_and_psi() {
         retain_native_stage_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

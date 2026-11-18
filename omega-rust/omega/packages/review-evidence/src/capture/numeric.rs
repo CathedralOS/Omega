@@ -1,10 +1,9 @@
-//! Review canonical numeric calls through the same declaration and target
-//! realization checks as native production. They are not authored Build
+//! Review canonical numeric calls through the target plans retained for this package. They are not authored Build
 //! selections. The intrinsic execution retains their complete catalog meaning;
 //! source custody and the full checked contract must agree before projection.
 
-use super::PackageReviewInput;
 use super::declarations::unavailable;
+use super::input::PolicySource;
 use crate::record::{
     PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryRealization,
     PackagePolicyProviderBinding, PackagePolicyProviderPlan, PackagePolicyProviderRow,
@@ -13,14 +12,13 @@ use crate::record::{
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, TargetMachineCallable};
-use target::TargetProfile;
-use typed_trees::declarations::intrinsic_requirements::{
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use source_compiler::source_state::declarations::intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind,
 };
+use target::TargetProfile;
 
 pub(super) struct Projection {
-    pub boundary: BoundaryMachineId,
     pub dependency: crate::record::PackagePolicySemanticDependency,
     pub realization: Option<(PackagePolicyProviderPlan, Application)>,
 }
@@ -63,12 +61,31 @@ impl Application {
     }
 }
 
-pub(super) fn project(
-    input: &PackageReviewInput<'_>,
-    accepted: &source_compiler::AcceptedTerminalSource,
+/// Source declarations and source-owned signatures needed by the reached numeric methods.
+pub(super) struct PreparedNumeric {
     target: TargetProfile,
-    roots: impl IntoIterator<Item = MachineId>,
-) -> Result<Vec<Projection>, Vec<Diagnostic>> {
+    declarations: Vec<NumericDeclaration>,
+    demanded: usize,
+}
+
+struct NumericDeclaration {
+    boundary: BoundaryMachineId,
+    dependency: crate::record::PackagePolicySemanticDependency,
+    method: Option<NumericMethod>,
+}
+
+struct NumericMethod {
+    identity: String,
+    coordinate: PackageReviewOperatorCoordinate,
+    signature: PackagePolicyServiceSignature,
+}
+
+pub(super) fn prepare(
+    input: &PolicySource<'_>,
+    target: TargetProfile,
+    provider_bodies: impl IntoIterator<Item = MachineId>,
+) -> Result<PreparedNumeric, Vec<Diagnostic>> {
+    let accepted = input.accepted();
     let module = accepted.module();
     let numeric = module
         .boundary_machines
@@ -79,67 +96,17 @@ pub(super) fn project(
             })
         })
         .collect::<Vec<_>>();
-    if numeric.is_empty() {
-        return Ok(Vec::new());
-    }
-    // Declaration checking does not deploy a reusable library's unused bodies.
-    // The existing call closure includes normal and tail calls. If an indirect
-    // route prevents an exact closure, retain every numeric demand conservatively.
-    let roots = roots.into_iter().collect::<Vec<_>>();
-    let reached = if roots.is_empty() {
-        Some(Vec::new())
+    // Bind the review roster back to the exact entry and provider bodies the
+    // package owns. No provider choice or ABI plan is made during inspection.
+    let demanded = if numeric.is_empty() {
+        Vec::new()
     } else {
-        accepted.closure().elaboration.call_closure(roots)
+        accepted
+            .retained_package_review_numeric_requirements(provider_bodies)
+            .map_err(unavailable)?
     };
-    let demanded = reached
-        .map(|machines| {
-            let mut boundaries = Vec::new();
-            for machine in machines {
-                let tables = accepted
-                    .closure()
-                    .elaboration
-                    .tables
-                    .machines
-                    .get(machine)
-                    .ok_or_else(|| unavailable("the reached machine's checked call inventory"))?;
-                for call in tables.invocations.values() {
-                    if let terminal_check_tables::edges::Callee::Declared(
-                        TargetMachineCallable::Boundary(boundary),
-                    ) = call.callee
-                    {
-                        boundaries.push(boundary);
-                    }
-                }
-            }
-            boundaries.sort_unstable();
-            boundaries.dedup();
-            Ok::<_, Vec<Diagnostic>>(boundaries)
-        })
-        .transpose()?;
-    let schemas = provider_planning::compiler_primitive_schemas(module)
-        .map_err(|reason| unavailable(&reason))?;
-    let mut leaves = provider_planning::direct_compiler_primitive_leaves(
-        module,
-        &schemas,
-        target.target_name(),
-        numeric
-            .iter()
-            .filter(|boundary| {
-                demanded
-                    .as_ref()
-                    .is_none_or(|demanded| demanded.binary_search(&boundary.id).is_ok())
-            })
-            .map(|boundary| boundary.id),
-    )?;
-    leaves.sort_unstable_by(|left, right| left.callable_identity.cmp(&right.callable_identity));
-    if leaves
-        .windows(2)
-        .any(|pair| pair[0].callable_identity == pair[1].callable_identity)
-    {
-        return Err(unavailable("one exact numeric target realization"));
-    }
     let typed = input.typed();
-    let mut projected = Vec::with_capacity(numeric.len());
+    let mut declarations = Vec::with_capacity(numeric.len());
     for boundary in numeric {
         let original = *accepted
             .closure()
@@ -211,23 +178,126 @@ pub(super) fn project(
             exposure: crate::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
             kind: crate::record::PackageReviewSemanticDependencyKind::NominalIdentity,
         };
-        if demanded
-            .as_ref()
-            .is_some_and(|demanded| demanded.binary_search(&boundary.id).is_err())
-        {
-            projected.push(Projection {
+        if demanded.binary_search(&boundary.id).is_err() {
+            declarations.push(NumericDeclaration {
                 boundary: boundary.id,
                 dependency,
-                realization: None,
+                method: None,
             });
             continue;
         }
-        let index = leaves
-            .binary_search_by(|leaf| leaf.callable_identity.as_str().cmp(identity))
-            .map_err(|_| unavailable("the numeric declaration's target realization"))?;
-        let leaf = &leaves[index];
-        leaf.validate_bound_calling_custody(module)
-            .map_err(|reason| unavailable(&reason))?;
+        let parameters = requirement
+            .parameters
+            .iter()
+            .map(|parameter| {
+                Ok(PackageReviewSignatureParameter {
+                    name: parameter.name.as_str().to_owned(),
+                    type_identity: input
+                        .type_identity_for_private_contract(parameter.type_reference)?,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let result = input.type_identity_for_private_contract(requirement.return_type)?;
+        declarations.push(NumericDeclaration {
+            boundary: boundary.id,
+            dependency,
+            method: Some(NumericMethod {
+                identity: identity.to_owned(),
+                coordinate,
+                signature: PackagePolicyServiceSignature {
+                    schema_arguments: Vec::new(),
+                    schema_lifetime_parameter_count: 0,
+                    schema_lifetime_arguments: Vec::new(),
+                    application_lifetime_parameter_count: 0,
+                    requirement_arguments: Vec::new(),
+                    requirement_lifetime_arguments: Vec::new(),
+                    requirement_lifetime_parameter_count: 0,
+                    static_parameters: Vec::new(),
+                    parameters,
+                    result: Some(result),
+                },
+            }),
+        });
+    }
+    if declarations
+        .iter()
+        .filter(|row| row.method.is_some())
+        .count()
+        != demanded.len()
+    {
+        return Err(unavailable("one exact numeric target realization"));
+    }
+    Ok(PreparedNumeric {
+        target,
+        declarations,
+        demanded: demanded.len(),
+    })
+}
+
+impl PreparedNumeric {
+    pub(super) fn boundaries(&self) -> impl Iterator<Item = BoundaryMachineId> + '_ {
+        self.declarations.iter().map(|row| row.boundary)
+    }
+
+    pub(super) fn finish(
+        &self,
+        checked: &products::CheckedCompilation,
+        target: TargetProfile,
+    ) -> Result<Vec<Projection>, Vec<Diagnostic>> {
+        if target != self.target || checked.execution().target_profile() != Some(target) {
+            return Err(unavailable("the numeric declaration's target realization"));
+        }
+        let leaves: &[backend_plan::package_review::ReviewedNumericBinding] =
+            match checked.execution().package_review() {
+                Some(reviewed) => reviewed.numeric.as_ref().map_err(Clone::clone)?,
+                None if self.demanded == 0 => &[],
+                None => return Err(unavailable("the numeric declaration's target realization")),
+            };
+        if leaves.len() != self.demanded {
+            return Err(unavailable("one exact numeric target realization"));
+        }
+        self.declarations
+            .iter()
+            .map(|row| {
+                let realization = row
+                    .method
+                    .as_ref()
+                    .map(|method| {
+                        let index = leaves
+                            .binary_search_by(|binding| {
+                                binding.leaf().callable_identity.cmp(&method.identity)
+                            })
+                            .map_err(|_| {
+                                unavailable("the numeric declaration's target realization")
+                            })?;
+                        let binding = &leaves[index];
+                        if binding.boundary() != row.boundary
+                            || binding.leaf().plan.target != target.target_name()
+                        {
+                            return Err(unavailable(
+                                "the numeric declaration's target realization",
+                            ));
+                        }
+                        method.realize(binding.leaf(), target)
+                    })
+                    .transpose()?;
+                Ok(Projection {
+                    dependency: row.dependency.clone(),
+                    realization,
+                })
+            })
+            .collect()
+    }
+}
+
+impl NumericMethod {
+    fn realize(
+        &self,
+        leaf: &backend_plan::DirectBoundaryLeaf,
+        target: TargetProfile,
+    ) -> Result<(PackagePolicyProviderPlan, Application), Vec<Diagnostic>> {
         let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
         else {
             return Err(unavailable(
@@ -245,23 +315,10 @@ pub(super) fn project(
         else {
             return Err(unavailable("the numeric method's intrinsic binding"));
         };
-        let parameters = requirement
-            .parameters
-            .iter()
-            .map(|parameter| {
-                Ok(PackageReviewSignatureParameter {
-                    name: parameter.name.as_str().to_owned(),
-                    type_identity: input
-                        .type_identity_for_private_contract(parameter.type_reference)?,
-                    is_const: parameter.is_const,
-                    is_mutable: parameter.is_mutable,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let result = input.type_identity_for_private_contract(requirement.return_type)?;
+        let nominal = self.coordinate.identity.clone();
         let requirement_identity = PackageReviewNominalIdentity {
             owner: nominal.owner,
-            path: identity.to_owned(),
+            path: self.identity.clone(),
         };
         let plan = PackagePolicyProviderPlan {
             plan_name: leaf.plan.name.clone(),
@@ -275,18 +332,7 @@ pub(super) fn project(
                 &leaf.plan.schema,
                 requirement_identity.clone(),
                 nominal,
-                PackagePolicyServiceSignature {
-                    schema_arguments: Vec::new(),
-                    schema_lifetime_parameter_count: 0,
-                    schema_lifetime_arguments: Vec::new(),
-                    application_lifetime_parameter_count: 0,
-                    requirement_arguments: Vec::new(),
-                    requirement_lifetime_arguments: Vec::new(),
-                    requirement_lifetime_parameter_count: 0,
-                    static_parameters: Vec::new(),
-                    parameters,
-                    result: Some(result),
-                },
+                self.signature.clone(),
                 PackagePolicyServiceAuthority {
                     service_reach: Vec::new(),
                     synchronous_invocations: Vec::new(),
@@ -312,17 +358,12 @@ pub(super) fn project(
         let application = Application {
             plan_name: plan.plan_name.clone(),
             target,
-            coordinate,
-            requirement: identity.to_owned(),
+            coordinate: self.coordinate.clone(),
+            requirement: self.identity.clone(),
             execution,
         };
-        projected.push(Projection {
-            boundary: boundary.id,
-            dependency,
-            realization: Some((plan, application)),
-        });
+        Ok((plan, application))
     }
-    Ok(projected)
 }
 
 fn numeric_execution(

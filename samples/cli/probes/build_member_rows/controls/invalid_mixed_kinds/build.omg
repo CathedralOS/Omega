@@ -5,5 +5,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_mixed_kinds");
     Build::member(builder, "dependency");
-    builder.freestanding = true;
 }
