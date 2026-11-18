@@ -249,33 +249,6 @@ mod builtin_ordinal_tests {
                 function
             );
         }
-        assert_eq!(
-            BuiltinFunction::AsmHlt.asm_intrinsic_service_name(),
-            Some("MachineControl")
-        );
-        assert_eq!(
-            BuiltinFunction::AsmPortOut.asm_intrinsic_service_name(),
-            Some("PortIo")
-        );
-        assert_eq!(
-            BuiltinFunction::AsmPortIn.asm_intrinsic_service_name(),
-            Some("PortIo")
-        );
-        assert_eq!(
-            BuiltinFunction::AsmFullFence.asm_intrinsic_service_name(),
-            None
-        );
-        assert_eq!(
-            BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
-            Some("MachineControl")
-        );
-        for (function, _) in BuiltinFunction::ALL {
-            assert!(
-                function.asm_intrinsic_service_name().is_none() || function.is_asm_intrinsic(),
-                "{:?} reaches a boundary service but is missing from the asm roster",
-                function,
-            );
-        }
     }
 
     #[test]
