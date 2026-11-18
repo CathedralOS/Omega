@@ -45,6 +45,7 @@ enum MarkerKind {
 struct FilesystemActivation {
     runtime: BuildFilesystemRuntime,
     markers: Vec<Marker>,
+    output_issued: bool,
 }
 
 /// The filesystem runtime of a returned stage, handed to the host of the
@@ -72,6 +73,7 @@ impl TerminalBuildFilesystemHost {
     pub(crate) fn new(
         produced: &source_compiler::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
+        original_output: &TerminalStructuralValue,
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,
         machine_name: &str,
@@ -85,11 +87,15 @@ impl TerminalBuildFilesystemHost {
         // One runtime serves the whole activation. A later stage continues
         // the runtime an earlier one began and begins one only when none did.
         let activation = match carried {
-            Some(CarriedFilesystem(activation)) => Some(activation),
+            Some(CarriedFilesystem(mut activation)) => {
+                activation.output_issued = false;
+                Some(activation)
+            }
             None if calls.is_empty() => None,
             None => Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
+                output_issued: false,
             }),
         };
         Ok(Arc::new(Self {
@@ -101,13 +107,27 @@ impl TerminalBuildFilesystemHost {
                 Some(FilesystemFacets {
                     source: crate::host::requests::build_facet(artifact, original, "source")?,
                     inputs: crate::host::requests::build_facet(artifact, original, "inputs")?,
-                    output: crate::host::requests::build_facet(artifact, original, "output")?,
+                    output: original_output.clone(),
                 })
             },
             account: account.clone(),
             machine_name: machine_name.to_owned(),
             activation: Mutex::new(activation),
         }))
+    }
+
+    // A new stage begins unissued even when its filesystem state was carried.
+    // The caller enables Output only after binding verified carried presence.
+    pub(crate) fn set_output_issued(&self, issued: bool) -> Result<(), String> {
+        if let Some(activation) = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem lock was poisoned")?
+            .as_mut()
+        {
+            activation.output_issued = issued;
+        }
+        Ok(())
     }
 
     pub(crate) fn adapter(
@@ -251,14 +271,19 @@ impl FilesystemAdapter {
         let activation = guard
             .as_mut()
             .ok_or("Build filesystem activation is absent or already settled")?;
-        let FilesystemActivation { runtime, markers } = activation;
+        let FilesystemActivation {
+            runtime,
+            markers,
+            output_issued,
+        } = activation;
         let facets = self
             .host
             .facets
             .as_ref()
             .ok_or("Build filesystem facets were not admitted")?;
         let output = || -> Result<(), String> {
-            if structural(0)? == &facets.output {
+            let receiver = structural(0)?;
+            if *output_issued && receiver == &facets.output {
                 Ok(())
             } else {
                 Err(
@@ -434,10 +459,10 @@ fn mint(
     markers
         .try_reserve(1)
         .map_err(|_| "cannot retain issued filesystem marker")?;
-    let identity = u64::MAX
-        .checked_sub(u64::try_from(markers.len()).map_err(|_| "filesystem marker space exhausted")?)
-        .filter(|identity| *identity > 1)
-        .ok_or("filesystem marker space exhausted")?;
+    let identity = crate::host::descending_host_marker_identity(
+        u64::try_from(markers.len()).map_err(|_| "filesystem marker space exhausted")?,
+    )
+    .ok_or("filesystem marker space exhausted")?;
     let value = TerminalStructuralValue::minted(identity, result.structural_type, Vec::new());
     markers.push(Marker {
         value: value.clone(),

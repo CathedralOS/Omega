@@ -116,7 +116,9 @@ pub use boundary::structural_inputs::access_views::TerminalAccessViewEstablishme
 pub use boundary::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use boundary::structural_inputs::contents::TerminalStructuralContents;
 pub use boundary::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
-pub use boundary::structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
+pub use boundary::structural_inputs::{
+    TerminalEstablishedErasedField, TerminalProjectedHostAtom, TerminalStructuralInputs,
+};
 pub use boundary::values::{
     TerminalAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,

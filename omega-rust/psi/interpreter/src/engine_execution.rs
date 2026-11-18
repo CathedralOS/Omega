@@ -2287,13 +2287,16 @@ pub(crate) mod execution {
                 )
                 .cloned()
                 .collect::<Vec<_>>();
-            let local_structural_identities = LocalStructuralIdentities::new(
+            let mut local_structural_identities = LocalStructuralIdentities::new(
                 program
                     .machines()
                     .values()
                     .flat_map(|machine| machine.structural_places.iter()),
                 &identity_roots,
             );
+            for atom in inputs.projected_host_atoms {
+                local_structural_identities.reserve_projected_host_at_entry(&atom.value)?;
+            }
             let machine = program
                 .machines()
                 .get(&current_machine)
@@ -2487,7 +2490,143 @@ pub(crate) mod execution {
                 inputs.private_entry_ram,
                 inputs.access_view_establishments,
             )?;
+            execution.bind_projected_host_atoms(machine, inputs.projected_host_atoms)?;
             Ok(execution)
+        }
+
+        /// Resolve an empty inline record without lending authority from a
+        /// descriptor crossing, active case or unproved runtime coordinate.
+        pub(crate) fn projected_empty_host_value(
+            &self,
+            root: &TerminalStructuralValue,
+            path: &[StructuralPathSegment],
+        ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+            if path.is_empty()
+                || path
+                    .iter()
+                    .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
+                || !terminal_semantics::projection_stays_in_inline_storage(
+                    self.structural_types().values(),
+                    root.structural_type,
+                    path,
+                )
+            {
+                return Err(malformed());
+            }
+            let structural_type = crate::engine::custody::resolve_structural_path_type(
+                &self.structural_types(),
+                root.structural_type,
+                path,
+            )?;
+            let declaration = self.structural_declaration(structural_type)?;
+            if !matches!(
+                &declaration.shape,
+                terminal_psi::StructuralTypeShape::Record {
+                    fields,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                } if fields.is_empty()
+            ) || !declaration.no_code_affine_cleanup
+                || declaration.owns_linear_claim
+                || declaration.nominal_cleanup.is_some()
+            {
+                return Err(malformed());
+            }
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &root.qualifications,
+                    &root.projected_qualifications,
+                    path,
+                );
+            let mut selected = TerminalStructuralValue {
+                opaque_identity: root.opaque_identity,
+                structural_type,
+                qualifications,
+                projected_qualifications,
+                path: root.path.clone(),
+            };
+            selected.path.extend_from_slice(path);
+            let described = crate::storage::structural_storage::contents::describe(
+                self,
+                &selected,
+                terminal_psi::StructuralAccess::SharedBorrow,
+                None,
+            )?;
+            if !described.leaves.is_empty()
+                || described.requires_atomic_storage
+                || described.requires_erased_establishment
+            {
+                return Err(malformed());
+            }
+            Ok(selected)
+        }
+
+        fn bind_projected_host_atoms(
+            &mut self,
+            machine: &terminal_psi::TerminalMachine,
+            atoms: &[crate::TerminalProjectedHostAtom],
+        ) -> Result<(), TerminalInterpretError> {
+            fn host_home_overlaps<Value>(
+                rows: &RuntimeRows<StructuralRuntimePlace, Value>,
+                home: &StructuralRuntimePlace,
+            ) -> bool {
+                if crate::storage::structural_storage::cells(rows, home)
+                    .next()
+                    .is_some()
+                {
+                    return true;
+                }
+                let mut ancestor = home.clone();
+                while ancestor.path.pop().is_some() {
+                    if rows.contains_key(&ancestor) {
+                        return true;
+                    }
+                }
+                false
+            }
+
+            if atoms.is_empty() {
+                return Ok(());
+            }
+            // The owned arguments can acquire whole-value payloads later.
+            // Index their homes before admitting any projected payload.
+            let mut owned_homes = RuntimeRows::new(self.account.as_ref());
+            for parameter in &machine.structural_parameters {
+                if parameter.access == terminal_psi::StructuralAccess::Owned {
+                    let value =
+                        verified_structural_place(&self.structural_values, parameter.place)?;
+                    owned_homes.insert(StructuralRuntimePlace::from(value), ())?;
+                }
+            }
+
+            for atom in atoms {
+                let parameter = machine
+                    .structural_parameters
+                    .get(atom.argument_index as usize)
+                    .ok_or_else(malformed)?;
+                if parameter.access == terminal_psi::StructuralAccess::Owned {
+                    return Err(malformed());
+                }
+                let root = verified_structural_place(&self.structural_values, parameter.place)?;
+                let selected = self.projected_empty_host_value(root, &atom.path)?;
+                if !atom.value.path.is_empty()
+                    || atom.value.structural_type != selected.structural_type
+                    || atom.value.qualifications != selected.qualifications
+                    || atom.value.projected_qualifications != selected.projected_qualifications
+                {
+                    return Err(malformed());
+                }
+                let home = StructuralRuntimePlace::from(&selected);
+                if host_home_overlaps(&owned_homes, &home)
+                    || host_home_overlaps(&self.structural_host_atoms, &home)
+                {
+                    return Err(malformed());
+                }
+                self.structural_host_atoms.insert(
+                    home,
+                    HostStructuralPayload::Opaque(atom.value.opaque_identity),
+                )?;
+            }
+            Ok(())
         }
 
         pub(crate) fn retain_host_structural_payloads(
