@@ -1375,6 +1375,7 @@ machine entry() -> u32 crashes none {
     for publication in [
         terminal_codec::TerminalPublication::Portable,
         terminal_codec::TerminalPublication::Invocation,
+        terminal_codec::TerminalPublication::LayoutPolicyInvocation,
     ] {
         let compilation = typed_trees_to_terminal_psi::prepare_compilation(
             &prepared,
@@ -1405,7 +1406,8 @@ machine entry() -> u32 crashes none {
             terminal_codec::TerminalPublication::Portable => {
                 executable.publish().unwrap();
             }
-            terminal_codec::TerminalPublication::Invocation => {
+            terminal_codec::TerminalPublication::Invocation
+            | terminal_codec::TerminalPublication::LayoutPolicyInvocation => {
                 executable.publish_invocation().unwrap();
             }
         }
