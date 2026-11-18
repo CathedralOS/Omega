@@ -1,7 +1,11 @@
 # L0 Lexer contract
 
-Status: **awaiting Jarod's sign-off.** Rules marked *gap* have no spec owner;
-each is a proposal that sign-off either ratifies or changes.
+Status: **signed off by Jarod, 2026-11-18.** His words: "If it's to spec, then
+it's to spec I believe." Eleven of the rules below come straight from the
+spec. Six, marked *gap*, fill places where the spec is silent; they were
+accepted with the sign-off on the basis that they contradict nothing in the
+spec and that all 132 spec examples lex under them. If one later clashes with
+the spec or with a later layer, it comes back as an owner question in PLAN.md.
 
 ## What the layer is
 
@@ -69,7 +73,7 @@ Each row is a rule the spec does not state. "Evidence" is what the proposal
 rests on. The survey is of the 19,442 `.omg` files under V1's `source`,
 `samples` and `tests/fixtures`.
 
-| # | Question | Proposal | Evidence |
+| # | Question | Accepted rule | Evidence |
 | --- | --- | --- | --- |
 | G1 | Which words does the lexer treat as keywords? | None. All words are one token kind and the parser decides. | The spec has no reserved-word list and says "no identifier is reserved for builtin types". V1's lexer hard-codes 28 keywords, including `state`, which the spec retires. |
 | G2 | What is comment syntax? | `//` line comments and nesting `/* */` block comments. | `//` appears on 51 lines of spec examples. The spec never shows `/*`; V1's lexer accepts it with nesting, and 4 surveyed files use it. |

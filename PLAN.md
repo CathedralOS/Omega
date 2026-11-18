@@ -114,8 +114,8 @@ Psi to native code) are not planned yet.
 
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
-| L0 Lexer | source bytes → tokens | built, awaiting sign-off | 0.2 s |
-| L1 Parser | tokens → syntax tree | not started | — |
+| L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
+| L1 Parser | tokens → syntax tree | contract (grammar) being drafted | — |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -137,7 +137,7 @@ Psi to native code) are not planned yet.
   codepoint escapes and raw newlines inside quotes reject.
 - **Contract:** [layers/00-lexer/CONTRACT.md](layers/00-lexer/CONTRACT.md).
   17 rules, each with its spec source and the fixtures that cover it.
-- **Built 2026-11-18, awaiting sign-off.** Gate results:
+- **Built and signed off 2026-11-18.** Gate results:
   - 7 accept fixtures, 28 reject fixtures and 28 byte-level tests pass.
   - All 132 spec examples lex. Each one tiles its source exactly, and each
     token lexes to itself when taken alone.
@@ -158,9 +158,11 @@ Psi to native code) are not planned yet.
     fraction rule, the radix check, the suffix check, the line-comment end)
     were each caught by at least one test.
   - `cargo clippy -D warnings` and `cargo fmt --check` are clean.
-- **What sign-off has to decide:** the six gap proposals G1 to G6 in the
-  contract. The largest is G1: the lexer has no keyword list, so `machine` and
-  `foo` are the same kind of token and the parser decides.
+- **What sign-off accepted:** the six gap rules G1 to G6 in the contract, on
+  the basis that they contradict nothing in the spec. The largest is G1: the
+  lexer has no keyword list, so `machine` and `foo` are the same kind of
+  token and the parser decides. That hands the question of reserved words to
+  L1.
 - **V1 and the spec disagree here:** V1's lexer has a `>>` token; the spec
   says "no `>>` token is added". V2 follows the spec.
 - **Where this layer departed from the loop above:** the code was written
@@ -480,19 +482,18 @@ before the layer that depends on it is signed off.
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
 | 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Open |
-| 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Proposed in the L0 contract (G2): `//` and nesting `/* */` |
-| 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Proposed in the L0 contract (G1): the lexer has none; L1 decides |
-| 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Proposed in the L0 contract (G3): digits on both sides of the dot |
-| 7 | Case of `0x`, `0b`, `0o` and the exponent `e` is not stated. | The spec spells them lowercase and never says uppercase is refused. | L0 | Proposed in the L0 contract (G4): lowercase only |
-| 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Proposed in the L0 contract (G5): V1's table without `>>` |
-| 9 | Where `_` may appear in a number is not stated. | The spec says "digit underscores" and shows `0x1_0000u32`. | L0 | Proposed in the L0 contract (G6): anywhere after the first digit |
+| 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
+| 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Accepted with L0 sign-off (G1): the lexer has none; L1 decides |
+| 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Accepted with L0 sign-off (G3): digits on both sides of the dot |
+| 7 | Case of `0x`, `0b`, `0o` and the exponent `e` is not stated. | The spec spells them lowercase and never says uppercase is refused. | L0 | Accepted with L0 sign-off (G4): lowercase only |
+| 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Accepted with L0 sign-off (G5): V1's table without `>>` |
+| 9 | Where `_` may appear in a number is not stated. | The spec says "digit underscores" and shows `0x1_0000u32`. | L0 | Accepted with L0 sign-off (G6): anywhere after the first digit |
 | 3 | Three links from the spec point at V1 files that no longer exist. | Two under `omega-rust/psi/compilation`, one ELF backend source file. | none | Ignore unless a layer needs them |
 | 4 | "Pre-resolution evaluation" and its "post-typing continuation" are named but not defined. | The terms appear once, in `build/execution.md` under the generated-source boundary. V1 runs an evaluation step before name resolution that returns rewritten syntax. | L2 to L4 | Open |
 
 ## Open decisions
 
-None at the plan level. The lexer's six gap proposals are in its contract and
-are decided at its sign-off.
+None at the plan level.
 
 Settled 2026-11-18, recorded in the decision log: Rust on the stable
 toolchain (1.100.0; V1 pins `nightly-2026-09-04`), a `layers/NN-name/` folder
@@ -569,4 +570,5 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Build model ratified: insulated stages plus reflection identities. Cracks return as owner questions in this repo. | Jarod |
 | 2026-11-18 | Rust on stable, `layers/NN-name/` layout, git repository; start with the lexer. | Jarod |
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
+| 2026-11-18 | L0 Lexer signed off, with its six gap rules accepted as consistent with the spec. L1 Parser starts with its grammar. | Jarod |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |

@@ -43,6 +43,7 @@
   .legend li { display: flex; align-items: center; gap: 7px; }
   .chip { width: 26px; height: 15px; border-radius: 4px; border: 1.4px solid var(--fg); background: var(--box); display: inline-block; }
   .chip.wip { border-color: var(--wip); background: var(--wip-bg); }
+  .chip.done { border-color: var(--done); background: var(--done-bg); }
   .chip.todo { border-style: dashed; border-color: var(--muted); background: transparent; }
   .chip.accent { border-color: var(--accent); background: var(--accent-bg); }
   .chip.bad { border-color: var(--bad); background: var(--bad-bg); }
@@ -66,6 +67,7 @@
   svg .mono-s { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; font-size: 11.5px; }
   svg .b { fill: var(--box); stroke: currentColor; stroke-width: 1.3; }
   svg .b-wip { fill: var(--wip-bg); stroke: var(--wip); stroke-width: 1.6; }
+  svg .b-done { fill: var(--done-bg); stroke: var(--done); stroke-width: 1.6; }
   svg .b-todo { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 5 4; }
   svg .b-accent { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1.6; }
   svg .b-bad { fill: var(--bad-bg); stroke: var(--bad); stroke-width: 1.6; }
@@ -93,7 +95,8 @@
   <h1>Omega-V2 architecture</h1>
   <p class="lede">Diagrams only. The reasoning, decisions and open questions are in PLAN.md. Drawn from the plan as of 2026-11-18.</p>
   <ul class="legend">
-    <li><span class="chip wip"></span>built, awaiting sign-off</li>
+    <li><span class="chip done"></span>built and signed off</li>
+    <li><span class="chip wip"></span>in progress</li>
     <li><span class="chip todo"></span>not started</li>
     <li><span class="chip"></span>exists or decided</li>
     <li><span class="chip accent"></span>the part the figure is about</li>
@@ -105,16 +108,16 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. Source bytes enter the lexer, which is built and awaiting sign-off; tokens go to the parser, a syntax tree to the resolver, a resolved tree to the typer, a typed tree to preparation, a prepared tree to lowering, Terminal Psi to the checker, checked Psi to publication, which produces the published Psi artifact. The seven layers after the lexer are not started.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. Source bytes enter the lexer, which is built and signed off; tokens go to the parser, a syntax tree to the resolver, a resolved tree to the typer, a typed tree to preparation, a prepared tree to lowering, Terminal Psi to the checker, checked Psi to publication, which produces the published Psi artifact. The parser's contract is being drafted and the six layers after it are not started.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
-        <rect class="b-wip" x="45" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-done" x="45" y="70" width="150" height="60" rx="7"/>
         <text x="120" y="95" text-anchor="middle" class="th">L0 Lexer</text>
         <text x="120" y="114" text-anchor="middle" class="ts">cuts bytes into tokens</text>
         <path class="a" d="M195,100 H285"/><text x="240" y="92" text-anchor="middle" class="tl">tokens</text>
 
-        <rect class="b-todo" x="285" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="285" y="70" width="150" height="60" rx="7"/>
         <text x="360" y="95" text-anchor="middle" class="th">L1 Parser</text>
         <text x="360" y="114" text-anchor="middle" class="ts">builds the tree</text>
         <path class="a" d="M435,100 H525"/><text x="480" y="92" text-anchor="middle" class="tl">syntax tree</text>
@@ -257,7 +260,7 @@
         <text x="780" y="280" text-anchor="middle" class="ts">kinds and spans written by hand first</text>
       </svg>
       </div>
-      <figcaption>The layer is called in-process as a library function, so the lexer's whole suite runs in about 0.2 seconds. The counts are the lexer's; every later layer plugs into the same four lanes. Outside the suite, the lexer also accepts all 19,442 Omega files in V1, and 60,000 random inputs never make it panic.</figcaption>
+      <figcaption>The layer is called in-process as a library function, so the lexer's whole suite runs in under 0.2 seconds. The counts are the lexer's; every later layer plugs into the same four lanes. Outside the suite, the lexer also accepts all 19,442 Omega files in V1, and 60,000 random inputs never make it panic.</figcaption>
     </figure>
   </section>
 
@@ -304,7 +307,7 @@
         <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
       </svg>
       </div>
-      <figcaption>The same loop for every layer. The lexer is at the gate with six gap proposals waiting for the owner decision.</figcaption>
+      <figcaption>The same loop for every layer. The lexer has been through it and is signed off; the parser is at the first box.</figcaption>
     </figure>
   </section>
 
@@ -562,7 +565,7 @@
         <text x="765" y="185" text-anchor="middle" class="ts">35 fixtures, 28 byte cases, corpus, random</text>
         <path class="a" d="M765,195 V220"/><text x="775" y="212" class="tl">calls</text>
 
-        <rect class="b-wip" x="610" y="220" width="310" height="50" rx="7"/>
+        <rect class="b-done" x="610" y="220" width="310" height="50" rx="7"/>
         <text x="765" y="242" text-anchor="middle" class="mono">src</text>
         <text x="765" y="260" text-anchor="middle" class="ts">lex(bytes): tokens, or one error</text>
 
