@@ -1,7 +1,7 @@
 // Normalized Build settings decoded from an evaluated `BuildTimeValue`, separate from executed selection receipts.
 //
 // `EvaluatedBuildSettings` captures the authored presentation intent (`application_intent`),
-// optional `application_identifier`, PE `subsystem` word, `freestanding` setting, root
+// optional `application_identifier`, PE `subsystem` word, root
 // `optimizations`, `x86_deployment_claim`, legacy `privileged_services` settings, and
 // per-target `elf_interpreters`. Optional facets (`identifier`, `privileged_services`,
 // `elf_interpreter`) default cleanly when omitted by builds that predate those surfaces.
@@ -19,7 +19,6 @@ pub struct EvaluatedBuildSettings {
     pub application_intent: Option<HostedApplicationIntent>, // Authored hosted presentation intent, independent of PE loader metadata.
     pub application_identifier: Option<ApplicationIdentifier>, // Build-validated authored application identifier (`None` when omitted or empty).
     pub subsystem: u16, // PE optional-header Subsystem word (console 3 when unstated).
-    pub freestanding: bool, // Legacy Build setting. Per-output target/provider authority: wiki/spec/build/permissions.md#freestanding-machine-owner-authority.
     pub optimizations: OptimizationSelections, // Exact root-build optimization selections.
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
     pub privileged_services: PrivilegedServicesGrants, // Legacy privileged-service settings (`port_io`, `interrupt_table`).
@@ -84,7 +83,6 @@ impl Default for EvaluatedBuildSettings {
             application_intent: Some(HostedApplicationIntent::Console),
             application_identifier: None,
             subsystem: 3,
-            freestanding: false,
             optimizations: OptimizationSelections::default(),
             x86_deployment_claim: X86DeploymentClaim::Baseline,
             privileged_services: PrivilegedServicesGrants::default(),
@@ -219,10 +217,12 @@ pub(crate) fn extract_build_settings(
         Err(_) => None,
     };
 
-    let freestanding = match field("freestanding")? {
-        BuildTimeValue::Bool(value) => *value,
+    // Keep validating the authored legacy field until its declaration is retired.
+    // It supplies no normalized output choice or per-output hardware authority.
+    match field("freestanding")? {
+        BuildTimeValue::Bool(_) => {}
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
-    };
+    }
 
     let privileged_services = match field("privileged_services") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
@@ -287,7 +287,6 @@ pub(crate) fn extract_build_settings(
             application_intent,
             application_identifier,
             subsystem,
-            freestanding,
             optimizations,
             x86_deployment_claim,
             privileged_services,
@@ -296,4 +295,149 @@ pub(crate) fn extract_build_settings(
         },
         optimization_report,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::build_execution::build_value::BuildValueAdmission;
+
+    // Use the production source assembler: it loads the real toolchain prelude
+    // and its Core dependencies with their ordinary source custody. No local
+    // declaration or unchecked constructor stands in for Build admission.
+    fn admitted_build() -> (BuildValueAdmission, BuildTimeValue) {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "build-legacy-setting",
+            false,
+        )
+        .expect("create an owned Build fixture directory");
+        let root = temporary.path();
+        let main = root.join("main.omg");
+        std::fs::write(&main, "machine main() {}\n").expect("stage Product source");
+        std::fs::write(
+            root.join("build.omg"),
+            build_declarations::default_build_source(),
+        )
+        .expect("stage the ordinary Build entry");
+        let mut timings = artifacts::compile_timings::CompileTimings::default();
+        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+        let checkpoint = crate::source_assembly::ImmutableSourceParseCheckpoint::prepare(
+            &main,
+            None,
+            None,
+            &mut timings,
+            &mut catalogue,
+        )
+        .expect("admit the fixture's actual sources");
+        let (_, syntax) = checkpoint
+            .assemble(None, &mut timings, &mut catalogue)
+            .expect("assemble the real Build vocabulary");
+        let build_source = syntax.build_source.expect("production Build selection");
+        let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
+        let (source, _) = source_compiler::SourceCompilationRequest {
+            syntax: syntax.syntax_trees,
+            source_items: syntax.source_items,
+            root_sources: syntax.root_sources,
+            frontends: Default::default(),
+            build_helper_identity: profile.target_name(),
+            build_sources: syntax.build_scope_sources,
+            build_stage: None,
+            sources: syntax.sources,
+            top_level_bindings: syntax.source_scoped_top_level_bindings,
+            selection_authority: None,
+        }
+        .prepare(&mut source_compiler::UnmeasuredProduction)
+        .expect("type the production Build declaration");
+        let typed = source.typed();
+        let machine =
+            crate::build_execution::select_build_machine(typed, Some(build_source.source_id()))
+                .expect("select the source-owned Build entry")
+                .expect("the authored Build entry");
+        let admission = BuildValueAdmission::admit(typed).expect("real Build admission");
+        let scope = crate::build_execution::BuildMachineFilesystemScope::for_root(
+            &main,
+            root.join("output"),
+            None,
+        );
+        let value = admission.initial_value(typed, machine, &scope);
+        (admission, value)
+    }
+
+    fn fields(value: &mut BuildTimeValue) -> &mut Vec<(String, BuildTimeValue)> {
+        let BuildTimeValue::Struct { fields, .. } = value else {
+            panic!("the admitted initial Build is a record");
+        };
+        fields
+    }
+
+    fn set(value: &mut BuildTimeValue, name: &str, changed: BuildTimeValue) {
+        let (_, field) = fields(value)
+            .iter_mut()
+            .find(|(field, _)| field == name)
+            .expect("the production Build has the tested field");
+        *field = changed;
+    }
+
+    #[test]
+    fn legacy_freestanding_is_validated_without_becoming_a_choice() {
+        let (admission, original) = admitted_build();
+        let baseline = admission
+            .extract(&original)
+            .expect("decode the real initial Build");
+        assert_eq!(baseline.0, EvaluatedBuildSettings::default());
+
+        let mut changed = original.clone();
+        set(
+            &mut changed,
+            "subsystem",
+            BuildTimeValue::Case {
+                variant: "Gui".into(),
+                payload: Vec::new(),
+            },
+        );
+        let gui = admission
+            .extract(&changed)
+            .expect("decode a different retained choice");
+        assert_ne!(
+            gui.0, baseline.0,
+            "real normalized choices still distinguish settings"
+        );
+        assert_eq!(gui.0.subsystem, 2);
+        assert_eq!(gui.1, baseline.1);
+
+        let mut missing = original.clone();
+        fields(&mut missing).retain(|(name, _)| name != "freestanding");
+        assert_eq!(
+            admission.extract(&missing).unwrap_err(),
+            "the Build carries no `freestanding` field"
+        );
+        for wrong in [
+            BuildTimeValue::Unit,
+            BuildTimeValue::Int(1),
+            BuildTimeValue::Text(b"yes".to_vec()),
+        ] {
+            let mut malformed = original.clone();
+            let expected = format!("Build.freestanding is not a bool: {wrong:?}");
+            set(&mut malformed, "freestanding", wrong);
+            // The later invalid setting must not hide this first refusal.
+            set(&mut malformed, "privileged_services", BuildTimeValue::Unit);
+            assert_eq!(admission.extract(&malformed).unwrap_err(), expected);
+        }
+        let mut malformed = original.clone();
+        set(&mut malformed, "privileged_services", BuildTimeValue::Unit);
+        assert_eq!(
+            admission.extract(&malformed).unwrap_err(),
+            "Build.privileged_services is not a PrivilegedServices struct: Unit"
+        );
+
+        let mut changed = original.clone();
+        set(&mut changed, "freestanding", BuildTimeValue::Bool(true));
+        assert_eq!(
+            admission
+                .extract(&changed)
+                .expect("accept the legacy Boolean"),
+            baseline,
+            "the legacy Boolean must not distinguish normalized Build choices"
+        );
+    }
 }
