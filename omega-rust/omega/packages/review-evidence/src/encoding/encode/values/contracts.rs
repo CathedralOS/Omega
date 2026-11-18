@@ -65,10 +65,15 @@ pub(crate) fn encode_contract_fact(
             encoder.field_by("value", value, encode_contract_expression)?;
             encoder.field_by("permission", *permission, encode_carry_permission)
         }
-        PackageReviewContractFact::Membership { value, domain } => {
+        PackageReviewContractFact::Membership {
+            value,
+            domain,
+            application,
+        } => {
             encoder.tag("membership", 1);
             encoder.field_by("value", value, encode_contract_expression)?;
-            encoder.field("domain", |encoder| encode_nominal(encoder, domain))
+            encoder.field("domain", |encoder| encode_nominal(encoder, domain))?;
+            encoder.string_field("application", application)
         }
         PackageReviewContractFact::Proposition(application) => {
             encoder.tag("proposition", 2);

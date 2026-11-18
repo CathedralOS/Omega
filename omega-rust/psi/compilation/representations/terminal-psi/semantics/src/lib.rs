@@ -38,6 +38,8 @@ mod descriptor_replay;
 pub mod descriptors;
 pub mod float_meaning_sources;
 pub mod inhabitation;
+mod membership_facts;
+pub use membership_facts::validate_boundary_normal_memberships;
 pub mod normal_completion;
 pub mod numeric_primitives;
 pub mod plain_affine;
@@ -650,13 +652,14 @@ pub use structural::partial_affine::{
 };
 pub use structural::primitive_place::{
     Position, RuntimeIndexGoalError, StructuralStorageSelection,
-    borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
-    canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
-    canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, inline_descriptor_type, preceding_element_view_length,
-    primitive_operation_projection_type, primitive_place_type, primitive_projection_declaration,
-    primitive_projection_restriction, primitive_projection_type, primitive_read_field,
-    primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
+    borrowed_primitive_projection_declaration, borrowed_projection_type,
+    borrowed_storage_field_type, byte_carrier_geometry_matches, canonical_inline_region,
+    canonical_primitive_path, canonical_primitive_read_path, canonical_primitive_read_type,
+    canonical_static_projection, fixed_array_place_shape, inline_backing_container,
+    inline_descriptor_type, preceding_collection_length, primitive_operation_projection_type,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
     runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };

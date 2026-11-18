@@ -804,3 +804,84 @@ machine entry() reaches Fs invokes Fs {
     assert_ne!(source, conflict);
     assert_eq!(verdict(&conflict), "rejected: 1 conflicts");
 }
+
+#[test]
+fn indexed_view_payloads_keep_their_actual_lender() {
+    let source = r#"
+machine see(value: &u8) {}
+machine entry() {
+    let values: [u8; 2] = [1, 2];
+    let view: &[u8] = &values[..];
+    see(&view[0]);
+}
+"#;
+    use terminal_check_tables::bindings::{PlaceOrigin, Segment};
+    use terminal_check_tables::obligations::Lender;
+    let mut input = elaborate(source).unwrap();
+    let verdict = crate::judge(Ok(input.clone()));
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "{verdict:?}"
+    );
+    let beyond = source.replace("view[0]", "view[2]");
+    let unbounded = crate::judge(elaborate(&beyond));
+    assert!(
+        matches!(&unbounded, Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::OperationSafety { .. }))),
+        "the borrowed element still owes its own live bound: {unbounded:?}"
+    );
+    let wrong_type = source.replace("value: &u8", "value: &u16");
+    let mismatch = elaborate(&wrong_type);
+    assert!(
+        matches!(&mismatch, Err(Refusal { reason: RefusalReason::Violation, detail, .. })
+            if detail.starts_with("this value has scalar carrier `u8` but the parameter it is passed for requires `u16`: there is no implicit scalar conversion at a receiving type")),
+        "the parameter cannot change the byte's actual carrier: {mismatch:?}"
+    );
+    let (machine, obligation, actual) = input
+        .tables
+        .machines
+        .iter()
+        .find_map(|(machine, tables)| {
+            tables.obligations.iter().find_map(|(obligation, row)| {
+                let ObligationKind::Loan {
+                    captured, lender, ..
+                } = row.kind
+                else {
+                    return None;
+                };
+                matches!(
+                    tables.places.get(captured)?.origin,
+                    PlaceOrigin::Projection {
+                        segment: Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                        ..
+                    }
+                )
+                .then_some((machine, obligation, lender))
+            })
+        })
+        .expect("the indexed element has its own captured loan");
+    assert!(
+        matches!(actual, Lender::Loan(_)),
+        "an element keeps the descriptor's actual lender: {actual:?}"
+    );
+    let ObligationKind::Loan { lender, .. } = &mut input
+        .tables
+        .machines
+        .get_mut(machine)
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .kind
+    else {
+        unreachable!()
+    };
+    *lender = Lender::Owner;
+    let forged = crate::judge(Ok(input));
+    assert!(
+        matches!(forged,
+        Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
+        if detail.starts_with("reborrow names a different immediate parent occurrence")),
+        "owning a view descriptor cannot grant ownership of its payload: {forged:?}"
+    );
+}

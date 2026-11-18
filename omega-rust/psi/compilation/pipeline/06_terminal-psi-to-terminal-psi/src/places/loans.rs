@@ -151,6 +151,13 @@ enum LoanRegion {
     Provider,
 }
 
+struct PayloadCapture {
+    region: LoanRegion,
+    /// A widened window can identify its enclosing backing without naming
+    /// the exact address at which an element selector would begin.
+    exact: bool,
+}
+
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
@@ -296,22 +303,68 @@ impl<'a> Storage<'a> {
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         raw: &super::Lineage,
+        path: &[terminal_psi::StructuralPathSegment],
         resource: BorrowedResource,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
-        use terminal_semantics::descriptor_results::{
-            DescriptorCallOrigin, DescriptorSourceOrigin,
-        };
         // A descriptor home and its captured payload can be borrowed at the
         // same time. Follow the backing only when the operation lends it.
+        let element = terminal_semantics::descriptor_lifetimes::view_element_descriptor_prefix(
+            self.types,
+            self.root_type(raw.root, concerns)?,
+            &raw.segments,
+        )
+        .map_err(|reason| self.unsupported(concerns, reason))?;
         let shape = self.shape(raw, concerns)?;
         let is_view = matches!(shape, super::Shape::View)
             || matches!(shape, super::Shape::Typed(ty)
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
         if matches!(resource, BorrowedResource::Storage) || !is_view {
+            if let Some(position) = element {
+                let prefix = super::Lineage {
+                    root: raw.root,
+                    segments: raw.segments[..position].to_vec(),
+                };
+                let mut captured = self.capture_payload(references, &prefix, at, concerns)?;
+                if captured.exact && matches!(captured.region, LoanRegion::Storage(_)) {
+                    if path.len() != raw.segments.len() {
+                        return Err(
+                            self.foreign(concerns, "indexed borrow lost its canonical source path")
+                        );
+                    }
+                    // Replay the same actual argument as its block arrival.
+                    // The selector's proof and formation point belong to that
+                    // capture, not to a reconstructed storage path.
+                    let origins = references
+                        .borrowed_source_storage_family(self.machine, at, raw.root, path)
+                        .map_err(|detail| self.unsupported(concerns, detail))?;
+                    captured.region = LoanRegion::Storage(self.captured_backing(
+                        raw,
+                        &[],
+                        origins,
+                        None,
+                        concerns,
+                    )?);
+                }
+                return Ok(captured.region);
+            }
             return self.storage_loan_region(references, raw, at, concerns);
         }
+        self.capture_payload(references, raw, at, concerns)
+            .map(|capture| capture.region)
+    }
+
+    fn capture_payload(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<PayloadCapture> {
+        use terminal_semantics::descriptor_results::{
+            DescriptorCallOrigin, DescriptorSourceOrigin,
+        };
         let location = raw.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "view loan has no exact descriptor coordinate")
         })?;
@@ -324,18 +377,31 @@ impl<'a> Storage<'a> {
             );
         }
         let mut captured = None;
+        let mut exact = true;
         for origin in origins {
             let next = match &origin {
                 DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
                     source,
                     projection,
                 }) => {
-                    let enclosing = projection.enclosing_storage().ok_or_else(|| {
-                        self.unsupported(concerns, "view loan has unresolved payload projection")
-                    })?;
+                    let path = match projection.captured_storage_path() {
+                        Some(path) => path,
+                        None => {
+                            exact = false;
+                            projection
+                                .enclosing_storage()
+                                .ok_or_else(|| {
+                                    self.unsupported(
+                                        concerns,
+                                        "view loan has unresolved payload projection",
+                                    )
+                                })?
+                                .path
+                        }
+                    };
                     self.backing(
                         references,
-                        &self.stored_at(*source, &enclosing.path, concerns)?,
+                        &self.stored_at(*source, &path, concerns)?,
                         at.0,
                         at.1 as usize,
                         concerns,
@@ -343,6 +409,9 @@ impl<'a> Storage<'a> {
                 }
                 DescriptorSourceOrigin::IncomingSlot(_)
                 | DescriptorSourceOrigin::IncomingContents { .. } => {
+                    if let DescriptorSourceOrigin::IncomingContents { projection, .. } = &origin {
+                        exact &= projection.captured_storage_path().is_some();
+                    }
                     // This payload came from a caller borrow. Keep its input
                     // field as the loan identity, rather than flattening the
                     // payload into an address of this activation's storage.
@@ -364,9 +433,17 @@ impl<'a> Storage<'a> {
                 }
                 DescriptorSourceOrigin::Backing(
                     DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
-                ) => Backing::direct(raw.clone()),
+                ) => {
+                    exact = false;
+                    Backing::direct(raw.clone())
+                }
                 DescriptorSourceOrigin::Provider(_) => {
-                    return self.provider_permission(references, at, &location, concerns);
+                    return self
+                        .provider_permission(references, at, &location, concerns)
+                        .map(|region| PayloadCapture {
+                            region,
+                            exact: false,
+                        });
                 }
                 _ => {
                     return Err(self.unsupported(
@@ -387,7 +464,10 @@ impl<'a> Storage<'a> {
             captured = Some(next);
         }
         captured
-            .map(LoanRegion::Storage)
+            .map(|backing| PayloadCapture {
+                region: LoanRegion::Storage(backing),
+                exact,
+            })
             .ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
     }
 
@@ -591,6 +671,45 @@ impl<'a> Storage<'a> {
                 permitted,
             ));
         }
+        let element = terminal_semantics::descriptor_lifetimes::view_element_descriptor_prefix(
+            self.types,
+            self.root_type(raw.root, concerns)?,
+            &raw.segments,
+        )
+        .map_err(|reason| self.unsupported(concerns, reason))?;
+        if let Some(crossing) = element {
+            let descriptor = super::Lineage {
+                root: raw.root,
+                segments: raw.segments[..crossing].to_vec(),
+            };
+            let parent = if matches!(
+                self.root_kind(raw.root, concerns)?,
+                StructuralPlaceKind::ByteSequenceLiteral { .. }
+            ) {
+                StructuralAccess::SharedBorrow
+            } else {
+                terminal_semantics::structural_projection_authority(
+                    self.lowered,
+                    self.types,
+                    &terminal_psi::StructuralArgument {
+                        place: raw.root,
+                        path: path[..crossing].to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )
+                .ok_or_else(|| {
+                    self.unsupported(concerns, "view element has no source permission")
+                })?
+            };
+            return Ok((
+                None,
+                reference_access(parent),
+                Some(descriptor.descriptor_location().ok_or_else(|| {
+                    self.unsupported(concerns, "view element has no exact authorizing descriptor")
+                })?),
+                permitted,
+            ));
+        }
         if let Some((parent, _, descriptor)) = self.reference_parent(raw, concerns)? {
             return Ok((None, reference_access(parent), Some(descriptor), permitted));
         }
@@ -780,7 +899,14 @@ impl<'a> Storage<'a> {
                 invocation: Some(invocation),
                 position,
                 access,
-                lineage: self.borrow_backing(references, &lent, resource, cut, concerns)?,
+                lineage: self.borrow_backing(
+                    references,
+                    &lent,
+                    &argument.path,
+                    resource,
+                    cut,
+                    concerns,
+                )?,
                 parent,
                 lender,
                 from,
@@ -837,7 +963,14 @@ impl<'a> Storage<'a> {
                     invocation: None,
                     position,
                     access,
-                    lineage: self.borrow_backing(references, &raw, resource, cut, concerns)?,
+                    lineage: self.borrow_backing(
+                        references,
+                        &raw,
+                        &region.path,
+                        resource,
+                        cut,
+                        concerns,
+                    )?,
                     parent,
                     lender,
                     from,
@@ -1086,7 +1219,7 @@ impl<'a> Storage<'a> {
             invocation: None,
             position: 0,
             access,
-            lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
+            lineage: self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?,
             parent,
             lender,
             from,
@@ -1342,6 +1475,7 @@ impl<'a> Storage<'a> {
                 let backing = self.borrow_backing(
                     references,
                     &place,
+                    &[],
                     BorrowedResource::ViewPayload,
                     at,
                     concerns,
@@ -1558,6 +1692,18 @@ impl<'a> Storage<'a> {
                 root: place.root,
                 segments: place.segments[..crossing].to_vec(),
             }
+        } else if let Some(crossing) =
+            terminal_semantics::descriptor_lifetimes::view_element_descriptor_prefix(
+                self.types,
+                self.root_type(place.root, Construct::Machine)?,
+                &place.segments,
+            )
+            .map_err(|reason| self.unsupported(Construct::Machine, reason))?
+        {
+            super::Lineage {
+                root: place.root,
+                segments: place.segments[..crossing].to_vec(),
+            }
         } else if matches!(self.shape(place, Construct::Machine)?, super::Shape::View)
             || matches!(self.shape(place, Construct::Machine)?, super::Shape::Typed(ty)
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty))
@@ -1639,7 +1785,14 @@ impl<'a> Storage<'a> {
                             "successor borrow exceeds its original parent access",
                         ));
                     }
-                    let backing = self.borrow_backing(references, &raw, resource, at, concerns)?;
+                    let backing = self.borrow_backing(
+                        references,
+                        &raw,
+                        &argument.path,
+                        resource,
+                        at,
+                        concerns,
+                    )?;
                     if let Some(descriptor) = from {
                         // Forwarding checks every input permission; it does not
                         // select one immediate parent for a new loan.
@@ -1833,6 +1986,12 @@ impl<'a> Storage<'a> {
                     )
                 })?;
                 retained.live.extend(lifetime.live.iter().copied());
+                retained.live.extend(
+                    lifetime
+                        .surviving
+                        .iter()
+                        .filter_map(|(at, names)| (!names.is_empty()).then_some(*at)),
+                );
             }
             children[parent] -= 1;
             if children[parent] == 0 {
@@ -2070,7 +2229,14 @@ impl<'a> Storage<'a> {
                         invocation: None,
                         position,
                         access,
-                        lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
+                        lineage: self.borrow_backing(
+                            references,
+                            &raw,
+                            &argument.path,
+                            resource,
+                            at,
+                            concerns,
+                        )?,
                         parent,
                         lender,
                         from,

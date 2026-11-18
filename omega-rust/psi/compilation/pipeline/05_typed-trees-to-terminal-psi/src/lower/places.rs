@@ -1132,7 +1132,7 @@ fn expression_homes<'b>(
                 expression_homes(operand, homes);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             expression_homes(base, homes);
             expression_homes(index, homes);
         }
@@ -1464,6 +1464,7 @@ pub(super) enum Step {
     },
     Index {
         owner: StructuralTypeId,
+        element: StructuralTypeId,
         selector: ValueId,
         fixed: Option<u64>,
     },
@@ -1887,8 +1888,9 @@ impl<'a> Lowering<'a> {
                     owner,
                     selector,
                     fixed,
+                    ..
                 } => {
-                    let (_, _, extent) = self.array_element(owner)?;
+                    let extent = self.index_extent(owner)?;
                     if let Some(index) = fixed
                         && !matches!(extent, CollectionExtent::Fixed(length) if index < length)
                     {
@@ -1985,7 +1987,31 @@ impl<'a> Lowering<'a> {
         })
     }
 
-    fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
+    fn index_extent(&self, owner: StructuralTypeId) -> Checked<CollectionExtent> {
+        if let StorageShape::ByteSequence(carrier) = self.record_type(owner)?.shape {
+            return Ok(match carrier {
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    CollectionExtent::LiveLength { capacity }
+                }
+                // A bounded byte reference is a pointer to its exact declared
+                // extent; an owned byte carrier above has a separate live length.
+                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                    CollectionExtent::Fixed(capacity)
+                }
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
+                    CollectionExtent::StoredLength
+                }
+            });
+        }
+        self.array_element(owner).map(|(_, _, extent)| extent)
+    }
+
+    fn index_step(
+        &mut self,
+        owner: StructuralTypeId,
+        element: StructuralTypeId,
+        expression: &Expression,
+    ) -> Evaluation<Step> {
         // A literal index the array's length admits becomes a fixed path
         // step, which needs no proof. Any other index, a literal outside
         // the length included, becomes a runtime step that owes the
@@ -1993,7 +2019,7 @@ impl<'a> Lowering<'a> {
         // checker then refuses an out-of-range literal with the same
         // "cannot prove index is within length" diagnostic as any other
         // unproved index.
-        let (_, _, extent) = self.array_element(owner)?;
+        let extent = self.index_extent(owner)?;
         let fixed = match (extent, &expression.kind) {
             (
                 CollectionExtent::Fixed(length),
@@ -2008,6 +2034,7 @@ impl<'a> Lowering<'a> {
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
             owner,
+            element,
             selector,
             fixed,
         }))
@@ -2424,7 +2451,7 @@ impl<'a> Lowering<'a> {
                 if element != record {
                     return Err(self.internal("an indexed value has another element storage type"));
                 }
-                let step = continuing!(self.index_step(at.record, index));
+                let step = continuing!(self.index_step(at.record, element, index));
                 at.place = self.step(at.place, step)?;
                 at.path.push(step);
                 at.record = record;
@@ -3340,6 +3367,33 @@ impl<'a> Lowering<'a> {
                 steps.push(step);
                 (root, steps, exact, value_type)
             }
+            ExpressionKind::ByteElement {
+                base,
+                index,
+                element,
+            } => {
+                let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
+                    continuing!(self.capture_place(base))
+                else {
+                    return Err(self.internal("an indexed byte crosses scalar storage"));
+                };
+                if !matches!(
+                    self.record_type(owner)?.shape,
+                    StorageShape::ByteSequence(_)
+                ) {
+                    return Err(self.internal("an indexed byte has no byte storage"));
+                }
+                let value_type = self.storage_value_type(*element, Qualification::NONE)?;
+                if !matches!(value_type, ValueType::Scalar(ScalarType::Integer(integer), Qualification::NONE)
+                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())
+                {
+                    return Err(self.internal("an indexed byte changed its actual scalar carrier"));
+                }
+                let step = continuing!(self.index_step(owner, *element, index));
+                let exact = self.step(parent, step)?;
+                steps.push(step);
+                (root, steps, exact, value_type)
+            }
             ExpressionKind::Index { base, index } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
                     continuing!(self.capture_place(base))
@@ -3348,7 +3402,7 @@ impl<'a> Lowering<'a> {
                 };
                 let (element, qualification, _) = self.array_element(owner)?;
                 let value_type = self.storage_value_type(element, qualification)?;
-                let step = continuing!(self.index_step(owner, index));
+                let step = continuing!(self.index_step(owner, element, index));
                 let exact = self.step(parent, step)?;
                 steps.push(step);
                 (root, steps, exact, value_type)
@@ -4008,6 +4062,10 @@ impl<'a> Lowering<'a> {
                 && matches!(
                     self.record_type(owner)?.shape,
                     StorageShape::ElementView { .. }
+                        | StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                        )
                 )
             {
                 let descriptor = &steps[..position];
@@ -4096,7 +4154,8 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(base));
-        let step = continuing!(self.index_step(at.record, index));
+        let (element, _, _) = self.array_element(at.record)?;
+        let step = continuing!(self.index_step(at.record, element, index));
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
@@ -4599,7 +4658,7 @@ impl<'a> Lowering<'a> {
         value: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<()> {
-        if let ExpressionKind::ByteElement { base, index } = &destination.kind {
+        if let ExpressionKind::ByteElement { base, index, .. } = &destination.kind {
             return self.store_byte_element(base, index, value, source);
         }
         // Capturing visits the destination before the right-hand side and
@@ -4715,7 +4774,16 @@ impl<'a> Lowering<'a> {
         let Some((view, _, position)) = self.element_view_projection(root, &steps)? else {
             return Ok((root, steps, exact));
         };
-        let (record, qualification, _) = self.array_element(view.record)?;
+        let Step::Index {
+            element: record, ..
+        } = steps[position]
+        else {
+            return Err(self.internal("a captured element has no retained storage type"));
+        };
+        let qualification = match self.record_type(view.record)?.shape {
+            StorageShape::ByteSequence(_) => Qualification::NONE,
+            _ => self.array_element(view.record)?.1,
+        };
         let block = self.block(source);
         let site = ExecutionSite::Block(self.current()?);
         // The length observation and the selected edge use the identical
@@ -5207,6 +5275,7 @@ mod tests {
                 home: Some("plain-u32".into()),
             }],
             result: Some(plain),
+            membership_ensures: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             reaches: crate::Ceiling::Inferred,

@@ -518,6 +518,24 @@ impl OperationalCeilings {
     }
 }
 
+/// An authored membership promise, separate from the subject's declared type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeMembership {
+    pub subject: RuntimeMembershipSubject,
+    pub domain: DomainInstance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeMembershipSubject {
+    Scalar(semantic_vocabulary::ScalarTerm),
+    Structural {
+        root: semantic_vocabulary::PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        carrier: semantic_vocabulary::StructuralTypeId,
+    },
+}
+
 /// A machine's published signature as lowering and its callers need it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
@@ -551,6 +569,8 @@ pub struct Signature {
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
     pub result: Option<ValueType>,
+    /// Facts promised about the normal result, independent of its declared type.
+    pub membership_ensures: Vec<RuntimeMembership>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
     /// position here is its position in every `CallRequirement`. A term
@@ -1088,6 +1108,9 @@ pub enum ExpressionKind {
     ByteElement {
         base: Box<Expression>,
         index: Box<Expression>,
+        /// The actual byte carrier, retained for address formation as well
+        /// as value reads. A callee cannot choose this storage identity.
+        element: StructuralTypeId,
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.
