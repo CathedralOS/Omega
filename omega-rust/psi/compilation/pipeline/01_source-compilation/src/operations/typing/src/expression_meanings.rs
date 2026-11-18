@@ -15,6 +15,7 @@ pub(crate) fn prepare(
         Cast(usize),
         Operator(crate::source_state::expression::TableBinaryExpression),
         Member(crate::source_state::expression::TableMemberExpression),
+        Range,
         Local(
             crate::source_state::statement::StatementHandle,
             symbols::SymbolHandle,
@@ -29,6 +30,20 @@ pub(crate) fn prepare(
         crate::typing::operator_calls::sites(program, frontier)
             .into_iter()
             .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
+    );
+    sites.extend(
+        program
+            .expression_table
+            .iter_backing_expressions()
+            .filter_map(|(handle, node)| match node {
+                crate::source_state::expression::ExpressionNode::Indexed(indexed)
+                    if handle.arena_index() as usize > frontier
+                        && program.expression_table.range_node(indexed.index).is_some() =>
+                {
+                    Some((handle, Meaning::Range))
+                }
+                _ => None,
+            }),
     );
     sites.extend(
         program
@@ -110,6 +125,11 @@ pub(crate) fn prepare(
             Meaning::Operator(binary) => crate::typing::operator_calls::prepare_site(
                 program, &owners, &mut types, handle, binary,
             )?,
+            Meaning::Range => {
+                crate::typing::constructor_applications::retain_indexed_operand_type(
+                    program, &owners, &mut types, handle,
+                )?;
+            }
             Meaning::Local(statement, owner) => {
                 // A cast or selected operator can acquire its result only here.
                 // Publish that result on an inferred local before later operands

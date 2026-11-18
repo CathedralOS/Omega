@@ -629,6 +629,117 @@ fn an_explicit_domain_cast_permits_the_builtin_byte_range_and_keeps_its_bounds()
     assert_eq!(verdict(&outside), "rejected");
 }
 
+const QUALIFIED_PREFIX_CAST: &str = r#"
+    domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+    machine prefix_length(path: &[u8] in Path, position: u64) -> u64
+    requires position <= path.len {
+        let selected: &[u8] in Path = path[0..position] as +Path;
+        selected.len
+    }
+    machine build_entry() {
+        let length: u64 = prefix_length("foo/bar" as +Path, 3);
+    }
+"#;
+
+#[test]
+fn prefix_domain_cast_cannot_supply_a_missing_qualified_range_type() {
+    let actual = verdict(QUALIFIED_PREFIX_CAST);
+    assert!(
+        actual.contains("domain cast whose operand's declared type typing does not read yet"),
+        "an outer qualification cannot select a range of qualified operands: {actual}"
+    );
+}
+
+#[test]
+fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
+    let source = QUALIFIED_PREFIX_CAST.replace(
+        "path[0..position] as +Path",
+        "(path as -Path)[0..position] as +Path",
+    );
+    let typed = super::build_purpose::frontier_with_core(
+        "machine product_entry() {}",
+        &format!("use omega::language::core::byte_observation;\n{source}"),
+        declaration_contracts::source_identity::DependencyScope::Build,
+        &[(
+            "byte_observation.omg",
+            "byte_observation",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/byte_observation.omg"
+            )),
+        )],
+    );
+    let prefix_symbol = super::build_purpose::symbol(&typed, "prefix_length");
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let verdicts = crate::checking::judge_compilation(
+        crate::lowering::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[Some(super::build_purpose::package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    );
+    match super::entryless::whole_subject_result(verdicts).unwrap() {
+        RouteVerdict::Accepted(accepted) => {
+            let prefix = accepted
+                .elaboration
+                .machines
+                .iter()
+                .find_map(|(id, symbol)| (*symbol == prefix_symbol).then_some(id))
+                .unwrap();
+            let machine = accepted
+                .elaboration
+                .module
+                .machines
+                .iter()
+                .find(|machine| machine.id == prefix)
+                .unwrap();
+            let mut ranges = 0;
+            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                if matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. }) {
+                    let result = operation.result.as_structural().unwrap();
+                    assert!(result.qualifications.is_empty());
+                    assert!(result.projected_qualifications.is_empty());
+                    assert!(result.qualification_establishments.is_empty());
+                    ranges += 1;
+                }
+            }
+            assert_eq!(ranges, 1, "prefix_length keeps its own raw range producer");
+            terminal_semantics::structural_qualifications::validate(&accepted.elaboration.module)
+                .expect("standalone artifact ingress must reconstruct the same prefix evidence");
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("the prefix must prove Path on its raw borrowed bytes: {other:?}"),
+    }
+    let outside = source.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
+    match judge_build(&outside).unwrap() {
+        RouteVerdict::Rejected {
+            violations,
+            unproved,
+            ..
+        } => {
+            let reasons = violations
+                .iter()
+                .map(|row| row.message())
+                .chain(unproved.iter().map(|row| row.statement.clone()))
+                .collect::<Vec<_>>();
+            eprintln!("outside-prefix rejection: {reasons:?}");
+            assert!(
+                reasons.iter().any(|reason| {
+                    reason.contains("cannot prove requires clause 1")
+                        || reason.contains("cannot prove requires contract for call prefix_length")
+                }),
+                "the caller must still prove position <= path.len: {reasons:?}"
+            );
+        }
+        other => panic!("an eight-byte prefix of seven bytes must fail its bound: {other:?}"),
+    }
+}
+
 #[test]
 fn adding_a_domain_back_does_not_acquire_a_builtin_byte_range() {
     let program = QUALIFIED_BYTE_RANGE.replace(
@@ -1818,6 +1929,65 @@ fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
             })),
         "the short arrival must fail only its own length requirement: {rejected:?}"
     );
+}
+
+/// Whole-path calls and explicitly unqualified byte operations must observe
+/// the same shared descriptor through nested helpers. Keep the mutable context
+/// first so the path is the second input in the structural argument lane.
+#[test]
+fn nested_shared_path_calls_keep_their_predicate_and_extent() {
+    let source = r#"
+domain [u8]::Path requires byte_observation::no_nul(&self[..]);
+
+data Context { code: i32; }
+data UnitResult { case Ok; case Error(kind: i32); }
+
+// The diagnostic keeps the caller's borrowed inputs and result shape. This
+// pure leaf makes no filesystem or foreign-completion claim.
+machine posix_filesystem_create_dir_existing(filesystem: &mut Context, path: &[u8] in Path) -> UnitResult {
+    UnitResult::Ok
+}
+
+machine posix_filesystem_mkall_walk(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+terminates by remaining
+{
+    transition i < path.len && remaining > 0 {
+        true -> inspect(filesystem, path, i, remaining)
+        false -> posix_filesystem_create_dir_existing(filesystem, path)
+    }
+    machine inspect(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    requires i < path.len && remaining > 0
+    terminates by remaining
+    {
+        transition (path as -Path)[i] == 47 {
+            true -> create(filesystem, path, i, remaining)
+            false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
+        }
+    }
+    machine create(filesystem: &mut Context, path: &[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    requires i < path.len && remaining > 0
+    terminates by remaining
+    {
+        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, (path as -Path)[0..i] as +Path);
+        transition result {
+            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
+            UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
+        }
+    }
+}
+
+machine build_entry(filesystem: &mut Context, path: &[u8] in Path) {
+    let result: UnitResult = posix_filesystem_mkall_walk(filesystem, path, 1, path.len);
+}
+"#;
+    let result = judge_build(source)
+        .unwrap_or_else(|failure| panic!("nested Path source preparation failed: {failure:#?}"));
+    match result {
+        RouteVerdict::Accepted(accepted) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("nested Path calls must preserve their exact shared input: {other:#?}"),
+    }
 }
 
 #[test]

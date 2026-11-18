@@ -65,7 +65,7 @@ data StatView {
 
 machine linux_x86_64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult
     satisfies PosixFilesystemTarget::decode_metadata {
-    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
+    let stat: &StatView = &filesystem.stat_buf as &StatView;
     let blocks: i64 = stat.value.blocks;
     let blksize: i64 = stat.value.blksize;
     transition blocks >= 0 && blksize >= 0 {
@@ -97,7 +97,7 @@ machine linux_x86_64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> 
 
 machine linux_x86_64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
     satisfies PosixFilesystemTarget::permission_bits {
-    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
+    let stat: &StatView = &filesystem.stat_buf as &StatView;
     stat.value.mode & 4095
 }
 
@@ -105,7 +105,7 @@ machine linux_x86_64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
 // unrelated size/timestamp fields or following a final symlink.
 machine linux_x86_64_posix_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind
     satisfies PosixFilesystemTarget::decode_directory_kind {
-    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
+    let stat: &StatView = &filesystem.stat_buf as &StatView;
     let kind: u32 = stat.value.mode & 61440;
     transition kind {
         16384 -> PosixDirectoryKind::Directory

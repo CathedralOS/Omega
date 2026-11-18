@@ -1034,7 +1034,7 @@ fn check_prepared_machine(
     let mut uses = storage.uses(references, tables, empty_contracts, inhabitation)?;
     // Byte-domain establishments are judged from their actual source at the
     // producer, including qualified transfers whose result is never consumed.
-    for judged in storage.byte_predicate_establishments(module)? {
+    for judged in storage.byte_predicate_establishments(module, references)? {
         match uses.iter_mut().find(|used| used.at == judged.at) {
             Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
             Some(_) => {}
@@ -1199,7 +1199,7 @@ fn fill_knowledge<'a>(
                 .read_premises(references, tables, operation)?
                 .into_iter()
                 .chain(storage.returned_type_premises(references, tables, operation)?)
-                .chain(storage.subslice_predicate_premises(operation)?)
+                .chain(storage.subslice_predicate_premises(references, operation)?)
             {
                 push_knowledge(
                     tables,

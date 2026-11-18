@@ -7068,11 +7068,25 @@ pub(crate) mod unit_call {
             )
         {
             use selected_instructions::SelectedMemoryAccessRole;
+            let reference = match &operation.kind {
+                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => match &call.result {
+                    target_vocabulary::TargetBoundaryResult::ScalarReference { home, codec } => {
+                        Some((
+                            home.layout.shape(),
+                            runtime_abi::ScalarStorageCodec::decode(*codec)
+                                .ok_or(SelectedInstructionError::custody())?,
+                        ))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            let storage = reference.map_or(placement.shape, |(shape, _)| shape);
             let slot = builder.transport.push_structural_local_slot(
                 operation.operation,
                 result.place,
-                placement.shape.byte_size.max(1),
-                placement.shape.alignment,
+                storage.byte_size.max(1),
+                storage.alignment,
             );
             let block = super::block_containing_operation(source, operation.operation)?;
             let pointer = super::structural_case::register(builder, result.place, 0, 64, false)?;
@@ -7081,7 +7095,7 @@ pub(crate) mod unit_call {
                 block,
                 result.place,
                 0,
-                placement.shape.byte_size.max(1),
+                storage.byte_size.max(1),
                 SelectedMemoryAccessRole::AddressLocal { slot },
             )?;
             builder.emit_local_frame_address(slot, pointer, Default::default())?;
@@ -7143,6 +7157,38 @@ pub(crate) mod unit_call {
                     SelectedMemoryAccessRole::WritePlace,
                 )?;
                 super::aggregate_memory::store(builder, pointer, value, displacement, *byte_size)?;
+            }
+            if let Some((_, codec)) = reference {
+                let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                let value = super::structural::encoded_scalar::constant_codec(
+                    builder,
+                    operation,
+                    result.place,
+                    codec,
+                )?;
+                let (codec_pointer, displacement) = super::structural::displaced_memory_pointer(
+                    builder,
+                    result.place,
+                    pointer,
+                    descriptor.codec_byte_offset,
+                    descriptor.codec_byte_size,
+                    super::structural::provenance(operation),
+                )?;
+                super::structural_case::memory(
+                    builder,
+                    block,
+                    result.place,
+                    descriptor.codec_byte_offset,
+                    descriptor.codec_byte_size,
+                    SelectedMemoryAccessRole::WritePlace,
+                )?;
+                super::aggregate_memory::store(
+                    builder,
+                    codec_pointer,
+                    value,
+                    displacement,
+                    descriptor.codec_byte_size,
+                )?;
             }
             builder.transport.pointers.push((result.place, pointer));
         }

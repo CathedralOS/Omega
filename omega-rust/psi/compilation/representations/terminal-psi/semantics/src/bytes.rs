@@ -5,6 +5,10 @@ byte-window reads and stores.
 
 mod fixed_arrays;
 
+#[cfg(test)]
+#[path = "bytes/descriptor_predicate_tests.rs"]
+mod descriptor_predicate_tests;
+
 pub(crate) mod operation_bounds {
     use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
     use semantic_vocabulary::{
@@ -612,6 +616,96 @@ pub(crate) mod byte_sequence_predicates {
             return None;
         }
         shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
+    }
+
+    /// Reconstruct primitive facts carried by an unchanged incoming shared
+    /// descriptor. This adds no domain membership: casts still owe their
+    /// ordinary membership and predicate judgments. Unknown custody or any
+    /// arrival without the fact supplies no additional evidence.
+    pub fn incoming_byte_sequence_argument_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        position: crate::descriptor_results::DescriptorPosition,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Option<ByteSequencePredicateSet> {
+        use crate::borrowed_storage::Projection;
+        use crate::descriptor_results::{
+            DescriptorCallOrigin, DescriptorLocation, DescriptorSourceOrigin,
+        };
+
+        if source.access == StructuralAccess::WriteOnlyBorrow || !source.path.is_empty() {
+            return None;
+        }
+        let origins = analysis.unchanged_incoming_source_origins(
+            &module.structural_types,
+            machine.id,
+            position,
+            &DescriptorLocation::whole(source.place),
+        )?;
+        let mut common: Option<ByteSequencePredicateSet> = None;
+        for origin in origins {
+            let (entry, projection) = match origin {
+                DescriptorSourceOrigin::IncomingSlot(entry) => (entry, None),
+                DescriptorSourceOrigin::IncomingContents { query, projection } => {
+                    (query.exact_location()?, Some(projection))
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) => (DescriptorLocation::whole(source), Some(projection)),
+                _ => return None,
+            };
+            let whole = projection
+                .as_ref()
+                .is_none_or(|projection| *projection == Projection::new(&[]));
+            if !whole && !projection.as_ref()?.is_captured_whole_descriptor_window() {
+                return None;
+            }
+            if !entry.path.is_empty()
+                || !matches!(
+                    machine.structural_place(entry.root)?.kind,
+                    StructuralPlaceKind::Parameter { .. }
+                )
+            {
+                return None;
+            }
+            let formal = machine.structural_parameter(entry.root)?;
+            if formal.access != StructuralAccess::SharedBorrow
+                || !module
+                    .structural_type(formal.structural_type)?
+                    .shape
+                    .is_shared_readable_byte_view()
+            {
+                return None;
+            }
+            let mut facts = byte_sequence_argument_predicates(
+                module,
+                machine,
+                &terminal_psi::StructuralArgument::whole(
+                    entry.root,
+                    StructuralAccess::SharedBorrow,
+                ),
+            )?;
+            if !whole {
+                facts = facts.subslice();
+            }
+            common = Some(match common {
+                None => facts,
+                Some(previous) => {
+                    let mut shared = ByteSequencePredicateSet::EMPTY;
+                    for predicate in ByteSequencePredicate::ALL {
+                        let mut required = ByteSequencePredicateSet::EMPTY;
+                        required.insert(predicate);
+                        if previous.implies(required) && facts.implies(required) {
+                            shared.insert(predicate);
+                        }
+                    }
+                    shared
+                }
+            });
+        }
+        common
     }
 
     /// A transfer must establish its byte qualifications from the source.

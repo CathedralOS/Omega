@@ -2970,6 +2970,7 @@ dependencies = [
  "extents",
  "language-core",
  "native-provider-runtime",
+ "native-provider-sponsor",
  "numerics",
  "orchestration",
  "platform-custody",

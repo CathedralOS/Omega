@@ -1432,7 +1432,7 @@ fn validate_change(
     destination: &Memberships,
     target: BlockId,
     facts: &crate::membership_facts::MembershipFacts,
-) -> Judged<Option<bool>> {
+) -> Judged<()> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
         return malformed(
@@ -1476,7 +1476,7 @@ fn validate_change(
         if !change.establishments.is_empty() {
             return malformed(machine, "a structural erasure cannot establish a domain");
         }
-        return Ok(None);
+        return Ok(());
     }
     let declaration = places.machine.declaration.as_ref();
     let held: Vec<_> = held.iter().map(|(id, _)| *id).collect();
@@ -1601,7 +1601,7 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
-    byte_change_judgment(module, places, change, source, destination)
+    Ok(())
 }
 
 fn byte_change_judgment(
@@ -1610,6 +1610,10 @@ fn byte_change_judgment(
     change: &StructuralQualificationChange,
     source: &StructuralArgument,
     destination: &Memberships,
+    mut incoming: Option<(
+        &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        crate::descriptor_results::DescriptorPosition,
+    )>,
 ) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -1667,11 +1671,26 @@ fn byte_change_judgment(
         })?;
         let mut argument = source.clone();
         argument.path.extend_from_slice(path);
-        let supplied = crate::byte_sequence_argument_predicates(module, places.machine, &argument)
-            .ok_or(StructuralQualificationError {
-                machine,
-                detail: "a byte qualification change has no reconstructed source predicates",
-            })?;
+        let mut supplied =
+            crate::byte_sequence_argument_predicates(module, places.machine, &argument).ok_or(
+                StructuralQualificationError {
+                    machine,
+                    detail: "a byte qualification change has no reconstructed source predicates",
+                },
+            )?;
+        if let Some((analysis, position)) = incoming.as_mut()
+            && let Some(facts) = crate::incoming_byte_sequence_argument_predicates(
+                module,
+                places.machine,
+                analysis,
+                *position,
+                &argument,
+            )
+        {
+            for predicate in facts.predicates() {
+                supplied.insert(predicate);
+            }
+        }
         byte_domain = true;
         established &= supplied.implies(predicates);
     }
@@ -1682,6 +1701,7 @@ fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
     facts: &crate::membership_facts::MembershipFacts,
+    mut incoming: Option<&mut crate::descriptor_results::DescriptorAnalysis<'_>>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
@@ -1731,7 +1751,13 @@ fn validate_machine(
                                 "a structural qualification change names another destination",
                             );
                         }
-                        if let Some(established) = validate_change(
+                        let position = u32::try_from(block.operations.len()).map_err(|_| {
+                            StructuralQualificationError {
+                                machine: id,
+                                detail: "a byte qualification use exceeds its descriptor graph",
+                            }
+                        })?;
+                        validate_change(
                             module,
                             &places,
                             changes[index],
@@ -1739,6 +1765,16 @@ fn validate_machine(
                             &expected,
                             target.id,
                             facts,
+                        )?;
+                        if let Some(established) = byte_change_judgment(
+                            module,
+                            &places,
+                            changes[index],
+                            argument,
+                            &expected,
+                            incoming
+                                .as_deref_mut()
+                                .map(|analysis| (analysis, (block.id, position))),
                         )? {
                             byte_establishments.push((edge, established));
                         }
@@ -3461,7 +3497,7 @@ pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) 
         }
     })?;
     for machine in &module.machines {
-        validate_machine(module, machine, &facts)?;
+        validate_machine(module, machine, &facts, None)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
@@ -3481,12 +3517,13 @@ fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
-/// Primitive byte casts use the actual incoming arguments, just as byte copies
-/// and moves do. The lowered checker reports a false result as an unestablished
-/// value; artifact ingress requires every result to be true.
-pub fn byte_qualification_change_judgments(
+/// Judge primitive byte casts from their actual arguments, reusing the
+/// checker's prepared descriptor and storage history. False is reported as
+/// unestablished; artifact ingress requires every result to be true.
+pub fn byte_qualification_change_judgments_in(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let mut changes = std::collections::BTreeMap::new();
@@ -3508,6 +3545,11 @@ pub fn byte_qualification_change_judgments(
     let mut used = std::collections::BTreeSet::new();
     let mut judgments = Vec::new();
     for block in &machine.blocks {
+        let position =
+            u32::try_from(block.operations.len()).map_err(|_| StructuralQualificationError {
+                machine: Some(machine.id),
+                detail: "byte qualification cut exceeds descriptor coordinates",
+            })?;
         let edges = block.terminator.successor_edges();
         let arguments = block.terminator.successor_block_arguments();
         if edges.len() != arguments.len() {
@@ -3547,6 +3589,7 @@ pub fn byte_qualification_change_judgments(
                         &parameter.qualifications,
                         &parameter.projected_qualifications,
                     ),
+                    Some((&mut *analysis, (block.id, position))),
                 )? {
                     judgments.push((edge, established));
                 }
@@ -3570,8 +3613,31 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
             machine: error.machine,
             detail: error.detail,
         })?;
+    // Prepare one shared closure for actual cast roots. An unsupported body
+    // remains absent and cannot add evidence; it must not erase independent
+    // supported rows. Modules without casts need no descriptor preparation.
+    let graph = if module.structural_qualification_changes.is_empty() {
+        Vec::new()
+    } else {
+        crate::descriptor_results::terminal_graph_rows(
+            module,
+            module
+                .structural_qualification_changes
+                .iter()
+                .map(|change| change.machine),
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            &[],
+        )
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect()
+    };
+    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.structural_types,
+        &graph,
+    );
     for machine in &module.machines {
-        if validate_machine(module, machine, &facts)?
+        if validate_machine(module, machine, &facts, Some(&mut analysis))?
             .iter()
             .any(|(_, established)| !established)
         {

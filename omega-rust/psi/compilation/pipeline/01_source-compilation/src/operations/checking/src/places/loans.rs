@@ -382,9 +382,7 @@ impl<'a> Storage<'a> {
                 }
                 return Ok(captured.region);
             }
-            return self
-                .backing(references, raw, at.0, at.1 as usize, concerns)
-                .map(LoanRegion::Storage);
+            return self.storage_loan_region(references, raw, at, concerns);
         }
         self.capture_payload(references, raw, at, concerns)
             .map(|capture| capture.region)
@@ -473,26 +471,12 @@ impl<'a> Storage<'a> {
                     Backing::direct(raw.clone())
                 }
                 DescriptorSourceOrigin::Provider(_) => {
-                    if !matches!(
-                        terminal_semantics::borrowed_loan_source(
-                            self.module,
-                            self.lowered,
-                            references,
-                            at,
-                            &location,
-                            std::iter::empty(),
-                        )
-                        .map_err(|detail| self.unsupported(concerns, detail))?,
-                        terminal_semantics::BorrowedLoanSource::Provider
-                    ) {
-                        return Err(
-                            self.unsupported(concerns, "provider payload has no exact permission")
-                        );
-                    }
-                    return Ok(PayloadCapture {
-                        region: LoanRegion::Provider,
-                        exact: false,
-                    });
+                    return self
+                        .provider_permission(references, at, &location, concerns)
+                        .map(|region| PayloadCapture {
+                            region,
+                            exact: false,
+                        });
                 }
                 _ => {
                     return Err(self.unsupported(
@@ -520,6 +504,120 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
     }
 
+    fn storage_loan_region(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<LoanRegion> {
+        // A provider supplies shared referent permission. Keep it in the loan region.
+        if self
+            .provider_referent(references, raw, at, concerns)?
+            .is_some()
+        {
+            return Ok(LoanRegion::Provider);
+        }
+        self.backing(references, raw, at.0, at.1 as usize, concerns)
+            .map(LoanRegion::Storage)
+    }
+
+    /// Recover the current shared referent's type through its admitted permission.
+    pub(super) fn provider_referent(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<Option<semantic_vocabulary::StructuralTypeId>> {
+        let Ok(Some((StructuralAccess::SharedBorrow, referent, descriptor))) =
+            self.reference_parent(raw, concerns)
+        else {
+            return Ok(None);
+        };
+        if !references
+            .symbolic_source_origins(self.machine, at, &descriptor)
+            .is_some_and(|origins| {
+                !origins.is_empty()
+                    && origins.iter().all(|origin| {
+                        matches!(
+                        origin,
+                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                    )
+                    })
+            })
+        {
+            return Ok(None);
+        }
+        self.provider_permission(references, at, &descriptor, concerns)?;
+        Ok(Some(referent))
+    }
+
+    fn provider_permission(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &DescriptorLocation,
+        concerns: Construct,
+    ) -> Checked<LoanRegion> {
+        if !matches!(
+            terminal_semantics::borrowed_loan_source(
+                self.module,
+                self.lowered,
+                references,
+                at,
+                descriptor,
+                std::iter::empty(),
+            )
+            .map_err(|detail| self.unsupported(concerns, detail))?,
+            terminal_semantics::BorrowedLoanSource::Provider
+        ) {
+            return Err(self.unsupported(concerns, "provider payload has no exact permission"));
+        }
+        Ok(LoanRegion::Provider)
+    }
+
+    fn reference_parent(
+        &self,
+        raw: &super::Lineage,
+        concerns: Construct,
+    ) -> Checked<
+        Option<(
+            StructuralAccess,
+            semantic_vocabulary::StructuralTypeId,
+            DescriptorLocation,
+        )>,
+    > {
+        let Some(crossing) = raw
+            .segments
+            .iter()
+            .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
+        else {
+            return Ok(None);
+        };
+        let descriptor = super::Lineage {
+            root: raw.root,
+            segments: raw.segments[..crossing].to_vec(),
+        };
+        let super::Shape::Typed(row) = self.shape(&descriptor, concerns)? else {
+            return Err(self.foreign(concerns, "a reborrow has no parent reference descriptor"));
+        };
+        let terminal_psi::StructuralTypeShape::Reference {
+            access: parent,
+            referent,
+        } = self.declaration(row, concerns)?.shape
+        else {
+            return Err(self.foreign(concerns, "a reborrow crosses another value constructor"));
+        };
+        let descriptor = descriptor.descriptor_location().ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference parent has no exact static descriptor path",
+            )
+        })?;
+        Ok(Some((parent, referent, descriptor)))
+    }
+
     /// The access a root's storage is held with here, when it is a borrowed
     /// formal: the declared access of its structural parameter.
     pub(super) fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
@@ -543,7 +641,6 @@ impl<'a> Storage<'a> {
         Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
         bool,
     )> {
-        use terminal_check_tables::bindings::Segment;
         let permitted = if let StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } = self.root_kind(raw.root, concerns)?
@@ -646,29 +743,7 @@ impl<'a> Storage<'a> {
                 permitted,
             ));
         }
-        if let Some(crossing) = raw
-            .segments
-            .iter()
-            .rposition(|step| *step == Segment::Referent)
-        {
-            let descriptor = super::Lineage {
-                root: raw.root,
-                segments: raw.segments[..crossing].to_vec(),
-            };
-            let super::Shape::Typed(row) = self.shape(&descriptor, concerns)? else {
-                return Err(self.foreign(concerns, "a reborrow has no parent reference descriptor"));
-            };
-            let terminal_psi::StructuralTypeShape::Reference { access: parent, .. } =
-                self.declaration(row, concerns)?.shape
-            else {
-                return Err(self.foreign(concerns, "a reborrow crosses another value constructor"));
-            };
-            let descriptor = descriptor.descriptor_location().ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "reference parent has no exact static descriptor path",
-                )
-            })?;
+        if let Some((parent, _, descriptor)) = self.reference_parent(raw, concerns)? {
             return Ok((None, reference_access(parent), Some(descriptor), permitted));
         }
         if let Some(parent) = self.incoming(raw.root) {
@@ -1449,13 +1524,7 @@ impl<'a> Storage<'a> {
                 (place, backing)
             }
             super::StorageEffect::Storage(place) => {
-                let backing = LoanRegion::Storage(self.backing(
-                    references,
-                    &place,
-                    at.0,
-                    at.1 as usize,
-                    concerns,
-                )?);
+                let backing = self.storage_loan_region(references, &place, at, concerns)?;
                 (place, backing)
             }
         };

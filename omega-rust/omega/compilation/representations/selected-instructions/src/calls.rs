@@ -379,9 +379,7 @@ pub mod normalized_foreign {
                     return None;
                 }
                 vec![output.virtual_register]
-            } else if let target_vocabulary::TargetBoundaryResult::Structural(home) =
-                &record.call.result
-            {
+            } else if let Some(home) = record.call.result.structural_home() {
                 use calling_conventions::ValueLocation;
                 let placement = record.result_placement()?;
                 match placement.locations.as_slice() {

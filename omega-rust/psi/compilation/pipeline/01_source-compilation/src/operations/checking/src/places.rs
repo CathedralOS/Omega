@@ -3482,6 +3482,51 @@ impl<'a> Storage<'a> {
         })
     }
 
+    // The caller has authenticated the provider reference. Follow ordinary
+    // record fields while retaining each declaration's scalar carrier.
+    fn provider_record_leaf(&self, place: &Lineage, concerns: Construct) -> Checked<bool> {
+        let value_scalar = |scalar| match scalar {
+            ScalarType::Boolean
+            | ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary32
+                | semantic_vocabulary::IeeeFloatFormat::Binary64,
+            ) => true,
+            ScalarType::Integer(integer) => {
+                !integer.is_address()
+                    && integer
+                        .bits()
+                        .is_some_and(|bits| bits != 0 && bits <= 64 && bits % 8 == 0)
+            }
+            _ => false,
+        };
+        let mut in_referent = false;
+        let shape = self.shape_with(place.root, &place.segments, concerns, |shape, segment| {
+            if *segment == Segment::Referent {
+                in_referent = true;
+                return Ok(true);
+            }
+            if !in_referent {
+                return Ok(true);
+            }
+            let Shape::Typed(owner) = shape else {
+                return Ok(false);
+            };
+            let declaration = self.declaration(*owner, concerns)?;
+            Ok(declaration.quotient_carrier.is_none()
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. }))
+        })?;
+        Ok(match shape {
+            Some(Shape::Scalar(scalar)) => value_scalar(scalar),
+            Some(Shape::Typed(owner)) => {
+                let declaration = self.declaration(owner, concerns)?;
+                declaration.quotient_carrier.is_none()
+                    && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                        if value_scalar(scalar))
+            }
+            _ => false,
+        })
+    }
+
     fn reaching_supply(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -3493,6 +3538,56 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
+        let record_crossing = if matches!(asked, Asked::Contents(_))
+            && matches!(original.segments.last(), Some(Segment::Field(_)))
+        {
+            original
+                .segments
+                .iter()
+                .position(|segment| *segment == Segment::Referent)
+                .filter(|crossing| {
+                    original.segments[..*crossing]
+                        .iter()
+                        .all(|segment| matches!(segment, Segment::Field(_)))
+                        && original.segments[*crossing + 1..]
+                            .iter()
+                            .all(|segment| matches!(segment, Segment::Field(_)))
+                })
+        } else {
+            None
+        };
+        // The admitted shared reference establishes valid scalar contents.
+        // It supplies no stored value identity or concrete backing address.
+        if matches!(asked, Asked::Contents(_))
+            && (original.segments.last() == Some(&Segment::Referent) || record_crossing.is_some())
+            && matches!(
+                budget.used,
+                None | Some(ProgramPoint::BlockEntry(_) | ProgramPoint::AfterOperation(_))
+            )
+            && (up_to != usize::MAX || budget.used.is_some())
+            && let Some(at) = self.descriptor_position((block, up_to))
+            && let Some(referent) = self.provider_referent(references, original, at, concerns)?
+        {
+            let declaration = self.declaration(referent, concerns)?;
+            let depth = if original.segments.last() == Some(&Segment::Referent)
+                && declaration.quotient_carrier.is_none()
+                && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                    if terminal_semantics::reference_storage_byte_width(scalar).is_some())
+            {
+                Some(1)
+            } else if let Some(crossing) = record_crossing
+                && self.provider_record_leaf(original, concerns)?
+            {
+                Some(original.segments.len() - crossing)
+            } else {
+                None
+            };
+            if let Some(depth) = depth {
+                let address = budget.add_equation();
+                budget.add_supply(address, Supply::Direct(Reached::Established(depth)));
+                return Ok(Supply::transfer(address));
+            }
+        }
         let resolved = match asked {
             // Windows follow their captured storage, even after the original
             // descriptor has expired. Looking up that name again can either
@@ -4795,12 +4890,14 @@ impl<'a> Storage<'a> {
     pub(crate) fn byte_predicate_establishments(
         &self,
         module: &terminal_psi::TerminalModule,
+        references: &mut DescriptorAnalysis<'a>,
     ) -> Checked<Vec<StorageUse>> {
         let mut verdicts = Vec::new();
         let changes =
-            terminal_semantics::structural_qualifications::byte_qualification_change_judgments(
+            terminal_semantics::structural_qualifications::byte_qualification_change_judgments_in(
                 module,
                 self.lowered,
+                references,
             )
             .map_err(|error| self.unsupported(Construct::Machine, error.detail))?;
         for (edge, established) in changes {
@@ -5045,9 +5142,53 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "a literal with no structural result"))
     }
 
+    /// Descriptor replay uses a checked block boundary. Graph ordering names
+    /// the terminator with a sentinel rather than an operation offset.
+    fn descriptor_position(
+        &self,
+        position: (BlockId, usize),
+    ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition> {
+        let end = self.block(position.0).ok()?.operations.len();
+        let before = if position.1 == usize::MAX {
+            end
+        } else {
+            position.1
+        };
+        (before <= end)
+            .then_some(before)
+            .and_then(|before| u32::try_from(before).ok())
+            .map(|before| (position.0, before))
+    }
+
     /// Resolve the predicate from the exact immutable descriptor source.
     /// Shared inputs remain symbolic entry requirements; a produced view may
     /// use only reconstructed source facts or its authenticated callee contract.
+    fn byte_source_at(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        actual: &Lineage,
+        concerns: Construct,
+        position: (BlockId, usize),
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        required.insert(predicate);
+        if actual.segments.is_empty()
+            && let Some(at) = self.descriptor_position(position)
+            && terminal_semantics::incoming_byte_sequence_argument_predicates(
+                self.module,
+                self.lowered,
+                references,
+                at,
+                &StructuralArgument::whole(actual.root, StructuralAccess::SharedBorrow),
+            )
+            .is_some_and(|facts| facts.implies(required))
+        {
+            return Ok(ScalarTerm::Boolean(true));
+        }
+        self.byte_source(predicate, actual, concerns)
+    }
+
     fn byte_source(
         &self,
         predicate: semantic_vocabulary::ByteSequencePredicate,
@@ -5216,6 +5357,7 @@ impl<'a> Storage<'a> {
     /// Keep the source condition in the proof: an annotation grants no fact.
     pub(crate) fn subslice_predicate_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
         use semantic_vocabulary::ByteSequencePredicate;
@@ -5237,12 +5379,24 @@ impl<'a> Storage<'a> {
         }
         let whole = terminal_semantics::byte_subslice_is_whole(self.lowered, operation);
         let source = self.argument(source, concerns)?;
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let before = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no producer position"))?;
         let mut known = Vec::new();
         for predicate in ByteSequencePredicate::ALL {
             if !whole && !predicate.is_subslice_preserving() {
                 continue;
             }
-            let term = match self.byte_source(predicate, &source, concerns) {
+            let term = match self.byte_source_at(
+                references,
+                predicate,
+                &source,
+                concerns,
+                (block, before),
+            ) {
                 Ok(term) => term,
                 Err(crate::checking::Unbound::Refused(refusal)) => return Err(refusal),
                 Err(_) => continue,
@@ -6937,7 +7091,13 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<ScalarTerm, crate::checking::Unbound> {
         let actual = self.actual(root, path)?;
-        self.storage.byte_source(predicate, &actual, self.concerns)
+        self.storage.byte_source_at(
+            self.references,
+            predicate,
+            &actual,
+            self.concerns,
+            (self.block, self.up_to),
+        )
     }
 
     fn case(
@@ -7461,7 +7621,13 @@ impl crate::checking::Bindings for Held<'_, '_> {
         // Membership selects a debt, never its proof. Only the existing byte
         // source judgment may supply a fact about these actual contents.
         let actual = self.beneath(root, path)?;
-        self.storage.byte_source(predicate, &actual, self.concerns)
+        self.storage.byte_source_at(
+            self.references,
+            predicate,
+            &actual,
+            self.concerns,
+            (self.block, self.up_to),
+        )
     }
 
     fn case(
