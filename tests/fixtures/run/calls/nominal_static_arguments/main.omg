@@ -1,0 +1,23 @@
+trait Handler {
+    machine enter(value: u64) -> u64;
+}
+LeftHandler satisfies Handler {
+    machine enter(value: u64) -> u64 { value ^ 1u64 }
+}
+RightHandler satisfies Handler {
+    machine enter(value: u64) -> u64 { 8u64 }
+}
+machine same_shape(value: u64) -> u64 { 8u64 }
+
+machine invoke<const Left: Handler::enter, const Right: Handler::enter>(value: u64) -> u64 {
+    Left(Right(value))
+}
+machine main() crashes Trap {
+    let result: u64 = invoke<LeftHandler::enter, RightHandler::enter>(41u64);
+    transition result == 9u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
