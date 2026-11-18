@@ -17,6 +17,7 @@ use crate::source_state::expression::{
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::statement::TableCall;
 use crate::source_state::static_applications::StaticMachineApplicationHandle;
+use crate::source_state::types::TypeReferenceHandle;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
@@ -288,7 +289,7 @@ impl<'t> Program<'t> {
     /// The machine a symbol enters: a machine itself, or the machine whose
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
-    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    pub(super) fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
@@ -2035,6 +2036,7 @@ impl<'t> Program<'t> {
             source,
             None,
             &operands,
+            &arguments.const_sources,
         )?;
         let ExpressionKind::Call {
             static_reach_arguments,
@@ -2737,6 +2739,7 @@ impl<'t> Program<'t> {
                 source,
                 expected,
                 &operands,
+                &applied.const_sources,
             )
         } else {
             let callee = self.machine(target)?;
@@ -2941,6 +2944,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -2953,6 +2957,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let signature = self
             .source_call_signature(id, &callee, required_contract)?
@@ -2966,6 +2971,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             const_values,
+            const_sources,
         )
     }
 
@@ -3104,6 +3110,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -3117,6 +3124,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let free = if let Some(required) = required_contract {
             let signature = self
@@ -3280,14 +3288,34 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument types"),
             ));
         }
-        for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
+        let mut nominal_arguments = Vec::new();
+        let mut structural_ordinal = 0;
+        for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
+            let mut nominal_agrees = false;
+            if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
+                if let Some(argument) = self.nominal_call_argument(
+                    id,
+                    &callee,
+                    structural_ordinal,
+                    actual.result,
+                    formal,
+                    const_values,
+                    const_sources,
+                    slots,
+                )? {
+                    nominal_agrees = argument.agrees();
+                    nominal_arguments.push(argument);
+                }
+                structural_ordinal += 1;
+            }
             let agrees = if borrowed.is_some() {
                 self.same_type(actual.result, formal)
             } else {
                 self.agrees(actual.result, Some(formal))
             };
             let agrees = agrees
+                || nominal_agrees
                 || self.const_array_argument_agrees(
                     id,
                     &callee,
@@ -3373,6 +3401,14 @@ impl<'t> Program<'t> {
                 Construct::Machine,
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
+        }
+        if !nominal_arguments.is_empty() {
+            self.nominal_calls
+                .push(super::nominal_applications::NominalCallSource {
+                    caller: id,
+                    source,
+                    arguments: nominal_arguments,
+                });
         }
         Ok(Expression {
             call_context: None,
@@ -3478,7 +3514,12 @@ impl<'t> Program<'t> {
                 let parameters = program.typed.machine_type_parameters(symbol);
                 let Some(position) = parameters
                     .iter()
-                    .filter(|parameter| program.record_parameter(parameter.symbol).is_none())
+                    .filter(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Const { .. }
+                        ) && program.record_parameter(parameter.symbol).is_none()
+                    })
                     .position(|parameter| parameter.symbol == inputs[position].symbol)
                 else {
                     return false;

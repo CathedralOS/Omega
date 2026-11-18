@@ -212,6 +212,27 @@ pub(super) struct AnonymousValue {
 }
 
 impl Program<'_> {
+    /// A caller-owned rigid binder already has its exact bound storage.
+    /// Resolving its source identity does not put that lexical binder into
+    /// the callee's value scope. Constructors and locally bound heads can be
+    /// read normally; foreign rigid heads retain that existing storage.
+    fn source_head_is_readable(
+        &self,
+        reference: TypeReferenceHandle,
+        scope: &[(symbols::SymbolHandle, ValueType)],
+    ) -> bool {
+        match self.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                self.typed.symbols.symbols().nodes().is_valid(*symbol)
+                    && (scope.iter().any(|(binder, _)| binder == symbol)
+                        || self.typed.symbols.builtin_type_atom(*symbol).is_some()
+                        || self.typed.symbols.integer_family(*symbol).is_some()
+                        || self.data_declaration(*symbol).is_some())
+            }
+            _ => true,
+        }
+    }
+
     /// Whether the existing value-type reader will declare a value identity.
     /// This preflight does not allocate records, regions or qualifications.
     /// The caller supplies its declaration's type scope in source-symbol order.
@@ -228,9 +249,17 @@ impl Program<'_> {
                 Unserved::Type("unresolved formal shape"),
             )
         };
+        let mut source_scope = self.source_scope.clone();
         for _ in 0..=self.typed.type_reference_table.type_reference_count() {
             if !handle.is_valid() {
                 return Err(unserved());
+            }
+            let supplied = source_scope
+                .supplied_type_reference(self.typed, handle)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
+            if self.source_head_is_readable(supplied.reference, scope) {
+                handle = supplied.reference;
+                source_scope = supplied.scope;
             }
             match self.typed.type_reference_table.type_reference(handle) {
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -410,7 +439,8 @@ impl Program<'_> {
     /// A record application must retain its complete tuple and exact source
     /// members, including indices unused by its layout. The scope fixes a
     /// type parameter when reading a finite alternative or an applied call.
-    /// Rigid parameters, qualifications and unsupported premises stay open.
+    /// The body may use its formed structural definitions; other unresolved
+    /// parameters, qualifications and unsupported premises stay open.
     /// generics.md,
     /// "Static type equality": "`==` between type expressions states exact
     /// normalized type equality".
@@ -420,6 +450,60 @@ impl Program<'_> {
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
+        if !self.typed.contains_type_reference(left) || !self.typed.contains_type_reference(right) {
+            return None;
+        }
+        if matches!(scope, Scope::Own)
+            && let Some(machine) = self.typed.machine_by_symbol(self.lifetime_owner)
+        {
+            // Only the generic body's own, already formed structural
+            // definitions can introduce this equality. An applied signature
+            // keeps its actual binder and must check the original requirement.
+            for (parameter, definition) in [(left, right), (right, left)] {
+                let TypeReferenceNode::Named { symbol, .. } =
+                    self.typed.type_reference_table.type_reference(parameter)
+                else {
+                    continue;
+                };
+                if !self.scope.iter().any(|(binder, _)| binder == symbol) {
+                    continue;
+                }
+                for equation in self
+                    .typed
+                    .declared_type_equations
+                    .span_or_empty(machine.declared_type_equations)
+                {
+                    if !matches!(self.typed.type_reference_table.type_reference(equation.parameter),
+                        TypeReferenceNode::Named { symbol: binder, .. } if binder == symbol)
+                    {
+                        continue;
+                    }
+                    let expected = self.source_scope.type_identity_in_region_scope(
+                        self.typed,
+                        equation.definition,
+                        self.lifetime_owner,
+                    );
+                    let actual = self.source_scope.type_identity_in_region_scope(
+                        self.typed,
+                        definition,
+                        self.lifetime_owner,
+                    );
+                    let supplied = self.source_scope.type_identity_in_region_scope(
+                        self.typed,
+                        parameter,
+                        self.lifetime_owner,
+                    );
+                    if let (Some(expected), Some(actual), Some(supplied)) =
+                        (expected, actual, supplied)
+                        && expected.is_valid()
+                        && expected == actual
+                        && supplied == expected
+                    {
+                        return Some(true);
+                    }
+                }
+            }
+        }
         if let Some((position, excluded)) = self
             .alternative
             .as_ref()
@@ -866,6 +950,45 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        // A declared structural premise may define an otherwise rigid
+        // parameter. Read its constructor under the preceding source frame;
+        // a sibling actual cannot rewrite that constructor's arguments.
+        if let Some(TypeReferenceNode::Named { symbol, .. }) = self
+            .typed
+            .contains_type_reference(handle)
+            .then(|| self.typed.type_reference_table.type_reference(handle))
+            && self
+                .scope
+                .iter()
+                .any(|(binder, bound)| binder == symbol && matches!(bound, ValueType::Rigid(_)))
+        {
+            let supplied = self
+                .source_scope
+                .supplied_type_reference(self.typed, handle)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
+            let readable = self.source_head_is_readable(supplied.reference, &self.scope);
+            if supplied.reference != handle && readable {
+                let outer = std::mem::replace(&mut self.source_scope, supplied.scope);
+                let result = self.value_type(id, supplied.reference);
+                self.source_scope = outer;
+                return result;
+            }
+        }
+        // A type parameter in scope is what the scope says it stands for,
+        // found by the binder's symbol.
+        if handle.is_valid()
+            && let TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(handle)
+            && symbol.is_valid()
+            && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
+        {
+            return match *bound {
+                ValueType::Rigid(rigid) if !self.reading_schema => {
+                    self.parameter_storage(id, rigid, handle)
+                }
+                value => Ok(value),
+            };
+        }
         if let Some(atomic) = self.atomic_type(id, handle)? {
             return Ok(atomic);
         }
@@ -892,21 +1015,6 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
         {
             return self.array_type(id, handle, *element_type, length);
-        }
-        // A type parameter in scope is what the scope says it stands for,
-        // found by the binder's symbol.
-        if handle.is_valid()
-            && let TypeReferenceNode::Named { symbol, .. } =
-                self.typed.type_reference_table.type_reference(handle)
-            && symbol.is_valid()
-            && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
-        {
-            return match *bound {
-                ValueType::Rigid(rigid) if !self.reading_schema => {
-                    self.parameter_storage(id, rigid, handle)
-                }
-                value => Ok(value),
-            };
         }
         if handle.is_valid()
             && let TypeReferenceNode::Named { symbol, .. } =

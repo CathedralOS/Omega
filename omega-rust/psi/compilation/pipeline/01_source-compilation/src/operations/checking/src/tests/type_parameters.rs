@@ -810,6 +810,90 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
             .contains("recursive generic type application changes its arguments"),
         "{refused:?}"
     );
+
+    let mutually_recursive = r#"
+machine first<T>(remaining: u64) -> u64
+requires remaining > 0u64
+terminates by remaining
+{
+    transition remaining > 1u64 {
+        true -> second<T>(remaining - 1u64)
+        false -> 0u64
+    }
+}
+machine second<T>(remaining: u64) -> u64
+requires remaining > 0u64
+terminates by remaining
+{ transition { _ -> first<T>(remaining) } }
+machine entry() -> u64 { first<u32>(3u64) }
+"#;
+    let prepare = |text: &str| {
+        let (typed, _) = crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(text),
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let entry = super::boundary_calls::entry(&typed);
+        crate::lowering::prepare_compilation(
+            &typed,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    };
+    let verdicts = crate::checking::judge_compilation(prepare(mutually_recursive));
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+    let stalled = mutually_recursive.replace("second<T>(remaining - 1u64)", "second<T>(remaining)");
+    let refused = crate::checking::judge_compilation(prepare(&stalled));
+    assert!(
+        refused.iter().any(|verdict| match verdict {
+            Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => refusal
+                .detail
+                .contains("removing strict rank edges leaves a control cycle"),
+            Ok(RouteVerdict::Rejected { unproved, .. }) => unproved
+                .iter()
+                .any(|failure| matches!(failure.kind, ObligationKind::RankComparison { .. })),
+            _ => false,
+        }),
+        "the actual non-descending cycle must reject: {refused:?}"
+    );
+    for missing in [true, false] {
+        let mut input = prepare(mutually_recursive);
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+            &mut input
+        else {
+            panic!("the recursive source must prepare");
+        };
+        let count = prepared.forms.len();
+        let form = prepared
+            .forms
+            .first_mut()
+            .expect("the source retains its generic check forms");
+        form.applies = if missing { None } else { Some(vec![count]) };
+        let refused = crate::checking::judge_compilation(input);
+        assert!(
+            refused.iter().any(|verdict| matches!(verdict,
+            Err(crate::checking::CompilationRefusal::Elaboration(Refusal {
+                reason: RefusalReason::ForeignIdentity, detail, ..
+            })) if detail.contains("incomplete dependency roster"))),
+            "{refused:?}"
+        );
+    }
 }
 
 #[test]
@@ -1209,9 +1293,11 @@ fn an_open_record_call_requires_its_actual_source_owner() {
         .lexical_owner = callee;
     let refusal = crate::lowering::elaborate_generic(&source, entry).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "generic application changed its caller or target, or has another static feature while reading the body of `entry`"
+    assert!(
+        refusal
+            .detail
+            .contains("generic application has another source owner or declaration"),
+        "{refusal:?}"
     );
     let caller_span = source.symbols.symbol_provenance_source_span(entry).unwrap();
     assert_eq!(refusal.source_span, Some(caller_span));
@@ -1573,6 +1659,29 @@ fn generic_case_reconstruction_preserves_both_empty_and_live_payloads() {
 }
 
 #[test]
+fn a_nested_generic_constructor_keeps_its_argument_contents() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: T) -> Outcome<T> {
+            commit(move value)
+            machine commit(value: T) -> Outcome<T> {
+                Outcome::Present { item: move value }
+            }
+        }
+    "#,
+    );
+    let (source, _) = crate::preparation::prepare_typed_trees(
+        source,
+        &crate::preparation::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
+    let verdict = judge(form).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
 fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
     let source = super::boundary_calls::typed(
         r#"
@@ -1670,6 +1779,397 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
     );
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_finite_family_keeps_the_runtime_conjunct_of_its_requirement() {
+    let program = r#"
+        machine entry<Element>(items: &[Element], limit: u64) -> u64
+        requires limit <= 10u64 && (Element == u32 || Element == bool)
+        ensures result <= 10u64
+        {
+            limit
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (program.replace("limit <= 10u64 && ", ""), false),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let forms = crate::lowering::elaborate_generic_forms(
+            &source,
+            &[super::boundary_calls::entry(&source)],
+        )
+        .expect("the full requirement contains a complete finite family");
+        assert_eq!(forms.len(), 2);
+        for form in forms {
+            let verdict = judge(Ok(form)).unwrap();
+            if accepts {
+                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+            } else {
+                let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                    panic!("the missing runtime bound must reject: {verdict:?}");
+                };
+                assert!(
+                    unproved.iter().any(|failure| matches!(
+                        failure.kind,
+                        ObligationKind::NormalGuarantee { .. }
+                    )),
+                    "{unproved:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn lexical_siblings_keep_captured_types_and_callee_requirements() {
+    let program = r#"
+        machine entry<Kind>(limit: u32) -> u32
+        requires limit <= 10u32
+        ensures result <= 10u32
+        {
+            first(limit)
+            machine first(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                second(limit)
+            }
+            machine second(limit: u32) -> u32
+            requires limit <= 10u32
+            ensures result <= 10u32
+            {
+                limit
+            }
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (
+            program.replace(
+                "machine second(limit: u32) -> u32\n            requires limit <= 10u32",
+                "machine second(limit: u32) -> u32\n            requires limit <= 9u32",
+            ),
+            false,
+        ),
+    ] {
+        let source = super::boundary_calls::typed(&program);
+        let form =
+            crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+                .expect("the sibling's complete captured type tuple is available");
+        let verdict = judge(Ok(form)).unwrap();
+        if accepts {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("the stronger callee requirement must reject: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })),
+                "{unproved:?}"
+            );
+        }
+    }
+}
+
+/// Renaming and permuting binders across calls does not hide a complete
+/// classifier. Nominal applications retain every source type argument.
+
+#[test]
+fn a_forwarded_classifier_partitions_its_callers_exact_type_binder() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Choice [copy] { selected: bool; }
+        data Marker { value: u32; }
+        data Tag<T> { value: u32; }
+        machine classify<First, Second>() -> Choice {
+            transition {
+                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true }
+                Second == Marker -> Choice { selected: false }
+                Second == Tag<u32> -> Choice { selected: true }
+                Second == Tag<u64> -> Choice { selected: false }
+                _ -> Choice { selected: false }
+            }
+        }
+        machine relay<Left, Right>() -> Choice { classify<Right, Left>() }
+        machine entry<Unused, Item>() -> Choice { relay<Item, Unused>() }
+    "#,
+    );
+    let forms =
+        crate::lowering::elaborate_generic_forms(&source, &[super::boundary_calls::entry(&source)])
+            .expect("the callee's source partition follows its exact forwarded binder");
+    assert_eq!(
+        forms.len(),
+        7,
+        "six distinct closed types and the opaque remainder"
+    );
+    for form in forms {
+        assert_eq!(form.applications.len(), 2);
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_does_not_invert_type_constructors_or_mix_binders() {
+    for (program, expected) in [
+        (
+            r#"
+            data Wrapped<T> { value: u32; }
+            machine classify<Kind>() -> bool {
+                transition { Kind == u32 -> true _ -> false }
+            }
+            machine entry<T>() -> bool { classify<Wrapped<T>>() }
+            "#,
+            "static partition cannot invert a constructed type argument",
+        ),
+        (
+            r#"
+            machine classify<Left, Right>() -> bool {
+                transition { Left == u32 -> true Right == bool -> true _ -> false }
+            }
+            machine entry<T, U>() -> bool { classify<U, T>() }
+            "#,
+            "static partition over independent type binders",
+        ),
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused =
+            crate::lowering::elaborate_alternatives(&source, super::boundary_calls::entry(&source))
+                .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(refused.detail.contains(expected), "{refused:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_refuses_another_calls_source_application() {
+    let mut source = super::boundary_calls::typed(
+        r#"
+        machine classify<Kind>() -> bool {
+            transition { Kind == u32 -> true _ -> false }
+        }
+        machine entry<T>() -> bool { classify<T>() }
+    "#,
+    );
+    let entry = super::boundary_calls::entry(&source);
+    let callee = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "classify")
+        .unwrap()
+        .symbol;
+    let application = source
+        .expression_table
+        .static_machine_applications()
+        .find(|(_, application)| {
+            source
+                .machine_by_symbol(application.lexical_owner)
+                .or_else(|| source.machine_holding_state(application.lexical_owner))
+                .is_some_and(|owner| owner.symbol == entry)
+        })
+        .expect("the ordinary call has a retained supplying owner")
+        .0;
+    source
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = callee;
+    let refused = crate::lowering::elaborate_alternatives(&source, entry).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert!(
+        refused
+            .detail
+            .contains("generic application has another source owner or declaration"),
+        "{refused:?}"
+    );
+}
+
+/// Discovery uses the same finite expansion boundary as actual body reading.
+/// A recursive permutation cannot enumerate every possible binder mapping.
+
+#[test]
+fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
+    for program in [
+        r#"
+        machine entry<T, U>() -> bool {
+            let next: bool = entry<U, T>();
+            next
+        }
+        "#,
+        r#"
+        machine relay<X, Y, Z>() -> bool {
+            let next: bool = entry<X, Y, Z>();
+            next
+        }
+        machine entry<T, U, V>() -> bool {
+            let next: bool = relay<U, V, T>();
+            next
+        }
+        "#,
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused =
+            crate::lowering::elaborate_alternatives(&source, super::boundary_calls::entry(&source))
+                .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(
+            refused
+                .detail
+                .contains("recursive static partition forwarding changes its arguments"),
+            "{refused:?}"
+        );
+    }
+}
+
+/// A lexical helper uses the outer type and callback selections themselves.
+/// It still proves its own written guarantee, independently of its callers.
+
+#[test]
+fn nested_helpers_keep_mixed_inherited_static_parameters() {
+    for result in ["value", "8u32"] {
+        let source = super::boundary_calls::typed(&format!(
+            r#"
+            machine entry<T, machine Next>(value: u32) -> u32
+            requires machine Next() reaches none crashes none;
+            requires value == 7u32
+            ensures result == 7u32
+            {{
+                helper(value)
+                machine helper(value: u32) -> u32
+                requires value == 7u32
+                ensures result == 7u32
+                {{ Next(); {result} }}
+            }}
+        "#
+        ));
+        let form =
+            crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+                .expect("a lexical helper retains the actual outer static parameters");
+        let root = source
+            .machine_by_symbol(super::boundary_calls::entry(&source))
+            .unwrap();
+        assert!(
+            source
+                .machine_type_parameters(root)
+                .iter()
+                .all(|parameter| form.generic_binders.contains(&parameter.symbol)),
+            "the unused type and callback keep their exact declaration identities"
+        );
+        let verdict = judge(Ok(form)).unwrap();
+        if result == "value" {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| guarantee(&row.kind))),
+                "{verdict:?}"
+            );
+        }
+    }
+}
+
+fn judge_prepared_source(
+    source: &str,
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    let (typed, _) = crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(source),
+        &crate::preparation::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::build_purpose::symbol(&typed, "main");
+    let prepared = crate::lowering::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[None],
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    crate::checking::judge_compilation(prepared.program)
+}
+
+#[test]
+fn a_callback_retains_its_supplied_slice_type_and_access() {
+    let summarize = |verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>]| {
+        verdicts
+            .iter()
+            .filter_map(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => None,
+                Ok(RouteVerdict::FallBack(refusal))
+                | Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => {
+                    Some(refusal.detail.clone())
+                }
+                Err(refusal) => Some(format!("{refusal:?}")),
+                Ok(_) => Some("a compilation form was rejected".to_owned()),
+            })
+            .collect::<Vec<_>>()
+    };
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/constructed_slice_callback/main.omg"
+    ));
+    let accepted = judge_prepared_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{:?}",
+        summarize(&accepted)
+    );
+    let invalid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/calls/constructed_slice_callback/main.omg"
+    ));
+    let rejected = judge_prepared_source(invalid);
+    assert!(
+        rejected.iter().any(|verdict| {
+            let refusal = match verdict {
+                Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+                | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+                _ => return false,
+            };
+            refusal.reason == RefusalReason::ForeignIdentity
+                && refusal.detail.contains(
+                    "refinement structural formal has another carrier, access or identity",
+                )
+        }),
+        "the callback cannot strengthen shared access to mutable access: {:?}",
+        summarize(&rejected)
+    );
+}
+
+#[test]
+fn a_selected_callback_keeps_its_exact_applied_record_result() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/closed_result_callback/main.omg"
+    ));
+    let accepted = judge_prepared_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "the callback's applied result must keep its data view: {accepted:?}"
+    );
+    let invalid = source.replace("invoke<make>", "invoke<other>");
+    assert_ne!(source, invalid);
+    let rejected = match crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(&invalid),
+        &crate::preparation::PreparationRequest::settled(),
+    ) {
+        Err(rejected) => rejected,
+        Ok(_) => panic!("a different callback result type must be refused"),
+    };
+    assert!(
+        format!("{rejected:?}").contains("its result type is not the binder's"),
+        "the same-shaped Other record cannot replace Payload: {rejected:?}"
+    );
 }
 
 /// A declared invariant belongs to each actual record application. The
@@ -1838,4 +2338,55 @@ machine main() crashes Trap {
         "an unused generic field must still resolve the domain it names: {:?}",
         observed[2]
     );
+}
+
+#[test]
+fn a_const_generic_call_keeps_the_guard_on_its_actual_record_fields() {
+    let source = r#"// Expected exit: 0. A guarded field fact survives a const-generic borrowed call.
+data Buffer<Element, const N: u64> { before: u64; items: [Element; N]; length: u64; after: u64; }
+machine inspect<Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+requires Element == u8 || Element == u16
+{
+    transition value.length <= value.items.len {
+        true -> live(value)
+        false -> 0u64
+    }
+    machine live(value: &Buffer<Element, N>) -> u64
+    requires (Element == u8 || Element == u16) && value.length <= value.items.len
+    { value.length }
+}
+machine main() crashes Trap {
+    let live: Buffer<u8, 4> = Buffer { before: 17u64, items: [1u8, 2u8, 3u8, 4u8], length: 2u64, after: 91u64 };
+    let invalid: Buffer<u8, 4> = Buffer { before: 19u64, items: [5u8, 6u8, 7u8, 8u8], length: 5u64, after: 93u64 };
+    let a: u64 = inspect<u8, 4>(&live);
+    let b: u64 = inspect<u8, 4>(&invalid);
+    transition a == 2u64 && b == 0u64
+        && live.before == 17u64 && live.after == 91u64 && invalid.before == 19u64 && invalid.after == 93u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    let accepted = judge_prepared_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "the guarded record must keep its exact field facts in every check form: {accepted:?}"
+    );
+    let invalid = source.replace(
+        "transition value.length <= value.items.len {",
+        "transition value.length >= 0u64 {",
+    );
+    assert_ne!(source, invalid);
+    let rejected = judge_prepared_source(&invalid);
+    assert!(rejected.iter().any(|verdict| matches!(
+        verdict,
+        Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })
+                && failure.statement.contains("cannot prove requires contract for call live from inspect"))
+    )), "removing only the length guard must refuse the helper contract: {rejected:?}");
 }

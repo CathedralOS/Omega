@@ -3007,6 +3007,7 @@ pub(crate) mod stored_calls {
                                 DescriptorStoredOrigin::Invocation { .. }
                                 | DescriptorStoredOrigin::IncomingSlot { .. }
                                 | DescriptorStoredOrigin::IncomingContents { .. }
+                                | DescriptorStoredOrigin::ProducedContents(_)
                                 | DescriptorStoredOrigin::Literal { .. }
                                 | DescriptorStoredOrigin::AccessFormation { .. }
                                 | DescriptorStoredOrigin::Carried { .. } => return None,

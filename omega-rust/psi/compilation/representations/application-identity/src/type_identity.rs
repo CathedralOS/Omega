@@ -1951,6 +1951,13 @@ pub fn visit_type_identity_package_owners(
     reader.finish()
 }
 
+/// Check the syntax of a type description within one source compilation.
+/// The description may name the local toolchain without its revision. When
+/// matching declarations, the caller still checks their exact identities.
+pub fn validate_source_type_description(description: &str) -> Result<(), TypeIdentityVisitError> {
+    visit_type_identity_package_owners(description, &mut DeclarationIdentitySyntax { depth: 0 })
+}
+
 /// Read the same argument grammar used inside a canonical type application.
 /// Descriptions retain complete machine arguments; consumers compare them to
 /// checked declarations only after this whole traversal succeeds.

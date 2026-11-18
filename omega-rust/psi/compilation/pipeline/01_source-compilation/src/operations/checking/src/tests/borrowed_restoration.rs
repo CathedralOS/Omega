@@ -833,3 +833,95 @@ fn an_exclusive_reference_field_opens_the_same_captured_window() {
         );
     execute_restoration(&source);
 }
+
+/// Ending a non-owning address spelling cannot fill the field moved from it.
+#[test]
+fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
+    let program = |restore: &str| {
+        format!(
+            r#"
+        {DATA}
+        machine take(holder: &mut Holder, next: Inner, again: bool) -> Inner
+        requires true
+        {{
+            let taken: Inner = move holder.inner;
+            {restore}
+            transition again {{
+                true -> take(holder, taken, false)
+                false -> taken
+            }}
+        }}
+    "#
+        )
+    };
+    let elaborate = |typed: &crate::source_state::TypedTrees| {
+        crate::lowering::elaborate_for(
+            typed,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[None],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    let typed = super::boundary_calls::typed(&program("holder.inner = next;"));
+    let form = elaborate(&typed).unwrap();
+    let mut dead_moved_header = false;
+    for machine in &form.module.machines {
+        let names = terminal_semantics::plain_affine::borrowed_address_liveness(
+            machine,
+            &form.module.structural_types,
+        )
+        .unwrap();
+        for source in machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation.kind {
+                OperationKind::MoveStructuralField { source, .. } => Some(source),
+                _ => None,
+            })
+        {
+            if !names.is_address_header(source) {
+                continue;
+            }
+            dead_moved_header |= machine.blocks.iter().any(|block| {
+                matches!(
+                    block.terminator,
+                    terminal_psi::Terminator::ReturnStructural { .. }
+                ) && names.is_live(source, (block.id, block.operations.len() as u32)) == Some(false)
+            });
+        }
+    }
+    assert!(
+        dead_moved_header,
+        "the moved field must belong to a borrowed block address that ends before return"
+    );
+    let restored = judge(Ok(form)).unwrap();
+    assert!(
+        matches!(restored, RouteVerdict::Accepted(_)),
+        "{restored:?}"
+    );
+    let invalid = super::boundary_calls::typed(&program(""));
+    let refused = match elaborate(&invalid) {
+        Ok(form) => judge(Ok(form)).unwrap(),
+        Err(refusal) => RouteVerdict::FallBack(refusal),
+    };
+    let owes_restoration = match &refused {
+        RouteVerdict::Rejected { violations, .. } => violations
+            .iter()
+            .any(|violation| violation.statement.contains(NOT_RESTORED)),
+        RouteVerdict::FallBack(refusal) => refusal
+            .detail
+            .contains("borrowed block storage still owes restoration at its last use"),
+        _ => false,
+    };
+    assert!(owes_restoration, "{refused:?}");
+}

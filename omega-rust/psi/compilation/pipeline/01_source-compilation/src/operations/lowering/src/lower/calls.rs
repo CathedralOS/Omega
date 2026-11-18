@@ -518,6 +518,8 @@ impl Lowering<'_> {
             loans: Vec::new(),
             erased: Vec::new(),
         };
+        let observes_storage = !signature.requires.is_empty() || !signature.ensures.is_empty();
+        let mut argument_types = Vec::new();
         for (position, argument) in arguments.iter().enumerate() {
             // contracts.md, "Explicit erased bindings": "Construction
             // supplies the erased term". The argument at an erased position
@@ -526,6 +528,25 @@ impl Lowering<'_> {
                 let witness = self.witness(argument)?;
                 evaluated.erased.push(witness.term());
                 continue;
+            }
+            if observes_storage {
+                let storage_type = match &argument.kind {
+                    ExpressionKind::Borrow { place, .. } => Some(place.result),
+                    _ if matches!(argument.result, Some(ValueType::Record(..))) => {
+                        Some(argument.result)
+                    }
+                    _ => None,
+                };
+                if let Some(storage_type) = storage_type {
+                    let types = match (signature.parameters.get(position), storage_type) {
+                        (
+                            Some(ValueType::Record(formal, ..)),
+                            Some(ValueType::Record(actual, ..)),
+                        ) => Some((*formal, actual)),
+                        _ => None,
+                    };
+                    argument_types.push(types);
+                }
             }
             if let ExpressionKind::Borrow { access, place, .. } = &argument.kind {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
@@ -563,6 +584,9 @@ impl Lowering<'_> {
                 }
             }
         }
+        if !observes_storage {
+            return Ok(Reached::Value(evaluated));
+        }
         // Contracts observe the exact actual subtree, even when no body
         // operation reads that leaf. Naming a leaf supplies no premise; a
         // guarantee will use its independently checked after-call identity.
@@ -582,7 +606,7 @@ impl Lowering<'_> {
             .collect::<Checked<Vec<_>>>()?;
         let result = signature.structural_result_place();
         for clause in signature.requires.iter().chain(&signature.ensures) {
-            self.name_clause_contents(clause, &bindings, result)?;
+            self.name_call_clause_contents(clause, &bindings, result, &argument_types)?;
         }
         Ok(Reached::Value(evaluated))
     }

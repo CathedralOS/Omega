@@ -10333,7 +10333,7 @@ impl TypedTrees {
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
-        self.scoped_carrier_identity(request, scope_starts, None)
+        self.scoped_source_identity(request, scope_starts, None, false)
     }
 
     pub fn scoped_carrier_identity_in_region_scope(
@@ -10342,14 +10342,24 @@ impl TypedTrees {
         scope_starts: &[usize],
         owner: SymbolHandle,
     ) -> Option<NormalizedTypeIdentity> {
-        self.scoped_carrier_identity(request, scope_starts, Some(owner))
+        self.scoped_source_identity(request, scope_starts, Some(owner), true)
     }
 
-    fn scoped_carrier_identity(
+    pub(crate) fn scoped_type_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_source_identity(request, scope_starts, Some(owner), false)
+    }
+
+    fn scoped_source_identity(
         &self,
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
         owner: Option<SymbolHandle>,
+        erase_constraints: bool,
     ) -> Option<NormalizedTypeIdentity> {
         if !self.contains_type_reference(request.type_reference) {
             return None;
@@ -10360,7 +10370,7 @@ impl TypedTrees {
             request.type_reference,
             &TypeIdentityContext {
                 declared_carrier: owner.is_none(),
-                erase_constraints: owner.is_some(),
+                erase_constraints,
                 substitutions: request.substitutions,
                 substitution_scope_starts: scope_starts,
                 application_owner: owner.unwrap_or_else(SymbolHandle::invalid),

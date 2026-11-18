@@ -4807,6 +4807,7 @@ pub(crate) mod references {
                                         DescriptorStoredOrigin::Invocation { .. }
                                         | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Provider(_)
+                                        | DescriptorStoredOrigin::ProducedContents(_)
                                         | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. }
                                         | DescriptorStoredOrigin::Carried { .. } => None,
                                     }

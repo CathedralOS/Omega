@@ -5,6 +5,17 @@ use crate::source_state::types::TypeReferenceHandle;
 use crate::source_state::{SourceTypeApplication, SourceTypeScope, TypedTrees};
 use symbols::SymbolHandle;
 
+/// A slice's source occurrences retain the scopes in which their arguments
+/// were supplied. Shape inspection grants neither backing nor access permission.
+#[derive(Debug)]
+pub struct SourceSliceApplication {
+    pub reference: SourceTypeApplication,
+    pub referent: SourceTypeApplication,
+    pub slice: SourceTypeApplication,
+    pub element: SourceTypeApplication,
+    pub access: Option<language_core::ReferenceAccess>,
+}
+
 impl SourceTypeScope {
     fn with_substitutions<R>(
         &self,
@@ -33,6 +44,99 @@ impl SourceTypeScope {
             rigid.extend_from_slice(&frame.rigid_parameters);
         }
         read(&substitutions, &starts, &rigid)
+    }
+
+    /// Read a supplied type under the scope that preceded its argument tuple.
+    /// Sibling bindings in the same tuple cannot rewrite one another's actuals.
+    /// Constructor children retain this returned scope when they are inspected.
+    pub fn supplied_type_reference(
+        self: &std::sync::Arc<Self>,
+        typed: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Result<SourceTypeApplication, &'static str> {
+        let mut application = SourceTypeApplication {
+            reference,
+            scope: self.clone(),
+            substitutions: Vec::new(),
+        };
+        loop {
+            if !typed.contains_type_reference(application.reference) {
+                return Err("supplied type lost its retained type reference");
+            }
+            let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_node(application.reference)
+            else {
+                return Ok(application);
+            };
+            let mut frame = Some(application.scope.as_ref());
+            let mut supplied = None;
+            while let Some(current) = frame {
+                if let Some((_, actual)) = current
+                    .substitutions
+                    .iter()
+                    .find(|(parameter, _)| parameter == symbol)
+                {
+                    supplied = Some((*actual, current.parent.clone().unwrap_or_default()));
+                    break;
+                }
+                frame = current.parent.as_deref();
+            }
+            let Some((reference, scope)) = supplied else {
+                return Ok(application);
+            };
+            application.reference = reference;
+            application.scope = scope;
+        }
+    }
+
+    pub fn slice_application(
+        self: &std::sync::Arc<Self>,
+        typed: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Result<Option<SourceSliceApplication>, &'static str> {
+        use crate::source_state::types::TypeReferenceNode;
+        let reference = self.supplied_type_reference(typed, reference)?;
+        let (referent, access) = match typed.type_reference_node(reference.reference) {
+            TypeReferenceNode::Slice { .. } => (reference.clone(), None),
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => (
+                reference.scope.supplied_type_reference(typed, *referee)?,
+                Some(*access),
+            ),
+            _ => return Ok(None),
+        };
+        let mut slice = referent.clone();
+        let mut remaining = typed.type_reference_table.type_reference_count();
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            typed.type_reference_node(slice.reference)
+        {
+            if remaining == 0 {
+                return Err("supplied slice has a cyclic qualification tree");
+            }
+            remaining -= 1;
+            let supplied = slice.scope.supplied_type_reference(typed, *base_type)?;
+            if !std::sync::Arc::ptr_eq(&slice.scope, &supplied.scope) {
+                remaining = typed.type_reference_table.type_reference_count();
+            }
+            slice = supplied;
+        }
+        let TypeReferenceNode::Slice { element_type } = typed.type_reference_node(slice.reference)
+        else {
+            return Ok(None);
+        };
+        let element = SourceTypeApplication {
+            reference: *element_type,
+            scope: slice.scope.clone(),
+            substitutions: Vec::new(),
+        };
+        Ok(Some(SourceSliceApplication {
+            reference,
+            referent,
+            slice,
+            element,
+            access,
+        }))
     }
 
     pub fn type_identity(
@@ -108,6 +212,26 @@ impl SourceTypeScope {
     ) -> Option<NormalizedTypeIdentity> {
         self.with_substitutions(|substitutions, starts, _| {
             typed.scoped_carrier_identity_in_region_scope(
+                TypeIdentityRequest {
+                    substitutions,
+                    ..TypeIdentityRequest::ordinary(reference)
+                },
+                starts,
+                owner,
+            )
+        })
+    }
+
+    /// Resolve written lifetimes while keeping the substituted type and its
+    /// qualifications, including those on the elements of a sequence.
+    pub fn type_identity_in_region_scope(
+        &self,
+        typed: &TypedTrees,
+        reference: TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.with_substitutions(|substitutions, starts, _| {
+            typed.scoped_type_identity_in_region_scope(
                 TypeIdentityRequest {
                     substitutions,
                     ..TypeIdentityRequest::ordinary(reference)
@@ -213,6 +337,73 @@ mod tests {
         assert_eq!(
             swapped.type_identity(&typed, u_ref),
             typed.normalized_type_identity(integer)
+        );
+        let swapped = Arc::new(swapped);
+        for (formal, actual) in [(t_ref, boolean), (u_ref, integer)] {
+            let supplied = swapped.supplied_type_reference(&typed, formal).unwrap();
+            assert_eq!(supplied.reference, actual);
+            assert_eq!(
+                supplied.type_identity(&typed),
+                swapped.type_identity(&typed, formal)
+            );
+        }
+        let slice = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: t_ref,
+        });
+        let supplied = Arc::new(SourceTypeScope {
+            parent: Some(outer.clone()),
+            substitutions: vec![(u, slice)],
+            ..Default::default()
+        })
+        .supplied_type_reference(&typed, u_ref)
+        .unwrap();
+        assert_eq!(supplied.reference, slice);
+        assert!(Arc::ptr_eq(&supplied.scope, &outer));
+        assert_eq!(
+            supplied
+                .scope
+                .supplied_type_reference(&typed, t_ref)
+                .unwrap()
+                .reference,
+            integer
+        );
+        let scope = Arc::new(SourceTypeScope {
+            parent: Some(outer.clone()),
+            substitutions: vec![(u, slice)],
+            ..Default::default()
+        });
+        let borrowed = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: u_ref,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let view = scope.slice_application(&typed, borrowed).unwrap().unwrap();
+        assert_eq!(view.slice.reference, slice);
+        assert!(Arc::ptr_eq(&view.slice.scope, &outer));
+        assert_eq!(view.element.reference, t_ref);
+        assert!(Arc::ptr_eq(&view.element.scope, &outer));
+        assert_eq!(
+            view.element.type_identity(&typed),
+            typed.normalized_type_identity(integer)
+        );
+        let nested = Arc::new(SourceTypeScope {
+            parent: Some(outer.clone()),
+            substitutions: vec![(u, borrowed)],
+            ..Default::default()
+        });
+        assert!(
+            nested
+                .slice_application(&typed, borrowed)
+                .unwrap()
+                .is_none(),
+            "a reference to a borrowed view keeps its extra reference layer"
+        );
+        assert!(
+            swapped
+                .supplied_type_reference(&typed, TypeReferenceHandle::invalid())
+                .is_err()
         );
     }
     #[test]

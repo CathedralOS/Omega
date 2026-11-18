@@ -597,7 +597,11 @@ pub(crate) fn writes(
 fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
     let mut pending = Vec::new();
     for caller in &elaboration.module.machines {
-        let graph = crate::checking::places::reference_graph(&elaboration.module, caller.id)?;
+        let graph = crate::checking::places::reference_graph_with_nominal_calls(
+            &elaboration.module,
+            caller.id,
+            &elaboration.nominal_calls,
+        )?;
         let mut analysis =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &elaboration.module.structural_types,

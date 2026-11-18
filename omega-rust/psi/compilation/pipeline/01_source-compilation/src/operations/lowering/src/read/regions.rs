@@ -224,18 +224,28 @@ impl Program<'_> {
         Region::Fixed((self.fixed_regions.len() - 1) as u32)
     }
 
+    /// A copied declaration keeps the named lifetimes of its exact source.
+    /// Use the same retained owner that typed reference lookup uses.
+    fn declared_lifetimes(
+        &self,
+        owner: SymbolHandle,
+    ) -> impl ExactSizeIterator<Item = LifetimeParameterIdentity> {
+        let declaration = self.typed.lifetime_declaration_owner(owner);
+        let count = crate::source_state::type_identity::declaration_lifetime_parameters(
+            self.typed,
+            declaration,
+        )
+        .map_or(0, <[_]>::len);
+        (0..count).map(move |ordinal| LifetimeParameterIdentity {
+            declaration,
+            ordinal,
+        })
+    }
+
     /// The lifetime parameters `owner` declares, as regions in order.
     pub(crate) fn own_regions(&self, owner: SymbolHandle) -> Vec<Region> {
-        let count =
-            crate::source_state::type_identity::declaration_lifetime_parameters(self.typed, owner)
-                .map_or(0, <[_]>::len);
-        (0..count)
-            .map(|ordinal| {
-                Region::Parameter(LifetimeParameterIdentity {
-                    declaration: owner,
-                    ordinal,
-                })
-            })
+        self.declared_lifetimes(owner)
+            .map(Region::Parameter)
             .collect()
     }
 
@@ -468,9 +478,7 @@ impl Program<'_> {
     /// A fresh lifetime parameter of `owner`, after the ones it declares and
     /// the ones already minted for it.
     fn mint_lifetime(&mut self, owner: SymbolHandle) -> Region {
-        let declared =
-            crate::source_state::type_identity::declaration_lifetime_parameters(self.typed, owner)
-                .map_or(0, <[_]>::len);
+        let declared = self.declared_lifetimes(owner).len();
         let minted = match self
             .elided_lifetimes
             .iter_mut()
@@ -519,27 +527,21 @@ impl Program<'_> {
         &self,
         machine: SymbolHandle,
     ) -> Vec<LifetimeParameterIdentity> {
-        let declared = crate::source_state::type_identity::declaration_lifetime_parameters(
-            self.typed, machine,
-        )
-        .map_or(0, <[_]>::len);
+        let declared = self.declared_lifetimes(machine);
+        let declared_count = declared.len();
         let elided = self
             .elided_lifetimes
             .iter()
             .find(|(owner, _)| *owner == machine)
             .map_or(0, |(_, minted)| *minted);
-        // Specialization keeps explicit lifetime references attached to the
-        // original declaration. Elided inputs are minted while reading this
-        // copy, so those parameters still belong to this machine.
-        let declaration = self.typed.lifetime_declaration_owner(machine);
-        (0..declared)
-            .map(|ordinal| LifetimeParameterIdentity {
-                declaration,
-                ordinal,
-            })
-            .chain((0..elided).map(|ordinal| LifetimeParameterIdentity {
-                declaration: machine,
-                ordinal: declared + ordinal,
+        // Elided inputs belong to this signature, not its template. Moving
+        // them to another owner would join independent input positions.
+        declared
+            .chain((declared_count..declared_count + elided).map(|ordinal| {
+                LifetimeParameterIdentity {
+                    declaration: machine,
+                    ordinal,
+                }
             }))
             .collect()
     }

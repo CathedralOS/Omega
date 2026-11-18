@@ -380,6 +380,105 @@ fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
 }
 
 #[test]
+fn a_call_preserves_a_const_argument_that_the_record_does_not_store() {
+    let source = "
+data Token<const Key: u64> { payload: u16; }
+machine entry<const N: u64, const M: u64>(token: &Token<N>) -> u64 {
+    child(token)
+    machine child(token: &Token<N>) -> u64 { N }
+}";
+    let baseline = rigid_array_form(source);
+    let mut valid = baseline.clone();
+    let checked = discharge(&mut valid, &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+
+    let mut changed = baseline.clone();
+    let caller = &mut changed.module.machines[0];
+    let original = caller.parameters[0].id;
+    let other = caller.parameters[1].id;
+    let call = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.declared_invocation().is_some())
+        .unwrap();
+    let OperationKind::CallStructuralScalar { arguments, .. } = &mut call.kind else {
+        panic!("{call:?}");
+    };
+    assert_eq!(arguments[0], original);
+    // The layout of Token does not mention either value. Passing M where
+    // the callee expects N still changes the nominal type of its input.
+    arguments[0] = other;
+    let error = discharge(&mut changed, &mut Default::default()).unwrap_err();
+    assert!(
+        error
+            .detail
+            .contains("nominal call input changed its complete type or const actuals"),
+        "{error:?}"
+    );
+
+    let mut missing = baseline.clone();
+    missing.nominal_calls.clear();
+    let error = discharge(&mut missing, &mut Default::default()).unwrap_err();
+    assert!(
+        error
+            .detail
+            .contains("nominal call input has no complete type correspondence"),
+        "{error:?}"
+    );
+
+    let mut duplicate = baseline.clone();
+    duplicate
+        .nominal_calls
+        .push(duplicate.nominal_calls[0].clone());
+    let error = discharge(&mut duplicate, &mut Default::default()).unwrap_err();
+    assert!(
+        error.detail.contains("duplicated or unordered"),
+        "{error:?}"
+    );
+
+    let mut stale = baseline;
+    stale.nominal_calls[0].actual_constructor =
+        semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap();
+    let error = discharge(&mut stale, &mut Default::default()).unwrap_err();
+    assert!(
+        error
+            .detail
+            .contains("nominal call input changed its complete type or const actuals"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_literal_const_call_keeps_the_supplied_element_permissions() {
+    let source = "
+data Buffer<Element, const N: u64> { items: [Element; N]; }
+machine measure<Element, const N: u64>(value: &Buffer<Element, N>) -> u64 { value.items.len }
+machine entry<Kind>(value: &Kind) -> u64
+requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
+{
+    transition {
+        Kind == Buffer<u8, 4> -> measure<u8, 4>(value)
+        _ -> measure<u16, 4>(value)
+    }
+}";
+    let verdicts = array_subject(source);
+    assert!(
+        !verdicts.is_empty()
+            && verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
 fn a_recursive_const_call_checks_its_extent_even_when_the_local_types_are_equal() {
     for array in ["[u8; N]", "[[u8; N]; 2]"] {
         let mut form = rigid_array_form(&format!(
@@ -478,6 +577,34 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
     assert!(
         !agrees(&form.module, 2),
         "an opaque marker cannot hide a concrete extent equation"
+    );
+}
+
+#[test]
+fn fixed_array_contract_lengths_keep_the_exact_field_carrier() {
+    let source = r#"
+data Holder { short: [u8; 2]; long: [u8; 4]; }
+machine bounded(holder: &Holder, index: u64)
+requires index < holder.long.len
+{}
+machine build_entry(holder: &Holder, index: u64)
+requires index < 4u64
+{ bounded(holder, index); }
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let rejected = verdict(&source.replace("holder.long.len", "holder.short.len"));
+    assert!(rejected.starts_with("rejected"), "{rejected}");
+    let unestablished = verdict(
+        r#"
+data Choice { case Empty; case Filled(slots: [u8; 4]); }
+machine build_entry(choice: &Choice, index: u64)
+requires index < choice.slots.len
+{}
+"#,
+    );
+    assert!(
+        unestablished.contains("fixed array length through an unestablished case payload"),
+        "{unestablished}"
     );
 }
 
