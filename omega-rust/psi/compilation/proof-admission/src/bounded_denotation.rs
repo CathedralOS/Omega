@@ -7034,6 +7034,7 @@ mod elaboration {
         roster: Vec<Proposition>,
         positions: Vec<u32>,
         depth: u32,
+        syntax_terms: HashMap<Term, TermHandle>,
         steps: u64,
         rules: BTreeSet<AcceptedProofRule>,
         assumptions: PremiseRoster,
@@ -7652,7 +7653,7 @@ mod elaboration {
                 domain: elaboration.denotation.two,
                 body,
             });
-            let tag = elaboration.denotation.arena.insert(Term::Fst {
+            let tag = elaboration.proof_term(Term::Fst {
                 pair: parts.case.scrutinee,
             });
             let elimination = elaboration.denotation.arena.insert(Term::CaseTwo {
@@ -7661,7 +7662,7 @@ mod elaboration {
                 one_branch: one,
                 scrutinee: tag,
             });
-            let payload = elaboration.denotation.arena.insert(Term::Snd {
+            let payload = elaboration.proof_term(Term::Snd {
                 pair: parts.case.scrutinee,
             });
             elaboration.denotation.arena.insert(Term::Apply {
@@ -7703,6 +7704,7 @@ mod elaboration {
                 roster: assumptions.to_vec(),
                 positions,
                 depth,
+                syntax_terms: HashMap::new(),
                 steps: 0,
                 rules: BTreeSet::new(),
                 assumptions: PremiseRoster::default(),
@@ -7710,9 +7712,19 @@ mod elaboration {
             })
         }
 
+        /// Repeated evidence keeps one raw syntax node. A variable's meaning
+        /// still comes from the exact context checked by the mathematical kernel.
+        fn proof_term(&mut self, term: Term) -> TermHandle {
+            let arena = &mut self.denotation.arena;
+            *self
+                .syntax_terms
+                .entry(term)
+                .or_insert_with_key(|term| arena.insert(term.clone()))
+        }
+
         fn variable(&mut self, position: u32) -> TermHandle {
             let index = self.depth - 1 - position;
-            self.denotation.arena.insert(Term::Variable(index))
+            self.proof_term(Term::Variable(index))
         }
 
         pub(super) fn node(
@@ -7880,10 +7892,10 @@ mod elaboration {
                     let last = conjuncts.len() - 1;
                     let mut term = pair;
                     for _ in 0..(*conjunct).min(last) {
-                        term = self.denotation.arena.insert(Term::Snd { pair: term });
+                        term = self.proof_term(Term::Snd { pair: term });
                     }
                     if *conjunct < last {
-                        term = self.denotation.arena.insert(Term::Fst { pair: term });
+                        term = self.proof_term(Term::Fst { pair: term });
                     }
                     Ok(term)
                 }
@@ -14752,6 +14764,82 @@ mod tests {
 
     fn budget() -> Budget {
         Budget::new(DEFAULT_CONVERSION_STEPS)
+    }
+
+    #[test]
+    fn repeated_conjunction_fields_share_their_generated_prefixes() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let values = (1..=16)
+            .map(|position| (ValueId::new(position).unwrap(), scalar))
+            .collect::<Vec<_>>();
+        let context = PropositionContext::from_value_types(values.iter().copied()).unwrap();
+        let fields = values
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| {
+                Proposition::Equal(
+                    ScalarTerm::value(pair[0].0, scalar),
+                    ScalarTerm::value(pair[1].0, scalar),
+                )
+            })
+            .collect::<Vec<_>>();
+        let goal = Proposition::Conjunction(fields.clone());
+        let assumptions = [goal.clone()];
+        let mut proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(
+                fields
+                    .iter()
+                    .enumerate()
+                    .map(|(conjunct, field)| ProofNode {
+                        conclusion: field.clone(),
+                        rule: ProofRule::ConjunctionElimination {
+                            conjunction: Box::new(assumption_proof(goal.clone(), 0)),
+                            conjunct,
+                        },
+                    })
+                    .collect(),
+            ),
+        };
+        let denoted =
+            verify_bounded_certificate(&context, &goal, &assumptions, &[], &proof, &mut budget())
+                .unwrap();
+        let mut term = denoted.certificate.term;
+        let mut prefixes = Vec::new();
+        for _ in 1..fields.len() {
+            let Term::Pair { first, second } = denoted.arena.get(term) else {
+                panic!("each output field has its own pair component")
+            };
+            let Term::Fst { pair } = denoted.arena.get(first) else {
+                panic!("each field selects its exact input component")
+            };
+            prefixes.push(pair);
+            term = second;
+        }
+        prefixes.push(term);
+        for pair in prefixes.windows(2) {
+            assert!(
+                matches!(denoted.arena.get(pair[1]), Term::Snd { pair: previous } if previous == pair[0])
+            );
+        }
+
+        let ProofRule::ConjunctionIntroduction(children) = &mut proof.rule else {
+            unreachable!()
+        };
+        let ProofRule::ConjunctionElimination { conjunct, .. } =
+            &mut children.last_mut().unwrap().rule
+        else {
+            unreachable!()
+        };
+        *conjunct = 0;
+        assert!(matches!(
+            denote_bounded_certificate(&context, &goal, &assumptions, &[], &proof),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::ConjunctConclusionMismatch
+            ))
+        ));
     }
 
     fn unsigned64() -> IntegerType {
