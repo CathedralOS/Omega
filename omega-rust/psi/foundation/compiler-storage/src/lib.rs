@@ -600,6 +600,19 @@ impl<'bytes, Context: Default> RecordReader<'bytes, Context> {
     }
 }
 
+/// Borrow one enum payload while exhaustively naming its other variants.
+#[macro_export]
+macro_rules! enum_variant_accessor {
+    ($method:ident, $variant:ident; $result:ty; $($rest:tt)*) => {
+        pub const fn $method(&self) -> Option<&$result> {
+            match self {
+                Self::$variant(result) => Some(result),
+                $($rest)* => None,
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Record, RecordLimits, decode, encode};
@@ -1005,17 +1018,4 @@ mod tests {
         );
         assert!(input.generation::<Text>(3).is_err());
     }
-}
-
-/// Borrow one enum payload while exhaustively naming its other variants.
-#[macro_export]
-macro_rules! enum_variant_accessor {
-    ($method:ident, $variant:ident; $result:ty; $($rest:tt)*) => {
-        pub const fn $method(&self) -> Option<&$result> {
-            match self {
-                Self::$variant(result) => Some(result),
-                $($rest)* => None,
-            }
-        }
-    };
 }

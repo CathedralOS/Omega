@@ -43,5 +43,4 @@ pub use source_jobs::*;
 mod tests;
 
 #[cfg(test)]
-#[path = "../../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+use crate::frontend_fixture;
