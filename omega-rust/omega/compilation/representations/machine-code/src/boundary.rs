@@ -204,7 +204,7 @@ pub mod settlements {
             }
         }
 
-        optimization_core::structural_variant_accessor!(BoundaryStructuralResultRecord; Self::Unit | Self::Scalar(_));
+        compiler_storage::enum_variant_accessor!(structural, Structural; BoundaryStructuralResultRecord; Self::Unit | Self::Scalar(_));
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

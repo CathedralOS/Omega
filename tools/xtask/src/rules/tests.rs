@@ -13,7 +13,7 @@ use super::commit_metadata::{
 };
 use super::diff_hygiene::diff_hygiene_violations;
 use super::ratchets::{
-    CHECKING_STATE_ROOTS, RATCHET_SPECS, checking_interior_state_violations,
+    CHECKING_STATE_ROOTS, RATCHET_SPECS, SEMANTIC_IDS, checking_interior_state_violations,
     compute_ratchet_counts, count_place_transport, ratchet_violations, read_baseline,
     semantic_id_names,
 };
@@ -69,6 +69,28 @@ fn interior_state_scan_reports_an_unreadable_configured_root() {
 }
 
 #[test]
+fn dense_id_scan_requires_a_populated_catalog() {
+    let repo = ScratchRepository::new();
+    let path = repo.root.join(SEMANTIC_IDS);
+    assert!(
+        semantic_id_names(&repo.root)
+            .unwrap_err()
+            .contains("cannot read")
+    );
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, "struct MachineId(u32);").unwrap();
+    assert!(
+        semantic_id_names(&repo.root)
+            .unwrap_err()
+            .contains("no semantic_id declarations")
+    );
+    fs::write(path, "semantic_id!(MachineId);").unwrap();
+    let ids = semantic_id_names(&repo.root).unwrap();
+    assert_eq!(ids.len(), 1);
+    assert!(ids.contains("MachineId"));
+}
+
+#[test]
 fn place_transport_counts_comparisons_rebasers_and_place_types() {
     let text = "\
 pub(super) fn owner_path_overlaps(a: u8) -> bool { true }
@@ -85,7 +107,7 @@ struct Ledger;
 #[test]
 fn ratchets_and_dangling_ids_match_checked_in_baselines() {
     let root = repo_root().expect("test runs in the Omega workspace");
-    let semantic_ids = semantic_id_names(&root);
+    let semantic_ids = semantic_id_names(&root).expect("the dense-ID catalog must be present");
     for (idx, spec) in RATCHET_SPECS.iter().enumerate() {
         let counts = compute_ratchet_counts(&root, idx, &semantic_ids);
         let baseline_text = fs::read_to_string(root.join(spec.baseline)).unwrap();

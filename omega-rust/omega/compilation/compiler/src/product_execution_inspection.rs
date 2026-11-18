@@ -17,11 +17,7 @@ pub(crate) struct InspectionCompilation {
 
 impl InspectionCompilation {
     pub(crate) fn new(realization: SelectedProductTarget) -> Self {
-        let selections = realization
-            .custody
-            .terminal_publication
-            .optimizations()
-            .clone();
+        let selections = realization.custody.optimizations.clone();
         Self {
             realization,
             selections,
@@ -30,7 +26,7 @@ impl InspectionCompilation {
 
     pub(crate) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         &self.realization.custody.source_completion_accounting
     }
 

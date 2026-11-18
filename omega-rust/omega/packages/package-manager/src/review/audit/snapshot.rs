@@ -121,11 +121,11 @@ pub(super) fn capture_snapshot(
 }
 
 fn captured_entries(
-    tree: &source::CapturedSourceTree,
+    tree: &source_capture::CapturedSourceTree,
     limits: LocalSourceLimits,
 ) -> Result<Vec<VerifiedPackageSourceEntry>, source_acquisition::SourceResolveError> {
-    use source::CapturedSourceNode;
     use source_acquisition::SourceResolveError;
+    use source_capture::CapturedSourceNode;
     let mut entries = Vec::new();
     let mut payload_bytes = 0u64;
     for (path, node) in tree.entries() {

@@ -1,0 +1,16 @@
+[package]
+name = "source-syntax"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+source-lexer = { path = "../lexing" }
+source-parser = { path = "../parsing" }
+source-text = { path = "../../../../../../foundation/source-text" }
+syntax-trees = { path = "../../../../../representations/syntax-trees" }
+tokens = { path = "../../../../../representations/tokens" }

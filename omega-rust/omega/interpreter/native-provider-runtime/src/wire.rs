@@ -4,7 +4,7 @@
 
 use std::io::{self, Read, Write};
 pub(crate) const MAXIMUM_PACKET_BYTES: usize = 16 * 1024 * 1024;
-pub(crate) trait Duplex: Read + Write {}
+pub trait Duplex: Read + Write {}
 impl<T: Read + Write> Duplex for T {}
 
 pub(crate) fn send(stream: &mut dyn Duplex, bytes: &[u8]) -> io::Result<()> {
@@ -26,22 +26,38 @@ pub(crate) fn receive(stream: &mut dyn Duplex) -> io::Result<Vec<u8>> {
     stream.read_exact(&mut bytes)?;
     Ok(bytes)
 }
+/// Exchange one bounded frame on a channel the caller already owns.
+pub fn exchange(stream: &mut dyn Duplex, bytes: &[u8]) -> io::Result<Vec<u8>> {
+    send(stream, bytes)?;
+    let response = receive(stream)?;
+    let mut cursor = Cursor::new(&response);
+    match cursor.byte()? {
+        0 => {
+            let result = cursor.bytes()?.to_vec();
+            cursor.finish()?;
+            Ok(result)
+        }
+        1 => Err(io::Error::other(cursor.text()?.to_owned())),
+        _ => Err(invalid("native worker response is malformed")),
+    }
+}
+
 pub(crate) fn invalid(reason: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, reason)
 }
 
-pub(crate) struct Packet(pub(crate) Vec<u8>);
+pub struct Packet(pub(crate) Vec<u8>);
 impl Packet {
-    pub(crate) fn new(tag: u8) -> Self {
+    pub fn new(tag: u8) -> Self {
         Self(vec![tag])
     }
     pub(crate) fn byte(&mut self, value: u8) {
         self.0.push(value);
     }
-    pub(crate) fn number(&mut self, value: u64) {
+    pub fn number(&mut self, value: u64) {
         self.0.extend_from_slice(&value.to_le_bytes());
     }
-    pub(crate) fn bytes(&mut self, value: &[u8]) -> io::Result<()> {
+    pub fn bytes(&mut self, value: &[u8]) -> io::Result<()> {
         let count =
             u64::try_from(value.len()).map_err(|_| invalid("worker byte extent overflows"))?;
         if self
@@ -57,7 +73,13 @@ impl Packet {
         self.0.extend_from_slice(value);
         Ok(())
     }
-    pub(crate) fn text(&mut self, value: &str) -> io::Result<()> {
+    pub fn append(&mut self, bytes: &[u8]) {
+        self.0.extend_from_slice(bytes);
+    }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+    pub fn text(&mut self, value: &str) -> io::Result<()> {
         self.bytes(value.as_bytes())
     }
 }

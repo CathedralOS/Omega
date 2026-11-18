@@ -1,16 +1,8 @@
 # Decisions for the complete migration plan
 
-The [migration plan](plans/foundation-and-backend.md) now specifies **one
-coordinated change set and one cutover**, after the architecture is resolved.
-The task remains plan first; no compiler implementation is authorized by this
-page. Internal work packages can run in dependency order or in parallel, but
-are not separate migration rollouts. The six [owner rulings](rulings.md) remain
-unchanged.
+The [migration plan](plans/foundation-and-backend.md) records the owner’s decision to replace the old routes in one coordinated change. These questions and recommendations describe the design work at the pre-migration snapshot `3f9ce43f0c9d`. The [implementation checkpoint](plans/foundation-and-backend.md#implementation-checkpoint) identifies which routes the compiler now uses and which still need acceptance evidence.
 
-All recommendations below are **judgment**. Source links describe compiler
-snapshot `3f9ce43f0c9d179048911d18faa91ba93f60176d`; the plan separately identifies
-known later changes. “Unverified” means a concrete design obligation must close
-before implementation, not that the old behavior may be dropped.
+All recommendations below are **judgment**. **Unverified** marks an obligation as it stood when the plan was written. The six [owner rulings](rulings.md) govern the destination.
 
 ## Q-A. Where does shared host support belong?
 

@@ -20,10 +20,11 @@
 //! parameter, so the edge into it proves them. No other operation produces
 //! a qualified value, except provisioning that adds only free domains.
 
-use language_semantics::type_identity::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_static_argument_package_owners,
-    visit_type_identity_package_owners, vocabulary::OwnerForm,
-};
+use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+use application_identity::type_identity::TypeIdentityVisitError;
+use application_identity::type_identity::visit_static_argument_package_owners;
+use application_identity::type_identity::visit_type_identity_package_owners;
+use application_identity::type_identity::vocabulary::OwnerForm;
 
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, EdgeId, IntegerType, MachineId,
@@ -291,11 +292,12 @@ pub fn operation_writes_default_storage(kind: &OperationKind) -> bool {
         })
 }
 
-fn writes_default_storage(effect: Option<access_plans::AccessOperation>) -> bool {
+fn writes_default_storage(effect: Option<access_vocabulary::AccessOperation>) -> bool {
     effect.is_some_and(|effect| {
         matches!(
             effect,
-            access_plans::AccessOperation::Write | access_plans::AccessOperation::Atomic(_)
+            access_vocabulary::AccessOperation::Write
+                | access_vocabulary::AccessOperation::Atomic(_)
         ) && effect.reads_and_writes().1
     })
 }
@@ -2223,7 +2225,7 @@ impl TypeIdentityPackageOwnerVisitor for MachineCallerDescription {
 
 fn read_machine_caller_declaration(
     module: &TerminalModule,
-    description: &language_semantics::reflection::CallableDescription,
+    description: &schema_reflection::CallableDescription,
     declaration: &terminal_psi::NominalDeclarationIdentity,
     callable: terminal_psi::TerminalIdentityIndex,
 ) -> Judged<MachineCallerDescription> {
@@ -2264,7 +2266,8 @@ fn read_machine_caller_declaration(
         ));
     };
     let declared = &described.machine[0];
-    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision =
+        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
     let same_owner = match (actual.0, declared.0) {
         (OwnerForm::Package, OwnerForm::Package) => actual.1 == declared.1,
         (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => actual.1 == Some(revision),
@@ -2292,14 +2295,15 @@ fn read_machine_caller_declaration(
 fn machine_caller_application_matches(
     module: &TerminalModule,
     current: &TerminalMachine,
-    description: &language_semantics::reflection::CallableDescription,
+    description: &schema_reflection::CallableDescription,
     described: &MachineCallerDescription,
 ) -> Judged<bool> {
     let error = |detail| StructuralQualificationError {
         machine: Some(current.id),
         detail,
     };
-    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision =
+        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
     let declaration = current
         .declaration
         .as_ref()
@@ -2389,7 +2393,7 @@ pub fn caller_matches_machine(
     module: &TerminalModule,
     current: MachineId,
     caller: &(
-        language_semantics::reflection::CallableDescription,
+        schema_reflection::CallableDescription,
         StructuralEstablishmentRoute,
     ),
 ) -> Judged<bool> {
@@ -2469,7 +2473,7 @@ pub fn validate_access_policy(
         |(node, _)| Ok::<_, StructuralQualificationError>(node),
         |(description, _)| Ok(description),
     )?;
-    let normalized = access_plans::normalize_access_plan(projected.clone()).map_err(|_| {
+    let normalized = access_admission::normalize_access_plan(projected.clone()).map_err(|_| {
         error("domain access rules have invalid semantic coordinates or descriptions")
     })?;
     if normalized != projected {
@@ -2520,7 +2524,7 @@ pub fn validate_access_policy(
         .members
         .iter()
         .filter_map(|member| match plan.schema.node(*member) {
-            language_semantics::reflection::SchemaNode::Case(case) => Some(case),
+            schema_reflection::SchemaNode::Case(case) => Some(case),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2578,9 +2582,7 @@ pub fn validate_access_policy(
             .map_err(|_| error("domain access schema lost its source field"))?;
         let (_, case, field) = fields[index];
         let described_case = match plan.schema.node(description.owner_case) {
-            language_semantics::reflection::SchemaNode::Case(case)
-                if description.owner_case.is_valid() =>
-            {
+            schema_reflection::SchemaNode::Case(case) if description.owner_case.is_valid() => {
                 Some(case.member_identity.as_str())
             }
             _ if !description.owner_case.is_valid() => None,
@@ -2603,7 +2605,7 @@ pub fn validate_access_policy(
         }
     }
     let region = |(node, path): &(
-        language_semantics::reflection::SchemaNodeHandle,
+        schema_reflection::SchemaNodeHandle,
         Option<Vec<StructuralPathSegment>>,
     )|
      -> Judged<()> {
@@ -2700,12 +2702,9 @@ pub fn same_access_policy(
         module: &TerminalModule,
         domain: &StructuralDomainDeclaration,
     ) -> Option<
-        access_plans::AccessPlan<
-            language_semantics::reflection::SchemaNodeHandle,
-            (
-                language_semantics::reflection::CallableDescription,
-                (u8, String, String),
-            ),
+        access_admission::AccessPlan<
+            schema_reflection::SchemaNodeHandle,
+            (schema_reflection::CallableDescription, (u8, String, String)),
         >,
     > {
         validate_access_policy(module, domain).ok()?;
@@ -2765,7 +2764,7 @@ mod operation_permissions {
         require_unchanged_produced_payload_in, terminal_borrowed_storage_graph_from,
         terminal_payload_contract,
     };
-    use access_plans::AccessOperation;
+    use access_vocabulary::AccessOperation;
 
     // Reuse a judgment only for this function, instruction and value. The
     // same helper can receive different storage on its separate invocations.
@@ -2776,7 +2775,7 @@ mod operation_permissions {
         source: DescriptorSourceOrigin,
     }
     type Caller = (
-        language_semantics::reflection::CallableDescription,
+        schema_reflection::CallableDescription,
         StructuralEstablishmentRoute,
     );
 

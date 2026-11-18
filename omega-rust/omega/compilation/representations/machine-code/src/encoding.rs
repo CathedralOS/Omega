@@ -207,6 +207,7 @@ pub enum SelectedFormEncodingState {
     Encoded,
     DeferredControl {
         reason: DeferredControlEncodingReason,
+        alternatives: Box<crate::EncodedControlAlternatives>,
     },
     UnresolvedInternalMachineCall {
         fixup: Box<SelectedFormInternalMachineFixup>,

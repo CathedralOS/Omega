@@ -13,7 +13,7 @@ use semantic_vocabulary::IntegerType;
 pub(crate) mod closed_integer {
     use std::cmp::Ordering;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
 
     const MAXIMUM_TERM_NODES: usize = 8_192;
@@ -3067,7 +3067,7 @@ pub(crate) mod open_terms {
     use std::cmp::Ordering;
     use std::collections::BTreeMap;
 
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use semantic_vocabulary::IntegerMathTerm;
 
     use super::closed_integer::{
@@ -3289,7 +3289,7 @@ pub(crate) mod open_terms {
     #[cfg(test)]
     mod tests {
         use super::{constant_difference, constant_difference_ordering};
-        use numerics::bignum::BigInt;
+        use bignum::BigInt;
         use semantic_vocabulary::{
             IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ValueId,
         };

@@ -2,9 +2,10 @@
 //! Abstract interfaces have no executable body. These rows retain their full
 //! logical namespace and operational bounds without reopening typed source.
 
+use arena::IdTable;
 use semantic_vocabulary::{
-    BoundaryMachineId, CallableCrashPolicy, IdTable, MachineId, PackageKeyIdentity, Proposition,
-    ScalarType, ServiceId, StructuralTypeId, ValueId,
+    BoundaryMachineId, CallableCrashPolicy, MachineId, PackageKeyIdentity, Proposition, ScalarType,
+    ServiceId, StructuralTypeId, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_psi::{

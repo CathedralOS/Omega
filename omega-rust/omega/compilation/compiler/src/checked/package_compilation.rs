@@ -29,7 +29,10 @@ impl PackageSourceRequest {
         }
     }
 
-    pub fn set_optimization_rollback(&mut self, rollback: optimization_core::OptimizationRollback) {
+    pub fn set_optimization_rollback(
+        &mut self,
+        rollback: optimization_requests::OptimizationRollback,
+    ) {
         match self {
             Self::Execute(request) => request.optimization_rollback = rollback,
             Self::Product(request) => request.options.optimization_rollback = rollback,
@@ -108,7 +111,7 @@ pub struct CompletedBuild {
 
 #[derive(Clone, Default)]
 pub struct PackageProductOptions {
-    pub optimization_rollback: optimization_core::OptimizationRollback,
+    pub optimization_rollback: optimization_requests::OptimizationRollback,
 }
 
 impl CompletedBuild {
@@ -164,7 +167,7 @@ impl CompletedBuild {
 impl PackageBuildInvocation {
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -348,7 +351,7 @@ impl CompilationSession {
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Result<super::CheckedCompilation, CompileFailure> {
         let ((), selected) = self
-            .select_build_batch(vec![((), build.source)], |_| None, frontier)
+            .select_build_batch(vec![((), build.source)], |_| Default::default(), frontier)
             .pop()
             .ok_or_else(|| vec![Diagnostic::error("package checking lost its selected root")])?;
         selected.finish_check().result
@@ -388,7 +391,7 @@ impl CompilationSession {
             if !roster.supplies.contains(&supply) {
                 roster.supplies.push(supply);
             }
-            let supplied = products::ProductTerminalPublication::judge(
+            let supplied = source_compiler::SourcePublication::judge(
                 std::sync::Arc::clone(accepted.source()),
                 roster,
                 publication.optimizations().clone(),
@@ -420,7 +423,8 @@ impl CompilationSession {
                 .map(|(position, (owner, build))| ((position, owner), build.source))
                 .collect();
             let mut requests = Vec::new();
-            for (owner, selected) in self.select_build_batch(pending, |_| None, None) {
+            for (owner, selected) in self.select_build_batch(pending, |_| Default::default(), None)
+            {
                 let request = match selected.result {
                     Ok(selected) => selected
                         .into_checked_compilation()
@@ -466,7 +470,13 @@ impl CompilationSession {
                     let root = request.build.source.root_path().to_path_buf();
                     let inputs = request.build.source.package_inputs().clone();
                     (
-                        (owner, root, request.product, request.permissions, inputs),
+                        (
+                            owner,
+                            root,
+                            request.product,
+                            request.permissions.map(std::sync::Arc::new),
+                            inputs,
+                        ),
                         request.build.source,
                     )
                 })
@@ -477,9 +487,14 @@ impl CompilationSession {
             // execute them before the application report succeeds.
             let mut requests = Vec::new();
             let mut applications = Vec::new();
-            for ((owner, root, product, permissions, inputs), selected) in self.select_build_batch(
+            for ((owner, root, product, _, inputs), selected) in self.select_build_batch(
                 builds,
-                |(_, _, product, _, _)| product.inspection_name(),
+                |(_, _, product, permissions, _)| {
+                    super::product_batch::PackageProductSelection::requested(
+                        product,
+                        permissions.as_ref(),
+                    )
+                },
                 None,
             ) {
                 let position = applications.len();
@@ -512,7 +527,6 @@ impl CompilationSession {
                                         package_inputs: Some(inputs.clone()),
                                         root: root.clone(),
                                         product: test_product.clone(),
-                                        permissions: permissions.clone(),
                                     }
                                 })
                                 .map_err(crate::CompilationProductError::from),
@@ -528,7 +542,6 @@ impl CompilationSession {
                             package_inputs: Some(inputs.clone()),
                             root,
                             product,
-                            permissions,
                         },
                     )
                     .map_err(crate::CompilationProductError::from);

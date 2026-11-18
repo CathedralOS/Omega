@@ -223,7 +223,7 @@ impl ObligationKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::PsiSemanticId;
+    use arena::NumericId;
 
     #[test]
     fn resources_are_conserved_and_questions_are_not() {

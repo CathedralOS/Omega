@@ -4871,7 +4871,7 @@ pub(crate) mod reference_storage_geometry {
             byte_size,
             byte_alignment,
         };
-        let geometry = layout_plans::conventional_sum_geometry(
+        let geometry = layout_planning::conventional_sum_geometry(
             shape(tag),
             common.into_iter().map(shape),
             payloads

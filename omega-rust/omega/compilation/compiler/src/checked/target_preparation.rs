@@ -3,338 +3,90 @@
 //! source declarations or treats retained provider bodies as separate entries.
 
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
 use products::CheckedProductSource;
-use provider_planning::target_supply::{
-    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
-    TargetSupplyRequest,
+use review_evidence::permission_acceptance::{
+    PreparedRuntimePolicy, RuntimePermissionInput, TerminalPermissionAcceptance,
 };
-use semantic_vocabulary::MachineId;
+use source_compiler::provider_supply::{SourceProviderDemand, SourceProviderFacts};
+use std::sync::Arc;
 
 pub(crate) struct PreparedProductTarget {
     pub(crate) profile: Option<target::TargetProfile>,
-    pub(crate) entry: Option<MachineId>,
+    pub(crate) demand: SourceProviderFacts<SourceProviderDemand>,
+    pub(crate) consent: Option<PreparedRuntimeConsent>,
+    pub(crate) advisories: Option<Vec<Diagnostic>>,
 }
 
-/// The slot and provider one selection names, as the roster states a supply.
-/// A selection of an operator family names each coordinate as its own slot.
-fn selected_supplies(
-    selection: &build_time_evaluation::provider_declarations::ProviderSelection,
-) -> Vec<source_compiler::TerminalSourceSupply> {
-    use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
-    let provider = selection.provider_type.symbol;
-    match &selection.subject {
-        ProviderSelectionSubject::BoundaryTrait(identity)
-        | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![source_compiler::TerminalSourceSupply {
-                slot: identity.symbol,
-                provider,
-            }]
-        }
-        ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
-            .coordinates()
-            .iter()
-            .map(|coordinate| source_compiler::TerminalSourceSupply {
-                slot: coordinate.symbol,
-                provider,
-            })
-            .collect(),
-    }
+/// The lock rows and source policy captured for this particular product root.
+pub(crate) struct PreparedRuntimeConsent {
+    accepted: Arc<TerminalPermissionAcceptance>,
+    declarations: PreparedRuntimePolicy,
 }
 
-/// What a Product's accepted module is extended from: the frozen source and
-/// the first judgment, with the supplies the Build and the target packages
-/// declare.
-pub struct ProductSupplySource<'a> {
-    /// The source and complete roster authenticated by one actual judgment.
-    pub publication: std::sync::Arc<products::ProductTerminalPublication>,
-    /// The evaluated Build's provider selections and the target packages'
-    /// defaults.
-    pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
-    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
-    pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
-    /// Defaults whose layouts the source lays out only for a target that
-    /// chooses them: the provider selections of the Build's dependencies.
-    pub layout_deferred: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
-    /// The deferred defaults the source was laid out for, by target.
-    pub layout_prepared: &'a [ChosenDefaultLayout],
-}
-
-/// The existing authenticated publication, extended by every chosen supply.
-pub type SuppliedProduct = std::sync::Arc<products::ProductTerminalPublication>;
-
-/// A dependency's default that one target chose, so the source must lay out
-/// the default's storage for that target
-/// (wiki/spec/layouts/plans.md#layout-demand-and-validation).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChosenDefaultLayout {
-    pub target: target::TargetProfile,
-    pub selection: build_time_evaluation::provider_declarations::ProviderSelection,
-}
-
-/// What judging the chosen supplies concluded.
-#[derive(Debug)]
-pub enum SupplyJudgment {
-    /// Every provider a target chose is judged in the returned publication.
-    Supplied(SuppliedProduct),
-    /// A target chose a deferred default whose layouts the source was not
-    /// prepared for. The source owner prepares the source again for every
-    /// default listed here, those it was already prepared for included, and
-    /// judges again. Nothing was judged with the unprepared default.
-    PrepareLayouts(Vec<ChosenDefaultLayout>),
-}
-
-/// What the demand walk of any target reads from one accepted module.
-struct ModuleDemand {
-    declared: Vec<ReachedBoundaryRequirement>,
-    roots: Vec<semantic_vocabulary::MachineId>,
-    judged: Vec<JudgedProvider>,
-}
-
-impl ModuleDemand {
-    fn read(
-        accepted: &source_compiler::AcceptedTerminalSource,
-        roster: &products::ProductRoster,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let declared = accepted
-            .boundary_requirements_declared()
-            .map_err(|error| vec![error])?
-            .into_iter()
-            .map(|declared| ReachedBoundaryRequirement {
-                boundary: declared.boundary,
-                requirement: declared.requirement,
-                slot: declared.slot,
-                name: declared.name,
-            })
-            .collect();
-        // Every entry the Build binds is a root of every target's walk. The
-        // Build binds an entry per target, so a program that binds different
-        // entries to different targets is asked on each for what any of
-        // them reaches, until the entry of one target is selected here.
-        let roots = roster
-            .entries
-            .iter()
-            .map(|entry| {
-                accepted.machine_of(*entry).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "no product route yet: the accepted module does not hold a program entry the Build binds",
-                    )]
-                })
-            })
-            .collect::<Result<_, _>>()?;
-        let judged = accepted
-            .supplied_requirements()
-            .iter()
-            .map(|supplied| JudgedProvider {
-                provider: supplied.provider,
-                requirement: supplied.requirement,
-                machine: supplied.machine,
-            })
-            .collect();
-        Ok(Self {
-            declared,
-            roots,
-            judged,
-        })
-    }
-
-    fn prepare(
+impl PreparedRuntimeConsent {
+    pub(crate) fn validate(
         &self,
-        accepted: &source_compiler::AcceptedTerminalSource,
-        build: &[build_time_evaluation::provider_declarations::ProviderSelection],
-        native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
-        defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
-        target: Option<&str>,
-    ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
-        PreparedTargetSupply::prepare(TargetSupplyRequest {
-            module: accepted.module(),
-            declared: &self.declared,
-            roots: &self.roots,
-            judged: &self.judged,
-            build,
-            native_bindings,
-            defaults,
-            target,
-        })
+        checked: &products::CheckedCompilation,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.accepted
+            .validate(&RuntimePermissionInput::from_compilation(
+                &self.declarations,
+                checked,
+            ))
     }
-}
-
-/// Has every provider a target chooses judged in the Product's one module.
-///
-/// The Product has one target-neutral Terminal module, so it holds the
-/// providers chosen for every target of the catalog, not one target's
-/// (provider_selection.md: "Psi checks every supplied implementation
-/// independently of target selection"). Each target's demand is walked from
-/// the Product's entries through the providers that target chooses
-/// (`provider_planning::target_supply`); each chosen provider joins the
-/// roster of the same compilation, where the lowered-form checker judges its
-/// machines as roots and proves that each refines the requirement it
-/// supplies. The shared declaration publisher retains the ABI of each read
-/// boundary, including native leaves, without adding a provider body.
-/// A provider may itself reach a boundary requirement, so the
-/// roster is judged again until no target chooses anything new; it only
-/// grows, and it is bounded by the selections the Build and the target
-/// packages declare. A program that reaches no requirement is not judged a
-/// second time.
-///
-/// A target whose demand cannot be prepared, or a requirement no supply can
-/// be chosen for, adds nothing here and stops nothing: that is a finding
-/// about that target, reported when a product of that target is prepared
-/// (`prepare_supplied_target`). A chosen provider the checker does not
-/// accept stops the Product on every target, because its source is part of
-/// the one module.
-///
-/// A dependency's default is laid out only for the targets that choose it,
-/// and choosing happens here, after the source was prepared. When a target
-/// chooses a deferred default the source was not laid out for, the loop
-/// stops before judging it and asks the source owner to prepare the source
-/// again (`SupplyJudgment::PrepareLayouts`); the walk itself reads no layout,
-/// so the second preparation chooses the same defaults.
-pub fn judge_supplied_product(
-    source: ProductSupplySource<'_>,
-) -> Result<SupplyJudgment, Vec<Diagnostic>> {
-    let mut publication = source.publication;
-    loop {
-        let accepted = publication.accepted()?;
-        let mut roster = publication.roster()?.clone();
-        let demand = ModuleDemand::read(accepted, &roster)?;
-        let before = roster.supplies.len();
-        let mut unprepared = Vec::new();
-        for profile in target::TargetProfile::ALL {
-            let Ok(supply) = demand.prepare(
-                accepted,
-                source.build,
-                source.native_bindings,
-                source.defaults,
-                Some(profile.target_name()),
-            ) else {
-                continue;
-            };
-            for supply in supply
-                .requirements()
-                .iter()
-                .filter_map(|requirement| requirement.chosen())
-            {
-                // Native bindings add no checked body or deferred layout.
-                let SupplySelection::Checked(selection) = &supply.selection else {
-                    continue;
-                };
-                if source.layout_deferred.contains(selection) {
-                    let layout = ChosenDefaultLayout {
-                        target: profile,
-                        selection: selection.clone(),
-                    };
-                    if !source.layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
-                        unprepared.push(layout);
-                    }
-                }
-                for chosen in selected_supplies(selection) {
-                    if !roster.supplies.contains(&chosen) {
-                        roster.supplies.push(chosen);
-                    }
-                }
-            }
-        }
-        if !unprepared.is_empty() {
-            let mut layouts = source.layout_prepared.to_vec();
-            layouts.append(&mut unprepared);
-            return Ok(SupplyJudgment::PrepareLayouts(layouts));
-        }
-        if roster.supplies.len() == before {
-            return Ok(SupplyJudgment::Supplied(publication));
-        }
-        publication = std::sync::Arc::new(products::ProductTerminalPublication::judge(
-            std::sync::Arc::clone(accepted.source()),
-            roster,
-            publication.optimizations().clone(),
-        )?);
-    }
-}
-
-/// What a product of one target reads from its checked source to prepare
-/// that target's supply.
-pub struct TargetSupplySource<'a> {
-    /// The Product's source and supplied roster, paired by their judgment.
-    pub publication: &'a products::ProductTerminalPublication,
-    /// The evaluated Build's provider selections and the target packages'
-    /// defaults.
-    pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
-    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
-    pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
-    /// The selected deployment, or no deployment for targetless checking.
-    pub target: Option<&'a str>,
-}
-
-/// Prepares what one target must supply: the requirements its entries reach
-/// through the providers it chooses, each with the supplies declared for it.
-///
-/// Nothing is judged here. A requirement whose chosen provider the accepted
-/// module does not hold is refused by name: the walk could not continue
-/// through that provider, so what it reaches is unknown, and a product made
-/// from the module would call a provider nobody judged.
-pub fn prepare_supplied_target(
-    source: TargetSupplySource<'_>,
-) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
-    let accepted = source.publication.accepted()?;
-    let supply = ModuleDemand::read(accepted, source.publication.roster()?)?.prepare(
-        accepted,
-        source.build,
-        source.native_bindings,
-        source.defaults,
-        source.target,
-    )?;
-    let unjudged = supply
-        .requirements()
-        .iter()
-        .filter(|requirement| requirement.realization.is_none())
-        .filter_map(|requirement| {
-            let chosen = requirement.chosen()?;
-            let selection = chosen.checked()?;
-            Some(Diagnostic::error(format!(
-                "no product route yet: target preparation for `{}`: `{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
-                source.target.unwrap_or("<unscoped>"),
-                requirement.reached.name,
-                selection.provider_type.authored_path,
-            )))
-        })
-        .collect::<Vec<_>>();
-    if !unjudged.is_empty() {
-        return Err(unjudged);
-    }
-    Ok(supply)
 }
 
 impl PreparedProductTarget {
     pub(crate) fn capture(
         source: &CheckedProductSource,
         profile: Option<target::TargetProfile>,
-        _package_inputs: Option<&PackageCompilationInputs>,
+        permissions: Option<&Arc<TerminalPermissionAcceptance>>,
+        report: Option<products::RequestedCompileProduct>,
     ) -> Result<Self, Vec<Diagnostic>> {
         source
             .terminal_publication
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
-        let accepted = source.terminal_publication.accepted()?;
-        let module = accepted.module();
-        let entry = match profile {
-            Some(profile)
-                if !(source.terminal_publication.roster()?.entries.is_empty()
-                    && module.program_entry_contracts.is_empty()) =>
-            {
-                let contract = module
-                    .program_entry_contract(profile.target_name())
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                module.machine(contract.entry).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected target entry has no exact executable machine",
-                    )]
-                })?;
-                Some(contract.entry)
-            }
-            // A reusable source artifact has no executable nomination. It
-            // acquires provider demand only when a consumer supplies one.
-            _ => None,
-        };
-        Ok(Self { profile, entry })
+        let config = &source.computed_build_config.config;
+        let demand = source.terminal_publication.prepare_provider_demand(
+            profile.map(|profile| profile.target_name()),
+            &config.provider_selections,
+            &config.native_bindings,
+            source.sources.package_identity().is_some(),
+        )?;
+        // Keep the original declaration census or its refusal. Grant admission
+        // reads the prepared result only when this product needs that evidence.
+        if !config.grants.is_empty() {
+            let _ = source.provider_inventory.trust_declarations();
+        }
+        let consent = permissions.map(|accepted| PreparedRuntimeConsent {
+            accepted: Arc::clone(accepted),
+            declarations: PreparedRuntimePolicy::capture(source, profile, &demand),
+        });
+        Ok(Self {
+            profile,
+            demand,
+            consent,
+            advisories: report
+                .filter(|kind| {
+                    products::ProductReportPlan::reports_advisories(*kind, &source.admission)
+                })
+                .map(|_| source_advisories(source)),
+        })
     }
+}
+
+/// The advisory diagnostics of the accepted source this compilation checked
+/// (`AcceptedTerminalSource::advisories`), each placed in its source file.
+/// They are warnings about a program that was accepted, so a compilation
+/// with no retained judgment simply has none.
+fn source_advisories(source: &CheckedProductSource) -> Vec<Diagnostic> {
+    let Ok(accepted) = source.terminal_publication.accepted() else {
+        return Vec::new();
+    };
+    let mut advisories = accepted.advisories().to_vec();
+    if let Some(sources) = accepted.source().symbols.source_map() {
+        crate::checked::checking::attribute_diagnostics(&mut advisories, &sources, None);
+    }
+    advisories
 }

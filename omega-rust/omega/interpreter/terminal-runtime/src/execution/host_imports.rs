@@ -54,7 +54,7 @@ mod scalar_codec;
 mod scalar_record;
 mod standard_input;
 
-use native_artifact::TerminalRuntimeHostProvisions;
+use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
@@ -68,7 +68,7 @@ use super::TerminalRuntimeError;
 
 pub(super) fn executes_internally(
     program: &TerminalProgram,
-    provision: &native_artifact::TerminalRuntimeHostProvision,
+    provision: &published_runtime_input::TerminalRuntimeHostProvision,
 ) -> bool {
     program.executes_boundary_internally(provision.boundary)
         || matches!(
@@ -242,7 +242,9 @@ pub(super) fn matches_platform_c_symbol(
     }
 }
 
-pub(super) struct HostContext<'host> {
+mod embedding;
+
+pub struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
     clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockEnvironment>>>,
@@ -252,15 +254,15 @@ pub(super) struct HostContext<'host> {
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
-    pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
+    pub fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
             TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
         })
     }
-    pub(super) fn new(
+    pub fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockEnvironment>,
-        native_provider: Option<std::process::Command>,
+        native_provider: Option<native_provider_runtime::NativeProviderCommand>,
         native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {

@@ -1,0 +1,13 @@
+[package]
+name = "published-object-verification"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+physical-planning = { path = "../../pipeline/04_physical-program-planning" }
+installation-admission = { path = "../installation-admission" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+image-emission = { path = "../../pipeline/09_image-construction/image-emission" }
+native-program-planning = { path = "../../pipeline/03_native-program-planning" }
+optimization-core = { path = "../../representations/optimization-contracts" }

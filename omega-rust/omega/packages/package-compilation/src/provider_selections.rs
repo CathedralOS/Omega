@@ -8,16 +8,17 @@
 use super::provider_defaults::CompletedProviderDefaults;
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
-use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
-use source::{SourceOrigin, SourceResolutionStratum};
+use source_admission::RetainedDeclaration;
+use source_admission::SourceOrigin;
+use source_admission::SourceResolutionStratum;
+use source_compiler::evaluation::provider_declarations::ProviderSelection;
 use std::path::PathBuf;
-use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
     pub(crate) fn product_selection_source_seeds(
         &self,
-        loaded_sources: Option<&source::SourceMap>,
+        loaded_sources: Option<&source_compiler::source_inputs::SourceMap>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let mut paths = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
@@ -146,9 +147,9 @@ impl PackageCompilationInputs {
     pub(super) fn admit_retained_product_application(
         &self,
         bundle: &PackageBuildHandoff,
-        application: &build_time_evaluation::provider_declarations::RetainedProductApplication,
+        application: &source_compiler::evaluation::provider_declarations::RetainedProductApplication,
     ) -> Result<
-        build_time_evaluation::provider_declarations::RetainedProductApplication,
+        source_compiler::evaluation::provider_declarations::RetainedProductApplication,
         Vec<Diagnostic>,
     > {
         let mut admitted = application.clone();
@@ -172,15 +173,16 @@ impl PackageCompilationInputs {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        admitted.sources = std::sync::Arc::new(source::SourceMap::from_files(files));
+        admitted.sources =
+            std::sync::Arc::new(source_compiler::source_inputs::SourceMap::from_files(files));
         Ok(admitted)
     }
 
     pub(super) fn admit_retained_product_source(
         &self,
         bundle: &PackageBuildHandoff,
-        original: &source::SourceFile,
-    ) -> Result<source::SourceFile, Vec<Diagnostic>> {
+        original: &source_admission::SourceFile,
+    ) -> Result<source_admission::SourceFile, Vec<Diagnostic>> {
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
         let mut source = original.clone();
         let relative = source

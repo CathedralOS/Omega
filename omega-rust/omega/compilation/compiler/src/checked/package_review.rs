@@ -23,7 +23,7 @@ pub enum PackageReviewFailure {
     Compilation(CompileFailure),
     Projection {
         failure: PackageReviewProjectionError,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
 }
 
@@ -48,7 +48,7 @@ struct RetainedReviewSource {
 impl PackageReviewSource {
     pub fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.retained.checked.source_completion_accounting()
     }
 

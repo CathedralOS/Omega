@@ -16,6 +16,11 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };
 
+mod emission_admission;
+pub mod hosted_receiver;
+pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
+pub mod publication;
+
 mod native_execution_scope;
 pub use native_execution_scope::{NativeExecutionScope, NativeExecutionScopeError};
 
@@ -30,6 +35,7 @@ pub use component_inputs::{
 };
 mod native_execution;
 mod runtime_input;
+pub mod runtime_provisions;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
@@ -399,7 +405,7 @@ impl AdmittedLoweringFacts {
         }
         let module = self.module();
         let installed_helpers =
-            provider_selection::CallbackProviderDeclarations::installed_helper_roots(module);
+            provider_correspondence::CallbackProviderDeclarations::installed_helper_roots(module);
         let mut roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
         for machine in &module.machines {
             for operation in machine.blocks.iter().flat_map(|block| &block.operations) {

@@ -4,7 +4,7 @@
 // integer conversions report a Crash(CrashCause::Trap) for the core to admit
 // against the boundary declaration.
 
-use numerics::bignum::BigInt;
+use bignum::BigInt;
 use numerics::float_semantics::FloatClass;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use numerics::integer_carrier::{FixedInteger, IntegerSign};

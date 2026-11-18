@@ -41,7 +41,7 @@ impl AbstractFunctionResult {
         }
     }
 
-    optimization_core::structural_variant_accessor!(StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
+    compiler_storage::enum_variant_accessor!(structural, Structural; StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

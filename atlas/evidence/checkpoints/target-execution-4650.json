@@ -1,0 +1,229 @@
+{
+  "compiler": {
+    "baseline": {
+      "commit": "46502a522a162975887c11f07a2c6abe02ebdcab",
+      "binary_sha256": "c3313b6a1a1ce7089ae22c45d79d1bdbe2cfd69b9dea8defe45e210b0b98227c"
+    },
+    "candidate": {
+      "commit": "fcb284a45c401af80639b4aea01392772c18e55a",
+      "binary_sha256": "a15c3517ddea0bde35900883c85bb1c07aa716d1e1a822987da94fadbbe0e7d9"
+    }
+  },
+  "warm_build_manifest": "sha256:554d20467bfc8fcb3c0ef7ea39597c9180e2c08258435fb368061442fbed0634",
+  "fixture": {
+    "path": "tests/fixtures/run/providers/target_selected_implementation",
+    "git_tree": "76a5066e4a170a1bfa8eb5e19ccd22e18ef52c6a",
+    "sha256": {
+      "build.omg": "31e68edcbf8db17bc38023054b2a635cf0179316d8434e05f43e8501c6b459e3",
+      "main.omg": "4b155a4dde0f626bafdaf1845c85cffe200ddc5bb906796e5e2b90dbc2f1b7ec"
+    }
+  },
+  "source_library": {
+    "git_tree": "9ed6ceaa5f154709c4f74d2831cf17e3b56df1ed",
+    "files": 187
+  },
+  "settings": {
+    "RAYON_NUM_THREADS": "1",
+    "OMEGA_LIBRARY_ROOT": "source/library extracted from baseline commit",
+    "host": "Debian 13.6 on x86-64",
+    "compiler_toolchain": "nightly-2026-09-04"
+  },
+  "targets": {
+    "linux_x86_64": {
+      "image_sha256": "2cb9906f86e3e3deeb725ce1c9e1eb47f6b9e8d1400aed1516bd18f3de0a72c4",
+      "image_bytes": 65536,
+      "runner": "Linux host",
+      "native_exit": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "psi_exit": {
+        "baseline": 0,
+        "candidate": 0
+      }
+    },
+    "linux_arm64": {
+      "image_sha256": "3abfd3b356ee196144a0e36089f5bf172d188e6915e5c463a6d527330286dc4e",
+      "image_bytes": 65536,
+      "runner": "qemu-aarch64 10.0.13",
+      "native_exit": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "psi_exit": {
+        "baseline": 0,
+        "candidate": 0
+      }
+    },
+    "macos_arm64": {
+      "image_sha256": "b57d205ba8e07a110f41c48e1ce035ace24a9f772f3ce7c053d2f615c865dd75",
+      "image_bytes": 16640,
+      "runner": "offline Mach-O inspection",
+      "native_exit": {
+        "baseline": null,
+        "candidate": null
+      },
+      "macho": {
+        "architecture": "arm64",
+        "code_directory_sha256": "b28c51c2bd736aac84a3d8bc30d91a99d6b149426479853c7b4c5c5cb008fb4e",
+        "code_pages": 1,
+        "entry_file_offset": 1040,
+        "modified_entry_fails_signature": true,
+        "page_size": 16384,
+        "signed_bytes": 16384,
+        "verified_special_slots": 2
+      },
+      "psi_exit": {
+        "baseline": 0,
+        "candidate": 0
+      }
+    },
+    "windows_x86_64": {
+      "image_sha256": "eb6997b1bd44f195d308cc59d670407efad323b1cd08e605ee320775da1952d1",
+      "image_bytes": 1024,
+      "runner": "Wine 10.0 x86-64",
+      "native_exit": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "psi_exit": {
+        "baseline": 0,
+        "candidate": 0
+      }
+    }
+  },
+  "publication_refusals": {
+    "same_root": {
+      "baseline": 1,
+      "candidate": 1
+    },
+    "distinct_root": {
+      "baseline": 1,
+      "candidate": 1
+    },
+    "unchanged_files": 12,
+    "ownership_markers": 4,
+    "alternate_source": "tests/fixtures/fail/ownership/generic_case_payloads",
+    "procedure": "Reuse the successful four-target output directory first from the alternate source root, then from the original root with its build.omg and main.omg replaced by the alternate source files."
+  },
+  "sample_runs": {
+    "factorial": {
+      "command": [
+        "run",
+        "--both",
+        "samples/cli/arithmetic/factorial_loop/main.omg"
+      ],
+      "stdin": "",
+      "exit": 120,
+      "output_sha256": "28349a2b4b477dfdcdf1c001c048072849d50c7d21950f1453c3e0f161775fd4"
+    },
+    "console-hello": {
+      "command": [
+        "run",
+        "--both",
+        "samples/cli/basics/cli_mvp/main.omg"
+      ],
+      "stdin": "\n",
+      "exit": 200,
+      "output_sha256": "62f3183616ea4ad7541bee6e8786a2b5cf268e2f70f599792520f1758c425a2d"
+    }
+  },
+  "independent_component_control": {
+    "fixture": "tests/fixtures/run/providers/target_selected_implementation",
+    "change": "Select the Linux x86-64 provider with CompositionMode::Independent.",
+    "build_file_sha256": "dfccbd8eb4adfacd40760a53cc4f25a3fdfd0845b70fdb029bcc23484fe83519",
+    "exit": {
+      "candidate": 1,
+      "baseline": 1
+    },
+    "emitted_files": [
+      ".omega-owner"
+    ],
+    "refusal": "reached independent provider composition needs its canonical verified component evidence"
+  },
+  "warm_build_registry": "ghcr.io/cathedralos/omega-warm-build",
+  "host_engine_commands": [
+    {
+      "command": [
+        "run",
+        "--both",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "main.omg"
+      ],
+      "observed": "native exit 0; interpreter exit 0"
+    },
+    {
+      "command": [
+        "run",
+        "--both",
+        "--target",
+        "linux_x86_64",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "main.omg"
+      ],
+      "observed": "compilation only"
+    }
+  ],
+  "other_published_outputs": {
+    "retained-correspondence": {
+      "working_directory": "tests/fixtures/run/calls/indexed_case_discriminator",
+      "command": [
+        "--every-validator",
+        "--report-file",
+        "$OUTPUT/validator-report.txt",
+        "--build-dir",
+        "$OUTPUT/validator-image",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "main.omg"
+      ],
+      "sha256": "4db70e77895faefe4e20eb673430dc33e1d649c31bfc15b27939c9769f2b38f4"
+    },
+    "selected-rewrite": {
+      "working_directory": "tests/fixtures/run/optimizer/selected_allocation_low_pressure_exit",
+      "command": [
+        "--target",
+        "linux_x86_64",
+        "--disable-optimization",
+        "SelectedSameBlockCopyI64RemovalV1",
+        "--disable-optimization",
+        "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
+        "--disable-optimization",
+        "ActiveResidentImmediateU64MultiUseRematerializationV1",
+        "--validator",
+        "SelectedInstructionRewriteReplay",
+        "--report-file",
+        "$OUTPUT/optimization-report.txt",
+        "--build-dir",
+        "$OUTPUT/optimized-image",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "main.omg"
+      ],
+      "sha256": "c05c26c2a4c0eee2d027e75fd9b2a6b210d0dd54f248c641e5533bfa3a41eaa9"
+    },
+    "produce-psi": {
+      "working_directory": "tests/fixtures/run/ownership/incoming_record_reference_return",
+      "command": [
+        "psi",
+        "inspect",
+        "--machine",
+        "retained",
+        "--output",
+        "$OUTPUT/retained.psi",
+        "main.omg"
+      ],
+      "sha256": "f73f5d6098558131d5c00078b031eea4c09e288a28732f02410b5e87605bbd50"
+    }
+  }
+}

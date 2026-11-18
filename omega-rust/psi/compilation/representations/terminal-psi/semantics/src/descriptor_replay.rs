@@ -877,7 +877,7 @@ pub(crate) mod analysis {
             identity: MachineId,
             (position, input): (DescriptorPosition, usize),
         ) -> Option<(
-            access_plans::AccessOperation,
+            access_vocabulary::AccessOperation,
             &crate::descriptor_lifetimes::DescriptorFlowSource,
         )> {
             let step = self.replay.machine(identity)?.flow.get(&position)?;
@@ -10487,7 +10487,7 @@ pub(crate) mod engine {
             use crate::descriptors::descriptor_lifetimes::{
                 DescriptorFlowSource, DescriptorFlowStep,
             };
-            use access_plans::AccessOperation;
+            use access_vocabulary::AccessOperation;
             use semantic_vocabulary::{BlockId, OperationId};
 
             let caller_id = MachineId::new(1).unwrap();

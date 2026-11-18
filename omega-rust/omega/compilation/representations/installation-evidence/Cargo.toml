@@ -1,0 +1,15 @@
+[package]
+name = "installation-evidence"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "installation_evidence"
+path = "src/lib.rs"
+
+[dependencies]
+runtime-abi = { path = "../../target-description/runtime-abi" }
+target = { path = "../../target-description/target" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

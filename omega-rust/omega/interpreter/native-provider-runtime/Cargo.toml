@@ -5,11 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-bounded-process = { path = "../../foundation/bounded-process" }
-native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-target = { path = "../../compilation/backend/target" }
-calling-conventions = { path = "../../compilation/backend/calling-conventions" }
-runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
+wire = { path = "../../../psi/foundation/wire" }
+bounded-process = { path = "../../host-support/bounded-process" }
+target = { path = "../../compilation/target-description/target" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
 sha2 = "0.10.9"
 
 [target.'cfg(unix)'.dependencies]
@@ -24,5 +24,6 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [dev-dependencies]
-machine-emission = { path = "../../compilation/backend/machine-emission" }
-image-emission = { path = "../../compilation/backend/images/image-emission" }
+native-provider-sponsor = { path = "../../host-support/native-provider-sponsor", features = ["test-support"] }
+image-fixtures = { path = "../../../test-support/image-fixtures" }
+image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }

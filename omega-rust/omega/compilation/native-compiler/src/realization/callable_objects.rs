@@ -1,125 +1,61 @@
 // Realize one exact callable while retaining its original Terminal namespace.
 // Callback and component export entries use the same source-free admission and
-// native pipeline (`pipeline::lower_to_target` and `pipeline::emit_target`)
+// native pipeline (`pipeline::lower_to_target`, physical planning and encoding)
 // while leaving their identity, installation, and publication contracts with
 // the caller.
 
-use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
+use crate::pipeline::{self, BodyEmissionError};
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::provider_admission::realization_error;
+use native_program_planning::callable_planning::CallableTargetProduct;
+use provider_admission::provider_admission::realization_error;
 
 pub(super) struct CallableObjectProduct {
+    pub physical_original: native_artifact::PrivatePhysicalOriginal,
     pub projection: native_artifact::FragmentObjectProjection,
-    pub runtime: native_artifact::TerminalCallableRuntimeProvisions,
-    pub authority:
-        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
+    pub runtime: native_artifact::TerminalCallableRuntimeProvisions<
+        super::auxiliary_native::ObjectForeignAdapter,
+    >,
+    pub authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
 }
 
-pub(super) struct CallableTargetProduct {
-    pub retain_native_stage_inputs: bool,
-    pub code: terminal_codec::RetainedTerminalCode,
-    pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    pub target: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-    pub runtime: native_artifact::TerminalCallableRuntimeProvisions,
-    pub authority:
-        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
-    pub observation: crate::observations::NativePipelineObservation,
+pub(super) struct CallableProduct<Body, Adapter> {
+    pub body: Body,
+    custody: CallableCustody,
+    runtime: native_artifact::TerminalCallableRuntimeProvisions<Adapter>,
 }
 
-pub(super) fn prepare_callable_object(
-    mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'_>,
-    admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'_, '_>,
-    selections: &optimization_core::PostTerminalOptimizationSelections,
-    budget: optimization_core::OptimizationWorkBudget,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    retain_native_stage_inputs: bool,
-) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
-    let observation = crate::observations::NativePipelineObservation::new(
-        admission.providers.profile,
-        crate::observations::NativePipelineUnit::Callable,
-    );
-    let callable_entry = admitted.input.plan().entry;
-    let authority = admitted.providers.callable_authority().clone();
-    let host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(
-        admitted
-            .providers
-            .installation
-            .as_ref()
-            .map(|installation| installation.terminal_selection()),
-        admitted
-            .providers
-            .settlements
-            .iter()
-            .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
-                boundary: settlement.boundary,
-                realization: settlement.realization.clone(),
-            })
-            .collect(),
-        admitted.input.optimization_input().runtime_input(),
-        admission.providers.selected_provider_plans,
-        admission.providers.external_binding_rows,
-        native_artifact::NativeBindingRuntimeInputs {
-            bindings: admission.providers.native_bindings,
-            calling: admission.providers.installed_calling,
-        },
-    )
-    .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let runtime = native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
-        artifact.view(),
-        admitted.input.optimization_input().runtime_input(),
-        callable_entry,
-        admission.providers.profile,
-        host,
-    )
-    .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let optimized_target = pipeline::lower_to_target(
-        admitted.input,
-        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
-            target: admission.providers.target(),
-            settlements: &admitted.providers.settlements,
-            installation: admitted.providers.installation.take(),
-        },
-        selections,
-        budget,
-        &observation,
-    )
-    .map_err(|error| match error {
-        TargetLoweringError::AbstractOptimization(error) => {
-            realization_error("callable abstract optimization", error)
+struct CallableCustody {
+    code: terminal_codec::RetainedTerminalCode,
+    coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+    observation: crate::observations::NativePipelineObservation,
+}
+
+pub(super) type CallablePhysicalProduct =
+    CallableProduct<pipeline::PreparedPhysicalBody, super::auxiliary_native::PlannedForeignAdapter>;
+pub(super) type BoundCallable =
+    CallableProduct<pipeline::BoundPhysicalBody, super::auxiliary_native::PlannedForeignAdapter>;
+pub(super) type EncodedCallable =
+    CallableProduct<pipeline::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
+pub(super) type LaidOutCallable =
+    CallableProduct<pipeline::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
+pub(super) type ConstructedCallable =
+    CallableProduct<pipeline::ConstructedBody, super::auxiliary_native::ObjectForeignAdapter>;
+
+fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
+    match error {
+        BodyEmissionError::Physical(error) => {
+            realization_error("callable physical pipeline", error)
         }
-        TargetLoweringError::Target(error) => realization_error("callable target lowering", error),
-    })?;
-    let runtime = runtime.with_borrowed_storage_layouts(
-        optimized_target
-            .execution_plan()
-            .plan()
-            .borrowed_storage_layouts
-            .clone(),
-    );
-    Ok(CallableTargetProduct {
-        retain_native_stage_inputs,
-        code: artifact.retain_code(),
-        coverage: admission
-            .boundary_application_coverage
-            .ok_or_else(|| {
-                realization_error(
-                    "callable physical evidence",
-                    "callable has no semantic occurrence coverage",
-                )
-            })?
-            .clone(),
-        target: optimized_target,
-        runtime,
-        authority,
-        observation,
-    })
+        BodyEmissionError::Object(diagnostics) => diagnostics,
+    }
 }
 
-pub(super) fn emit_prepared_callable_object(
+pub(super) fn prepare_callable_physical(
     prepared: CallableTargetProduct,
-    execution: Option<terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution>,
+    execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
     requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
-) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+) -> Result<CallablePhysicalProduct, Vec<Diagnostic>> {
     let CallableTargetProduct {
         retain_native_stage_inputs,
         code,
@@ -129,50 +65,97 @@ pub(super) fn emit_prepared_callable_object(
         authority,
         observation,
     } = prepared;
-    let installations =
-        pipeline::bound_installations(&optimized_target, execution, requirements)
-            .map_err(|reason| realization_error("callable installation binding", reason))?;
-    let projection = pipeline::emit_target(
+    let installations = pipeline::plan_installations(&optimized_target, execution, requirements)
+        .map_err(|reason| realization_error("callable installation binding", reason))?;
+    let body = pipeline::prepare_physical_body(
         optimized_target,
         installations,
         &observation,
         retain_native_stage_inputs,
     )
-    .map_err(|error| match error {
-        BodyEmissionError::Physical(error) => {
-            realization_error("callable physical pipeline", error)
-        }
-        BodyEmissionError::Object(diagnostics) => diagnostics,
-    })?;
-    let projection = projection
-        .with_semantic_source(code, coverage)
-        .map_err(|reason| realization_error("callable physical evidence", reason))?;
-    observation.complete();
-    Ok(CallableObjectProduct {
-        projection,
+    .map_err(callable_error)?;
+    let runtime = runtime.map_adapters(super::auxiliary_native::plan);
+    Ok(CallableProduct {
+        body,
         runtime,
-        authority,
+        custody: CallableCustody {
+            code,
+            coverage,
+            authority,
+            observation,
+        },
     })
 }
 
-pub(super) fn emit_callable_object(
-    admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'_>,
-    admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'_, '_>,
-    selections: &optimization_core::PostTerminalOptimizationSelections,
-    budget: optimization_core::OptimizationWorkBudget,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    retain_native_stage_inputs: bool,
-) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
-    emit_prepared_callable_object(
-        prepare_callable_object(
-            admitted,
-            admission,
-            selections,
-            budget,
-            artifact,
-            retain_native_stage_inputs,
-        )?,
-        None,
-        Vec::new(),
-    )
+impl CallablePhysicalProduct {
+    pub(super) fn bind(
+        self,
+        handlers: &installation_binding::RetainedHandlerMeasurements,
+    ) -> Result<BoundCallable, Vec<Diagnostic>> {
+        Ok(CallableProduct {
+            body: self.body.bind(handlers, None)?,
+            custody: self.custody,
+            runtime: self.runtime,
+        })
+    }
+}
+impl BoundCallable {
+    pub(super) fn encode(self) -> Result<EncodedCallable, Vec<Diagnostic>> {
+        let body = pipeline::encode_physical_body(self.body, &self.custody.observation)
+            .map_err(callable_error)?;
+        Ok(CallableProduct {
+            body,
+            runtime: self.runtime.map_adapters(super::auxiliary_native::encode),
+            custody: self.custody,
+        })
+    }
+}
+
+impl EncodedCallable {
+    pub(super) fn layout(self) -> Result<LaidOutCallable, Vec<Diagnostic>> {
+        let body = pipeline::layout_encoded_body(self.body, &self.custody.observation)
+            .map_err(callable_error)?;
+        Ok(CallableProduct {
+            body,
+            runtime: self.runtime.map_adapters(super::auxiliary_native::place),
+            custody: self.custody,
+        })
+    }
+}
+
+impl LaidOutCallable {
+    pub(super) fn construct_object(self) -> Result<ConstructedCallable, Vec<Diagnostic>> {
+        Ok(CallableProduct {
+            body: pipeline::construct_body_object(self.body).map_err(callable_error)?,
+            runtime: self
+                .runtime
+                .map_adapters(super::auxiliary_native::construct),
+            custody: self.custody,
+        })
+    }
+}
+
+impl ConstructedCallable {
+    pub(super) fn emit_fragment(self) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+        let CallableCustody {
+            code,
+            coverage,
+            observation,
+            authority,
+        } = self.custody;
+        let projection = pipeline::emit_body_fragment(self.body).map_err(callable_error)?;
+        let physical_original = native_artifact::PrivatePhysicalOriginal::new(
+            projection.object().psi(),
+            code,
+            coverage,
+        )
+        .map_err(|reason| realization_error("callable physical evidence", reason))?;
+        observation.complete();
+        Ok(CallableObjectProduct {
+            physical_original,
+            projection,
+            runtime: self.runtime,
+            authority,
+        })
+    }
 }

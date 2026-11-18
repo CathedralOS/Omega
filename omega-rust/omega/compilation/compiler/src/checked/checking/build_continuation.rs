@@ -57,7 +57,7 @@ pub(super) fn prepare_build_invocation(
     let TypedCompilationFrontier {
         preparation,
         build_stage,
-        mut source,
+        source,
         anonymous_source,
         product_sources,
         build_source,
@@ -65,14 +65,12 @@ pub(super) fn prepare_build_invocation(
         generated_source_custody,
         base_sources,
     } = frontier;
-    let build_input = source.build_input();
     let evaluation = build_settings::prepare_build_evaluation(
         build_settings::BuildEvaluationRequest {
             execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
             pure_build_compilation,
             root_path,
-            typed: build_input.typed,
-            pre_checks: build_input.pre_checks,
+            typed: source.typed(),
             build_source,
             sources: &base_sources,
             package_inputs,
@@ -111,7 +109,7 @@ pub(super) fn prepare_build_invocation(
 impl BuildSourceInvocation {
     pub(super) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         self.evaluation.source_completion_accounting()
     }
 
@@ -213,7 +211,7 @@ impl BuildSourceInvocation {
         let TypedCompilationFrontier {
             preparation,
             build_stage,
-            mut source,
+            source,
             anonymous_source,
             product_sources,
             build_source,
@@ -221,11 +219,10 @@ impl BuildSourceInvocation {
             generated_source_custody,
             base_sources,
         } = frontier;
-        let build_input = source.build_input();
         self.evaluation
             .continue_stage(
                 build_settings::BuildStageRequest {
-                    typed: build_input.typed,
+                    typed: source.typed(),
                     build_source,
                     package_inputs,
                     anonymous_source: anonymous_source.as_ref(),
@@ -512,7 +509,7 @@ pub(super) fn complete_build_source(
                 })?;
                 let rejoined_accounting = build_settings::settle_rejoined_build_slice(
                     &build_constants,
-                    source.build_input(),
+                    source.typed(),
                     entry,
                     package_inputs,
                     anonymous_source.as_ref(),
@@ -576,7 +573,7 @@ pub(super) fn complete_build_source(
 }
 
 pub(super) fn lower_typed_frontier(
-    preparation: products::SourcePreparation,
+    preparation: source_compiler::SourcePreparation,
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
     execution_profile: Option<target::TargetProfile>,
@@ -598,33 +595,27 @@ pub(super) fn lower_typed_frontier(
             execution.target_name(),
         ))]);
     }
-    build_settings::select_build_helpers(&mut syntax.syntax_trees, execution, &build_scope_sources);
     let build_source = syntax.build_source;
-    // A frontier a Build stage is checked and run on holds that stage's
-    // statements only (`build_settings::select_build_stage`). A frontier
-    // nothing executes the Build entry of keeps the entry whole: the Product
-    // frontier, and the one a paused Build's Product query is answered on.
-    // There a name of a later stage is recorded on the entry and raised by
-    // nobody, because nothing demands the entry.
-    let build_stage = match (build_stage, build_source) {
-        (Some(stage), Some(build)) => {
-            build_settings::select_build_stage(&mut syntax.syntax_trees, build.source_id(), stage)?
-        }
-        _ => build_settings::BuildStage::WHOLE,
-    };
+    let selected_build_stage = build_stage
+        .zip(build_source)
+        .map(|(stage, source)| (source.source_id(), stage));
     let request = source_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
         root_sources: syntax.root_sources,
         frontends: preparation.frontends.clone(),
         build_helper_identity: execution.target_name(),
+        build_sources: build_scope_sources,
+        build_stage: selected_build_stage,
         syntax: syntax.syntax_trees,
         sources: syntax.sources,
         top_level_bindings: syntax.source_scoped_top_level_bindings,
         selection_authority: package_inputs.map(|inputs| {
-            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+            Arc::new(inputs.clone())
+                as Arc<dyn source_compiler::evaluation::BuildTimeSelectionAuthority>
         }),
     };
-    let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
+    let (source, build_stage) =
+        request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         preparation,
         build_stage,
@@ -648,7 +639,7 @@ pub(super) fn complete_product_frontend(
 ) -> Result<
     (
         source_compiler::PreparedSource,
-        build_time_evaluation::SourceCompletionAccounting,
+        source_compiler::evaluation::SourceCompletionAccounting,
         Arc<products::ComputedBuildConfig>,
         BuildAdmission,
     ),
@@ -684,7 +675,7 @@ pub(super) fn complete_product_frontend(
                         "admitted generated extension has no source coordinate",
                     )]
                 })?;
-            let (sources, units) = extension.parse(&base_sources, timings)?;
+            let (sources, units) = extension.source_input(&base_sources)?;
             let diagnostic_sources = Arc::clone(&sources);
             source
                 .extend(

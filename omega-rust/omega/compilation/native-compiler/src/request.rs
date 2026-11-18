@@ -7,21 +7,20 @@
 // commit limits.
 
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
 use optimization_core::OptimizationWorkBudget;
-use terminal_psi_to_abstract_operations::provider_admission::{
+use provider_admission::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
+use target::ExecutableImageEmissionRequest;
 
 pub(crate) struct NativeRealizationRequest<'request> {
     pub retain_native_stage_inputs: bool,
     pub observation: &'request crate::observations::NativePipelineObservation,
-    pub proposal: &'request terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
-    pub execution: &'request terminal_psi_to_abstract_operations::PreparedNativeExecution,
-    pub scalar_applications:
-        Option<terminal_psi_to_abstract_operations::NativeScalarApplications<'request>>,
-    pub program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'request>,
-    pub admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'request, 'request>,
+    pub proposal: &'request native_program_planning::TerminalNativeRealizationProposal,
+    pub execution: &'request native_program_planning::PreparedNativeExecution,
+    pub scalar_applications: Option<native_program_planning::NativeScalarApplications<'request>>,
+    pub program_entry: native_program_planning::NativeProgramEntrySettlement<'request>,
+    pub admission: native_program_planning::NativeAdmissionRequest<'request, 'request>,
     pub image_request: ExecutableImageEmissionRequest,
     pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
@@ -61,11 +60,11 @@ pub struct NativeCompileRequest<'request> {
 impl NativeCompileRequest<'_> {
     pub(crate) fn prepare_terminal<'input>(
         &mut self,
-        retained: &'input terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+        retained: &'input native_program_planning::RetainedTerminalArtifact,
     ) -> Result<
         (
             &'input std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-            &'input terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
+            &'input native_program_planning::TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,
     > {
@@ -83,7 +82,7 @@ impl NativeCompileRequest<'_> {
                 proposal.application().identifier.as_ref(),
             )
             .map_err(|error| {
-                use image_emission::ImageApplicationMetadataError;
+                use target::ImageApplicationMetadataError;
                 diagnostics::error_in_context(
                     "Terminal native proposal",
                     match error {

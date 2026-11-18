@@ -24,8 +24,8 @@ pub(in crate::encoding::recovery) fn data_shape(
             },
         }),
         supply: super::super::tag!(reader => {
-            0 => language_semantics::DataSupplyMode::CheckedShape,
-            1 => language_semantics::DataSupplyMode::BoundaryOpaque,
+            0 => declaration_contracts::DataSupplyMode::CheckedShape,
+            1 => declaration_contracts::DataSupplyMode::BoundaryOpaque,
         }),
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,

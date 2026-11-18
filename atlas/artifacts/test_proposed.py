@@ -3,7 +3,7 @@ import copy
 import unittest
 
 from .overview import layout_model, validate
-from .proposed import proposed_model
+from .proposed import COMPILER_REVISION, proposed_model
 from .test_overview import GeometryContracts
 
 
@@ -78,6 +78,11 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
             self.assertTrue(nodes[key]['gate'])
         stages=[n for n in self.model['nodes'] if n['role']=='owner']
         self.assertEqual([n['number'] for n in stages],list(range(11)))
+        for stage in stages:
+            label, url = stage['implementation']['evidence'][0]
+            self.assertIn(COMPILER_REVISION[:11], label)
+            self.assertIn(f'/blob/{COMPILER_REVISION}/', url)
+            self.assertIn(f"/pipeline/{stage['number']:02d}_", url)
         self.assertEqual([n['title'][:2] for n in stages],[f'{i:02d}' for i in range(11)])
         model=copy.deepcopy(self.model)
         next(n for n in model['nodes'] if n['id']=='source-settlement')['title']='Compile source'

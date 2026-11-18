@@ -297,8 +297,11 @@ member of the enclosing trait or conformance, then a machine or a proposition
 machine of
 that path, so `Trait::requirement` and `Conformance::member`, or, for a
 conformance declaring no such member, the machine its trait supplies for that
-requirement. Ordinary and terminal calls use the same
-exact machine lookup; qualification
+requirement. [Overload publication](pipeline/02_syntax-trees-to-symbol-resolved-trees/overloads.omg)
+records the visible candidates at each machine name. Calls inside the
+declaring package share the complete family and cross-package calls share
+the public members. Ordinary and terminal calls use the same exact machine
+lookup. Qualification
 cannot expose a sibling's private descendants or export a nested helper. Static
 machine arguments use that same lexical lookup. A construction or case pattern
 names a data declaration or `Type::Case`, and a value path a case, an owned
@@ -426,7 +429,7 @@ named implementation or a forwarded evidence binder, and a const slot takes
 a static integer or a const binder. A type in an evidence slot, an
 implementation in a type or const slot, or the wrong number of arguments
 rejects. A type-only trait does not take this check. A call
-selects among the callee's family by machine path; a trait requirement (which
+selects among the callee's resolved candidates by argument type. A trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
 legacy target-family body, a conformance named as
 a call's static argument and a case domain qualifier reject as unsupported. A

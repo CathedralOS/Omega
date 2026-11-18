@@ -1520,7 +1520,7 @@ mod tests {
 
     #[test]
     fn retained_service_normal_membership_keeps_path_and_domain() {
-        use language_semantics::service_surface::{
+        use declaration_contracts::service_surface::{
             ServiceNormalResultMembership, ServiceResultProjection,
         };
         let membership = ServiceNormalResultMembership {

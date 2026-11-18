@@ -58,6 +58,7 @@ pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
 
+pub(crate) use ::wire::digest_encoder;
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
     validate_access_lifecycle_plans, validate_access_view_content,
@@ -76,7 +77,6 @@ pub use access::accessor_scalar_boundaries::{
 pub use calls::closed_conformances;
 pub use calls::closed_reach;
 pub use descriptors::descriptor_results;
-pub(crate) use optimization::digest_encoder;
 pub use references::resident_references::{
     resident_reference_plan, validate_resident_owner_fields,
 };
@@ -848,8 +848,9 @@ mod symbolic_integer_widths {
 #[cfg(test)]
 mod trapping_integer_tests {
     use super::*;
+    use arena::IdTable;
     use semantic_vocabulary::{
-        IdTable, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
+        IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
     };
     use terminal_psi::{
         Operation, OperationKind, OperationResult, TrappingIntegerOperation as Trap,
@@ -976,3 +977,7 @@ mod trapping_integer_tests {
         }
     }
 }
+
+pub mod provider_candidates;
+
+pub mod logical_providers;
