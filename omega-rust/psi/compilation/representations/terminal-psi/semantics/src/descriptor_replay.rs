@@ -1871,6 +1871,7 @@ pub(crate) mod analysis {
                         Ok::<(), DescriptorGraphError>(())
                     })?;
                 }
+                let mut unresolved_destinations = Vec::new();
                 for packet in summary.result.contents() {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&packet.path);
@@ -1888,7 +1889,15 @@ pub(crate) mod analysis {
                         }
                         continue;
                     }
+                    let mut has_producer = false;
                     for origin in &packet.origins {
+                        if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                            if produced.structural_type != expected {
+                                return Err(incomplete_step());
+                            }
+                            has_producer = true;
+                            continue;
+                        }
                         let DescriptorStoredOrigin::IncomingSlot {
                             position: parameter,
                             path,
@@ -1912,6 +1921,9 @@ pub(crate) mod analysis {
                         }
                         step.inputs.push((Some(source.clone()), None));
                         step.derivations.push((source, destination.clone()));
+                    }
+                    if has_producer {
+                        unresolved_destinations.push(destination);
                     }
                 }
                 // A result slot of unknown origin may be any descriptor
@@ -1937,6 +1949,9 @@ pub(crate) mod analysis {
                     if !step.definitions.contains(&destination) {
                         step.definitions.push(destination.clone());
                     }
+                    unresolved_destinations.push(destination);
+                }
+                for destination in unresolved_destinations {
                     for (argument, contents) in call.arguments.iter().zip(&call.argument_contents) {
                         match argument {
                             Some(source) => step
@@ -1992,6 +2007,9 @@ pub(crate) mod analysis {
                         continue;
                     }
                     let source = match origin {
+                        DescriptorStoredOrigin::ProducedContents(_) => {
+                            return Err(incomplete_step());
+                        }
                         DescriptorStoredOrigin::Invocation { .. }
                         | DescriptorStoredOrigin::Literal { .. }
                         | DescriptorStoredOrigin::Empty
@@ -2841,6 +2859,7 @@ pub(crate) mod case_flow {
                     realizations: vec![],
                     extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                     results: vec![],
+                    contents: Vec::new(),
                     invalidates_contents: false,
                 };
                 let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
@@ -4972,6 +4991,7 @@ pub(crate) mod engine {
         Backing(DescriptorCallOrigin),
         Incoming(DescriptorLocation),
         IncomingContents(DescriptorContentsQuery, Projection),
+        ProducedContents(ProducedContents),
         Storage(DescriptorLocation),
         /// A borrowed header captures an address account, not a fresh lookup
         /// through a descriptor that may subsequently be replaced.
@@ -5156,12 +5176,13 @@ pub(crate) mod engine {
             }),
             DescriptorInvocationTarget::Public {
                 results,
+                contents,
                 invalidates_contents,
                 ..
             } => Some(Summary {
                 result: ResultObservations::Observed {
                     slots: Some(results.clone()),
-                    contents: Vec::new(),
+                    contents: contents.clone(),
                     unknown: Vec::new(),
                 },
                 result_cases: Default::default(),
@@ -6791,6 +6812,7 @@ pub(crate) mod engine {
                 .as_ref()?
                 .iter()
                 .map(|origin| match origin {
+                    Origin::ProducedContents(_) => None,
                     Origin::CapturedStorage(account) => {
                         let values = self.project(
                             machine,
@@ -6918,6 +6940,7 @@ pub(crate) mod engine {
             value?
                 .into_iter()
                 .map(|origin| match origin {
+                    Origin::ProducedContents(_) => None,
                     Origin::CapturedStorage(account) => {
                         let reason = account.unavailable().or_else(|| {
                             projection.has_captured_reference_crossing().unwrap_or(true).then_some(
@@ -7654,10 +7677,18 @@ pub(crate) mod engine {
                 for packet in summary.result.contents() {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&packet.path);
-                    self.unknown_contents_type(machine, &destination)
+                    let expected = self
+                        .unknown_contents_type(machine, &destination)
                         .ok_or("borrowed contents do not match the result's declared type")?;
                     let mut origins = BTreeSet::new();
                     for origin in &packet.origins {
+                        if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                            if produced.structural_type != expected {
+                                return Err("returned contents changed their generic value type");
+                            }
+                            origins.insert(Origin::ProducedContents(produced.clone()));
+                            continue;
+                        }
                         origins.extend(
                             self.substitute_result_with_depth(machine, before, call, origin, reads)
                                 .ok_or("returned borrowed contents have no source in this call")?,
@@ -8359,7 +8390,8 @@ pub(crate) mod engine {
                         projection: projection.clone(),
                     },
                 )])),
-                DescriptorStoredOrigin::Provider(_) => None,
+                DescriptorStoredOrigin::Provider(_)
+                | DescriptorStoredOrigin::ProducedContents(_) => None,
                 DescriptorStoredOrigin::AccessFormation {
                     machine,
                     operation,
@@ -8674,6 +8706,9 @@ pub(crate) mod engine {
             origin: &Origin,
         ) -> Option<DescriptorStoredOrigin> {
             match origin {
+                Origin::ProducedContents(produced) => {
+                    Some(DescriptorStoredOrigin::ProducedContents(produced.clone()))
+                }
                 Origin::CapturedStorage(account) => {
                     self.exported(machine, &self.legacy_storage_origin(account)?)
                 }
@@ -9091,6 +9126,7 @@ pub(crate) mod engine {
                     Origin::IncomingContents(query, projection) => {
                         Some(DescriptorSourceOrigin::IncomingContents { query, projection })
                     }
+                    Origin::ProducedContents(_) => None,
                 })
                 .collect()
         }
@@ -10340,6 +10376,7 @@ pub(crate) mod engine {
                         } else {
                             Vec::new()
                         },
+                        contents: Vec::new(),
                         invalidates_contents: false,
                     },
                     arguments: actuals,
@@ -10515,6 +10552,7 @@ pub(crate) mod engine {
                         realizations: vec![],
                         extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                         results: vec![],
+                        contents: Vec::new(),
                         invalidates_contents: false,
                     },
                     arguments: vec![Some(parameter.clone())],
@@ -12544,6 +12582,16 @@ pub struct DescriptorResultContents {
     pub(crate) case_facts: case_flow::ResultCases,
 }
 
+/// The owned contents supplied by a completed call whose result type is
+/// still generic. The producing call and field identify the value without
+/// giving the caller a reference to its hidden backing.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProducedContents {
+    pub(crate) producer: DescriptorInvocationSite,
+    pub(crate) path: Vec<DescriptorPathSegment>,
+    pub(crate) structural_type: StructuralTypeId,
+}
+
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
     Invocation {
@@ -12572,6 +12620,7 @@ pub enum DescriptorStoredOrigin {
         steps: Vec<DescriptorContentsStep>,
         projection: Projection,
     },
+    ProducedContents(ProducedContents),
     Literal {
         machine: MachineId,
         place: PlaceId,
@@ -12715,6 +12764,7 @@ fn result_origin(
         }),
         DescriptorStoredOrigin::AccessFormation { .. }
         | DescriptorStoredOrigin::Provider(_)
+        | DescriptorStoredOrigin::ProducedContents(_)
         | DescriptorStoredOrigin::Carried { .. } => None,
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {

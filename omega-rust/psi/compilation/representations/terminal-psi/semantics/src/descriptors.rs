@@ -15389,6 +15389,7 @@ pub mod descriptor_results {
                     realizations,
                     extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
                     results,
+                    contents: Vec::new(),
                     invalidates_contents,
                 },
                 arguments,
@@ -17395,10 +17396,51 @@ pub mod descriptor_results {
                                     }
                                 }
                                 if let DescriptorInvocationTarget::Public {
-                                    effects_machine, ..
+                                    effects_machine,
+                                    contents,
+                                    ..
                                 } = &mut call.target
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
+                                    if !implemented
+                                        && slot_kind.tracks_references()
+                                        && let Some(result) = result
+                                    {
+                                        let inventory = slot_kind.owned_inventory(
+                                            &module.structural_types,
+                                            result.place,
+                                            result.structural_type,
+                                        )?;
+                                        for packet in inventory.unknown_contents {
+                                            let path = packet.location.path;
+                                            let (last, prefix) = path.split_last()?;
+                                            if *last != DescriptorPathSegment::UnknownContents {
+                                                return None;
+                                            }
+                                            let structural_type = descriptor_location_type(
+                                                &module.structural_types,
+                                                result.structural_type,
+                                                prefix,
+                                            )?;
+                                            let produced =
+                                                crate::descriptor_replay::ProducedContents {
+                                                    producer: DescriptorInvocationSite {
+                                                        machine: machine.id,
+                                                        owner: call.owner,
+                                                    },
+                                                    path: path.clone(),
+                                                    structural_type,
+                                                };
+                                            contents.push(DescriptorResultSlot {
+                                                path,
+                                                origins: vec![
+                                                    DescriptorStoredOrigin::ProducedContents(
+                                                        produced,
+                                                    ),
+                                                ],
+                                            });
+                                        }
+                                    }
                                 }
                                 insert_invocation(&mut graph.calls, position, call)?;
                             } else {
@@ -19035,6 +19077,7 @@ pub mod descriptor_results {
             realizations: Vec<MachineId>,
             extent: semantic_vocabulary::ReferenceOriginExtent,
             results: Vec<DescriptorResultSlot>,
+            contents: Vec<DescriptorResultSlot>,
             invalidates_contents: bool,
         },
     }

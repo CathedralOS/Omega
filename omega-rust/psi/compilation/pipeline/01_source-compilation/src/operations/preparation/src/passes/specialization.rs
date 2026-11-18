@@ -81,6 +81,7 @@ mod named_conformances;
 mod reflected_fields;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
@@ -153,6 +154,12 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
         position += 1;
     }
+    // Selected callback headers also create substituted types before copying
+    // a body. Form their data views along with every other new type from this
+    // pass, so later readers see the same exact application and field types.
+    program
+        .prepare_data_application_views(first_type)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(())
 }
 

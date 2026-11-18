@@ -840,6 +840,7 @@ pub(crate) mod reference_completion {
                     }
                     DescriptorStoredOrigin::Invocation { .. }
                     | DescriptorStoredOrigin::AccessFormation { .. }
+                    | DescriptorStoredOrigin::ProducedContents(_)
                     | DescriptorStoredOrigin::Carried { .. } => {
                         return Err(
                             "returned provider dependency needs its admitted retention resource",
@@ -968,6 +969,7 @@ pub(crate) mod reference_completion {
                 "returned dynamic view needs its declared lifetime contract"
             }));
         };
+        let mut produced_contents = Vec::new();
         let (declared_parameters, slots, actual, public) = match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
                 if returns_reference {
@@ -1023,6 +1025,20 @@ pub(crate) mod reference_completion {
                 if let Some(requirement) =
                     super::requirement_reference_result(module, callee.id).map_err(refuse)?
                 {
+                    for contents in &result_inventory.unknown_contents {
+                        let mut location = descriptor_location(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                            &contents.path,
+                            None,
+                        )
+                        .ok_or_else(|| refuse("returned contents have no declared field path"))?;
+                        location.path.push(
+                            crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents,
+                        );
+                        produced_contents.push(location);
+                    }
                     (
                         callee.structural_parameters.as_slice(),
                         Vec::new(),
@@ -1037,6 +1053,21 @@ pub(crate) mod reference_completion {
                             refuse("returned reference callee has no complete actual source correspondence")
                         })
                     })?;
+                    for packet in &contents.unknown_contents {
+                        if packet.origins.iter().any(|origin| {
+                            matches!(
+                                origin,
+                                crate::descriptor_results::DescriptorStoredOrigin::ProducedContents(
+                                    _
+                                )
+                            )
+                        }) {
+                            produced_contents.push(DescriptorLocation {
+                                root: result.place,
+                                path: packet.path.clone(),
+                            });
+                        }
+                    }
                     let actual = if has_reference_contents {
                         super::reference_origins::reference_result_contents(
                             &module.structural_types,
@@ -1227,6 +1258,37 @@ pub(crate) mod reference_completion {
                     )
             )
         };
+        for location in produced_contents {
+            let lifetime = descriptor_location_lifetime(&flow, at, &location);
+            if lifetime.live.contains(&at) {
+                return Err(refuse("returned contents cross their own call formation"));
+            }
+            for (position, (formal, argument)) in
+                parameters.iter().zip(call.structural_arguments).enumerate()
+            {
+                if argument.access == StructuralAccess::Owned {
+                    continue;
+                }
+                let ty = module
+                    .structural_type(formal.structural_type)
+                    .ok_or_else(|| refuse("returned contents input has no typed formal"))?;
+                if is_view(&ty.shape) {
+                    // The view's backing loan follows the descriptor in flow.
+                    continue;
+                }
+                retain_call_lifetime(
+                    &mut retained,
+                    position,
+                    argument.path.clone(),
+                    crate::descriptor_lifetimes::DescriptorLifetime {
+                        live: lifetime.live.clone(),
+                        demanded: lifetime.demanded.clone(),
+                        surviving: lifetime.surviving.clone(),
+                        authorized: Default::default(),
+                    },
+                );
+            }
+        }
         for slot in &slots {
             slot.visit(
                 result.structural_type,
@@ -2629,6 +2691,12 @@ pub(crate) mod reference_origins {
                     return Err("unknown result contents repeat or omit their origins");
                 }
                 for origin in &packet.origins {
+                    if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                        if produced.structural_type != expected.structural_type {
+                            return Err("a call returned contents of another generic type");
+                        }
+                        continue;
+                    }
                     let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
                         return Err("unknown result contents need their exact admitted producer");
                     };
