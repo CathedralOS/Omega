@@ -111,6 +111,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
     });
     for borrowed in [false, true] {
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: if borrowed { vec![point()] } else { Vec::new() },
             borrowed: if borrowed {

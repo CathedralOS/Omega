@@ -339,6 +339,13 @@ pub fn contract_refinement_goals(
         }
         _ => return Err("refinement result formal has another role"),
     }
+    crate::membership_facts::normal_membership_refinement(
+        module,
+        required.result,
+        &required.proof.membership_ensures,
+        selected.result,
+        &selected.proof.membership_ensures,
+    )?;
     let required_owner = required.evidence_owner;
     let selected_owner = selected.evidence_owner;
     let required_lanes = module

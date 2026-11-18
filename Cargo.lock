@@ -62,6 +62,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "semantic-vocabulary",
+ "symbols",
  "wire",
 ]
 
@@ -356,6 +357,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "access-admission",
+ "application-identity",
  "arena",
  "artifacts",
  "backend-plan",
@@ -2379,7 +2381,9 @@ dependencies = [
 name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "compiler-storage",
+ "symbols",
  "wire",
 ]
 

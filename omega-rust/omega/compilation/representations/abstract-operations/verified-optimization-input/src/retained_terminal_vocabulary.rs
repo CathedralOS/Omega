@@ -561,6 +561,7 @@ mod providers {
         has_result,
         result_type_identity,
         result_claims,
+        normal_result_memberships,
         service_reach,
         synchronous_invocations,
         may_suspend,
@@ -598,6 +599,16 @@ mod providers {
         lifetime_argument_identities,
         requirement_identities
     });
+
+    record_variants!(declaration_contracts::service_surface::ServiceResultProjection {
+        1 => Field(identity),
+        2 => Case(identity),
+        3 => FixedIndex(index),
+    });
+
+    record_fields!(
+        declaration_contracts::service_surface::ServiceNormalResultMembership { path, domain }
+    );
 
     record_fields!(effects::provider_plan::ServiceResultClaim {
         domain,

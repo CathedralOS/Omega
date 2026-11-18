@@ -1156,6 +1156,17 @@ pub mod domain {
                 && self.facts.is_empty()
         }
 
+        /// Forgetting qualification must not hide access rules. An unjudged
+        /// policy cannot establish that no such rules remain.
+        pub fn requires_access_retention(&self) -> bool {
+            self.access_policy
+                .as_ref()
+                .is_some_and(|policy| match &policy.plan {
+                    AccessPlanJudgment::Checked(plan) => plan.normalized.has_operation_rules(),
+                    AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => true,
+                })
+        }
+
         /// Whether source lowering still lacks the complete selected plan.
         /// A checked plan permits forming operations; its retained rules are
         /// enforced by the canonical operation judgment before execution.

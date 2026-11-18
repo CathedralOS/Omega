@@ -38,6 +38,8 @@ mod descriptor_replay;
 pub mod descriptors;
 pub mod float_meaning_sources;
 pub mod inhabitation;
+mod membership_facts;
+pub use membership_facts::validate_boundary_normal_memberships;
 pub mod normal_completion;
 pub mod numeric_primitives;
 pub mod plain_affine;

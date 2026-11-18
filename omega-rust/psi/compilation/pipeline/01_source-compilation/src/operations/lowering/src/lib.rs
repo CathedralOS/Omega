@@ -1028,6 +1028,7 @@ fn capture_source_questions(
         &program.completed_operators,
         &program.admitted_signature_views,
         &program.admitted_signature_view_owners,
+        &program.generic_templates,
     )
     .map_err(|error| Refusal {
         source_span: None,
@@ -2168,6 +2169,7 @@ mod publication_scope_tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            membership_ensures: Vec::new(),
             reaches: crate::lowering::Ceiling::Inferred,
             invokes: crate::lowering::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),

@@ -352,6 +352,56 @@ fn establishment_routes<R: Ord>(
 }
 
 impl Qualifications {
+    pub fn runtime_membership(
+        &self,
+        machine: MachineId,
+        membership: &crate::lowering::body::RuntimeMembership,
+    ) -> Checked<terminal_psi::RuntimeDomainMembership> {
+        use crate::lowering::body::RuntimeMembershipSubject;
+        let unavailable = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
+        Ok(match &membership.subject {
+            RuntimeMembershipSubject::Scalar(subject) => {
+                let domain = self
+                    .domains
+                    .iter()
+                    .find(|(instance, _)| *instance == membership.domain)
+                    .map(|(_, domain)| *domain)
+                    .ok_or_else(|| {
+                        unavailable("runtime scalar membership lost its exact domain")
+                    })?;
+                terminal_psi::RuntimeDomainMembership::Scalar {
+                    subject: subject.clone(),
+                    domain,
+                }
+            }
+            RuntimeMembershipSubject::Structural {
+                root,
+                path,
+                version,
+                carrier,
+            } => {
+                let domain = self
+                    .structural_domains
+                    .iter()
+                    .find(|(instance, actual, _)| {
+                        *instance == membership.domain && actual == carrier
+                    })
+                    .map(|(_, _, domain)| *domain)
+                    .ok_or_else(|| {
+                        unavailable(
+                            "runtime structural membership lost its exact domain and carrier",
+                        )
+                    })?;
+                terminal_psi::RuntimeDomainMembership::Structural {
+                    root: *root,
+                    path: path.clone(),
+                    version: *version,
+                    domain,
+                }
+            }
+        })
+    }
+
     pub fn declare(
         diagnostic: MachineId,
         source: Option<&crate::lowering::read::Program<'_>>,
@@ -415,6 +465,14 @@ impl Qualifications {
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
             let definition = source.domain_theory(diagnostic, symbol)?;
+            if definition.access_policy.as_ref().is_some_and(|policy| {
+                matches!(&policy.plan, crate::source_state::domain::AccessPlanJudgment::Checked(plan)
+                    if plan.normalized.has_operation_rules())
+            }) {
+                return Err(unavailable(
+                    "scalar domain access rules need retained operation checking",
+                ));
+            }
             let identity =
                 domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
             let mut predicate =
@@ -570,19 +628,15 @@ impl Qualifications {
                         )
                     })?;
                 let origin = if domain.establishment_routes.is_some() {
-                    let route = self
+                    match self
                         .issuers
                         .iter()
                         .find(|(issuer, declared, _)| *issuer == machine.id && *declared == *id)
                         .map(|(_, _, route)| *route)
-                        .ok_or_else(|| {
-                            refuse(
-                                machine.id,
-                                Construct::Edge(coercion.edge),
-                                Unserved::Type("qualification has no retained issuer association"),
-                            )
-                        })?;
-                    ScalarReturnOrigin::Established { route }
+                    {
+                        Some(route) => ScalarReturnOrigin::Established { route },
+                        None => ScalarReturnOrigin::Forwarded,
+                    }
                 } else if domain.predicate.is_some() {
                     ScalarReturnOrigin::Proved
                 } else {
@@ -811,42 +865,16 @@ impl Qualifications {
             if !routed {
                 continue;
             }
-            let route = self
+            let Some(route) = self
                 .structural_issuers
                 .iter()
                 .find(|(issuer, domain, _)| *issuer == machine && *domain == *id)
                 .map(|(_, _, route)| *route)
-                .ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type("record cast has no retained issuer association"),
-                    )
-                })?;
-            // A requirement route issues in a machine that declares the edge,
-            // and the lowered form carries that edge only as a closed
-            // conformance application of a selected call. Without one the
-            // checker cannot authenticate the issuer, so the cast is refused
-            // by name rather than published as a row it must reject.
-            let requirement = self
-                .structural
-                .iter()
-                .find(|domain| domain.id == *id)
-                .and_then(|domain| domain.establishment_routes.as_deref())
-                .and_then(|routes| routes.get(route as usize))
-                .is_some_and(|route| {
-                    matches!(
-                        route,
-                        StructuralEstablishmentRoute::CheckedRequirement { .. }
-                    )
-                });
-            if requirement {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("record domain issued through a requirement route"),
-                ));
-            }
+            else {
+                // An absent issuer row claims no new authority. The receiver
+                // must prove an existing fact on this cast's exact source.
+                continue;
+            };
             rows.push(terminal_psi::ResultQualificationEstablishment { domain: *id, route });
         }
         rows.sort_unstable();

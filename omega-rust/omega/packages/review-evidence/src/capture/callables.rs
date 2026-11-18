@@ -503,10 +503,23 @@ impl PolicySource<'_> {
                             0,
                         )?)
                     }
+                    source_compiler::source_state::domain::ProofFact::Membership(membership) => {
+                        let application = typed
+                            .runtime_membership_domain_identity(
+                                membership,
+                                self.compilation().sources().exact_toolchain_sources(),
+                                &[],
+                                &[],
+                            )
+                            .map_err(unavailable)?;
+                        PackageReviewContractFact::Membership {
+                            value: self.scoped_expression(membership.value, scope, 0)?,
+                            domain: self.nominal(membership.domain_symbol)?,
+                            application,
+                        }
+                    }
                     _ => {
-                        return Err(unavailable(
-                            "this callable clause's membership or proposition binding",
-                        ));
+                        return Err(unavailable("this callable clause's proposition binding"));
                     }
                 };
                 rows.push(PackageReviewCallableContract {

@@ -2907,7 +2907,7 @@ pub(crate) mod declaration_foundations {
             boundary
                 .declaration
                 .as_ref()
-                .map(|callable| callable.source.semantic_declaration),
+                .map(|callable| &callable.source.state),
             domains,
         ) {
             return malformed("provider candidate result disagrees with its boundary");
@@ -5425,6 +5425,7 @@ pub(crate) mod scalar_applications {
                 structural_parameters: Vec::new(),
                 result: terminal_psi::BoundaryMachineResult::Unit,
                 requires: Vec::new(),
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 scalar_requires: Vec::new(),
@@ -6212,7 +6213,8 @@ pub(crate) mod scalar_qualifications {
     pub(crate) fn validate(module: &terminal_psi::TerminalModule) -> Result<(), crate::CodecError> {
         use terminal_semantics::scalar_qualifications::ScalarQualificationError as Error;
         terminal_semantics::scalar_qualifications::validate(module).map_err(|error| match error {
-            Error::MalformedStructuralFoundation(detail) => {
+            Error::MalformedStructuralFoundation(detail)
+            | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }
             Error::MalformedProposition(error) => crate::CodecError::MalformedProposition(error),
@@ -13692,6 +13694,7 @@ mod installed_interrupt_owner_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),

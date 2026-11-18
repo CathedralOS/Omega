@@ -267,14 +267,14 @@ pub(crate) mod contract_wire {
     use terminal_psi::{
         ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
         MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
-        SuccessorEdge,
+        RuntimeDomainMembership, SuccessorEdge,
     };
 
     use super::machine_wire::{Claim, Declaration, MachineResult, ParameterKind, ReachApplication};
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, Flag, Id, Ids, List,
-        MachineDeclaration, Optional, ProofTerms, Proposition, ScalarTerms, Text, U32,
+        ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, FieldPath, Flag, Id,
+        Ids, List, MachineDeclaration, Optional, ProofTerms, Proposition, ScalarTerms, Text, U32,
         delegated_fields, wire_enum, wire_record,
     };
     use super::{CodecError, decode_proposition, encode_proposition};
@@ -315,6 +315,7 @@ pub(crate) mod contract_wire {
             crash_routes: CrashRoutes,
             erased_scalar_formals: List<Declaration>,
             erased_proof_formals: ProofFormals,
+            membership_ensures: List<Membership>,
             requires: List<Proposition>,
             source_checked_requires: List<Proposition>,
             ensures: List<Clause>,
@@ -338,6 +339,12 @@ pub(crate) mod contract_wire {
     }
 
     wire_enum! {
+        Membership: RuntimeDomainMembership, "RuntimeDomainMembership" {
+            1 => Scalar { subject: RuntimeScalarTerm, domain: Id },
+            2 => Structural {
+                root: Id, path: FieldPath, version: super::content_wire::PlaceVersion, domain: Id
+            },
+        }
         Termination: TerminationPromise, "termination guarantee" {
             0 => NoGuarantee,
             1 => Terminates,
@@ -350,6 +357,9 @@ pub(crate) mod contract_wire {
     }
 
     delegated_fields! {
+        RuntimeScalarTerm: semantic_vocabulary::ScalarTerm
+            => super::scalar_term_wire::encode_scalar_term,
+               super::scalar_term_wire::decode_scalar_term;
         ProofFormals: Vec<terminal_psi::ErasedProofFormal>
             => super::proof_term_wire::encode_proof_formals,
                super::proof_term_wire::decode_proof_formals;

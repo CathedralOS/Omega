@@ -132,6 +132,7 @@ impl BoundaryNamespace {
                 }
             };
             let declaration = crate::lowering::declare::provider_declaration(
+                declarations.map(|source| source.typed),
                 &source.declaration,
                 &source.signature,
                 &header.proof,
@@ -307,6 +308,7 @@ impl BoundaryNamespace {
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,
+                membership_ensures: header.proof.membership_ensures,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition).collect(),
                 reference_outputs,

@@ -641,6 +641,7 @@ impl LogicalScope<'_> {
                 erased: Vec::new(),
                 borrowed: Vec::new(),
                 result: None,
+                membership_ensures: Vec::new(),
                 requires,
                 ensures,
                 crashes: CrashCeiling::Inferred,

@@ -746,6 +746,7 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            membership_ensures: Vec::new(),
             reaches: crate::lowering::Ceiling::Inferred,
             invokes: crate::lowering::Ceiling::Inferred,
             crashes: crate::lowering::CrashCeiling::DeclaredNone,

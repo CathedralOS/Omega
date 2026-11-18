@@ -18983,9 +18983,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "function:service_method_policy#1",
       "kind": "producer",
-      "meaning": "Assemble the exact source method signature, authority, nominal ownership and published service terms.",
+      "meaning": "Retain the service method’s complete checked source signature, authority, result claims and exact domain memberships in the package policy, including each membership’s result projection and domain application.",
       "producer": "package review provider contracts",
-      "signature": "ea2828a99273953206106e4a0cefbf8c18ed8ca7d4312cd00ecb4d5e06394812"
+      "signature": "530a6244e2e5f5a6b36963e1c5ef80cf30585e54a21c7f6542e601594391758a"
     },
     {
       "consumers": [

@@ -67,79 +67,74 @@ struct Predicate {
 }
 
 impl Program<'_> {
-    /// An authored runtime membership states the selected domain's predicates
-    /// of the actual value. It supplies a normal contract goal or premise;
-    /// selecting the declaration itself supplies no membership evidence.
+    /// Predicate-only readers cannot discard nominal evidence obligations.
     pub(super) fn runtime_membership_clause(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         membership: &crate::source_state::domain::ProofMembershipFact,
     ) -> Checked<Option<(Proposition, ClauseText)>> {
+        let (fact, clause) = self.runtime_membership(id, scope, membership)?;
+        if fact.is_some() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract(
+                    "runtime membership needs its published nominal evidence obligation",
+                ),
+            ));
+        }
+        Ok(clause)
+    }
+
+    /// An authored runtime membership states the selected domain's predicates
+    /// of the actual value. It supplies a normal contract goal or premise;
+    /// selecting the declaration itself supplies no membership evidence.
+    pub(super) fn runtime_membership(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+    ) -> Checked<(
+        Option<crate::lowering::body::RuntimeMembership>,
+        Option<(Proposition, ClauseText)>,
+    )> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
         let domain = crate::lowering::body::DomainInstance {
             declaration: membership.domain_symbol,
             identity: membership.semantic_domain,
         };
-        if !domain.declaration.is_valid() || !domain.identity.is_valid() {
-            return Err(unavailable(
-                "runtime membership without its exact domain application",
-            ));
-        }
+        typed
+            .validate_runtime_membership_application(membership, &[], &[])
+            .map_err(unavailable)?;
         let definition = self.domain_theory(id, domain)?;
         let supplied = typed
             .type_reference_table
             .type_reference_handles(membership.domain_arguments);
-        let retained = typed
-            .domain_arguments_for_instance(domain.declaration, domain.identity)
-            .ok_or_else(|| unavailable("runtime membership without retained index arguments"))?;
-        if supplied.len() != retained.len()
-            || supplied.iter().zip(retained).any(|(a, b)| {
-                let actual = typed.package_qualified_type_identity(*a);
-                let expected = typed.package_qualified_type_identity(*b);
-                !actual.is_valid() || !expected.is_valid() || actual != expected
-            })
-        {
+        if definition.requires_access_retention() {
             return Err(unavailable(
-                "runtime membership changes its domain index arguments",
+                "runtime contract membership governed by an access policy",
             ));
         }
-        if let Some(occurrence) = membership.authored_domain_selection {
-            let selected = typed
-                .authored_declaration_selections()
-                .get(occurrence)
-                .and_then(|selection| selection.target().as_resolved().copied())
-                .map(|selected| selected.selected_symbol());
-            if selected != Some(domain.declaration) {
-                return Err(unavailable(
-                    "runtime membership changes its authored domain declaration",
-                ));
-            }
-        }
-        // Predicate expansion alone cannot establish an issuer's nominal
-        // qualification or governed access. Keep those requests unavailable
-        // until ordinary contracts can carry that membership evidence.
-        if !matches!(
-            definition.issuance(),
-            crate::source_state::domain::DomainIssuance::Unrestricted
-        ) || definition.access_policy.is_some()
-            || !has_predicates(definition)
-        {
-            return Err(unavailable(
-                "runtime membership needs nominal or governed domain evidence",
-            ));
-        }
+        // The complete service keeps an authored policy-backed promise even
+        // when its evaluated plan permits unrestricted issuance.
+        let nominal = definition.access_policy.is_some()
+            || !matches!(
+                definition.issuance(),
+                crate::source_state::domain::DomainIssuance::Unrestricted
+            );
         let qualification = Qualification {
             policy: None,
             domains: crate::lowering::body::DomainSet::EMPTY
                 .with(domain)
                 .ok_or_else(|| unavailable("runtime membership domain roster"))?,
         };
-        let at =
-            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
-        let clauses =
-            if let Some((root, path, actual)) = self.projected(id, scope, membership.value)? {
+        let at = crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let (subject, clauses) =
+            if let Some((root, path, actual @ ValueType::Record(carrier, _, _))) =
+                self.projected(id, scope, membership.value)?
+            {
                 let plain = actual
                     .qualified(Qualification::NONE)
                     .ok_or_else(|| unavailable("runtime membership of a rigid storage value"))?;
@@ -150,23 +145,61 @@ impl Program<'_> {
                 let subject = plain
                     .qualified(qualification)
                     .ok_or_else(|| unavailable("runtime membership storage qualification"))?;
-                self.storage_predicates(id, scope, subject, root, &path)?
+                let clauses = self.storage_predicates(id, scope, subject, root, &path)?;
+                (
+                    crate::lowering::body::RuntimeMembershipSubject::Structural {
+                        root,
+                        path,
+                        carrier,
+                        version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    },
+                    clauses,
+                )
             } else {
                 let (subject, actual) = self.term(id, scope, membership.value, None)?;
                 let plain = actual
                     .qualified(Qualification::NONE)
                     .ok_or_else(|| unavailable("runtime membership of a rigid scalar"))?;
                 self.declared_domain(id, domain, plain, definition.target_type, at)?;
-                self.of_value(id, scope, qualification, &subject)?
+                let clauses = self.of_value(id, scope, qualification, &subject)?;
+                (
+                    crate::lowering::body::RuntimeMembershipSubject::Scalar(subject),
+                    clauses,
+                )
             };
         let mut clauses = clauses
             .into_iter()
             .map(|(clause, _)| clause)
             .collect::<Vec<_>>();
+        if nominal {
+            let result_subject = match (&subject, scope.result) {
+                (
+                    crate::lowering::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value { id, .. }),
+                    ResultTerm::Named(result, ..),
+                ) => *id == result,
+                (
+                    crate::lowering::body::RuntimeMembershipSubject::Scalar(
+                        ScalarTerm::BooleanField { root, .. }
+                        | ScalarTerm::IntegerField { root, .. }
+                        | ScalarTerm::IeeeFloatField { root, .. },
+                    ),
+                    ResultTerm::Structural(result, _),
+                ) => *root == result,
+                (
+                    crate::lowering::body::RuntimeMembershipSubject::Structural { root, .. },
+                    ResultTerm::Structural(result, _),
+                ) => *root == result,
+                _ => false,
+            };
+            if !result_subject {
+                return Err(unavailable(
+                    "routed contract membership needs its exact normal result subject",
+                ));
+            }
+        }
+        let fact = nominal.then_some(crate::lowering::body::RuntimeMembership { subject, domain });
         if clauses.is_empty() {
-            return Err(unavailable(
-                "runtime membership has no served predicate clauses",
-            ));
+            return Ok((fact, None));
         }
         let proposition = if clauses.len() == 1 {
             clauses.pop().expect("one predicate clause")
@@ -196,7 +229,7 @@ impl Program<'_> {
             }
             text.push_text(">");
         }
-        Ok(Some((proposition, text)))
+        Ok((fact, Some((proposition, text))))
     }
 
     /// The predicates of every declared domain in `qualification`, in the

@@ -566,7 +566,7 @@ pub fn validate_boundary(
         "formation and crash clauses"
     );
     require!(
-        boundary.scalar_ensures == expected_ensures,
+        boundary.scalar_ensures == expected_ensures && boundary.membership_ensures.is_empty(),
         "full canonical result contract"
     );
     require!(

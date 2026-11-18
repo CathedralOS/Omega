@@ -303,3 +303,149 @@ fn an_access_policy_that_names_no_implementation_is_refused() {
         "{diagnostics:?}"
     );
 }
+
+/// Result promises demand the selected plans just like displayed qualifications.
+#[test]
+fn result_membership_promises_demand_their_access_plans() {
+    let typed = typed_frontier("run/domains/normal_result_membership")
+        .unwrap_or_else(|diagnostics| panic!("typed preparation must complete: {diagnostics:?}"));
+    let expected = [
+        "Ticket::Stamped",
+        "u32::WordStamped",
+        "u64::Ticked",
+        "addr::Allocated",
+    ];
+    let mut observed = Vec::new();
+    for (_, domain) in typed.domain_definitions.iter() {
+        if !expected.contains(&domain.name.as_str()) {
+            continue;
+        }
+        let subject = typed.type_reference_table.type_symbol(domain.target_type);
+        if let Some(atom) = typed.symbols.builtin_type_atom(subject) {
+            eprintln!(
+                "{} schema application: {:?}; declaration name: {:?}; full type: {:?}",
+                domain.name.as_str(),
+                source_compiler::source_state::reflection::construction::schema_type_identity(
+                    &typed,
+                    domain.target_type,
+                    subject
+                ),
+                application_identity::type_identity::builtin_type_name(atom),
+                application_identity::type_identity::builtin_type_identity(atom)
+            );
+        }
+        let state = match domain.access_policy.as_ref().map(|policy| &policy.plan) {
+            Some(AccessPlanJudgment::Checked(_)) => Ok(()),
+            Some(AccessPlanJudgment::Unjudged(reason)) => Err(reason.as_str()),
+            Some(AccessPlanJudgment::Unevaluated) => Err("plan was not evaluated"),
+            None => Err("selected policy was lost"),
+        };
+        eprintln!("{}: {state:?}", domain.name.as_str());
+        observed.push((domain.name.as_str(), state));
+    }
+    assert_eq!(observed.len(), expected.len(), "{observed:?}");
+    assert!(
+        observed.iter().all(|(_, state)| state.is_ok()),
+        "{observed:?}"
+    );
+}
+
+/// Scalar catalogs must not publish permissions they cannot retain and check.
+#[test]
+fn scalar_access_rules_are_not_erased_during_publication() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let root = std::env::temp_dir().join(format!(
+        "omega-scalar-access-publication-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let main = root.join("main.omg");
+    std::fs::write(&main, r#"
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessRegion;
+use omega::language::core::Issuance;
+use omega::language::core::access;
+use omega::language::core::reflect;
+use omega::language::core::reflect::TypeSchema;
+ScalarAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        let mut plan: AccessPlan = access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(issue)] });
+        access::allow_readers(&mut plan, AccessRegion::Subject { schema: schema }, [reflect::callable(issue)]);
+        plan
+    }
+}
+domain u64::Restricted access ScalarAccess;
+machine issue(value: u64) -> u64 in Restricted { value as +Restricted }
+machine main() {
+    let held: u64 in Restricted = issue(29u64);
+    let copied: u64 in Restricted = held;
+}
+"#).unwrap();
+    let observations = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let frontier = compiler::CompilationSession::default()
+                .typed_frontier_without_build(
+                    compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+                    None,
+                )
+                .unwrap_or_else(|failure| {
+                    panic!("typed preparation failed: {:?}", failure.into_diagnostics())
+                });
+            let controlled = frontier
+                .typed
+                .domain_definitions
+                .iter()
+                .map(|(_, row)| row)
+                .find(|row| row.name.as_str() == "u64::Restricted")
+                .unwrap();
+            assert!(
+                matches!(controlled.access_policy.as_ref().map(|policy| &policy.plan),
+                Some(AccessPlanJudgment::Checked(plan)) if plan.normalized.has_operation_rules()),
+                "{:?}",
+                controlled.access_policy
+            );
+            let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+                    bindings: &frontier.bindings,
+                    supplies: &frontier.supplies,
+                },
+                terminal_codec::TerminalPublication::Portable,
+            );
+            terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+                .into_iter()
+                .map(|row| {
+                    let refused = matches!(&row,
+                        Ok(terminal_psi_to_terminal_psi::RouteVerdict::FallBack(refusal))
+                        if refusal.detail == "declaration scalar domain access rules need retained operation checking");
+                    (refused, format!("{row:?}"))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    let _ = std::fs::remove_dir_all(root);
+    for (_, observation) in &observations {
+        eprintln!("{observation}");
+    }
+    assert!(
+        observations.iter().any(|(refused, _)| *refused),
+        "{observations:?}"
+    );
+}

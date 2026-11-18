@@ -94,6 +94,7 @@ impl ExternalProviderNamespace {
             let required_envelope = services.envelope(context, &required.envelope)?;
             let supplied_envelope = services.envelope(context, &source.envelope)?;
             let realization = crate::lowering::declare::provider_declaration(
+                typed_source,
                 &source.declaration,
                 &source.signature,
                 &supplied.proof,

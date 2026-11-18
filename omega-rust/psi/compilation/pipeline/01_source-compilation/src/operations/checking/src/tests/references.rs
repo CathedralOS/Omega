@@ -82,6 +82,7 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<crate::lowering::
             })
             .collect();
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),

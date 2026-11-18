@@ -2551,10 +2551,7 @@ pub(crate) mod identity_context {
                 return path;
             }
             if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
-                return compound(
-                    NameForm::CompilerType,
-                    [atom(Label::Atom, &builtin_atom.identity())],
-                );
+                return application_identity::type_identity::builtin_type_name(builtin_atom);
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())
@@ -10007,6 +10004,25 @@ impl TypedTrees {
         declaration_identity: &str,
         toolchain_sources: &[(source_text::SourceId, [u8; 32])],
     ) -> Result<String, &'static str> {
+        self.domain_application_identity_in_scope(
+            declaration,
+            identity,
+            declaration_identity,
+            toolchain_sources,
+            &[],
+            &[],
+        )
+    }
+
+    pub fn domain_application_identity_in_scope(
+        &self,
+        declaration: SymbolHandle,
+        identity: declaration_contracts::SemanticDomainId,
+        declaration_identity: &str,
+        toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<String, &'static str> {
         let arguments = self
             .domain_arguments_for_instance(declaration, identity)
             .ok_or("domain identity lost its complete application")?;
@@ -10027,6 +10043,8 @@ impl TypedTrees {
             missing_exact_nominal_owner: Some(&invalid),
             invalid_application: Some(&invalid),
             invalid_index_argument: Some(&invalid),
+            substitutions,
+            substitution_scope_starts: scope_starts,
             ..Default::default()
         };
         let parts = parameters
@@ -10055,6 +10073,84 @@ impl TypedTrees {
             return Err("domain identity has an unresolved or unowned application argument");
         }
         Ok(application)
+    }
+
+    pub fn validate_runtime_membership_application(
+        &self,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<(), &'static str> {
+        if !membership.domain_symbol.is_valid() || !membership.semantic_domain.is_valid() {
+            return Err("runtime membership has no exact domain application");
+        }
+        let supplied = self
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments);
+        let retained = self
+            .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)
+            .ok_or("runtime membership has no retained domain index arguments")?;
+        if supplied.len() != retained.len() {
+            return Err("runtime membership changes its domain index arguments");
+        }
+        if let Some(occurrence) = membership.authored_domain_selection {
+            let selected = self
+                .authored_declaration_selections()
+                .get(occurrence)
+                .and_then(|selection| selection.target().as_resolved().copied())
+                .map(|selected| selected.selected_symbol());
+            if selected != Some(membership.domain_symbol) {
+                return Err("runtime membership changes its authored domain declaration");
+            }
+        }
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let definition = self
+            .domain_definition_for_instance(membership.domain_symbol, membership.semantic_domain)
+            .ok_or("runtime membership lost its domain definition")?;
+        let parameters = self.domain_type_parameters(definition);
+        if !supplied.is_empty() && parameters.len() != supplied.len() {
+            return Err("runtime membership lost its complete domain telescope");
+        }
+        if supplied.iter().zip(retained).any(|(actual, expected)| {
+            let actual = normalize_type_identity(self, *actual, &context);
+            let expected = normalize_type_identity(self, *expected, &context);
+            !actual.is_valid() || !expected.is_valid() || actual != expected
+        }) || invalid.get()
+        {
+            return Err("runtime membership changes or loses its exact domain index arguments");
+        }
+        Ok(())
+    }
+
+    pub fn runtime_membership_domain_identity(
+        &self,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+        toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<String, &'static str> {
+        self.validate_runtime_membership_application(membership, substitutions, scope_starts)?;
+        let declaration = self
+            .exact_owner_nominal_identity(membership.domain_symbol, toolchain_sources)
+            .and_then(|identity| self.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("runtime membership has no exact domain declaration identity")?;
+        self.domain_application_identity_in_scope(
+            membership.domain_symbol,
+            membership.semantic_domain,
+            &declaration,
+            toolchain_sources,
+            substitutions,
+            scope_starts,
+        )
     }
 
     pub fn normalized_nominal_type_identity(

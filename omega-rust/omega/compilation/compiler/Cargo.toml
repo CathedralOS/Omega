@@ -61,6 +61,7 @@ proof-admission = { path = "../../../psi/compilation/proof-admission" }
 wire = { path = "../../../psi/foundation/wire" }
 
 [dev-dependencies]
+application-identity = { path = "../../../psi/compilation/representations/application-identity" }
 installation-admission = { path = "../verification/installation-admission" }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
 published-object-verification = { path = "../verification/published-objects" }

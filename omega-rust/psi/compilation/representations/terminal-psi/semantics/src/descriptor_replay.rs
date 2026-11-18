@@ -1528,6 +1528,16 @@ pub(crate) mod analysis {
                     .iter()
                     .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
                     .collect::<Result<_, DescriptorGraphError>>()?;
+                step.value_transfers = step
+                    .value_transfers
+                    .iter()
+                    .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
+                    .collect::<Result<_, DescriptorGraphError>>()?;
+                step.scalar_value_stores = step
+                    .scalar_value_stores
+                    .iter()
+                    .map(|(destination, source)| Ok((canonical(destination)?, *source)))
+                    .collect::<Result<_, DescriptorGraphError>>()?;
                 step.authority_derivations = step
                     .authority_derivations
                     .iter()
