@@ -600,7 +600,7 @@ mod tests {
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = symbols.insert_children(
             root,
-            symbols::builtin_type_symbols()
+            crate::source_symbols::builtin_type_symbols()
                 .into_iter()
                 .chain([(SymbolKind::Machine, SymbolNameRef::Static("borrow"))]),
         );

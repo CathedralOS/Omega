@@ -2666,7 +2666,7 @@ impl<'a> Storage<'a> {
                         }
                         terminal_semantics::plain_affine::Site::Edge(at) => Construct::Edge(at),
                     };
-                    crate::refusal(
+                    crate::checking::refusal(
                         RefusalReason::Unestablished,
                         self.machine,
                         concerns,

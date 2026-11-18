@@ -863,7 +863,7 @@ fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],
-                purpose: source_text::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

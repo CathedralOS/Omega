@@ -1878,9 +1878,9 @@ machine entry() -> u32 {
     let verdict = check(&bypass);
     assert!(
         match &verdict {
-            Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts
-                .iter()
-                .any(|conflict| { conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed }),
+            Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts.iter().any(|conflict| {
+                conflict.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed
+            }),
             Err(crate::checking::CompilationRefusal::Elaboration(Refusal {
                 reason: RefusalReason::Conflict,
                 detail,

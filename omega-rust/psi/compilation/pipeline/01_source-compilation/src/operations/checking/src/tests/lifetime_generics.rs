@@ -399,7 +399,7 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
             .as_mut()
             .unwrap();
         envelope.blocks = !envelope.blocks;
-        let refused = crate::judge(Ok(forged));
+        let refused = crate::checking::judge(Ok(forged));
         assert!(
             matches!(refused, Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
             if detail.starts_with("abstract envelope differs from its complete source declaration")),
@@ -486,7 +486,7 @@ machine entry(left: &[u8], right: &[u8], count: &mut u64) {
                         terminal_psi::TerminalCallableInvocation::Parameter(_)
                     )
                 });
-            let refused = crate::ceilings::judge(&forged).unwrap_err();
+            let refused = crate::checking::ceilings::judge(&forged).unwrap_err();
             assert_eq!(
                 refused.reason,
                 RefusalReason::ForeignIdentity,

@@ -239,7 +239,9 @@ mod tests {
             call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(ty),
-            source: crate::lowering::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            source: crate::lowering::SourceOrigin::Unpositioned(
+                crate::lowering::Unpositioned::SpanAbsent,
+            ),
         };
         let ambiguous = forwarded_inputs(&[ty], &[ty, ty], &[slot(0), slot(0)]);
         assert!(ambiguous[0].1.is_none());

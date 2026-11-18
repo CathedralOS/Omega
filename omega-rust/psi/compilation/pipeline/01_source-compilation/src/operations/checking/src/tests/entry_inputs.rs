@@ -151,7 +151,11 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
     let entry = super::build_purpose::symbol(&typed, "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
-        super::build_purpose::roster(&[entry], &[None], source_text::DependencyScope::Product),
+        super::build_purpose::roster(
+            &[entry],
+            &[None],
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
         terminal_codec::TerminalPublication::Invocation,
     );
     let verdicts = crate::checking::judge_compilation(prepared.program);

@@ -184,7 +184,7 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
                 Ok(RouteVerdict::Rejected { conflicts, .. }) => assert!(
                     conflicts.iter().any(|conflict| matches!(
                         conflict.conflict,
-                        crate::LoanConflict::TwiceExclusive
+                        crate::checking::LoanConflict::TwiceExclusive
                     )),
                     "{conflicts:?}"
                 ),

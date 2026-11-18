@@ -167,7 +167,7 @@ fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
         machine caller() { let selected = inspect; }
     "#;
     let tokens = Lexer::new(text).tokenize().unwrap();
-    let mut sources = source_text::SourceMap::default();
+    let mut sources = crate::source_inputs::SourceMap::default();
     let source_id = sources
         .add("equation-selection/main.omg".into(), text.to_owned())
         .source_id;

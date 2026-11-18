@@ -165,7 +165,7 @@ machine entry() reaches Fs invokes Fs {
     use terminal_check_tables::bindings::{PlaceOrigin, Segment};
     use terminal_check_tables::obligations::Lender;
     let mut input = elaborate(source).unwrap();
-    let verdict = crate::judge(Ok(input.clone()));
+    let verdict = crate::checking::judge(Ok(input.clone()));
     assert!(
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
         "{verdict:?}"
@@ -210,7 +210,7 @@ machine entry() reaches Fs invokes Fs {
         unreachable!()
     };
     *lender = Lender::Owner;
-    let forged = crate::judge(Ok(input));
+    let forged = crate::checking::judge(Ok(input));
     assert!(
         matches!(forged,
         Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })

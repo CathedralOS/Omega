@@ -842,7 +842,7 @@ machine entry() -> u64 { first<u32>(3u64) }
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: source_text::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -2001,7 +2001,11 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         let entry = super::build_purpose::symbol(&typed, "main");
         let prepared = crate::lowering::prepare_compilation(
             &typed,
-            super::build_purpose::roster(&[entry], &[None], source_text::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[None],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         );
         crate::checking::judge_compilation(prepared.program)

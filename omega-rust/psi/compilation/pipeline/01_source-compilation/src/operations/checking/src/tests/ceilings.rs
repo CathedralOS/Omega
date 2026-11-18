@@ -779,7 +779,7 @@ requires machine Callback();
         form.requirement_ceilings.get(requirement).unwrap().reaches,
         terminal_check_tables::contracts::Ceiling::Inferred
     ));
-    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
+    assert!(crate::checking::ceilings::judge(&form).unwrap().is_empty());
 
     // Losing the relay's inferred bound must still prevent its caller from
     // claiming calls cannot suspend. The independent helper stays complete.
@@ -789,7 +789,7 @@ requires machine Callback();
         .get_mut(relay)
         .unwrap()
         .suspension = None;
-    let refused = crate::ceilings::judge(&unknown).unwrap_err();
+    let refused = crate::checking::ceilings::judge(&unknown).unwrap_err();
     assert_eq!(
         refused.detail,
         "abstract callable has no closed suspension, blocking or progress envelope"

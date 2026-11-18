@@ -839,10 +839,9 @@ pub fn borrowed_address_liveness(
                 && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
                     .owned_slots(types, parameter.place, parameter.structural_type)
                     .is_some_and(|slots| slots.is_empty())
+                && headers.insert(parameter.place)
             {
-                if headers.insert(parameter.place) {
-                    header_places.push(parameter.place);
-                }
+                header_places.push(parameter.place);
             }
         }
     }
