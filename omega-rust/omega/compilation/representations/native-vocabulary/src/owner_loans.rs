@@ -8,19 +8,12 @@
 use crate::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    reading_borrow_pair_pattern,
+    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, reading_borrow_pair_pattern,
 };
 
-pub fn loaned_field_type(field: &StructuralFieldType) -> Option<StructuralFieldType> {
-    match field.byte_sequence_carrier() {
-        Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
-            Some(StructuralFieldType::ByteSequence(carrier))
-        }
-        _ => field.canonical_leaf_type(),
-    }
-}
+// Native geometry uses the same field-type rules as source checking.
+pub use terminal_semantics::borrowed_storage_field_type as loaned_field_type;
 
 pub fn is_bounded_owner_loan<'a>(
     parameter: &StructuralParameterDeclaration,

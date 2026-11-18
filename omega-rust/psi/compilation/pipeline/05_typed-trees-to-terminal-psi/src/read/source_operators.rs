@@ -281,7 +281,8 @@ impl Program<'_> {
                 )
             }
             (
-                ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index },
+                ExpressionKind::Index { base, index }
+                | ExpressionKind::ByteElement { base, index, .. },
                 ExpressionNode::Indexed(indexed),
             ) => {
                 let source = indexed.collection;
@@ -305,7 +306,9 @@ impl Program<'_> {
                         [left.result, right.result]
                     }
                     ExpressionKind::Index { base, index }
-                    | ExpressionKind::ByteElement { base, index } => [base.result, index.result],
+                    | ExpressionKind::ByteElement { base, index, .. } => {
+                        [base.result, index.result]
+                    }
                     ExpressionKind::IsCase { subject, .. } => [subject.result; 2],
                     _ => [None, None],
                 }
