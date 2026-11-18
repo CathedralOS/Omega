@@ -243,21 +243,20 @@ impl<'a> Storage<'a> {
         source: BlockId,
         target: BlockId,
     ) -> Checked<Option<Reached>> {
-        let edges = self
-            .block(source)?
-            .terminator
-            .successor_edges()
-            .into_iter()
-            .filter(|(_, into)| *into == target)
-            .map(|(edge, _)| edge)
-            .collect::<std::collections::BTreeSet<_>>();
+        let predecessor = self.block(source)?;
+        if self.cleanup_writes.is_empty() {
+            return Ok(None);
+        }
+        let mut edges = predecessor.terminator.successor_edges();
+        edges.retain(|(_, into)| *into == target);
+        edges.sort_unstable_by_key(|(edge, _)| *edge);
         let mut changed = false;
         let mut restored_edges = Vec::new();
-        for write in self
-            .cleanup_writes
-            .iter()
-            .filter(|write| edges.contains(&write.edge))
-        {
+        for write in self.cleanup_writes.iter().filter(|write| {
+            edges
+                .binary_search_by_key(&write.edge, |(edge, _)| *edge)
+                .is_ok()
+        }) {
             let written = Backing::direct(Lineage {
                 root: write.backing.root,
                 segments: write.backing.path.clone(),
@@ -284,7 +283,7 @@ impl<'a> Storage<'a> {
             // Every actual incoming edge must restore this exact captured owner.
             // One alternative's write cannot close another alternative's window.
             return Ok((!edges.is_empty()
-                && edges.iter().all(|edge| restored_edges.contains(edge)))
+                && edges.iter().all(|(edge, _)| restored_edges.contains(edge)))
             .then_some(Reached::Closed));
         }
         Ok(changed.then_some(Reached::Unknown))
