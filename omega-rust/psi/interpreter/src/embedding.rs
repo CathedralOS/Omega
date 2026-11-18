@@ -812,6 +812,39 @@ pub(crate) mod instance {
         }
 
         impl TerminalInstance<'_, '_> {
+            /// Return only an issued opaque value retained at this exact empty
+            /// borrowed projection. A replaced, well-typed value is unissued;
+            /// an invalid request or unfinished execution is an error.
+            pub fn borrowed_entry_host_atom(
+                &self,
+                argument_index: u32,
+                path: &[terminal_psi::StructuralPathSegment],
+            ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
+                let execution = self.execution.as_ref().ok_or_else(malformed)?;
+                if execution.result.is_none() {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "projected host identity observation requires normal return",
+                    ));
+                }
+                let (_, _, root) = execution
+                    .borrowed_entry_storage
+                    .iter()
+                    .find(|(index, _, _)| *index == argument_index)
+                    .ok_or_else(malformed)?;
+                let mut selected = execution.projected_empty_host_value(root, path)?;
+                let home = StructuralRuntimePlace::from(&selected);
+                match execution.structural_host_atoms.get(&home) {
+                    None => Ok(None),
+                    Some(crate::storage::structural_storage::HostStructuralPayload::Opaque(_)) => {
+                        execution
+                            .forward_host_atom(&mut selected)
+                            .ok_or_else(malformed)?;
+                        Ok(Some(selected))
+                    }
+                    Some(_) => Err(malformed()),
+                }
+            }
+
             pub fn observe_borrowed_entry(
                 &self,
                 argument_index: u32,
@@ -1290,6 +1323,230 @@ pub(crate) mod instance {
                     execution,
                     Vec::new(),
                 ))
+            }
+
+            fn projected_fixture(
+                no_code_affine_cleanup: bool,
+            ) -> (TerminalProgram<'static>, crate::TerminalProjectedHostAtom) {
+                let mut program = empty_program();
+                let module = std::sync::Arc::get_mut(&mut program)
+                    .unwrap()
+                    .fixture_module_mut();
+                let mut identities = module.identities.clone().into_builder();
+                let field_identity = identities.intern("facet");
+                let field = terminal_psi::StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
+                    inline_carrier: None,
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: field_identity,
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(
+                        StructuralTypeId::new(2).unwrap(),
+                    ),
+                    storage: None,
+                };
+                for (id, name, fields) in [
+                    (1, "host carrier", vec![field]),
+                    (2, "empty host value", Vec::new()),
+                ] {
+                    module.structural_types.push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        id: StructuralTypeId::new(id).unwrap(),
+                        identity: identities.intern(name),
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        no_code_affine_cleanup,
+                        descriptor_cleanup: no_code_affine_cleanup,
+                        nominal_cleanup: None,
+                        shape: StructuralTypeShape::Record {
+                            fields,
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
+                        },
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+                }
+                module.identities = identities.build();
+                let machine = &mut module.machines[0];
+                let place = PlaceId::new(1).unwrap();
+                machine
+                    .structural_places
+                    .push(terminal_psi::StructuralPlaceDeclaration {
+                        id: place,
+                        kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+                    });
+                machine.parameter_order = vec![BoundaryParameterKind::Structural];
+                machine.structural_parameters = vec![StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }];
+                let atom = crate::TerminalProjectedHostAtom {
+                    argument_index: 0,
+                    path: vec![terminal_psi::StructuralPathSegment::Field(field_identity)],
+                    value: TerminalStructuralValue::minted(
+                        100,
+                        StructuralTypeId::new(2).unwrap(),
+                        Vec::new(),
+                    ),
+                };
+                (TerminalProgram { program }, atom)
+            }
+
+            fn projected_instance(
+                program: &TerminalProgram<'static>,
+                atoms: &[crate::TerminalProjectedHostAtom],
+            ) -> Result<TerminalInstance<'static, 'static>, TerminalInterpretError> {
+                let execution = TerminalExecution::start_with_program(
+                    program.program.clone(),
+                    &[],
+                    crate::TerminalStructuralInputs {
+                        arguments: &[TerminalStructuralValue::minted(
+                            42,
+                            StructuralTypeId::new(1).unwrap(),
+                            Vec::new(),
+                        )],
+                        zero_initialized_arguments: &[0],
+                        projected_host_atoms: atoms,
+                        ..Default::default()
+                    },
+                    None,
+                    None,
+                )?;
+                Ok(TerminalInstance::new(
+                    program.clone(),
+                    execution,
+                    Vec::new(),
+                ))
+            }
+
+            #[test]
+            fn projected_host_atoms_require_exact_paths_types_memberships_and_fresh_identities() {
+                let (program, atom) = projected_fixture(true);
+                let (uncertified, same_slot) = projected_fixture(false);
+                assert!(projected_instance(&uncertified, &[same_slot]).is_err());
+                for identity in [1, 42] {
+                    let mut invalid = atom.clone();
+                    invalid.value.opaque_identity = identity;
+                    assert!(matches!(projected_instance(&program, &[invalid]),
+                        Err(TerminalInterpretError::StructuralArgumentAliasing(actual)) if actual == identity));
+                }
+                let mut invalid = atom.clone();
+                invalid.argument_index = 1;
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid.path.clear(); // The root is a nonempty record.
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid.path = vec![terminal_psi::StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(u32::MAX),
+                )];
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid.value.structural_type = StructuralTypeId::new(1).unwrap();
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid.value.path = invalid.path.clone();
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid.path = vec![terminal_psi::StructuralPathSegment::Referent];
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut invalid = atom.clone();
+                invalid
+                    .value
+                    .qualifications
+                    .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
+                assert!(projected_instance(&program, &[invalid]).is_err());
+                let mut duplicate = atom.clone();
+                duplicate.value.opaque_identity = 101;
+                assert!(projected_instance(&program, &[atom.clone(), duplicate]).is_err());
+                assert!(projected_instance(&program, &[atom.clone(), atom]).is_err());
+            }
+
+            #[test]
+            fn projected_host_observation_preserves_absence_and_replacement() {
+                let (program, atom) = projected_fixture(true);
+                let mut instance =
+                    projected_instance(&program, std::slice::from_ref(&atom)).unwrap();
+                assert!(instance.borrowed_entry_host_atom(0, &atom.path).is_err());
+                assert!(matches!(
+                    instance
+                        .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+                        .unwrap(),
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                ));
+                assert_eq!(
+                    instance.borrowed_entry_host_atom(0, &atom.path).unwrap(),
+                    Some(atom.value.clone())
+                );
+                assert!(instance.borrowed_entry_host_atom(1, &atom.path).is_err());
+                assert!(instance.borrowed_entry_host_atom(0, &[]).is_err());
+                let execution = instance.execution.as_mut().unwrap();
+                let (_, _, root) = &execution.borrowed_entry_storage[0];
+                let selected = execution
+                    .projected_empty_host_value(root, &atom.path)
+                    .unwrap();
+                let home = StructuralRuntimePlace::from(&selected);
+                execution
+                    .structural_host_atoms
+                    .insert(
+                        home.clone(),
+                        crate::storage::structural_storage::HostStructuralPayload::Modified,
+                    )
+                    .unwrap();
+                assert!(
+                    instance.borrowed_entry_host_atom(0, &atom.path).is_err(),
+                    "invalid payload state is not an ordinary absent value"
+                );
+                let execution = instance.execution.as_mut().unwrap();
+                execution
+                    .structural_host_atoms
+                    .insert(
+                        home.clone(),
+                        crate::storage::structural_storage::HostStructuralPayload::Opaque(
+                            atom.value.opaque_identity,
+                        ),
+                    )
+                    .unwrap();
+                let retirement = execution.prepare_subtree_retirement(&home).unwrap();
+                execution.prune_subtree(retirement).unwrap();
+                assert_eq!(
+                    execution.borrowed_entry_storage[0].2.opaque_identity, 42,
+                    "replacing the value does not change its stable borrowed home"
+                );
+                assert_eq!(
+                    instance.borrowed_entry_host_atom(0, &atom.path).unwrap(),
+                    None
+                );
+
+                let mut absent = projected_instance(&program, &[]).unwrap();
+                absent
+                    .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+                    .unwrap();
+                assert_eq!(
+                    absent.borrowed_entry_host_atom(0, &atom.path).unwrap(),
+                    None
+                );
+            }
+
+            #[test]
+            fn projected_host_tokens_are_reserved_before_local_allocation() {
+                let (program, mut atom) = projected_fixture(true);
+                atom.value.opaque_identity = 0;
+                let mut instance =
+                    projected_instance(&program, std::slice::from_ref(&atom)).unwrap();
+                let execution = instance.execution.as_mut().unwrap();
+                let identity = execution.local_structural_identities.allocate().unwrap();
+                assert!(
+                    ![0, 1, 42].contains(&identity),
+                    "projected, static and supplied identities are reserved"
+                );
             }
 
             #[test]
