@@ -3,7 +3,6 @@
 // activation source root.
 machine build(builder: &mut Build) {
     Build::application(builder, "build_facets");
-    builder.freestanding = true;
     let p: BuildPath = BuildSource::resolve(&builder.source, "main.omg");
     let d: i32 = BuildSource::open(&builder.source, p, 0);
     let mut bytes: [u8; 8] = [0,0,0,0,0,0,0,0];
