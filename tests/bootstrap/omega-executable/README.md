@@ -107,7 +107,7 @@ The harness owns those diagnostic statuses; they are not new OCOUT wire numbers.
 Resource and internal failures remain distinct from successful compilation.
 
 Every invocation first reconstructs the same pinned Epsilon execution receipt —
-identical request, identical 721,484-byte output — so
+identical request, identical 720,476-byte output — so
 `OMEGA_EXECUTABLE_RECEIPT_CACHE=<file>` lets the controls matrix share one
 reconstruction; cached bytes still face the pinned identity check, and
 `OMEGA_EXECUTABLE_RECEIPT_SECONDS` bounds a cold reconstruction.

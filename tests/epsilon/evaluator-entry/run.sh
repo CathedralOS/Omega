@@ -229,11 +229,17 @@ data Main {
 machine Main::main(&mut self) {
   let value: i32 = self.console.read_byte();
   self.console.write_byte(value);
+  assert self.console.read_byte() == -1;
   self.console.exit_process(value);
 }
 """
 expect_observation("sealed stdin reaches Console", ereq(STDIN_ECHO, b"Z"),
                    b"\x00" + struct.pack("<i", 90) + b"Z")
+expect_observation("final byte 255 followed by EOF", ereq(STDIN_ECHO, b"\xff"),
+                   b"\x00" + struct.pack("<i", 255) + b"\xff")
+# Empty stdin yields -1 even though the request contains a nonempty source.
+# Writing that value to Console traps before any byte is published.
+expect_observation("empty stdin begins at EOF", ereq(STDIN_ECHO), b"\x01\x05")
 
 TRAP_WRITE = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
