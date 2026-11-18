@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const SCHEMA: &str = "omega-progress-record/1";
-pub const BENCHMARK_SET: &str = "omega-progress-set/2";
+pub const BENCHMARK_SET: &str = "omega-progress-set/3";
 
 /// `{build}` is replaced by a fresh empty build directory for each run.
 /// `clean` names a directory removed before each run so `omega run` cannot

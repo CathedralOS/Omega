@@ -373,7 +373,7 @@ target/debug/omega-bench progress --results <dir>
 
 It builds `omega` with `mbx build --release -p omega` (`--omega <path>`
 measures an existing release binary instead), then runs each workload of the
-frozen set `omega-progress-set/2` with stdin closed: one warmup, `--aa-runs`
+frozen set `omega-progress-set/3` with stdin closed: one warmup, `--aa-runs`
 (default 3) alternating A/A pairs of the same binary, then `--runs` (default 5)
 measured runs. Each check gets a fresh `--build-dir`; the native workload's
 `build/` is removed before every run. Untimed, the two std-dependent projects
