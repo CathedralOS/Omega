@@ -154,7 +154,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
 /// per call (cost per citation then grows with the citations before it).
 fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let build = "machine build(builder: &mut Build) {\n    Build::application(builder, \"machine_count\");\n    builder.freestanding = true;\n}\n";
+    let build = "machine build(builder: &mut Build) {\n    Build::application(builder, \"machine_count\");\n}\n";
     let mut main = String::new();
     match shape {
         Shape::Machines => {
