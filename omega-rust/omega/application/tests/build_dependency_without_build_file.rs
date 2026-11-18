@@ -38,7 +38,6 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
     let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
     dependency::with_alias(&mut description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
-    builder.freestanding = true;
 }
 ",
     )
