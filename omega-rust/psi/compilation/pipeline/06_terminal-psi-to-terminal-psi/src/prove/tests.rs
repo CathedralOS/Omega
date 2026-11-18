@@ -2,6 +2,485 @@ use super::*;
 use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
+mod exact_fact_index {
+    use super::*;
+
+    struct CollidingHasher;
+
+    impl std::hash::Hasher for CollidingHasher {
+        fn finish(&self) -> u64 {
+            0
+        }
+
+        fn write(&mut self, _: &[u8]) {}
+    }
+
+    impl BuildHasher for CollidingHasher {
+        type Hasher = Self;
+
+        fn build_hasher(&self) -> Self {
+            Self
+        }
+    }
+
+    struct NoTermHash;
+
+    impl BuildHasher for NoTermHash {
+        type Hasher = CollidingHasher;
+
+        fn build_hasher(&self) -> Self::Hasher {
+            panic!("recursive terms must keep the exact fallback path")
+        }
+    }
+
+    fn integer() -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+    }
+
+    fn literal(n: u128) -> ScalarTerm {
+        ScalarTerm::integer(integer(), IntegerValue::Unsigned(n)).unwrap()
+    }
+
+    fn value(id: u64) -> ScalarTerm {
+        ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Integer(integer()))
+    }
+
+    fn inputs() -> IdTable<ValueId, ValueRow> {
+        IdTable::from_rows((0..2).map(|position| {
+            (
+                ValueId::new(u64::from(position) + 1).unwrap(),
+                ValueRow {
+                    scalar_type: ScalarType::Integer(integer()),
+                    origin: ValueOrigin::MachineParameter { position },
+                    rigid: None,
+                },
+            )
+        }))
+        .unwrap()
+    }
+
+    fn context(values: &IdTable<ValueId, ValueRow>) -> PropositionContext {
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap()
+    }
+
+    #[test]
+    fn collisions_keep_exact_equality_first_ordinal_and_missing_goals() {
+        let values = inputs();
+        let context = context(&values);
+        let first = Proposition::LessOrEqual(value(1), literal(7));
+        let second = Proposition::LessOrEqual(value(2), literal(9));
+        let missing = Proposition::LessOrEqual(value(1), literal(8));
+        let assumptions = [
+            first.clone(),
+            second.clone(),
+            first.clone(),
+            Proposition::Falsehood,
+        ];
+        let axioms = [first.clone()];
+        let known = crate::known::Known::new(&context, &assumptions, &axioms, &values);
+        let index = ExactFacts::with_hasher(&known.facts, CollidingHasher);
+        let mut activity = ProofSearchActivity::default();
+        assert_eq!(index.find(&known.facts, &first, &mut activity), Some(0));
+        assert_eq!(index.find(&known.facts, &second, &mut activity), Some(1));
+        assert_eq!(index.find(&known.facts, &missing, &mut activity), None);
+        assert!(activity.exact_fact_work.miss_comparisons >= known.facts.len());
+    }
+
+    #[test]
+    fn an_exact_goal_precedes_falsehood_and_keeps_its_earliest_proof() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::LessOrEqual(value(1), literal(7));
+        let assumptions = [Proposition::Falsehood, goal.clone(), goal.clone()];
+        let axioms = [goal.clone()];
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &axioms, &values, &mut activity)
+            .prove(&goal)
+            .unwrap();
+        let expected = node(goal.clone(), ProofRule::Assumption { index: 1 });
+        assert_eq!(format!("{proof:?}"), format!("{expected:?}"));
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        assert_eq!(
+            accepted
+                .assumptions
+                .iter()
+                .map(|used| used.index)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+        assert!(accepted.semantic_axioms.is_empty());
+    }
+
+    #[test]
+    fn falsehood_remains_available_but_no_answer_crosses_premise_contexts() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::LessOrEqual(value(1), literal(7));
+        let assumptions = [Proposition::Falsehood];
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&goal)
+            .unwrap();
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+        assert!(
+            Prover::new(&context, &[], &[], &values, &mut activity)
+                .prove(&goal)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn transport_truth_keeps_priority_over_a_truth_fact() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::Equal(value(1), literal(7));
+        let assumptions = [goal.clone(), Proposition::Truth];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+        let proof = prover.by_transport(&goal).unwrap();
+        let ProofRule::ValueEqualityTransport { premise, .. } = &proof.rule else {
+            panic!("the exact equality must be carried by its existing transport rule");
+        };
+        assert!(matches!(
+            premise.rule,
+            ProofRule::Primitive(PrimitiveJudgment::Truth)
+        ));
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                .unwrap();
+        assert_eq!(
+            accepted
+                .assumptions
+                .iter()
+                .map(|used| used.index)
+                .collect::<Vec<_>>(),
+            [0]
+        );
+    }
+
+    #[test]
+    fn recursive_terms_and_deep_logical_facts_use_exact_fallback_without_hashing() {
+        let values = inputs();
+        let context = context(&values);
+        let mut logical = Proposition::Truth;
+        for _ in 0..512 {
+            logical = Proposition::Disjunction(vec![logical]);
+        }
+        let mathematical = Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::Add(
+                Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(2))),
+            ),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(4)),
+        );
+        let scalar = Proposition::LessOrEqual(
+            ScalarTerm::exact_integer_add(integer(), value(1), literal(1)).unwrap(),
+            literal(9),
+        );
+        let assumptions = [logical, mathematical, scalar];
+        let known = crate::known::Known::new(&context, &assumptions, &[], &values);
+        let index = ExactFacts::with_hasher(&known.facts, NoTermHash);
+        let mut activity = ProofSearchActivity::default();
+        for goal in &assumptions {
+            assert!(!exact_fact_hash_eligible(goal));
+            assert_eq!(
+                index.find(&known.facts, goal, &mut activity),
+                known
+                    .facts
+                    .iter()
+                    .position(|fact| &fact.proposition == goal)
+            );
+        }
+        assert_eq!(activity.exact_fact_work.fallback_lookups, 3);
+    }
+}
+
+mod bound_fact_index {
+    use super::*;
+    use semantic_vocabulary::PlaceId;
+
+    fn integer() -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+    }
+
+    fn literal(n: u128) -> ScalarTerm {
+        ScalarTerm::integer(integer(), IntegerValue::Unsigned(n)).unwrap()
+    }
+
+    fn value(id: ValueId) -> ScalarTerm {
+        ScalarTerm::value(id, ScalarType::Integer(integer()))
+    }
+
+    fn inputs(first: u64, count: usize) -> IdTable<ValueId, ValueRow> {
+        IdTable::from_rows((0..count).map(|position| {
+            (
+                ValueId::new(first + u64::try_from(position).unwrap()).unwrap(),
+                ValueRow {
+                    scalar_type: ScalarType::Integer(integer()),
+                    origin: ValueOrigin::MachineParameter {
+                        position: u32::try_from(position).unwrap(),
+                    },
+                    rigid: None,
+                },
+            )
+        }))
+        .unwrap()
+    }
+
+    fn context(values: &IdTable<ValueId, ValueRow>) -> PropositionContext {
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap()
+    }
+
+    #[test]
+    fn ordinals_merge_partial_visits_once_in_the_original_order() {
+        let values = inputs(31, 3);
+        let subject = values.identity_at(0).unwrap();
+        let other = values.identity_at(1).unwrap();
+        let third = values.identity_at(2).unwrap();
+        let opaque = ScalarTerm::ViewExtent {
+            root: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            scalar_type: integer(),
+        };
+        let assumptions = [
+            Proposition::LessOrEqual(value(other), literal(7)),
+            Proposition::LessOrEqual(value(subject), literal(5)),
+            Proposition::Equal(
+                ScalarTerm::exact_integer_add(integer(), value(subject), value(subject)).unwrap(),
+                value(third),
+            ),
+            Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::embed(value(subject)).unwrap(),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(9)),
+            ),
+            Proposition::Equal(value(subject), opaque.clone()),
+            Proposition::Equal(value(other), opaque),
+        ];
+        let context = context(&values);
+        let mut activity = ProofSearchActivity::default();
+        let prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+        // This checks candidate coverage, not admission of the opaque terms.
+        // Preparation also retains the embedding equalities of the three
+        // scalar equalities. They are candidates with their own ordinals.
+        assert_eq!(prover.facts.len(), 9);
+        for (derived, original) in [(6, 2), (7, 4), (8, 5)] {
+            let Proposition::Equal(left, right) = &assumptions[original] else {
+                unreachable!();
+            };
+            assert_eq!(
+                prover.facts[derived].proposition,
+                sorted_math_equal(
+                    IntegerMathTerm::embed(left.clone()).unwrap(),
+                    IntegerMathTerm::embed(right.clone()).unwrap(),
+                )
+            );
+        }
+        assert_eq!(prover.bound_facts.fallback, [4, 5, 7, 8]);
+        let candidates = |id| {
+            let mut cursor = BoundFactCursor::default();
+            std::iter::from_fn(|| prover.bound_facts.next(id, &mut cursor)).collect::<Vec<_>>()
+        };
+        assert_eq!(candidates(subject), [1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(candidates(other), [0, 4, 5, 7, 8]);
+        assert_eq!(candidates(third), [2, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn scalar_compound_and_mathematical_bounds_keep_their_evidence() {
+        let values = inputs(41, 1);
+        let id = values.identity_at(0).unwrap();
+        let subject = value(id);
+        let context = context(&values);
+        let math_subject = IntegerMathTerm::embed(subject.clone()).unwrap();
+        let cases = [
+            (
+                Proposition::LessOrEqual(literal(3), subject.clone()),
+                Direction::Lower,
+                3,
+            ),
+            (
+                Proposition::LessThan(subject.clone(), literal(10)),
+                Direction::Upper,
+                9,
+            ),
+            (
+                Proposition::Equal(literal(7), subject.clone()),
+                Direction::Upper,
+                7,
+            ),
+            (
+                Proposition::IntegerMathLessOrEqual(
+                    math_subject.clone(),
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(9)),
+                ),
+                Direction::Upper,
+                9,
+            ),
+            (
+                sorted_math_equal(
+                    math_subject,
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(7)),
+                ),
+                Direction::Upper,
+                7,
+            ),
+            (
+                Proposition::LessOrEqual(
+                    ScalarTerm::exact_integer_add(integer(), subject, literal(2)).unwrap(),
+                    literal(10),
+                ),
+                Direction::Upper,
+                8,
+            ),
+        ];
+        for (assumption, direction, expected) in cases {
+            let assumptions = [assumption];
+            let mut activity = ProofSearchActivity::default();
+            let bound = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                .bound(id, direction)
+                .unwrap();
+            assert_eq!(bound.literal, IntegerValue::Unsigned(expected));
+            proof_admission::accept_certificate(
+                &context,
+                &bound.proof.conclusion,
+                &assumptions,
+                &[],
+                &bound.proof,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn tied_bounds_keep_the_first_certificate_and_original_premise_ordinal() {
+        let values = inputs(11, 2);
+        let subject = values.identity_at(0).unwrap();
+        let other = values.identity_at(1).unwrap();
+        let context = context(&values);
+        let assumptions = [
+            Proposition::LessOrEqual(value(other), literal(7)),
+            Proposition::LessThan(value(subject), literal(10)),
+            Proposition::LessOrEqual(value(subject), literal(9)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let bound = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .bound(subject, Direction::Upper)
+            .unwrap();
+        let expected = node(
+            assumptions[2].clone(),
+            ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(node(
+                    assumptions[1].clone(),
+                    ProofRule::Assumption { index: 1 },
+                )),
+            },
+        );
+        assert_eq!(bound.proof, expected);
+        proof_admission::accept_certificate(
+            &context,
+            &expected.conclusion,
+            &assumptions,
+            &[],
+            &bound.proof,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn unrelated_bounds_still_supply_their_actual_contradiction() {
+        let values = inputs(51, 2);
+        let subject = values.identity_at(0).unwrap();
+        let other = values.identity_at(1).unwrap();
+        let context = context(&values);
+        let assumptions = [
+            Proposition::LessOrEqual(value(other), literal(3)),
+            Proposition::LessOrEqual(literal(4), value(other)),
+        ];
+        let goal = Proposition::LessThan(value(subject), literal(0));
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&goal)
+            .unwrap();
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                .unwrap();
+        let mut cited: Vec<_> = accepted.assumptions.iter().map(|used| used.index).collect();
+        cited.sort_unstable();
+        assert_eq!(cited, [0, 1]);
+        for removed in [0, 1] {
+            let remaining = [assumptions[1 - removed].clone()];
+            assert!(
+                Prover::new(
+                    &context,
+                    &remaining,
+                    &[],
+                    &values,
+                    &mut ProofSearchActivity::default(),
+                )
+                .prove(&goal)
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn each_split_uses_its_own_complete_context() {
+        let values = inputs(21, 2);
+        let subject = values.identity_at(0).unwrap();
+        let other = values.identity_at(1).unwrap();
+        let context = context(&values);
+        let goal = Proposition::LessOrEqual(value(subject), literal(5));
+        for (second, succeeds) in [(subject, true), (other, false)] {
+            let assumptions = [Proposition::Disjunction(vec![
+                Proposition::LessOrEqual(value(subject), literal(3)),
+                Proposition::LessOrEqual(value(second), literal(5)),
+            ])];
+            let mut activity = ProofSearchActivity::default();
+            let result =
+                Prover::new(&context, &assumptions, &[], &values, &mut activity).prove(&goal);
+            assert_eq!(result.is_ok(), succeeds);
+            if let Ok(proof) = result {
+                proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                    .unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn a_bound_does_not_scan_unrelated_literal_premises() {
+        for count in [8, 128] {
+            let values = inputs(61, count + 1);
+            let subject = values.identity_at(0).unwrap();
+            let context = context(&values);
+            let mut assumptions: Vec<_> = values
+                .keys()
+                .skip(1)
+                .map(|id| Proposition::LessOrEqual(value(id), literal(100)))
+                .collect();
+            assumptions.push(Proposition::LessOrEqual(value(subject), literal(9)));
+            let mut activity = ProofSearchActivity::default();
+            let bound = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                .bound(subject, Direction::Upper)
+                .unwrap();
+            assert_eq!(bound.literal, IntegerValue::Unsigned(9));
+            proof_admission::accept_certificate(
+                &context,
+                &bound.proof.conclusion,
+                &assumptions,
+                &[],
+                &bound.proof,
+            )
+            .unwrap();
+            assert_eq!(activity.bound_value_searches, 1);
+            assert!(activity.bound_fact_visits <= 4);
+        }
+    }
+}
+
 #[test]
 fn failed_opposite_searches_leave_candidate_fact_proofs_unbuilt() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();

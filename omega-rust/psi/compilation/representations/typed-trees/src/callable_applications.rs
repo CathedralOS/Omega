@@ -4940,7 +4940,9 @@ mod declaration_invocations {
                     .static_machine_binding_snapshot(*bindings)
                     == actual_bindings
                 && invocation.lifetime_bindings.len() == known_lifetimes.len()
-                && known_lifetimes == self.static_machine_application_lifetimes(actual_application)
+                && known_lifetimes
+                    .iter()
+                    .eq(self.static_machine_application_lifetimes(actual_application))
                 && invocation.arguments.len() == actual_arguments.len()
                 && known_arguments.len() == actual_arguments.len()
                 && known_arguments
@@ -5189,10 +5191,11 @@ pub(crate) mod requirement_instances {
         pub template: SymbolHandle,
         pub trait_application_identity: type_identity::NormalizedTypeIdentity,
         pub portable_trait_application_identity: type_identity::NormalizedTypeIdentity,
-        pub portable_local_arguments: &'program [type_identity::NormalizedTypeIdentity],
+        pub portable_local_arguments:
+            arena::RootRows<'program, type_identity::NormalizedTypeIdentity>,
         pub trait_scope: crate::trait_definition::RetainedTraitScope,
         pub trait_arguments: &'program [types::TypeReferenceHandle],
-        pub local_arguments: &'program [RequirementLocalArgument],
+        pub local_arguments: arena::RootRows<'program, RequirementLocalArgument>,
         pub invocation_contract_parameters: arena::RootRows<'program, data::TypeParameter>,
         pub application: static_applications::StaticMachineApplicationHandle,
         pub signature: &'program signature::StateSignature,
@@ -5688,7 +5691,10 @@ pub(crate) mod requirement_instances {
                     && existing.trait_application_identity == trait_application_identity
                     && existing.portable_trait_application_identity
                         == portable_trait_application_identity
-                    && existing.portable_local_arguments == portable_local_arguments
+                    && existing
+                        .portable_local_arguments
+                        .iter()
+                        .eq(portable_local_arguments.iter())
                     && existing
                         .local_arguments
                         .iter()
@@ -8850,8 +8856,8 @@ pub struct AppliedMachineCallable<'a> {
     pub required: &'a signature::StateSignature,
     pub selected: &'a signature::StateSignature,
     pub source_required: &'a signature::StateSignature,
-    pub caller_operands: &'a [CallableSubstitution],
-    pub caller_lifetimes: &'a [StaticMachineLifetimeBinding],
+    pub caller_operands: arena::RootRows<'a, CallableSubstitution>,
+    pub caller_lifetimes: arena::RootRows<'a, StaticMachineLifetimeBinding>,
 }
 
 #[derive(Default)]

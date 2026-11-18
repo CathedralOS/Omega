@@ -299,7 +299,7 @@ pub mod types {
             pub fn authorizes_boundary_requirement(
                 &self,
                 requirement: crate::TerminalIdentityIndex,
-                declaration: Option<crate::TerminalIdentityIndex>,
+                declaration: Option<&crate::NominalDeclarationIdentity>,
             ) -> bool {
                 self.establishment_routes
                     .as_deref()
@@ -309,7 +309,7 @@ pub mod types {
                         matches!(route, crate::StructuralEstablishmentRoute::BoundaryRequirement {
                         requirement_identity: authorized,
                         declaration: owner,
-                    } if *authorized == requirement && Some(owner.identity()) == declaration)
+                    } if *authorized == requirement && Some(owner) == declaration)
                     })
             }
 
@@ -441,13 +441,10 @@ pub mod types {
                     && self.has_no_required_memberships()
                     && self.establishment_routes.is_none()
                     && self.content_projection.is_none()
-                    && self.access_policy.as_ref().is_none_or(|plan| {
-                        plan.issuance.is_none()
-                            && plan.readers.is_empty()
-                            && plan.writers.is_empty()
-                            && plan.observations.is_empty()
-                            && plan.reach.services().len() == 0
-                    })
+                    && self
+                        .access_policy
+                        .as_ref()
+                        .is_none_or(|plan| plan.issuance.is_none() && !plan.has_operation_rules())
             }
 
             pub fn carrier_qualified_identity(family: &str, carrier_identity: &str) -> String {

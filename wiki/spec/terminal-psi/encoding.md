@@ -42,8 +42,9 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 287 records the owning
-machine before each callback registrar and interrupt installation operation.
+Marker 255 introduced term tables. Current marker 288 retains promised normal-result domain facts separately from
+declared result types. It records the owning machine before each callback
+registrar and interrupt installation operation.
 Operation identities remain local to that machine; earlier payloads do not
 supply this coordinate and reject at the header. It also retains each structural
 type's declared multiplicity: unrestricted values may be copied, affine values
@@ -2091,6 +2092,14 @@ every earlier semantic format reject before payload interpretation.
 The `OMGFCV\0\0` fixed-view recovery envelope uses version 117 for this semantic
 vocabulary; versions 103 through 116 reject at the recovery header.
 
+Semantic schema images use version 2. Declaration shape 4 describes an exact
+compiler-owned scalar: its payload retains Boolean, integer sign and width,
+address, or IEEE format identity. Address is target-parametric, not a fixed-width
+integer. Primitive roots have no fields, cases, parameters or retired members;
+their canonical builtin identity and semantic revision replace authored source
+identity and revision. Other declaration shapes retain their source identities.
+Version 1 images and inconsistent primitive payloads reject before use.
+
 A present domain access policy carries the complete runtime schema image,
 optional issuance callers, counted reader and writer rules, observations and
 service reach. Each rule retains its exact schema region and optional structural
@@ -2493,8 +2502,9 @@ contract `requires` rule) and strictly ordered service ceilings. Provider candid
 by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
 
-Normal-result domain facts have their own counted field in machine proof
-contracts and boundary declarations. A row names either a scalar term and
+Calls retain promised domain membership even when their declared result type
+does not display it. Machine proof contracts and boundary declarations encode
+these normal-result facts in a separate counted field. A row names either a scalar term and
 scalar domain, or a structural result root, canonical path, content version and
 structural domain. Rows are strictly increasing without duplicates. Every row
 must name the exact normal result or one of its typed projections. These facts

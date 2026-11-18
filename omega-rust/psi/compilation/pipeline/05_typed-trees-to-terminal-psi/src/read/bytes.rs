@@ -573,7 +573,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let base = self.expression(machine, slots, receiver, None)?;
-        self.measured_collection(machine, base, measure, source)
+        self.measured_collection(machine, slots, base, measure, source)
     }
 
     /// Every length consumer uses the same readable collection formation.
@@ -581,6 +581,7 @@ impl Program<'_> {
     pub(super) fn measured_collection(
         &mut self,
         machine: MachineId,
+        slots: &[super::Slot],
         base: Expression,
         measure: typed_trees::expression::CollectionMeasure,
         source: SourceOrigin,
@@ -599,24 +600,12 @@ impl Program<'_> {
         let integer =
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid");
-        // `array.len` of a fixed array is the extent its type states, a
-        // number known here: generics.md, "Runtime index identity and
-        // storage", "arrays keep static extents", and domains.md, "`[u8; N]
-        // in D` is the same exact `N`-byte fixed-array carrier as `[u8; N]`;
-        // its `.len` is `N`". Nothing is measured, so no operation is
-        // lowered for it and the expression is that number, a `u64`
-        // (counts_and_addresses.md: "General lengths ... use `u64`").
-        //
-        // The array must be a place named by fields from a local or a
-        // formal: such a path evaluates nothing, so leaving it out loses
-        // nothing. A call result, an element chosen by an index or a case
-        // payload would have to be evaluated or established first, and is
-        // refused here.
+        // A fixed array's length is its declared extent. A generic check
+        // reads the exact constant input; a closed array supplies its literal.
+        // Keep the existing pure field-path restriction: erasing an effectful
+        // base or an unestablished case projection would lose its obligations.
         if measure == CollectionMeasure::Length
-            && let StorageShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } = self.data_type(machine, record)?.shape
+            && let Some(length) = self.data_type(machine, record)?.shape.fixed_array_extent()
         {
             let mut place = &base;
             while let ExpressionKind::Field { base, .. } | ExpressionKind::Referent(base) =
@@ -631,14 +620,65 @@ impl Program<'_> {
                     Unserved::Expression("length of a fixed array that is not a field path"),
                 ));
             }
+            let result = ValueType::plain(semantic_vocabulary::ScalarType::Integer(integer));
+            let kind = match length {
+                terminal_psi::ArrayExtent::Literal(length) => ExpressionKind::Integer(
+                    semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                ),
+                terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                    let binding = self.extent_input(machine, owner, value)?;
+                    let position = slots
+                        .iter()
+                        .rposition(|slot| slot.symbol == binding.symbol)
+                        .ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Expression("fixed-array length has no constant binding"),
+                            )
+                        })?;
+                    let slot = &slots[position];
+                    let input_type = ValueType::plain(binding.scalar_type);
+                    if slot.value_type != input_type
+                        || slot.assignable
+                        || slot.homed
+                        || slot.erased
+                        || slot.borrowed.is_some()
+                    {
+                        return Err(refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Expression(
+                                "fixed-array length lost its immutable constant input",
+                            ),
+                        ));
+                    }
+                    let operand = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(position),
+                        result: Some(input_type),
+                        source,
+                    };
+                    if input_type == result {
+                        operand.kind
+                    } else {
+                        ExpressionKind::Cast(Box::new(operand))
+                    }
+                }
+                terminal_psi::ArrayExtent::Application(_) => {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Expression(
+                            "fixed-array length with an unresolved scalar application",
+                        ),
+                    ));
+                }
+            };
             return Ok(Expression {
                 call_context: None,
-                kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
-                    length.into(),
-                )),
-                result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
-                    integer,
-                ))),
+                kind,
+                result: Some(result),
                 source,
             });
         }
@@ -873,6 +913,7 @@ impl Program<'_> {
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: Default::default(),
             }),
             region_owner: lexical_owner,
             fields: Vec::new(),

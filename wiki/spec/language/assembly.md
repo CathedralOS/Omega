@@ -388,9 +388,9 @@ and live obligations. Undeclared targets,
 uncontracted returns, unwinds and unmodeled exits reject. An assembly machine's
 return requires its validated exit plan; an inline region cannot return past
 its enclosing machine. Return-from-interrupt cannot bypass an entry contract.
-Direct targets remain final-artifact-validated;
-indirect calls/tail calls require sealed requirement-compatible entry references,
-not numeric addresses.
+Emission must resolve each direct transfer to its declared target.
+Indirect calls and tail calls require sealed requirement-compatible entry
+references.
 
 Return and continuation state is compiler-owned, not ordinary addressable data.
 Memory safety and [stack provisioning](../resources/storage.md#compiler-owned-stack-accesses)
@@ -401,17 +401,18 @@ rejected. Forward-edge entry identity is an independent obligation.
 Regime-changing instructions require their prior regime and establish the next.
 A mode transition is not an exotic calling convention. The complete boundary
 `StatePlan` constrains transitive use after optimization, allocation and callees;
-source appearance cannot prove SIMD absence. [Final machine-state evidence](../build/machine_state_evidence.md)
-checks the actual artifact and exact return-control/restored-state set. Opaque
+source appearance cannot prove SIMD absence. The backend must realize the
+exact return control and restored-state set under the
+[machine-state contract](../build/machine_state_evidence.md). Opaque
 execution requires the admitted plan evidence or adequate isolation under a
 root-reported receipt. Missing or plan-drifted evidence rejects.
 
 Floating instructions require canonical semantic controls, excluding sticky
 status flags. Assembly changing them must establish the matching state transition
 and restore the [canonical configuration](numeric_values.md#target-realization-and-control-state)
-before ordinary checked code resumes. Independent final-byte transfer certificates
-and CET/PAC/shadow-stack hardening remain separate proof/trust-reduction work,
-not additional source properties.
+before ordinary checked code resumes. Independent checks of encoded control
+transfers and hardware hardening such as CET, PAC and shadow stacks are
+covered under [control-flow integrity](../build/executable_installation.md#control-flow-integrity).
 
 ## Hardware memory
 

@@ -19,13 +19,19 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
 }
 
 impl<'program> Program<'program> {
-    /// Whether a formal or the result of `signature` holds a fixed array sized
-    /// by one of the requirement's own `const` binders (`&[u8; Count]`). Such
-    /// a type has an extent only in a closed application.
-    pub(super) fn sized_by_own_binders(&self, signature: &StateSignature) -> bool {
+    /// Whether `signature` is a template requirement: one with binders of its
+    /// own that a trait's schema cannot state. These are its own lifetime
+    /// parameters (`open<'scope>`), which each call instantiates, and a fixed
+    /// array sized by one of its own `const` binders (`&[u8; Count]`), which
+    /// has an extent only in a closed application. Its own check form reads
+    /// both as a bodyless machine.
+    pub(super) fn checked_as_template(&self, signature: &StateSignature) -> bool {
         use typed_trees::data::TypeParameterKind;
         use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
+        if !signature.lifetime_parameters.is_empty() {
+            return true;
+        }
         let typed = self.typed;
         let binders = typed
             .state_signature_type_parameters(signature)
@@ -75,7 +81,7 @@ impl<'program> Program<'program> {
         false
     }
 
-    fn static_envelope(
+    pub(super) fn static_envelope(
         &self,
         context: MachineId,
         signature: &StateSignature,
@@ -278,15 +284,16 @@ impl<'program> Program<'program> {
                     .map(|parameter| parameter.symbol)
                     .collect(),
             )?;
-            // generics.md, "Publication and assumptions": a requirement sized
-            // by its own `const` binders is a template. Its open signature is
-            // checked once in its own check form, never in this module, whose
-            // closed uses carry literal extents as requirement instances.
-            if self.sized_by_own_binders(signature) {
+            // generics.md, "Publication and assumptions": a requirement with
+            // binders of its own is a template. Its open signature is checked
+            // once in its own check form, never in this module, whose uses are
+            // requirement instances at their actual arguments and regions.
+            if self.checked_as_template(signature) {
                 if !self.generic_templates.contains(&signature.symbol) {
                     self.generic_templates.push(signature.symbol);
                 }
                 requirements.push(SourceSchemaRequirement {
+                    instance: None,
                     declaration: signature.symbol,
                     abstract_types: 0,
                     signature: None,
@@ -341,6 +348,7 @@ impl<'program> Program<'program> {
                 }
             }
             requirements.push(SourceSchemaRequirement {
+                instance: None,
                 declaration: signature.symbol,
                 abstract_types,
                 signature: Some(lowered),
@@ -571,6 +579,42 @@ impl<'program> Program<'program> {
             .ok_or_else(|| {
                 services::unavailable(context, "implementation has no exact schema declaration")
             })?;
+        if typed.core_vocabulary(schema.symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::PrivateCallbackSlot)
+        {
+            // The slot has no callable rows. Its contract is the closed
+            // relation between the semantic type, layout policy and callback.
+            // A declaration must satisfy it even when no policy uses the slot.
+            let selected = typed_trees::expression::StaticMachineArgument {
+                symbol,
+                ..Default::default()
+            };
+            let sources = self
+                .exact_toolchain_sources()
+                .map_err(|reason| services::unavailable(context, reason))?;
+            typed
+                .check_private_callback_slot_declaration(&selected, symbol, sources)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            if !schema.machines.is_empty()
+                || !schema.requires.is_empty()
+                || schema.refines.is_some()
+                || !schema.refinement_clauses.is_empty()
+            {
+                return Err(services::unavailable(
+                    context,
+                    "private callback slot has additional requirements",
+                ));
+            }
+            let start = self.static_contracts.conformances.len();
+            self.static_contracts.formed.insert(
+                position,
+                crate::static_contracts::FormedConformance {
+                    declaration: symbol,
+                    questions: start..start,
+                },
+            );
+            return Ok(true);
+        }
         self.read_trait_schema(context, schema)?;
         let application =
             AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(|| {

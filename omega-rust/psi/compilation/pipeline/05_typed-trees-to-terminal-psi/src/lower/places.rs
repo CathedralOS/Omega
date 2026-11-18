@@ -96,6 +96,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    zero_eligibility: IdTable<StructuralTypeId, Result<(), ZeroEligibilityError>>,
     pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
@@ -110,6 +111,171 @@ pub(crate) struct Records<'a> {
     /// `payload_identities[sum][case][position]`: the same for a payload
     /// field.
     payload_identities: IdTable<StructuralTypeId, Vec<Vec<TerminalIdentityIndex>>>,
+}
+
+#[derive(Clone, Copy)]
+enum ZeroEligibilityError {
+    Invalid(&'static str),
+    Callable,
+}
+
+/// A declaration-only property shared by every zero construction in this
+/// immutable owner. Unsupported types are recorded, not eagerly refused:
+/// only an actual zero operation asks for its carrier's decision.
+fn zero_eligibility(
+    types: &IdTable<StructuralTypeId, RecordType>,
+) -> IdTable<StructuralTypeId, Result<(), ZeroEligibilityError>> {
+    use ZeroEligibilityError::{Callable, Invalid};
+    fn dependencies(
+        types: &IdTable<StructuralTypeId, RecordType>,
+        id: StructuralTypeId,
+    ) -> Result<Vec<StructuralTypeId>, ZeroEligibilityError> {
+        let data = types
+            .get(id)
+            .ok_or(Invalid("zero carrier has no declaration"))?;
+        match data.shape {
+            StorageShape::TypeParameter(_) => {
+                return Err(Invalid(
+                    "zero initialization requires a specialized storage type",
+                ));
+            }
+            StorageShape::Opaque => {
+                return Err(Invalid(
+                    "opaque initialization requires boundary-supplied contents",
+                ));
+            }
+            StorageShape::AtomicCell(_) => return Ok(Vec::new()),
+            StorageShape::PrimitiveScalar {
+                scalar_type: ScalarType::Callable(_),
+                ..
+            } => return Err(Callable),
+            StorageShape::PrimitiveScalar { .. } => return Ok(Vec::new()),
+            StorageShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } => {
+                return Ok(if length == 0 {
+                    Vec::new()
+                } else {
+                    vec![element]
+                });
+            }
+            StorageShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                qualification: Qualification::NONE,
+            } => {
+                let element = types
+                    .get(element)
+                    .ok_or(Invalid("zero carrier has no declaration"))?;
+                return if element.requires.is_empty()
+                    && matches!(
+                        element.shape,
+                        StorageShape::PrimitiveScalar { policy: None, .. }
+                    ) {
+                    Ok(Vec::new())
+                } else {
+                    Err(Invalid(
+                        "symbolic array zero requires an ungated scalar element",
+                    ))
+                };
+            }
+            StorageShape::FixedArray { .. } => {
+                return Err(Invalid("zero array without a closed extent"));
+            }
+            StorageShape::ByteSequence(_) => {
+                return Err(Invalid(
+                    "byte view initialization requires actual readable backing",
+                ));
+            }
+            StorageShape::ElementView {
+                access: None | Some(StructuralAccess::SharedBorrow),
+                ..
+            } => return Ok(Vec::new()),
+            StorageShape::ElementView { .. } => {
+                return Err(Invalid("zero mutable sequence requires actual backing"));
+            }
+            StorageShape::Reference { .. } => {
+                return Err(Invalid("a reference requires an established backing loan"));
+            }
+            StorageShape::Record(_) | StorageShape::Sum(_) => {}
+        }
+        let fields = data
+            .cases()
+            .first()
+            .map_or_else(|| data.fields(), |case| case.fields.as_slice());
+        let mut children = Vec::new();
+        for field in fields {
+            match field.value_type {
+                ValueType::Rigid(_) => return Err(Invalid("a field of a rigid type")),
+                ValueType::Scalar(ScalarType::Callable(_), _) => return Err(Callable),
+                ValueType::Scalar(..) => {}
+                ValueType::Record(nested, _, _) => {
+                    let child = types
+                        .get(nested)
+                        .ok_or(Invalid("zero carrier has no declaration"))?;
+                    if !matches!(child.shape, StorageShape::ByteSequence(carrier) if is_stored_view(carrier))
+                    {
+                        children.push(nested);
+                    }
+                }
+            }
+        }
+        Ok(children)
+    }
+    enum Step {
+        Visit(StructuralTypeId),
+        Finish(StructuralTypeId, Vec<StructuralTypeId>),
+    }
+    let mut state = types.map(|_, _| 0u8);
+    let mut results = types.map(|_, _| None);
+    for root in types.keys() {
+        let mut pending = vec![Step::Visit(root)];
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Visit(id) => {
+                    match state.get(id).copied() {
+                        Some(2) => continue,
+                        Some(1) => {
+                            *results.get_mut(id).expect("active declaration exists") =
+                                Some(Err(Invalid("zero construction has a recursive carrier")));
+                            *state.get_mut(id).expect("active declaration exists") = 2;
+                            continue;
+                        }
+                        Some(_) => {}
+                        None => continue,
+                    }
+                    match dependencies(types, id) {
+                        Err(error) => {
+                            *results.get_mut(id).unwrap() = Some(Err(error));
+                            *state.get_mut(id).unwrap() = 2;
+                        }
+                        Ok(children) => {
+                            *state.get_mut(id).unwrap() = 1;
+                            pending.push(Step::Finish(id, children.clone()));
+                            pending.extend(children.into_iter().rev().map(Step::Visit));
+                        }
+                    }
+                }
+                Step::Finish(id, children) => {
+                    if state.get(id) == Some(&2) {
+                        continue;
+                    }
+                    let result = children.into_iter().try_for_each(|child| {
+                        results
+                            .get(child)
+                            .copied()
+                            .flatten()
+                            .unwrap_or(Err(Invalid("zero carrier has no declaration")))
+                    });
+                    *results.get_mut(id).unwrap() = Some(result);
+                    *state.get_mut(id).unwrap() = 2;
+                }
+            }
+        }
+    }
+    results.map(|_, result| result.expect("every declared carrier was visited"))
 }
 
 /// What a module with these record types must declare: Terminal Psi's
@@ -708,6 +874,7 @@ pub(crate) fn declare<'a, 'b>(
     Ok(Declared {
         records: Records {
             types,
+            zero_eligibility: zero_eligibility(types),
             inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
                 &crate::inhabitation::SourceContracts(types),
             )
@@ -1879,7 +2046,7 @@ impl<'a> Lowering<'a> {
             .result
             .map_or(Qualification::NONE, ValueType::qualification);
         let (whole, projected) = self.memberships(record, after)?;
-        let held = self.qualifications.structural(self.id, record, before)?;
+        let (held, before_projected) = self.memberships(record, before)?;
         let (shown, displayed) = if matches!(
             self.record_type(record)?.shape,
             StorageShape::Reference { .. }
@@ -1891,10 +2058,7 @@ impl<'a> Lowering<'a> {
                     .map(|row| row.domain)
                     .collect::<Vec<_>>()
             };
-            (
-                referent(&projected),
-                referent(&self.memberships(record, before)?.1),
-            )
+            (referent(&projected), referent(&before_projected))
         } else {
             (Vec::new(), Vec::new())
         };
@@ -2567,6 +2731,7 @@ impl<'a> Lowering<'a> {
                 callee,
                 required_contract,
                 static_reach_binding,
+                static_reach_arguments,
                 arguments,
                 designated,
             } => {
@@ -2576,7 +2741,11 @@ impl<'a> Lowering<'a> {
                     arguments,
                     *designated,
                     expression.result,
-                    (expression.source, *static_reach_binding),
+                    (
+                        expression.source,
+                        *static_reach_binding,
+                        static_reach_arguments
+                    ),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -2671,7 +2840,7 @@ impl<'a> Lowering<'a> {
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
-                let captured = continuing!(self.capture_place(place));
+                let captured = continuing!(self.capture_loan_backing(place, *access));
                 let shared_descriptor = reinterpret
                     && declared == StructuralAccess::SharedBorrow
                     && captured.1.is_empty()
@@ -3080,6 +3249,36 @@ impl<'a> Lowering<'a> {
             )?;
         }
         Ok(Reached::Value(value))
+    }
+
+    /// A fresh shared descriptor consumed by another loan has not escaped or
+    /// been overwritten. Capture its original place once when its exact type
+    /// is unchanged. This retains field codecs and dynamic selectors; stored
+    /// descriptors and exclusive formations keep their ordinary loan chain.
+    fn capture_loan_backing(
+        &mut self,
+        expression: &Expression,
+        access: language_core::ReferenceAccess,
+    ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+        if access == language_core::ReferenceAccess::Shared
+            && let ExpressionKind::Referent(descriptor) = &expression.kind
+            && let ExpressionKind::Borrow {
+                access: language_core::ReferenceAccess::Shared,
+                place,
+                ..
+            } = &descriptor.kind
+            && let Some(ValueType::Record(reference, qualification, _)) = descriptor.result
+            && let StorageShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } = self.record_type(reference)?.shape
+            && place.result.map(ValueType::erased)
+                == Some(self.storage_value_type(referent, qualification)?.erased())
+            && expression.result.map(ValueType::erased) == place.result.map(ValueType::erased)
+        {
+            return self.capture_place(place);
+        }
+        self.capture_place(expression)
     }
 
     /// Capture an existing place using the same expression and declared
@@ -4293,9 +4492,9 @@ impl<'a> Lowering<'a> {
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
     /// The zero value of `record` in a new root: the storage of `let x: T;`.
-    /// The zero of each scalar leaf is a constant the module holds, so the
-    /// row that says what the leaf holds names a value. The constants come
-    /// first: the establishment's domain obligations are stated over them.
+    /// The existing operation establishes the whole zero value. The checker
+    /// derives queried scalar contents from this root; domain obligations
+    /// still inspect the actual zero through the ordinary storage judgment.
     fn establish_zeroed(
         &mut self,
         value_type: ValueType,
@@ -4304,8 +4503,7 @@ impl<'a> Lowering<'a> {
         let ValueType::Record(record, _, _) = value_type else {
             return Err(self.internal("zero construction has no complete structural carrier"));
         };
-        let mut zeros = Vec::new();
-        self.zero_leaves(record, &mut Vec::new(), &mut zeros, source)?;
+        self.admit_zeroed(record)?;
         let operation = self.operation_identity(source);
 
         let (root, exact) = self.produce(
@@ -4315,13 +4513,6 @@ impl<'a> Lowering<'a> {
         )?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
-        for (segments, zero) in zeros {
-            let mut leaf = exact;
-            for segment in segments {
-                leaf = self.project(leaf, segment)?;
-            }
-            self.write(leaf, at, Content::Value(zero))?;
-        }
         Ok((root, exact))
     }
 
@@ -4680,117 +4871,25 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// Emits the zero constant of every scalar leaf of the zero value of
-    /// `record`, each with its path beneath the value. A sum's
-    /// zero value is its first declared case, so only that case's payload
-    /// is walked.
-    fn zero_leaves(
-        &mut self,
-        record: StructuralTypeId,
-        prefix: &mut Vec<Segment>,
-        zeros: &mut Vec<(Vec<Segment>, ValueId)>,
-        source: SourceOrigin,
-    ) -> Checked<()> {
-        let data = self.record_type(record)?;
-        match data.shape {
-            StorageShape::TypeParameter(_) => {
-                return Err(
-                    self.internal("zero initialization requires a specialized storage type")
-                );
-            }
-            StorageShape::AtomicCell(_) => return Ok(()),
-            StorageShape::Opaque => {
-                return Err(
-                    self.internal("opaque initialization requires boundary-supplied contents")
-                );
-            }
-            StorageShape::PrimitiveScalar { scalar_type, .. } => {
-                let zero = self.zero(scalar_type, source)?;
-                zeros.push((prefix.clone(), zero));
-                return Ok(());
-            }
-            StorageShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } => {
-                for index in 0..length {
-                    prefix.push(Segment::FixedIndex(index));
-                    self.zero_leaves(element, prefix, zeros, source)?;
-                    prefix.pop();
-                }
-                return Ok(());
-            }
-            StorageShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Parameter { .. },
-                qualification: Qualification::NONE,
-            } => {
-                let element = self.record_type(element)?;
-                if element.requires.is_empty()
-                    && matches!(
-                        element.shape,
-                        StorageShape::PrimitiveScalar { policy: None, .. }
-                    )
-                {
-                    return Ok(());
-                }
-                return Err(self.internal("symbolic array zero requires an ungated scalar element"));
-            }
-            StorageShape::FixedArray { .. } => {
-                return Err(self.internal("zero array without a closed extent"));
-            }
-            StorageShape::ByteSequence(_) => {
-                return Err(
-                    self.internal("byte view initialization requires actual readable backing")
-                );
-            }
-            StorageShape::ElementView {
-                access: None | Some(StructuralAccess::SharedBorrow),
-                ..
-            } => {
-                // EstablishZeroedStructural retains an actual empty immutable
-                // descriptor through the canonical zero-view owner.
-                return Ok(());
-            }
-            StorageShape::ElementView { .. } => {
-                return Err(self.internal("zero mutable sequence requires actual backing"));
-            }
-            StorageShape::Reference { .. } => {
-                return Err(self.internal("a reference requires an established backing loan"));
-            }
-            StorageShape::Record(_) | StorageShape::Sum(_) => {}
+    /// Preserve zero-construction eligibility without emitting a value and
+    /// write for every array element. The existing whole-root operation owns
+    /// runtime zeroing; declared predicates still owe their ordinary questions.
+    fn admit_zeroed(&self, record: StructuralTypeId) -> Checked<()> {
+        self.record_type(record)?;
+        match self
+            .records
+            .zero_eligibility
+            .get(record)
+            .expect("declared carrier has an eligibility decision")
+        {
+            Ok(()) => Ok(()),
+            Err(ZeroEligibilityError::Invalid(detail)) => Err(self.internal(detail)),
+            Err(ZeroEligibilityError::Callable) => Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("zero-initialized callable"),
+            )),
         }
-        let (fields, case) = match data.cases().first() {
-            Some(first) => (first.fields.as_slice(), Some(first.id)),
-            None => (data.fields(), None),
-        };
-        if let Some(case) = case {
-            prefix.push(Segment::Case(case));
-        }
-        for field in fields {
-            prefix.push(Segment::Field(field.id));
-            match field.value_type {
-                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(scalar_type, _) => {
-                    let zero = self.zero(scalar_type, source)?;
-                    zeros.push((prefix.clone(), zero));
-                }
-                // A stored view's zero is the empty shared view: no scalar
-                // leaf and no clause (structural_access.md: "Zero-initialized
-                // storage holds the empty shared view, which borrows
-                // nothing").
-                ValueType::Record(nested, _, _) if self.is_stored_view(nested)? => {}
-                ValueType::Record(nested, _, _) => {
-                    self.zero_leaves(nested, prefix, zeros, source)?;
-                }
-            }
-            prefix.pop();
-        }
-        if case.is_some() {
-            prefix.pop();
-        }
-        Ok(())
     }
 
     /// Retains a normal continuation after record argument staging. Copy
@@ -4828,6 +4927,72 @@ mod tests {
     use crate::body::CallTarget;
     use crate::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+
+    #[test]
+    fn zero_eligibility_checks_only_the_constructed_storage_shape() {
+        let mut types = IdTable::default();
+        let mut add = |name: &str, shape| {
+            types.push(RecordType {
+                authored_layout: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                cleanup: None,
+                identity: name.into(),
+                shape,
+                requires: Vec::new(),
+            })
+        };
+        let empty = add("Empty", StorageShape::Record(Vec::new()));
+        let reference = add(
+            "Ref",
+            StorageShape::Reference {
+                referent: empty,
+                access: StructuralAccess::SharedBorrow,
+            },
+        );
+        let absent = add(
+            "Absent",
+            StorageShape::FixedArray {
+                element: reference,
+                qualification: Qualification::NONE,
+                length: terminal_psi::ArrayExtent::Literal(0),
+            },
+        );
+        let present = add(
+            "Present",
+            StorageShape::FixedArray {
+                element: reference,
+                qualification: Qualification::NONE,
+                length: terminal_psi::ArrayExtent::Literal(1),
+            },
+        );
+        let sum = add(
+            "Sum",
+            StorageShape::Sum(vec![
+                crate::CaseType {
+                    id: StructuralCaseId::new(1).unwrap(),
+                    identity: "First".into(),
+                    fields: Vec::new(),
+                },
+                crate::CaseType {
+                    id: StructuralCaseId::new(2).unwrap(),
+                    identity: "Other".into(),
+                    fields: vec![crate::RecordField {
+                        id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                        identity: "ref".into(),
+                        value_type: ValueType::record(reference),
+                        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
+                    }],
+                },
+            ]),
+        );
+        let decisions = zero_eligibility(&types);
+        for carrier in [empty, absent, sum] {
+            assert!(decisions.get(carrier).unwrap().is_ok());
+        }
+        for carrier in [reference, present] {
+            assert!(decisions.get(carrier).unwrap().is_err());
+        }
+    }
 
     #[test]
     fn declared_multiplicity_keeps_intrinsic_and_active_component_claims_independent() {
@@ -5089,6 +5254,7 @@ mod tests {
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                     },
                     result: Some(plain),
                     source,

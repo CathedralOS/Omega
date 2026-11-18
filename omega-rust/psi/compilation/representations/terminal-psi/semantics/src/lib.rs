@@ -51,6 +51,7 @@ pub use scalar_target_ranges::{
     TargetScalarRange, application_sized_storage, target_scalar_ranges,
 };
 pub mod scalars;
+pub mod static_reach;
 pub mod storage;
 pub mod structural;
 pub mod structural_qualifications;
@@ -118,8 +119,9 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence, RetainedCallLoan,
-    borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
+    BorrowedLoanSource, BorrowedLoanSources, ReferenceCompletionError,
+    ReferenceCompletionOccurrence, RetainedCallLoan, borrowed_entry_reference_referent,
+    borrowed_loan_source, borrowed_loan_sources, cleanup_disposes_reference,
     incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
     validate_reference_result_completion,
 };
@@ -653,9 +655,9 @@ pub use structural::primitive_place::{
     canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
     canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
     inline_backing_container, inline_descriptor_type, preceding_element_view_length,
-    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
-    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
-    primitive_read_requirement, projection_stays_in_inline_storage,
+    primitive_operation_projection_type, primitive_place_type, primitive_projection_declaration,
+    primitive_projection_restriction, primitive_projection_type, primitive_read_field,
+    primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
     runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };

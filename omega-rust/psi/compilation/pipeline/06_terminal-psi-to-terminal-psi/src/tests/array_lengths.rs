@@ -2,10 +2,9 @@
 //! program: a Build that holds a table asks how many rows it has.
 //!
 //! domains.md: "`[u8; N] in D` is the same exact `N`-byte fixed-array carrier
-//! as `[u8; N]`; its `.len` is `N`". The length is the extent the type
-//! states, so the reader gives the expression that number and lowers no
-//! operation for it. A guarantee over the result is then held to the number,
-//! whichever fields the array is reached through.
+//! as `[u8; N]`; its `.len` is `N`". Literal extents stay literal; symbolic
+//! extents use their own constant input. The body and its guarantees must
+//! describe that same value, whichever fields lead to the array.
 
 use super::build_purpose::judge_build;
 use super::*;
@@ -569,4 +568,61 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
         "Sink::take<4>(&buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
+}
+
+#[test]
+fn a_symbolic_array_length_uses_its_owned_extent_input() {
+    for carrier in ["u32", "u64"] {
+        let form = rigid_array_form(&format!(
+            "machine entry<const N: {carrier}>(items: &[u8; N]) -> u64 ensures result == (N as u64) {{ items.len }}"
+        ));
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+#[test]
+fn a_closed_call_checks_an_index_computed_from_its_size() {
+    // std's `send_string<const Count>` requires `text[Count - 1] == 0`. At
+    // `take<4>` the index is the closed arithmetic `4 - 1`; the buffer's last
+    // byte is 0.
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && items[Count - 1] == 0",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
+        panic!("the closed index is formed and established: {verdicts:?}")
+    };
+    closure.publish_invocation().unwrap();
+
+    // The same index, a byte the buffer does not hold there.
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && items[Count - 1] == 1",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    assert!(
+        matches!(verdicts[0], Ok(RouteVerdict::Rejected { .. })),
+        "{verdicts:?}"
+    );
+
+    // `4 + 1` is outside the four-byte array.
+    let verdicts = sized_boundary_program(
+        "requires Count > 0 && items[Count + 1] == 0",
+        "Sink::take<4>(&buffer, 0)",
+    );
+    assert!(!accepted(&verdicts[0]), "{verdicts:?}");
+}
+
+#[test]
+fn a_program_that_never_applies_a_template_requirement_leaves_its_clauses_to_its_own_form() {
+    // The program reads the trait but calls no closed `take`. The template's
+    // clauses are read only by its own form, so the program's source capture
+    // must not ask for their operators (std's `ObjectiveC::send_byte_string`).
+    let verdicts = sized_boundary_program("requires Count > 0 && used <= Count", "0u32");
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
 }

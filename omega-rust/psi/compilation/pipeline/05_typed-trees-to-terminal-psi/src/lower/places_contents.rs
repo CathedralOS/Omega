@@ -3,6 +3,8 @@
 //! Allocate them after lowering so exact-place order is independent of when a
 //! body or a callee's clause first demands the leaf.
 
+use std::collections::HashSet;
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerType, OperationId, PlaceId, Proposition, PsiSemanticId,
     ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -16,6 +18,33 @@ use super::Lowering;
 
 struct Named {
     leaves: Vec<(PlaceId, Vec<Segment>, ScalarType)>,
+}
+
+#[derive(Default)]
+struct ElementDemands {
+    seen: HashSet<(StructuralTypeId, Vec<Segment>, ScalarType)>,
+    ordered: Vec<(StructuralTypeId, PlaceId, Vec<Segment>, ScalarType)>,
+}
+
+impl ElementDemands {
+    fn retain(
+        &mut self,
+        record: StructuralTypeId,
+        root: PlaceId,
+        segments: Vec<Segment>,
+        scalar_type: ScalarType,
+    ) {
+        let key = (record, segments, scalar_type);
+        if !self.seen.contains(&key) {
+            self.ordered
+                .push((record, root, key.1.clone(), scalar_type));
+            self.seen.insert(key);
+        }
+    }
+
+    fn into_ordered(self) -> Vec<(StructuralTypeId, PlaceId, Vec<Segment>, ScalarType)> {
+        self.ordered
+    }
 }
 
 fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'static str> {
@@ -141,7 +170,7 @@ impl Lowering<'_> {
     ) -> Checked<()> {
         use terminal_semantics::structural_qualifications::DefaultRequirements;
 
-        let (inventory, questions) = {
+        let inventory = {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
@@ -174,24 +203,7 @@ impl Lowering<'_> {
                     clause,
                 ));
             }
-            let mut questions = Vec::new();
-            for block in &machine.blocks {
-                let mut before = ProgramPoint::BlockEntry(block.id);
-                for operation in &block.operations {
-                    let count = requirements
-                        .operation(operation)
-                        .map_err(|error| self.internal(error.detail))?
-                        .len();
-                    let source = *self.sources.operations.get(operation.id).ok_or_else(|| {
-                        self.internal("a default question has no operation source")
-                    })?;
-                    for clause in 0..count {
-                        questions.push((operation.id, self.position(clause)?, before, source));
-                    }
-                    before = ProgramPoint::AfterOperation(operation.id);
-                }
-            }
-            (inventory, questions)
+            inventory
         };
         let subject = terminal_check_tables::program::self_place()
             .ok_or_else(|| self.internal("default clause subject identity"))?;
@@ -201,16 +213,6 @@ impl Lowering<'_> {
                 exact = self.project(exact, segment)?;
             }
             self.name_clause_contents(&clause, &[(subject, exact)], None)?;
-        }
-        for (operation, clause, before, source) in questions {
-            self.obligation(
-                terminal_check_tables::obligations::ObligationKind::DataDomain {
-                    operation,
-                    clause,
-                },
-                before,
-                source,
-            );
         }
         Ok(())
     }
@@ -236,7 +238,7 @@ impl Lowering<'_> {
             .map(|(root, (_, record))| (*record, root))
             .collect();
         formals.sort_unstable();
-        let mut elements = Vec::new();
+        let mut elements = ElementDemands::default();
         for slot in 0..self.demanded_contents.len() {
             let Some(scalar_type) = self.demanded_contents[slot] else {
                 continue;
@@ -259,17 +261,22 @@ impl Lowering<'_> {
             let Some((_, record)) = self.roots.get(root) else {
                 continue;
             };
-            elements.push((*record, root, segments, scalar_type));
+            // The first demand already names its own root; propagating it
+            // below names every other formal of this type. Later roots with
+            // the same path and scalar type only repeat that work. Retain
+            // first-encounter order so exact-place identities stay unchanged,
+            // and keep differing scalar types for initial_content to refuse.
+            elements.retain(*record, root, segments, scalar_type);
         }
-        for (record, root, segments, scalar_type) in elements {
+        for (record, root, segments, scalar_type) in elements.into_ordered() {
             let first = formals.partition_point(|(held, _)| *held < record);
-            let others: Vec<PlaceId> = formals[first..]
-                .iter()
-                .take_while(|(held, _)| *held == record)
-                .map(|(_, other)| *other)
-                .filter(|other| *other != root)
-                .collect();
-            for other in others {
+            for &(held, other) in &formals[first..] {
+                if held != record {
+                    break;
+                }
+                if other == root {
+                    continue;
+                }
                 let mut leaf = self.exact_root(other)?;
                 for segment in &segments {
                     leaf = self.project(leaf, *segment)?;
@@ -384,5 +391,87 @@ impl Lowering<'_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::IntegerSign;
+
+    fn integer(bits: u16) -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
+    }
+
+    #[test]
+    fn repeated_roots_keep_the_first_demand_and_path_order() {
+        let record = StructuralTypeId::new(1).unwrap();
+        let first_root = PlaceId::new(7).unwrap();
+        let other_root = PlaceId::new(2).unwrap();
+        let first_path = vec![Segment::FixedIndex(4)];
+        let second_path = vec![Segment::FixedIndex(1)];
+        let mut demands = ElementDemands::default();
+        demands.retain(record, first_root, first_path.clone(), integer(32));
+        demands.retain(record, other_root, second_path.clone(), integer(32));
+        demands.retain(record, other_root, first_path.clone(), integer(32));
+        demands.retain(record, first_root, second_path.clone(), integer(32));
+        assert_eq!(
+            demands.ordered,
+            vec![
+                (record, first_root, first_path, integer(32)),
+                (record, other_root, second_path, integer(32)),
+            ]
+        );
+    }
+
+    #[test]
+    fn repeated_element_requests_do_not_repeat_formal_propagation() {
+        let record = StructuralTypeId::new(1).unwrap();
+        let mut demands = ElementDemands::default();
+        let mut requests = 0;
+        for root in 1..=128 {
+            for index in [3, 1, 5, 0] {
+                requests += 1;
+                demands.retain(
+                    record,
+                    PlaceId::new(root).unwrap(),
+                    vec![Segment::Referent, Segment::FixedIndex(index)],
+                    integer(32),
+                );
+            }
+        }
+        assert_eq!(requests, 512);
+        assert_eq!(demands.ordered.len(), 4);
+        assert!(
+            demands
+                .ordered
+                .iter()
+                .all(|(_, root, _, _)| *root == PlaceId::new(1).unwrap())
+        );
+        eprintln!(
+            "element demands: {requests} requests, {} propagation paths",
+            demands.ordered.len()
+        );
+    }
+
+    #[test]
+    fn distinct_carriers_and_conflicting_scalar_types_remain_separate() {
+        let record = StructuralTypeId::new(1).unwrap();
+        let other_record = StructuralTypeId::new(2).unwrap();
+        let root = PlaceId::new(1).unwrap();
+        let other_root = PlaceId::new(2).unwrap();
+        let path = vec![Segment::FixedIndex(4)];
+        let mut demands = ElementDemands::default();
+        demands.retain(record, root, path.clone(), integer(32));
+        demands.retain(record, other_root, path.clone(), integer(64));
+        demands.retain(other_record, other_root, path.clone(), integer(32));
+        assert_eq!(
+            demands.ordered,
+            vec![
+                (record, root, path.clone(), integer(32)),
+                (record, other_root, path.clone(), integer(64)),
+                (other_record, other_root, path, integer(32)),
+            ]
+        );
     }
 }

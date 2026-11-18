@@ -32,6 +32,9 @@ pub enum Ceiling {
 pub struct RequirementCeilings {
     pub reaches: Ceiling,
     pub invokes: Ceiling,
+    /// The actual abstract header's known operational limits. This remains
+    /// separate from executable machine envelopes, including when reach is open.
+    pub envelope: Option<StaticCallableEnvelope>,
     /// Source-only bounds; None still requires inference, not a false promise.
     pub suspension: Option<bool>,
     pub blocking: Option<bool>,
@@ -56,7 +59,7 @@ pub enum CrashCeiling {
     DeclaredNone,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallableHeader {
     pub scalar_parameters: Vec<terminal_psi::ValueDeclaration>,
     pub parameter_order: Vec<terminal_psi::BoundaryParameterKind>,
@@ -64,6 +67,26 @@ pub struct CallableHeader {
     pub result: terminal_psi::TerminalMachineResult,
     pub proof: terminal_psi::MachineContract,
     pub crash_policy: CallableCrashPolicy,
+}
+
+/// A generic template can have an open callback dependency while its complete
+/// source contract remains known. This declaration commits that checking
+/// contract; it does not authorize an executable machine or a finite reach row.
+#[derive(Debug, Clone)]
+pub struct GenericCallableDeclaration {
+    pub machine: MachineId,
+    pub envelope: StaticCallableEnvelope,
+    pub declaration: terminal_psi::CheckedMachineDeclaration,
+    pub base_contract: [u8; 32],
+    pub reach: terminal_psi::static_reach::StaticReachTerm,
+    pub projections: Vec<GenericCallbackDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericCallbackDependency {
+    pub parameter: u32,
+    pub requirement: MachineId,
+    pub member: terminal_psi::TerminalIdentityIndex,
 }
 
 /// A native declaration remains a header, never a fabricated executable body.
@@ -89,7 +112,7 @@ pub enum StaticServiceCeiling {
     Closed(Vec<ServiceId>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticCallableEnvelope {
     pub service_reach: StaticServiceCeiling,
     pub invocations: Vec<TerminalCallableInvocation>,
@@ -201,15 +224,26 @@ pub fn formal_value_ids(
 }
 
 #[derive(Debug, Clone)]
+pub struct StaticRequirementInstance {
+    pub machine: MachineId,
+    pub member: terminal_psi::TerminalIdentityIndex,
+    pub header: CallableHeader,
+}
+
+#[derive(Debug, Clone)]
 pub struct StaticRequirementSchema {
+    /// An actual prepared application of this logical declaration, when its
+    /// header is also represented by a bodyless machine in the checking form.
+    pub instance: Option<StaticRequirementInstance>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
-    /// The open signature, or `None` for a template requirement: one whose
-    /// formals are sized by its own `const` binders (`items: &[u8; Count]`).
-    /// generics.md, "Publication and assumptions": its template is checked
-    /// once in its own generic check form, and each closed use is a separate
-    /// requirement instance with literal extents. A published module never
-    /// carries the open sizes.
+    /// The open signature, or `None` for a template requirement: one with
+    /// binders of its own that a schema cannot state, namely its own lifetime
+    /// parameters or a formal sized by its own `const` binders
+    /// (`items: &[u8; Count]`). generics.md, "Publication and assumptions": its
+    /// template is checked once in its own generic check form, and each use is
+    /// a separate requirement instance at its actual arguments and regions. A
+    /// published module never carries an open size.
     pub signature: Option<StaticSignature>,
     pub envelope: StaticCallableEnvelope,
 }

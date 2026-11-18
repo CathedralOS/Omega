@@ -380,7 +380,6 @@ mod authored_completion {
 use authored_completion::AuthoredCompletions;
 mod product_policy {
     use super::SourceContinuation;
-    use crate::source_checking::ProductRepresentationInput;
     use build_time_evaluation::native_bindings::{
         CapturedNativeDeclaration, NativeBindingSelection,
     };
@@ -456,13 +455,6 @@ mod product_policy {
             &mut self,
             request: ProductPolicyRequest<'_>,
         ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
-            ProductRepresentationInput {
-                activation: request.activation,
-                declared: request.declared,
-                executed: request.executed,
-                retained: &[],
-            }
-            .require_none_requested()?;
             use language_semantics::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
@@ -515,7 +507,12 @@ mod product_policy {
                 }
             }
             let typed = self.typed();
-            let representations = Vec::new();
+            let representations = build_time_evaluation::opaque_representations::collect(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
             let native_bindings = build_time_evaluation::native_bindings::collect(
                 typed,
                 request.activation,
@@ -1271,15 +1268,10 @@ impl SourceContinuation {
         } = Arc::unwrap_or_clone(owned_input);
         (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
         drop(pending_bodies);
-        let mut deferred = Vec::new();
-        let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
-        for pre_check in pending_pre_checks {
-            let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
-            accounting.append(recorded.accounting);
-            if let Some(pending) = recorded.pending {
-                deferred.push(pending);
-            }
-        }
+        let (deferred, accounting) = PreCheckEvaluation::evaluate_recorded_continuations(
+            pending_pre_checks,
+            typing.typed_mut(),
+        )?;
         let source = CompletedSource {
             declaration_syntax: context.declaration_syntax,
             typing,
@@ -1556,6 +1548,60 @@ mod resolution_handoff_tests {
         }
         assert_eq!(frontier.pending_machines().count(), 0);
         assert_eq!(typing.typed().machines.len(), 2);
+    }
+
+    #[test]
+    fn nonempty_selected_completion_retains_prior_refusal_rows() {
+        use typed_trees::deferred_refusals::DeferredRequest;
+
+        let (mut typing, frontier, sources) = deferred(
+            "machine length() -> u64 { 4 } \
+             machine first() { let bytes: [u8; length()]; } \
+             machine second() { let bytes: [u8; length()]; }",
+        );
+        let frontier = frontier
+            .with_prepared_allocations(typing.prepare_allocations().unwrap())
+            .unwrap();
+        let (mut frontier, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
+        typing = typing.activate_body_completion(activation).unwrap();
+        let owner = |name: &str| {
+            frontier
+                .pending_machines()
+                .find(|symbol| frontier.trees().symbols.name(*symbol) == name)
+                .unwrap()
+        };
+        let first = owner("first");
+        let second = owner("second");
+        for selected in [first, second] {
+            frontier = frontier
+                .with_prepared_allocations(typing.prepare_allocations().unwrap())
+                .unwrap();
+            let predecessor = typing.clone();
+            let completed = frontier.complete_machine_bodies(&[selected]).unwrap();
+            (typing, frontier) = type_completed_bodies(typing, completed).unwrap();
+            assert!(predecessor.typed().deferred_refusal(selected).is_none());
+            let introduced: Vec<_> = typing.typed().deferred_refusals_of(selected).collect();
+            assert!(introduced.iter().all(|row| row.declaration == selected));
+            assert_eq!(
+                introduced.iter().map(|row| row.request).collect::<Vec<_>>(),
+                [
+                    DeferredRequest::TypeExpressionEvaluation,
+                    DeferredRequest::ArrayExtentEvaluation
+                ]
+            );
+            PreCheckEvaluation::require_recorded_requests(typing.typed()).unwrap();
+            for retained in &predecessor.typed().deferred_refusals {
+                let successor = typing
+                    .typed()
+                    .deferred_refusals_of(retained.declaration)
+                    .find(|row| row.request == retained.request)
+                    .unwrap();
+                assert!(std::ptr::eq(retained, successor));
+            }
+            assert_eq!(typing.resolved(), frontier.trees());
+        }
+        assert_eq!(typing.typed().deferred_refusals.len(), 4);
+        assert_eq!(frontier.pending_machines().count(), 1);
     }
 
     #[test]

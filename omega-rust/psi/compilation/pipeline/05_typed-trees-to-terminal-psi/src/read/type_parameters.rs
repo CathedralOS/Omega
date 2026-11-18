@@ -22,6 +22,20 @@ pub(super) struct ParameterStorage {
 }
 
 impl Program<'_> {
+    pub(super) fn extended_source_scope(
+        &self,
+        bindings: Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
+    ) -> std::sync::Arc<typed_trees::SourceTypeScope> {
+        if bindings.is_empty() {
+            return self.source_scope.clone();
+        }
+        std::sync::Arc::new(typed_trees::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: bindings,
+            rigid_parameters: Vec::new(),
+        })
+    }
+
     pub(super) fn parameter_storage(
         &mut self,
         machine: MachineId,
@@ -93,6 +107,7 @@ impl Program<'_> {
             application: Some(typed_trees::SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: Default::default(),
             }),
             region_owner: owner,
             fields: Vec::new(),

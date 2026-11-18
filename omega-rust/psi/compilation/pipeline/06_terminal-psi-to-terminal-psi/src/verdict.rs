@@ -320,6 +320,10 @@ impl AcceptedClosure {
             return Err(PublicationError::InstallationReachRefinement);
         }
         if !self.elaboration.requirements.is_empty()
+            || !self.elaboration.static_reach_parameters.is_empty()
+            || !self.elaboration.static_reach_applications.is_empty()
+            || !self.elaboration.static_reach_summaries.is_empty()
+            || !self.elaboration.generic_callable_declarations.is_empty()
             || !self.elaboration.check_form_envelopes.is_empty()
             || !self.elaboration.generic_binders.is_empty()
             || !self.elaboration.generic_storage.is_empty()
@@ -980,6 +984,7 @@ pub(super) fn judge_owing_with_activity(
 /// A closure lowered and discharged, before its verdict is drawn.
 struct Examined {
     elaboration: Elaboration,
+    opaque_storage: terminal_psi::OpaqueStorageShapes,
     discharged: Discharge,
     /// Uses of owned storage after its value was transferred or consumed,
     /// found by the affine check before anything is discharged.
@@ -1005,6 +1010,17 @@ fn examine(
         Ok(elaboration) => elaboration,
         Err(refused) => return Err(fall_back_or_defect(refused)),
     };
+    let opaque_storage = elaboration
+        .module
+        .take_opaque_storage_shapes()
+        .map_err(|reason| {
+            Err(refusal(
+                RefusalReason::ForeignIdentity,
+                MachineId::new(1).expect("1 is nonzero"),
+                Construct::Machine,
+                reason,
+            ))
+        })?;
     // A compilation's generic machines are judged as their own check forms
     // (`judge_compilation`). A closure that still lists them was judged
     // without them, so it decides nothing.
@@ -1029,6 +1045,7 @@ fn examine(
         ))));
     }
     crate::generic_storage::declared(&elaboration).map_err(fall_back_or_defect)?;
+    crate::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check
@@ -1165,6 +1182,7 @@ fn examine(
     match crate::discharge_carrying(&mut elaboration, carried, activity) {
         Ok(discharged) => Ok(Examined {
             elaboration,
+            opaque_storage,
             discharged,
             affine_unestablished,
         }),
@@ -1184,6 +1202,7 @@ fn conclude(
 ) -> Checked<RouteVerdict> {
     let Examined {
         mut elaboration,
+        opaque_storage,
         discharged,
         affine_unestablished,
     } = examined;
@@ -1481,6 +1500,16 @@ fn conclude(
     } else {
         Vec::new()
     };
+    opaque_storage
+        .restore(&mut elaboration.module)
+        .map_err(|reason| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                MachineId::new(1).expect("1 is nonzero"),
+                Construct::Machine,
+                reason,
+            )
+        })?;
     Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
         elaboration,
         discharge: discharged,

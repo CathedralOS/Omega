@@ -663,7 +663,7 @@ pub(crate) mod declarations {
             &self,
             result: &crate::TerminalMachineResult,
             requirement: TerminalIdentityIndex,
-            declaration: Option<TerminalIdentityIndex>,
+            declaration: Option<&crate::NominalDeclarationIdentity>,
             domains: &[crate::StructuralDomainDeclaration],
         ) -> bool {
             match (self, result) {
@@ -1114,9 +1114,7 @@ pub(crate) mod declarations {
                                     node.establishment_routes.is_some()
                                         && !node.authorizes_boundary_requirement(
                                             self.identity,
-                                            self.declaration
-                                                .as_ref()
-                                                .map(|row| row.source.semantic_declaration),
+                                            self.declaration.as_ref().map(|row| &row.source.state),
                                         )
                                 })
                             })
@@ -1200,9 +1198,9 @@ pub(crate) mod declarations {
                                             && node.establishment_routes.is_some()
                                             && !node.authorizes_boundary_requirement(
                                                 self.identity,
-                                                self.declaration.as_ref().map(|callable| {
-                                                    callable.source.semantic_declaration
-                                                }),
+                                                self.declaration
+                                                    .as_ref()
+                                                    .map(|callable| &callable.source.state),
                                             ))
                                 })
                             })

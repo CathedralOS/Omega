@@ -1,0 +1,83 @@
+use omega::language::core::widen_i8_to_i16;
+use omega::language::core::widen_i8_to_i32;
+use omega::language::core::widen_i8_to_i64;
+use omega::language::core::widen_i16_to_i32;
+use omega::language::core::widen_i16_to_i64;
+use omega::language::core::widen_i32_to_i64;
+
+// Every formal admits its complete source range; no caller premise narrows it.
+machine negate_i8_to_i16(value: i8) -> i16
+{
+    let widened: i16 = widen_i8_to_i16(value);
+    0i16 - widened
+}
+
+machine negate_i8_to_i32(value: i8) -> i32
+{
+    let widened: i32 = widen_i8_to_i32(value);
+    0i32 - widened
+}
+
+machine negate_i8_to_i64(value: i8) -> i64
+{
+    let widened: i64 = widen_i8_to_i64(value);
+    0i64 - widened
+}
+
+machine negate_i16_to_i32(value: i16) -> i32
+{
+    let widened: i32 = widen_i16_to_i32(value);
+    0i32 - widened
+}
+
+machine negate_i16_to_i64(value: i16) -> i64
+{
+    let widened: i64 = widen_i16_to_i64(value);
+    0i64 - widened
+}
+
+machine negate_i32_to_i64(value: i32) -> i64
+ensures result <= 2147483648
+{
+    let widened: i64 = widen_i32_to_i64(value);
+    0i64 - widened
+}
+
+machine check_i16(observed: i16, expected: i16) crashes Trap {
+    transition observed == expected { true -> okay() _ -> failed() }
+    machine okay() {}
+    machine failed() { crash Trap; }
+}
+
+machine check_i32(observed: i32, expected: i32) crashes Trap {
+    transition observed == expected { true -> okay() _ -> failed() }
+    machine okay() {}
+    machine failed() { crash Trap; }
+}
+
+machine check_i64(observed: i64, expected: i64) crashes Trap {
+    transition observed == expected { true -> okay() _ -> failed() }
+    machine okay() {}
+    machine failed() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    check_i16(negate_i8_to_i16(-128i8), 128i16);
+    check_i16(negate_i8_to_i16(127i8), -127i16);
+    check_i16(negate_i8_to_i16(0i8), 0i16);
+    check_i32(negate_i8_to_i32(-128i8), 128i32);
+    check_i32(negate_i8_to_i32(127i8), -127i32);
+    check_i32(negate_i8_to_i32(0i8), 0i32);
+    check_i64(negate_i8_to_i64(-128i8), 128i64);
+    check_i64(negate_i8_to_i64(127i8), -127i64);
+    check_i64(negate_i8_to_i64(0i8), 0i64);
+    check_i32(negate_i16_to_i32(-32768i16), 32768i32);
+    check_i32(negate_i16_to_i32(32767i16), -32767i32);
+    check_i32(negate_i16_to_i32(0i16), 0i32);
+    check_i64(negate_i16_to_i64(-32768i16), 32768i64);
+    check_i64(negate_i16_to_i64(32767i16), -32767i64);
+    check_i64(negate_i16_to_i64(0i16), 0i64);
+    check_i64(negate_i32_to_i64(-2147483648i32), 2147483648i64);
+    check_i64(negate_i32_to_i64(2147483647i32), -2147483647i64);
+    check_i64(negate_i32_to_i64(0i32), 0i64);
+}

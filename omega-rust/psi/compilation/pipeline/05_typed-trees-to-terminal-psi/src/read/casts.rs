@@ -62,10 +62,11 @@ impl Program<'_> {
             ) {
                 return unserved("storage view differs from its retained reference type");
             }
-            let Some(view) = self.view_type(id, reference)? else {
-                return unserved("storage view outside reference formation");
-            };
-            return self.collection_recast(id, slots, cast, reference, view, source);
+            if let Some(view) = self.view_type(id, reference)? {
+                return self.collection_recast(id, slots, cast, reference, view, source);
+            }
+            let expected = self.value_type(id, reference)?;
+            return self.borrow_value(id, slots, handle, expected, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
@@ -358,6 +359,7 @@ impl Program<'_> {
                 callee: crate::body::CallTarget::Boundary { boundary },
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments: vec![operand],
                 designated: None,
             },
@@ -411,7 +413,11 @@ impl Program<'_> {
         // quoted literal's carrier is the view the cast qualifies, and an
         // array literal's is the array: `[65u8, 66u8] as +Text` is a plain
         // `[u8; 2]` given the domain.
-        let landing = if self.wholly_anonymous(cast.value) {
+        let landing = if self.reference_referent(id, result)?.is_some()
+            || self.is_borrowed_view(result)
+        {
+            Some(self.reference_entry_input(id, cast, entry, result)?)
+        } else if self.wholly_anonymous(cast.value) {
             result.scalar().map(ValueType::plain)
         } else if self.byte_literal_operand(cast.value) || self.array_literal_operand(cast.value) {
             result.qualified(Qualification::NONE)
@@ -422,27 +428,49 @@ impl Program<'_> {
         self.entry_applied(id, cast, entry, operand, result, source)
     }
 
-    /// `&text as +D`, as `borrow_value` forms it: `lent` is the reference
-    /// to `text`, and the entry changes the domains it displays on its
-    /// referent to `after`, keeping its referent, lifetime and access mode
-    /// (domains.md, "Mutable views").
-    pub(super) fn reference_entry(
-        &mut self,
+    /// A reference cast consumes the descriptor, rather than observing its
+    /// referent. Read it with the input domains the entry requires; ordinary
+    /// loan formation and `domain_entry_change` still check the actual value.
+    fn reference_entry_input(
+        &self,
         id: MachineId,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
-        lent: Expression,
-        after: Qualification,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let Some(result) = lent.result.and_then(|formed| formed.qualified(after)) else {
-            return Err(refuse(
+        result: ValueType,
+    ) -> Checked<ValueType> {
+        use language_core::cast_form::CastEntryKind;
+        let unavailable = || {
+            refuse(
                 id,
                 Construct::Machine,
-                Unserved::Expression("reference cast of a value that is not a reference"),
-            ));
+                Unserved::Typing("reference cast result does not account for its input domains"),
+            )
         };
-        self.entry_applied(id, cast, entry, lent, result, source)
+        let mut before = result.qualification();
+        if let Some(policy) = Policy::of_domain(cast.domain) {
+            before.policy = match entry.kind {
+                CastEntryKind::Add => None,
+                CastEntryKind::Remove => Some(policy),
+                CastEntryKind::Keep => before.policy,
+            };
+        } else {
+            if !cast.semantic_domain_symbol.is_valid()
+                || cast.semantic_domain_id == language_semantics::SemanticDomainId::NULL
+            {
+                return Err(unavailable());
+            }
+            let domain = crate::body::DomainInstance {
+                declaration: cast.semantic_domain_symbol,
+                identity: cast.semantic_domain_id,
+            };
+            before.domains = match entry.kind {
+                CastEntryKind::Add => before.domains.without(domain),
+                CastEntryKind::Remove => before.domains.with(domain),
+                CastEntryKind::Keep => Some(before.domains),
+            }
+            .ok_or_else(unavailable)?;
+        }
+        result.qualified(before).ok_or_else(unavailable)
     }
 
     /// What one entry does to an operand already read, `result` being the
@@ -479,7 +507,7 @@ impl Program<'_> {
                     return self.add_domain(id, operand, result, domain, source);
                 }
                 _ => {
-                    self.domain_removal(id, domain, operand_type)?;
+                    self.domain_removal(id, domain, operand_type, source)?;
                 }
             }
         }
@@ -491,9 +519,9 @@ impl Program<'_> {
         })
     }
 
-    /// Add one selected domain to an existing value. Both explicit casts and
-    /// zero construction retain its evidence obligations and prove the actual
-    /// predicates before publishing the qualified result.
+    /// Add a domain after checking its predicates. Canonical checking decides
+    /// whether the value already proves membership or its author may issue it.
+    /// Fresh zero construction separately requires issuance authority.
     pub(super) fn add_domain(
         &mut self,
         id: MachineId,
@@ -638,10 +666,11 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         operand: ValueType,
+        source: SourceOrigin,
     ) -> Checked<()> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let definition = self.domain_theory(id, domain)?;
-        if definition.access_policy.is_some() {
+        if definition.requires_access_retention() {
             return Err(unavailable(
                 "removal of a domain governed by an access policy",
             ));
@@ -649,20 +678,126 @@ impl Program<'_> {
         if definition.cleanup_selection.is_some() {
             return Err(unavailable("removal of a domain with cleanup obligations"));
         }
-        if definition.issuance() != typed_trees::domain::DomainIssuance::Unrestricted
-            && let ValueType::Record(row, _, _) = operand
+        // An exclusive view owes this domain back when its loan ends. Its
+        // lender must therefore have the same authority as an explicit +D.
+        if let ValueType::Record(row, _, _) = operand
             && matches!(
                 self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(
+                crate::StorageShape::Reference {
+                    access: terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                    ..
+                } | crate::StorageShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::MutableBorrow)
+                        access: Some(
+                            terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        )
+                    } | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(
+                            terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        ),
+                        ..
                     }
-                )
+                ) | crate::StorageShape::ElementView {
+                    access: Some(
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    ),
+                    ..
+                }
             )
         {
-            return Err(unavailable(
-                "domain removal from an exclusive view needs restoration proof",
-            ));
+            self.issue(id, domain, source)?;
+        }
+        Ok(())
+    }
+
+    /// Fresh values and mutable borrow restoration need the author's permission
+    /// to establish a domain. Forwarding existing membership is judged separately
+    /// on the lowered value, after calls and storage writes are known.
+    pub(super) fn issue(
+        &self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        use language_semantics::DomainEstablishmentRoute;
+        use typed_trees::domain::DomainIssuance;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let definition = self.domain_theory(id, domain)?;
+        match definition.issuance() {
+            DomainIssuance::Unrestricted => {}
+            DomainIssuance::Only(routes) => {
+                let machine =
+                    *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+                // authority.md, "Requirement and exact-machine routes":
+                //
+                // | Trait requirement | An exact invocation through that
+                //   requirement and a valid selected conformance. This
+                //   includes a call by name to a machine that declares that
+                //   edge ... |
+                // | Plain machine declaration | That exact machine's direct
+                //   invocation. |
+                //
+                // A machine that declares the edge (`machine issue(..)
+                // satisfies Issues::issue`, or an inline member of a
+                // `satisfies` block) "has no separately callable direct
+                // entry" (conformances.md, "A conformer's name is its routed
+                // entry"), so every invocation of its body is through the
+                // requirement and the cast in it is authorized. A plain
+                // machine bound by a selection row or binding expression
+                // declares no edge and gets none: "its body was checked
+                // without that authority, and a machine that relies on it
+                // rejects at its own declaration".
+                let edges = match self.typed.machine_by_symbol(machine) {
+                    Some(declared) => self.typed.machine_trait_conformances(declared),
+                    None => arena::RootRows::from_slice(&[]),
+                };
+                let routed = routes.iter().any(|route| match route {
+                    DomainEstablishmentRoute::ExactMachine { machine: origin } => {
+                        *origin == machine
+                    }
+                    DomainEstablishmentRoute::CheckedRequirement {
+                        trait_definition,
+                        requirement,
+                    } => edges.iter().any(|edge| {
+                        edge.symbol == *trait_definition && edge.requirement_symbol == *requirement
+                    }),
+                    // A boundary requirement "additionally requires provider
+                    // selection and admission", which is not followed here.
+                    DomainEstablishmentRoute::BoundaryRequirement { .. } => false,
+                });
+                // "Naming a machine is neither trait sealing nor an implicit
+                // grant to other machines in its package." So when no route
+                // is a boundary requirement and none admits this machine,
+                // the cast is wrong in every program: "a cast cannot mint
+                // it". With a boundary route the machine may yet be an
+                // admitted provider, so that stays a refusal.
+                let exact = !routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::BoundaryRequirement { .. })
+                });
+                if !routed && exact {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "this cast adds {} in a machine that is not one of the domain's \
+                             establishment routes: a domain with routes is added only inside a \
+                             machine its declaration names, and a cast anywhere else cannot \
+                             mint that evidence",
+                            self.domain_named(domain),
+                        ),
+                    ));
+                }
+                if !routed {
+                    return unserved("cast that adds a domain outside its establishment routes");
+                }
+            }
+            DomainIssuance::Planned(_) => {
+                return unserved("cast that adds a domain whose issuers are in an access plan");
+            }
         }
         Ok(())
     }

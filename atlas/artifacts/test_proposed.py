@@ -34,9 +34,27 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
             if edge['start'] in positions and edge['end'] in positions:
                 self.assertEqual(positions[edge['end']],positions[edge['start']]+1)
         nodes={n['id']:n for n in self.layout['nodes']}
+        self.assertGreater(self.layout['height'],self.layout['width'])
         for a,b in zip(spine,spine[1:]):
-            self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
-            self.assertEqual(nodes[a]['x'],nodes[b]['x'])
+            if nodes[a]['x']==nodes[b]['x']:
+                self.assertLess(nodes[a]['y']+nodes[a]['height'],nodes[b]['y'])
+            else:
+                self.assertLess(nodes[a]['x']+nodes[a]['width'],nodes[b]['x'])
+
+    def test_an_installer_selects_its_guards_after_planning_its_handlers(self):
+        spine=self.model['spine']
+        order=['native-planning-closure','physical-planning-handler-order',
+               'physical-planning-select','physical-planning-optimize-selected',
+               'physical-planning-allocate','binding-summarize','binding-bind','encoding-bodies']
+        self.assertEqual(sorted(order,key=spine.index),order)
+        operations={n['id']:n for n in self.model['nodes']}
+        self.assertIn('Reuse buffers on the next file',operations['source-settlement-parse']['notes'])
+
+    def test_repair_stops_follow_the_planned_order(self):
+        for repair in self.model['repairs'].values():
+            indices=[self.model['spine'].index(key) for key in repair['stops']]
+            self.assertEqual(indices,sorted(set(indices)))
+        self.assertFalse(self.model['repairs']['runtime-layout']['stops'])
 
     def test_side_services_and_extra_dependencies_are_rejected(self):
         for mutation in ('node','edge','return','skip'):
@@ -62,9 +80,20 @@ class ProposedContracts(GeometryContracts, unittest.TestCase):
         self.assertEqual([n['number'] for n in stages],list(range(11)))
         self.assertEqual([n['title'][:2] for n in stages],[f'{i:02d}' for i in range(11)])
         model=copy.deepcopy(self.model)
-        model['nodes'][2]['title']='Compile source'
+        next(n for n in model['nodes'] if n['id']=='source-settlement')['title']='Compile source'
         with self.assertRaisesRegex(ValueError,'numbered 00–10'):
             validate(model)
+
+    def test_source_operations_and_evaluation_are_visible_in_order(self):
+        operations=[n for n in self.model['nodes'] if n['role']=='operation' and n['owner']=='source-settlement']
+        self.assertEqual([n['id'].removeprefix('source-settlement-') for n in operations],
+                         ['lex','parse','resolve','type','prepare','lower','check','optimize','recheck'])
+        self.assertIn('prepare → lower → check',operations[4]['notes'])
+        self.assertIn('admit → execute → value',operations[4]['notes'])
+        self.assertIn('selection only',operations[-1]['notes'])
+        self.assertEqual(len(self.model['phases']),11)
+        for stage in (n for n in self.model['nodes'] if n['role']=='owner'):
+            self.assertTrue(any(n['role']=='operation' and n['owner']==stage['id'] for n in self.model['nodes']))
 
 
 if __name__=='__main__':

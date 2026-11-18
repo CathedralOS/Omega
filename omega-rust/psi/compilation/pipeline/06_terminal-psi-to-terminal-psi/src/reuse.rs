@@ -1056,10 +1056,18 @@ impl Instantiation {
             }
             _ => {}
         }
+        let (theirs, mine) = (&generic.contract, &specialization.contract);
+        if (!theirs.membership_ensures.is_empty() || !mine.membership_ensures.is_empty())
+            && (!std::ptr::eq(generic_module, module)
+                || theirs.membership_ensures != mine.membership_ensures)
+        {
+            // Membership coordinates belong to one module. Without their exact
+            // correspondence, carry nothing and prove this body normally.
+            return refuse("normal-result memberships have no exact proof-reuse correspondence");
+        }
         if rigid == 0 {
             return Ok(found);
         }
-        let (theirs, mine) = (&generic.contract, &specialization.contract);
         if theirs.ensures.len() != mine.ensures.len()
             || theirs.requires.len() != mine.requires.len()
         {

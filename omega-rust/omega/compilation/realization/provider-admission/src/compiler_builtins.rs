@@ -771,7 +771,7 @@ mod selected_completion_contract_tests {
 
     #[test]
     fn exact_selected_rows_rejoin_declared_completion_without_wildcards() {
-        // This unit isolates correspondence and completion; actual ABI and
+        // This unit checks completion and returned-domain promises; actual ABI and
         // artifact custody are checked by the source-free native control.
         let module = terminal_psi::TerminalModule::declarations();
         let mut plan = ProviderPlan::default();

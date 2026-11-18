@@ -142,17 +142,21 @@ source preparation does not prove that judgment. Open static bounds remain
 explicit in static schema questions and never become an empty runtime promise.
 See [effects](../../../../../wiki/spec/language/effects.md).
 
-### Size-generic requirements
+### Template requirements
 
-A trait requirement whose array formal is sized by its own `const` binder,
-such as `send_string<const Count: u64>(text: &[u8; Count])`, is checked once
-in its own generic check form. That form reads it as a bodyless machine whose
-`const` binders are inputs, so `[u8; Count]` has a symbolic extent owned by
-that machine and its contract is judged for every `Count`. A program that
-reads the trait records the requirement as a template row
-(`StaticRequirementSchema::signature` is `None`) and carries only its closed
-applications, whose arrays have literal extents; a published module never
-holds the open size. See
+A trait requirement with binders of its own that a trait schema cannot state
+is checked once in its own generic check form. These are its own lifetime
+parameters, as in `open<'scope>(attributes: &WindowsNativeObjectAttributes<'scope>)`,
+and an array formal sized by its own `const` binder, as in
+`send_string<const Count: u64>(text: &[u8; Count])`. That form reads the
+requirement as a bodyless machine whose `const` binders are inputs, so
+`[u8; Count]` has a symbolic extent owned by that machine, and judges its
+contract for every argument and region. A program that reads the trait
+records the requirement as a template row (`StaticRequirementSchema::signature`
+is `None`) and carries only its uses, which are requirement instances at
+their actual arguments and regions; a published module never holds an open
+size. The template's clauses are read, and their operators captured, only by
+its own form; a program's source capture leaves them to it. See
 [generics](../../../../../wiki/spec/language/generics.md#publication-and-assumptions).
 
 ### What one compilation elaborates

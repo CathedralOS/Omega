@@ -13,7 +13,10 @@ use terminal_psi::{
 };
 
 use crate::inhabitation::{Inhabitation, Status};
-use crate::plain_affine::{declared_multiplicity, required_result_multiplicity};
+use crate::plain_affine::{
+    declared_multiplicity, required_parameter_multiplicity, required_result_multiplicity,
+    validate_carried_permissions,
+};
 
 /// A loan-producing operation owns an affine occurrence even for a copyable
 /// shared-reference type. A checked return transfers that occurrence and its
@@ -44,6 +47,7 @@ pub fn structural_return_carrier_matches(
 /// identity here. Lookups do not scan the machine again at every return edge.
 #[derive(Debug)]
 pub struct ReturnSources<'machine> {
+    machine: &'machine TerminalMachine,
     scalars: Vec<&'machine ValueDeclaration>,
     places: Vec<StructuralSource>,
 }
@@ -141,7 +145,11 @@ impl<'machine> ReturnSources<'machine> {
         if places.windows(2).any(|pair| pair[0].place == pair[1].place) {
             return Err("normal return sources repeat a structural place");
         }
-        Ok(Self { scalars, places })
+        Ok(Self {
+            machine,
+            scalars,
+            places,
+        })
     }
 
     /// Executable input/producer types only. A signature result placeholder,
@@ -210,34 +218,102 @@ impl<'machine> ReturnSources<'machine> {
             && inhabitation.status(actual.structural_type) == Status::ProvedEmpty)
     }
 
-    /// A whole discard consumes an owned affine value on the normal edge.
-    /// Check its actual input or producer independently of other homes.
+    /// Authenticate carried permission bindings once for this machine, then
+    /// check every whole discard against its actual source custody. A shared
+    /// reference type permits copying; only the producer and incoming transfers
+    /// establish the affine occurrence that a whole discard consumes.
     pub fn validate_whole_discards<'types>(
         &self,
-        terminator: &Terminator,
         lookup_type: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     ) -> Result<(), &'static str> {
         const WRONG_CUSTODY: &str = "whole-root discard has no owned affine source";
-        for (_, actions) in terminator.cleanup_rosters() {
-            for action in actions {
-                let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-                    continue;
-                };
-                let source = self.structural(*place).map_err(|_| WRONG_CUSTODY)?;
-                let declaration = lookup_type(source.structural_type).ok_or(WRONG_CUSTODY)?;
-                let declared = declared_multiplicity(declaration, source.access);
-                if source.access != StructuralAccess::Owned
-                    || source.explicit_multiplicity.unwrap_or(declared)
-                        != StructuralMultiplicity::Affine
-                    || source.required_result_multiplicity.unwrap_or(declared)
-                        != StructuralMultiplicity::Affine
-                    || declaration.owns_linear_claim
+        let mut carried = Vec::new();
+        for block in &self.machine.blocks {
+            for parameter in &block.structural_parameters {
+                let kind = self
+                    .machine
+                    .structural_places
+                    .binary_search_by_key(&parameter.place, |place| place.id)
+                    .ok()
+                    .map(|index| &self.machine.structural_places[index])
+                    .filter(|place| {
+                        place.kind
+                            == StructuralPlaceKind::BlockParameter {
+                                block: block.id,
+                                position: parameter.position,
+                            }
+                    })
+                    .map(|place| place.kind)
+                    .ok_or(WRONG_CUSTODY)?;
+                let declaration = lookup_type(parameter.structural_type)
+                    .filter(|declaration| declaration.id == parameter.structural_type)
+                    .ok_or(WRONG_CUSTODY)?;
+                if required_parameter_multiplicity(
+                    kind,
+                    parameter.access,
+                    parameter.multiplicity,
+                    declaration,
+                )
+                .is_some()
                 {
-                    return Err(WRONG_CUSTODY);
+                    carried.push(parameter.place);
+                }
+            }
+        }
+        carried.sort_unstable();
+        validate_carried_permissions(self.machine, &carried, |place| {
+            let source = self.structural(place).ok()?;
+            let multiplicity = self
+                .source_multiplicity(source, &carried, &lookup_type)
+                .ok()?;
+            Some((source.structural_type, multiplicity, source.access))
+        })?;
+        for block in &self.machine.blocks {
+            for (_, actions) in block.terminator.cleanup_rosters() {
+                for action in actions {
+                    let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
+                        continue;
+                    };
+                    let source = self.structural(*place).map_err(|_| WRONG_CUSTODY)?;
+                    let multiplicity = self.source_multiplicity(source, &carried, &lookup_type)?;
+                    let declaration = lookup_type(source.structural_type).ok_or(WRONG_CUSTODY)?;
+                    if source.access != StructuralAccess::Owned
+                        || multiplicity != StructuralMultiplicity::Affine
+                        || declaration.owns_linear_claim
+                    {
+                        return Err(WRONG_CUSTODY);
+                    }
                 }
             }
         }
         Ok(())
+    }
+
+    fn source_multiplicity<'types>(
+        &self,
+        source: &StructuralSource,
+        carried: &[PlaceId],
+        lookup_type: &impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    ) -> Result<StructuralMultiplicity, &'static str> {
+        const WRONG_CUSTODY: &str = "whole-root discard has no owned affine source";
+        let declaration = lookup_type(source.structural_type)
+            .filter(|declaration| declaration.id == source.structural_type)
+            .ok_or(WRONG_CUSTODY)?;
+        let declared = declared_multiplicity(declaration, source.access);
+        let actual = source.explicit_multiplicity.unwrap_or(declared);
+        let required = source
+            .required_result_multiplicity
+            .or_else(|| {
+                carried
+                    .binary_search(&source.place)
+                    .is_ok()
+                    .then_some(StructuralMultiplicity::Affine)
+            })
+            .unwrap_or(declared);
+        if actual != required {
+            return Err(WRONG_CUSTODY);
+        }
+        Ok(actual)
     }
 
     fn structural(&self, source: PlaceId) -> Result<&StructuralSource, &'static str> {
@@ -374,11 +450,11 @@ mod tests {
             cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
         };
         let check = |machine: &TerminalMachine, types: &[StructuralTypeDeclaration]| {
-            ReturnSources::new(machine)
+            let mut actual = machine.clone();
+            actual.blocks[0].terminator = terminator.clone();
+            ReturnSources::new(&actual)
                 .unwrap()
-                .validate_whole_discards(&terminator, |id| {
-                    terminal_psi::find_structural_type(types, id)
-                })
+                .validate_whole_discards(|id| terminal_psi::find_structural_type(types, id))
         };
         assert_eq!(check(&machine, &types), Ok(()));
         let refused = Err("whole-root discard has no owned affine source");
@@ -391,6 +467,167 @@ mod tests {
         assert_eq!(check(&machine, &types), refused);
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
         assert_eq!(check(&machine, &types), refused);
+    }
+
+    #[test]
+    fn a_fresh_permission_keeps_its_custody_across_sparse_block_and_place_ids() {
+        let mut types = types().to_vec();
+        let mut reference = types[1].clone();
+        reference.id = id(3);
+        reference.shape = StructuralTypeShape::Reference {
+            referent: id(2),
+            access: StructuralAccess::SharedBorrow,
+        };
+        reference.descriptor_cleanup = true;
+        types.push(reference);
+        let mut machine = machine();
+        machine.result = TerminalMachineResult::Unit;
+        machine
+            .structural_places
+            .retain(|place| place.kind != StructuralPlaceKind::Result);
+        let input = machine.structural_parameters[0].place;
+        machine.structural_parameters[0].structural_type = id(2);
+        let fresh = PlaceId::new(3).unwrap();
+        let operation = semantic_vocabulary::OperationId::new(1).unwrap();
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: fresh,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: id(3),
+            },
+        });
+        machine.blocks[0]
+            .operations
+            .push(terminal_psi::Operation::unsuspended(
+                operation,
+                terminal_psi::OperationResult::Structural(
+                    terminal_psi::StructuralOperationResult {
+                        place: fresh,
+                        structural_type: id(3),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                ),
+                terminal_psi::OperationKind::EstablishReference {
+                    source: terminal_psi::StructuralArgument::whole(
+                        input,
+                        StructuralAccess::SharedBorrow,
+                    ),
+                    storage: None,
+                },
+            ));
+        let place = PlaceId::new(30).unwrap();
+        let target = BlockId::new(20).unwrap();
+        let mut parameter = machine.structural_parameters[0].clone();
+        parameter.place = place;
+        parameter.structural_type = id(3);
+        parameter.multiplicity = StructuralMultiplicity::Affine;
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: target,
+                position: 0,
+            },
+        });
+        machine.blocks[0].terminator = Terminator::Jump {
+            edge: EdgeId::new(1).unwrap(),
+            target,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+                fresh,
+                StructuralAccess::Owned,
+            )],
+            cleanup_actions: Vec::new(),
+        };
+        let mut block = Block::plain(
+            target,
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(2).unwrap(),
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+            },
+        );
+        block.structural_parameters.push(parameter);
+        machine.blocks.push(block);
+        assert_eq!(
+            ReturnSources::new(&machine)
+                .unwrap()
+                .validate_whole_discards(|id| terminal_psi::find_structural_type(&types, id)),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_carried_permission_cannot_come_from_an_ordinary_copyable_input() {
+        let mut types = types().to_vec();
+        let mut reference = types[1].clone();
+        reference.id = id(3);
+        reference.shape = StructuralTypeShape::Reference {
+            referent: id(2),
+            access: StructuralAccess::SharedBorrow,
+        };
+        reference.descriptor_cleanup = true;
+        types.push(reference);
+        for multiplicity in [
+            StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Affine,
+        ] {
+            let mut machine = machine();
+            machine.result = TerminalMachineResult::Unit;
+            machine
+                .structural_places
+                .retain(|place| place.kind != StructuralPlaceKind::Result);
+            let input = machine.structural_parameters[0].place;
+            machine.structural_parameters[0].structural_type = id(3);
+            machine.structural_parameters[0].multiplicity = multiplicity;
+            let place = PlaceId::new(30).unwrap();
+            let target = BlockId::new(20).unwrap();
+            let mut parameter = machine.structural_parameters[0].clone();
+            parameter.place = place;
+            parameter.multiplicity = StructuralMultiplicity::Affine;
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: target,
+                    position: 0,
+                },
+            });
+            machine.blocks[0].terminator = Terminator::Jump {
+                edge: EdgeId::new(1).unwrap(),
+                target,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+                    input,
+                    StructuralAccess::Owned,
+                )],
+                cleanup_actions: Vec::new(),
+            };
+            let mut block = Block::plain(
+                target,
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(2).unwrap(),
+                    cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+                },
+            );
+            block.structural_parameters.push(parameter);
+            machine.blocks.push(block);
+            assert_eq!(
+                ReturnSources::new(&machine)
+                    .unwrap()
+                    .validate_whole_discards(|id| terminal_psi::find_structural_type(&types, id)),
+                Err("an affine permission parameter receives other than its carrier"),
+                "{multiplicity:?}"
+            );
+        }
     }
 
     #[test]

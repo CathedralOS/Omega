@@ -3,7 +3,8 @@
 //! an ordinary result annotation nor an unbound coercion can mint membership.
 
 use semantic_vocabulary::{
-    EdgeId, Proposition, PropositionContext, ScalarDomainId, ScalarQualificationSetId, ValueId,
+    EdgeId, MachineId, Proposition, PropositionContext, ScalarDomainId, ScalarQualificationSetId,
+    ValueId,
 };
 use terminal_psi::{
     ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarReturnSite,
@@ -12,6 +13,10 @@ use terminal_psi::{
 
 #[derive(Debug)]
 pub enum ScalarQualificationError {
+    NormalResultMembership {
+        machine: Option<MachineId>,
+        detail: &'static str,
+    },
     MalformedStructuralFoundation(&'static str),
     MalformedProposition(semantic_vocabulary::PropositionError),
     MalformedScalarReturnFoundation {
@@ -958,6 +963,20 @@ pub fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclarati
 }
 
 pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError> {
+    let bodies = module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    validate_for_bodies(module, &bodies)
+}
+
+/// Check the complete vocabulary and prove returned memberships for the exact
+/// checked bodies. Abstract check-form requirements remain header assumptions.
+pub fn validate_for_bodies(
+    module: &TerminalModule,
+    bodies: &[MachineId],
+) -> Result<(), ScalarQualificationError> {
     let catalog = &module.scalar_qualifications;
     if catalog
         .domains
@@ -1060,8 +1079,13 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
             return malformed("scalar qualification set names an absent domain");
         }
     }
-    let membership_facts = crate::membership_facts::analyze(module)
-        .map_err(|error| ScalarQualificationError::MalformedStructuralFoundation(error.detail))?;
+    let membership_facts =
+        crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
+            ScalarQualificationError::NormalResultMembership {
+                machine: error.machine,
+                detail: error.detail,
+            }
+        })?;
     for coercion in &catalog.coercions {
         let machine = module
             .machines

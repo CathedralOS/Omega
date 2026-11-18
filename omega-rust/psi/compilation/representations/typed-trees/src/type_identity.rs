@@ -75,6 +75,68 @@ pub(crate) mod callable_identity {
         text: String,
     }
 
+    // These values are immutable interner keys or derived lookup directories.
+    // A fork owns its directory writes, while old text/dispatch keys retain
+    // their payload when the directory gains a genuinely new identity.
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    struct SharedValue<T>(std::sync::Arc<T>);
+
+    impl<T> Clone for SharedValue<T> {
+        fn clone(&self) -> Self {
+            Self(std::sync::Arc::clone(&self.0))
+        }
+    }
+    impl<T> From<T> for SharedValue<T> {
+        fn from(value: T) -> Self {
+            Self(std::sync::Arc::new(value))
+        }
+    }
+    impl<T: Default> Default for SharedValue<T> {
+        fn default() -> Self {
+            T::default().into()
+        }
+    }
+    impl<T> std::ops::Deref for SharedValue<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+    impl<T: Clone> std::ops::DerefMut for SharedValue<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            std::sync::Arc::make_mut(&mut self.0)
+        }
+    }
+    impl<T> std::borrow::Borrow<T> for SharedValue<T> {
+        fn borrow(&self) -> &T {
+            self
+        }
+    }
+    impl std::borrow::Borrow<str> for SharedValue<Box<str>> {
+        fn borrow(&self) -> &str {
+            self
+        }
+    }
+    impl<T: compiler_storage::Record> compiler_storage::Record for SharedValue<T> {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            // Preserve the old key/directory bytes; sharing is local ownership,
+            // not an additional persisted identity or numbering authority.
+            T::write(self, output)
+        }
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            let owner =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<T>())
+                    .ok_or_else(|| input.error("callable identity owner allocation overflow"))?;
+            input.allocate(owner)?;
+            Ok(T::read(input)?.into())
+        }
+    }
+
     #[derive(Clone, compiler_storage::Record)]
     struct CallableIdentityRecord {
         path: CallablePathId,
@@ -85,29 +147,72 @@ pub(crate) mod callable_identity {
 
     #[derive(Clone, Default, compiler_storage::Record)]
     pub struct CallableIdentityTable {
-        paths: Vec<Box<str>>,
-        path_slots: HashMap<Box<str>, CallablePathId>,
-        parameters: Vec<Box<str>>,
-        parameter_slots: HashMap<Box<str>, CallableParametersId>,
-        result_dispatches: Vec<NormalizedResultDispatchSet>,
-        result_dispatch_slots:
-            std::collections::HashMap<NormalizedResultDispatchSet, CallableResultDispatchId>,
-        records: Vec<CallableIdentityRecord>,
-        record_slots: HashMap<
-            (
-                CallablePathId,
-                CallableParametersId,
+        paths: arena::RetainedRows<Box<str>>,
+        path_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallablePathId>>,
+        parameters: arena::RetainedRows<Box<str>>,
+        parameter_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallableParametersId>>,
+        result_dispatches: arena::RetainedRows<NormalizedResultDispatchSet>,
+        result_dispatch_slots: SharedValue<
+            std::collections::HashMap<
+                SharedValue<NormalizedResultDispatchSet>,
                 CallableResultDispatchId,
-            ),
-            CallableIdentityId,
+            >,
         >,
-        boundary_operator_slots:
-            HashMap<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId), CallableIdentityId>,
+        records: arena::RetainedRows<CallableIdentityRecord>,
+        record_slots: SharedValue<
+            HashMap<
+                (
+                    CallablePathId,
+                    CallableParametersId,
+                    CallableResultDispatchId,
+                ),
+                CallableIdentityId,
+            >,
+        >,
+        boundary_operator_slots: SharedValue<
+            HashMap<
+                SharedValue<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId)>,
+                CallableIdentityId,
+            >,
+        >,
     }
 
+    fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher + Clone>(
+        text: &str,
+        texts: &mut arena::RetainedRows<Box<str>>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<Box<str>>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I {
+        if let Some(interned) = slots.get(text) {
+            return *interned;
+        }
+        let interned = mint(texts.len());
+        let text: Box<str> = text.into();
+        texts.push(text.clone());
+        slots.insert(text.into(), interned);
+        interned
+    }
+
+    fn intern_owned<K, I: Copy, S: std::hash::BuildHasher + Clone>(
+        value: K,
+        values: &mut arena::RetainedRows<K>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<K>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I
+    where
+        K: Eq + std::hash::Hash + Clone,
+    {
+        if let Some(interned) = slots.get(&value) {
+            return *interned;
+        }
+        let interned = mint(values.len());
+        values.push(value.clone());
+        slots.insert(value.into(), interned);
+        interned
+    }
     impl CallableIdentityTable {
         fn intern_path(&mut self, path: &str) -> CallablePathId {
-            super::intern_boxed_text(
+            intern_boxed_text(
                 path,
                 &mut self.paths,
                 &mut self.path_slots,
@@ -116,7 +221,7 @@ pub(crate) mod callable_identity {
         }
 
         fn intern_parameters(&mut self, parameters: &str) -> CallableParametersId {
-            super::intern_boxed_text(
+            intern_boxed_text(
                 parameters,
                 &mut self.parameters,
                 &mut self.parameter_slots,
@@ -128,7 +233,7 @@ pub(crate) mod callable_identity {
             &mut self,
             result_dispatch: NormalizedResultDispatchSet,
         ) -> CallableResultDispatchId {
-            super::intern_owned(
+            intern_owned(
                 result_dispatch,
                 &mut self.result_dispatches,
                 &mut self.result_dispatch_slots,
@@ -184,12 +289,66 @@ pub(crate) mod callable_identity {
                 result_dispatch,
                 text,
             });
-            self.boundary_operator_slots.insert(key, identity);
+            self.boundary_operator_slots.insert(key.into(), identity);
             identity
         }
 
         fn record(&self, identity: CallableIdentityId) -> Option<&CallableIdentityRecord> {
             self.records.get(identity.slot()?)
+        }
+    }
+
+    #[cfg(test)]
+    mod ownership_tests {
+        use super::*;
+
+        #[test]
+        fn shared_callable_key_preserves_bytes_and_charges_its_owner() {
+            let original: Box<str> = "callable".into();
+            let shared: SharedValue<_> = original.clone().into();
+            let limits = compiler_storage::RecordLimits::default();
+            let bytes = compiler_storage::encode(&original, limits).unwrap();
+            assert_eq!(compiler_storage::encode(&shared, limits).unwrap(), bytes);
+            let decoded: SharedValue<Box<str>> = compiler_storage::decode(&bytes, limits).unwrap();
+            assert_eq!(*decoded, original);
+            let tight = compiler_storage::RecordLimits {
+                allocation: original.len(),
+                ..limits
+            };
+            assert!(compiler_storage::decode::<Box<str>>(&bytes, tight).is_ok());
+            assert!(compiler_storage::decode::<SharedValue<Box<str>>>(&bytes, tight).is_err());
+        }
+
+        #[test]
+        fn callable_fork_retains_side_payloads_until_a_new_identity_is_inserted() {
+            let parts = |name: &str| CallableIdentityParts {
+                path: name.into(),
+                parameters: "parameters".into(),
+                result_dispatch: NormalizedResultDispatchSet::default(),
+            };
+            let original = arena::OwnedInterner::<CallableIdentityTable>::default();
+            let first = original.with_mut(|table| table.intern(parts("first")));
+            let fork = original.clone();
+            let retained = original.with(|table| &table.records[0] as *const _);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+            assert_eq!(fork.with_mut(|table| table.intern(parts("first"))), first);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+
+            let second = fork.with_mut(|table| table.intern(parts("second")));
+            assert_ne!(first, second);
+            assert_eq!(original.with(|table| table.records.len()), 1);
+            assert_eq!(fork.with(|table| table.records.len()), 2);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+            assert_eq!(
+                original.with(|table| &table.paths[0] as *const _),
+                fork.with(|table| &table.paths[0] as *const _)
+            );
+            assert!(original.with(|table| table.path_slots.get("second").is_none()));
+            assert!(original.with(|table| table.record(second).is_none()));
+            assert_eq!(
+                original.with(|table| table.record(first).unwrap().text.clone()),
+                fork.with(|table| table.record(first).unwrap().text.clone())
+            );
         }
     }
 
@@ -2369,10 +2528,7 @@ pub(crate) mod identity_context {
                 return path;
             }
             if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
-                return compound(
-                    NameForm::CompilerType,
-                    [atom(Label::Atom, &builtin_atom.identity())],
-                );
+                return language_semantics::type_identity::builtin_type_name(builtin_atom);
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())
@@ -3763,7 +3919,7 @@ pub(crate) mod normalized_identities {
         table's record: the index is rebuilt as identities are asked for again.
     */
     type CompositeIndex = std::collections::HashMap<
-        (&'static str, Vec<IdentityPart>),
+        std::sync::Arc<(&'static str, Vec<IdentityPart>)>,
         TypeIdentityId,
         symbols::BuildSymbolHasher,
     >;
@@ -3892,15 +4048,18 @@ pub(crate) mod normalized_identities {
                 return *identity;
             }
             let identity = self.intern(&self.composite_text(key.0, &key.1));
-            // The derived cache shares its payload until the first new key.
-            // Unlike text storage, that write still copies the cached map.
             let mut index = self
                 .composites
                 .write()
                 .unwrap_or_else(|error| error.into_inner());
-            std::sync::Arc::make_mut(&mut index)
-                .entry(key)
-                .or_insert(identity);
+            // Another writer may have installed this key while we spelled it.
+            // Existing keys borrow their tuple without detaching the map or
+            // allocating a key owner. A new key copies directory metadata,
+            // retaining every earlier key's vector and text payload.
+            if let Some(identity) = index.get(&key) {
+                return *identity;
+            }
+            std::sync::Arc::make_mut(&mut index).insert(std::sync::Arc::new(key), identity);
             identity
         }
 
@@ -4043,6 +4202,45 @@ pub(crate) mod normalized_identities {
             checked.identities.renumber_canonically(&mut output);
             let late = checked.identities.intern("d");
             assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn new_composite_keys_share_the_retained_key_payloads() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite(
+                "retained",
+                vec![
+                    IdentityPart::Identity(atom),
+                    IdentityPart::Text("retained text".repeat(16)),
+                ],
+            );
+            let child = parent.clone();
+            child.intern_composite("new", vec![IdentityPart::Text("new output".into())]);
+            let parent_cache = parent.composites.read().unwrap();
+            let child_cache = child.composites.read().unwrap();
+            let parent_key = parent_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            let child_key = child_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            assert!(std::ptr::eq(parent_key.1.as_ptr(), child_key.1.as_ptr()));
+            let IdentityPart::Text(parent_text) = &parent_key.1[1] else {
+                panic!("retained text part")
+            };
+            let IdentityPart::Text(child_text) = &child_key.1[1] else {
+                panic!("retained text part")
+            };
+            assert!(std::ptr::eq(parent_text.as_ptr(), child_text.as_ptr()));
+            assert_eq!(parent_cache.len(), 1);
+            assert_eq!(child_cache.len(), 2);
+            assert_eq!(parent.by_text("atom"), atom);
+            assert_eq!(child.by_text("atom"), atom);
         }
 
         #[test]
@@ -6143,7 +6341,7 @@ pub(crate) mod portable_machine_applications {
                 if states.len() != program.machine_states(original).len()
                     || states.len() != program.machine_states(instance).len()
                     || states.iter().enumerate().any(|(ordinal, state)| {
-                        states[..ordinal].iter().any(|earlier| {
+                        states.slice(0..ordinal).iter().any(|earlier| {
                             earlier.template == state.template || earlier.instance == state.instance
                         }) || !program.instantiated_machine_state_matches(
                             capture.instance,
@@ -8182,32 +8380,13 @@ pub(crate) mod substitution {
         None
     }
 
-    macro_rules! open_selected_substitution {
-        ($context:expr, $symbol:expr, $active:ident, $reference:ident, $nested:ident) => {
-            let (ordinal, $reference) = match selected($context, $symbol) {
-                Some(selected_reference) => selected_reference,
-                None => return None,
-            };
-            if $context.active_const_substitutions.len() >= 64
-                || $context.active_const_substitutions.contains(&$symbol)
-            {
-                return Some(rejected($context));
-            }
-            let mut $active = $context.active_const_substitutions.to_vec();
-            $active.push($symbol);
-            let $nested = TypeIdentityContext {
-                active_const_substitutions: &$active,
-                ..$context.replacement_context_at(ordinal)
-            };
-        };
-    }
-
-    fn selected_index(
+    fn selected_index<R>(
         program: &TypedTrees,
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
-        render: fn(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> String,
-    ) -> Option<String> {
+        render: impl FnOnce(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> R,
+        reject: impl FnOnce(&TypeIdentityContext<'_>) -> R,
+    ) -> Option<R> {
         if let Some((argument, outer)) = context.applied_argument(symbol) {
             return Some(render(program, argument, &outer));
         }
@@ -8226,12 +8405,74 @@ pub(crate) mod substitution {
                 },
             ));
         }
-        open_selected_substitution!(context, symbol, active, reference, nested);
+        let (ordinal, reference) = selected(context, symbol)?;
+        if context.active_const_substitutions.len() >= 64
+            || context.active_const_substitutions.contains(&symbol)
+        {
+            return Some(reject(context));
+        }
+        let mut active = context.active_const_substitutions.to_vec();
+        active.push(symbol);
+        let nested = TypeIdentityContext {
+            active_const_substitutions: &active,
+            ..context.replacement_context_at(ordinal)
+        };
         Some(render(
             program,
             IndexIdentityArgument::TypeReference(reference),
             &nested,
         ))
+    }
+
+    /// Follow the same actual-argument frames used by index identity before
+    /// checking its declared integer type. A type binder is never a value,
+    /// and a policy-qualified integer is not its plain carrier.
+    pub(crate) fn integer_argument_matches(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+        expected: crate::types::PrimitiveType,
+    ) -> bool {
+        use crate::data::TypeParameterKind;
+        let operand = match argument {
+            IndexIdentityArgument::TypeReference(reference) => {
+                match program.static_operand_from_type_reference(reference) {
+                    Ok(operand) => operand,
+                    Err(_) => return false,
+                }
+            }
+            IndexIdentityArgument::Subject(symbol) => crate::expression::StaticMachineArgument {
+                symbol,
+                ..Default::default()
+            },
+            IndexIdentityArgument::StaticArgument(argument) => argument.clone(),
+            _ => return false,
+        };
+        let declared = program.data_type_parameter_by_symbol(operand.symbol);
+        if let Some(parameter) = declared
+            && !matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                if matches!(program.type_reference_node(type_reference), TypeReferenceNode::Named { .. })
+                    && program.primitive_type_reference(type_reference) == Some(expected))
+        {
+            return false;
+        }
+        if let Some(matches) = selected_index(
+            program,
+            operand.symbol,
+            context,
+            |program, argument, context| {
+                integer_argument_matches(program, argument, context, expected)
+            },
+            |_| false,
+        ) {
+            return matches;
+        }
+        if declared.is_some() {
+            return true;
+        }
+        program
+            .prepare_callable_scalar_argument(expected, &operand)
+            .is_ok()
     }
 
     pub(crate) fn index(
@@ -8240,7 +8481,7 @@ pub(crate) mod substitution {
         _spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> Option<String> {
-        selected_index(program, symbol, context, index_argument)
+        selected_index(program, symbol, context, index_argument, rejected)
     }
 
     fn index_reference(
@@ -8281,7 +8522,7 @@ pub(crate) mod substitution {
         _spelling: &str,
         context: &TypeIdentityContext<'_>,
     ) -> Option<String> {
-        selected_index(program, symbol, context, array_length_argument)
+        selected_index(program, symbol, context, array_length_argument, rejected)
     }
 
     fn literal_array_length(
@@ -8953,6 +9194,45 @@ pub fn normalized_index_identity(
         },
     );
     (!invalid.get()).then_some(identity)
+}
+
+pub(crate) fn scoped_integer_argument_matches(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    expected: crate::types::PrimitiveType,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> bool {
+    substitution::integer_argument_matches(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            ..TypeIdentityContext::default()
+        },
+        expected,
+    )
+}
+
+pub(crate) fn scoped_index_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
 }
 
 pub(crate) fn normalized_const_index_expression_identity(
@@ -9910,6 +10190,53 @@ impl TypedTrees {
         )
     }
 
+    pub fn scoped_declared_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, None)
+    }
+
+    pub fn scoped_carrier_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, Some(owner))
+    }
+
+    fn scoped_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: Option<SymbolHandle>,
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self.contains_type_reference(request.type_reference) {
+            return None;
+        }
+        let invalid = Cell::new(false);
+        let identity = normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                declared_carrier: owner.is_none(),
+                erase_constraints: owner.is_some(),
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                application_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                application_argument_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                invalid_application: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!invalid.get()).then_some(identity)
+    }
+
     pub fn region_free_scoped_type_identity(
         &self,
         request: TypeIdentityRequest<'_>,
@@ -10249,39 +10576,6 @@ fn callable_type_binders(
     binders
 }
 
-fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher>(
-    text: &str,
-    texts: &mut Vec<Box<str>>,
-    slots: &mut std::collections::HashMap<Box<str>, I, S>,
-    mint: impl Fn(usize) -> I,
-) -> I {
-    if let Some(interned) = slots.get(text) {
-        return *interned;
-    }
-    let interned = mint(texts.len());
-    let text: Box<str> = text.into();
-    texts.push(text.clone());
-    slots.insert(text, interned);
-    interned
-}
-
-fn intern_owned<K, I: Copy, S: std::hash::BuildHasher>(
-    value: K,
-    values: &mut Vec<K>,
-    slots: &mut std::collections::HashMap<K, I, S>,
-    mint: impl Fn(usize) -> I,
-) -> I
-where
-    K: Eq + std::hash::Hash + Clone,
-{
-    if let Some(interned) = slots.get(&value) {
-        return *interned;
-    }
-    let interned = mint(values.len());
-    values.push(value.clone());
-    slots.insert(value, interned);
-    interned
-}
 #[cfg(test)]
 mod closed_requirement_declaration_tests {
     use super::package_policy_reading_tests::fixture::Fixture;

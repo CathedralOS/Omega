@@ -1,0 +1,229 @@
+--- a/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
++++ b/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
+@@ -9,6 +9,7 @@
+ path = "src/lib.rs"
+
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../../../foundation/compiler-storage" }
+ sha2 = "0.10.9"
+ access-plans = { path = "../../../foundation/access-plans" }
+--- a/omega-rust/psi/compilation/source-compiler/Cargo.toml
++++ b/omega-rust/psi/compilation/source-compiler/Cargo.toml
+@@ -10,6 +10,7 @@
+ harness = false
+
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../../foundation/compiler-storage" }
+ source-files-to-tokens = { path = "../pipeline/00_source-files-to-tokens" }
+ tokens-to-syntax-trees = { path = "../pipeline/01_tokens-to-syntax-trees" }
+--- a/omega-rust/omega/compilation/compiler/Cargo.toml
++++ b/omega-rust/omega/compilation/compiler/Cargo.toml
+@@ -58,6 +58,7 @@
+ optimization-core = { path = "../../foundation/optimization-core" }
+
+ [dev-dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
+ tokens = { path = "../../../psi/compilation/representations/tokens" }
+ native-preparation = { path = "../pipeline/02_abstract-operations-to-target-operations/native-preparation" }
+--- a/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
++++ b/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
+@@ -1343,6 +1343,21 @@
+     pub type_identities: crate::type_identity::TypeIdentityTable,
+ }
+
++fn profile_clone_payload<T>(field: &'static str, clone: impl FnOnce() -> T) -> T {
++    // The table directory's children have their own disjoint windows. Do not
++    // count the enclosing directory again or include logging in a window.
++    if field == "tables" || selected_body_allocation_trace::directory().is_none() {
++        return clone();
++    }
++    let (value, counts) = selected_body_allocation_trace::measure(clone);
++    selected_body_allocation_trace::log(format_args!(
++        "SIDE_COPY context={} field={} allocations={} requested_bytes={} live_delta={} peak_delta={} ns={}",
++        selected_body_allocation_trace::current_context(), field, counts.allocations,
++        counts.requested_bytes, counts.live_delta, counts.peak_delta, counts.nanoseconds,
++    ));
++    value
++}
++
+ impl Clone for TypedTrees {
+     fn clone(&self) -> Self {
+         self.clone_with_symbols(self.symbols.clone())
+@@ -1357,6 +1372,12 @@
+         mut self: std::sync::Arc<Self>,
+         symbols: SymbolTable,
+     ) -> std::sync::Arc<Self> {
++        let _profile_context = selected_body_allocation_trace::context("activation");
++        selected_body_allocation_trace::log(format_args!(
++            "SIDE_ACTIVATION shared={} machines={} expressions={} statements={}",
++            std::sync::Arc::strong_count(&self) > 1, self.machines.len(),
++            self.expression_table.expression_count(), self.statement_table.statement_count(),
++        ));
+         if let Some(program) = std::sync::Arc::get_mut(&mut self) {
+             program.symbols = symbols;
+             return self;
+@@ -1375,7 +1396,7 @@
+         macro_rules! clone_storage {
+             ($($field:ident),+ $(,)?) => {{
+                 let Self { identity, symbols: _, $($field,)+ } = self;
+-                Self { identity: *identity, symbols, $($field: $field.clone(),)+ }
++                Self { identity: *identity, symbols, $($field: profile_clone_payload(stringify!($field), || $field.clone()),)+ }
+             }};
+         }
+         clone_storage!(
+@@ -1463,5 +1484,5 @@
+     pub source_span: source::SourceSpan,
+ }
+
+-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
++#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
+ pub struct TypedTreeTables {
+@@ -1528,5 +1549,64 @@
+ }
+
++impl Clone for TypedTreeTables {
++    fn clone(&self) -> Self {
++        Self {
++            runtime_callable_contracts: profile_clone_payload("tables.runtime_callable_contracts", || self.runtime_callable_contracts.clone()),
++            runtime_callable_lowering: profile_clone_payload("tables.runtime_callable_lowering", || self.runtime_callable_lowering.clone()),
++            designated_static_type_arguments: profile_clone_payload("tables.designated_static_type_arguments", || self.designated_static_type_arguments.clone()),
++            retained_product_application_handles: profile_clone_payload("tables.retained_product_application_handles", || self.retained_product_application_handles.clone()),
++            product_input_selections: profile_clone_payload("tables.product_input_selections", || self.product_input_selections.clone()),
++            product_input_argument_steps: profile_clone_payload("tables.product_input_argument_steps", || self.product_input_argument_steps.clone()),
++            product_operand_applications: profile_clone_payload("tables.product_operand_applications", || self.product_operand_applications.clone()),
++            authored_declaration_selections: profile_clone_payload("tables.authored_declaration_selections", || self.authored_declaration_selections.clone()),
++            const_declarations: profile_clone_payload("tables.const_declarations", || self.const_declarations.clone()),
++            data_definitions: profile_clone_payload("tables.data_definitions", || self.data_definitions.clone()),
++            type_aliases: profile_clone_payload("tables.type_aliases", || self.type_aliases.clone()),
++            data_application_definitions: profile_clone_payload("tables.data_application_definitions", || self.data_application_definitions.clone()),
++            data_type_parameters: profile_clone_payload("tables.data_type_parameters", || self.data_type_parameters.clone()),
++            declared_type_equations: profile_clone_payload("tables.declared_type_equations", || self.declared_type_equations.clone()),
++            static_type_contexts: profile_clone_payload("tables.static_type_contexts", || self.static_type_contexts.clone()),
++            data_members: profile_clone_payload("tables.data_members", || self.data_members.clone()),
++            data_payload_fields: profile_clone_payload("tables.data_payload_fields", || self.data_payload_fields.clone()),
++            domain_definitions: profile_clone_payload("tables.domain_definitions", || self.domain_definitions.clone()),
++            proof_facts: profile_clone_payload("tables.proof_facts", || self.proof_facts.clone()),
++            proof_fact_source_spans: profile_clone_payload("tables.proof_fact_source_spans", || self.proof_fact_source_spans.clone()),
++            propositions: profile_clone_payload("tables.propositions", || self.propositions.clone()),
++            proposition_binders: profile_clone_payload("tables.proposition_binders", || self.proposition_binders.clone()),
++            mathematical_definitions: profile_clone_payload("tables.mathematical_definitions", || self.mathematical_definitions.clone()),
++            mathematical_parameters: profile_clone_payload("tables.mathematical_parameters", || self.mathematical_parameters.clone()),
++            mathematical_types: profile_clone_payload("tables.mathematical_types", || self.mathematical_types.clone()),
++            domain_path_members: profile_clone_payload("tables.domain_path_members", || self.domain_path_members.clone()),
++            operator_path_members: profile_clone_payload("tables.operator_path_members", || self.operator_path_members.clone()),
++            machines: profile_clone_payload("tables.machines", || self.machines.clone()),
++            measures: profile_clone_payload("tables.measures", || self.measures.clone()),
++            measure_path_members: profile_clone_payload("tables.measure_path_members", || self.measure_path_members.clone()),
++            operators: profile_clone_payload("tables.operators", || self.operators.clone()),
++            machine_owned_data: profile_clone_payload("tables.machine_owned_data", || self.machine_owned_data.clone()),
++            machine_trait_conformances: profile_clone_payload("tables.machine_trait_conformances", || self.machine_trait_conformances.clone()),
++            machine_states: profile_clone_payload("tables.machine_states", || self.machine_states.clone()),
++            state_parameters: profile_clone_payload("tables.state_parameters", || self.state_parameters.clone()),
++            traits: profile_clone_payload("tables.traits", || self.traits.clone()),
++            conformances: profile_clone_payload("tables.conformances", || self.conformances.clone()),
++            trait_requirements: profile_clone_payload("tables.trait_requirements", || self.trait_requirements.clone()),
++            trait_machine_signatures: profile_clone_payload("tables.trait_machine_signatures", || self.trait_machine_signatures.clone()),
++            applied_callable_signatures: profile_clone_payload("tables.applied_callable_signatures", || self.applied_callable_signatures.clone()),
++            callable_substitutions: profile_clone_payload("tables.callable_substitutions", || self.callable_substitutions.clone()),
++            trait_application_frames: profile_clone_payload("tables.trait_application_frames", || self.trait_application_frames.clone()),
++            callable_argument_identities: profile_clone_payload("tables.callable_argument_identities", || self.callable_argument_identities.clone()),
++            callable_arguments: profile_clone_payload("tables.callable_arguments", || self.callable_arguments.clone()),
++            callable_lifetime_substitutions: profile_clone_payload("tables.callable_lifetime_substitutions", || self.callable_lifetime_substitutions.clone()),
++            signature_invokes: profile_clone_payload("tables.signature_invokes", || self.signature_invokes.clone()),
++            signature_contracts: profile_clone_payload("tables.signature_contracts", || self.signature_contracts.clone()),
++            expression_table: profile_clone_payload("tables.expression_table", || self.expression_table.clone()),
++            statement_table: profile_clone_payload("tables.statement_table", || self.statement_table.clone()),
++            type_reference_table: profile_clone_payload("tables.type_reference_table", || self.type_reference_table.clone()),
++            wire_schemas: profile_clone_payload("tables.wire_schemas", || self.wire_schemas.clone()),
++            wire_members: profile_clone_payload("tables.wire_members", || self.wire_members.clone()),
++        }
++    }
++}
++
+ impl TypedTreeTables {
+     /// Keep one declaration or completed body's expressions and statements
+     /// together. A later source-application update may rewrite that owner,
+--- a/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs
++++ b/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs
+@@ -1101,6 +1101,11 @@
+         ),
+         Vec<Diagnostic>,
+     > {
++        let _profile_context = selected_body_allocation_trace::context("complete-selected");
++        selected_body_allocation_trace::log(format_args!(
++            "SIDE_SELECTED pending={} selected_sources={}",
++            input.pending_bodies.pending_machines().count(), sources.selected_files().count(),
++        ));
+         let mut typing = input.typing.clone();
+         let pending_bodies = input
+             .pending_bodies
+@@ -1122,6 +1127,7 @@
+                         .is_some_and(|span| sources.source_is_selected(span.source_id))
+                 })
+                 .collect::<Vec<_>>();
++            selected_body_allocation_trace::log(format_args!("SIDE_BATCH kind=selected count={}", selected.len()));
+             if selected.is_empty() {
+                 break;
+             }
+@@ -1325,9 +1331,11 @@
+     ),
+     Vec<Diagnostic>,
+ > {
++    let _profile_context = selected_body_allocation_trace::context("complete-authored");
+     loop {
+         pending_bodies = pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
+         let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
++        selected_body_allocation_trace::log(format_args!("SIDE_BATCH kind=authored count={}", selected.len()));
+         if selected.is_empty() {
+             break;
+         }
+--- /dev/null
++++ b/omega-rust/omega/compilation/compiler/examples/side_records_profile.rs
+@@ -0,0 +1,4 @@
++#[global_allocator]
++static ALLOCATOR: selected_body_allocation_trace::Tracking<mimalloc::MiMalloc> =
++    selected_body_allocation_trace::Tracking(mimalloc::MiMalloc);
++include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../build-system/orchestration/examples/package_batch.rs"));
+--- /dev/null
++++ b/omega-rust/omega/compilation/compiler/examples/side_records_control.rs
+@@ -0,0 +1,3 @@
++#[global_allocator]
++static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
++include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../build-system/orchestration/examples/package_batch.rs"));
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -433,6 +433,7 @@
+  "register-model",
+  "review-evidence",
+  "runtime-abi",
++ "selected-body-allocation-trace",
+  "selected-dispatch",
+  "selected-instructions",
+  "semantic-vocabulary",
+@@ -2214,6 +2215,7 @@
+  "layout-plans",
+  "optimization",
+  "rayon",
++ "selected-body-allocation-trace",
+  "semantic-vocabulary",
+  "source",
+  "source-files-to-tokens",
+@@ -2779,6 +2781,7 @@
+  "language-semantics",
+  "layout-plans",
+  "numerics",
++ "selected-body-allocation-trace",
+  "semantic-vocabulary",
+  "serde",
+  "serde_json",
+@@ -3111,3 +3114,7 @@
+ version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
++
++[[package]]
++name = "selected-body-allocation-trace"
++version = "0.1.0"

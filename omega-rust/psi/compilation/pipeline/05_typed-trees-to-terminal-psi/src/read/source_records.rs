@@ -10,6 +10,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication};
 
 mod layouts;
+mod opaque;
 
 use super::{Program, places::RecordSource};
 use crate::body::RecordType;
@@ -59,6 +60,16 @@ pub(super) fn source_application(
     reference: TypeReferenceHandle,
     machine: MachineId,
 ) -> Checked<SourceTypeApplication> {
+    source_application_in_scope(typed, data, reference, machine, Default::default())
+}
+
+fn source_application_in_scope(
+    typed: &typed_trees::TypedTrees,
+    data: &DataDefinition,
+    reference: TypeReferenceHandle,
+    machine: MachineId,
+    scope: std::sync::Arc<typed_trees::SourceTypeScope>,
+) -> Checked<SourceTypeApplication> {
     use typed_trees::data::TypeParameterKind;
     let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
     if !typed
@@ -87,8 +98,9 @@ pub(super) fn source_application(
     }
     let semantic = semantic_reference(typed, reference, machine)?;
     let selected = typed
-        .closed_data_definition(semantic)
-        .ok_or_else(|| unavailable("record application without its closed retained declaration"))?;
+        .data_application_definition(semantic)
+        .or_else(|| typed.closed_data_definition(semantic))
+        .ok_or_else(|| unavailable("record application without its exact retained declaration"))?;
     if selected != data {
         return Err(malformed(
             machine,
@@ -198,22 +210,14 @@ pub(super) fn source_application(
                         }
                         _ => None,
                     };
-                    if let Some(carrier) = carrier {
-                        let literal = typed
-                            .static_const_literal_from_type_reference(*argument)
-                            .ok_or_else(|| {
-                                unavailable("record const argument is not a closed integer")
-                            })?;
-                        let value = literal
-                            .value_i64()
-                            .map(i128::from)
-                            .or_else(|| literal.value_u64().map(i128::from));
-                        let expected = numerics::literals::LandedIntegerType::Fixed(carrier);
-                        if value.is_none_or(|value| !expected.admits_i128(value))
-                            || literal
-                                .landing()
-                                .is_some_and(|landing| landing.landed_type != expected)
-                        {
+                    if carrier.is_some() {
+                        let expected =
+                            typed
+                                .primitive_type_reference(type_reference)
+                                .ok_or_else(|| {
+                                    unavailable("record const argument has no integer carrier")
+                                })?;
+                        if !scope.integer_argument_matches(typed, *argument, expected) {
                             return Err(unavailable(
                                 "record const argument does not inhabit its declared carrier",
                             ));
@@ -263,7 +267,9 @@ pub(super) fn source_application(
                     ));
                 }
             }
-            if !typed_trees::domain::index_argument_is_closed(typed, *argument) {
+            if !typed_trees::domain::index_argument_is_closed(typed, *argument)
+                && !scope.admits_argument(typed, *argument)
+            {
                 return Err(unavailable(
                     "record application with an unresolved argument",
                 ));
@@ -271,13 +277,7 @@ pub(super) fn source_application(
             // Ordinary nominal identities erase regions. Do not let a new
             // byte/reference reader turn that storage key into lifetime
             // correspondence until this same application owner retains it.
-            if typed
-                .region_free_scoped_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(*argument),
-                    &[],
-                )
-                .is_none()
-            {
+            if scope.region_free_type_identity(typed, *argument).is_none() {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
                 ));
@@ -316,6 +316,7 @@ pub(super) fn source_application(
     Ok(SourceTypeApplication {
         reference,
         substitutions,
+        scope,
     })
 }
 
@@ -401,10 +402,9 @@ pub(super) fn same_application(
     left: &SourceTypeApplication,
     right: &SourceTypeApplication,
 ) -> bool {
-    use typed_trees::{data::TypeParameterKind, type_identity::IndexIdentityArgument};
+    use typed_trees::data::TypeParameterKind;
 
-    if typed.normalized_type_identity(left.reference)
-        != typed.normalized_type_identity(right.reference)
+    if left.type_identity(typed) != right.type_identity(typed)
         || left.substitutions.len() != right.substitutions.len()
     {
         return false;
@@ -431,23 +431,15 @@ pub(super) fn same_application(
                     }
                     match parameter.kind {
                         TypeParameterKind::Type => {
-                            typed.normalized_type_identity(*left_argument)
-                                == typed.normalized_type_identity(*right_argument)
+                            left.scope.type_identity(typed, *left_argument)
+                                == right.scope.type_identity(typed, *right_argument)
                         }
                         // Both source applications already checked this binder's
                         // carrier. Compare its value as an index, so evaluating a
                         // literal does not create a second record storage identity.
                         TypeParameterKind::Const { .. } => {
-                            let left = typed_trees::type_identity::normalized_index_identity(
-                                typed,
-                                IndexIdentityArgument::TypeReference(*left_argument),
-                                &[],
-                            );
-                            let right = typed_trees::type_identity::normalized_index_identity(
-                                typed,
-                                IndexIdentityArgument::TypeReference(*right_argument),
-                                &[],
-                            );
+                            let left = left.scope.index_identity(typed, *left_argument);
+                            let right = right.scope.index_identity(typed, *right_argument);
                             left.is_some() && left == right
                         }
                         _ => false,
@@ -457,6 +449,21 @@ pub(super) fn same_application(
 }
 
 impl Program<'_> {
+    pub(super) fn source_record_application(
+        &self,
+        data: &DataDefinition,
+        reference: TypeReferenceHandle,
+        machine: MachineId,
+    ) -> Checked<SourceTypeApplication> {
+        source_application_in_scope(
+            self.typed,
+            data,
+            reference,
+            machine,
+            self.source_scope.clone(),
+        )
+    }
+
     pub(super) fn record_application(
         &mut self,
         machine: MachineId,
@@ -466,19 +473,23 @@ impl Program<'_> {
         let source =
             terminal_check_tables::row(&self.record_sources, record, machine, Construct::Machine)?;
         let semantic = semantic_reference(self.typed, reference, machine)?;
-        let data = self.typed.closed_data_definition(semantic).ok_or_else(|| {
-            malformed(
-                machine,
-                "record source application has no closed declaration",
-            )
-        })?;
+        let data = self
+            .typed
+            .data_application_definition(semantic)
+            .or_else(|| self.typed.closed_data_definition(semantic))
+            .ok_or_else(|| {
+                malformed(
+                    machine,
+                    "record source application has no retained declaration",
+                )
+            })?;
         if data.symbol != source.declaration {
             return Err(malformed(
                 machine,
                 "record source application changed its declaration",
             ));
         }
-        let application = source_application(self.typed, data, reference, machine)?;
+        let application = self.source_record_application(data, reference, machine)?;
         if let Some(retained) = &source.application
             && !same_application(self.typed, retained, &application)
         {
@@ -629,13 +640,17 @@ impl Program<'_> {
             terminal_check_tables::row(&self.record_sources, record, machine, Construct::Machine)?;
         let declared = self.data_type(machine, record)?;
         let semantic = semantic_reference(self.typed, subject, machine)?;
-        let data = self.typed.closed_data_definition(semantic).ok_or_else(|| {
-            malformed(
-                machine,
-                "access plan subject has no closed data declaration",
-            )
-        })?;
-        let actual = source_application(self.typed, data, subject, machine)?;
+        let data = self
+            .typed
+            .data_application_definition(semantic)
+            .or_else(|| self.typed.closed_data_definition(semantic))
+            .ok_or_else(|| {
+                malformed(
+                    machine,
+                    "access plan subject has no retained data declaration",
+                )
+            })?;
+        let actual = self.source_record_application(data, subject, machine)?;
         let same = match &source.application {
             Some(retained) => same_application(self.typed, retained, &actual),
             None => {
@@ -846,13 +861,10 @@ impl Program<'_> {
                         terminal_psi::StructuralAccess::WriteOnlyBorrow
                     }
                 };
-                let identity = |reference| {
-                    typed_trees::type_identity::applied_declared_carrier_identity(
-                        self.typed,
-                        reference,
-                        &[],
-                    )
-                    .and_then(|identity| self.typed.type_identity_text(identity))
+                let identity = |scope: &typed_trees::SourceTypeScope, reference| {
+                    scope
+                        .declared_carrier_identity(self.typed, reference)
+                        .and_then(|identity| self.typed.type_identity_text(identity))
                 };
                 let referent_source = self
                     .record_sources
@@ -863,12 +875,12 @@ impl Program<'_> {
                     || !source.fields.is_empty()
                     || !source.cases.is_empty()
                     || !application.substitutions.is_empty()
-                    || identity(application.reference).as_deref()
+                    || identity(&application.scope, application.reference).as_deref()
                         != Some(declaration.identity.as_str())
                     || !referent_source.is_some_and(|source| {
-                        source.substitutions.is_empty()
-                            && identity(source.reference).is_some()
-                            && identity(source.reference) == identity(*referee)
+                        identity(&source.scope, source.reference).is_some()
+                            && identity(&source.scope, source.reference)
+                                == identity(&application.scope, *referee)
                     })
                 {
                     return Err(malformed(
@@ -1216,6 +1228,7 @@ mod tests {
             application: Some(SourceTypeApplication {
                 reference,
                 substitutions: Vec::new(),
+                scope: Default::default(),
             }),
             region_owner: SymbolHandle::invalid(),
             fields: vec![symbol(4), symbol(9)],

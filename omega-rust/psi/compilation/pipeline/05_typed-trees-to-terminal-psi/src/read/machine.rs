@@ -563,6 +563,28 @@ impl<'t> Program<'t> {
             ));
         }
         let outer = std::mem::take(&mut self.scope);
+        let outer_source = self.source_scope.clone();
+        if matches!(
+            reading,
+            Reading::Closed | Reading::Implementation | Reading::Provider
+        ) {
+            self.source_scope = Default::default();
+        }
+        if let Reading::Alternative(_) = &reading
+            && let Some(alternative) = &self.alternative
+        {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let bindings = self
+                .typed
+                .machine_type_parameters(machine)
+                .iter()
+                .zip(&alternative.arguments)
+                .filter_map(|(parameter, reference)| {
+                    reference.map(|reference| (parameter.symbol, reference))
+                })
+                .collect();
+            self.source_scope = self.extended_source_scope(bindings);
+        }
         let outer_widths = std::mem::take(&mut self.const_scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -572,6 +594,7 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
+        let source_scope = std::mem::replace(&mut self.source_scope, outer_source);
         let widths = std::mem::replace(&mut self.const_scope, outer_widths);
         let (signature, names, value_parameters) = read.map_err(|refusal| {
             if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
@@ -580,8 +603,10 @@ impl<'t> Program<'t> {
             self.read_failure_at(refusal, symbol, "the signature")
         })?;
         self.admitted_declarations.include(symbol);
-        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
-            || (self.rigid && matches!(reading, Reading::Implementation))
+        if matches!(
+            reading,
+            Reading::GenericEntry | Reading::Alternative(_) | Reading::Applied(_)
+        ) || (self.rigid && matches!(reading, Reading::Implementation))
         {
             let (machine, _) = self.declaration(id, symbol)?;
             let mut binders = self
@@ -616,13 +641,26 @@ impl<'t> Program<'t> {
             let (machine, _) = self.declaration(id, symbol)?;
             let parameters = self.typed.machine_type_parameters(machine);
             if !parameters.is_empty()
-                && parameters
-                    .iter()
-                    .all(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+                && parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Type
+                            | typed_trees::data::TypeParameterKind::Const { .. }
+                    )
+                })
             {
-                if parameters.len() != scope.len()
+                if parameters
+                    .iter()
+                    .filter(|parameter| {
+                        parameter.kind == typed_trees::data::TypeParameterKind::Type
+                    })
+                    .count()
+                    != scope.len()
                     || !parameters
                         .iter()
+                        .filter(|parameter| {
+                            parameter.kind == typed_trees::data::TypeParameterKind::Type
+                        })
                         .zip(&scope)
                         .all(|(parameter, (binder, _))| parameter.symbol == *binder)
                 {
@@ -637,6 +675,7 @@ impl<'t> Program<'t> {
             }
         }
         self.scopes.push(scope);
+        self.source_scopes.push(source_scope);
         self.const_scopes.push(widths);
         Ok(())
     }
@@ -649,6 +688,7 @@ impl<'t> Program<'t> {
         caller: MachineId,
         symbol: SymbolHandle,
         arguments: Vec<ValueType>,
+        references: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     ) -> Checked<MachineId> {
         if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
             self.symbols.get(*id) == Some(&symbol) && self.same_type_arguments(applied, &arguments)
@@ -688,56 +728,48 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
+        let scope = if let Some(references) = references {
+            let (machine, _) = self.declaration(caller, symbol)?;
+            let parameters = self.typed.machine_type_parameters(machine);
+            let parameters = parameters
+                .iter()
+                .filter(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+                .collect::<Vec<_>>();
+            if parameters.len() != references.len() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application lost its source argument tuple"),
+                ));
+            }
+            self.extended_source_scope(
+                parameters
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .zip(references)
+                    .collect(),
+            )
+        } else {
+            self.source_scope.clone()
+        };
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let read = self.read_machine(id, symbol, Reading::Applied(arguments.clone()));
+        self.source_scope = outer;
+        read?;
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
         self.fixed_inputs.push(id);
-        self.applications.push(id);
-        Ok(id)
-    }
-
-    pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
-        if let Some(id) = self
-            .applications
-            .iter()
-            .copied()
-            .find(|id| self.symbols.get(*id) == Some(&symbol))
-        {
-            return Ok(id);
-        }
-        // Inherited binder occurrences belong to this same generic body graph.
-        // Independently declared generic callees retain their dependency/SCC edge.
-        let root = self
-            .symbols
-            .get(MachineId::new(1).expect("one is nonzero"))
-            .and_then(|symbol| self.typed.machine_by_symbol(*symbol));
-        let local =
+        let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
-                .machine_by_symbol(symbol)
-                .zip(root)
-                .is_some_and(|(machine, root)| {
-                    let parameters = self.typed.machine_type_parameters(machine);
-                    !parameters.is_empty()
-                        && parameters.iter().all(|parameter| {
-                            self.typed.symbols.get(parameter.symbol).parent != machine.symbol
-                                && self
-                                    .typed
-                                    .machine_type_parameters(root)
-                                    .iter()
-                                    .any(|original| original == parameter)
-                        })
-                });
-        if local && let Some((id, _)) = self.symbols.iter().find(|(_, known)| **known == symbol) {
-            return Ok(id);
-        }
-        let id = self.next_identity()?;
-        self.read_machine(id, symbol, Reading::GenericEntry)?;
-        // Const inputs are ordinary rigid scalar formals, so this form can
-        // read the actual generic body and infer its complete effects. A
-        // bodyless placeholder cannot infer an omitted service ceiling.
-        // Retain the application for its independent template check too.
-        if !local {
+                .machine_type_parameters(machine)
+                .iter()
+                .all(|parameter| {
+                    self.typed.symbols.get(parameter.symbol).parent != symbol
+                        && self.generic_binders.contains(&parameter.symbol)
+                })
+        });
+        if !inherited {
             self.applications.push(id);
         }
         Ok(id)
@@ -888,6 +920,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         Ok(id)
     }
@@ -922,7 +955,7 @@ impl<'t> Program<'t> {
     /// contract is judged for every admitted application (generics.md,
     /// "Publication and assumptions").
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
-        self.requirement_form(declared, RequirementValues::Rigid)
+        self.requirement_form(declared.symbol, declared, RequirementValues::Rigid)
     }
 
     pub(super) fn requirement(
@@ -930,15 +963,30 @@ impl<'t> Program<'t> {
         declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
-        self.requirement_form(declared, RequirementValues::Bound(arguments))
+        self.requirement_form(
+            declared.symbol,
+            declared,
+            RequirementValues::Bound(arguments),
+        )
+    }
+
+    /// Two callback parameters may promise the same requirement. Keep each
+    /// parameter as the identity of its call in the generic body.
+    pub(super) fn binder_requirement(
+        &mut self,
+        parameter: SymbolHandle,
+        declared: &StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
+        self.requirement_form(parameter, declared, RequirementValues::Bound(arguments))
     }
 
     fn requirement_form(
         &mut self,
+        symbol: SymbolHandle,
         declared: &StateSignature,
         values: RequirementValues<'_>,
     ) -> Checked<MachineId> {
-        let symbol = declared.symbol;
         let (arguments, parameters) = match values {
             RequirementValues::Bound(arguments) => (arguments, 0),
             RequirementValues::Rigid => (
@@ -952,6 +1000,8 @@ impl<'t> Program<'t> {
             if self.symbols.get(id) == Some(&symbol)
                 && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
                 && self.value_parameters.get(id) == Some(&parameters)
+                && self.scopes.get(id) == Some(&self.scope)
+                && self.source_scopes.get(id) == Some(&self.source_scope)
             {
                 return Ok(id);
             }
@@ -967,13 +1017,16 @@ impl<'t> Program<'t> {
                     .map(|parameter| parameter.symbol),
             );
         }
-        self.admitted_declarations.include(symbol);
+        // The binder identifies this abstract call target. Its published
+        // checks and declaration selections belong to the requirement.
+        self.admitted_declarations.include(declared.symbol);
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
         self.value_parameters.push(parameters);
         self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
+        self.scopes.push(self.scope.clone());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
@@ -1306,7 +1359,9 @@ impl<'t> Program<'t> {
                         typed_trees::data::TypeParameterKind::Implementation
                         | typed_trees::data::TypeParameterKind::Const { .. }
                         | typed_trees::data::TypeParameterKind::Machine {
-                            contract: typed_trees::data::MachineParameterContract::Structural(_),
+                            contract:
+                                typed_trees::data::MachineParameterContract::Structural(_)
+                                | typed_trees::data::MachineParameterContract::Nominal { .. },
                         } => {}
                         typed_trees::data::TypeParameterKind::Type => {}
                         _ => {
@@ -1319,7 +1374,32 @@ impl<'t> Program<'t> {
             }
             // Applied at one type argument per parameter, all type
             // parameters; so is one alternative of a finite family.
-            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
+            Reading::Applied(arguments) => {
+                if parameters
+                    .iter()
+                    .filter(|parameter| {
+                        parameter.kind == typed_trees::data::TypeParameterKind::Type
+                    })
+                    .count()
+                    != arguments.len() || parameters.iter().any(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Type
+                            | typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Machine {
+                                contract: typed_trees::data::MachineParameterContract::Structural(
+                                    _
+                                )
+                                    | typed_trees::data::MachineParameterContract::Nominal { .. }
+                            }
+                    )
+                }) {
+                    return unserved_parameters(
+                        "application differs from its complete type and const binder roster",
+                    );
+                }
+            }
+            Reading::Alternative(arguments) => {
                 if parameters.len() != arguments.len()
                     || parameters.iter().any(|parameter| {
                         parameter.kind != typed_trees::data::TypeParameterKind::Type
@@ -1462,6 +1542,14 @@ impl<'t> Program<'t> {
         }
         let (prepared, inputs) = self.const_inputs(id, formals, state.return_type, &binders)?;
         self.const_scope = inputs;
+        // These exact constants already have checking inputs. Retaining their
+        // source binders lets nominal record headers keep symbolic extents;
+        // it does not choose a size or grant executable layout.
+        let mut source = (*self.source_scope).clone();
+        source
+            .rigid_parameters
+            .extend(self.const_scope.iter().map(|binding| binding.symbol));
+        self.source_scope = std::sync::Arc::new(source);
         Ok(prepared)
     }
 
@@ -1652,10 +1740,22 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_type_parameters(machine)
                 .iter()
+                .filter(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
                 .map(|parameter| parameter.symbol)
                 .zip(arguments.iter().copied())
                 .collect(),
         };
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
+            let mut source = (*self.source_scope).clone();
+            source
+                .rigid_parameters
+                .extend(self.scope.iter().filter_map(|(binder, value)| {
+                    self.logical_parameter(*value).is_some().then_some(*binder)
+                }));
+            self.source_scope = std::sync::Arc::new(source);
+        }
         if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {
             return Err(refuse(
                 id,
@@ -1694,7 +1794,7 @@ impl<'t> Program<'t> {
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
         // must reproduce this exact allocation.
-        let prepared = if matches!(reading, Reading::GenericEntry)
+        let prepared = if matches!(reading, Reading::GenericEntry | Reading::Applied(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
             Some(self.prepare_const_scope(id, machine, state)?)
@@ -1793,6 +1893,7 @@ impl<'t> Program<'t> {
             // reach additionally needs the selected installation below.
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
+            signature.membership_ensures = routed.membership_ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
             // An abstract requirement bounds the selected installation's
@@ -2077,6 +2178,9 @@ impl<'t> Program<'t> {
                 .collect();
         }
         if ensures {
+            signature
+                .membership_ensures
+                .extend(inherited.membership_ensures);
             for (position, clause) in inherited.ensures.into_iter().enumerate() {
                 if !signature.ensures.contains(&clause) {
                     signature.ensures.push(clause);
@@ -3644,6 +3748,7 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.source_scope = self.source_scopes.get(id).cloned().unwrap_or_default();
         self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();
         self.lifetime_owner = symbol;
         let formals = span(
@@ -3895,19 +4000,12 @@ impl<'t> Program<'t> {
                     // unread; a true one is taken unconditionally.
                     let decided = match transition.guard {
                         typed_trees::statement::TransitionGuardNode::When(guard) => {
-                            match self.read_static_truth(
-                                id,
-                                symbol,
-                                guard,
-                                super::types::Reading::Value,
-                            )? {
-                                Some(super::types::TypeTruth::Known(truth)) => Some(truth),
-                                _ => None,
-                            }
+                            self.static_truth(guard)
                         }
                         typed_trees::statement::TransitionGuardNode::Always => None,
                     };
                     if decided == Some(false) {
+                        self.transition_predicate(id, &slots, transition)?;
                         position += 1;
                         continue;
                     }

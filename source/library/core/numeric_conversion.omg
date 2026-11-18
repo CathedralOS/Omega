@@ -324,15 +324,21 @@ crashes Trap
     machine invalid() -> i8 { crash Trap; }
 }
 
-public machine widen_i8_to_i16(value: i8) -> i16 {
+public machine widen_i8_to_i16(value: i8) -> i16
+ensures result >= -128 && result <= 127
+{
     value as i16
 }
 
-public machine widen_i8_to_i32(value: i8) -> i32 {
+public machine widen_i8_to_i32(value: i8) -> i32
+ensures result >= -128 && result <= 127
+{
     value as i32
 }
 
-public machine widen_i8_to_i64(value: i8) -> i64 {
+public machine widen_i8_to_i64(value: i8) -> i64
+ensures result >= -128 && result <= 127
+{
     value as i64
 }
 
@@ -408,11 +414,15 @@ crashes Trap
     machine invalid() -> i16 { crash Trap; }
 }
 
-public machine widen_i16_to_i32(value: i16) -> i32 {
+public machine widen_i16_to_i32(value: i16) -> i32
+ensures result >= -32768 && result <= 32767
+{
     value as i32
 }
 
-public machine widen_i16_to_i64(value: i16) -> i64 {
+public machine widen_i16_to_i64(value: i16) -> i64
+ensures result >= -32768 && result <= 32767
+{
     value as i64
 }
 
@@ -523,7 +533,9 @@ crashes Trap
     machine invalid() -> i32 { crash Trap; }
 }
 
-public machine widen_i32_to_i64(value: i32) -> i64 {
+public machine widen_i32_to_i64(value: i32) -> i64
+ensures result >= -2147483648 && result <= 2147483647
+{
     value as i64
 }
 

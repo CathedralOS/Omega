@@ -255,6 +255,7 @@ mod tests {
                 }],
                 has_result: true,
                 result_type_identity: scalar,
+                normal_result_memberships: Vec::new(),
                 result_claims: vec![ServiceResultClaim {
                     domain: "ResultDomain".into(),
                     effective_carry: CarryPolicy::STRICT,

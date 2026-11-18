@@ -1118,27 +1118,68 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if self
-                    .data_type(id, record)?
-                    .shape
-                    .length_operation()
-                    .is_none()
-                {
-                    return unserved("extent without its descriptor operation");
-                }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
                     semantic_vocabulary::IntegerSign::Unsigned,
                     64,
                 )
                 .expect("u64 is valid");
-                Ok((
-                    ScalarTerm::ViewExtent {
-                        root,
-                        path,
-                        scalar_type,
-                    },
-                    ValueType::plain(ScalarType::Integer(scalar_type)),
-                ))
+                let shape = &self.data_type(id, record)?.shape;
+                let length =
+                    if let Some(length) = shape.fixed_array_extent() {
+                        // Taking a type's constant length must not erase the
+                        // obligation to establish a payload before selecting it.
+                        if path.iter().any(|segment| {
+                            matches!(segment, CanonicalStructuralPathSegment::Case(_))
+                        }) {
+                            return unserved(
+                                "fixed array length through an unestablished case payload",
+                            );
+                        }
+                        match length {
+                            terminal_psi::ArrayExtent::Literal(length) => ScalarTerm::Integer {
+                                scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                            },
+                            terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                                let binding = self.extent_input(id, owner, value)?;
+                                let ScalarType::Integer(input_type) = binding.scalar_type else {
+                                    return unserved("fixed-array length input is not an integer");
+                                };
+                                let term = ScalarTerm::Value {
+                                    id: value,
+                                    scalar_type: binding.scalar_type,
+                                };
+                                if input_type == scalar_type {
+                                    term
+                                } else {
+                                    ScalarTerm::integer_widen(input_type, scalar_type, term)
+                                        .map_err(|_| {
+                                            refuse(
+                                                id,
+                                                Construct::Machine,
+                                                Unserved::Contract(
+                                                    "fixed-array length has no count conversion",
+                                                ),
+                                            )
+                                        })?
+                                }
+                            }
+                            terminal_psi::ArrayExtent::Application(_) => {
+                                return unserved(
+                                    "fixed-array length with an unresolved scalar application",
+                                );
+                            }
+                        }
+                    } else if shape.length_operation().is_some() {
+                        ScalarTerm::ViewExtent {
+                            root,
+                            path,
+                            scalar_type,
+                        }
+                    } else {
+                        return unserved("extent without its descriptor operation");
+                    };
+                Ok((length, ValueType::plain(ScalarType::Integer(scalar_type))))
             }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
@@ -1431,7 +1472,12 @@ impl Program<'_> {
         if entry.kind == CastEntryKind::Remove
             && let Some(domain) = domain
         {
-            self.domain_removal(id, domain, before)?;
+            self.domain_removal(
+                id,
+                domain,
+                before,
+                SourceOrigin::of(self.typed.expression_table.source_span(cast.value)),
+            )?;
         }
         // Only qualification changed. Keeping the original term also keeps
         // its immutable value identity and every fact already proved of it.
@@ -1633,28 +1679,8 @@ impl Program<'_> {
                 super::mathematics::integer_embedding(id, term, value_type)
             }
             ExpressionNode::Call(_) => unserved("call in a mathematical term"),
-            ExpressionNode::Integer(literal) if literal.landing().is_none() => {
-                let magnitude = if literal.is_negative() {
-                    literal.value_i64().map(i64::unsigned_abs)
-                } else {
-                    literal.value_u64()
-                };
-                // A mathematical integer has no carrier, so a literal past
-                // 64 bits is as much a literal as a small one: `addr::Bound`
-                // of a 64-bit address is 18446744073709551616.
-                let literal = magnitude
-                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude))
-                    .or_else(|| {
-                        let wide = literal.decimal_value_i128()?;
-                        IntegerMathLiteral::new(wide < 0, wide.unsigned_abs()).ok()
-                    });
-                match literal {
-                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
-                    None => unserved("mathematical literal beyond 127 bits"),
-                }
-            }
-            ExpressionNode::Integer(_) => {
-                unserved("typed literal in a mathematical term without embed")
+            ExpressionNode::Integer(literal) => {
+                super::mathematics::mathematical_integer_literal(id, literal)
             }
             // numeric_values.md: wholly anonymous arithmetic is exact, and
             // contracts.md: "An anonymous integral final value can land in
@@ -1916,6 +1942,23 @@ impl Program<'_> {
                         "array index in a clause that is not a closed integer",
                     ));
                 };
+                // A closed index can still be arithmetic: `Count - 1` closed at
+                // `Count = 22` is `22 - 1`. Read it as the `u64` clause term it
+                // is, so each operator in it is completed with its actual operand
+                // types; the path keeps the folded position.
+                if matches!(
+                    self.typed.expression_table.expression(indexed.index),
+                    ExpressionNode::Binary(_)
+                ) {
+                    let count = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is a carrier"),
+                    );
+                    self.term(id, scope, indexed.index, Some(count))?;
+                }
                 let source =
                     SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
                 let Some(position) = selected.to_u64().filter(|position| *position < length) else {

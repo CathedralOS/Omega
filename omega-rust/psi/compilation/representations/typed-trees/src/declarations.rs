@@ -1150,6 +1150,17 @@ pub mod domain {
                 && self.facts.is_empty()
         }
 
+        /// Forgetting qualification must not hide access rules. An unjudged
+        /// policy cannot establish that no such rules remain.
+        pub fn requires_access_retention(&self) -> bool {
+            self.access_policy
+                .as_ref()
+                .is_some_and(|policy| match &policy.plan {
+                    AccessPlanJudgment::Checked(plan) => plan.normalized.has_operation_rules(),
+                    AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => true,
+                })
+        }
+
         /// Whether source lowering still lacks the complete selected plan.
         /// A checked plan permits forming operations; its retained rules are
         /// enforced by the canonical operation judgment before execution.
@@ -1663,13 +1674,14 @@ pub mod domain {
     /// those rows and never persisted as another application authority.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct AppliedDomainApplications {
-        rows: Vec<AppliedDomainApplication>,
-        by_application:
+        rows: arena::RetainedRows<AppliedDomainApplication>,
+        by_application: std::sync::Arc<
             std::collections::HashMap<(SymbolHandle, language_semantics::SemanticDomainId), usize>,
+        >,
     }
 
     impl AppliedDomainApplications {
-        pub fn iter(&self) -> std::slice::Iter<'_, AppliedDomainApplication> {
+        pub fn iter(&self) -> arena::RetainedRowsIter<'_, AppliedDomainApplication> {
             self.rows.iter()
         }
 
@@ -1693,11 +1705,10 @@ pub mod domain {
 
         pub(crate) fn insert(&mut self, application: AppliedDomainApplication) -> bool {
             let key = (application.declaration, application.identity);
-            let std::collections::hash_map::Entry::Vacant(entry) = self.by_application.entry(key)
-            else {
+            if self.by_application.contains_key(&key) {
                 return false;
-            };
-            entry.insert(self.rows.len());
+            }
+            std::sync::Arc::make_mut(&mut self.by_application).insert(key, self.rows.len());
             self.rows.push(application);
             true
         }
@@ -1722,7 +1733,7 @@ pub mod domain {
         fn read<Context>(
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
-            let rows = Vec::<AppliedDomainApplication>::read(input)?;
+            let rows = arena::RetainedRows::<AppliedDomainApplication>::read(input)?;
             let allocation = rows
                 .len()
                 .checked_mul(std::mem::size_of::<(
@@ -1730,21 +1741,31 @@ pub mod domain {
                     usize,
                 )>())
                 .ok_or_else(|| input.error("domain application index allocation overflow"))?;
-            input.allocate(allocation)?;
-            let mut result = Self {
-                by_application: std::collections::HashMap::with_capacity(rows.len()),
-                rows,
-            };
-            for (position, row) in result.rows.iter().enumerate() {
-                if result
-                    .by_application
+            let owner = compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                std::collections::HashMap<
+                    (SymbolHandle, language_semantics::SemanticDomainId),
+                    usize,
+                >,
+            >())
+            .ok_or_else(|| input.error("domain application index owner allocation overflow"))?;
+            input.allocate(
+                allocation
+                    .checked_add(owner)
+                    .ok_or_else(|| input.error("domain application index allocation overflow"))?,
+            )?;
+            let mut by_application = std::collections::HashMap::with_capacity(rows.len());
+            for (position, row) in rows.iter().enumerate() {
+                if by_application
                     .insert((row.declaration, row.identity), position)
                     .is_some()
                 {
                     return Err(input.error("duplicate exact domain application"));
                 }
             }
-            Ok(result)
+            Ok(Self {
+                rows,
+                by_application: std::sync::Arc::new(by_application),
+            })
         }
     }
 
@@ -1796,40 +1817,86 @@ pub mod domain {
     struct StaticArgumentClosure<'a> {
         program: &'a TypedTrees,
         substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &'a [usize],
+        rigid_parameters: &'a [symbols::SymbolHandle],
         types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
         expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
         open: bool,
     }
     impl Extend<symbols::SymbolHandle> for StaticArgumentClosure<'_> {
         fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
-            self.open |= symbols
-                .into_iter()
-                .filter(|symbol| symbol.is_valid())
-                .any(|symbol| {
-                    if let Some((_, actual)) = self
-                        .substitutions
+            for symbol in symbols {
+                if !symbol.is_valid() {
+                    continue;
+                }
+                if !self.program.symbols.symbols().nodes().is_valid(symbol) {
+                    self.open = true;
+                    continue;
+                }
+                let matches = |(_, (formal, _)): &(
+                    usize,
+                    &(symbols::SymbolHandle, crate::types::TypeReferenceHandle),
+                )| *formal == symbol;
+                // The original unscoped query substitutes one simultaneous
+                // tuple. An applied scope reads an actual before its own
+                // tuple, retaining the caller's preceding arguments.
+                let binding = if self.scope_starts.is_empty() {
+                    self.substitutions.iter().enumerate().find(matches)
+                } else {
+                    self.substitutions.iter().enumerate().rev().find(matches)
+                };
+                if let Some((position, (_, actual))) = binding {
+                    let (substitutions, starts) = match self
+                        .scope_starts
                         .iter()
-                        .find(|(formal, _)| *formal == symbol)
+                        .rposition(|start| *start <= position)
                     {
-                        return !index_argument_is_closed(self.program, *actual);
-                    }
-                    matches!(
-                        self.program.symbols.get(symbol).kind,
-                        symbols::SymbolKind::TypeParameter
-                            | symbols::SymbolKind::MachineParameter
-                            | symbols::SymbolKind::ConformanceParameter
-                            | symbols::SymbolKind::PropositionParameter
-                            | symbols::SymbolKind::Parameter
-                            | symbols::SymbolKind::Local
-                    )
-                });
+                        Some(frame) => (
+                            &self.substitutions[..self.scope_starts[frame]],
+                            &self.scope_starts[..frame],
+                        ),
+                        None => (&[][..], &[][..]),
+                    };
+                    self.open |= !index_argument_is_in_scope(
+                        self.program,
+                        *actual,
+                        substitutions,
+                        starts,
+                        self.rigid_parameters,
+                    );
+                } else if matches!(
+                    self.program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::Local
+                ) {
+                    self.open |= !self.rigid_parameters.contains(&symbol)
+                        || self.program.symbols.get(symbol).kind
+                            != symbols::SymbolKind::TypeParameter;
+                }
+            }
         }
     }
     impl crate::references::TypedReferences for StaticArgumentClosure<'_> {
         fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            if !self.program.contains_type_reference(reference) {
+                self.open = true;
+                return false;
+            }
             self.types.insert(reference)
         }
         fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+            {
+                self.open = true;
+                return false;
+            }
             self.expressions.insert(expression)
         }
     }
@@ -1843,6 +1910,8 @@ pub mod domain {
         let mut closure = StaticArgumentClosure {
             program,
             substitutions: &[],
+            scope_starts: &[],
+            rigid_parameters: &[],
             types: Default::default(),
             expressions: Default::default(),
             open: false,
@@ -1856,9 +1925,32 @@ pub mod domain {
         reference: crate::types::TypeReferenceHandle,
         substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
     ) -> bool {
+        index_argument_is_in_scope(program, reference, substitutions, &[], &[])
+    }
+
+    /// Check every free input against the supplied generic scope. This is
+    /// availability of a type argument, not layout or access authority.
+    pub fn index_argument_is_in_scope(
+        program: &TypedTrees,
+        reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &[usize],
+        rigid_parameters: &[symbols::SymbolHandle],
+    ) -> bool {
+        if !program.contains_type_reference(reference)
+            || scope_starts.first().is_some_and(|start| *start != 0)
+            || scope_starts
+                .last()
+                .is_some_and(|start| *start > substitutions.len())
+            || scope_starts.windows(2).any(|pair| pair[0] > pair[1])
+        {
+            return false;
+        }
         let mut closure = StaticArgumentClosure {
             program,
             substitutions,
+            scope_starts,
+            rigid_parameters,
             types: Default::default(),
             expressions: Default::default(),
             open: false,
@@ -1933,9 +2025,7 @@ pub mod intrinsic_requirements {
             if let Some(requirement) = typed.machine(operator.symbol) {
                 return Self::from_requirement(typed, requirement);
             }
-            let [namespace, name] = typed.operator_path_members(operator.name) else {
-                return None;
-            };
+            let [namespace, name] = typed.operator_path_members(operator.name).as_array()?;
             let requirement_identity =
                 crate::operator::boundary_operator_requirement_identity(typed, operator);
             if requirement_identity.is_empty() {
@@ -2107,7 +2197,7 @@ pub mod invocations {
     // projection instead of publishing a narrower contract than was authored.
     fn declared_targets(
         program: &TypedTrees,
-        declarations: &[AuthoredInvocation],
+        declarations: arena::RootRows<'_, AuthoredInvocation>,
         parameters: &[&StateParameter],
     ) -> Result<Vec<InvocationTarget>, String> {
         let mut targets = Vec::new();
@@ -2474,9 +2564,7 @@ pub mod numeric_intrinsics {
                 );
             }
             let operator = operator?;
-            let [namespace, name] = self.operator_path_members(operator.name) else {
-                return None;
-            };
+            let [namespace, name] = self.operator_path_members(operator.name).as_array()?;
             self.numeric_requirement_execution(
                 namespace.as_str(),
                 name.as_str(),

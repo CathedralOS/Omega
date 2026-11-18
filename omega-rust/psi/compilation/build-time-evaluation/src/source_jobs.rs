@@ -80,6 +80,7 @@ pub enum BuildMachineExecutionMode {
 /// The input source is retained as metadata, never as a checked-program witness.
 pub struct PreparedBuildMachineProgram {
     source: Arc<TypedTrees>,
+    publication: terminal_codec::TerminalPublication,
     exact_toolchain_sources: Box<[(source::SourceId, [u8; 32])]>,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source::DependencyScope,
@@ -88,6 +89,7 @@ pub struct PreparedBuildMachineProgram {
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
     source: Arc<TypedTrees>,
+    records_private_layout: bool,
     symbol: SymbolHandle,
     requester: SymbolHandle,
     call: typed_trees::expression::TableCallExpression,
@@ -149,6 +151,7 @@ impl PreparedBuildMachineEntry {
         let produced = self.produce_invocation()?;
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         self.execute_invocation(&produced, &admitted, requirements, target, meter)
+            .map(crate::BuildTimeOperationEvaluation::into_value)
     }
 
     /// Record the value and actual work/storage charges without treating local
@@ -217,6 +220,21 @@ impl PreparedBuildMachineEntry {
         target: crate::InvocationTarget<'_>,
         accounting: &mut crate::SourceCompletionAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
+        let (output, usage) = self
+            .invoke_operations_recorded(produced, target, accounting)?
+            .into_parts();
+        Ok(crate::MeasuredEvaluation::new(output.into_value(), usage))
+    }
+
+    fn invoke_operations_recorded(
+        &self,
+        produced: Arc<terminal_production::ProducedTerminalProgram>,
+        target: crate::InvocationTarget<'_>,
+        accounting: &mut crate::SourceCompletionAccounting,
+    ) -> Result<
+        crate::MeasuredEvaluation<crate::BuildTimeOperationEvaluation<crate::BuildTimeValue>>,
+        String,
+    > {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
         let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
@@ -231,7 +249,7 @@ impl PreparedBuildMachineEntry {
             });
         let outcome = match &result {
             Ok(value) => crate::PureTerminalEvaluationOutcome::Materialized {
-                value: value.value().clone(),
+                value: value.value().value().clone(),
                 usage: value.usage(),
             },
             Err(reason) => crate::PureTerminalEvaluationOutcome::Failed {
@@ -407,7 +425,7 @@ impl PreparedBuildMachineEntry {
         requirements: terminal_interpreter::TerminalExecutionRequirements,
         target: crate::InvocationTarget<'_>,
         meter: &mut terminal_work::WorkMeter,
-    ) -> Result<crate::BuildTimeValue, String> {
+    ) -> Result<crate::BuildTimeOperationEvaluation<crate::BuildTimeValue>, String> {
         use terminal_interpreter::{
             TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
             TerminalProgram,
@@ -523,23 +541,38 @@ impl PreparedBuildMachineEntry {
             .structural()
             .map(|result| result.structural_type);
         let account = meter.invocation_account().cloned();
-        let mut instance = program
-            .instantiate(TerminalInstantiation {
-                account: account.as_ref(),
-                installation: Some(&installation),
-                scalar_admission: scalars.as_ref(),
-                structural_inputs: terminal_interpreter::TerminalStructuralInputs {
-                    arguments: &inputs,
-                    contents: &contents,
-                    ..Default::default()
-                },
+        let request = TerminalInstantiation {
+            account: account.as_ref(),
+            installation: Some(&installation),
+            scalar_admission: scalars.as_ref(),
+            structural_inputs: terminal_interpreter::TerminalStructuralInputs {
+                arguments: &inputs,
+                contents: &contents,
                 ..Default::default()
-            })
-            .map_err(|error| format!("source invocation preparation: {error:?}"))?;
+            },
+            ..Default::default()
+        };
+        let sites = if self.records_private_layout {
+            fixed_layouts::placements::executed_sites(self.accepted(), view.module())?
+        } else {
+            Vec::new()
+        };
+        let mut instance = if sites.is_empty() {
+            program.instantiate(request)
+        } else {
+            program.instantiate_compiler_evaluation(request, admitted)
+        }
+        .map_err(|error| format!("source invocation preparation: {error:?}"))?;
+        if !sites.is_empty() {
+            let selectors = sites.iter().map(|row| row.call).collect::<Vec<_>>();
+            instance
+                .observe_calls(admitted, &selectors)
+                .map_err(|error| format!("layout placement observation: {error:?}"))?;
+        }
         let status = instance
             .invoke(meter)
             .map_err(|error| format!("source invocation execution: {error:?}"))?;
-        match status {
+        let value = match status {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                 Ok(crate::BuildTimeValue::Unit)
             }
@@ -558,7 +591,10 @@ impl PreparedBuildMachineEntry {
             other => Err(format!(
                 "source invocation did not complete normally: {other:?}"
             )),
-        }
+        }?;
+        let captured = instance.take_call_observations();
+        let placements = fixed_layouts::placements::decode(instance.program(), &sites, captured)?;
+        Ok(crate::BuildTimeOperationEvaluation::new(value, placements))
     }
 }
 fn invocation_error(reason: impl Into<String>) -> Vec<Diagnostic> {
@@ -589,6 +625,7 @@ impl PreparedBuildMachineProgram {
                 .into_boxed_slice();
         Ok(Self {
             source: Arc::new(typed.clone()),
+            publication: terminal_codec::TerminalPublication::Invocation,
             exact_toolchain_sources,
             authority,
             purpose,
@@ -656,7 +693,7 @@ impl PreparedBuildMachineProgram {
                 providers: None,
                 supplies,
             },
-            terminal_codec::TerminalPublication::Invocation,
+            self.publication,
         )?;
         let entry = accepted
             .entry()
@@ -789,6 +826,8 @@ impl PreparedBuildMachineProgram {
         };
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
+            records_private_layout: self.publication
+                == terminal_codec::TerminalPublication::LayoutPolicyInvocation,
             symbol: physical,
             requester,
             call: actual_call,
@@ -1766,7 +1805,7 @@ pub(crate) mod tests {
             panic!("the authored plan member");
         };
         assert_eq!(plan.policy_plan_machine_symbol, member.realization_machine);
-        let [layout] = plan.target_layouts(&source) else {
+        let Some([layout]) = plan.target_layouts(&source).as_array() else {
             panic!("one plan for the selected target");
         };
         assert_eq!(layout.machine, member.realization_machine);

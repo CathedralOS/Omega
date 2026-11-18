@@ -369,3 +369,26 @@ fn nested_expressions_parse_on_a_small_thread_stack() {
         );
     }
 }
+
+#[test]
+fn a_numeric_prefix_finishes_before_a_following_cast() {
+    let (outside, expression) = parse_expression("-1u8 as i32");
+    let ExpressionNode::Cast(cast) = outside.expressions.expression(expression) else {
+        panic!("the cast follows unsigned negation; typing must reject that negation");
+    };
+    let ExpressionNode::Integer(negative) = outside.expressions.expression(cast.value) else {
+        panic!("the prefix belongs to the original integer carrier");
+    };
+    let (grouped, expression) = parse_expression("-(1u8 as i32)");
+    let ExpressionNode::Binary(subtract) = grouped.expressions.expression(expression) else {
+        panic!("parentheses make the wider cast the operand of negation");
+    };
+    assert_eq!(subtract.operator, BinaryOperator::Subtract);
+    let ExpressionNode::Cast(cast) = grouped.expressions.expression(subtract.right) else {
+        panic!("the grouped operand retains its cast");
+    };
+    let ExpressionNode::Integer(positive) = grouped.expressions.expression(cast.value) else {
+        panic!("the grouped cast retains its positive unsigned input");
+    };
+    assert_eq!(*negative, positive.negated());
+}

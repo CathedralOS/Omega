@@ -12,6 +12,9 @@ use language_semantics::declaration_selection::{
 #[path = "product/authored_requests.rs"]
 mod authored_requests;
 
+#[path = "product/opaque_representations.rs"]
+pub mod opaque_representations;
+
 #[path = "product/root_grants.rs"]
 mod root_grants;
 

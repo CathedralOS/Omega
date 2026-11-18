@@ -15,7 +15,7 @@ node. Whether an addition is allowed (predicates, issuance) and what a removal
 must retain are judged where the declaration is checked, not here.
 
 A run typing cannot account for yet (its operand's declared type is not one of
-the forms `declared_type` reads, or the cast applies through a reference) is
+the forms `declared_type` reads) is
 recorded on the declaration that holds it (`typed_trees::deferred_refusals`)
 and its entries stay without a result type. Bundled libraries are typed with
 every program, so such a run must not stop a program that never reaches it.
@@ -759,25 +759,19 @@ fn account_run(
     // domains.md, "Mutable views": "A cast applies to a reference by
     // accounting for the domains displayed on its referent, with the same
     // syntax ... The cast preserves the referent, lifetime and access mode".
-    // Through a shared reference "any removal a by-value cast permits is
-    // accepted and nothing is owed", so the accounting is the referent's and
-    // each type an entry carries is that reference again. A mutable or
-    // write-only view may owe a removed domain back, which this does not
-    // account for yet.
+    // Account for the referent's domains while retaining the complete loan.
+    // Lowering and checking still owe every removed domain at handback.
     let view = match program.type_reference_table.type_reference(operand_type) {
         TypeReferenceNode::Reference {
             referee,
-            access: language_core::ReferenceAccess::Shared,
+            access,
             lifetime,
-        } => Some((*referee, lifetime.clone())),
-        TypeReferenceNode::Reference { .. } => {
-            return Err(Unaccounted::Deferred(
-                DeferredRequest::DomainCastThroughReference,
-            ));
-        }
+        } => Some((*referee, *access, lifetime.clone())),
         _ => None,
     };
-    let accounted = view.as_ref().map_or(operand_type, |(referee, _)| *referee);
+    let accounted = view
+        .as_ref()
+        .map_or(operand_type, |(referee, _, _)| *referee);
     let (carrier, constraints) = flatten(program, accounted);
     let operand_display = program.display_type_reference_with_constraints(operand_type);
     let members = carried(program, &constraints)?;
@@ -927,15 +921,20 @@ fn account_run(
         let after = spell(source, program, carrier, &running)?;
         // A view's entry carries the same reference to each referent type.
         let (before, after) = match &view {
-            Some((_, lifetime)) => {
+            Some((_, access, lifetime)) => {
                 let mut lent = |referee| {
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Reference {
+                    // Changing the displayed domains does not move a named
+                    // lifetime into the caller's declaration.
+                    let occurrence = program.type_reference_table.fresh_occurrence(operand_type);
+                    program.type_reference_table.substitute_node(
+                        occurrence,
+                        TypeReferenceNode::Reference {
                             referee,
-                            access: language_core::ReferenceAccess::Shared,
+                            access: *access,
                             lifetime: lifetime.clone(),
-                        })
+                        },
+                    );
+                    occurrence
                 };
                 (lent(before), lent(after))
             }

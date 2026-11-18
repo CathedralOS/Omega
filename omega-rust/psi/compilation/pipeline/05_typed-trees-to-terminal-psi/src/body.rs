@@ -408,6 +408,15 @@ pub enum StorageShape {
 }
 
 impl StorageShape {
+    /// A fixed array's length belongs to its type, not to stored contents.
+    /// Symbolic extents retain their owning invocation and exact input.
+    pub(crate) fn fixed_array_extent(&self) -> Option<terminal_psi::ArrayExtent> {
+        match self {
+            Self::FixedArray { length, .. } => Some(*length),
+            _ => None,
+        }
+    }
+
     /// Select the checked metadata read from the descriptor's storage type.
     pub(crate) fn length_operation(
         &self,
@@ -507,6 +516,24 @@ impl OperationalCeilings {
             self.blocking.unwrap_or(contributes[1]),
         ]
     }
+}
+
+/// An authored membership promise, separate from the subject's declared type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeMembership {
+    pub subject: RuntimeMembershipSubject,
+    pub domain: DomainInstance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeMembershipSubject {
+    Scalar(semantic_vocabulary::ScalarTerm),
+    Structural {
+        root: semantic_vocabulary::PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        carrier: semantic_vocabulary::StructuralTypeId,
+    },
 }
 
 /// A machine's published signature as lowering and its callers need it.
@@ -1253,6 +1280,7 @@ pub enum ExpressionKind {
         callee: CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
+        static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

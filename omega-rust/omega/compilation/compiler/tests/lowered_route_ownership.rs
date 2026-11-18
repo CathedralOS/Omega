@@ -1083,6 +1083,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
                 arguments,
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 designated: None,
             },
             result,
@@ -1149,6 +1150,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         (vec![record], None),
     ] {
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters,
             erased: Vec::new(),
@@ -1344,6 +1346,7 @@ mod transferred_on_one_path {
                 arguments,
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 designated: None,
             },
             Some(result),
@@ -1466,6 +1469,7 @@ mod transferred_on_one_path {
             (Vec::new(), boolean()),
         ] {
             signatures.push(Signature {
+                membership_ensures: Vec::new(),
                 operational: Default::default(),
                 parameters,
                 erased: Vec::new(),

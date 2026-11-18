@@ -561,13 +561,47 @@ impl<'source> Questions<'source> {
                 "requirement call changes its source public signature",
             ));
         }
-        let (operand, supplier) = typed
+        let (mut operand, mut supplier) = typed
             .source_call_selected_operand(owner, call)
             .map_err(refused)?;
         let retained = selection
             .source_operand
             .as_ref()
             .ok_or_else(|| refused("requirement call lost its retained implementation operand"))?;
+        // A copied helper names the selected implementation, but its enclosing
+        // application supplied the record value. Rejoin that same argument
+        // before comparing the supplier retained during source checking.
+        let record = typed
+            .source_call_record_operand(
+                source.owner,
+                call,
+                &operand,
+                supplier,
+                self.exact_toolchain_sources
+                    .get_or_init(|| {
+                        source::source_identity::toolchain_source_identities(
+                            typed.symbols.source_files(),
+                        )
+                    })
+                    .as_deref()
+                    .map_err(refused)?,
+            )
+            .map_err(refused)?;
+        match (record, retained.static_record.as_ref()) {
+            (Some(record), Some(expected))
+                if record.parameter == expected.parameter
+                    && record.application == expected.application =>
+            {
+                operand = std::borrow::Cow::Owned(record.operand);
+                supplier = record.supplier;
+            }
+            (None, None) => {}
+            _ => {
+                return Err(refused(
+                    "requirement call changes its retained record parameter or schema",
+                ));
+            }
+        }
         let identity = typed
             .declared_static_operand_identity(
                 typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
@@ -2987,6 +3021,103 @@ machine entry() reaches Input {}
             &prepared.questions,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn copied_record_calls_keep_the_exact_operand_supplier_and_schema() {
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let text =
+            include_str!("../../../../../tests/fixtures/run/calls/record_callback_loop/main.omg")
+                .replace("machine main()", "machine entry()");
+        let source = accepted_source(&text, &[]);
+        let module = source.module();
+        let prepared = prepare(&source, module, None)
+            .expect("copied calls retain the enclosing record argument supplier");
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let (caller, operation, header, target) = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    let call = operation.declared_invocation()?;
+                    Some((
+                        machine.id,
+                        operation.id,
+                        call.required_contract?,
+                        call.callee,
+                    ))
+                })
+            })
+            .expect("the loop calls the selected operation through its public header");
+        let TargetMachineCallable::Machine(body) = target else {
+            panic!("the selected record operation has a checked machine body");
+        };
+        let origin = Questions::new(&source, module)
+            .unwrap()
+            .typed_origin(caller, InvocationSite::Operation(operation))
+            .unwrap();
+        let key = (origin.source_member, header, body);
+        let retained = source
+            .closure()
+            .elaboration
+            .selections
+            .iter()
+            .find(|selection| {
+                (
+                    selection.caller,
+                    selection.required_contract,
+                    selection.implementation,
+                ) == (key.0, Some(key.1), key.2)
+            })
+            .unwrap();
+        assert!(
+            retained
+                .source_operand
+                .as_ref()
+                .unwrap()
+                .static_record
+                .is_some()
+        );
+        for changed_field in 0..4 {
+            let mut changed = retained.clone();
+            let operand = changed.source_operand.as_mut().unwrap();
+            match changed_field {
+                0 => operand.supplier = origin.owner,
+                1 => operand.identity.push_str("changed operand"),
+                2 => operand.static_record.as_mut().unwrap().parameter = SymbolHandle::invalid(),
+                3 => operand
+                    .static_record
+                    .as_mut()
+                    .unwrap()
+                    .application
+                    .push_str("changed schema"),
+                _ => unreachable!(),
+            }
+            let mut questions = Questions::new(&source, module).unwrap();
+            questions.requirements.insert(key, &changed);
+            let error = questions
+                .retain_invocation(
+                    caller,
+                    InvocationSite::Operation(operation),
+                    SelectionCallTarget::Declared(target),
+                    Some(header),
+                )
+                .unwrap_err();
+            let expected = if changed_field < 2 {
+                "changes its retained implementation operand or supplier"
+            } else {
+                "changes its retained record parameter or schema"
+            };
+            assert!(
+                error.message.contains(expected),
+                "{changed_field}: {error:?}"
+            );
+        }
     }
 
     #[test]

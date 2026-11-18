@@ -183,7 +183,7 @@ impl MathematicalInputs {
     pub(super) fn new(
         typed: &TypedTrees,
         machine: MachineId,
-        parameters: &[typed_trees::mathematical::MathematicalParameter],
+        parameters: arena::RootRows<'_, typed_trees::mathematical::MathematicalParameter>,
         address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
@@ -1487,6 +1487,7 @@ pub(crate) fn projected_arrival(
                 // separate contract must be substituted into this proof call.
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 arguments,
                 designated: None,
             },

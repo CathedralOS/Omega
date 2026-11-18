@@ -583,6 +583,9 @@ terminates
 {
     block helper()
     machine helper() -> u32 {
+        transition true { true -> block sibling() false -> 0u32 }
+    }
+    machine sibling() -> u32 {
         block Selected::wait()
     }
 }
@@ -609,6 +612,55 @@ terminates
         terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty()));
     let requirement = form.module.machine(instance).unwrap();
     assert!(requirement.blocks.is_empty() && requirement.declaration.is_none());
+    assert!(
+        !form.module.declaration_contracts.is_empty(),
+        "the requirement follows independently allocated declaration contracts"
+    );
+    let header = form
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_ref())
+        .find(|header| header.machine == instance)
+        .unwrap();
+    assert_ne!(header.header.proof.id.get(), instance.get());
+    assert_eq!(header.header.proof.id, requirement.contract.id);
+    crate::static_contracts::requirement_declarations(&form).unwrap();
+
+    let mut forged = form.clone();
+    let header = forged
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_mut())
+        .find(|header| header.machine == instance)
+        .unwrap();
+    header.header.proof.id = semantic_vocabulary::ContractId::new(instance.get()).unwrap();
+    let refused = crate::static_contracts::requirement_declarations(&forged).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.detail,
+        "abstract requirement has a different source header coordinate"
+    );
+    let mut forged = form.clone();
+    let declaration = forged
+        .static_schemas
+        .iter_mut()
+        .flat_map(|schema| &mut schema.requirements)
+        .find(|declaration| {
+            declaration
+                .instance
+                .as_ref()
+                .is_some_and(|header| header.machine == instance)
+        })
+        .unwrap();
+    declaration.signature = None;
+    let refused = crate::static_contracts::requirement_declarations(&forged).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.detail,
+        "abstract requirement instance has no source signature"
+    );
     assert!(
         form.module.callables.machine_envelope(instance).is_none(),
         "the abstract contract does not acquire a runtime envelope"
@@ -729,4 +781,56 @@ machine helper() -> u32 { 7u32 }
         excess[0].outside,
         vec![crate::ceilings::Permission::MaySuspend]
     );
+}
+
+#[test]
+fn copied_loop_bodies_keep_the_original_callback_parameter() {
+    const SOURCE: &str = r#"
+data Counter { value: u64; }
+trait Operations { machine apply(counter: &mut Counter) reaches none; }
+machine entry<const Left: Operations, const Right: Operations>(counter: &mut Counter) reaches none {
+    first(counter, true)
+    machine first(counter: &mut Counter, again: bool) reaches none {
+        transition again { true -> second(counter, false) false -> done() }
+    }
+    machine second(counter: &mut Counter, again: bool) reaches none {
+        Left::apply(counter);
+        first(counter, again)
+    }
+    machine done() reaches none {}
+}
+"#;
+    for inferred in [false, true] {
+        let text = if inferred {
+            SOURCE.replace(" reaches none", "")
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = typed(&text);
+        let form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry(&source))
+            .expect("each copied call retains the original parameter declaration");
+        let verdict = judge(Ok(form.clone()));
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+
+        let mut crossed = form;
+        let call = crossed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| operation.static_reach_binding == Some(0))
+            .expect("the actual callback call carries Left's parameter position");
+        call.static_reach_binding = Some(1);
+        let verdict = judge(Ok(crossed));
+        assert!(
+            matches!(&verdict, Err(refusal)
+            if refusal.reason == RefusalReason::ForeignIdentity
+                && refusal.detail == "abstract callback call lost its exact originating parameter"),
+            "the equally shaped Right parameter cannot replace Left: {verdict:?}"
+        );
+    }
 }

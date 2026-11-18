@@ -1795,11 +1795,28 @@ mod modules {
         }
 
         fn joined_path_with(&self, separator: &str) -> String {
-            self.iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(separator)
+            joined_members(self.iter(), separator)
         }
+    }
+
+    impl<T: std::fmt::Display> JoinedPath for arena::RootRows<'_, T> {
+        fn joined_path(&self) -> String {
+            self.joined_path_with("::")
+        }
+
+        fn joined_path_with(&self, separator: &str) -> String {
+            joined_members(self.iter(), separator)
+        }
+    }
+
+    fn joined_members<T: std::fmt::Display>(
+        members: impl Iterator<Item = T>,
+        separator: &str,
+    ) -> String {
+        members
+            .map(|member| member.to_string())
+            .collect::<Vec<_>>()
+            .join(separator)
     }
 
     /*
@@ -1824,6 +1841,27 @@ mod modules {
 
     fn unique(candidates: impl Iterator<Item = SymbolHandle>) -> Option<SymbolHandle> {
         SymbolLookup::from_candidates(candidates).unique()
+    }
+    #[cfg(test)]
+    mod retained_path_tests {
+        use super::JoinedPath;
+
+        #[test]
+        fn logical_and_contiguous_paths_have_identical_spelling() {
+            let mut paths = arena::RootedArena::new();
+            let span = paths.insert_many(["root".to_owned(), "member".to_owned()]);
+            let retained = paths.clone();
+            paths.get_mut(span.handle_at(1)).push_str("_changed");
+            let old = retained.span_or_empty(span);
+            let current = paths.span_or_empty(span);
+            assert_eq!(old.joined_path(), ["root", "member"].joined_path());
+            assert_eq!(current.joined_path_with("."), "root.member_changed");
+            let (last, prefix) = current.split_last().unwrap();
+            assert_eq!(last, "member_changed");
+            assert_eq!(prefix.joined_path(), "root");
+            assert!(prefix.slice(0..0).split_last().is_none());
+            assert_eq!(prefix.slice(0..0).joined_path(), "");
+        }
     }
 }
 

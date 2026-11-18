@@ -112,6 +112,37 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
+    /// A symbolic extent names a constant input of this checking body. Its
+    /// scalar value is not a layout or an input owned by another machine.
+    pub(super) fn extent_input(
+        &self,
+        machine: MachineId,
+        owner: MachineId,
+        value: semantic_vocabulary::ValueId,
+    ) -> Checked<super::ConstBinding> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        if owner != machine {
+            return Err(unavailable(
+                "fixed-array length names another machine's input",
+            ));
+        }
+        let binding = self
+            .const_scope
+            .iter()
+            .find(|binding| binding.owner == owner && binding.value == value)
+            .copied()
+            .ok_or_else(|| unavailable("fixed-array length has no owned constant input"))?;
+        if !matches!(binding.scalar_type, ScalarType::Integer(integer)
+            if !integer.is_address() && integer.sign() == IntegerSign::Unsigned
+                && integer.bits().is_some_and(|bits| bits <= 64))
+        {
+            return Err(unavailable(
+                "fixed-array length needs an unsigned input of at most 64 bits",
+            ));
+        }
+        Ok(binding)
+    }
+
     /// The exact element storage of a closed byte array. Whole-value domains
     /// stay on its source expression and do not change this storage geometry;
     /// only an explicit range forms a descriptor loan.
@@ -195,12 +226,13 @@ impl Program<'_> {
         // expressions.md, "Borrowed range access": "a bare range
         // `items[start..end]` forms a shared view when received as a
         // reference". So a bare range lends exactly what `&items[start..end]`
-        // lends. A bare range of a byte view keeps its byte subslice reading.
-        let (target, written_access, bare) =
-            match self.typed.expression_table.borrow_expression(argument) {
-                Some(borrow) => (borrow.target, borrow.access, false),
-                None => (argument, ReferenceAccess::Shared, true),
-            };
+        // lends. Read the actual backing once below: a fixed array forms a
+        // descriptor, while a byte view keeps its checked subslice operation.
+        let (target, written_access) = match self.typed.expression_table.borrow_expression(argument)
+        {
+            Some(borrow) => (borrow.target, borrow.access),
+            None => (argument, ReferenceAccess::Shared),
+        };
         let Some(indexed) = self.typed.expression_table.indexed_node(target) else {
             return Ok(None);
         };
@@ -210,14 +242,6 @@ impl Program<'_> {
         let ValueType::Record(mut view, expected_qualification, _) = expected else {
             return Ok(None);
         };
-        if bare
-            && !matches!(
-                self.data_type(machine, view)?.shape,
-                StorageShape::ElementView { .. }
-            )
-        {
-            return Ok(None);
-        }
         // Formation owns a stored descriptor with the written loan. Only the
         // callee's direct formal carries its access separately from its shape.
         if formal_access == Some(ReferenceAccess::Mutable)
@@ -421,17 +445,18 @@ impl Program<'_> {
         };
         self.collection_range_selection(machine, target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, written_access)?;
-        let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
-            .ok_or_else(|| unavailable("array view without an existing backing place"))?;
-        if !byte_view
-            && !crossed
-            && written_access == ReferenceAccess::Mutable
-            && (slots[slot].borrowed == Some(ReferenceAccess::Shared)
-                || slots[slot].borrowed.is_none() && !slots[slot].assignable)
-        {
-            return Err(unavailable(
-                "mutable array view without exclusive backing access",
-            ));
+        if !byte_view && !crossed && written_access == ReferenceAccess::Mutable {
+            // A crossed reference already supplied its access ceiling. Only
+            // directly held array storage needs its local's mutability here.
+            let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
+                .ok_or_else(|| unavailable("array view without an existing backing place"))?;
+            if slots[slot].borrowed == Some(ReferenceAccess::Shared)
+                || slots[slot].borrowed.is_none() && !slots[slot].assignable
+            {
+                return Err(unavailable(
+                    "mutable array view without exclusive backing access",
+                ));
+            }
         }
         self.authorized(
             machine,
@@ -930,7 +955,7 @@ impl Program<'_> {
                         .typed
                         .constant_expression_contexts
                         .span_or_empty(recipe.contexts);
-                    let [context] = contexts else {
+                    let Some([context]) = contexts.as_array() else {
                         return Err(unserved(
                             "array extent has no unique retained evaluation context",
                         ));
@@ -1080,6 +1105,7 @@ pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
         application: Some(typed_trees::SourceTypeApplication {
             reference,
             substitutions: Vec::new(),
+            scope: Default::default(),
         }),
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),

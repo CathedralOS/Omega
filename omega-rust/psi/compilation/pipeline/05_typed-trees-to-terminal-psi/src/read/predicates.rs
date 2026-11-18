@@ -112,15 +112,18 @@ impl Program<'_> {
         let supplied = typed
             .type_reference_table
             .type_reference_handles(membership.domain_arguments);
-        if definition.access_policy.is_some() {
+        if definition.requires_access_retention() {
             return Err(unavailable(
                 "runtime contract membership governed by an access policy",
             ));
         }
-        let nominal = !matches!(
-            definition.issuance(),
-            typed_trees::domain::DomainIssuance::Unrestricted
-        );
+        // The complete service keeps an authored policy-backed promise even
+        // when its evaluated plan permits unrestricted issuance.
+        let nominal = definition.access_policy.is_some()
+            || !matches!(
+                definition.issuance(),
+                typed_trees::domain::DomainIssuance::Unrestricted
+            );
         let qualification = Qualification {
             policy: None,
             domains: crate::body::DomainSet::EMPTY

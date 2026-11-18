@@ -1665,7 +1665,7 @@ pub(crate) mod control_flow {
                                             declaration.result.accepts_provider_result(
                                                 &terminal_psi::TerminalMachineResult::Structural(result.clone()),
                                                 declaration.identity,
-                                                declaration.declaration.as_ref().map(|callable| callable.source.semantic_declaration),
+                                                declaration.declaration.as_ref().map(|callable| &callable.source.state),
                                                 &unit.structural_domains,
                                             )
                                         })

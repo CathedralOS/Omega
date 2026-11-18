@@ -13,12 +13,12 @@ So the walk reads the stores from the operations themselves
   scalar operand as that value, a record operand as what its source held.
 - A case literal establishes its fresh root as `result_case`, then stores
   each payload operand the same way.
-- A zero establishment zeroes its fresh root. The operation has no operand,
-  so the zero of a scalar leaf has a value identity only through a constant:
-  elaboration emits one zero constant per scalar leaf of the zero value
-  directly before the establishment, in leaf order, and that is where it is
-  looked for. A leaf whose slot holds anything else is zero with no value
-  identity.
+- A zero establishment zeroes its fresh root. Compact tables state only that
+  root write; checked reaching queries derive typed scalar zero directly.
+  Earlier tables additionally name zero leaves by preceding constants. A
+  group with extra writes must match that complete filtered association,
+  preserving its actual ValueIds. The side table selects the representation;
+  it never supplies the authority that a root or leaf holds zero.
 - A whole copy stores what its source held into its fresh root, and a record
   stored into a field stores what its source held into that field.
 - A scalar store stores its value into exactly the leaf it names, and a view
@@ -58,7 +58,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-use super::{Lineage, Shape, Storage, index, lineage};
+use super::{Backing, Lineage, Shape, Storage, index, lineage};
 use crate::refusal;
 use terminal_check_tables::RefusalReason;
 
@@ -73,8 +73,8 @@ pub(super) enum Stored {
     /// A sum established whole as this case. Its payload operands are
     /// stores of their own, after this one.
     Case(StructuralCaseId),
-    /// The zero value, whole. The scalar leaves that have a zero constant
-    /// are stores of their own, after this one.
+    /// The authenticated zero value, whole. Queried contents need no scalar
+    /// identity; retained legacy aliases are separate checked stores.
     Zeroed,
     /// What a call returned, or left in storage this machine lent it
     /// exclusively. Only this call may supply the returned leaf identities;
@@ -83,7 +83,7 @@ pub(super) enum Stored {
     /// A call may write through contents whose backing cannot be enumerated.
     /// This invalidates possible aliases; it establishes no replacement value.
     UnknownPayloadWrite {
-        receiving: Lineage,
+        receiving: Backing,
         contents: terminal_semantics::descriptor_results::UnknownDescriptorContents,
     },
 }
@@ -108,8 +108,8 @@ impl Stored {
 pub(super) struct Logged {
     /// The logical destination is retained for permission checks after the
     /// reaching-write owner resolves its separately captured backing.
-    pub(super) captured: Lineage,
-    pub(super) lineage: Lineage,
+    pub(super) destination: Lineage,
+    pub(super) backing: Backing,
     pub(super) block: BlockId,
     /// The normal continuation of its operation, as `Graph::locate` orders
     /// points: one past the operation's index in the block.
@@ -242,20 +242,351 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
     (zero && result.scalar_type == scalar_type).then_some(result.id)
 }
 
+/// Legacy names are genuine input, but their array extents need not be.
+/// Build metadata only for reached declarations, once per replay. The sorted
+/// borrowed directory indexes the actual declared input, never an extent.
+struct ZeroLayout<'a> {
+    declarations: Vec<&'a terminal_psi::StructuralTypeDeclaration>,
+    nodes: Vec<Option<ZeroNode>>,
+    active: Vec<bool>,
+    unique: bool,
+}
+struct ZeroNode {
+    count: usize,
+    kind: ZeroKind,
+}
+enum ZeroKind {
+    Empty,
+    Scalar(ScalarType),
+    Array {
+        element: StructuralTypeId,
+        length: u64,
+        width: usize,
+    },
+    Fields {
+        case: Option<StructuralCaseId>,
+        fields: Vec<ZeroPrefix>,
+    },
+}
+struct ZeroPrefix {
+    field: semantic_vocabulary::StructuralFieldId,
+    end: usize,
+    target: ZeroTarget,
+}
+#[derive(Clone, Copy)]
+enum ZeroTarget {
+    Empty,
+    Scalar(ScalarType),
+    Nested(StructuralTypeId),
+}
+
+impl<'a> ZeroLayout<'a> {
+    fn new(types: &'a [terminal_psi::StructuralTypeDeclaration]) -> Self {
+        let mut declarations = types.iter().collect::<Vec<_>>();
+        declarations.sort_unstable_by_key(|declaration| declaration.id);
+        let unique = declarations.windows(2).all(|pair| pair[0].id < pair[1].id);
+        let nodes = (0..declarations.len()).map(|_| None).collect();
+        let active = vec![false; declarations.len()];
+        Self {
+            declarations,
+            nodes,
+            active,
+            unique,
+        }
+    }
+
+    fn position(
+        &self,
+        storage: &Storage<'_>,
+        id: StructuralTypeId,
+        concerns: Construct,
+    ) -> Checked<usize> {
+        self.declarations
+            .binary_search_by_key(&id, |declaration| declaration.id)
+            .map_err(|_| storage.foreign(concerns, "zero carrier has no declaration"))
+    }
+
+    fn fields(
+        storage: &Storage<'_>,
+        shape: &'a StructuralTypeShape,
+        concerns: Construct,
+    ) -> Checked<(
+        Option<StructuralCaseId>,
+        &'a [terminal_psi::StructuralFieldDeclaration],
+    )> {
+        match shape {
+            StructuralTypeShape::Record { fields, .. } => Ok((None, fields)),
+            StructuralTypeShape::Sum { cases } => {
+                let first = cases
+                    .first()
+                    .ok_or_else(|| storage.foreign(concerns, "a sum declares no case"))?;
+                Ok((Some(first.id), &first.fields))
+            }
+            _ => Err(storage.unsupported(concerns, "storage that is no plain data")),
+        }
+    }
+
+    fn target(
+        storage: &Storage<'_>,
+        field: &StructuralFieldType,
+        concerns: Construct,
+    ) -> Checked<ZeroTarget> {
+        Ok(match field {
+            StructuralFieldType::Scalar(scalar) => ZeroTarget::Scalar(*scalar),
+            StructuralFieldType::Structural(nested) => ZeroTarget::Nested(*nested),
+            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {
+                ZeroTarget::Empty
+            }
+            stored if super::is_stored_view(stored) => ZeroTarget::Empty,
+            _ => return Err(storage.unsupported(concerns, "a field type outside plain data")),
+        })
+    }
+
+    fn count(
+        &self,
+        storage: &Storage<'_>,
+        id: StructuralTypeId,
+        concerns: Construct,
+    ) -> Checked<usize> {
+        self.nodes[self.position(storage, id, concerns)?]
+            .as_ref()
+            .map(|node| node.count)
+            .ok_or_else(|| storage.foreign(concerns, "zero scalar dependency was not prepared"))
+    }
+
+    fn prepare(
+        &mut self,
+        storage: &Storage<'_>,
+        root: StructuralTypeId,
+        concerns: Construct,
+    ) -> Checked<usize> {
+        if !self.unique {
+            return Err(storage.foreign(concerns, "zero declarations have duplicate identities"));
+        }
+        let mut pending = vec![(root, false)];
+        while let Some((id, exiting)) = pending.pop() {
+            let slot = self.position(storage, id, concerns)?;
+            if self.nodes[slot].is_some() {
+                continue;
+            }
+            let shape = &self.declarations[slot].shape;
+            if !exiting {
+                if self.active[slot] {
+                    return Err(storage.foreign(concerns, "zero carrier is recursive"));
+                }
+                self.active[slot] = true;
+                pending.push((id, true));
+                match shape {
+                    StructuralTypeShape::AtomicCell(_)
+                    | StructuralTypeShape::PrimitiveScalar(_) => {}
+                    shape if super::is_shared_view(shape) => {}
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
+                        if *length != 0 {
+                            pending.push((*element, false));
+                        }
+                    }
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Parameter { .. },
+                    } => {
+                        let element =
+                            self.declarations[self.position(storage, *element, concerns)?];
+                        if !element.requires.is_empty()
+                            || element.scalar_restriction.is_some()
+                            || !matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
+                        {
+                            return Err(storage.unsupported(
+                                concerns,
+                                "symbolic array zero requires an ungated scalar element",
+                            ));
+                        }
+                    }
+                    shape => {
+                        let (_, fields) = Self::fields(storage, shape, concerns)?;
+                        for field in fields.iter().rev() {
+                            if let ZeroTarget::Nested(child) =
+                                Self::target(storage, &field.field_type, concerns)?
+                            {
+                                pending.push((child, false));
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            let (count, kind) = match shape {
+                StructuralTypeShape::AtomicCell(_) => (0, ZeroKind::Empty),
+                StructuralTypeShape::PrimitiveScalar(scalar) => (1, ZeroKind::Scalar(*scalar)),
+                shape if super::is_shared_view(shape) => (0, ZeroKind::Empty),
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
+                    let width = if *length == 0 {
+                        0
+                    } else {
+                        self.count(storage, *element, concerns)?
+                    };
+                    let count = if width == 0 {
+                        0
+                    } else {
+                        usize::try_from(*length)
+                            .ok()
+                            .and_then(|length| width.checked_mul(length))
+                            .ok_or_else(|| {
+                                storage.foreign(
+                                    concerns,
+                                    "zero scalar cardinality exceeds the address space",
+                                )
+                            })?
+                    };
+                    (
+                        count,
+                        ZeroKind::Array {
+                            element: *element,
+                            length: *length,
+                            width,
+                        },
+                    )
+                }
+                StructuralTypeShape::FixedArray { .. } => (0, ZeroKind::Empty),
+                shape => {
+                    let (case, fields) = Self::fields(storage, shape, concerns)?;
+                    let mut prefixes = Vec::with_capacity(fields.len());
+                    let mut count = 0usize;
+                    for field in fields {
+                        let target = Self::target(storage, &field.field_type, concerns)?;
+                        let width = match target {
+                            ZeroTarget::Empty => 0,
+                            ZeroTarget::Scalar(_) => 1,
+                            ZeroTarget::Nested(child) => self.count(storage, child, concerns)?,
+                        };
+                        count = count.checked_add(width).ok_or_else(|| {
+                            storage.foreign(
+                                concerns,
+                                "zero scalar cardinality exceeds the address space",
+                            )
+                        })?;
+                        prefixes.push(ZeroPrefix {
+                            field: field.id,
+                            end: count,
+                            target,
+                        });
+                    }
+                    (
+                        count,
+                        ZeroKind::Fields {
+                            case,
+                            fields: prefixes,
+                        },
+                    )
+                }
+            };
+            self.nodes[slot] = Some(ZeroNode { count, kind });
+            self.active[slot] = false;
+        }
+        self.count(storage, root, concerns)
+    }
+
+    fn at_rank(
+        &self,
+        storage: &Storage<'_>,
+        mut id: StructuralTypeId,
+        mut at: Lineage,
+        mut rank: usize,
+        concerns: Construct,
+    ) -> Checked<(Lineage, ScalarType)> {
+        loop {
+            let node = self.nodes[self.position(storage, id, concerns)?]
+                .as_ref()
+                .ok_or_else(|| storage.foreign(concerns, "zero scalar rank has no declaration"))?;
+            if rank >= node.count {
+                return Err(storage.foreign(concerns, "zero scalar rank is outside its carrier"));
+            }
+            match &node.kind {
+                ZeroKind::Scalar(scalar) => return Ok((at, *scalar)),
+                ZeroKind::Array {
+                    element,
+                    length,
+                    width,
+                } => {
+                    let index = u64::try_from(rank / width)
+                        .map_err(|_| storage.foreign(concerns, "zero scalar index exceeds u64"))?;
+                    if index >= *length {
+                        return Err(
+                            storage.foreign(concerns, "zero scalar index exceeds its extent")
+                        );
+                    }
+                    at.segments.push(Segment::FixedIndex(index));
+                    rank %= width;
+                    id = *element;
+                }
+                ZeroKind::Fields { case, fields } => {
+                    if let Some(case) = case {
+                        at.segments.push(Segment::Case(*case));
+                    }
+                    let position = fields.partition_point(|field| field.end <= rank);
+                    let field = &fields[position];
+                    rank -= if position == 0 {
+                        0
+                    } else {
+                        fields[position - 1].end
+                    };
+                    at.segments.push(Segment::Field(field.field));
+                    match field.target {
+                        ZeroTarget::Scalar(scalar) => return Ok((at, scalar)),
+                        ZeroTarget::Nested(child) => id = child,
+                        ZeroTarget::Empty => unreachable!("empty field has no scalar rank"),
+                    }
+                }
+                ZeroKind::Empty => {
+                    return Err(storage.foreign(concerns, "zero scalar rank is outside plain data"));
+                }
+            }
+        }
+    }
+}
+
 impl<'a> Storage<'a> {
     /// Every store of the machine, in block and operation order.
     pub(super) fn stores(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         value_types: &IdTable<ValueId, ScalarType>,
+        tables: &MachineTables,
     ) -> Checked<Vec<Logged>> {
+        // The side table selects a representation, never the meaning of zero.
+        // One row is the compact root; extra rows request exact legacy replay.
+        let mut stated = vec![0u8; self.graph.operation_count()];
+        for (_, write) in tables.writes.iter() {
+            if let ProgramPoint::AfterOperation(operation) = write.at {
+                let count = stated.get_mut(index(operation.get())).ok_or_else(|| {
+                    self.foreign(
+                        Construct::Operation(operation),
+                        "a write row states a store its operation does not make",
+                    )
+                })?;
+                *count = count.saturating_add(1).min(2);
+            }
+        }
+        let mut zero_layout = None;
         let mut log = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
-                for (lineage, stored) in self.stored_by(references, block, position, value_types)? {
+                for (lineage, stored) in self.stored_by(
+                    references,
+                    block,
+                    position,
+                    value_types,
+                    stated[index(operation.id.get())] > 1,
+                    &mut zero_layout,
+                )? {
                     log.push(Logged {
-                        captured: lineage.clone(),
-                        lineage,
+                        destination: lineage.clone(),
+                        backing: Backing::direct(lineage),
                         block: block.id,
                         position: position + 1,
                         operation: operation.id,
@@ -275,6 +606,8 @@ impl<'a> Storage<'a> {
         block: &Block,
         position: usize,
         value_types: &IdTable<ValueId, ScalarType>,
+        legacy_zero: bool,
+        zero_layout: &mut Option<ZeroLayout<'a>>,
     ) -> Checked<Vec<(Lineage, Stored)>> {
         let operation = &block.operations[position];
         let concerns = Construct::Operation(operation.id);
@@ -459,22 +792,54 @@ impl<'a> Storage<'a> {
                 rows.insert(0, (root, Stored::Case(*result_case)));
             }
             OperationKind::EstablishZeroedStructural {} => {
-                let mut at = fresh()?;
-                let zeroed = produced.map(|result| result.structural_type);
-                let mut leaves = Vec::new();
-                if let Some(zeroed) = zeroed {
-                    self.zero_scalars(zeroed, &mut at, &mut leaves, concerns)?;
+                let at = fresh()?;
+                let result = produced.ok_or_else(|| {
+                    self.foreign(concerns, "zero establishment has no structural result")
+                })?;
+                // prepare_replay already checks this exact immutable module's
+                // zero eligibility and qualifications through the shared
+                // zeroed-declaration graph in scalar_qualifications::validate.
+                // Retain fresh-result authorization here without a second
+                // whole declaration walk for every tiny establishment.
+                if !matches!(self.root_kind(at.root, concerns)?, semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)
+                    || !matches!(
+                        result.multiplicity,
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                    )
+                    || !result.claims.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                {
+                    return Err(
+                        self.foreign(concerns, "zero establishment has an invalid result shape")
+                    );
                 }
-                rows.push((at, Stored::Zeroed));
-                // One constant per leaf, directly before the establishment.
-                let constants = position
-                    .checked_sub(leaves.len())
-                    .map(|first| &block.operations[first..position]);
-                for (slot, (leaf, scalar_type)) in leaves.into_iter().enumerate() {
-                    let zero = constants
-                        .and_then(|constants| zero_constant(&constants[slot], scalar_type));
-                    if let Some(zero) = zero {
-                        rows.push((leaf, Stored::Value(zero)));
+                rows.push((at.clone(), Stored::Zeroed));
+                if legacy_zero {
+                    // Preserve the old FILTERED positional association exactly.
+                    // Count the type, then inspect only genuine input operations;
+                    // a short malformed log cannot make us expand a huge array.
+                    let layout = zero_layout.get_or_insert_with(|| ZeroLayout::new(self.types));
+                    let count = layout.prepare(self, result.structural_type, concerns)?;
+                    if let Some(first) = position.checked_sub(count) {
+                        for (slot, constant) in block.operations[first..position].iter().enumerate()
+                        {
+                            let Some(declared) = constant.result.as_scalar() else {
+                                continue;
+                            };
+                            if zero_constant(constant, declared.scalar_type).is_none() {
+                                continue;
+                            }
+                            let (leaf, scalar_type) = layout.at_rank(
+                                self,
+                                result.structural_type,
+                                at.clone(),
+                                slot,
+                                concerns,
+                            )?;
+                            if let Some(zero) = zero_constant(constant, scalar_type) {
+                                rows.push((leaf, Stored::Value(zero)));
+                            }
+                        }
                     }
                 }
             }
@@ -671,82 +1036,6 @@ impl<'a> Storage<'a> {
         Ok(rows)
     }
 
-    /// The scalar leaves of the zero value of `structural_type` at `at`,
-    /// with their types, fields in declaration order; a sum contributes the
-    /// payload of its first declared case.
-    fn zero_scalars(
-        &self,
-        structural_type: StructuralTypeId,
-        at: &mut Lineage,
-        found: &mut Vec<(Lineage, ScalarType)>,
-        concerns: Construct,
-    ) -> Checked<()> {
-        let (case, fields) = match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::AtomicCell(_) => return Ok(()),
-            StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-                found.push((at.clone(), *scalar_type));
-                return Ok(());
-            }
-            shape if super::is_shared_view(shape) => return Ok(()),
-            StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } => {
-                for index in 0..*length {
-                    at.segments.push(Segment::FixedIndex(index));
-                    self.zero_scalars(*element, at, found, concerns)?;
-                    at.segments.pop();
-                }
-                return Ok(());
-            }
-            StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Parameter { .. },
-            } => {
-                let element = self.declaration(*element, concerns)?;
-                if element.requires.is_empty()
-                    && element.scalar_restriction.is_none()
-                    && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
-                {
-                    return Ok(());
-                }
-                return Err(self.unsupported(
-                    concerns,
-                    "symbolic array zero requires an ungated scalar element",
-                ));
-            }
-            StructuralTypeShape::Record { fields, .. } => (None, fields),
-            StructuralTypeShape::Sum { cases } => {
-                let first = cases
-                    .first()
-                    .ok_or_else(|| self.foreign(concerns, "a sum declares no case"))?;
-                (Some(first.id), &first.fields)
-            }
-            _ => return Err(self.unsupported(concerns, "storage that is no plain data")),
-        };
-        if let Some(case) = case {
-            at.segments.push(Segment::Case(case));
-        }
-        for field in fields {
-            at.segments.push(Segment::Field(field.id));
-            match field.field_type {
-                StructuralFieldType::Scalar(scalar_type) => found.push((at.clone(), scalar_type)),
-                StructuralFieldType::Structural(nested) => {
-                    self.zero_scalars(nested, at, found, concerns)?;
-                }
-                StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {}
-                // The empty shared view has no scalar leaf.
-                ref stored if super::is_stored_view(stored) => {}
-                _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
-            }
-            at.segments.pop();
-        }
-        if case.is_some() {
-            at.segments.pop();
-        }
-        Ok(())
-    }
-
     /// Refuses a write log that is not, operation by operation and in
     /// order, the stores derived from the lowered form.
     pub(super) fn log_is_stated(&self, tables: &MachineTables) -> Checked<()> {
@@ -786,7 +1075,7 @@ impl<'a> Storage<'a> {
                 .get(slot)
                 .and_then(|rows| rows.get(matched[slot]))
                 .ok_or_else(|| self.foreign(concerns, "an operation's store has no write row"))?;
-            if row.0 != store.lineage || row.1 != store.stored.content() {
+            if row.0 != store.destination || row.1 != store.stored.content() {
                 return Err(self.foreign(concerns, "a write row is not what its operation stores"));
             }
             matched[slot] += 1;

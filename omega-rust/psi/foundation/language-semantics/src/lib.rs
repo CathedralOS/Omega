@@ -1375,7 +1375,7 @@ mod external_bindings {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExternalBindingTable {
-        identities: Vec<ExternalBindingIdentity>,
+        identities: arena::RetainedRows<ExternalBindingIdentity>,
     }
 
     impl ExternalBindingTable {
@@ -1898,7 +1898,7 @@ mod semantic_domains {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct SemanticDomainTable {
-        names: Vec<String>,
+        names: arena::RetainedRows<String>,
     }
 
     impl Default for SemanticDomainTable {
@@ -1908,7 +1908,8 @@ mod semantic_domains {
                     "Wrapping".to_owned(),
                     "Saturating".to_owned(),
                     "Trapping".to_owned(),
-                ],
+                ]
+                .into(),
             }
         }
     }
@@ -2178,7 +2179,7 @@ mod service_reach {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ServiceReachRowTable {
-        pub(crate) rows: Vec<ServiceReachRow>,
+        pub(crate) rows: arena::RetainedRows<ServiceReachRow>,
     }
 
     impl ServiceReachRowTable {
@@ -2265,7 +2266,7 @@ mod service_reach {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ServiceReachTable {
-        definitions: Vec<ServiceReachDefinition>,
+        definitions: arena::RetainedRows<ServiceReachDefinition>,
     }
 
     impl ServiceReachTable {
@@ -2309,7 +2310,7 @@ mod service_reach {
                 .and_then(|index| self.definitions.get(index as usize))
         }
 
-        pub fn definitions(&self) -> &[ServiceReachDefinition] {
+        pub fn definitions(&self) -> &arena::RetainedRows<ServiceReachDefinition> {
             &self.definitions
         }
 
@@ -2616,3 +2617,46 @@ pub mod native_bindings {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod retained_side_record_tests {
+    use super::*;
+
+    #[test]
+    fn service_and_domain_successors_append_without_copying_retained_payloads() {
+        let mut services = ServiceReachTable::default();
+        let first = services.intern(symbols::SymbolHandle::from_parts(1, 7), "first");
+        let mut rows = ServiceReachRowTable::default();
+        let old_row = rows.intern(vec![first]);
+        let mut domains = SemanticDomainTable::default();
+        let old_domain = domains.intern("original");
+        let (mut next_services, mut next_rows, mut next_domains) =
+            (services.clone(), rows.clone(), domains.clone());
+        let second = next_services.intern(symbols::SymbolHandle::from_parts(2, 11), "second");
+        let next_row = next_rows.intern(vec![first, second]);
+        next_domains.intern("new");
+        assert!(std::ptr::eq(
+            services.definition(first).unwrap(),
+            next_services.definition(first).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            rows.services(old_row).as_ptr(),
+            next_rows.services(old_row).as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            domains.name(old_domain).unwrap().as_ptr(),
+            next_domains.name(old_domain).unwrap().as_ptr()
+        ));
+        assert!(services.definition(second).is_none());
+        assert!(domains.lookup("new").is_none());
+        assert_eq!(rows.services(old_row), &[first]);
+        assert_eq!(next_rows.services(next_row), &[first, second]);
+        next_services.set_parents(first, vec![second]);
+        assert!(services.definition(first).unwrap().parents.is_empty());
+        assert_eq!(
+            next_services.definition(first).unwrap().parents,
+            vec![second]
+        );
+        assert_eq!(services.definition(first).unwrap().symbol.generation(), 7);
+    }
+}

@@ -159,8 +159,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 @media (max-width: 600px) { .flow-explorer { padding: var(--space-2); } .explorer-heading h2 { font: var(--type-subheading); } .tour-controls button { padding: var(--space-2); } .tour-controls [data-action="play"] { margin: 0; } .diagram-selection { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .is-playing .edge.is-current > path { animation: none; stroke-dasharray: none; } }
 
-/* Keep the authored map's typography, fills and square geometry. D3 moves
-   one SVG scene; ELK's coordinates never choose colors or proof status. */
+/* Both compiler views share a camera and the Atlas design tokens. */
 .architecture { grid-column:1/-1; min-width:0; border:1px solid var(--rule); background:var(--surface); }
 .arch-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 24px; padding:12px 16px; }
 .arch-header > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
@@ -177,8 +176,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .connected-views button { min-width:104px; border-radius:0; }
 .connected-views button + button { border-left:0; }
 .connected-views button[aria-pressed="true"] { color:var(--ground); background:var(--ink); border-color:var(--ink); }
-.proposed-scene .overview-node rect,.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
-.proposed-scene .overview-node.native rect { stroke:var(--ink-muted); }
+.proposed-scene .connected-group rect { stroke-dasharray:6 4; }
 .connected-open-contract { border-left:2px solid var(--ink-muted); padding-left:8px; }
 .proposed-contracts { margin-top:16px; }
 .proposed-contracts > summary { padding:12px 0; font:var(--type-subheading); }
@@ -216,7 +214,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-join { fill:var(--ink-muted); }
 .overview-node.operation text { font:400 17px var(--font-serif); }
 .overview-node.check text { fill:var(--checked); }
-.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.15; }
+.has-trace .overview-node:not(.is-traced),.has-trace .overview-edge:not(.is-traced) { opacity:.62; }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3; }
 .overview-node.is-selected rect { stroke-width:4; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
@@ -227,8 +225,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .arch-layer dd { margin:0 0 24px; max-width:68ch; }
 .architecture-notes { margin-top:16px; padding:16px; border-top:1px solid var(--rule); }
 .architecture-notes > summary { font:var(--type-subheading); }
-.architecture.is-expanded { position:fixed; inset:0; z-index:10; width:100%; height:100dvh; overflow:auto; background:var(--surface); }
-.architecture.is-expanded .connected-viewport { height:calc(100dvh - 210px); }
+.architecture.is-expanded { position:fixed; inset:0; z-index:10; width:100%; height:100dvh; display:flex; flex-direction:column; overflow:hidden; background:var(--surface); }
 .architecture :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
 .overview-page .page { grid-template-columns:minmax(0,1fr); gap:8px; padding-top:12px; }
 .overview-page .top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding-bottom:0; border:0; }
@@ -254,12 +251,25 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
+.overview-node .overview-step-note { font:400 15px var(--font-serif); fill:var(--ink-muted); }
+.proposed-scene .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.4; }
+#compiler-overview[data-view="proposed"] .connected-viewport { height:clamp(540px,62vw,92dvh); }
+@media(min-width:800px){
+  #compiler-overview[data-view="proposed"] .connected-views,
+  #compiler-overview[data-view="proposed"] .connected-tools { display:inline-flex; vertical-align:middle; margin:0 12px 6px 0; padding:0; }
+  #compiler-overview[data-view="proposed"] .connected-intro { margin:0 0 6px; }
+  #compiler-overview[data-view="proposed"] { display:grid; grid-template-columns:auto 1fr; column-gap:8px; }
+  #compiler-overview[data-view="proposed"] > * { grid-column:1/-1; }
+  #compiler-overview[data-view="proposed"] .connected-views { grid-column:1; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-tools { grid-column:2; grid-row:2; }
+  #compiler-overview[data-view="proposed"] .connected-intro { grid-row:1; }
+}
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
 .overview-edge.request path { stroke-dasharray: 7 5; }
 .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke-dasharray:7 5; stroke-width:1.4; }
-.overview-edge:not(.main-path) > text { visibility:hidden; }
+.overview-edge:not(.main-path) > text { fill:var(--ink-muted); }
 .overview-edge:not(.main-path).is-selected > text { visibility:visible; }
 .overview-edge.main-path > path:not(.connected-hit) { stroke-width:2.8; stroke-dasharray:none; }
 .overview-edge.main-path:not(.check):not(.attention) > path:not(.connected-hit) { stroke:var(--ink); }
@@ -276,7 +286,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-layer-label { fill: var(--ink-muted); font: 500 16px var(--font-serif); }
 .overview-layer-note { fill: var(--ink-muted); font: 400 16px var(--font-serif); }
 .overview-firewall { fill: none; stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 5; }
-#overview-arrow path { fill: var(--ink-muted); }
+#overview-arrow path { fill: var(--ink); }
 #overview-return path { fill: var(--trap); }
 #overview-check path { fill: var(--checked); }
 .legend-psi::before,.legend-native::before { content: ''; display: inline-block; width: 20px; height: 10px; margin-right: var(--space-2); border: 2px solid var(--ink-muted); }
@@ -284,6 +294,172 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .legend-check { color: var(--checked); }
 .overview-edge.is-traced > path:not(.connected-hit) { stroke-width:3.2; }
 .overview-edge.is-selected > path:not(.connected-hit) { stroke-width:4; }
+
+/* The diagram owns the workspace. Stage navigation lives with the camera controls. */
+.overview-page .page { max-width:none; }
+.connected-tools .stage-picker[hidden] { display:none; }
+.connected-tools .stage-picker select { width:184px; font:var(--type-reading-small); }
+.connected-enhanced .connected-viewport,#compiler-overview[data-view="proposed"] .connected-viewport { background:var(--surface); }
+.connected-enhanced .arch-overview-svg { background:transparent; }
+.proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
+.proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
+.proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
+.proposed-scene .overview-node .handoff-status { fill:var(--ink); font:500 15px var(--font-serif); letter-spacing:.04em; text-transform:uppercase; }
+.proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 20px var(--font-serif); }
+.proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 17px var(--font-serif); }
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
+.proposed-scene .overview-node.check .stage-title { fill:var(--checked); }
+.proposed-scene .overview-node.native rect { fill:var(--ink); }
+.proposed-scene .overview-node.native .stage-title { fill:var(--ground); }
+.proposed-scene .overview-node.is-traced rect { stroke:var(--ink); stroke-width:3; stroke-dasharray:none; }
+.proposed-scene .overview-node.check.is-traced rect { stroke:var(--checked); }
+.trace-explanation .repair-stops { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:4px; }
+.trace-explanation .repair-stops button { padding:2px 0; border:0; background:transparent; color:var(--ink); font:var(--type-reading-small); text-decoration:underline; }
+#compiler-overview[data-view="proposed"] .trace-explanation { border-color:var(--ink-muted); }
+@media(prefers-reduced-motion:no-preference){
+  .overview-node,.overview-edge { transition:opacity 140ms ease; }
+}
+
+.label-guide { stroke:var(--rule); stroke-width:1; pointer-events:none; }
+
+.connected-enhanced:not(.has-trace):not(:has(.trace-explanation:not([hidden]))) [data-camera="clear"] { display:none; }
+.connected-views { align-self:start; }
+.architecture.is-expanded .arch-header { padding:6px 12px; }
+.architecture.is-expanded .arch-header h2 { font:var(--type-subheading); }
+.architecture.is-expanded #compiler-overview .connected-views,
+.architecture.is-expanded #compiler-overview .connected-tools { margin:0; padding:0; }
+.architecture.is-expanded #compiler-overview .connected-workspace { width:100%; min-height:0; }
+.architecture.is-expanded #compiler-overview .connected-viewport { height:100%; min-height:0; max-height:none; }
+.architecture.is-expanded #compiler-overview { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:6px; padding:6px; min-height:0; flex:1; }
+.architecture.is-expanded #compiler-overview .connected-views { grid-area:1/1; }
+.architecture.is-expanded #compiler-overview .connected-tools { grid-area:1/2; }
+.architecture.is-expanded #compiler-overview .connected-workspace { grid-area:2/1/3/-1; align-self:stretch; }
+.architecture.is-expanded #compiler-overview > :is(.connected-intro,.arch-overview-legend,.connected-help,details) { display:none; }
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview { grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); }
+  .architecture.is-expanded #compiler-overview .connected-tools { grid-area:2/1; }
+  .architecture.is-expanded #compiler-overview .connected-workspace { grid-area:3/1; }
+}
+
+/* Shape and line pattern still distinguish the three routes in monochrome. */
+.connected-tools .trace-picker[hidden],.trace-explanation[hidden] { display:none; }
+.connected-tools .trace-picker select { width:170px; font:var(--type-reading-small); }
+.trace-explanation { margin:3px 0 8px; max-width:none; padding:7px 12px; border-left:3px solid var(--trap); background:var(--ground); font:var(--type-reading-small); }
+.key-main::before,.key-service::before,.key-detour::before { content:''; width:22px; display:inline-block; margin-right:6px; border-top:3px solid var(--ink); vertical-align:middle; }
+.key-service::before { border-top:2px dotted var(--ink-muted); }
+.key-detour::before { border-top:2px dashed var(--trap); }
+#overview-service path { fill:var(--ink-muted); }
+/* The original pipeline plate uses outlined portable forms, ivory native
+   forms, coral reach-arounds and a teal checker verdict. */
+.connected-scene:not(.proposed-scene) .connected-group rect { fill:none; stroke:none; }
+.connected-group .connected-phase {
+  fill:var(--ink-muted); font:500 14px var(--font-serif); letter-spacing:.06em; text-transform:uppercase;
+}
+.connected-start { fill:var(--ink-muted); font:500 12px var(--font-serif); letter-spacing:.06em; }
+.connected-scene .overview-node .current-title { fill:var(--ink); font:500 20px var(--font-serif); }
+.connected-scene .overview-node .node-body { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.8; }
+.connected-scene .overview-node.owner .node-body { fill:var(--ground); stroke:var(--rule); stroke-width:1.5; }
+.connected-scene .overview-node.native .node-body { fill:var(--ink); stroke:var(--ink); }
+.connected-scene .overview-node.native .current-title { fill:var(--ground); }
+.connected-scene .overview-node.accepted .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene .operation-port { fill:transparent; }
+.connected-scene .overview-node.operation { pointer-events:bounding-box; }
+.connected-scene .overview-node.operation .current-title { font:400 18px var(--font-serif); }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .current-title { text-decoration:underline; }
+.connected-scene .overview-node.operation:is(:hover,:focus-visible,.is-selected) .operation-port { fill:var(--ink); }
+.connected-scene:not(.proposed-scene) .overview-edge.main-path > path:not(.connected-hit) { stroke-width:1.8; }
+.connected-scene .overview-node.check .current-title { fill:var(--checked); }
+.connected-scene .overview-node.attention .current-title,
+.connected-scene .overview-node[data-endpoint="installations"] .current-title { fill:var(--trap); }
+.connected-scene .overview-node:is(.attention,[data-endpoint="installations"]):not([data-role="transform"]) .node-body { stroke:var(--trap); stroke-dasharray:6 4; }
+.connected-scene .overview-node:is(:hover,:focus-visible,.is-selected) .node-body { stroke:var(--ink); stroke-width:2.5; }
+.connected-scene:not(.proposed-scene) .overview-edge:not(.main-path) > path:not(.connected-hit) { stroke:var(--ink-muted); stroke-width:1.6; stroke-dasharray:2 4; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour > path:not(.connected-hit) { stroke:var(--trap); stroke-width:2.2; stroke-dasharray:6 4; }
+.connected-scene .overview-edge .wire-caption { font:400 16px var(--font-serif); fill:var(--ink); stroke:var(--surface); stroke-width:4; }
+.connected-scene .overview-edge.detour .wire-caption { fill:var(--trap); }
+.has-trace .connected-scene:not(.proposed-scene) :is(.overview-node,.overview-edge):not(.is-traced) { opacity:.25; }
+#compiler-overview[data-view="current"][data-whole="true"] .connected-minimap { display:none; }
+#compiler-overview[data-view="current"] .connected-viewport { height:clamp(520px,75dvh,1000px); }
+.architecture.is-expanded #compiler-overview[data-view="current"] .connected-viewport { height:100%; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto minmax(0,1fr); }
+.architecture.is-expanded #compiler-overview .trace-explanation { grid-area:2/1/3/-1; }
+.architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-area:3/1/4/-1; }
+@media(max-width:700px){
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) { grid-template-rows:auto auto auto minmax(0,1fr); }
+  .architecture.is-expanded #compiler-overview .trace-explanation { grid-row:3; }
+  .architecture.is-expanded #compiler-overview:has(.trace-explanation:not([hidden])) .connected-workspace { grid-row:4; }
+}
+
+
+/* Keep navigation at the edge of the sheet and inspection close to the map. */
+.architecture { color:var(--ink); --fine-rule:color-mix(in srgb,var(--rule) 54%,var(--surface)); }
+.arch-header,.architecture.is-expanded .arch-header { padding:12px 20px; gap:8px 18px; border-bottom:1px solid var(--fine-rule); }
+.arch-header .map-heading { display:flex; align-items:center; gap:12px; }
+.arch-header .map-heading h2,.architecture.is-expanded .arch-header h2 {
+  font:400 clamp(26px,2.6vw,38px)/1.1 var(--font-serif); letter-spacing:-.035em;
+}
+.arch-badge { padding-left:14px; border-left:1px solid var(--fine-rule); font:11px/1.45 var(--font-mono); }
+.arch-header .map-plan { color:var(--ink); font:500 15px var(--font-serif); text-decoration:none; border-bottom:1px solid var(--rule); padding:4px 0; }
+.map-plan span { padding-left:6px; }
+.architecture .arch-reading { padding:12px; }
+.architecture .connected-tools { flex:1; gap:8px 14px; }
+.architecture .connected-views { width:fit-content; align-self:center; padding:3px; gap:2px; border:1px solid var(--fine-rule); border-radius:0; background:var(--ground); }
+.architecture .connected-views button { min-width:78px; border:0; border-radius:0; padding:6px 12px; font:500 14px/18px var(--font-serif); color:var(--ink-muted); background:transparent; box-shadow:none; }
+.architecture .connected-views button[aria-pressed="true"] { background:var(--ink); color:var(--surface); }
+.architecture .connected-tools label { font:500 14px/18px var(--font-serif); color:var(--ink-muted); }
+.architecture .connected-tools select { font:400 15px var(--font-serif); height:33px; border:1px solid var(--rule); border-radius:0; padding:4px 8px; }
+.connected-tools .component-picker { margin-left:auto; }
+.connected-workspace { border-color:var(--fine-rule); border-radius:0; overflow:hidden; }
+
+.map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; padding:7px 12px; border-top:1px solid var(--fine-rule); background:var(--surface); }
+.map-footer .arch-overview-legend { display:flex; align-items:center; margin:0; gap:6px 14px; font:13px/18px var(--font-serif); }
+.map-footer [hidden] { display:none!important; }
+.camera-tools { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-left:auto; }
+.architecture .camera-tools button,.architecture [data-camera="clear"],.architecture .connected-detail-close { border:1px solid transparent; border-radius:0; padding:4px 7px; min-width:28px; color:var(--ink); background:transparent; box-shadow:none; font:500 14px/18px var(--font-serif); }
+.architecture .camera-tools button:hover,.architecture [data-camera="clear"]:hover,.architecture .connected-detail-close:hover { background:var(--ground); border-color:var(--fine-rule); }
+.camera-tools .connected-scale { display:inline-block; font:12px/18px var(--font-mono); width:42px; }
+.architecture .camera-tools [data-camera="in"],.architecture .camera-tools [data-camera="out"] { font-size:18px; }
+.architecture .camera-tools [data-camera="start"],.architecture .camera-tools [data-camera="fit"] { border-right:1px solid var(--fine-rule); border-radius:0; padding-right:12px; margin-right:3px; }
+.architecture.is-expanded #compiler-overview { gap:8px 14px; padding:10px 12px 12px; }
+.architecture.is-expanded #compiler-overview .connected-views { padding:3px; }
+.architecture.is-expanded #compiler-overview .connected-workspace { display:flex; flex-direction:column; }
+.architecture.is-expanded #compiler-overview .connected-viewport { flex:1; height:0; }
+.connected-detail,.connected-minimap { border-radius:0; border-color:var(--fine-rule); box-shadow:0 3px 14px color-mix(in srgb,var(--ink) 10%,transparent); }
+.connected-workspace .connected-minimap { bottom:54px; }
+.connected-workspace .connected-minimap[hidden] { display:none; }
+.connected-detail { max-height:calc(100% - 76px); }
+.architecture .trace-explanation { margin:0; padding:8px 12px; font:var(--type-reading-small); }
+@media(min-width:800px){
+  .connected-enhanced[data-view="current"] { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px; }
+  .connected-enhanced[data-view="current"] > * { grid-column:1/-1; }
+  .connected-enhanced[data-view="current"] > .connected-views { grid-area:2/1; }
+  .connected-enhanced[data-view="current"] > .connected-tools { grid-area:2/2; }
+  .connected-enhanced[data-view="current"] > .connected-intro { grid-area:1/1/2/-1; }
+}
+@media(max-width:700px){
+  .arch-header,.architecture.is-expanded .arch-header { padding:8px 12px; }
+  .arch-badge { border:0; padding:0; font-size:10px; }
+  .architecture .connected-tools { gap:6px 10px; }
+  .architecture .connected-tools label { width:auto; flex:1 1 140px; min-width:0; }
+  .architecture .connected-tools select { width:0; min-width:0; }
+  .map-footer { padding:4px 6px; gap:1px; justify-content:center; }
+  .map-footer .arch-overview-legend { gap:8px; font-size:10px; line-height:15px; }
+  .camera-tools { margin-inline:auto; }
+  .connected-workspace .connected-minimap { bottom:64px; }
+}
+
+.arch-header .map-heading-text { display:grid; gap:3px; }
+.arch-header .atlas-mark { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid var(--rule); border-radius:0; color:var(--ink); text-decoration:none; font:400 29px/1 var(--font-serif); }
+.arch-header .atlas-mark:hover { background:var(--ground); }
+.arch-header .arch-badge { padding:0; border:0; }
+.wire-origin { fill:var(--surface); stroke:var(--trap); stroke-width:2; }
+.connected-scene:not(.proposed-scene) .overview-edge.detour .wire-caption { font-weight:500; }
+@media(max-width:700px){ .arch-header .atlas-mark { width:32px; height:35px; font-size:23px; } }
+
+@media(max-width:700px){
+  #compiler-overview[data-view="proposed"] .connected-minimap { width:72px; bottom:84px; }
+  #compiler-overview[data-view="proposed"] .connected-minimap svg { height:74px; }
+}
 
 /* Shared navigation uses Atlas tokens; page content keeps its own layout. */
 .site-header { border-bottom:var(--border-hairline) solid var(--rule); background:var(--surface); position:sticky; top:0; z-index:5; }
@@ -403,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Psi stages</h1>
       <p class="lede">From source text to accepted Psi, including the source drivers and the data they carry.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/215e249c24c4f412e15637afd070d4b11a194b09/atlas"><code>215e249c24c4</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/subsystems/psi.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/psi.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -437,126 +613,126 @@ its scalar execution gate to unqualified <code>u8</code> machines. <a href="http
 a claim that the current coordinator performs one uninterrupted pass: source
 activation and compile-time evaluation interrupt that larger workflow, as
 described below. Nor does a box imply that every language construct works.</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation."><svg viewBox="0.00 0.00 2499.00 75.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation." style="min-width:2499px">
-<title>A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.</title><defs><marker id="psi-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 66)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation."><svg viewBox="0.00 0.00 2638.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation." style="min-width:2638px">
+<title>A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.</title><defs><marker id="psi-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
 <g id="psi-diagram-1-node1" class="node psi" data-node="S">
 <title>S</title>
-<polygon points="118.68,-51.06 0,-51.06 0,-0.66 118.68,-0.66 118.68,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="59.34" y="-21.76">LoadedSources</text>
+<polygon points="126,-50 0,-50 0,0 126,0 126,-50" />
+<text text-anchor="middle" x="63" y="-21.6">LoadedSources</text>
 </g>
 
 <g id="psi-diagram-1-node2" class="node psi" data-node="L">
 <title>L</title>
-<polygon points="338.11,-51.06 234.43,-51.06 234.43,-0.66 338.11,-0.66 338.11,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="286.27" y="-21.76">Psi 00 lexing</text>
+<polygon points="356,-50 248,-50 248,0 356,0 356,-50" />
+<text text-anchor="middle" x="302" y="-21.6">Psi 00 lexing</text>
 </g>
 
 <g id="psi-diagram-1-edge1" class="edge handoff" data-from="S" data-to="L">
 <title>S-&gt;L</title>
-<path d="M119.14,-25.86C154.81,-25.86 199.88,-25.86 234.07,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="176.56" y="-30.21">source text</text>
+<path d="M126.27,-25C164.12,-25 211.94,-25 247.98,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="187" y="-28.4">source text</text>
 </g>
 
 <g id="psi-diagram-1-node3" class="node psi" data-node="P">
 <title>P</title>
-<polygon points="580.04,-51.06 468.11,-51.06 468.11,-0.66 580.04,-0.66 580.04,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="524.08" y="-21.76">Psi 01 parsing</text>
+<polygon points="611,-50 493,-50 493,0 611,0 611,-50" />
+<text text-anchor="middle" x="552" y="-21.6">Psi 01 parsing</text>
 </g>
 
 <g id="psi-diagram-1-edge2" class="edge handoff" data-from="L" data-to="P">
 <title>L-&gt;P</title>
-<path d="M338.44,-25.86C376.63,-25.86 428.77,-25.86 467.9,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="403.11" y="-30.21">LexedSources</text>
+<path d="M356.2,-25C396.34,-25 451.36,-25 492.69,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="424.5" y="-28.4">LexedSources</text>
 </g>
 
 <g id="psi-diagram-1-node4" class="node psi" data-node="R">
 <title>R</title>
-<polygon points="826.47,-51.06 701.04,-51.06 701.04,-0.66 826.47,-0.66 826.47,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="763.76" y="-21.76">Psi 02 resolution</text>
+<polygon points="869,-50 737,-50 737,0 869,0 869,-50" />
+<text text-anchor="middle" x="803" y="-21.6">Psi 02 resolution</text>
 </g>
 
 <g id="psi-diagram-1-edge3" class="edge handoff" data-from="P" data-to="R">
 <title>P-&gt;R</title>
-<path d="M580.5,-25.86C616.58,-25.86 663.68,-25.86 700.96,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="640.54" y="-30.21">SyntaxTrees</text>
+<path d="M611.07,-25C648.72,-25 697.83,-25 736.82,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="674" y="-28.4">SyntaxTrees</text>
 </g>
 
 <g id="psi-diagram-1-node5" class="node psi" data-node="T">
 <title>T</title>
-<polygon points="1104.4,-51.06 998.47,-51.06 998.47,-0.66 1104.4,-0.66 1104.4,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="1051.44" y="-21.76">Psi 03 typing</text>
+<polygon points="1162,-50 1051,-50 1051,0 1162,0 1162,-50" />
+<text text-anchor="middle" x="1106.5" y="-21.6">Psi 03 typing</text>
 </g>
 
 <g id="psi-diagram-1-edge4" class="edge handoff" data-from="R" data-to="T">
 <title>R-&gt;T</title>
-<path d="M826.74,-25.86C877.94,-25.86 949.81,-25.86 998.14,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="912.47" y="-30.21">SymbolResolvedTrees</text>
+<path d="M869.05,-25C923.23,-25 999.54,-25 1050.66,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="960" y="-28.4">SymbolResolvedTrees</text>
 </g>
 
 <g id="psi-diagram-1-node6" class="node psi" data-node="F">
 <title>F</title>
-<polygon points="1356.83,-51.06 1221.65,-51.06 1221.65,-0.66 1356.83,-0.66 1356.83,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="1289.24" y="-21.76">Psi 04 preparation</text>
+<polygon points="1429,-50 1285,-50 1285,0 1429,0 1429,-50" />
+<text text-anchor="middle" x="1357" y="-21.6">Psi 04 preparation</text>
 </g>
 
 <g id="psi-diagram-1-edge5" class="edge handoff" data-from="T" data-to="F">
 <title>T-&gt;F</title>
-<path d="M1104.77,-25.86C1139.1,-25.86 1184.3,-25.86 1221.24,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1163.03" y="-30.21">TypedTrees</text>
+<path d="M1162.03,-25C1198.04,-25 1245.59,-25 1284.6,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1223.5" y="-28.4">TypedTrees</text>
 </g>
 
 <g id="psi-diagram-1-node7" class="node psi" data-node="E">
 <title>E</title>
-<polygon points="1633.26,-51.72 1509.33,-51.72 1509.33,0 1633.26,0 1633.26,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1571.3" y="-30.01">Psi 05 structural</text>
-<text xml:space="preserve" text-anchor="middle" x="1571.3" y="-13.51">lowering</text>
+<polygon points="1720,-50 1590,-50 1590,0 1720,0 1720,-50" />
+<text text-anchor="middle" x="1655" y="-28.6">Psi 05 structural</text>
+<text text-anchor="middle" x="1655" y="-14.6">lowering</text>
 </g>
 
 <g id="psi-diagram-1-edge6" class="edge handoff" data-from="F" data-to="E">
 <title>F-&gt;E</title>
-<path d="M1357.32,-25.86C1403.44,-25.86 1464.2,-25.86 1509.02,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1433.08" y="-30.21">FrozenTypedTrees</text>
+<path d="M1429.28,-25C1478.2,-25 1542.59,-25 1589.9,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1509.5" y="-28.4">FrozenTypedTrees</text>
 </g>
 
 <g id="psi-diagram-1-node8" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="1920.19,-51.06 1800.01,-51.06 1800.01,-0.66 1920.19,-0.66 1920.19,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="1860.1" y="-21.76">Psi 06 checking</text>
+<polygon points="2023,-50 1897,-50 1897,0 2023,0 2023,-50" />
+<text text-anchor="middle" x="1960" y="-21.6">Psi 06 checking</text>
 </g>
 
 <g id="psi-diagram-1-edge7" class="edge handoff" data-from="E" data-to="C">
 <title>E-&gt;C</title>
-<path d="M1633.47,-25.86C1682.66,-25.86 1751.35,-25.86 1799.98,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1716.64" y="-30.21">TerminalCompilation</text>
+<path d="M1720.26,-25C1772.37,-25 1845.38,-25 1896.91,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1808.5" y="-28.4">TerminalCompilation</text>
 </g>
 
 <g id="psi-diagram-1-node9" class="node hub" data-node="A">
 <title>A</title>
-<polygon points="2190.62,-51.72 2065.19,-51.72 2065.19,0 2190.62,0 2190.62,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="2127.91" y="-30.01">Accepted source</text>
-<text xml:space="preserve" text-anchor="middle" x="2127.91" y="-13.51">publication</text>
+<polygon points="2310,-50 2177,-50 2177,0 2310,0 2310,-50" />
+<text text-anchor="middle" x="2243.5" y="-28.6">Accepted source</text>
+<text text-anchor="middle" x="2243.5" y="-14.6">publication</text>
 </g>
 
 <g id="psi-diagram-1-edge8" class="edge checked" data-from="C" data-to="A">
 <title>C-&gt;A</title>
-<path d="M1920.42,-25.86C1963.42,-25.86 2021.41,-25.86 2064.99,-25.86" marker-end="url(#psi-diagram-1-arrow-checked)" />
-<text xml:space="preserve" text-anchor="middle" x="1992.69" y="-30.21">AcceptedClosure</text>
+<path d="M2023.12,-25C2068.62,-25 2130.26,-25 2176.61,-25" marker-end="url(#psi-diagram-1-arrow-checked)" />
+<text text-anchor="middle" x="2100" y="-28.4">AcceptedClosure</text>
 </g>
 
 <g id="psi-diagram-1-node10" class="node around" data-node="O">
 <title>O</title>
-<polygon points="2481.3,-51.72 2318.37,-51.72 2318.37,0 2481.3,0 2481.3,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="2399.84" y="-30.01">Omega and interpreter</text>
-<text xml:space="preserve" text-anchor="middle" x="2399.84" y="-13.51">consumers</text>
+<polygon points="2621,-50 2444,-50 2444,0 2621,0 2621,-50" />
+<text text-anchor="middle" x="2532.5" y="-28.6">Omega and interpreter</text>
+<text text-anchor="middle" x="2532.5" y="-14.6">consumers</text>
 </g>
 
 <g id="psi-diagram-1-edge9" class="edge handoff" data-from="A" data-to="O">
 <title>A-&gt;O</title>
-<path d="M2190.83,-25.86C2228.58,-25.86 2277.23,-25.86 2317.99,-25.86" marker-end="url(#psi-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="2254.5" y="-45.96">Published Psi</text>
-<text xml:space="preserve" text-anchor="middle" x="2254.5" y="-30.21">artifact</text>
+<path d="M2310.34,-25C2349.98,-25 2400.93,-25 2443.93,-25" marker-end="url(#psi-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="2377" y="-41.4">Published Psi</text>
+<text text-anchor="middle" x="2377" y="-28.4">artifact</text>
 </g>
 </g>
 </svg></div><figcaption>A prepared source request crosses Psi 00–06 before accepted publication. The checker establishes acceptance; the larger source workflow can pause for evaluation.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -662,69 +838,69 @@ returned that same caller. <a href="https://github.com/CathedralOS/Omega/blob/3f
 <p>For a call with an authored declaration-selection occurrence, the selection
 ledger already travels through typed trees. The shared location of its type
 definition is a different ownership question from the location of its values.</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question."><svg viewBox="0.00 0.00 1389.00 75.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question." style="min-width:1389px">
-<title>Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question.</title><defs><marker id="psi-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 66)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question."><svg viewBox="0.00 0.00 1465.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question." style="min-width:1465px">
+<title>Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question.</title><defs><marker id="psi-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
 <g id="psi-diagram-2-node1" class="node psi" data-node="R">
 <title>R</title>
-<polygon points="143.43,-51.72 0,-51.72 0,0 143.43,0 143.43,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="71.71" y="-30.01">Resolved tree owns</text>
-<text xml:space="preserve" text-anchor="middle" x="71.71" y="-13.51">selection ledger</text>
+<polygon points="152,-50 0,-50 0,0 152,0 152,-50" />
+<text text-anchor="middle" x="76" y="-28.6">Resolved tree owns</text>
+<text text-anchor="middle" x="76" y="-14.6">selection ledger</text>
 </g>
 
 <g id="psi-diagram-2-node2" class="node psi" data-node="T">
 <title>T</title>
-<polygon points="455.86,-51.72 285.43,-51.72 285.43,0 455.86,0 455.86,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="370.64" y="-30.01">Psi 03 copies ledger into</text>
-<text xml:space="preserve" text-anchor="middle" x="370.64" y="-13.51">TypedTreeTables</text>
+<polygon points="480,-50 300,-50 300,0 480,0 480,-50" />
+<text text-anchor="middle" x="390" y="-28.6">Psi 03 copies ledger into</text>
+<text text-anchor="middle" x="390" y="-14.6">TypedTreeTables</text>
 </g>
 
 <g id="psi-diagram-2-edge1" class="edge handoff" data-from="R" data-to="T">
 <title>R-&gt;T</title>
-<path d="M143.84,-25.86C186.3,-25.86 240.48,-25.86 285.12,-25.86" marker-end="url(#psi-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="214.43" y="-30.21">03 retain ledger</text>
+<path d="M152.13,-25C196.58,-25 253.13,-25 299.83,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="226" y="-28.4">03 retain ledger</text>
 </g>
 
 <g id="psi-diagram-2-node3" class="node psi" data-node="F">
 <title>F</title>
-<polygon points="741.29,-51.72 594.86,-51.72 594.86,0 741.29,0 741.29,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="668.07" y="-30.01">Psi 04 freezes typed</text>
-<text xml:space="preserve" text-anchor="middle" x="668.07" y="-13.51">owner</text>
+<polygon points="779,-50 624,-50 624,0 779,0 779,-50" />
+<text text-anchor="middle" x="701.5" y="-28.6">Psi 04 freezes typed</text>
+<text text-anchor="middle" x="701.5" y="-14.6">owner</text>
 </g>
 
 <g id="psi-diagram-2-edge2" class="edge handoff" data-from="T" data-to="F">
 <title>T-&gt;F</title>
-<path d="M456.3,-25.86C499.95,-25.86 552.65,-25.86 594.43,-25.86" marker-end="url(#psi-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="525.36" y="-45.96">04 prepare and</text>
-<text xml:space="preserve" text-anchor="middle" x="525.36" y="-30.21">freeze</text>
+<path d="M480.1,-25C525.55,-25 580.27,-25 623.82,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="552" y="-41.4">04 prepare and</text>
+<text text-anchor="middle" x="552" y="-28.4">freeze</text>
 </g>
 
 <g id="psi-diagram-2-node4" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="1067.22,-51.72 900.54,-51.72 900.54,0 1067.22,0 1067.22,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="983.88" y="-30.01">Psi 05 reads occurrence</text>
-<text xml:space="preserve" text-anchor="middle" x="983.88" y="-13.51">from typed ledger</text>
+<polygon points="1123,-50 946,-50 946,0 1123,0 1123,-50" />
+<text text-anchor="middle" x="1034.5" y="-28.6">Psi 05 reads occurrence</text>
+<text text-anchor="middle" x="1034.5" y="-14.6">from typed ledger</text>
 </g>
 
 <g id="psi-diagram-2-edge3" class="edge handoff" data-from="F" data-to="C">
 <title>F-&gt;C</title>
-<path d="M741.46,-25.86C788.79,-25.86 850.75,-25.86 900.05,-25.86" marker-end="url(#psi-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="820.91" y="-30.21">05 read occurrence</text>
+<path d="M779.27,-25C829.02,-25 893.96,-25 945.75,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="862.5" y="-28.4">05 read occurrence</text>
 </g>
 
 <g id="psi-diagram-2-node5" class="node psi" data-node="J">
 <title>J</title>
-<polygon points="1372.15,-51.72 1200.22,-51.72 1200.22,0 1372.15,0 1372.15,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1286.18" y="-30.01">Target identity agrees or</text>
-<text xml:space="preserve" text-anchor="middle" x="1286.18" y="-13.51">lowering refuses</text>
+<polygon points="1448,-50 1265,-50 1265,0 1448,0 1448,-50" />
+<text text-anchor="middle" x="1356.5" y="-28.6">Target identity agrees or</text>
+<text text-anchor="middle" x="1356.5" y="-14.6">lowering refuses</text>
 </g>
 
 <g id="psi-diagram-2-edge4" class="edge handoff" data-from="C" data-to="J">
 <title>C-&gt;J</title>
-<path d="M1067.34,-25.86C1108.49,-25.86 1158.22,-25.86 1199.77,-25.86" marker-end="url(#psi-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1133.72" y="-45.96">check selected</text>
-<text xml:space="preserve" text-anchor="middle" x="1133.72" y="-30.21">identity</text>
+<path d="M1123.36,-25C1167.31,-25 1220.43,-25 1264.77,-25" marker-end="url(#psi-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="1194" y="-41.4">check selected</text>
+<text text-anchor="middle" x="1194" y="-28.4">identity</text>
 </g>
 </g>
 </svg></div><figcaption>Authored declaration-selection values already pass from resolved trees through typed trees to Psi 05; the foundation-owned type is a separate ownership question.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -807,93 +983,93 @@ compiler. Missing imports, providers, external completions or unavailable
 target observations refuse at admission. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L616">Preparation</a>;
 <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L260">admission</a>; <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L402">execution</a></p>
 <p>The following is a <strong>current dependency/call diagram</strong>, not stage order:</p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler."><svg viewBox="0.00 0.00 1092.00 221.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler." style="min-width:1092px">
-<title>Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler.</title><defs><marker id="psi-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 212.7)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler."><svg viewBox="0.00 0.00 1160.28 217.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler." style="min-width:1160px">
+<title>Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler.</title><defs><marker id="psi-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="psi-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="psi-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="psi-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 208.64)">
 <title>atlas</title>
 
 <g id="psi-diagram-3-node1" class="node around" data-node="S">
 <title>S</title>
-<polygon points="164.43,-168.06 0,-168.06 0,-117.66 164.43,-117.66 164.43,-168.06" />
-<text xml:space="preserve" text-anchor="middle" x="82.21" y="-138.76">Source compiler facade</text>
+<polygon points="176,-162 0,-162 0,-112 176,-112 176,-162" />
+<text text-anchor="middle" x="88" y="-133.6">Source compiler facade</text>
 </g>
 
 <g id="psi-diagram-3-node2" class="node around" data-node="E">
 <title>E</title>
-<polygon points="471.61,-128.06 319.18,-128.06 319.18,-77.66 471.61,-77.66 471.61,-128.06" />
-<text xml:space="preserve" text-anchor="middle" x="395.39" y="-98.76">Build-time evaluation</text>
+<polygon points="502,-125 340,-125 340,-75 502,-75 502,-125" />
+<text text-anchor="middle" x="421" y="-96.6">Build-time evaluation</text>
 </g>
 
 <g id="psi-diagram-3-edge1" class="edge handoff" data-from="S" data-to="E">
 <title>S-&gt;E</title>
-<path d="M164.57,-132.4C212.29,-126.27 272.18,-118.57 318.86,-112.57" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="241.8" y="-131.97">request evaluation</text>
+<path d="M176.4,-127.23C227.06,-121.57 290.39,-114.49 339.78,-108.97" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="258" y="-126.4">request evaluation</text>
 </g>
 
 <g id="psi-diagram-3-node3" class="node psi" data-node="F">
 <title>F</title>
-<polygon points="768.29,-204.06 633.11,-204.06 633.11,-153.66 768.29,-153.66 768.29,-204.06" />
-<text xml:space="preserve" text-anchor="middle" x="700.7" y="-174.76">Psi 04 preparation</text>
+<polygon points="817,-200 673,-200 673,-150 817,-150 817,-200" />
+<text text-anchor="middle" x="745" y="-171.6">Psi 04 preparation</text>
 </g>
 
 <g id="psi-diagram-3-edge2" class="edge handoff" data-from="S" data-to="F">
 <title>S-&gt;F</title>
-<path d="M164.77,-148.1C174.43,-148.7 184.15,-149.3 193.43,-149.86 350.95,-159.37 536.09,-169.78 632.95,-175.17" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="395.39" y="-170.29">prepare source</text>
+<path d="M176.32,-142.07C307.28,-149.66 552.04,-163.86 672.84,-170.87" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="421" y="-163.4">prepare source</text>
 </g>
 
 <g id="psi-diagram-3-edge3" class="edge handoff" data-from="E" data-to="F">
 <title>E-&gt;F</title>
-<path d="M471.89,-116.43C510.18,-123.86 557.27,-133.85 598.86,-145.11 609.91,-148.1 621.52,-151.62 632.77,-155.24" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="549.74" y="-149.46">prepare invocation</text>
+<path d="M502.17,-114.05C543.03,-121.69 593.39,-131.85 638,-143 649.38,-145.84 661.35,-149.15 672.99,-152.53" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="584.5" y="-146.4">prepare invocation</text>
 </g>
 
 <g id="psi-diagram-3-node4" class="node around" data-node="P">
 <title>P</title>
-<polygon points="773.54,-127.06 627.86,-127.06 627.86,-76.66 773.54,-76.66 773.54,-127.06" />
-<text xml:space="preserve" text-anchor="middle" x="700.7" y="-97.76">Terminal production</text>
+<polygon points="823,-125 667,-125 667,-75 823,-75 823,-125" />
+<text text-anchor="middle" x="745" y="-96.6">Terminal production</text>
 </g>
 
 <g id="psi-diagram-3-edge4" class="edge handoff" data-from="E" data-to="P">
 <title>E-&gt;P</title>
-<path d="M472.09,-99.82C481.69,-99.52 491.38,-99.28 500.61,-99.11 544.27,-98.32 555.2,-98.51 598.86,-99.11 608.14,-99.24 617.9,-99.43 627.55,-99.65" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="549.74" y="-103.46">publish invocation</text>
+<path d="M502.01,-100C552.39,-100 617.08,-100 666.9,-100" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="584.5" y="-103.4">publish invocation</text>
 </g>
 
 <g id="psi-diagram-3-node6" class="node around" data-node="I">
 <title>I</title>
-<polygon points="757.04,-52.06 644.36,-52.06 644.36,-1.66 757.04,-1.66 757.04,-52.06" />
-<text xml:space="preserve" text-anchor="middle" x="700.7" y="-22.76">Psi interpreter</text>
+<polygon points="805,-50 685,-50 685,0 805,0 805,-50" />
+<text text-anchor="middle" x="745" y="-21.6">Psi interpreter</text>
 </g>
 
 <g id="psi-diagram-3-edge6" class="edge handoff" data-from="E" data-to="I">
 <title>E-&gt;I</title>
-<path d="M471.76,-83.98C525.27,-70.57 595.91,-52.87 644.29,-40.74" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="549.74" y="-80.46">execute artifact</text>
+<path d="M502.01,-81.36C558.72,-68.15 633.57,-50.72 684.92,-38.76" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="584.5" y="-76.4">execute artifact</text>
 </g>
 
 <g id="psi-diagram-3-node5" class="node psi" data-node="C">
 <title>C</title>
-<polygon points="1053.72,-127.06 945.54,-127.06 945.54,-76.66 1053.72,-76.66 1053.72,-127.06" />
-<text xml:space="preserve" text-anchor="middle" x="999.63" y="-97.76">Psi 05 and 06</text>
+<polygon points="1120,-125 1006,-125 1006,-75 1120,-75 1120,-125" />
+<text text-anchor="middle" x="1063" y="-96.6">Psi 05 and 06</text>
 </g>
 
 <g id="psi-diagram-3-edge5" class="edge handoff" data-from="P" data-to="C">
 <title>P-&gt;C</title>
-<path d="M773.96,-101.86C826.83,-101.86 897.39,-101.86 945.23,-101.86" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="849.04" y="-106.21">lower and check</text>
+<path d="M823.3,-100C879.76,-100 955.01,-100 1005.81,-100" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="903" y="-103.4">lower and check</text>
 </g>
 
 <g id="psi-diagram-3-node7" class="node psi" data-node="R">
 <title>R</title>
-<polygon points="1074.72,-51.72 924.54,-51.72 924.54,0 1074.72,0 1074.72,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="999.63" y="-30.01">Representations and</text>
-<text xml:space="preserve" text-anchor="middle" x="999.63" y="-13.51">semantic libraries</text>
+<polygon points="1143,-50 983,-50 983,0 1143,0 1143,-50" />
+<text text-anchor="middle" x="1063" y="-28.6">Representations and</text>
+<text text-anchor="middle" x="1063" y="-14.6">semantic libraries</text>
 </g>
 
 <g id="psi-diagram-3-edge7" class="edge handoff" data-from="I" data-to="R">
 <title>I-&gt;R</title>
-<path d="M757.2,-26.67C804.29,-26.51 872.24,-26.29 924.07,-26.11" marker-end="url(#psi-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="849.04" y="-30.86">read current code</text>
+<path d="M805.07,-25C855.26,-25 927.75,-25 982.95,-25" marker-end="url(#psi-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="903" y="-28.4">read current code</text>
 </g>
 </g>
 </svg></div><figcaption>Current dependencies include source-stage preparation inside compile-time evaluation. The interpreter consumes representations and does not call the source compiler.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -969,7 +1145,7 @@ and package scheduling boundary.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1122,11 +1298,26 @@ and package scheduling boundary.</p></main>
   const cameras=new Map();
   const detail=root.querySelector('.connected-detail');
   const scale=root.querySelector('.connected-scale');
+  const traceSelect=root.querySelector('.trace-picker select');
+  const traceNote=root.querySelector('.trace-explanation');
   const jump=root.querySelector('.connected-jump');
   const mini=root.querySelector('.connected-minimap svg');
   const NS='http://www.w3.org/2000/svg';
   let current=zoomIdentity,selected=null,expanded=false,selectionTrigger=null;
   const el=(tag,attributes,parent=mini)=>{const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.append(node);return node;};
+  const stagePicker=root.querySelector('.stage-picker');
+  const stageSelect=stagePicker.querySelector('select');
+  let flight=0;
+  function trackStage(transform){
+    if(view!=='proposed')return;
+    const top=(Math.min(80,viewport.clientHeight/5)-transform.y)/transform.k;
+    const center=(viewport.clientWidth/2-transform.x)/transform.k;
+    const groups=model.groups;
+    const closest=groups.reduce((a,b)=>Math.abs(center-a.x-a.width/2)<=Math.abs(center-b.x-b.width/2)?a:b);
+    const column=groups.filter(group=>group.x===closest.x);
+    const stage=column.find(group=>top<=group.y+group.height)||column[column.length-1];
+    stageSelect.selectedIndex=groups.indexOf(stage);
+  }
   let miniWindow;
   function drawMinimap(){
     mini.replaceChildren();mini.setAttribute('viewBox',`0 0 ${model.width} ${model.height}`);
@@ -1138,23 +1329,47 @@ and package scheduling boundary.</p></main>
   root.classList.add('connected-enhanced');
   svg.setAttribute('role','group');
   root.querySelector('.connected-tools').hidden=false;
+  root.querySelector('.camera-tools').hidden=false;
   root.querySelector('.connected-views').hidden=false;
   root.querySelector('.connected-minimap').hidden=false;
   svg.removeAttribute('viewBox');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   const camera=zoom().scaleExtent([0.02,2.5]).extent(()=>[[0,0],[viewport.clientWidth,viewport.clientHeight]])
-    .filter(event=>!event.button && (event.type==='wheel' || event.type.startsWith('touch') || !event.target.closest('.overview-node,.overview-edge')))
+    .clickDistance(3)
+    .on('start',event=>{if(event.sourceEvent)stopFlight();})
     .on('zoom',event=>{
-      current=event.transform;scene.setAttribute('transform',current.toString());
+      current=event.transform;trackStage(current);scene.setAttribute('transform',current.toString());
       scale.value=Math.round(current.k*100)+'%';root.dataset.scale=current.k;
       root.dataset.camera=`${current.x},${current.y},${current.k}`;
+      root.dataset.whole=String(current.x>=-1 && current.y>=-1 &&
+        current.x+model.width*current.k<=viewport.clientWidth+1 && current.y+model.height*current.k<=viewport.clientHeight+1);
       miniWindow.setAttribute('x',-current.x/current.k);miniWindow.setAttribute('y',-current.y/current.k);
       miniWindow.setAttribute('width',viewport.clientWidth/current.k);miniWindow.setAttribute('height',viewport.clientHeight/current.k);
     });
   select(svg).call(camera).on('dblclick.zoom',null);
   function move(x,y,k){select(svg).call(camera.transform,zoomIdentity.translate(x,y).scale(k));}
+  function stopFlight(){cancelAnimationFrame(flight);}
+  function stagePosition(node){
+    const target=node||model.nodes[0];
+    return {x:Math.max(12,(viewport.clientWidth-target.width)/2)-target.x,
+            y:node?22-target.y:0,k:1};
+  }
+  function visitStage(id){
+    stopFlight();
+    const from=current,to=stagePosition(nodes.get(id));
+    const draw=t=>move(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,from.k+(to.k-from.k)*t);
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){draw(1);return;}
+    const start=performance.now();
+    function step(now){
+      const t=Math.min(1,(now-start)/300);
+      draw(1-(1-t)**3);
+      if(t<1)flight=requestAnimationFrame(step);
+    }
+    flight=requestAnimationFrame(step);
+  }
+  stageSelect.addEventListener('change',()=>{clear();visitStage(stageSelect.value);});
   function fit(bounds={x:0,y:0,width:model.width,height:model.height}){
-    const k=Math.min(1,(viewport.clientWidth-64)/bounds.width,(viewport.clientHeight-64)/bounds.height);
+    const k=Math.min(1.2,(viewport.clientWidth-20)/bounds.width,(viewport.clientHeight-20)/bounds.height);
     move((viewport.clientWidth-bounds.width*k)/2-bounds.x*k,(viewport.clientHeight-bounds.height*k)/2-bounds.y*k,k);
   }
   function focusNode(n){const k=Math.max(0.75,Math.min(1,current.k));move(viewport.clientWidth/2-(n.x+n.width/2)*k,viewport.clientHeight/2-(n.y+n.height/2)*k,k);}
@@ -1169,9 +1384,59 @@ and package scheduling boundary.</p></main>
   }
   function link(text,href,parent){const a=document.createElement('a');a.textContent=text;a.href=href;parent.append(a);return a;}
   function button(text,action,parent=detail){const b=document.createElement('button');b.type='button';b.textContent=text;b.addEventListener('click',action);parent.append(b);return b;}
-  function clear(){selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function clear(){traceNote.hidden=true;traceSelect.value='';selected=null;root.classList.remove('has-trace');root.querySelectorAll('.is-traced,.is-selected').forEach(n=>n.classList.remove('is-traced','is-selected'));detail.hidden=true;root.dataset.selection='';jump.value='';}
+  function traceDetour(id,frame=true){
+    stopFlight();clear();
+    const trace=models.current.traces.find(t=>t.id===id);
+    if(!trace)return;
+    traceSelect.value=id;root.classList.add('has-trace');root.dataset.selection=id;
+    if(view==='proposed'){
+      const repair=model.repairs[id];
+      traceNote.replaceChildren(repair.description+' ');
+      link('Repair plan',repair.source,traceNote);
+      if(repair.stops.length){
+        const stops=document.createElement('span');
+        stops.className='repair-stops';traceNote.append(stops);
+        for(const key of repair.stops){
+          scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+          button(nodes.get(key).title,()=>visitStage(key),stops);
+        }
+        const first=model.spine.indexOf(repair.stops[0]),last=model.spine.indexOf(repair.stops.at(-1));
+        for(const edge of model.edges.slice(first,last)){
+          scene.querySelector(`[data-edge="${edge.id}"]`).classList.add('is-traced');
+        }
+        if(frame){
+          const t=stagePosition(nodes.get(repair.stops[0]));move(t.x,t.y,t.k);
+        }
+      }else root.classList.remove('has-trace');
+      traceNote.hidden=false;
+      return;
+    }
+    const points=[];
+    for(const edgeId of trace.edges){
+      const e=edges.get(edgeId);
+      scene.querySelector(`[data-edge="${e.id}"]`).classList.add('is-traced');
+      for(const key of [e.start,e.end]){
+        scene.querySelector(`[data-endpoint="${key}"]`).classList.add('is-traced');
+        const n=nodes.get(key);points.push(n,{x:n.x+n.width,y:n.y+n.height});
+      }
+      for(const section of e.sections)points.push(...section.points);
+    }
+    traceNote.replaceChildren(trace.description+' ');
+    link('Repair plan','foundation-backend-plan.html#start-with-the-extra-arrows',traceNote);
+    for(const [i,edgeId] of trace.edges.entries()){
+      traceNote.append(' · ');link(trace.edges.length===1?'Source':'Source '+(i+1),edges.get(edgeId).source,traceNote);
+    }
+    traceNote.hidden=false;
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    if(frame)fit({x:x-24,y:y-32,width:Math.max(...points.map(p=>p.x))-x+48,height:Math.max(...points.map(p=>p.y))-y+64});
+  }
+  traceSelect.addEventListener('change',()=>traceDetour(traceSelect.value));
   function inspect(id,isEdge=false,trigger=null){
-    clear();selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
+    const comparing=traceSelect.value;
+    stopFlight();clear();
+    if(comparing)traceDetour(comparing,false);
+    selected={id,isEdge};selectionTrigger=trigger||document.activeElement;
     jump.value=isEdge?'':id;
     root.dataset.selection=id;root.classList.add('has-trace');
     const chosen=isEdge?edges.get(id):nodes.get(id);
@@ -1181,11 +1446,16 @@ and package scheduling boundary.</p></main>
     for(const nodeId of activeNodes)root.querySelector(`[data-endpoint="${nodeId}"]`)?.classList.add('is-traced');
     root.querySelector(isEdge?`[data-edge="${id}"]`:`[data-endpoint="${id}"]`)?.classList.add('is-selected');
     detail.replaceChildren();detail.hidden=false;
-    button('Close ×',()=>{detail.hidden=true;selectionTrigger?.focus();}).className='connected-detail-close';
+    button('Close ×',()=>{traceDetour(comparing,false);selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
       if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.evidence){
+        const sources=document.createElement('p');sources.textContent='Current compiler';
+        for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
+        detail.append(sources);
+      }
       link(view==='proposed'?'Read proposal':'Read subsystem',`${chosen.page}.html${chosen.anchor?'#'+chosen.anchor:''}`,detail);detail.append(' · ');
     }
     link(view==='proposed'?'Recorded plan':'Pinned source',chosen.source,detail);
@@ -1210,6 +1480,10 @@ and package scheduling boundary.</p></main>
   bindScene();
   function showViewStatus(){
     root.dataset.view=view;
+    stagePicker.hidden=view!=='proposed';
+    const help='Drag to pan · scroll or pinch to zoom · select an arrow to inspect its handoff.';
+    root.querySelector('.connected-help').textContent=help;
+    viewport.setAttribute('aria-label',help+' Arrow keys pan. F fits all.');
     root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
     root.querySelector('.connected-intro').textContent=model.intro;
     root.closest('.architecture').querySelector('.arch-badge').textContent=model.badge;
@@ -1217,32 +1491,52 @@ and package scheduling boundary.</p></main>
     root.querySelector('.arch-arrow-evidence').hidden=view!=='current';
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
-    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Proposed architecture':'Whole compiler';
+    root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
     svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
+  }
+  function comparisonTrace(){
+    if(traceSelect.value || view!=='current' || !selected)return traceSelect.value;
+    if(selected.isEdge)return edges.get(selected.id).detour||'';
+    const related=model.traces.filter(trace=>trace.edges.some(id=>{
+      const edge=edges.get(id);
+      return edge.start===selected.id || edge.end===selected.id;
+    }));
+    return related.length===1?related[0].id:'';
   }
   function switchView(next){
     if(next===view)return;
-    cameras.set(view,{transform:current,width:viewport.clientWidth});clear();view=next;model=models[view];
+    stopFlight();
+    const trace=comparisonTrace();
+    cameras.set(view+':'+trace,{transform:current,width:viewport.clientWidth});
+    clear();view=next;model=models[view];
     nodes=new Map(model.nodes.map(n=>[n.id,n]));edges=new Map(model.edges.map(e=>[e.id,e]));
     const replacement=scenes[view].cloneNode(true);scene.replaceWith(replacement);scene=replacement;
     jump.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose a component…';jump.append(placeholder);
     for(const n of model.nodes)if(n.role!=='transform'){const option=document.createElement('option');option.value=n.id;option.textContent=n.title;jump.append(option);}
     bindScene();drawMinimap();showViewStatus();
-    const saved=cameras.get(view);
-    if(saved){const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);}else start();
+    const saved=cameras.get(view+':'+trace);
+    if(saved){
+      const t=responsiveCamera(saved.transform,saved.width);move(t.x,t.y,t.k);
+    }else start();
+    if(trace)traceDetour(trace,!saved);
   }
   root.querySelectorAll('.connected-views [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   showViewStatus();
   svg.addEventListener('click',event=>{if(!event.target.closest('.overview-node,.overview-edge'))clear();});
   jump.addEventListener('change',()=>{if(jump.value){const n=nodes.get(jump.value);frameConnections(n);inspect(n.id,false,jump);}});
   root.querySelectorAll('[data-camera]').forEach(control=>control.addEventListener('click',()=>{
-    const action=control.dataset.camera;
+    stopFlight();const action=control.dataset.camera;
     if(action==='start'){clear();start();}
-    if(action==='fit')fit();
+    if(action==='fit'){clear();fit();}
     if(action==='in'||action==='out')select(svg).call(camera.scaleBy,action==='in'?1.3:1/1.3);
     if(action==='natural'){const cx=(viewport.clientWidth/2-current.x)/current.k,cy=(viewport.clientHeight/2-current.y)/current.k;move(viewport.clientWidth/2-cx,viewport.clientHeight/2-cy,1);}
     if(action==='clear')clear();
-    if(action==='expand'){expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);control.textContent=expanded?'Collapse':'Expand';}
+    if(action==='expand'){
+      const fitted=root.dataset.whole==='true';
+      expanded=!expanded;root.closest('.architecture').classList.toggle('is-expanded',expanded);
+      control.textContent=expanded?'Collapse':'Expand';
+      if(fitted)fit();
+    }
   }));
   viewport.addEventListener('keydown',event=>{
     if(event.target!==viewport)return;
@@ -1266,8 +1560,26 @@ and package scheduling boundary.</p></main>
     svg.setAttribute('width',viewport.clientWidth);svg.setAttribute('height',viewport.clientHeight);
     const t=responsiveCamera(current,cameraWidth);cameraWidth=viewport.clientWidth;move(t.x,t.y,t.k);
   }).observe(viewport);
-  function start(){const k=Math.min(0.9,(viewport.clientWidth-24)/520);move(12,16,k);}
+  function start(){
+    if(view==='proposed'){
+      const t=stagePosition(null);move(t.x,t.y,t.k);
+      return;
+    }
+    const first=nodes.get(model.spine[0]);
+    move(Math.min(0,(viewport.clientWidth-first.width)/2-first.x),0,1);
+  }
   start();
+  if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
+  function openHandlerHandoff(){
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
+    if(!expanded)root.querySelector('[data-camera="expand"]').click();
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
+  }
+  window.addEventListener('hashchange',openHandlerHandoff);
+  openHandlerHandoff();
+  if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>
 </body>
