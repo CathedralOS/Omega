@@ -452,9 +452,9 @@ fn the_field_carries_its_predicates_on_its_type() {
 }
 
 /// What this slice does not judge is refused by name, never accepted: the
-/// literal without the cast that would give it the domain, a domain that
-/// is no primitive byte predicate, or one the empty view is not in. A
-/// previously given qualification must also be justified before it is erased.
+/// literal without its named cast, incompatible loan lifetimes, or a
+/// primitive domain the empty view is not in. Removing a qualification
+/// must still check the cast that originally established it.
 #[test]
 fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
@@ -623,9 +623,39 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
         "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
         rejection("valid_utf8", "plain").replace("byte_observation::valid_utf8", "valid_utf8")
     );
+    let source = format!("use omega::language::core::byte_observation;\n{shadowed}");
+    let typed = super::build_purpose::frontier_with_core(
+        "machine product_entry() {}",
+        &source,
+        declaration_contracts::source_identity::DependencyScope::Build,
+        BYTE_OBSERVATION_SOURCE,
+    );
+    let domains: Vec<_> = typed
+        .domain_definitions()
+        .iter()
+        .filter(|domain| {
+            matches!(
+                typed
+                    .type_reference_table
+                    .type_reference(domain.target_type),
+                crate::source_state::types::TypeReferenceNode::Slice { .. }
+            )
+        })
+        .collect();
+    let [domain] = domains.as_slice() else {
+        panic!("the fixture declares exactly one slice domain: {domains:?}");
+    };
+    assert!(
+        crate::source_state::byte_predicates::byte_slice_domain_predicate(&typed, domain).is_none(),
+        "a user declaration with the same spelling has no primitive byte meaning"
+    );
+    // Ordinary predicate translation now reads this helper. Its borrowed
+    // subject still needs lifetime support; this is not proof of its false
+    // predicate, and must not be counted as a primitive byte rejection.
     let reason = verdict(&shadowed);
     assert!(
-        reason.starts_with("type byte view in a domain that is not a primitive byte predicate"),
+        reason.starts_with("typing data field that elides a view's lifetime")
+            && reason.contains("the domain predicate"),
         "{shadowed}\n{reason}"
     );
 }
@@ -761,7 +791,7 @@ domain [u8; 3]::Text
 requires
     byte_observation::{predicate}(&self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
-machine first(bytes: &[u8; 3] in Text) -> u8 {{ bytes[0] }}
+machine first(bytes: &[u8; 3] in Text) -> u8 {{ (bytes as -Text)[0] }}
 machine build_entry() {{
     let plain: [u8; 3] = [{bytes}];
     let holder: Holder = Holder {{ bytes: plain as +Text }};
@@ -1002,4 +1032,75 @@ machine build_entry() crashes Trap {
     let encoded = terminal_codec::ClosedTerminalModule::new(accepted.elaboration.module).unwrap();
     terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
         .expect("the receiving checker must recognize the same carried reference custody");
+}
+
+/// A declared length rule is an ordinary domain predicate. Casts prove it
+/// for the actual descriptor; a call also requires that exact domain name.
+#[test]
+fn shared_byte_view_domains_check_lengths_and_keep_their_names() {
+    let source = r#"
+domain [u8]::FourBytes requires self.len == 4;
+machine length(input: &[u8] in FourBytes) -> u64 {
+    (input as -FourBytes).len
+}
+machine build_entry() {
+    let view: &[u8] in FourBytes = "room" as +FourBytes;
+    let count: u64 = length(view);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let accepted = match judge_portable_byte_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the declared length must be proved and published: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    terminal_codec::decode_module(&terminal_codec::encode_module(module).unwrap())
+        .expect("the ordinary domain crosses independent artifact validation");
+    let mut forged = module.clone();
+    for domain in &mut forged.structural_domains {
+        if domain.byte_predicate.is_none()
+            && let Some(predicate) = &mut domain.predicate
+        {
+            predicate.proposition = Proposition::Falsehood;
+        }
+    }
+    terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .expect_err("a changed domain theory cannot reuse the original cast proof");
+    accepted.publish().unwrap();
+    let wrong_length = source.replace("\"room\" as +FourBytes", "\"rooms\" as +FourBytes");
+    match judge_build(&wrong_length) {
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }) => {
+            assert!(
+                formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty()
+            );
+            assert_eq!(unproved.len(), 1, "{unproved:?}");
+            assert!(matches!(
+                unproved[0].kind,
+                terminal_check_tables::obligations::ObligationKind::ArrivalInvariant { .. }
+            ));
+            assert!(
+                unproved[0].statement.contains("FourBytes")
+                    && unproved[0].statement.contains("self.len == 4"),
+                "{unproved:?}"
+            );
+        }
+        other => panic!("the longer literal must fail only its length-domain cast: {other:?}"),
+    }
+    let plain = source.replace("length(view)", "length(\"room\")");
+    let reason = verdict(&plain);
+    assert!(
+        reason.contains("domain") && reason.contains("FourBytes"),
+        "{reason}"
+    );
 }

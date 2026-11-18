@@ -194,19 +194,9 @@ pub(super) fn mutable_byte_formal_identity(
 /// The type beneath the domains displayed on a view's referent, and those
 /// domains in written order.
 ///
-/// Served: a declared domain whose one `requires` selects a genuine Core
-/// byte observer of an explicit shared whole view of `self`, and that holds
-/// of the empty view (`valid_utf8`, `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
-/// shows, which the lowered form carries as the field's predicates
-/// (`StructuralFieldType::PredicateByteSequence`) and the checker judges
-/// from the bytes each store supplies (byte_views.md: "Primitive byte
-/// predicates are reconstructed from the exact source"; structural_access.md:
-/// "Literal qualification rosters must agree with their actual octets").
-///
-/// Refused by name: any other domain on a view, whose meaning is a
-/// proposition no view's bytes decide; and `non_empty`, which zeroed
-/// storage (the empty view) does not satisfy, so a record holding one would
-/// be gated, which this slice does not judge.
+/// Domain names remain attached to the exact view type. Primitive byte
+/// predicates use their compact byte judgment; other declarations contribute
+/// ordinary structural predicates at casts, calls and storage uses.
 fn byte_view_domains(
     typed: &crate::source_state::TypedTrees,
     referee: &crate::source_state::SourceTypeApplication,
@@ -252,11 +242,7 @@ fn byte_view_domains(
                     return Err(fail("byte view in a domain the empty view is not in"));
                 }
                 Some(_) => {}
-                None => {
-                    return Err(fail(
-                        "byte view in a domain that is not a primitive byte predicate",
-                    ));
-                }
+                None => {}
             }
             let instance = crate::lowering::body::DomainInstance {
                 declaration: domain.symbol,
@@ -916,17 +902,21 @@ impl Program<'_> {
         qualification: Qualification,
     ) -> Checked<()> {
         for source in qualification.domains.members() {
-            let (_, predicate) = crate::source_state::byte_predicates::byte_slice_domain_predicate(
-                self.typed,
-                self.domain_theory(machine, source)?,
-            )
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("byte qualification lost its complete primitive declaration"),
+            let definition = self.domain_theory(machine, source)?;
+            let Some((_, predicate)) =
+                crate::source_state::byte_predicates::byte_slice_domain_predicate(
+                    self.typed, definition,
                 )
-            })?;
+            else {
+                self.declared_domain(
+                    machine,
+                    source,
+                    ValueType::record(carrier),
+                    definition.target_type,
+                    SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                )?;
+                continue;
+            };
             let row = crate::lowering::body::SourceByteDomain {
                 source,
                 carrier,
@@ -1039,9 +1029,71 @@ impl Program<'_> {
         row
     }
 
+    /// A slice domain has an unsized logical subject. Its length is observed
+    /// through a shared descriptor, without constructing owned slice storage.
+    /// A supplied descriptor must still display that exact byte carrier.
+    pub(super) fn logical_byte_domain_carrier(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+        presented: Option<ValueType>,
+    ) -> Checked<Option<ValueType>> {
+        let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let Some(slice) = self
+            .source_scope
+            .slice_application(self.typed, reference)
+            .map_err(fail)?
+        else {
+            return Ok(None);
+        };
+        if slice.access.is_some() {
+            return Ok(None);
+        }
+        let element = slice
+            .element
+            .scope
+            .supplied_type_reference(self.typed, slice.element.reference)
+            .map_err(fail)?;
+        let TypeReferenceNode::Named { symbol, .. } = self
+            .typed
+            .type_reference_table
+            .type_reference(element.reference)
+        else {
+            return Ok(None);
+        };
+        let Some(atom) = self.typed.symbols.builtin_type_atom(*symbol) else {
+            return Ok(None);
+        };
+        if !matches!(super::types::atom_type(atom, machine)?, semantic_vocabulary::ScalarType::Integer(integer)
+            if integer.bits() == Some(8) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+        {
+            return Ok(None);
+        }
+        if let Some(value_type) = presented {
+            let ValueType::Record(row, _, _) = value_type else {
+                return Err(fail(
+                    "a byte-slice domain requires a shared byte descriptor",
+                ));
+            };
+            if !matches!(self.data_type(machine, row)?.shape,
+                StorageShape::ByteSequence(bytes) if bytes.is_shared_readable_view())
+            {
+                return Err(fail(
+                    "a byte-slice domain requires a shared byte descriptor",
+                ));
+            }
+            return Ok(Some(value_type));
+        }
+        Ok(Some(ValueType::record(self.literal_byte_type(
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+        ))))
+    }
+
     /// The primitive byte predicates of a value's type: one for each domain
-    /// a byte view in a domain carries (`byte_view_domains` admitted only
-    /// those), none for every other type.
+    /// a byte view carries. Ordinary domain clauses retain their separate
+    /// structural qualification and are not summarized by this bit set.
     pub(super) fn view_predicates(
         &self,
         machine: MachineId,
@@ -1084,18 +1136,13 @@ impl Program<'_> {
                     Unserved::Type("byte predicate conversion needs governed domain evidence"),
                 ));
             }
-            let predicate = crate::source_state::byte_predicates::domain_byte_predicate(
-                self.typed,
-                domain.declaration,
-            )
-            .ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("byte view in a domain that is not a primitive byte predicate"),
-                )
-            })?;
-            predicates.insert(predicate);
+            if let Some((_, predicate)) =
+                crate::source_state::byte_predicates::byte_domain_predicate(self.typed, theory)
+            {
+                predicates.insert(predicate);
+            }
+            // An ordinary domain is proved by its structural clauses, never
+            // by a primitive predicate inferred from its spelling.
         }
         Ok(predicates)
     }

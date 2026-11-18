@@ -650,7 +650,10 @@ impl Program<'_> {
                 Some(definition.target_type),
             );
         }
-        let carrier = self.value_type(id, definition.target_type)?;
+        let carrier = match self.logical_byte_domain_carrier(id, definition.target_type, None)? {
+            Some(carrier) => carrier,
+            None => self.value_type(id, definition.target_type)?,
+        };
         let domain = crate::lowering::body::DomainInstance {
             declaration: definition.symbol,
             identity: definition.semantic_id,
