@@ -92,7 +92,16 @@ machine Main::main(&mut self) {
         self.refusal("machine f(value:u32 in Trapping)->u32 in Trapping{value+missing[0]} machine main()->u8{0}",1,62);
         // missing-comparison.
         self.refusal("machine f(value:u32 in Trapping)->bool{value==missing[0]} machine main()->u8{0}",1,63);
-        self.positive("machine main()->u8{59}",59,90);
+        // Unconditional crash abandons a scalar return. Its empty-ceiling twin is invalid
+        // even if no caller selects that declaration. A possible call without path proof
+        // and a guarded declaration outside this slice both refuse coverage.
+        self.positive("public machine leaf()->u8 crashes Trap {crash Trap;} machine main()->u8 crashes Trap {leaf()}",0,64);
+        self.refusal("public machine leaf()->u8 crashes none {crash Trap;} machine main()->u8 {42}",1,65);
+        self.refusal("machine leaf()->u8{crash Trap;} machine main()->u8 crashes none {leaf()}",2,66);
+        self.refusal("machine guarded(n:u8)->u8 crashes Trap n == 0 {crash Trap;} machine main()->u8{42}",2,67);
+        self.refusal("machine main()->u8 crashes none crashes Trap {42}",1,68);
+        self.refusal("machine main()->u8 crashes Abort {42}",2,69);
+        self.positive("machine main()->u8 crashes none {59}",59,90);
     }
 
 }

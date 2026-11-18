@@ -81,7 +81,7 @@ data OmegaScalarCompiler {
     machine_labels: [i32; 4096];
     // Checked terminal forms: 3 = selected transition row, 4 = value
     // expression result, 5 = dynamic Boolean or nullary-sum transition, 6 = Unit
-    // completion after every statement. state_targets
+    // completion after every statement, 7 = explicit Trap. state_targets
     // holds the row/expression/first-statement index; state_values is the
     // exclusive statement end for kind 5.
     state_labels: [i32; 4096];
@@ -184,6 +184,7 @@ data OmegaScalarCompiler {
     // though the emitted comparison is total. Private bodies infer it; a
     // public body without a supported crash clause cannot admit that ceiling.
     machine_may_trap: [i32; 4096];
+    machine_allows_trap: [i32; 4096];
     call_colors: [i32; 4096];
     call_walk: [i32; 4096];
     call_cursors: [i32; 4096];
@@ -2507,7 +2508,6 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state reset_call_node(index: i32) {
         self.call_edge_heads[index] = -1;
         self.call_colors[index] = 0;
-        self.machine_may_trap[index] = 0;
         transition true { true -> reset_call_graph(index + 1) }
     }
 
@@ -2569,11 +2569,47 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         let item: OmegaMachineSyntax = self.parser.machine_items[index];
         self.diagnostic_offset = item.start;
         transition (item.path_member_count == 1) && (item.state_count >= 1) &&
-            (item.clause_count == 0) && (item.is_bodyless == 0) &&
+            (item.is_bodyless == 0) &&
             (item.has_target == 0) {
-            true -> machine_signatures(index)
+            true -> machine_clauses(index, item.first_clause, item.first_clause + item.clause_count, 0, 0)
             _ -> incomplete(4, self.diagnostic_offset)
         }
+    }
+
+    // Private bodies infer an omitted crash ceiling. Public bodies and
+    // explicit empty ceilings must discharge every propagated Trap route.
+    state machine_clauses(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
+        transition cursor < end {
+            true -> crash_ceiling(index, cursor, end, empty, trap)
+            _ -> retain_crash_ceiling(index, empty, trap)
+        }
+    }
+    state crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
+        let clause: OmegaMachineClauseSyntax = self.parser.machine_clauses[cursor];
+        transition clause.kind {
+            OmegaMachineClauseKind::CrashesNone -> merge_crash_ceiling(index, cursor, end, 1, trap)
+            OmegaMachineClauseKind::CrashesTrap -> merge_crash_ceiling(index, cursor, end, empty, 1)
+            _ -> incomplete(4, clause.start)
+        }
+    }
+    state merge_crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
+        transition (empty == 1) && (trap == 1) {
+            true -> reject(-1, 4, self.parser.machine_clauses[cursor].start)
+            _ -> machine_clauses(index, cursor + 1, end, empty, trap)
+        }
+    }
+    state retain_crash_ceiling(index: i32, empty: i32, trap: i32) {
+        // Callers may rely on the declaration across a package edge. Carry its
+        // published route even when this particular body happens to be total.
+        self.machine_may_trap[index] = trap;
+        transition (trap == 1) || ((empty == 0) && (self.parser.machine_items[index].is_public == 0)) {
+            true -> set_crash_ceiling(index, 1)
+            _ -> set_crash_ceiling(index, 0)
+        }
+    }
+    state set_crash_ceiling(index: i32, allows: i32) {
+        self.machine_allows_trap[index] = allows;
+        transition true { true -> machine_signatures(index) }
     }
 
     // An empty unannotated outer body may have no generated entry row.
@@ -2694,6 +2730,8 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
             statement_offset;
         transition self.parser.statements[statement].kind {
             OmegaStatementKind::Call -> check_call(index, state_index, statement)
+            OmegaStatementKind::CrashTrap -> check_crash(index, state_index, statement_offset,
+                self.parser.statements[statement].item_index)
             OmegaStatementKind::Expression ->
                 check_terminal(index, state_index, statement_offset, statement)
             OmegaStatementKind::Transition ->
@@ -2706,6 +2744,28 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
                     self.parser.local_data_statements[self.parser.statements[statement].item_index])
             _ -> internal()
         }
+    }
+
+    state check_crash(index: i32, state_index: i32, offset: i32, coordinate: i32) {
+        transition offset + 1 == self.parser.machine_states[state_index].statement_count {
+            true -> check_crash_route(index, state_index, offset, coordinate)
+            _ -> incomplete(4, coordinate)
+        }
+    }
+    state check_crash_route(index: i32, state_index: i32, offset: i32, coordinate: i32) {
+        // An unconditional first operation in an unconstrained initial state
+        // needs no path analysis. Other possible routes use the call summary.
+        transition (self.machine_allows_trap[index] == 0) &&
+            (state_index == self.parser.machine_items[index].first_state) && (offset == 0) &&
+            (self.parser.machine_states[state_index].requirement_count == 0) {
+            true -> reject(-1, 4, coordinate)
+            _ -> retain_trap_terminal(index, state_index)
+        }
+    }
+    state retain_trap_terminal(index: i32, state_index: i32) {
+        self.machine_may_trap[index] = 1;
+        self.state_terminal_kind[state_index] = 7;
+        transition true { true -> check_states(index, state_index + 1) }
     }
 
     state check_local(index: i32, state_index: i32, statement_offset: i32,
@@ -3326,25 +3386,24 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state call_graph() {
         transition self.check_call_graph() {
-            1 -> public_crashes(0)
+            1 -> check_crash_bounds(0)
             _ -> return
         }
     }
 
-    // Authored effect clauses remain outside this slice. Preserve the core
-    // may-summary through every call and refuse a public no-crash promise
-    // rather than shrinking that summary because our implementation is total.
-    state public_crashes(index: i32) {
+    // The graph includes nested states and unused declarations. A possible
+    // route that would need path-proof discharges remains outside this slice.
+    state check_crash_bounds(index: i32) {
         transition index < self.parser.machine_count {
-            true -> public_crash_bound(index)
+            true -> check_crash_bound(index)
             _ -> labels(0)
         }
     }
-    state public_crash_bound(index: i32) {
-        transition (self.parser.machine_items[index].is_public != 0) &&
+    state check_crash_bound(index: i32) {
+        transition (self.machine_allows_trap[index] == 0) &&
             (self.machine_may_trap[index] != 0) {
             true -> incomplete(4, self.parser.machine_items[index].start)
-            _ -> public_crashes(index + 1)
+            _ -> check_crash_bounds(index + 1)
         }
     }
 
@@ -3509,7 +3568,14 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
             4 -> emit_value_terminal(index, state_index)
             5 -> emit_dynamic_terminal(index, state_index)
             6 -> emit_unit_terminal(index, state_index)
+            7 -> emit_trap_terminal(index, state_index)
             _ -> internal()
+        }
+    }
+    state emit_trap_terminal(index: i32, state_index: i32) {
+        transition self.emit_trap() {
+            1 -> emit_state(index, state_index + 1)
+            _ -> emission_failure()
         }
     }
     state emit_unit_terminal(index: i32, state_index: i32) {
@@ -5631,16 +5697,21 @@ machine OmegaScalarCompiler::emit_trapping_arithmetic(
         }
     }
     state finish(trap: i32, complete: i32) {
-        // Alpha division by zero realizes its abnormal Trap. This check has
-        // no fabricated normal return, diagnostic exit or wrapped value.
         transition (self.tape.emit_jump_label(12, complete) == 1) &&
             (self.tape.define_label(trap) == 1) &&
-            (self.tape.emit_imm(1, 0, 0) == 1) &&
-            (self.tape.emit_rr(6, 0, 1) == 1) &&
+            (self.emit_trap() == 1) &&
             (self.tape.define_label(complete) == 1) {
             true -> return 1
             _ -> return 0
         }
+    }
+}
+
+// Alpha division by zero realizes an abnormal Trap with no normal return.
+machine OmegaScalarCompiler::emit_trap(&mut self) -> i32 {
+    transition self.tape.emit_imm(1, 0, 0) {
+        1 -> return self.tape.emit_rr(6, 0, 1)
+        _ -> return 0
     }
 }
 

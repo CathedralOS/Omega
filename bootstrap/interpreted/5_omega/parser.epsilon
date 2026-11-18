@@ -489,6 +489,11 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             105 -> borrow_access_or_operand_token()
             106 -> requirement_or_body_token()
             107 -> qualified_type_member()
+            108 -> crash_clause_cause()
+            109 -> crash_clause_end(OmegaMachineClauseKind::CrashesTrap)
+            110 -> crash_clause_end(OmegaMachineClauseKind::CrashesNone)
+            111 -> crash_statement_cause()
+            112 -> crash_statement_semicolon()
             _ -> internal_failure()
         }
     }
@@ -1879,7 +1884,87 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             "reaches"
         ) {
             1 -> begin_reaches_clause()
+            _ -> machine_header_crashes_identifier()
+        }
+    }
+
+    state machine_header_crashes_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "crashes") {
+            1 -> begin_crash_clause()
             _ -> machine_header_terminates_identifier()
+        }
+    }
+
+    state begin_crash_clause() {
+        self.machine_clause_start = self.scan.token_start;
+        self.machine_clause_first_member = self.member_count;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(108) }
+    }
+
+    state crash_clause_cause() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> crash_clause_spelling()
+            _ -> expected_crash_cause()
+        }
+    }
+
+    state crash_clause_spelling() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "none") {
+            1 -> admit_crash_clause(110)
+            _ -> crash_clause_trap()
+        }
+    }
+
+    state crash_clause_trap() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "Trap") {
+            1 -> admit_crash_clause(109)
+            _ -> other_crash_cause()
+        }
+    }
+
+    state other_crash_cause() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "Abort") {
+            1 -> incomplete_root()
+            _ -> expected_crash_cause()
+        }
+    }
+
+    state expected_crash_cause() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedCrashCause,
+            self.scan.token_start, self.scan.token_end) }
+    }
+
+    state admit_crash_clause(resume: i32) {
+        transition (self.member_count < 16384) && (self.machine_clause_count < 16384) {
+            true -> retain_crash_cause(resume)
+            _ -> resource_failure(OmegaParserResource::PathMembers, 16384, self.member_count + 1)
+        }
+    }
+
+    state retain_crash_cause(resume: i32) {
+        self.members[self.member_count].start = self.scan.token_start;
+        self.members[self.member_count].end = self.scan.token_end;
+        self.member_count = self.member_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(resume) }
+    }
+
+    // A route guard requires proof against the crash site's path facts. Only
+    // a clause boundary finishes the unguarded route implemented here.
+    state crash_clause_end(kind: OmegaMachineClauseKind) {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_effect_clause(kind)
+            OmegaTokenKind::Punctuation -> crash_clause_punctuation(kind)
+            _ -> incomplete_root()
+        }
+    }
+
+    state crash_clause_punctuation(kind: OmegaMachineClauseKind) {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> retain_effect_clause(kind)
+            _ -> incomplete_root()
         }
     }
 
@@ -2510,8 +2595,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state reach_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBrace -> retain_reaches_clause()
-            OmegaPunctuationKind::Semicolon -> retain_reaches_clause()
+            OmegaPunctuationKind::LeftBrace -> retain_effect_clause(OmegaMachineClauseKind::Reaches)
+            OmegaPunctuationKind::Semicolon -> retain_effect_clause(OmegaMachineClauseKind::Reaches)
             OmegaPunctuationKind::Comma -> next_reach_service()
             OmegaPunctuationKind::Plus -> next_reach_service()
             _ -> incomplete_root()
@@ -2519,7 +2604,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state reach_tail_identifier() {
-        transition true { true -> retain_reaches_clause() }
+        transition true { true -> retain_effect_clause(OmegaMachineClauseKind::Reaches) }
     }
 
     state next_reach_service() {
@@ -2538,9 +2623,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> scan_semantic(72) }
     }
 
-    state retain_reaches_clause() {
-        self.machine_clauses[self.machine_clause_count].kind =
-            OmegaMachineClauseKind::Reaches;
+    state retain_effect_clause(kind: OmegaMachineClauseKind) {
+        self.machine_clauses[self.machine_clause_count].kind = kind;
         self.machine_clauses[self.machine_clause_count].first_member =
             self.machine_clause_first_member;
         self.machine_clauses[self.machine_clause_count].member_count =
@@ -2612,12 +2696,79 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state state_body_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> state_body_punctuation()
-            OmegaTokenKind::Identifier -> begin_named_statement_path()
+            OmegaTokenKind::Identifier -> state_body_identifier()
             OmegaTokenKind::Integer -> begin_integer_expression_statement()
             OmegaTokenKind::StringLiteral -> begin_string_expression_statement()
             OmegaTokenKind::Keyword -> state_body_keyword()
             _ -> incomplete_root()
         }
+    }
+
+    state state_body_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "crash") {
+            1 -> begin_crash_statement()
+            _ -> begin_named_statement_path()
+        }
+    }
+
+    state begin_crash_statement() {
+        self.state_has_body_syntax = 1;
+        self.statement_start = self.scan.token_start;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(111) }
+    }
+
+    state crash_statement_cause() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> crash_statement_spelling()
+            _ -> expected_crash_cause()
+        }
+    }
+
+    state crash_statement_spelling() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "Trap") {
+            1 -> after_statement_cause()
+            _ -> other_crash_cause()
+        }
+    }
+
+    state after_statement_cause() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(112) }
+    }
+
+    state crash_statement_semicolon() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> crash_statement_punctuation()
+            _ -> expected_crash_semicolon()
+        }
+    }
+
+    state crash_statement_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> admit_crash_statement()
+            _ -> expected_crash_semicolon()
+        }
+    }
+
+    state expected_crash_semicolon() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedCrashSemicolon,
+            self.scan.token_start, self.scan.token_end) }
+    }
+
+    state admit_crash_statement() {
+        transition self.statement_count < 16384 {
+            true -> retain_crash_statement()
+            _ -> resource_failure(OmegaParserResource::Statements, 16384, self.statement_count + 1)
+        }
+    }
+
+    state retain_crash_statement() {
+        self.statements[self.statement_count].kind = OmegaStatementKind::CrashTrap;
+        self.statements[self.statement_count].item_index = self.statement_start;
+        self.statement_count = self.statement_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> resume_state_body() }
     }
 
     state state_body_keyword() {
