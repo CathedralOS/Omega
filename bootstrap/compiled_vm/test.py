@@ -396,7 +396,7 @@ def omega_utf8_customer(work, timeout, batch=None):
     # changing compiler inputs or the lifetime of any refusal/reset sequence.
     # The last batch begins with a successful compilation, then every refusal,
     # then the final successful canary using that same compiler instance.
-    expected_batches = ((42,), (42, -4, -4, -4, 42, 42, 42), (42, -4, -4), (42, 59))
+    expected_batches = ((42,), (42, -4, -4, -4, 42, 42, 42), (42, -4, -4), (42, -4, 59))
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
         assert 0 <= selected < len(expected_batches), selected
@@ -428,7 +428,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
-        print("Omega UTF-8: thirteen executables, 28 decoder boundaries, five arithmetic traps, fourteen refusal/reset checks passed in four fresh processes", flush=True)
+        print("Omega UTF-8: fourteen executables, 28 decoder boundaries, five arithmetic traps, one explicit trap, nineteen refusal/reset checks passed in four fresh processes", flush=True)
 
 
 def main():

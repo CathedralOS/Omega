@@ -447,6 +447,8 @@ data OmegaMachineParameterSyntax {
 data OmegaMachineClauseKind {
     case Satisfies;
     case Reaches;
+    case CrashesTrap;
+    case CrashesNone;
     case Terminates;
 }
 
@@ -457,10 +459,11 @@ data OmegaExternalBindingKind {
 // Satisfies owns exactly Trait::requirement and may own one closed external
 // binding. This slice admits the payload-free Binding::CompilerIntrinsic case
 // and retains each authored component separately. Reaches owns one or more
-// source-ordered service identifiers. Terminates owns one path-shaped
+// source-ordered service identifiers. An unguarded crash clause owns its
+// single cause or none spelling. Terminates owns one path-shaped
 // subject in first_member/member_count and one qualified ranking-view path in
 // first_view_member/view_member_count; it is a private witness, not the bare
-// public termination guarantee. All three reuse the path-member arena and
+// public termination guarantee. All forms reuse the path-member arena and
 // preserve one source-ordered machine-clause ledger.
 data OmegaMachineClauseSyntax {
     kind: OmegaMachineClauseKind;
@@ -485,10 +488,12 @@ data OmegaStatementKind {
     case Transition;
     case Expression;
     case LocalData;
+    case CrashTrap;
 }
 
 // Call, Assignment, Transition, and LocalData select their dedicated row with
 // item_index. Expression selects the shared expression arena directly.
+// A payload-free CrashTrap records the crash keyword coordinate there.
 data OmegaStatementSyntax {
     kind: OmegaStatementKind;
     item_index: i32;
@@ -863,6 +868,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedMachineReturnEnd;
     case ExpectedReferenceLifetime;
     case ExpectedUnitTypeEnd;
+    case ExpectedCrashCause;
+    case ExpectedCrashSemicolon;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedExpressionPathMember;
