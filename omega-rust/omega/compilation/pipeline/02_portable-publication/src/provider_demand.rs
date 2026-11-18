@@ -2,7 +2,9 @@
 use super::ProductCodeSource;
 use backend_plan::{ProviderExecutionOrigins, PublishedProviderDemand};
 use diagnostics::Diagnostic;
-use source_compiler::provider_supply::{SourceNativeBinding, SourceProviderDemand, SourceProviderFacts};
+use source_compiler::provider_supply::{
+    SourceNativeBinding, SourceProviderDemand, SourceProviderFacts,
+};
 use source_compiler::{PortableTerminalProgram, PsiCompilationObserver};
 use std::sync::Arc;
 
@@ -76,7 +78,10 @@ impl ProductCodeSource<'_> {
         demand: SourceProviderFacts<SourceProviderDemand>,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<PublishedProviderDemand, Vec<Diagnostic>> {
-        let facts = demand.receive(self.publication, profile.map(|profile| profile.target_name()))?;
+        let facts = demand.receive(
+            self.publication,
+            profile.map(|profile| profile.target_name()),
+        )?;
         let program = self.publish(self.publication.optimizations(), observer)?;
         match (profile, facts) {
             (None, SourceProviderDemand::Unscoped { roots }) => {
@@ -85,23 +90,44 @@ impl ProductCodeSource<'_> {
                     roots,
                 })
             }
-            (Some(profile), SourceProviderDemand::Target { closed, labels, bindings, review }) => {
+            (
+                Some(profile),
+                SourceProviderDemand::Target {
+                    closed,
+                    labels,
+                    bindings,
+                    review,
+                },
+            ) => {
                 let (logical, bodies) = closed.into_parts();
                 let origins = capture_origins(&program, self.sources, bindings);
                 // Non-executing and named inspection products do not require a program entry.
                 let folded_entry = backend_plan::FoldedEntryReach::capture(
-                    program.artifact().view(), profile.target_name(), &bodies,
+                    program.artifact().view(),
+                    profile.target_name(),
+                    &bodies,
                     !program.applications().is_empty(),
                 );
-                let review = review.map(|facts| backend_plan::package_review::PackageReviewRequirements {
-                    numeric: facts.numeric,
-                    bindings: facts.bindings,
-                });
+                let review =
+                    review.map(
+                        |facts| backend_plan::package_review::PackageReviewRequirements {
+                            numeric: facts.numeric,
+                            bindings: facts.bindings,
+                        },
+                    );
                 Ok(PublishedProviderDemand::Target {
-                    profile, logical, folded_entry, bodies, labels, origins, review,
+                    profile,
+                    logical,
+                    folded_entry,
+                    bodies,
+                    labels,
+                    origins,
+                    review,
                 })
             }
-            _ => Err(vec![Diagnostic::error("closed provider demand has a different deployment scope")]),
+            _ => Err(vec![Diagnostic::error(
+                "closed provider demand has a different deployment scope",
+            )]),
         }
     }
 

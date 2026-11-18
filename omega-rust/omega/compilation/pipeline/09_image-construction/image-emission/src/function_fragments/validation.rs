@@ -644,10 +644,7 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                temporary_stack_bytes
-                    .binary_search_by_key(&placed.machine, |row| row.machine)
-                    .map(|index| temporary_stack_bytes[index].byte_count)
-                    .map_err(|_| Error::Mismatch("missing selected function for temporary stack replay"))?,
+                temporary_stack_bytes[source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?].byte_count,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

@@ -311,6 +311,27 @@ fn supplied_product(
     })
 }
 
+#[test]
+fn closed_provider_demand_names_its_exact_source_judgment_and_deployment() {
+    let (source, _, roster) = judged(SLOT, REACHES);
+    let judge = || {
+        source_compiler::SourcePublication::judge(Arc::clone(&source), roster.clone(), Default::default())
+            .expect("source and its entry roster accept")
+    };
+    let original = judge();
+    let same_source_judged_again = judge();
+    let demand = || original.prepare_provider_demand(None, &[], &[], false).unwrap();
+    let facts = demand().receive(&original, None).unwrap();
+    let source_compiler::provider_supply::SourceProviderDemand::Unscoped { roots } = facts else {
+        panic!("expected the actual unscoped source roots");
+    };
+    assert_eq!(roots, roster.entries.iter().map(|entry| original.accepted().unwrap().machine_of(*entry).unwrap()).collect::<Vec<_>>());
+    for (publication, target) in [(&same_source_judged_again, None), (&original, Some("linux_x86_64"))] {
+        let diagnostics = demand().receive(publication, target).err().expect("must refuse a stale receipt");
+        assert_eq!(diagnostics[0].message, "closed provider demand belongs to another source judgment or deployment");
+    }
+}
+
 /// An accepted module cannot authenticate an extra supply that its roster
 /// never asked the checker to judge.
 #[test]

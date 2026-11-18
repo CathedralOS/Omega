@@ -1,5 +1,7 @@
 //! Finish one product target's source choices while the accepted source owns its declarations.
-use super::{ClosedLogicalProviderReach, SourcePackageReviewRequirements, explicit_build_requirements};
+use super::{
+    ClosedLogicalProviderReach, SourcePackageReviewRequirements, explicit_build_requirements,
+};
 use crate::provider_choice_inputs::ProviderSelection;
 use crate::{AcceptedTerminalSource, SourcePublication};
 use diagnostics::Diagnostic;
@@ -8,7 +10,10 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::{Arc, Weak};
 
 pub type SourceNativeBinding = Result<
-    (BoundaryMachineId, evaluation_receipts::NativeBindingMaterialization),
+    (
+        BoundaryMachineId,
+        evaluation_receipts::NativeBindingMaterialization,
+    ),
     String,
 >;
 
@@ -35,7 +40,9 @@ impl<T> SourceProviderFacts<T> {
         target: Option<&str>,
     ) -> Result<T, Vec<Diagnostic>> {
         if self.target.as_deref() != target
-            || !self.issuer.ptr_eq(&Arc::downgrade(publication.accepted_owner()?))
+            || !self
+                .issuer
+                .ptr_eq(&Arc::downgrade(publication.accepted_owner()?))
         {
             return Err(vec![Diagnostic::error(
                 "closed provider demand belongs to another source judgment or deployment",
@@ -68,46 +75,83 @@ impl SourcePublication {
         let accepted = self.accepted_owner()?;
         let module = accepted.module();
         let entry = match target {
-            Some(target) if !(self.roster()?.entries.is_empty() && module.program_entry_contracts.is_empty()) => {
-                let contract = module.program_entry_contract(target)
+            Some(target)
+                if !(self.roster()?.entries.is_empty()
+                    && module.program_entry_contracts.is_empty()) =>
+            {
+                let contract = module
+                    .program_entry_contract(target)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                module.machine(contract.entry).ok_or_else(|| vec![Diagnostic::error(
-                    "selected target entry has no exact executable machine",
-                )])?;
+                module.machine(contract.entry).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected target entry has no exact executable machine",
+                    )]
+                })?;
                 Some(contract.entry)
             }
             _ => None,
         };
-        let declared = accepted.boundary_requirements_declared().map_err(|error| vec![error])?;
+        let declared = accepted
+            .boundary_requirements_declared()
+            .map_err(|error| vec![error])?;
         let selected = explicit_build_requirements(&declared, selections, target);
         let Some(deployment) = target else {
             if !selected.is_empty() {
-                return Err(declared.iter()
+                return Err(declared
+                    .iter()
                     .filter(|row| selected.binary_search(&row.boundary).is_ok())
-                    .map(|row| Diagnostic::error(format!(
-                        "boundary requirement `{}` requires an explicit deployment target", row.name
-                    )))
+                    .map(|row| {
+                        Diagnostic::error(format!(
+                            "boundary requirement `{}` requires an explicit deployment target",
+                            row.name
+                        ))
+                    })
                     .collect());
             }
-            let roots = self.roster()?.entries.iter().map(|symbol| {
-                accepted.machine_of(*symbol).ok_or_else(|| vec![Diagnostic::error(
-                    "unscoped source lost its actual invocation root",
-                )])
-            }).collect::<Result<Vec<_>, _>>()?;
-            return Ok(SourceProviderFacts::new(accepted, None, SourceProviderDemand::Unscoped { roots }));
+            let roots = self
+                .roster()?
+                .entries
+                .iter()
+                .map(|symbol| {
+                    accepted.machine_of(*symbol).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "unscoped source lost its actual invocation root",
+                        )]
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(SourceProviderFacts::new(
+                accepted,
+                None,
+                SourceProviderDemand::Unscoped { roots },
+            ));
         };
         let closed = accepted.close_logical_provider_reach(deployment, entry, &selected)?;
-        let bindings = accepted.reached_native_bindings(deployment, native_supplies, closed.requirements());
+        let bindings =
+            accepted.reached_native_bindings(deployment, native_supplies, closed.requirements());
         let review = (review_package && !accepted.is_invocation()).then(|| {
             accepted.source_package_review_requirements(
-                deployment, native_supplies, &declared, closed.bindings().iter().map(|row| row.machine),
+                deployment,
+                native_supplies,
+                &declared,
+                closed.bindings().iter().map(|row| row.machine),
             )
         });
-        let mut labels: Vec<_> = declared.into_iter().map(|row| (row.boundary, row.name)).collect();
+        let mut labels: Vec<_> = declared
+            .into_iter()
+            .map(|row| (row.boundary, row.name))
+            .collect();
         labels.sort_unstable_by_key(|(boundary, _)| *boundary);
-        Ok(SourceProviderFacts::new(accepted, target, SourceProviderDemand::Target {
-            closed, labels, bindings, review,
-        }))
+        Ok(SourceProviderFacts::new(
+            accepted,
+            target,
+            SourceProviderDemand::Target {
+                closed,
+                labels,
+                bindings,
+                review,
+            },
+        ))
     }
 
     /// Publish only the named requirements for explicit native-input inspection.
@@ -131,15 +175,29 @@ impl AcceptedTerminalSource {
         reached: &[BoundaryMachineId],
     ) -> Vec<SourceNativeBinding> {
         let mut bindings = Vec::new();
-        for supply in supplies.iter().filter(|supply| supply.selection.target.canonical_name() == target) {
-            let mut actuals = self.closure().elaboration.boundaries.iter()
-                .filter(|(boundary, source)| **source == supply.selection.requirement && reached.contains(boundary));
-            let Some((boundary, _)) = actuals.next() else { continue };
+        for supply in supplies
+            .iter()
+            .filter(|supply| supply.selection.target.canonical_name() == target)
+        {
+            let mut actuals =
+                self.closure()
+                    .elaboration
+                    .boundaries
+                    .iter()
+                    .filter(|(boundary, source)| {
+                        **source == supply.selection.requirement && reached.contains(boundary)
+                    });
+            let Some((boundary, _)) = actuals.next() else {
+                continue;
+            };
             let row = if actuals.next().is_some() {
                 Err("Build native binding has competing exact boundary occurrences".to_owned())
             } else {
-                crate::evaluation::native_bindings::require_canonical_requirement(&supply.selection, self.source())
-                    .map(|()| (boundary, supply.materialization()))
+                crate::evaluation::native_bindings::require_canonical_requirement(
+                    &supply.selection,
+                    self.source(),
+                )
+                .map(|()| (boundary, supply.materialization()))
             };
             bindings.push(row);
         }

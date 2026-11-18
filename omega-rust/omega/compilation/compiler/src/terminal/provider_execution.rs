@@ -11,7 +11,8 @@ pub fn prepare_provider_execution_inputs(
     reached: &[BoundaryMachineId],
     observer: &mut impl source_compiler::PsiCompilationObserver,
 ) -> Result<native_compiler::TargetSupplyExecutionInputs, Vec<Diagnostic>> {
-    let bindings = publication.prepare_provider_bindings(profile.target_name(), native_supplies, reached)?;
+    let bindings =
+        publication.prepare_provider_bindings(profile.target_name(), native_supplies, reached)?;
     let origins = portable_publication::ProductCodeSource {
         publication,
         sources,
