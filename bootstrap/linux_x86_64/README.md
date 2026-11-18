@@ -1,4 +1,4 @@
-# Build the native Gamma compiler on Linux x86-64
+# Bootstrap on Linux x86-64
 
 Run the checked-in binary with the source tree and a new output directory.
 The resulting `gamma-compiler` takes Gamma source on stdin and writes a
@@ -46,6 +46,31 @@ output with the distributed file byte for byte. This adds one readable copy of
 the compiler source to the checkout and keeps manifest parsing, inventory
 checks and hashing in distribution maintenance.
 [Delta source ownership](../interpreted/3_delta/README.md#selected-staged-delta-compiler)
+
+### Compile Gamma source emitted by the supplied program
+
+A fourth argument supplies input to the native `program` built in the previous
+step. The driver saves the bytes in `program.input`, runs `program` on them,
+then gives its successful output to the rebuilt Gamma compiler. The output
+directory retains the intermediate bytes as `producer.output`. When Gamma
+accepts them it writes the native executable `successor`.
+
+For example, the Delta compiler can emit the Gamma source for the Epsilon
+evaluator. This invocation takes its canonical Delta compilation request.
+
+```sh
+bootstrap/linux_x86_64/bootstrap . /tmp/omega-epsilon \
+    bootstrap/linux_x86_64/delta.gamma /path/to/epsilon-request.bin
+```
+
+That request contains the 16-byte DCREQ header, the ordered Delta source of
+the Epsilon evaluator and its entry, and the Gamma support bytes. The
+[successor test](../independent/README.md#native-successor-customers) writes
+this input to `build/independent-successors/epsilon-request.bin`. A source
+distribution can supply the same file alongside the checkout. The invocation
+uses those bytes directly and runs offline. The native `successor` already
+contains the Gamma program, so its stdin starts at the sealed `EEREQ` header.
+[Epsilon evaluation request](../interpreted/4_epsilon/EVALUATOR_ENTRY.md)
 
 ## Follow the construction
 

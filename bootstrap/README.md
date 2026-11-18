@@ -9,7 +9,7 @@ bootstrap/
   interpreted/   existing interpreter-based chain and its language sources
   compiled_vm/   source-compiled Gamma route to independent Alpha tapes
   independent/   native Linux compiler construction
-  linux_x86_64/  offline binary construction of native Gamma and Delta compilers
+  linux_x86_64/  offline binary construction of native Gamma, Delta and their successors
   proofs/        optional research outside construction acceptance
 ```
 
@@ -19,6 +19,8 @@ and successor sources and owns its Gamma compiler. The native path shares that
 frontend and emits Linux executables. One Linux x86-64 command constructs
 the native Gamma compiler from its predecessors, rebuilds it twice, and
 can deliver the native Delta compiler from the distributed Gamma source.
+Given the Epsilon evaluator's Delta compilation request, the same command
+produces a native Epsilon evaluator.
 [Native path](independent/README.md) · [Offline command](linux_x86_64/README.md)
 
 The Omega-written product lives in [`source/psi`](../source/psi) and
