@@ -4015,6 +4015,16 @@ pub(crate) mod substitution {
 
     use super::term::{Level, MAX_SUBTERMS, Sort, Term, TermArena, TermHandle, instantiate_level};
 
+    #[cfg(test)]
+    std::thread_local! {
+        static REMAPPED_NODES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[cfg(test)]
+    pub(super) fn remapped_nodes() -> usize {
+        REMAPPED_NODES.get()
+    }
+
     pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) -> TermHandle {
         if amount == 0 {
             return term;
@@ -4084,6 +4094,13 @@ pub(crate) mod substitution {
     }
 
     impl Remapping<'_> {
+        fn preserves(self, arena: &TermArena, term: TermHandle, scope: u32) -> bool {
+            !matches!(self, Self::Levels { .. })
+                && arena
+                    .required_bindings(term)
+                    .is_some_and(|required| required <= scope)
+        }
+
         fn child_scope(self, scope: u32, binders: u32) -> u32 {
             match self {
                 Self::Levels { .. } => 0,
@@ -4154,6 +4171,9 @@ pub(crate) mod substitution {
         scope: u32,
         operation: Remapping<'_>,
     ) -> Result<TermHandle, u32> {
+        if operation.preserves(arena, root, scope) {
+            return Ok(root);
+        }
         let mut pending = vec![Work::Enter { term: root, scope }];
         let mut values = Vec::new();
         let mut mapped = HashMap::new();
@@ -4164,6 +4184,13 @@ pub(crate) mod substitution {
                         values.push(result);
                         continue;
                     }
+                    if operation.preserves(arena, term, scope) {
+                        mapped.insert((term, scope), term);
+                        values.push(term);
+                        continue;
+                    }
+                    #[cfg(test)]
+                    REMAPPED_NODES.set(REMAPPED_NODES.get().saturating_add(1));
                     let slots = arena.node(term).subterms();
                     if slots.is_empty() {
                         let result = operation.leaf(arena, term, scope)?;
@@ -4808,20 +4835,69 @@ pub(crate) mod term {
         BoxIntro { ty: 0, value: 0 }
         BoxElim { motive: 0, body: 0, scrutinee: 0 }
     }
-    #[derive(Clone, Debug, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Clone, compiler_storage::Record)]
     pub struct TermArena {
         terms: Arena<Term>,
+        /// Constructor-derived syntax only. Missing summaries after decoding,
+        /// or from unresolved children, retain ordinary remapping traversal.
+        #[record(skip)]
+        binding_requirements: Vec<Option<(u32, u32)>>,
     }
+
+    impl std::fmt::Debug for TermArena {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("TermArena")
+                .field("terms", &self.terms)
+                .finish()
+        }
+    }
+
+    impl PartialEq for TermArena {
+        fn eq(&self, other: &Self) -> bool {
+            self.terms == other.terms
+        }
+    }
+
+    impl Eq for TermArena {}
 
     impl TermArena {
         pub fn new() -> Self {
             Self {
                 terms: Arena::new(),
+                binding_requirements: Vec::new(),
             }
         }
 
         pub fn insert(&mut self, term: Term) -> TermHandle {
-            self.terms.insert(term)
+            let required = match &term {
+                Term::Variable(index) => index.checked_add(1),
+                _ => term
+                    .subterms()
+                    .iter()
+                    .try_fold(0u32, |required, (child, binders)| {
+                        Some(required.max(self.required_bindings(child)?.saturating_sub(binders)))
+                    }),
+            };
+            let handle = self.terms.insert(term);
+            let slot = handle.arena_index() as usize;
+            if slot >= self.binding_requirements.len() {
+                self.binding_requirements.resize(slot + 1, None);
+            }
+            self.binding_requirements[slot] =
+                required.map(|required| (handle.generation(), required));
+            handle
+        }
+
+        pub(super) fn required_bindings(&self, term: TermHandle) -> Option<u32> {
+            // Authenticate the complete handle before consulting its arena slot.
+            self.terms.try_get(term)?;
+            let (generation, required) = self
+                .binding_requirements
+                .get(term.arena_index() as usize)
+                .copied()
+                .flatten()?;
+            (generation == term.generation()).then_some(required)
         }
 
         pub fn apply_arguments(
@@ -8971,7 +9047,87 @@ mod tests {
     mod substitution_worklists {
         use super::{default_budget, pi, two, type_sort, variable};
         use crate::mathematical_core::substitution::{instantiate_levels, shift, substitute};
-        use crate::mathematical_core::{Context, Level, Sort, Term, TermArena, check_type};
+        use crate::mathematical_core::{
+            Context, Level, Sort, Term, TermArena, TermHandle, check_type,
+        };
+
+        #[test]
+        fn binding_summaries_authenticate_handles_and_preserve_open_scopes() {
+            let mut arena = TermArena::new();
+            let two = two(&mut arena);
+            let zero = variable(&mut arena, 0);
+            let one = variable(&mut arena, 1);
+            let closed = arena.insert(Term::Lambda {
+                domain: two,
+                body: zero,
+            });
+            let open = arena.insert(Term::Lambda {
+                domain: two,
+                body: one,
+            });
+            assert_eq!(arena.required_bindings(zero), Some(1));
+            assert_eq!(arena.required_bindings(closed), Some(0));
+            assert_eq!(arena.required_bindings(open), Some(1));
+            assert_eq!(shift(&mut arena, open, 1, 3), open);
+            let shifted = shift(&mut arena, open, 0, 1);
+            let Term::Lambda { body, .. } = arena.get(shifted) else {
+                panic!("lambda")
+            };
+            assert_eq!(arena.get(body), Term::Variable(2));
+
+            let stale = TermHandle::from_parts(closed.arena_index(), closed.generation() + 1);
+            assert_eq!(arena.required_bindings(stale), None);
+            let invalid = arena.insert(Term::Lambda {
+                domain: two,
+                body: stale,
+            });
+            assert_eq!(arena.required_bindings(invalid), None);
+            let future = TermHandle::from_arena_index(u32::try_from(arena.len() + 1).unwrap());
+            let cycle = arena.insert(Term::Pair {
+                first: future,
+                second: two,
+            });
+            assert_eq!(cycle, future);
+            assert_eq!(arena.required_bindings(cycle), None);
+            assert_eq!(
+                arena.required_bindings(TermHandle::from_arena_index(u32::MAX)),
+                None
+            );
+
+            let maximum = variable(&mut arena, u32::MAX);
+            assert_eq!(arena.required_bindings(maximum), None);
+            let lowered = substitute(&mut arena, maximum, two);
+            assert_eq!(arena.get(lowered), Term::Variable(u32::MAX - 1));
+
+            let universe = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+            assert_eq!(arena.required_bindings(universe), Some(0));
+            assert_eq!(instantiate_levels(&mut arena, universe, &[]), Err(0));
+            let instance = instantiate_levels(&mut arena, universe, &[Level::Constant(2)]).unwrap();
+            assert_eq!(
+                arena.get(instance),
+                Term::Sort(Sort::Type(Level::Constant(2)))
+            );
+        }
+
+        #[test]
+        fn binding_summaries_are_not_stored_or_part_of_arena_equality() {
+            let mut arena = TermArena::new();
+            let two = two(&mut arena);
+            let zero = variable(&mut arena, 0);
+            let closed = arena.insert(Term::Lambda {
+                domain: two,
+                body: zero,
+            });
+            let limits = compiler_storage::RecordLimits::default();
+            let bytes = compiler_storage::encode(&arena, limits).unwrap();
+            let mut restored: TermArena = compiler_storage::decode(&bytes, limits).unwrap();
+            assert_eq!(arena, restored);
+            assert_eq!(restored.required_bindings(closed), None);
+            let before = crate::mathematical_core::substitution::remapped_nodes();
+            assert_eq!(shift(&mut restored, closed, 0, 1), closed);
+            assert!(crate::mathematical_core::substitution::remapped_nodes() > before);
+            assert_eq!(compiler_storage::encode(&restored, limits).unwrap(), bytes);
+        }
 
         #[test]
         fn deep_closed_telescope_remapping_stays_on_default_stack() {
@@ -8991,8 +9147,14 @@ mod tests {
                     &mut default_budget(),
                 )
                 .expect("closed telescope is a valid type before remapping");
+                let before = crate::mathematical_core::substitution::remapped_nodes();
                 assert_eq!(shift(&mut arena, term, 0, 1), term);
                 assert_eq!(substitute(&mut arena, term, domain), term);
+                assert_eq!(
+                    crate::mathematical_core::substitution::remapped_nodes(),
+                    before,
+                    "closed syntax needs no variable-remapping traversal"
+                );
                 assert_eq!(instantiate_levels(&mut arena, term, &[]), Ok(term));
             })
             .join()
