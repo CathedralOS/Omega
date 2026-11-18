@@ -1,3 +1,7 @@
+#[path = "static_callback_contracts.rs"]
+mod static_callback_contracts;
+pub use static_callback_contracts::AppliedStaticCallbackRequirement;
+
 /*
 We represent closed callable applications (`callable_applications`), including
 applied machine instances, trait and conformance scopes, domain scopes, and
@@ -7333,11 +7337,10 @@ pub(crate) mod signatures {
     }
 }
 pub(crate) mod table {
-    //! Repeated signature lookups should visit only the rows for that call.
-    //! Producers keep separate groups for machine selections and requirement
-    //! invocations, including each requirement's exact lexical owner. Inserts,
-    //! replacement and retirement maintain these links before returning. Handles
-    //! keep their generations, and row links preserve arena iteration order.
+    //! Lookups visit only this application's signatures. The table keeps
+    //! separate lists for selected machines, requirement calls with their
+    //! lexical owner, and callback contracts. Insertion, replacement and
+    //! retirement maintain the lists, handle generations and arena order.
 
     use super::{AppliedCallableOwner, AppliedCallableSignature};
     use crate::source_state::static_applications::StaticMachineApplicationHandle;
@@ -7351,6 +7354,7 @@ pub(crate) mod table {
         #[default]
         MachineSelection,
         Requirement(SymbolHandle),
+        StaticCallback,
     }
 
     fn invocation_owner(
@@ -7365,6 +7369,9 @@ pub(crate) mod table {
                 lexical_owner,
                 ..
             } => Some((application, InvocationPurpose::Requirement(lexical_owner))),
+            AppliedCallableOwner::StaticCallback { application, .. } => {
+                Some((application, InvocationPurpose::StaticCallback))
+            }
             _ => None,
         }
     }
@@ -7655,6 +7662,13 @@ pub(crate) mod table {
             self.invocation_groups.free(group);
         }
 
+        pub(crate) fn callback_rows(
+            &self,
+            invocation: StaticMachineApplicationHandle,
+        ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
+            self.invocation_rows(invocation, InvocationPurpose::StaticCallback)
+        }
+
         pub(crate) fn declaration_rows(
             &self,
             invocation: StaticMachineApplicationHandle,
@@ -7728,6 +7742,45 @@ pub(crate) mod table {
                 .machine_rows(invocation)
                 .map(|(handle, _)| handle)
                 .collect()
+        }
+
+        #[test]
+        fn callback_contract_rows_keep_their_promise_on_storage_recovery() {
+            let application = StaticMachineApplicationHandle::from_parts(3, 1);
+            let other_generation = StaticMachineApplicationHandle::from_parts(3, 2);
+            let source = StateSignature {
+                symbol: SymbolHandle::from_parts(7, 1),
+                termination_guarantee: declaration_contracts::TerminationGuarantee::Terminates {
+                    premises: Vec::new(),
+                },
+                ..Default::default()
+            };
+            let mut table = AppliedCallableTable::default();
+            let stored = table.insert(AppliedCallableSignature {
+                owner: AppliedCallableOwner::StaticCallback {
+                    parameter: source.symbol,
+                    application,
+                    lexical_owner: SymbolHandle::from_parts(8, 1),
+                    source: source.clone(),
+                    bindings: Default::default(),
+                    lifetimes: Default::default(),
+                },
+                signature: source.clone(),
+            });
+            let encoded = compiler_storage::encode(&table, Default::default()).unwrap();
+            let mut recovered: AppliedCallableTable =
+                compiler_storage::decode(&encoded, Default::default()).unwrap();
+            assert!(recovered.machine_rows(application).next().is_none());
+            assert!(recovered.callback_rows(other_generation).next().is_none());
+            let rows = recovered.callback_rows(application).collect::<Vec<_>>();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].0, stored);
+            assert_eq!(rows[0].1.signature, source);
+            assert!(
+                matches!(&rows[0].1.owner, AppliedCallableOwner::StaticCallback { source: retained, .. } if retained == &source)
+            );
+            assert!(recovered.free(stored));
+            assert!(recovered.callback_rows(application).next().is_none());
         }
 
         #[test]
@@ -8495,17 +8548,33 @@ impl TypedTrees {
         &self,
         caller: SymbolHandle,
     ) -> impl Iterator<Item = &signature::StateSignature> {
+        self.requirement_invocation_signature_rows()
+            .filter(move |&(owner, _)| owner == caller)
+            .map(move |(_, row)| self.requirement_invocation_signature(row))
+    }
+
+    /// Every invocation view keeps its complete lexical owner and arena order.
+    /// Reference walks may prepare these associations once, without narrowing
+    /// them to live machines or merging signatures that name one declaration.
+    pub(crate) fn requirement_invocation_signature_rows(
+        &self,
+    ) -> impl Iterator<Item = (SymbolHandle, arena::Handle<AppliedCallableSignature>)> {
         self.applied_callable_signatures
             .iter()
-            .filter_map(move |(_, prepared)| match prepared.owner {
+            .filter_map(|(row, prepared)| match prepared.owner {
                 AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
-                | AppliedCallableOwner::Realization { lexical_owner, .. }
-                    if lexical_owner == caller =>
-                {
-                    Some(&prepared.signature)
+                | AppliedCallableOwner::Realization { lexical_owner, .. } => {
+                    Some((lexical_owner, row))
                 }
                 _ => None,
             })
+    }
+
+    pub(crate) fn requirement_invocation_signature(
+        &self,
+        row: arena::Handle<AppliedCallableSignature>,
+    ) -> &signature::StateSignature {
+        &self.applied_callable_signatures.get(row).signature
     }
 
     pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
@@ -8527,6 +8596,7 @@ impl TypedTrees {
                         source_required,
                         ..
                     } => [required.as_ref(), Some(source_required)],
+                    AppliedCallableOwner::StaticCallback { source, .. } => [Some(source), None],
                     _ => [None, None],
                 };
                 let trait_scope = match prepared.owner {
@@ -8549,6 +8619,7 @@ impl TypedTrees {
     fn callable_application_owner_is_live(&self, prepared: &AppliedCallableSignature) -> bool {
         match prepared.owner {
             AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
+            | AppliedCallableOwner::StaticCallback { lexical_owner, .. }
             | AppliedCallableOwner::Realization { lexical_owner, .. } => {
                 self.machine_by_symbol(lexical_owner).is_some()
             }
@@ -8593,6 +8664,10 @@ impl TypedTrees {
                 AppliedCallableOwner::Trait { declaration, .. }
                 | AppliedCallableOwner::RequirementInstance { declaration, .. }
                 | AppliedCallableOwner::RequirementInvocation { declaration, .. }
+                | AppliedCallableOwner::StaticCallback {
+                    parameter: declaration,
+                    ..
+                }
                 | AppliedCallableOwner::Realization { declaration, .. }
                     if removed(declaration) =>
                 {
@@ -8613,6 +8688,177 @@ impl TypedTrees {
 pub struct CallableContractScope<'a> {
     pub signature: &'a signature::StateSignature,
     pub trait_scope: Option<crate::source_state::trait_definition::RetainedTraitScope>,
+}
+
+#[cfg(test)]
+mod invocation_owner_walk_tests {
+    use super::*;
+    use crate::source_state::machine::Machine;
+    use crate::source_state::references::{MachineSidecarIndex, TypedReferences, visit_program};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
+
+    #[test]
+    fn invocation_owner_walk_preserves_views_order_and_unread_headers() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<MachineSidecarIndex>();
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("inside")),
+                (SymbolKind::Machine, SymbolNameRef::Static("outside")),
+                (SymbolKind::Machine, SymbolNameRef::Static("requirement")),
+                (SymbolKind::Data, SymbolNameRef::Static("First")),
+                (SymbolKind::Data, SymbolNameRef::Static("Second")),
+                (SymbolKind::Data, SymbolNameRef::Static("Outside")),
+            ],
+        );
+        let inside = declarations.handle_at(0);
+        let outside = declarations.handle_at(1);
+        let requirement = declarations.handle_at(2);
+        let stale = SymbolHandle::from_parts(inside.arena_index(), inside.generation() + 1);
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        for symbol in [inside, outside] {
+            program.push_machine(Machine {
+                symbol,
+                ..Default::default()
+            });
+        }
+        let types = [3, 4, 5].map(|ordinal| {
+            program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Named {
+                    symbol: declarations.handle_at(ordinal),
+                    name: crate::source_state::name::Identifier::generated("result"),
+                })
+        });
+        let application = program.expression_table.retain_static_machine_application(
+            Default::default(),
+            Default::default(),
+            &[],
+        );
+        let invocation = |lexical_owner| AppliedCallableOwner::RequirementInvocation {
+            declaration: requirement,
+            application,
+            lexical_owner,
+            source: Default::default(),
+            bindings: Default::default(),
+            lifetimes: Default::default(),
+            arguments: Default::default(),
+        };
+        let realization = |lexical_owner| AppliedCallableOwner::Realization {
+            declaration: requirement,
+            application: Default::default(),
+            lexical_owner,
+        };
+        for (owner, return_type) in [
+            (invocation(inside), types[0]),
+            (realization(outside), types[2]),
+            (realization(inside), types[1]),
+            (invocation(stale), types[2]),
+            (invocation(inside), types[0]),
+            (AppliedCallableOwner::Absent, types[2]),
+        ] {
+            program
+                .applied_callable_signatures
+                .insert(AppliedCallableSignature {
+                    owner,
+                    signature: signature::StateSignature {
+                        symbol: requirement,
+                        return_type,
+                        ..Default::default()
+                    },
+                });
+        }
+        let index = MachineSidecarIndex::build(&program);
+        for (owner, expected) in [
+            (inside, vec![types[0], types[1], types[0]]),
+            (outside, vec![types[2]]),
+            (stale, vec![types[2]]),
+            (SymbolHandle::invalid(), vec![]),
+        ] {
+            let direct = program
+                .requirement_invocation_signatures(owner)
+                .collect::<Vec<_>>();
+            let indexed = index
+                .requirement_invocation_signatures(&program, owner)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                direct
+                    .iter()
+                    .map(|signature| signature.return_type)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(indexed.len(), direct.len());
+            assert!(
+                indexed
+                    .iter()
+                    .zip(direct)
+                    .all(|(left, right)| std::ptr::eq(*left, right))
+            );
+        }
+
+        struct Seen {
+            outside: SymbolHandle,
+            derived: bool,
+            scopes: Vec<SymbolHandle>,
+            views: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
+            dependencies: Vec<SymbolHandle>,
+        }
+        impl Extend<SymbolHandle> for Seen {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                self.dependencies.extend(symbols);
+            }
+        }
+        impl TypedReferences for Seen {
+            fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+                symbol == self.outside
+            }
+            fn machine_body(&mut self, _: &Machine) -> bool {
+                false
+            }
+            fn derived_declaration_references(&self) -> bool {
+                self.derived
+            }
+            fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+                self.scopes.push(owner);
+            }
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+            fn callable_signature(&mut self, signature: &signature::StateSignature) {
+                self.views
+                    .push((*self.scopes.last().unwrap(), signature.return_type));
+            }
+        }
+        for derived in [true, false] {
+            let mut seen = Seen {
+                outside,
+                derived,
+                scopes: Vec::new(),
+                views: Vec::new(),
+                dependencies: Vec::new(),
+            };
+            visit_program(&program, &mut seen);
+            if derived {
+                assert_eq!(seen.views, [(outside, types[2])]);
+                assert!(
+                    seen.dependencies.contains(&declarations.handle_at(5)),
+                    "unread outside headers keep their dependencies"
+                );
+            } else {
+                assert!(seen.views.is_empty());
+                assert!(!seen.dependencies.contains(&declarations.handle_at(5)));
+            }
+            assert!(seen.scopes.is_empty());
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -8689,6 +8935,14 @@ pub(crate) enum AppliedCallableOwner {
         provider_lifetime_declaration: SymbolHandle,
         provider_lifetime_owner: SymbolHandle,
         provider_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
+    },
+    StaticCallback {
+        parameter: SymbolHandle,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        lexical_owner: SymbolHandle,
+        source: signature::StateSignature,
+        bindings: arena::HandleSpan<crate::source_state::static_applications::StaticMachineBinding>,
+        lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
     },
 }
 
@@ -9493,6 +9747,23 @@ impl TypedTrees {
         for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
             machine.invokes = application.invocations(self, machine.invokes)?;
+            // Definitions belong to the copied declaration just like its
+            // written contract. Apply both sides through the same type copier.
+            if !machine.declared_type_equations.is_empty() {
+                let original = self
+                    .declared_type_equations
+                    .span_or_empty(machine.declared_type_equations)
+                    .to_vec();
+                let mut equations = Vec::with_capacity(original.len());
+                for equation in original {
+                    equations.push(crate::source_state::machine::DeclaredTypeEquation {
+                        parameter: application.type_reference(self, equation.parameter)?,
+                        definition: application.type_reference(self, equation.definition)?,
+                    });
+                }
+                machine.declared_type_equations =
+                    self.declared_type_equations.insert_many(equations);
+            }
             let rows = self
                 .expression_table
                 .iter_expressions_from(first_expression)

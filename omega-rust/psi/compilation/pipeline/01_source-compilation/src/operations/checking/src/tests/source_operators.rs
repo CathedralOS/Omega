@@ -56,6 +56,65 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 }
 
 #[test]
+fn mutable_byte_formals_keep_their_source_operator_access() {
+    let source = r#"
+machine store(bytes: &mut [u8], peer: &[u8]) requires bytes.len > 0u64 {
+    bytes[0u64] = 7u8;
+}
+machine entry() -> bool {
+    let mut bytes: [u8; 2] = [19u8, 23u8];
+    let peer: [u8; 1] = [42u8];
+    store(&mut bytes[..], &peer[..]);
+    bytes[0u64] == 7u8 && bytes[1u64] == 23u8
+}
+"#;
+    let mut typed = super::boundary_calls::typed(source);
+    assert_operator_value(operator_program(&typed), true);
+    let store = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")
+        .unwrap();
+    let states = typed.machine_states.span(store.states).unwrap();
+    let state = &states[0];
+    let peer = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "peer")
+        .unwrap()
+        .type_reference;
+    let base = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, node)| {
+            let crate::source_state::expression::ExpressionNode::Indexed(indexed) = node else {
+                return None;
+            };
+            let reference = typed
+                .expression_table
+                .constructed_value_type_reference(indexed.collection);
+            (reference.is_valid()
+                && matches!(
+                    typed.type_reference_table.type_reference(reference),
+                    crate::source_state::types::TypeReferenceNode::Reference {
+                        access: language_core::ReferenceAccess::Mutable,
+                        ..
+                    }
+                ))
+            .then_some(indexed.collection)
+        })
+        .expect("the indexed store retains its mutable source reference");
+    typed
+        .expression_table
+        .set_constructed_value_type_reference(base, peer);
+    let refused = operator_program(&typed).unwrap_err();
+    assert!(
+        refused.contains("a formed operator operand differs from its retained declared type"),
+        "{refused}"
+    );
+}
+
+#[test]
 fn enum_case_comparisons_keep_their_validated_operand_types() {
     for (operator, case, expected) in [
         ("==", "On", true),
@@ -424,6 +483,78 @@ machine entry() -> bool { bounded(42i64) == 42i64 }
     assert_operator_value(enum_operator(source), true);
     let rejected = enum_operator(&source.replace("bounded(42i64)", "bounded(2147483648i64)"))
         .expect("the unchanged complete contract must still be read");
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row|
+                matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
+fn static_completion_keeps_later_guard_answers_without_assuming_the_result() {
+    let source = r#"
+        machine entry<Kind>() -> bool
+        requires Kind == bool
+        ensures result
+        {
+            transition {
+                Kind == bool -> true
+                Kind == u8 || Kind == u16 -> false
+                _ -> false
+            }
+        }
+    "#;
+    for (source, accepts) in [
+        (source.to_owned(), true),
+        (
+            source.replace("Kind == bool -> true", "Kind == bool -> false"),
+            false,
+        ),
+    ] {
+        let typed = super::boundary_calls::typed(&source);
+        let forms = crate::lowering::elaborate_generic_forms(
+            &typed,
+            &[super::boundary_calls::entry(&typed)],
+        )
+        .expect("the closed type family retains every static guard selection");
+        assert!(!forms.is_empty());
+        for form in forms {
+            let verdict = judge(Ok(form)).unwrap();
+            if accepts {
+                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+            } else {
+                assert!(
+                    matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                    if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+                    "{verdict:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn mixed_contracts_keep_static_guard_answers_and_runtime_obligations() {
+    let source = r#"
+machine bounded<Kind>(value: u32) -> u32
+requires value <= 10u32 && (Kind == u32 || Kind == u64)
+{ value }
+machine entry() -> bool { bounded<u32>(7u32) == 7u32 }
+"#;
+    let prepared = |text: &str| {
+        crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(text),
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("ordinary specialization must retain the mixed contract")
+        .0
+    };
+    assert_operator_value(operator_program(&prepared(source)), true);
+    let rejected = operator_program(&prepared(
+        &source.replace("bounded<u32>(7u32)", "bounded<u32>(11u32)"),
+    ))
+    .expect("the closed type guard must not hide the remaining value contract");
     assert!(
         matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
             if unproved.iter().any(|row|

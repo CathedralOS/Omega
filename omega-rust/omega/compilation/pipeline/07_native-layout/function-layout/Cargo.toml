@@ -16,7 +16,6 @@ physical-program = { path = "../../../representations/physical-program" }
 installation-admission = { path = "../../../verification/installation-admission" }
 frame-admission = { path = "../../../verification/frame-admission" }
 encoding-admission = { path = "../../../verification/encoding-admission" }
-terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
 task-plans = { path = "../../../representations/task-plans" }
 native-verification = { path = "../../../verification/native-verification" }

@@ -1,0 +1,9 @@
+machine keep(left: u64, right: u64, other: u64)
+requires core::Identity<u64>(left, right)
+ensures core::Identity<u64>(left, other)
+{
+}
+
+machine main() {
+    keep(7u64, 7u64, 9u64);
+}

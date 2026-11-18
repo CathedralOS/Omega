@@ -167,6 +167,7 @@ pub(crate) fn machine(
         &body.slots,
         qualifications,
     )?;
+    lowering.structural_types = structural_types;
     // A requirement is its formals, its result and its contract. It has no
     // block: the entry block opened above for those identities is dropped.
     if requirement {
@@ -486,6 +487,7 @@ impl<'a> Lowering<'a> {
             signatures,
             outcomes,
             records,
+            structural_types: &[],
             callables,
             boundaries,
             roots: IdTable::default(),
@@ -771,6 +773,7 @@ struct Lowering<'a> {
     signatures: Signatures<'a>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
+    structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     callables: &'a crate::lowering::callables::CallableNamespace,
     boundaries: &'a crate::lowering::boundaries::BoundaryNamespace,
     qualifications: &'a mut crate::lowering::qualifications::Qualifications,

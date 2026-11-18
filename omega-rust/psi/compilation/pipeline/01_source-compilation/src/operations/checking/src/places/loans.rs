@@ -115,6 +115,7 @@ struct Formed {
     /// For a reborrow, the access of the formal it reborrows.
     parent: Option<ReferenceAccess>,
     lender: Lender,
+    selected_parents: Box<[ObligationId]>,
     from: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
     /// Derived at this formation from the canonical source path, never a
     /// supplied acceptance marker or a property of a descriptor's shape alone.
@@ -126,6 +127,22 @@ struct Formed {
     /// For the narrower region a returned reference retains, the call that
     /// formed it. That call's own argument loans cover it only for the call.
     returned_by: Option<InvocationId>,
+}
+
+#[derive(Clone, Copy)]
+enum Ancestry {
+    Visiting,
+    Checked(bool),
+}
+
+impl Formed {
+    fn immediate_parents(&self) -> impl Iterator<Item = &ObligationId> {
+        let single = match &self.lender {
+            Lender::Loan(parent) => Some(parent),
+            _ => None,
+        };
+        single.into_iter().chain(self.selected_parents.iter())
+    }
 }
 
 /// Action prestates are projections of the existing lifetime authority flow.
@@ -226,9 +243,18 @@ fn competing_borrows(
 /// One canonical descriptor closure per machine judgment. If the module has
 /// no reference-bearing storage there is no reference work; otherwise a missing closure
 /// is an explicit refusal, never an empty approximation.
+#[cfg(test)]
 pub(crate) fn reference_graph(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
+) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
+    reference_graph_with_nominal_calls(module, machine, &[])
+}
+
+pub(crate) fn reference_graph_with_nominal_calls(
+    module: &terminal_psi::TerminalModule,
+    machine: semantic_vocabulary::MachineId,
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
         crate::checking::refusal(
@@ -271,10 +297,11 @@ pub(crate) fn reference_graph(
     if !demanded {
         return Ok(Vec::new());
     }
-    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
         module,
         [machine],
         &[],
+        nominal_calls,
     )
     .map_err(|error| graph_refusal(module, error))
 }
@@ -355,9 +382,7 @@ impl<'a> Storage<'a> {
                 }
                 return Ok(captured.region);
             }
-            return self
-                .backing(references, raw, at.0, at.1 as usize, concerns)
-                .map(LoanRegion::Storage);
+            return self.storage_loan_region(references, raw, at, concerns);
         }
         self.capture_payload(references, raw, at, concerns)
             .map(|capture| capture.region)
@@ -446,26 +471,12 @@ impl<'a> Storage<'a> {
                     Backing::direct(raw.clone())
                 }
                 DescriptorSourceOrigin::Provider(_) => {
-                    if !matches!(
-                        terminal_semantics::borrowed_loan_source(
-                            self.module,
-                            self.lowered,
-                            references,
-                            at,
-                            &location,
-                            std::iter::empty(),
-                        )
-                        .map_err(|detail| self.unsupported(concerns, detail))?,
-                        terminal_semantics::BorrowedLoanSource::Provider
-                    ) {
-                        return Err(
-                            self.unsupported(concerns, "provider payload has no exact permission")
-                        );
-                    }
-                    return Ok(PayloadCapture {
-                        region: LoanRegion::Provider,
-                        exact: false,
-                    });
+                    return self
+                        .provider_permission(references, at, &location, concerns)
+                        .map(|region| PayloadCapture {
+                            region,
+                            exact: false,
+                        });
                 }
                 _ => {
                     return Err(self.unsupported(
@@ -493,6 +504,120 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
     }
 
+    fn storage_loan_region(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<LoanRegion> {
+        // A provider supplies shared referent permission. Keep it in the loan region.
+        if self
+            .provider_referent(references, raw, at, concerns)?
+            .is_some()
+        {
+            return Ok(LoanRegion::Provider);
+        }
+        self.backing(references, raw, at.0, at.1 as usize, concerns)
+            .map(LoanRegion::Storage)
+    }
+
+    /// Recover the current shared referent's type through its admitted permission.
+    pub(super) fn provider_referent(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<Option<semantic_vocabulary::StructuralTypeId>> {
+        let Ok(Some((StructuralAccess::SharedBorrow, referent, descriptor))) =
+            self.reference_parent(raw, concerns)
+        else {
+            return Ok(None);
+        };
+        if !references
+            .symbolic_source_origins(self.machine, at, &descriptor)
+            .is_some_and(|origins| {
+                !origins.is_empty()
+                    && origins.iter().all(|origin| {
+                        matches!(
+                        origin,
+                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                    )
+                    })
+            })
+        {
+            return Ok(None);
+        }
+        self.provider_permission(references, at, &descriptor, concerns)?;
+        Ok(Some(referent))
+    }
+
+    fn provider_permission(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &DescriptorLocation,
+        concerns: Construct,
+    ) -> Checked<LoanRegion> {
+        if !matches!(
+            terminal_semantics::borrowed_loan_source(
+                self.module,
+                self.lowered,
+                references,
+                at,
+                descriptor,
+                std::iter::empty(),
+            )
+            .map_err(|detail| self.unsupported(concerns, detail))?,
+            terminal_semantics::BorrowedLoanSource::Provider
+        ) {
+            return Err(self.unsupported(concerns, "provider payload has no exact permission"));
+        }
+        Ok(LoanRegion::Provider)
+    }
+
+    fn reference_parent(
+        &self,
+        raw: &super::Lineage,
+        concerns: Construct,
+    ) -> Checked<
+        Option<(
+            StructuralAccess,
+            semantic_vocabulary::StructuralTypeId,
+            DescriptorLocation,
+        )>,
+    > {
+        let Some(crossing) = raw
+            .segments
+            .iter()
+            .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
+        else {
+            return Ok(None);
+        };
+        let descriptor = super::Lineage {
+            root: raw.root,
+            segments: raw.segments[..crossing].to_vec(),
+        };
+        let super::Shape::Typed(row) = self.shape(&descriptor, concerns)? else {
+            return Err(self.foreign(concerns, "a reborrow has no parent reference descriptor"));
+        };
+        let terminal_psi::StructuralTypeShape::Reference {
+            access: parent,
+            referent,
+        } = self.declaration(row, concerns)?.shape
+        else {
+            return Err(self.foreign(concerns, "a reborrow crosses another value constructor"));
+        };
+        let descriptor = descriptor.descriptor_location().ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference parent has no exact static descriptor path",
+            )
+        })?;
+        Ok(Some((parent, referent, descriptor)))
+    }
+
     /// The access a root's storage is held with here, when it is a borrowed
     /// formal: the declared access of its structural parameter.
     pub(super) fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
@@ -516,7 +641,6 @@ impl<'a> Storage<'a> {
         Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
         bool,
     )> {
-        use terminal_check_tables::bindings::Segment;
         let permitted = if let StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } = self.root_kind(raw.root, concerns)?
@@ -619,29 +743,7 @@ impl<'a> Storage<'a> {
                 permitted,
             ));
         }
-        if let Some(crossing) = raw
-            .segments
-            .iter()
-            .rposition(|step| *step == Segment::Referent)
-        {
-            let descriptor = super::Lineage {
-                root: raw.root,
-                segments: raw.segments[..crossing].to_vec(),
-            };
-            let super::Shape::Typed(row) = self.shape(&descriptor, concerns)? else {
-                return Err(self.foreign(concerns, "a reborrow has no parent reference descriptor"));
-            };
-            let terminal_psi::StructuralTypeShape::Reference { access: parent, .. } =
-                self.declaration(row, concerns)?.shape
-            else {
-                return Err(self.foreign(concerns, "a reborrow crosses another value constructor"));
-            };
-            let descriptor = descriptor.descriptor_location().ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "reference parent has no exact static descriptor path",
-                )
-            })?;
+        if let Some((parent, _, descriptor)) = self.reference_parent(raw, concerns)? {
             return Ok((None, reference_access(parent), Some(descriptor), permitted));
         }
         if let Some(parent) = self.incoming(raw.root) {
@@ -845,6 +947,7 @@ impl<'a> Storage<'a> {
                 )?,
                 parent,
                 lender,
+                selected_parents: Box::default(),
                 from,
                 permitted,
                 at: self.loan_position(before, concerns)?,
@@ -909,6 +1012,7 @@ impl<'a> Storage<'a> {
                     )?,
                     parent,
                     lender,
+                    selected_parents: Box::default(),
                     from,
                     permitted,
                     at: self.loan_position(before, concerns)?,
@@ -1158,6 +1262,7 @@ impl<'a> Storage<'a> {
             lineage: self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?,
             parent,
             lender,
+            selected_parents: Box::default(),
             from,
             permitted,
             at,
@@ -1252,7 +1357,7 @@ impl<'a> Storage<'a> {
                     {
                         for child in formed {
                             if child.lifetime.as_ref().is_some_and(|life| holds(life, &at))
-                                && self.descends(child, loan.obligation, formed)?
+                                && self.may_descend(child, loan, formed)?
                             {
                                 return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
                             }
@@ -1419,13 +1524,7 @@ impl<'a> Storage<'a> {
                 (place, backing)
             }
             super::StorageEffect::Storage(place) => {
-                let backing = LoanRegion::Storage(self.backing(
-                    references,
-                    &place,
-                    at.0,
-                    at.1 as usize,
-                    concerns,
-                )?);
+                let backing = self.storage_loan_region(references, &place, at, concerns)?;
                 (place, backing)
             }
         };
@@ -1444,7 +1543,7 @@ impl<'a> Storage<'a> {
         if touch == Touch::Change && !loan.access.is_exclusive() {
             return Ok(Some(conflict));
         }
-        Ok((!self.authorized_reference(loan, &place, at, formed)?).then_some(conflict))
+        Ok((!self.authorized_reference(references, loan, &place, at, formed)?).then_some(conflict))
     }
 
     fn cleanup_cohorts(
@@ -1548,9 +1647,7 @@ impl<'a> Storage<'a> {
                 )
             })?;
         for candidate in formed {
-            if candidate.obligation != loan.obligation
-                && !self.descends(candidate, loan.obligation, formed)?
-            {
+            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
                 continue;
             }
             if cohorts
@@ -1634,6 +1731,7 @@ impl<'a> Storage<'a> {
 
     fn authorized_reference(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         loan: &Formed,
         place: &super::Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
@@ -1685,9 +1783,7 @@ impl<'a> Storage<'a> {
             )
         })?;
         for candidate in formed {
-            if candidate.obligation != loan.obligation
-                && !self.descends(candidate, loan.obligation, formed)?
-            {
+            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
                 continue;
             }
             if candidate.lifetime.as_ref().is_some_and(|life| {
@@ -1702,7 +1798,46 @@ impl<'a> Storage<'a> {
                 return Ok(true);
             }
         }
-        Ok(false)
+        let candidates = formed
+            .iter()
+            .filter_map(|loan| loan.lifetime.as_ref().map(|life| (loan.obligation, life)));
+        // Most accesses have one loan authorized on every incoming edge.
+        // Ask which borrow the value carries only when those edges differ.
+        if !candidates.clone().any(|(_, life)| {
+            life.surviving
+                .get(&at)
+                .is_some_and(|names| names.contains(&descriptor))
+        }) {
+            return Ok(false);
+        }
+        let Ok(terminal_semantics::BorrowedLoanSources::Selected(choice)) =
+            terminal_semantics::borrowed_loan_sources(
+                self.module,
+                self.lowered,
+                references,
+                at,
+                &descriptor,
+                candidates,
+            )
+        else {
+            return Ok(false);
+        };
+        let concerns = Construct::Obligation(loan.obligation);
+        let mut relevant = false;
+        for identity in choice.loans() {
+            let candidate = self.loan_parent(identity, formed, concerns)?;
+            if let (LoanRegion::Storage(candidate), LoanRegion::Storage(lender)) =
+                (&candidate.lineage, &loan.lineage)
+                && !overlap(candidate, lender)
+            {
+                continue;
+            }
+            relevant = true;
+            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
+                return Ok(false);
+            }
+        }
+        Ok(relevant)
     }
 
     /// An edge transports the original borrow, not a fresh incoming resource.
@@ -1790,13 +1925,22 @@ impl<'a> Storage<'a> {
                             .is_some_and(|life| life.live.contains(&at))
                             && competing_borrows(loan.access, &loan.lineage, access, &backing)
                                 .is_some()
-                            && !self.authorized_reference(loan, &raw, at, formed)?
+                            && !self.authorized_reference(references, loan, &raw, at, formed)?
                         {
                             return Err(crate::checking::refusal(
                                 RefusalReason::Conflict,
                                 self.machine,
                                 concerns,
-                                "successor borrow conflicts with an original live loan",
+                                &format!(
+                                    "successor borrow conflicts with an original live loan: loan {:?} formed {:?}, lender {:?}, source {:?}, captured {:?}, successor {:?}, at {:?}",
+                                    loan.obligation,
+                                    loan.at,
+                                    loan.lender,
+                                    raw,
+                                    loan.lineage,
+                                    backing,
+                                    at,
+                                ),
                             ));
                         }
                     }
@@ -1861,13 +2005,22 @@ impl<'a> Storage<'a> {
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
-        formed: &[Formed],
+        formed: &mut [Formed],
     ) -> Checked<()> {
-        for loan in formed {
+        use terminal_semantics::BorrowedLoanSources;
+        let mut selections = Vec::new();
+        for (position, loan) in formed.iter().enumerate() {
             let Some(descriptor) = &loan.from else {
+                if loan.lender == Lender::Selected {
+                    return Err(self.foreign(
+                        Construct::Obligation(loan.obligation),
+                        "selected loan has no reference descriptor",
+                    ));
+                }
                 continue;
             };
-            let source = terminal_semantics::borrowed_loan_source(
+            let concerns = Construct::Obligation(loan.obligation);
+            let sources = terminal_semantics::borrowed_loan_sources(
                 module,
                 self.lowered,
                 references,
@@ -1880,26 +2033,44 @@ impl<'a> Storage<'a> {
                         other.lifetime.as_ref().map(|life| (other.obligation, life))
                     }),
             )
-            .map_err(|reason| self.unsupported(Construct::Obligation(loan.obligation), reason))?;
-            if loan.lender != loan_lender(source) {
+            .map_err(|reason| self.unsupported(concerns, reason))?;
+            let claimed = match sources {
+                BorrowedLoanSources::Selected(choice) => {
+                    let mut parents = choice.loans().collect::<Vec<_>>();
+                    parents.sort_unstable();
+                    parents.dedup();
+                    self.check_selected_parents(loan, &parents, formed)?;
+                    selections.push((position, parents));
+                    Lender::Selected
+                }
+                other => loan_lender(
+                    other
+                        .single()
+                        .map_err(|reason| self.unsupported(concerns, reason))?,
+                ),
+            };
+            if loan.lender != claimed {
                 return Err(self.foreign(
-                    Construct::Obligation(loan.obligation),
-                    "reborrow names a different immediate parent occurrence",
+                    concerns,
+                    &format!(
+                        "reborrow names a different immediate parent occurrence: claimed {:?}, actual {:?}, descriptor {:?}, formed {:?}",
+                        loan.lender, claimed, descriptor, loan.at,
+                    ),
                 ));
             }
-            if let terminal_semantics::BorrowedLoanSource::Loan(parent) = source {
-                let owner = formed
-                    .iter()
-                    .find(|other| other.obligation == parent)
-                    .ok_or_else(|| {
-                        self.foreign(
-                            Construct::Obligation(loan.obligation),
-                            "reborrow parent has no actual formation",
-                        )
-                    })?;
-                if !loan.lineage.respects_parent(&owner.lineage) {
+            if let Lender::Loan(parent) = claimed {
+                let owner = self.loan_parent(parent, formed, concerns)?;
+                let preserves_backing = match (&loan.lineage, &owner.lineage) {
+                    (LoanRegion::Storage(child), LoanRegion::Storage(parent))
+                        if owner.lender == Lender::Selected =>
+                    {
+                        child.projections_from(std::iter::once(parent))
+                    }
+                    _ => loan.lineage.respects_parent(&owner.lineage),
+                };
+                if !preserves_backing {
                     return Err(self.foreign(
-                        Construct::Obligation(loan.obligation),
+                        concerns,
                         &format!(
                             "reborrow changes its parent's original captured referent: parent {:?}, child {:?} at {:?}, descriptor {:?}",
                             owner.lineage, loan.lineage, loan.at, loan.from,
@@ -1908,37 +2079,140 @@ impl<'a> Storage<'a> {
                 }
             }
         }
+        for (position, parents) in selections {
+            formed[position].selected_parents = parents.into_boxed_slice();
+        }
         Ok(())
     }
 
-    fn descends(&self, child: &Formed, parent: ObligationId, formed: &[Formed]) -> Checked<bool> {
-        let mut at = child;
-        for _ in 0..formed.len() {
-            let Lender::Loan(identity) = at.lender else {
-                return Ok(false);
+    fn loan_parent<'loans>(
+        &self,
+        identity: ObligationId,
+        formed: &'loans [Formed],
+        concerns: Construct,
+    ) -> Checked<&'loans Formed> {
+        formed
+            .iter()
+            .find(|loan| loan.obligation == identity)
+            .ok_or_else(|| {
+                self.foreign(concerns, "loan ancestry names no actual parent occurrence")
+            })
+    }
+
+    fn check_selected_parents(
+        &self,
+        child: &Formed,
+        parents: &[ObligationId],
+        formed: &[Formed],
+    ) -> Checked<()> {
+        let concerns = Construct::Obligation(child.obligation);
+        let mut owners = Vec::with_capacity(parents.len());
+        for &identity in parents {
+            let parent = self.loan_parent(identity, formed, concerns)?;
+            let compatible = match parent.access {
+                ReferenceAccess::Shared => child.access == ReferenceAccess::Shared,
+                ReferenceAccess::Mutable => true,
+                ReferenceAccess::WriteOnly => child.access == ReferenceAccess::WriteOnly,
             };
-            if identity == parent {
-                return Ok(true);
+            if !compatible {
+                return Err(crate::checking::refusal(
+                    RefusalReason::Conflict,
+                    self.machine,
+                    concerns,
+                    "reborrow exceeds the access of an incoming loan",
+                ));
             }
-            at = formed
-                .iter()
-                .find(|row| row.obligation == identity)
-                .ok_or_else(|| {
-                    self.foreign(
-                        Construct::Obligation(child.obligation),
-                        "loan ancestry names no actual parent occurrence",
-                    )
-                })?;
+            let LoanRegion::Storage(owner) = &parent.lineage else {
+                return Err(self.unsupported(concerns, "selected loan has no captured storage"));
+            };
+            owners.push(owner);
+        }
+        if let LoanRegion::Storage(child) = &child.lineage
+            && !owners.is_empty()
+            && child.projections_from(owners.iter().copied())
+        {
+            return Ok(());
         }
         Err(self.foreign(
-            Construct::Obligation(child.obligation),
-            "loan ancestry does not reach an original lender",
+            concerns,
+            "a reborrow does not preserve the storage of each incoming loan",
         ))
     }
 
-    /// A descriptor's last direct use does not restore its loan while a child
-    /// still uses that authority. Close liveness over the authenticated forest,
-    /// without making child descriptors names for their parent's permission.
+    /// Every possible parent that overlaps the competing loan must descend
+    /// from it. A parent of another possible address grants no permission.
+    fn descends(&self, child: &Formed, parent: &Formed, formed: &[Formed]) -> Checked<bool> {
+        self.ancestry(child, parent, formed, formed.len(), false, &mut Vec::new())
+    }
+
+    fn may_descend(&self, child: &Formed, parent: &Formed, formed: &[Formed]) -> Checked<bool> {
+        self.ancestry(child, parent, formed, formed.len(), true, &mut Vec::new())
+    }
+
+    fn ancestry<'loans>(
+        &self,
+        mut child: &'loans Formed,
+        target: &Formed,
+        formed: &'loans [Formed],
+        mut remaining: usize,
+        any: bool,
+        cache: &mut Vec<Option<Ancestry>>,
+    ) -> Checked<bool> {
+        let concerns = Construct::Obligation(child.obligation);
+        while remaining > 0 {
+            remaining -= 1;
+            if let Lender::Loan(identity) = child.lender {
+                if identity == target.obligation {
+                    return Ok(true);
+                }
+                child = self.loan_parent(identity, formed, concerns)?;
+                continue;
+            }
+            if child.selected_parents.is_empty() {
+                return Ok(false);
+            }
+            let position = index(child.obligation.get());
+            match cache.get(position).copied().flatten() {
+                Some(Ancestry::Checked(verdict)) => return Ok(verdict),
+                Some(Ancestry::Visiting) => {
+                    return Err(
+                        self.foreign(concerns, "loan ancestry does not reach an original lender")
+                    );
+                }
+                None => {}
+            }
+            if position >= cache.len() {
+                cache.resize(position + 1, None);
+            }
+            cache[position] = Some(Ancestry::Visiting);
+            let mut decisive = None;
+            let mut relevant = false;
+            for &identity in child.immediate_parents() {
+                let choice = self.loan_parent(identity, formed, concerns)?;
+                if !any
+                    && let (LoanRegion::Storage(choice), LoanRegion::Storage(target)) =
+                        (&choice.lineage, &target.lineage)
+                    && !overlap(choice, target)
+                {
+                    continue;
+                }
+                relevant = true;
+                let related = identity == target.obligation
+                    || self.ancestry(choice, target, formed, remaining, any, cache)?;
+                if related == any {
+                    decisive = Some(any);
+                    break;
+                }
+            }
+            let verdict = decisive.unwrap_or(relevant && !any);
+            cache[position] = Some(Ancestry::Checked(verdict));
+            return Ok(verdict);
+        }
+        Err(self.foreign(concerns, "loan ancestry does not reach an original lender"))
+    }
+
+    /// Keep every possible parent alive until the selected child ends.
+    /// Retaining a parent never gives its authority to another descriptor.
     fn retain_ancestors(&self, formed: &mut [Formed]) -> Checked<()> {
         let mut positions = formed
             .iter()
@@ -1946,26 +2220,25 @@ impl<'a> Storage<'a> {
             .map(|(position, loan)| (loan.obligation, position))
             .collect::<Vec<_>>();
         positions.sort_unstable_by_key(|(identity, _)| *identity);
+        let mut parent_indices = Vec::new();
         let mut parents = Vec::with_capacity(formed.len());
         let mut children = vec![0usize; formed.len()];
         for loan in formed.iter() {
-            let parent = match loan.lender {
-                Lender::Loan(identity) => {
-                    let position = positions
-                        .binary_search_by_key(&identity, |(identity, _)| *identity)
-                        .map_err(|_| {
-                            self.foreign(
-                                Construct::Obligation(loan.obligation),
-                                "loan ancestry names no actual parent occurrence",
-                            )
-                        })?;
-                    let parent = positions[position].1;
-                    children[parent] += 1;
-                    Some(parent)
-                }
-                Lender::Owner | Lender::Incoming | Lender::Provider => None,
-            };
-            parents.push(parent);
+            let start = parent_indices.len();
+            for &identity in loan.immediate_parents() {
+                let position = positions
+                    .binary_search_by_key(&identity, |(identity, _)| *identity)
+                    .map_err(|_| {
+                        self.foreign(
+                            Construct::Obligation(loan.obligation),
+                            "loan ancestry names no actual parent occurrence",
+                        )
+                    })?;
+                let parent = positions[position].1;
+                children[parent] += 1;
+                parent_indices.push(parent);
+            }
+            parents.push(start..parent_indices.len());
         }
         let mut pending = children
             .iter()
@@ -1975,34 +2248,33 @@ impl<'a> Storage<'a> {
         let mut closed = 0;
         while let Some(child) = pending.pop() {
             closed += 1;
-            let Some(parent) = parents[child] else {
-                continue;
-            };
-            let (owner, descendant) = if parent < child {
-                let (before, after) = formed.split_at_mut(child);
-                (&mut before[parent], &after[0])
-            } else {
-                let (before, after) = formed.split_at_mut(parent);
-                (&mut after[0], &before[child])
-            };
-            if let Some(lifetime) = &descendant.lifetime {
-                let retained = owner.lifetime.as_mut().ok_or_else(|| {
-                    self.foreign(
-                        Construct::Obligation(owner.obligation),
-                        "a retained child has no retained parent occurrence",
-                    )
-                })?;
-                retained.live.extend(lifetime.live.iter().copied());
-                retained.live.extend(
-                    lifetime
-                        .surviving
-                        .iter()
-                        .filter_map(|(at, names)| (!names.is_empty()).then_some(*at)),
-                );
-            }
-            children[parent] -= 1;
-            if children[parent] == 0 {
-                pending.push(parent);
+            for &parent in &parent_indices[parents[child].clone()] {
+                let (owner, descendant) = if parent < child {
+                    let (before, after) = formed.split_at_mut(child);
+                    (&mut before[parent], &after[0])
+                } else {
+                    let (before, after) = formed.split_at_mut(parent);
+                    (&mut after[0], &before[child])
+                };
+                if let Some(lifetime) = &descendant.lifetime {
+                    let retained = owner.lifetime.as_mut().ok_or_else(|| {
+                        self.foreign(
+                            Construct::Obligation(owner.obligation),
+                            "a retained child has no retained parent occurrence",
+                        )
+                    })?;
+                    retained.live.extend(lifetime.live.iter().copied());
+                    retained.live.extend(
+                        lifetime
+                            .surviving
+                            .iter()
+                            .filter_map(|(at, names)| (!names.is_empty()).then_some(*at)),
+                    );
+                }
+                children[parent] -= 1;
+                if children[parent] == 0 {
+                    pending.push(parent);
+                }
             }
         }
         if closed != formed.len() {
@@ -2331,6 +2603,7 @@ impl<'a> Storage<'a> {
                         )?,
                         parent,
                         lender,
+                        selected_parents: Box::default(),
                         from,
                         permitted,
                         at,
@@ -2616,10 +2889,7 @@ impl<'a> Storage<'a> {
                     };
                     ReferenceCompletionOccurrence {
                         identity: &loan.obligation,
-                        parents: match &loan.lender {
-                            Lender::Loan(parent) => vec![parent],
-                            Lender::Owner | Lender::Incoming | Lender::Provider => Vec::new(),
-                        },
+                        parents: loan.immediate_parents().collect(),
                         returned: is_returned,
                         in_caller_storage: false,
                         disposed,
@@ -2644,7 +2914,64 @@ impl<'a> Storage<'a> {
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
         let (mut formed, header_ends) = self.formed(references, module, tables, borrow_ends)?;
-        self.parents(references, module, &formed)?;
+        let addresses =
+            terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
+                .map_err(|error| match error {
+                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                    let concerns = match unavailable.site {
+                        terminal_semantics::plain_affine::Site::Operation(at) => {
+                            Construct::Operation(at)
+                        }
+                        terminal_semantics::plain_affine::Site::Edge(at) => Construct::Edge(at),
+                    };
+                    crate::checking::refusal(
+                        RefusalReason::Unestablished,
+                        self.machine,
+                        concerns,
+                        unavailable.message(),
+                    )
+                }
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                    self.foreign(Construct::Machine, detail)
+                }
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    self.unsupported(Construct::Machine, detail)
+                }
+            })?;
+        for loan in &mut formed {
+            let Some(lifetime) = &mut loan.lifetime else {
+                continue;
+            };
+            // A non-owning block header retains an address, not a descriptor
+            // cell whose disposal must be emitted. Its future uses and every
+            // child debt remain live independently of that temporary spelling.
+            // Plain-affine verification still requires complete restoration.
+            for positions in [&mut lifetime.authorized, &mut lifetime.surviving] {
+                for (at, names) in positions {
+                    let mut missing = false;
+                    names.retain(|name| {
+                        if !name.path.is_empty() || !addresses.is_address_header(name.root) {
+                            return true;
+                        }
+                        match addresses.is_live(name.root, *at) {
+                            Some(live) => live,
+                            None => {
+                                missing = true;
+                                true
+                            }
+                        }
+                    });
+                    if missing {
+                        return Err(self.foreign(
+                            Construct::Obligation(loan.obligation),
+                            "borrowed address retirement lost its actual control-flow cut",
+                        ));
+                    }
+                }
+            }
+        }
+
+        self.parents(references, module, &mut formed)?;
         self.successor_borrows(references, &formed)?;
         self.reference_completions(references, module, &formed)?;
         self.retain_ancestors(&mut formed)?;
@@ -2720,8 +3047,8 @@ impl<'a> Storage<'a> {
                             .as_ref()
                             .is_some_and(|life| holds(life, &earlier.at))
                 }) {
-                    if self.descends(loan, earlier.obligation, &formed)?
-                        || self.descends(earlier, loan.obligation, &formed)?
+                    if self.descends(loan, earlier, &formed)?
+                        || self.descends(earlier, loan, &formed)?
                     {
                         continue;
                     }

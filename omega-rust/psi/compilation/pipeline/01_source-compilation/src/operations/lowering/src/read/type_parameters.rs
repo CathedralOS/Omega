@@ -21,6 +21,22 @@ pub(super) struct ParameterStorage {
     multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
+pub(super) fn rigid_type_scope(
+    parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
+) -> Vec<(SymbolHandle, ValueType)> {
+    parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.kind == TypeParameterKind::Type)
+        .map(|(position, parameter)| {
+            (
+                parameter.symbol,
+                ValueType::Rigid(RigidType(position as u32)),
+            )
+        })
+        .collect()
+}
+
 impl Program<'_> {
     pub(super) fn extended_source_scope(
         &self,
@@ -105,6 +121,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
             application: Some(crate::source_state::SourceTypeApplication {

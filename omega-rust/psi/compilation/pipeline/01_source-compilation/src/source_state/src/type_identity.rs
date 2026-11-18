@@ -9798,6 +9798,9 @@ impl TypedTrees {
                     &path, &callable,
                 )
             }
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::CallableContract => {
+                self.callable_contract_source_path(symbol, path)?
+            }
             None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
                 self.domain_declaration_path(symbol, path)?
             }
@@ -9820,6 +9823,80 @@ impl TypedTrees {
                 "declaration `{path}` has no retained source/package provenance"
             )),
         }
+    }
+
+    fn callable_contract_source_path(
+        &self,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> Result<String, String> {
+        let span = self
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or("a callable declaration has no authored source occurrence")?;
+        let source = self
+            .symbols
+            .source_file(span)
+            .ok_or("a callable declaration lost its immutable source custody")?;
+        if span.span.start >= span.span.end
+            || source.source.get(span.span.start..span.span.end).is_none()
+        {
+            return Err("a callable declaration has an invalid authored source occurrence".into());
+        }
+        // Give each written callable type its own location in the owning
+        // package. Publication authenticates the exact file contents separately.
+        let virtual_path = source.path.components().count() == 1
+            && source
+                .path
+                .to_str()
+                .is_some_and(|path| path.starts_with('<') && path.ends_with('>'));
+        if source.origin == source_admission::SourceOrigin::ToolchainContract && virtual_path {
+            return Err("closed toolchain contracts require an owned source path".into());
+        }
+        if source.origin == source_admission::SourceOrigin::User
+            && source.package_identity.is_none()
+        {
+            return Err("a callable declaration has no reconciled package identity".into());
+        }
+        let virtual_source =
+            source.origin == source_admission::SourceOrigin::Toolchain && virtual_path;
+        let relative = if virtual_source {
+            source.path.as_path()
+        } else {
+            source
+                .path
+                .strip_prefix(&source.package_root)
+                .map_err(|_| "a callable declaration source is outside its owning root")?
+        };
+        let components =
+            source_admission::source_identity::canonical_path_components(relative, &source.path)?;
+        let namespace = if source.origin.is_toolchain() && !virtual_source {
+            let namespace = source
+                .package_root
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or("a callable declaration toolchain root has no canonical UTF-8 namespace")?;
+            atom(CoordinateTag::Owner, namespace)
+        } else {
+            String::new()
+        };
+        let relative = compound(
+            CoordinateTag::Path,
+            components
+                .iter()
+                .map(|component| atom(CoordinateTag::Name, component)),
+        );
+        let occurrence = format!(
+            "source-occurrence-v1:{namespace}{relative}@{}..{}",
+            span.span.start, span.span.end
+        );
+        Ok(compound(
+            CoordinateTag::Declaration,
+            [
+                atom(CoordinateTag::Path, &path),
+                atom(CoordinateTag::Owner, &occurrence),
+            ],
+        ))
     }
 
     fn domain_declaration_path(
@@ -10256,7 +10333,7 @@ impl TypedTrees {
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
-        self.scoped_carrier_identity(request, scope_starts, None)
+        self.scoped_source_identity(request, scope_starts, None, false)
     }
 
     pub fn scoped_carrier_identity_in_region_scope(
@@ -10265,14 +10342,24 @@ impl TypedTrees {
         scope_starts: &[usize],
         owner: SymbolHandle,
     ) -> Option<NormalizedTypeIdentity> {
-        self.scoped_carrier_identity(request, scope_starts, Some(owner))
+        self.scoped_source_identity(request, scope_starts, Some(owner), true)
     }
 
-    fn scoped_carrier_identity(
+    pub(crate) fn scoped_type_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_source_identity(request, scope_starts, Some(owner), false)
+    }
+
+    fn scoped_source_identity(
         &self,
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
         owner: Option<SymbolHandle>,
+        erase_constraints: bool,
     ) -> Option<NormalizedTypeIdentity> {
         if !self.contains_type_reference(request.type_reference) {
             return None;
@@ -10283,7 +10370,7 @@ impl TypedTrees {
             request.type_reference,
             &TypeIdentityContext {
                 declared_carrier: owner.is_none(),
-                erase_constraints: owner.is_some(),
+                erase_constraints,
                 substitutions: request.substitutions,
                 substitution_scope_starts: scope_starts,
                 application_owner: owner.unwrap_or_else(SymbolHandle::invalid),

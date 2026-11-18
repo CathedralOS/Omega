@@ -724,8 +724,9 @@ fn induction_with_a_dependent_motive_proves_the_conclusion_identity() {
         .unwrap()
     );
 
-    // Work receipt: a measured 4_877 budgeted steps.
-    assert_eq!(total - budget.remaining(), 4_877);
+    // Whole-test normalization work, including operand formation at the public
+    // conversion entry. The proof and its budget ceiling remain unchanged.
+    assert_eq!(total - budget.remaining(), 2_958);
 }
 
 #[test]

@@ -346,7 +346,7 @@ impl Lowering<'_> {
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),
-            ExpressionKind::Borrow { .. } => {
+            ExpressionKind::Borrow { .. } | ExpressionKind::OwnedTemporary { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }
             ExpressionKind::Not(operand) => {

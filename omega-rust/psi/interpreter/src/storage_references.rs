@@ -2370,7 +2370,7 @@ impl TerminalExecution<'_> {
                         self.structural_types().values(),
                         root_type,
                         &source.path,
-                        None,
+                        Some(referent_type),
                     )
                 })
                 .flatten();
@@ -2478,6 +2478,7 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
+                let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
                 let root_type = self.live_structural_type(source.place)?;
                 let tip = terminal_semantics::runtime_structural_path_tip(
                     self.structural_types().values(),
@@ -2493,12 +2494,9 @@ impl TerminalExecution<'_> {
                         &source.path,
                     ),
                 };
-                let array_window = terminal_semantics::reference_storage_region(
-                    self.structural_types().values(),
-                    root_type,
-                    &source.path,
-                )
-                .and_then(|region| region.array);
+                let array_window = geometry
+                    .region(root_type, &source.path)
+                    .and_then(|region| region.array);
                 let mut backing_source = source.clone();
                 if array_window.is_some() {
                     backing_source.path.pop().ok_or(malformed())?;
@@ -2507,13 +2505,8 @@ impl TerminalExecution<'_> {
                     .or(inline_byte)
                     .or_else(|| array_window.map(|window| window.declaration))
                     .ok_or(malformed())?;
-                let compatible = terminal_semantics::reference_storage_region_source_compatible(
-                    self.structural_types().values(),
-                    root_type,
-                    &source.path,
-                    reference_type,
-                    None,
-                );
+                let compatible =
+                    geometry.view_source_compatible(root_type, &source.path, reference_type);
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !compatible
@@ -2527,15 +2520,13 @@ impl TerminalExecution<'_> {
                     });
                 }
                 let byte_length = usize::try_from(
-                    terminal_semantics::reference_storage_size(
-                        self.structural_types().values(),
-                        referent_type,
-                    )
-                    .ok_or(
-                        TerminalInterpretError::UnsupportedSemanticVariant(
+                    geometry
+                        .layout(referent_type)
+                        .ok()
+                        .map(|(size, _)| size)
+                        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                             "reference aggregate has no closed byte geometry",
-                        ),
-                    )?,
+                        ))?,
                 )
                 .map_err(|_| malformed())?;
                 let byte_endpoint = matches!(
@@ -2632,12 +2623,7 @@ impl TerminalExecution<'_> {
                 } else if captured.is_none() && !byte_endpoint {
                     let source_length = array_window
                         .map(|window| window.byte_length)
-                        .or_else(|| {
-                            terminal_semantics::reference_storage_size(
-                                self.structural_types().values(),
-                                original_type,
-                            )
-                        })
+                        .or_else(|| geometry.layout(original_type).ok().map(|(size, _)| size))
                         .and_then(|length| usize::try_from(length).ok());
                     if relative_offset != 0 || source_length != Some(byte_length) {
                         return Err(malformed());
@@ -2648,10 +2634,8 @@ impl TerminalExecution<'_> {
                     region.byte_offset = u64::try_from(byte_offset).map_err(|_| malformed())?;
                     if let Some(AggregateViewTip::Aggregate { view, backing }) = projected_view {
                         if backing != projected.structural_type
-                            || terminal_semantics::reference_storage_size(
-                                self.structural_types().values(),
-                                original_type,
-                            ) != Some(view.byte_length)
+                            || geometry.layout(original_type).ok().map(|(size, _)| size)
+                                != Some(view.byte_length)
                             || region
                                 .byte_offset
                                 .checked_add(region.byte_length)

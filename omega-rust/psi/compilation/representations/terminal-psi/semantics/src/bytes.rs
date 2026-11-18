@@ -5,6 +5,10 @@ byte-window reads and stores.
 
 mod fixed_arrays;
 
+#[cfg(test)]
+#[path = "bytes/descriptor_predicate_tests.rs"]
+mod descriptor_predicate_tests;
+
 pub(crate) mod operation_bounds {
     use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
     use semantic_vocabulary::{
@@ -228,15 +232,16 @@ pub(crate) mod byte_sequence_predicates {
 
     use crate::runtime_structural_path_tip;
     use semantic_vocabulary::StructuralTypeId;
-    use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+    use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
+    use std::cell::OnceCell;
     use terminal_psi::Operation;
     use terminal_psi::StructuralMultiplicity;
     use terminal_psi::StructuralPathSegment;
     use terminal_psi::call_structural_pair_pattern;
     use terminal_psi::{
         ByteSequencePredicate, ByteSequencePredicateSet, OperationKind, StructuralAccess,
-        StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-        live_field_by_id,
+        StructuralArgument, StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine,
+        TerminalModule, live_field_by_id,
     };
 
     pub fn byte_predicate_requirement(
@@ -613,6 +618,96 @@ pub(crate) mod byte_sequence_predicates {
         shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
     }
 
+    /// Reconstruct primitive facts carried by an unchanged incoming shared
+    /// descriptor. This adds no domain membership: casts still owe their
+    /// ordinary membership and predicate judgments. Unknown custody or any
+    /// arrival without the fact supplies no additional evidence.
+    pub fn incoming_byte_sequence_argument_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        position: crate::descriptor_results::DescriptorPosition,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Option<ByteSequencePredicateSet> {
+        use crate::borrowed_storage::Projection;
+        use crate::descriptor_results::{
+            DescriptorCallOrigin, DescriptorLocation, DescriptorSourceOrigin,
+        };
+
+        if source.access == StructuralAccess::WriteOnlyBorrow || !source.path.is_empty() {
+            return None;
+        }
+        let origins = analysis.unchanged_incoming_source_origins(
+            &module.structural_types,
+            machine.id,
+            position,
+            &DescriptorLocation::whole(source.place),
+        )?;
+        let mut common: Option<ByteSequencePredicateSet> = None;
+        for origin in origins {
+            let (entry, projection) = match origin {
+                DescriptorSourceOrigin::IncomingSlot(entry) => (entry, None),
+                DescriptorSourceOrigin::IncomingContents { query, projection } => {
+                    (query.exact_location()?, Some(projection))
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) => (DescriptorLocation::whole(source), Some(projection)),
+                _ => return None,
+            };
+            let whole = projection
+                .as_ref()
+                .is_none_or(|projection| *projection == Projection::new(&[]));
+            if !whole && !projection.as_ref()?.is_captured_whole_descriptor_window() {
+                return None;
+            }
+            if !entry.path.is_empty()
+                || !matches!(
+                    machine.structural_place(entry.root)?.kind,
+                    StructuralPlaceKind::Parameter { .. }
+                )
+            {
+                return None;
+            }
+            let formal = machine.structural_parameter(entry.root)?;
+            if formal.access != StructuralAccess::SharedBorrow
+                || !module
+                    .structural_type(formal.structural_type)?
+                    .shape
+                    .is_shared_readable_byte_view()
+            {
+                return None;
+            }
+            let mut facts = byte_sequence_argument_predicates(
+                module,
+                machine,
+                &terminal_psi::StructuralArgument::whole(
+                    entry.root,
+                    StructuralAccess::SharedBorrow,
+                ),
+            )?;
+            if !whole {
+                facts = facts.subslice();
+            }
+            common = Some(match common {
+                None => facts,
+                Some(previous) => {
+                    let mut shared = ByteSequencePredicateSet::EMPTY;
+                    for predicate in ByteSequencePredicate::ALL {
+                        let mut required = ByteSequencePredicateSet::EMPTY;
+                        required.insert(predicate);
+                        if previous.implies(required) && facts.implies(required) {
+                            shared.insert(predicate);
+                        }
+                    }
+                    shared
+                }
+            });
+        }
+        common
+    }
+
     /// A transfer must establish its byte qualifications from the source.
     /// Its own result annotations cannot justify the qualifications they add.
     pub fn byte_transfer_qualifications_hold(
@@ -979,17 +1074,45 @@ pub(crate) mod byte_sequence_predicates {
             )
     }
 
+    type IncomingArguments<'a> = (BlockId, &'a [StructuralArgument]);
+
+    fn incoming_arguments(machine: &TerminalMachine) -> Option<Vec<IncomingArguments<'_>>> {
+        let mut incoming = Vec::new();
+        for block in &machine.blocks {
+            let edges = block.terminator.successor_edges();
+            let arguments = block.terminator.successor_block_arguments();
+            if edges.len() != arguments.len() {
+                return None;
+            }
+            for ((_, target), arguments) in edges.into_iter().zip(arguments) {
+                incoming.push((target, arguments));
+            }
+        }
+        incoming.sort_by_key(|(target, _)| *target);
+        Some(incoming)
+    }
+
+    fn arrivals_to<'edges, 'machine>(
+        incoming: &'edges [IncomingArguments<'machine>],
+        block: BlockId,
+    ) -> Option<&'edges [IncomingArguments<'machine>]> {
+        let first = incoming.partition_point(|(target, _)| *target < block);
+        let end = incoming.partition_point(|(target, _)| *target <= block);
+        (first < end).then_some(&incoming[first..end])
+    }
+
     pub fn byte_sequence_source_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
     ) -> Option<ByteSequencePredicateSet> {
-        fn source_predicates(
+        fn source_predicates<'a>(
             module: &TerminalModule,
-            machine: &TerminalMachine,
+            machine: &'a TerminalMachine,
             source: PlaceId,
             work: usize,
             memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
+            incoming: &OnceCell<Option<Vec<IncomingArguments<'a>>>>,
         ) -> Option<ByteSequencePredicateSet> {
             if let Some((_, result)) = memo.iter().find(|(place, _)| *place == source) {
                 return *result;
@@ -1027,6 +1150,66 @@ pub(crate) mod byte_sequence_predicates {
                         })
                     {
                         shared_entry_byte_predicates(machine, source, &mut predicates);
+                    }
+                    if let StructuralPlaceKind::BlockParameter { block, position } = place.kind
+                        && parameter.access == StructuralAccess::Owned
+                        && module
+                            .structural_type(parameter.structural_type)
+                            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
+                        && let Some(arrivals) = incoming
+                            .get_or_init(|| incoming_arguments(machine))
+                            .as_ref()
+                            .and_then(|incoming| arrivals_to(incoming, block))
+                    {
+                        // A shared view keeps the same bytes on each incoming
+                        // edge, even when the edge removes a displayed domain.
+                        // A fact survives only when every actual argument
+                        // establishes it. Unknown or cyclic sources add nothing.
+                        let mut common = ByteSequencePredicateSet::EMPTY;
+                        for fact in ByteSequencePredicate::ALL {
+                            common.insert(fact);
+                        }
+                        for (_, arguments) in arrivals {
+                            let supplied = arguments
+                                .get(position as usize)
+                                .filter(|argument| {
+                                    matches!(
+                                        argument.access,
+                                        StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                                    )
+                                })
+                                .and_then(|argument| {
+                                    if argument.path.is_empty() {
+                                        source_predicates(
+                                            module,
+                                            machine,
+                                            argument.place,
+                                            work,
+                                            memo,
+                                            incoming,
+                                        )
+                                    } else {
+                                        byte_sequence_argument_predicates(module, machine, argument)
+                                    }
+                                })
+                                .unwrap_or(ByteSequencePredicateSet::EMPTY);
+                            let mut retained = ByteSequencePredicateSet::EMPTY;
+                            for fact in common.predicates() {
+                                if supplied
+                                    .predicates()
+                                    .any(|candidate| candidate.implies(fact))
+                                {
+                                    retained.insert(fact);
+                                }
+                            }
+                            common = retained;
+                            if common.is_empty() {
+                                break;
+                            }
+                        }
+                        for fact in common.predicates() {
+                            predicates.insert(fact);
+                        }
                     }
                     Some(predicates)
                 }
@@ -1095,7 +1278,7 @@ pub(crate) mod byte_sequence_predicates {
                         {
                             predicates
                         } else if backing.path.is_empty() {
-                            source_predicates(module, machine, backing.place, work, memo)?
+                            source_predicates(module, machine, backing.place, work, memo, incoming)?
                         } else {
                             byte_sequence_argument_predicates(module, machine, backing)?
                         };
@@ -1122,7 +1305,7 @@ pub(crate) mod byte_sequence_predicates {
                         })
                     {
                         let captured = if path.is_empty() {
-                            source_predicates(module, machine, backing, work, memo)?
+                            source_predicates(module, machine, backing, work, memo, incoming)?
                         } else {
                             let (root, access) = byte_field_root(module, machine, backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
@@ -1152,7 +1335,7 @@ pub(crate) mod byte_sequence_predicates {
                         return byte_owned_result_predicates(module, machine, source);
                     }
                     let mut resolve =
-                        |source| source_predicates(module, machine, source, work, memo);
+                        |source| source_predicates(module, machine, source, work, memo, incoming);
                     Some(
                         concatenation_operand_predicates(module, machine, left, &mut resolve)?
                             .concatenation(concatenation_operand_predicates(
@@ -1174,6 +1357,7 @@ pub(crate) mod byte_sequence_predicates {
             source,
             machine.structural_places.len().saturating_add(1),
             &mut Vec::new(),
+            &OnceCell::new(),
         )
     }
 

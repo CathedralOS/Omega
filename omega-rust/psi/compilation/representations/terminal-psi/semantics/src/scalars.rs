@@ -2513,6 +2513,71 @@ pub(crate) mod scalar_observations {
         use terminal_psi::TerminalIdentityIndex;
 
         #[test]
+        fn scalar_application_reads_keep_the_exact_catalog_identity_and_carrier() {
+            use semantic_vocabulary::{OperationId, ScalarQualificationSetId, ValueId};
+            use terminal_psi::{
+                LayoutMeasurement, OperationResult, ScalarApplication, ValueDeclaration,
+            };
+            let carrier = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            let mut applications = ScalarApplications::default();
+            let declare = |measurement| ScalarApplication::LayoutObservation {
+                subject: StructuralTypeId::new(1).unwrap(),
+                measurement,
+                semantics_version: LayoutMeasurement::SEMANTICS_VERSION,
+                scalar_type: carrier,
+            };
+            let size = applications
+                .insert(declare(LayoutMeasurement::Size))
+                .unwrap();
+            let alignment = applications
+                .insert(declare(LayoutMeasurement::Alignment))
+                .unwrap();
+            let result = ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: carrier,
+                qualifications: ScalarQualificationSetId::ZERO,
+            };
+            let read = |application, result| {
+                Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Scalar(result),
+                    OperationKind::ReadScalarApplication { application },
+                )
+            };
+            let equation = scalar_application_read_equation(&applications, &read(size, result));
+            assert_eq!(
+                equation,
+                Ok(Some(Proposition::Equal(
+                    ScalarTerm::value(result.id, carrier),
+                    ScalarTerm::Application {
+                        application: size,
+                        scalar_type: carrier
+                    },
+                )))
+            );
+            assert_ne!(
+                equation,
+                scalar_application_read_equation(&applications, &read(alignment, result)),
+                "one observation cannot supply another observation's result"
+            );
+            assert_eq!(
+                scalar_application_read_equation(
+                    &ScalarApplications::default(),
+                    &read(size, result)
+                ),
+                Err("scalar application read has no catalog declaration")
+            );
+            let wrong = ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..result
+            };
+            assert_eq!(
+                scalar_application_read_equation(&applications, &read(size, wrong)),
+                Err("scalar application read result differs from its declared carrier")
+            );
+        }
+
+        #[test]
         fn descriptor_extents_require_exact_readable_crossings() {
             let bytes = StructuralTypeId::new(1).unwrap();
             let array = StructuralTypeId::new(2).unwrap();
@@ -2607,13 +2672,42 @@ pub(crate) mod scalar_observations {
 
     use crate::exactly_one::exactly_one;
     use semantic_vocabulary::{
-        CanonicalStructuralPathSegment as Static, IntegerSign, IntegerType, ScalarReadProjection,
-        ScalarType, StructuralTypeId,
+        CanonicalStructuralPathSegment as Static, IntegerSign, IntegerType, Proposition,
+        ScalarReadProjection, ScalarTerm, ScalarType, StructuralTypeId,
     };
     use terminal_psi::{
-        ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
-        StructuralTypeDeclaration, StructuralTypeShape,
+        ByteSequenceCarrier, Operation, OperationKind, ScalarApplications, StructuralAccess,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+        StructuralTypeShape,
     };
+
+    /// A read returns the immutable value of its exact catalog application.
+    /// This supplies no numeric measurement: layout and evaluation still owe
+    /// their own admission. The declaration fixes the result's carrier.
+    pub fn scalar_application_read_equation(
+        applications: &ScalarApplications,
+        operation: &Operation,
+    ) -> Result<Option<Proposition>, &'static str> {
+        let OperationKind::ReadScalarApplication { application } = operation.kind else {
+            return Ok(None);
+        };
+        let carrier = applications
+            .declaration(application)
+            .and_then(|declaration| declaration.scalar_type())
+            .ok_or("scalar application read has no catalog declaration")?;
+        let result = operation
+            .result
+            .scalar_ref()
+            .filter(|result| result.scalar_type == carrier)
+            .ok_or("scalar application read result differs from its declared carrier")?;
+        Ok(Some(Proposition::Equal(
+            ScalarTerm::value(result.id, carrier),
+            ScalarTerm::Application {
+                application,
+                scalar_type: carrier,
+            },
+        )))
+    }
 
     #[derive(Clone, Copy)]
     enum Target {

@@ -60,6 +60,8 @@ mod float_integer;
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
 mod ieee_float_order;
+#[path = "prove/mathematical_bounds.rs"]
+mod mathematical_bounds;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
@@ -91,6 +93,27 @@ fn fact_proof_for_refutation(
         let mut work = crate::checking::known::FactProofWork::default();
         let proof = facts[index].proof_with_work(facts, &mut work);
         activity.refutation_fact_nodes = activity.refutation_fact_nodes.saturating_add(work.nodes);
+        proof
+    }
+    #[cfg(not(test))]
+    {
+        let _ = activity;
+        facts[index].proof(facts)
+    }
+}
+
+/// Count the fact nodes built for a selected bound in tests.
+fn fact_proof_for_literal_bound(
+    facts: &[Fact],
+    index: usize,
+    activity: &mut ProofSearchActivity,
+) -> ProofNode {
+    #[cfg(test)]
+    {
+        let mut work = crate::checking::known::FactProofWork::default();
+        let proof = facts[index].proof_with_work(facts, &mut work);
+        activity.literal_bound_fact_nodes =
+            activity.literal_bound_fact_nodes.saturating_add(work.nodes);
         proof
     }
     #[cfg(not(test))]
@@ -170,18 +193,19 @@ fn covered(
                 return widths::covered(left, right, width);
             }
             // `Prover::arithmetic_interval` bounds one operation over values
-            // of one carrier and literals, the shape an exact operation's
-            // representability goal has. A deeper term, or one over two
-            // carriers, is a clause's (`embed(a) + embed(b) * 10 <= 99`),
-            // and nothing here bounds it.
+            // and literals. A mathematical sum keeps each leaf's own carrier;
+            // subtraction and multiplication retain their scalar signatures.
+            // Deeper clause expressions are outside this covered subset.
             let leaf = |term: &IntegerMathTerm| match term {
                 IntegerMathTerm::MathValue { source_type, .. } => Some(Some(*source_type)),
                 IntegerMathTerm::IntegerLiteral(_) => Some(None),
                 _ => None,
             };
             let bounded = |term: &IntegerMathTerm| match term {
-                IntegerMathTerm::Add(first, second)
-                | IntegerMathTerm::Subtract(first, second)
+                IntegerMathTerm::Add(first, second) => {
+                    leaf(first).is_some() && leaf(second).is_some()
+                }
+                IntegerMathTerm::Subtract(first, second)
                 | IntegerMathTerm::Multiply(first, second) => match (leaf(first), leaf(second)) {
                     (Some(first), Some(second)) => {
                         first.is_none() || second.is_none() || first == second
@@ -320,6 +344,72 @@ struct Bound {
     proof: ProofNode,
 }
 
+struct ComparisonSide {
+    literal: IntegerValue,
+    /// Present for an expression. A value's proof stays in the bound cache
+    /// until the comparison succeeds.
+    expression_proof: Option<ProofNode>,
+}
+
+/// A failed offset translation keeps the original relation for its fallback.
+enum OffsetTranslation {
+    Translated(Bound),
+    Original(ProofNode),
+}
+
+/// Endpoint checks finish before the incoming proof is consumed.
+struct MathematicalOrderTranslation {
+    addend: IntegerMathTerm,
+    translated_conclusion: Proposition,
+    left_substituted_conclusion: Proposition,
+    goal: Proposition,
+    left_equality: ProofNode,
+    right_equality: ProofNode,
+}
+
+impl MathematicalOrderTranslation {
+    fn apply(self, relation: ProofNode) -> ProofNode {
+        let translated = node(
+            self.translated_conclusion,
+            ProofRule::IntegerMathOrderTranslation {
+                relation: Box::new(relation),
+                addend: self.addend,
+            },
+        );
+        let after_left = node(
+            self.left_substituted_conclusion,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(translated),
+                equality: Box::new(self.left_equality),
+                endpoint: 0,
+            },
+        );
+        node(
+            self.goal,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(after_left),
+                equality: Box::new(self.right_equality),
+                endpoint: 1,
+            },
+        )
+    }
+}
+
+/// Keep the fact's origin until its endpoint can improve the bound. Expanding
+/// a discarded candidate would copy its entire supporting proof for nothing.
+#[derive(Clone, Copy)]
+enum CompoundOrder {
+    Relation { fact: usize, strict: bool },
+    Equality { fact: usize },
+    ReversedEquality { fact: usize },
+}
+
+impl CompoundOrder {
+    fn strict(self) -> bool {
+        matches!(self, Self::Relation { strict: true, .. })
+    }
+}
+
 #[derive(Debug, Clone)]
 enum Slot {
     Unknown,
@@ -347,6 +437,63 @@ fn exact_fact_hash_eligible(proposition: &Proposition) -> bool {
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => leaf(left) && leaf(right),
         _ => false,
+    }
+}
+
+/// Match an implication by its conclusion before attempting to prove its
+/// premise. Simple comparisons get their own keys. Other conclusions share
+/// a bucket with predicates of the same kind. Exact matching still decides
+/// which rows to try, in the order the premises supplied them.
+struct ImplicationConclusions {
+    hash_builder: RandomState,
+    positions: Vec<(u64, usize)>,
+}
+
+impl ImplicationConclusions {
+    fn new(facts: &[Fact]) -> Self {
+        let mut index = Self {
+            hash_builder: RandomState::new(),
+            positions: Vec::new(),
+        };
+        for (ordinal, fact) in facts.iter().enumerate() {
+            if let Proposition::Implication { conclusion, .. } = &fact.proposition {
+                index.positions.push((index.key(conclusion), ordinal));
+            }
+        }
+        index.positions.sort_unstable();
+        index
+    }
+
+    fn key(&self, proposition: &Proposition) -> u64 {
+        let endpoints = if exact_fact_hash_eligible(proposition) {
+            match proposition {
+                Proposition::Equal(left, right) => {
+                    // Equality matches in either order. Only the matching
+                    // rule below can decide whether the terms are equal.
+                    let mut keys = [
+                        self.hash_builder.hash_one(left),
+                        self.hash_builder.hash_one(right),
+                    ];
+                    keys.sort_unstable();
+                    Some(keys)
+                }
+                _ => Some([self.hash_builder.hash_one(proposition), 0]),
+            }
+        } else {
+            None
+        };
+        self.hash_builder
+            .hash_one((std::mem::discriminant(proposition), endpoints))
+    }
+
+    fn candidates(&self, goal: &Proposition) -> std::ops::Range<usize> {
+        if self.positions.is_empty() {
+            return 0..0;
+        }
+        let key = self.key(goal);
+        let start = self.positions.partition_point(|&(stored, _)| stored < key);
+        let end = self.positions.partition_point(|&(stored, _)| stored <= key);
+        start..end
     }
 }
 
@@ -569,6 +716,12 @@ pub struct ProofSearchActivity {
     /// Nodes emitted for the candidate fact, excluding the opposite search.
     #[cfg(test)]
     refutation_fact_nodes: usize,
+    /// Fact nodes materialized for compound order candidates.
+    #[cfg(test)]
+    compound_order_fact_nodes: usize,
+    /// Fact nodes expanded for direct literal-bound candidates.
+    #[cfg(test)]
+    literal_bound_fact_nodes: usize,
     #[cfg(test)]
     bound_value_searches: usize,
     #[cfg(test)]
@@ -603,6 +756,12 @@ impl ProofSearchActivity {
             self.refutation_fact_nodes = self
                 .refutation_fact_nodes
                 .saturating_add(other.refutation_fact_nodes);
+            self.compound_order_fact_nodes = self
+                .compound_order_fact_nodes
+                .saturating_add(other.compound_order_fact_nodes);
+            self.literal_bound_fact_nodes = self
+                .literal_bound_fact_nodes
+                .saturating_add(other.literal_bound_fact_nodes);
             self.bound_value_searches = self
                 .bound_value_searches
                 .saturating_add(other.bound_value_searches);
@@ -623,7 +782,7 @@ pub(crate) struct Prover<'a> {
     facts: Vec<Fact>,
     exact_facts: ExactFacts,
     /// Actual implication facts, prepared once for goal-directed elimination.
-    implications: Vec<usize>,
+    implications: ImplicationConclusions,
     float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -874,13 +1033,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::checking::known::Known::new(context, assumptions, axioms, values);
-        let implications = facts
-            .iter()
-            .enumerate()
-            .filter_map(|(index, fact)| {
-                matches!(fact.proposition, Proposition::Implication { .. }).then_some(index)
-            })
-            .collect();
+        let implications = ImplicationConclusions::new(&facts);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::checking::known::TransportInputs::new(equations.len());
         let exact_facts = ExactFacts::new(&facts);
@@ -1120,13 +1273,11 @@ impl<'a> Prover<'a> {
         else {
             return (None, None);
         };
-        let narrower = |bound: Option<Bound>, carrier: IntegerValue| {
-            bound
-                .map(|bound| bound.literal)
-                .filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
+        let narrower = |literal: Option<IntegerValue>, carrier: IntegerValue| {
+            literal.filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
         };
-        let mut lower = narrower(self.bound(value, Direction::Lower), minimum);
-        let mut upper = narrower(self.bound(value, Direction::Upper), maximum);
+        let mut lower = narrower(self.bound_literal(value, Direction::Lower), minimum);
+        let mut upper = narrower(self.bound_literal(value, Direction::Upper), maximum);
         // A bound that holds only by cases is no bound of the value's own:
         // under `c == true` with `c` the join of `20 <= v && v <= 60`, the
         // limits are inside a disjunctive fact. Each literal such a fact
@@ -1829,8 +1980,8 @@ impl<'a> Prover<'a> {
     }
 
     fn by_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        for position in 0..self.implications.len() {
-            let index = self.implications[position];
+        for position in self.implications.candidates(goal) {
+            let index = self.implications.positions[position].1;
             let Proposition::Implication {
                 premise,
                 conclusion,
@@ -1931,7 +2082,10 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathEqual(term.clone(), term.clone()),
             PrimitiveJudgment::ReflexiveEquality,
         );
-        let relation = self.prove_direct_subgoal(&lifted).ok()?;
+        let relation = self
+            .prove_direct_subgoal(&lifted)
+            .ok()
+            .or_else(|| self.strict_sum_order(&unfolded, &lifted))?;
         let proof = node(
             unfolded,
             ProofRule::IntegerOrderSubstitution {
@@ -1950,6 +2104,79 @@ impl<'a> Prover<'a> {
                 equalities,
             },
         ))
+    }
+
+    /// Preserve a strict remaining-capacity relation that separate literal
+    /// operand ranges lose. Search only existing order edges and equations;
+    /// the requested sum is never a premise of that search.
+    fn strict_sum_order(
+        &mut self,
+        finite: &Proposition,
+        mathematical: &Proposition,
+    ) -> Option<ProofNode> {
+        let Proposition::LessThan(
+            ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            },
+            limit,
+        ) = finite
+        else {
+            return None;
+        };
+        if scalar_type.carrier() != IntegerCarrier::Fixed || scalar_type.is_address() {
+            return None;
+        }
+        let Proposition::IntegerMathLessThan(sum, upper) = mathematical else {
+            return None;
+        };
+        for (subject, offset) in [(left, right), (right, left)] {
+            if !matches!(subject.as_ref(), ScalarTerm::Value { .. }) {
+                continue;
+            }
+            let Ok(remaining) =
+                ScalarTerm::exact_integer_subtract(*scalar_type, limit.clone(), (**offset).clone())
+            else {
+                continue;
+            };
+            // The strict path must cite existing order facts or equations for
+            // this exact difference. A <= path is not enough.
+            let Some(strict) = self.relation(subject, &remaining, true) else {
+                continue;
+            };
+            let one = IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+            let discrete = node(
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Add(
+                        Box::new(IntegerMathTerm::embed((**subject).clone())?),
+                        Box::new(one.clone()),
+                    ),
+                    IntegerMathTerm::embed(remaining)?,
+                ),
+                ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(strict),
+                },
+            );
+            let successor = IntegerMathTerm::Add(Box::new(sum.clone()), Box::new(one));
+            let Some(at_most) = self.translate_mathematical_order(
+                discrete,
+                IntegerMathTerm::embed((**offset).clone())?,
+                &Proposition::IntegerMathLessOrEqual(successor.clone(), upper.clone()),
+            ) else {
+                continue;
+            };
+            let below_successor =
+                self.closed(Proposition::IntegerMathLessThan(sum.clone(), successor))?;
+            return Some(node(
+                mathematical.clone(),
+                ProofRule::IntegerStrictOrderTransitivity {
+                    left_to_middle: Box::new(below_successor),
+                    middle_to_right: Box::new(at_most),
+                },
+            ));
+        }
+        None
     }
 
     /// `left <= right` between two embedded values: directly across a checked
@@ -2099,22 +2326,22 @@ impl<'a> Prover<'a> {
         if let Some(proof) = self.sum_order(&carrier_order) {
             return Ok(proof);
         }
-        let (left_literal, left_proof) = self.side(left, Direction::Upper)?;
-        let (right_literal, right_proof) = self.side(right, Direction::Lower)?;
+        let left_side = self.comparison_side(left, Direction::Upper)?;
+        let right_side = self.comparison_side(right, Direction::Lower)?;
         let ordered = integer
-            .compare(left_literal, right_literal)
+            .compare(left_side.literal, right_side.literal)
             .ok_or("bounds are not comparable")?;
         if ordered == Ordering::Greater || (strict && ordered == Ordering::Equal) {
             return Err("the bounds do not decide the comparison");
         }
         let literal = |value| ScalarTerm::integer(integer, value).map_err(|_| "bound literal");
-        let middle_left = match &left_proof {
-            Some(_) => literal(left_literal)?,
-            None => left.clone(),
+        let middle_left = match left {
+            ScalarTerm::Integer { .. } => left.clone(),
+            _ => literal(left_side.literal)?,
         };
-        let middle_right = match &right_proof {
-            Some(_) => literal(right_literal)?,
-            None => right.clone(),
+        let middle_right = match right {
+            ScalarTerm::Integer { .. } => right.clone(),
+            _ => literal(right_side.literal)?,
         };
         let middle = if strict {
             Proposition::LessThan(middle_left, middle_right)
@@ -2124,10 +2351,10 @@ impl<'a> Prover<'a> {
         let mut proof = self
             .closed(middle)
             .ok_or("the closed bound relation does not hold")?;
-        if let Some(left_proof) = left_proof {
+        if let Some(left_proof) = self.comparison_proof(left, Direction::Upper, left_side)? {
             proof = chain(left_proof, proof)?;
         }
-        if let Some(right_proof) = right_proof {
+        if let Some(right_proof) = self.comparison_proof(right, Direction::Lower, right_side)? {
             proof = chain(proof, right_proof)?;
         }
         Ok(proof)
@@ -2337,16 +2564,17 @@ impl<'a> Prover<'a> {
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
         let mut visited = self.bounds.map(|_, _| [false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
-            self.steps(from).into_iter().collect();
+            self.steps(from, to).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
-            let ScalarTerm::Value { id, .. } = &at else {
-                continue;
-            };
-            let seen = visited.get_mut(*id)?;
-            if seen[usize::from(at_strict)] {
+            if let ScalarTerm::Value { id, .. } = &at {
+                let seen = visited.get_mut(*id)?;
+                if seen[usize::from(at_strict)] {
+                    continue;
+                }
+                seen[usize::from(at_strict)] = true;
+            } else if &at != to {
                 continue;
             }
-            seen[usize::from(at_strict)] = true;
             if &at == to {
                 if at_strict || !strict {
                     return Some(if at_strict && !strict {
@@ -2365,7 +2593,7 @@ impl<'a> Prover<'a> {
                 }
                 continue;
             }
-            for (next, step, step_strict) in self.steps(&at) {
+            for (next, step, step_strict) in self.steps(&at, to) {
                 if let Ok(chained) = chain(proof.clone(), step) {
                     queue.push_back((next, chained, at_strict || step_strict));
                 }
@@ -2375,23 +2603,33 @@ impl<'a> Prover<'a> {
     }
 
     /// The order steps leaving `at`: `(next, proof of at R next, strict)`.
-    fn steps(&mut self, at: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode, bool)> {
+    fn steps(&mut self, at: &ScalarTerm, to: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode, bool)> {
         let mut steps = Vec::new();
-        for index in 0..self.facts.len() {
+        let ScalarTerm::Value { id, .. } = at else {
+            return steps;
+        };
+        // Every matching case names `at`, either as an endpoint or within a
+        // compound term. Reuse the prepared ordinal index, including its
+        // opaque-term fallback, without changing which fact is tried first.
+        let mut cursor = BoundFactCursor::default();
+        while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
             let proposition = self.facts[index].proposition.clone();
             let axiom = self.facts[index].axiom;
             match &proposition {
                 Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right)
-                    if left == at && matches!(right, ScalarTerm::Value { .. }) =>
+                    if left == at && (matches!(right, ScalarTerm::Value { .. }) || right == to) =>
                 {
+                    // A compound endpoint can finish only this exact query;
+                    // it never becomes another graph vertex.
                     let strict = matches!(proposition, Proposition::LessThan(..));
                     steps.push((right.clone(), self.facts[index].proof(&self.facts), strict));
                 }
                 Proposition::Equal(left, right)
-                    if matches!(left, ScalarTerm::Value { .. })
-                        && matches!(right, ScalarTerm::Value { .. })
-                        && left != right
-                        && (left == at || right == at) =>
+                    if left != right
+                        && ((left == at
+                            && (matches!(right, ScalarTerm::Value { .. }) || right == to))
+                            || (right == at
+                                && (matches!(left, ScalarTerm::Value { .. }) || left == to))) =>
                 {
                     let proof = self.facts[index].proof(&self.facts);
                     let oriented = if left == at { Ok(proof) } else { flip(proof) };
@@ -2821,18 +3059,23 @@ impl<'a> Prover<'a> {
         Some((next, proof, strict))
     }
 
-    /// A literal side is its own bound; a value side takes its best bound.
-    fn side(
+    /// Settle each endpoint in order, leaving value proofs in the cache.
+    fn comparison_side(
         &mut self,
         term: &ScalarTerm,
         direction: Direction,
-    ) -> Result<(IntegerValue, Option<ProofNode>), Unproven> {
+    ) -> Result<ComparisonSide, Unproven> {
         match term {
-            ScalarTerm::Integer { value, .. } => Ok((*value, None)),
-            ScalarTerm::Value { id, .. } => {
-                let bound = self.bound(*id, direction).ok_or("value has no bound")?;
-                Ok((bound.literal, Some(bound.proof)))
-            }
+            ScalarTerm::Integer { value, .. } => Ok(ComparisonSide {
+                literal: *value,
+                expression_proof: None,
+            }),
+            ScalarTerm::Value { id, .. } => Ok(ComparisonSide {
+                literal: self
+                    .bound_literal(*id, direction)
+                    .ok_or("value has no bound")?,
+                expression_proof: None,
+            }),
             _ => {
                 let integer = term
                     .scalar_type()
@@ -2864,8 +3107,32 @@ impl<'a> Prover<'a> {
                     (Err(_), Some(definition)) => definition,
                     (Err(reason), None) => return Err(reason),
                 };
-                Ok((bound.literal, Some(bound.proof)))
+                Ok(ComparisonSide {
+                    literal: bound.literal,
+                    expression_proof: Some(bound.proof),
+                })
             }
+        }
+    }
+
+    fn comparison_proof(
+        &mut self,
+        term: &ScalarTerm,
+        direction: Direction,
+        side: ComparisonSide,
+    ) -> Result<Option<ProofNode>, Unproven> {
+        match term {
+            // The endpoint search either completed the slot or reused one
+            // owned by an outer search. Neither can change while this
+            // comparison settles the other endpoint.
+            ScalarTerm::Value { id, .. } => {
+                let bound = self
+                    .copy_cached_bound(*id, direction)
+                    .ok_or("value has no bound")?;
+                debug_assert_eq!(side.literal, bound.literal);
+                Ok(Some(bound.proof))
+            }
+            _ => Ok(side.expression_proof),
         }
     }
 
@@ -2964,6 +3231,10 @@ impl<'a> Prover<'a> {
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         self.bound_literal(value, direction)?;
+        self.copy_cached_bound(value, direction)
+    }
+
+    fn copy_cached_bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         #[cfg(test)]
         {
             self.activity.bound_certificate_copies += 1;
@@ -3019,11 +3290,15 @@ impl<'a> Prover<'a> {
             {
                 self.activity.bound_fact_visits += 1;
             }
-            if let Some(next) = self.literal_bound_from_fact(index, &subject, integer, direction)
-                && best.as_ref().is_none_or(|current| {
-                    direction.prefers(integer.compare(next.literal, current.literal))
-                })
-            {
+            if let Some(next) = self.literal_bound_from_fact(
+                index,
+                &subject,
+                integer,
+                direction,
+                best.as_ref().map(|bound| bound.literal),
+            ) && best.as_ref().is_none_or(|current| {
+                direction.prefers(integer.compare(next.literal, current.literal))
+            }) {
                 best = Some(next);
             }
         }
@@ -3116,34 +3391,44 @@ impl<'a> Prover<'a> {
     /// A fact with a closed endpoint supplies a bound without consulting
     /// any unfinished value bound. The kernel still checks its actual proof.
     fn literal_bound_from_fact(
-        &self,
+        &mut self,
         index: usize,
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<Bound> {
+        // Compare the adjusted endpoint before building its proof: x < 10 can
+        // tighten an existing x <= 10 even though the written endpoints tie.
+        let improves = |literal: &ScalarTerm, strict: bool| {
+            let Some((_, value)) = literal.integer_value() else {
+                return false;
+            };
+            let value = if strict {
+                step(value, direction == Direction::Lower)
+            } else {
+                Some(value)
+            };
+            value.is_some_and(|value| {
+                current.is_none_or(|current| direction.prefers(integer.compare(value, current)))
+            })
+        };
         match (&self.facts[index].proposition, direction) {
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
+                if left == subject && improves(literal, false) =>
             {
-                let (literal, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
+                let (literal, proof) = self.literal_endpoint(proof, literal, direction)?;
                 Some(Bound { literal, proof })
             }
             (Proposition::LessThan(left, literal), Direction::Upper)
             | (Proposition::LessThan(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
+                if left == subject && improves(literal, true) =>
             {
-                let (value, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
+                let (value, proof) = self.literal_endpoint(proof, literal, direction)?;
                 let adjacent = step(value, direction == Direction::Lower)?;
                 let conclusion = Self::oriented(
                     subject,
@@ -3161,11 +3446,11 @@ impl<'a> Prover<'a> {
                 })
             }
             (Proposition::Equal(left, right), _)
-                if (left == subject && right.integer_value().is_some())
-                    || (right == subject && left.integer_value().is_some()) =>
+                if (left == subject && improves(right, false))
+                    || (right == subject && improves(left, false)) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
-                let proof = self.facts[index].proof(&self.facts);
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
                 let wanted_left_is_subject = direction == Direction::Upper;
                 let proof = if (left == subject) == wanted_left_is_subject {
                     proof
@@ -3320,7 +3605,34 @@ impl<'a> Prover<'a> {
                         }
                     })
             }
-            _ => self.compound_bound_from_fact(index, subject, integer, direction),
+            _ => self.compound_bound_from_fact(index, subject, integer, direction, current),
+        }
+    }
+
+    fn compound_order_fact(&mut self, index: usize) -> ProofNode {
+        #[cfg(test)]
+        {
+            let mut work = crate::checking::known::FactProofWork::default();
+            let proof = self.facts[index].proof_with_work(&self.facts, &mut work);
+            self.activity.compound_order_fact_nodes = self
+                .activity
+                .compound_order_fact_nodes
+                .saturating_add(work.nodes);
+            proof
+        }
+        #[cfg(not(test))]
+        {
+            self.facts[index].proof(&self.facts)
+        }
+    }
+
+    fn compound_order_proof(&mut self, order: CompoundOrder) -> Option<ProofNode> {
+        match order {
+            CompoundOrder::Relation { fact, .. } => Some(self.compound_order_fact(fact)),
+            CompoundOrder::Equality { fact } => weaken(self.compound_order_fact(fact)).ok(),
+            CompoundOrder::ReversedEquality { fact } => {
+                flip(self.compound_order_fact(fact)).and_then(weaken).ok()
+            }
         }
     }
 
@@ -3333,6 +3645,7 @@ impl<'a> Prover<'a> {
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<Bound> {
         if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
             return None;
@@ -3352,7 +3665,10 @@ impl<'a> Prover<'a> {
                     orders.push((
                         left.clone(),
                         right.clone(),
-                        self.facts[index].proof(&self.facts),
+                        CompoundOrder::Relation {
+                            fact: index,
+                            strict: matches!(proposition, Proposition::LessThan(..)),
+                        },
                     ));
                 }
             }
@@ -3363,30 +3679,37 @@ impl<'a> Prover<'a> {
             {
                 // Orient so `subject` stands on the bounded side (`left` for an
                 // upper bound, `right` for a lower bound).
-                let proof = self.facts[index].proof(&self.facts);
                 match direction {
                     Direction::Upper => {
-                        if term_mentions(left, subject)
-                            && let Ok(weakened) = weaken(proof.clone())
-                        {
-                            orders.push((left.clone(), right.clone(), weakened));
+                        if term_mentions(left, subject) {
+                            orders.push((
+                                left.clone(),
+                                right.clone(),
+                                CompoundOrder::Equality { fact: index },
+                            ));
                         }
-                        if term_mentions(right, subject)
-                            && let Ok(weakened) = flip(proof).and_then(weaken)
-                        {
-                            orders.push((right.clone(), left.clone(), weakened));
+                        if term_mentions(right, subject) {
+                            orders.push((
+                                right.clone(),
+                                left.clone(),
+                                CompoundOrder::ReversedEquality { fact: index },
+                            ));
                         }
                     }
                     Direction::Lower => {
-                        if term_mentions(right, subject)
-                            && let Ok(weakened) = weaken(proof.clone())
-                        {
-                            orders.push((left.clone(), right.clone(), weakened));
+                        if term_mentions(right, subject) {
+                            orders.push((
+                                left.clone(),
+                                right.clone(),
+                                CompoundOrder::Equality { fact: index },
+                            ));
                         }
-                        if term_mentions(left, subject)
-                            && let Ok(weakened) = flip(proof).and_then(weaken)
-                        {
-                            orders.push((right.clone(), left.clone(), weakened));
+                        if term_mentions(left, subject) {
+                            orders.push((
+                                right.clone(),
+                                left.clone(),
+                                CompoundOrder::ReversedEquality { fact: index },
+                            ));
                         }
                     }
                 }
@@ -3395,18 +3718,13 @@ impl<'a> Prover<'a> {
         }
         orders
             .into_iter()
-            .filter_map(|(left, right, order_proof)| {
+            .filter_map(|(left, right, order)| {
                 let (open_side, limit_side) = match direction {
                     Direction::Upper => (&left, &right),
                     Direction::Lower => (&right, &left),
                 };
                 let (m_val, le_proof) = self.compound_limit_as_le(
-                    open_side,
-                    limit_side,
-                    order_proof,
-                    subject,
-                    integer,
-                    direction,
+                    open_side, limit_side, order, subject, integer, direction, current,
                 )?;
                 if open_side == subject {
                     return Some(Bound {
@@ -3414,18 +3732,17 @@ impl<'a> Prover<'a> {
                         proof: le_proof,
                     });
                 }
-                if let Some(delta) = exact_constant_offset(open_side, subject, integer)
-                    && let Some(exact) = self.translate_offset_bound(
-                        le_proof.clone(),
-                        subject,
-                        integer,
-                        m_val,
-                        delta,
-                        direction,
-                    )
-                {
-                    return Some(exact);
-                }
+                let le_proof =
+                    if let Some(delta) = exact_constant_offset(open_side, subject, integer) {
+                        match self.translate_offset_bound(
+                            le_proof, subject, integer, m_val, delta, direction,
+                        ) {
+                            OffsetTranslation::Translated(exact) => return Some(exact),
+                            OffsetTranslation::Original(proof) => proof,
+                        }
+                    } else {
+                        le_proof
+                    };
                 self.monotone_open_bound(open_side, le_proof, subject, integer, m_val, direction)
             })
             .reduce(|best, next| {
@@ -3437,18 +3754,34 @@ impl<'a> Prover<'a> {
             })
     }
 
-    /// Turns `order_proof` (`open_side R limit_side` for `Upper`, or
+    /// Turns the selected order (`open_side R limit_side` for `Upper`, or
     /// `limit_side R open_side` for `Lower`) into a non-strict literal order
     /// `open_side <= m` or `m <= open_side`.
     fn compound_limit_as_le(
         &mut self,
         open_side: &ScalarTerm,
         limit_side: &ScalarTerm,
-        order_proof: ProofNode,
+        order: CompoundOrder,
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<(IntegerValue, ProofNode)> {
+        // A direct endpoint needs no later offset or monotone projection.
+        // Settle the original queries first; only its unused proof is omitted.
+        let improves_direct = |literal: IntegerValue, strict: bool| {
+            if open_side != subject {
+                return true;
+            }
+            let literal = if strict {
+                step(literal, direction == Direction::Lower)
+            } else {
+                Some(literal)
+            };
+            literal.is_some_and(|literal| {
+                current.is_none_or(|current| direction.prefers(integer.compare(literal, current)))
+            })
+        };
         let step_strict =
             |value: IntegerValue, proof: ProofNode| -> Option<(IntegerValue, ProofNode)> {
                 if !matches!(proof.conclusion, Proposition::LessThan(..)) {
@@ -3471,6 +3804,11 @@ impl<'a> Prover<'a> {
                 ))
             };
         if limit_side.integer_value().is_some() {
+            let (_, raw) = limit_side.integer_value()?;
+            if !improves_direct(raw, order.strict()) {
+                return None;
+            }
+            let order_proof = self.compound_order_proof(order)?;
             let (raw, at_plain) = self.literal_endpoint(order_proof, limit_side, direction)?;
             return step_strict(raw, at_plain);
         }
@@ -3488,8 +3826,16 @@ impl<'a> Prover<'a> {
                 if upper == *subject {
                     return None;
                 }
+                let literal = self.bound_literal(id, Direction::Upper)?;
+                let strict = order.strict()
+                    || step_out
+                        .as_ref()
+                        .is_some_and(|proof| matches!(proof.conclusion, Proposition::LessThan(..)));
+                if !improves_direct(literal, strict) {
+                    return None;
+                }
                 let upper_bound = self.bound(id, Direction::Upper)?;
-                let mut chained = order_proof;
+                let mut chained = self.compound_order_proof(order)?;
                 if let Some(step_out) = step_out {
                     chained = chain(chained, step_out).ok()?;
                 }
@@ -3500,13 +3846,17 @@ impl<'a> Prover<'a> {
                 let mut candidates = Vec::new();
                 if let ScalarTerm::Value { id, .. } = limit_side {
                     if limit_side != subject
+                        && let Some(literal) = self.bound_literal(*id, Direction::Lower)
+                        && improves_direct(literal, order.strict())
                         && let Some(lower_bound) = self.bound(*id, Direction::Lower)
-                        && let Ok(chained) = chain(lower_bound.proof, order_proof.clone())
+                        && let Some(order_proof) = self.compound_order_proof(order)
+                        && let Ok(chained) = chain(lower_bound.proof, order_proof)
                         && let Some(candidate) = step_strict(lower_bound.literal, chained)
                     {
                         candidates.push(candidate);
                     }
                 } else {
+                    let mut order_proof = None;
                     let mut leaves = Vec::new();
                     limit_side.visit_value_ids(|id| {
                         if !leaves.contains(&id) {
@@ -3525,11 +3875,23 @@ impl<'a> Prover<'a> {
                         let Some(leaf_to_limit) = self.below_compound(&leaf, limit_side) else {
                             continue;
                         };
+                        let Some(literal) = self.bound_literal(id, Direction::Lower) else {
+                            continue;
+                        };
+                        let strict = matches!(leaf_to_limit.conclusion, Proposition::LessThan(..))
+                            || order.strict();
+                        if !improves_direct(literal, strict) {
+                            continue;
+                        }
                         let Some(lower_bound) = self.bound(id, Direction::Lower) else {
                             continue;
                         };
+                        if order_proof.is_none() {
+                            order_proof = Some(self.compound_order_proof(order)?);
+                        }
+                        let proof = order_proof.as_ref()?;
                         if let Ok(first) = chain(lower_bound.proof, leaf_to_limit)
-                            && let Ok(chained) = chain(first, order_proof.clone())
+                            && let Ok(chained) = chain(first, proof.clone())
                             && let Some(candidate) = step_strict(lower_bound.literal, chained)
                         {
                             candidates.push(candidate);
@@ -3547,8 +3909,58 @@ impl<'a> Prover<'a> {
         }
     }
 
+    /// Translate a checked mathematical order, then independently check the
+    /// endpoint equalities that restate it as the requested order.
+    fn translate_mathematical_order(
+        &self,
+        relation: ProofNode,
+        addend: IntegerMathTerm,
+        goal: &Proposition,
+    ) -> Option<ProofNode> {
+        let translation =
+            self.prepare_mathematical_order_translation(&relation.conclusion, addend, goal)?;
+        Some(translation.apply(relation))
+    }
+
+    fn prepare_mathematical_order_translation(
+        &self,
+        relation: &Proposition,
+        addend: IntegerMathTerm,
+        goal: &Proposition,
+    ) -> Option<MathematicalOrderTranslation> {
+        let Proposition::IntegerMathLessOrEqual(left, right) = relation else {
+            return None;
+        };
+        let lifted = lift_exact_integer_order(goal);
+        let Proposition::IntegerMathLessOrEqual(goal_left, goal_right) =
+            lifted.as_ref().unwrap_or(goal)
+        else {
+            return None;
+        };
+        let translated_left =
+            IntegerMathTerm::Add(Box::new(left.clone()), Box::new(addend.clone()));
+        let translated_right =
+            IntegerMathTerm::Add(Box::new(right.clone()), Box::new(addend.clone()));
+        let translated_conclusion =
+            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone());
+        let left_equality = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
+        let left_substituted_conclusion =
+            Proposition::IntegerMathLessOrEqual(goal_left.clone(), translated_right.clone());
+        let right_equality =
+            self.closed(sorted_math_equal(translated_right, goal_right.clone()))?;
+        Some(MathematicalOrderTranslation {
+            addend,
+            translated_conclusion,
+            left_substituted_conclusion,
+            goal: goal.clone(),
+            left_equality,
+            right_equality,
+        })
+    }
+
     /// Translates `open_side <= m_val` (or `m_val <= open_side`) by `-delta`
-    /// where `open_side` denotes `subject + delta`.
+    /// where `open_side` denotes `subject + delta`. Failed preparation returns
+    /// the original relation for the unchanged monotone fallback.
     fn translate_offset_bound(
         &self,
         le_proof: ProofNode,
@@ -3557,24 +3969,39 @@ impl<'a> Prover<'a> {
         m_val: IntegerValue,
         delta: i128,
         direction: Direction,
-    ) -> Option<Bound> {
-        let shifted = shift_integer_value(integer, m_val, delta)?;
-        let m_term = ScalarTerm::integer(integer, m_val).ok()?;
-        let target_term = ScalarTerm::integer(integer, shifted).ok()?;
+    ) -> OffsetTranslation {
+        let Some(shifted) = shift_integer_value(integer, m_val, delta) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Ok(m_term) = ScalarTerm::integer(integer, m_val) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Ok(target_term) = ScalarTerm::integer(integer, shifted) else {
+            return OffsetTranslation::Original(le_proof);
+        };
         let Proposition::LessOrEqual(le_left, le_right) = &le_proof.conclusion else {
-            return None;
+            return OffsetTranslation::Original(le_proof);
         };
-        let math_left = IntegerMathTerm::embed(le_left.clone())?;
-        let math_right = IntegerMathTerm::embed(le_right.clone())?;
-        let embedded_le =
-            Proposition::IntegerMathLessOrEqual(math_left.clone(), math_right.clone());
+        let Some(math_left) = IntegerMathTerm::embed(le_left.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(math_right) = IntegerMathTerm::embed(le_right.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let embedded_le = Proposition::IntegerMathLessOrEqual(math_left, math_right);
         let goal = Self::oriented(subject, target_term, direction);
-        let Some(Proposition::IntegerMathLessOrEqual(goal_left, goal_right)) =
-            lift_exact_integer_order(&goal)
-        else {
-            return None;
+        let Some(m_refl) = self.reflexive(Proposition::Equal(m_term.clone(), m_term)) else {
+            return OffsetTranslation::Original(le_proof);
         };
-        let m_refl = self.reflexive(Proposition::Equal(m_term.clone(), m_term))?;
+        let Some(negative_delta) = delta.checked_neg() else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let addend = IntegerMathTerm::literal(IntegerValue::Signed(negative_delta));
+        let Some(translation) =
+            self.prepare_mathematical_order_translation(&embedded_le, addend, &goal)
+        else {
+            return OffsetTranslation::Original(le_proof);
+        };
         let endpoint = match direction {
             Direction::Upper => 1,
             Direction::Lower => 0,
@@ -3587,36 +4014,9 @@ impl<'a> Prover<'a> {
                 endpoint,
             },
         );
-        let addend = IntegerMathTerm::literal(IntegerValue::Signed(delta.checked_neg()?));
-        let translated_left = IntegerMathTerm::Add(Box::new(math_left), Box::new(addend.clone()));
-        let translated_right = IntegerMathTerm::Add(Box::new(math_right), Box::new(addend.clone()));
-        let translated = node(
-            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone()),
-            ProofRule::IntegerMathOrderTranslation {
-                relation: Box::new(math_le),
-                addend,
-            },
-        );
-        let left_eq = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
-        let after_left = node(
-            Proposition::IntegerMathLessOrEqual(goal_left, translated_right.clone()),
-            ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(translated),
-                equality: Box::new(left_eq),
-                endpoint: 0,
-            },
-        );
-        let right_eq = self.closed(sorted_math_equal(translated_right, goal_right))?;
-        Some(Bound {
+        OffsetTranslation::Translated(Bound {
             literal: shifted,
-            proof: node(
-                goal,
-                ProofRule::IntegerOrderSubstitution {
-                    relation: Box::new(after_left),
-                    equality: Box::new(right_eq),
-                    endpoint: 1,
-                },
-            ),
+            proof: translation.apply(math_le),
         })
     }
 
@@ -4246,6 +4646,29 @@ impl<'a> Prover<'a> {
                 None,
             ));
         }
+        if let IntegerMathTerm::Add(first, second) = term {
+            let target = arithmetic_target(Arithmetic::Add, first, second).ok();
+            let interval = target
+                .as_ref()
+                .ok_or("sum has no scalar signature")
+                .and_then(|target| {
+                    let operands = target.operands();
+                    let [left, right] = operands.as_slice() else {
+                        return Err("sum term does not have two operands");
+                    };
+                    self.image(Arithmetic::Add, left, right, target.clone(), direction)
+                })
+                .or_else(|_| self.mathematical_sum_image(first, second, direction));
+            if interval.as_ref().is_ok_and(|image| {
+                preferred.is_some_and(|limit| {
+                    mathematical_bounds::image_satisfies(image, limit, direction)
+                })
+            }) {
+                return Ok((interval, None));
+            }
+            let related = self.related_image(target.as_ref(), term, direction, preferred);
+            return Ok((interval, related));
+        }
         let (operation, first, second) = match term {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),
@@ -4270,40 +4693,19 @@ impl<'a> Prover<'a> {
             }
             _ => return Err("arithmetic goal over a single term"),
         };
-        let integer = [first.as_ref(), second.as_ref()]
-            .into_iter()
-            .find_map(|leaf| match leaf {
-                IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
-                _ => None,
-            })
-            .ok_or("arithmetic goal with no value operand")?;
-        let leaf = |leaf: &IntegerMathTerm| -> Result<ScalarTerm, Unproven> {
-            match leaf {
-                IntegerMathTerm::MathValue { source_type, value } if *source_type == integer => {
-                    Ok(ScalarTerm::value(*value, ScalarType::Integer(integer)))
-                }
-                IntegerMathTerm::IntegerLiteral(literal) => literal
-                    .as_integer_value(integer)
-                    .and_then(|value| ScalarTerm::integer(integer, value).ok())
-                    .ok_or("literal operand outside the carrier"),
-                _ => Err("operand is not a value or literal of the operation's type"),
-            }
+        let target = arithmetic_target(operation, first, second)?;
+        let operands = target.operands();
+        let [first, second] = operands.as_slice() else {
+            return Err("arithmetic term does not have two operands");
         };
-        let (first, second) = (leaf(first)?, leaf(second)?);
-        let target = match operation {
-            Arithmetic::Add => {
-                ScalarTerm::exact_integer_add(integer, first.clone(), second.clone())
-            }
-            Arithmetic::Subtract => {
-                ScalarTerm::exact_integer_subtract(integer, first.clone(), second.clone())
-            }
-            Arithmetic::Multiply => {
-                ScalarTerm::exact_integer_multiply(integer, first.clone(), second.clone())
-            }
+        let interval = self.image(operation, first, second, target.clone(), direction);
+        if interval.as_ref().is_ok_and(|image| {
+            preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(image, limit, direction))
+        }) {
+            return Ok((interval, None));
         }
-        .map_err(|_| "operation term")?;
-        let interval = self.image(operation, &first, &second, target.clone(), direction);
-        let related = self.related_image(&target, term, direction, preferred);
+        let related = self.related_image(Some(&target), term, direction, preferred);
         Ok((interval, related))
     }
 
@@ -4312,11 +4714,14 @@ impl<'a> Prover<'a> {
     /// existing affine checker; it alone decides which bound follows.
     fn related_image(
         &self,
-        target: &ScalarTerm,
+        target: Option<&ScalarTerm>,
         term: &IntegerMathTerm,
         direction: Direction,
         preferred: Option<&IntegerMathTerm>,
     ) -> Option<ProofNode> {
+        let Some(target) = target else {
+            return self.mathematical_relation_image(term, direction, preferred);
+        };
         let exchanged = match target {
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
@@ -4479,7 +4884,19 @@ impl<'a> Prover<'a> {
                 }
             }
         }
-        fallback
+        // Existing scalar successes return above. A literal-bound query has
+        // no unmet requested limit that needs another search through the facts.
+        if preferred.is_none() {
+            return fallback;
+        }
+        let mathematical = self.mathematical_relation_image(term, direction, preferred);
+        if mathematical.as_ref().is_some_and(|image| {
+            preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(image, limit, direction))
+        }) {
+            return mathematical;
+        }
+        fallback.or(mathematical)
     }
 
     /// A normalized guard may spell the constant or conversion where the
@@ -4571,4 +4988,43 @@ impl<'a> Prover<'a> {
             },
         ))
     }
+}
+
+/// Reconstruct an executable arithmetic term only when its operands share the
+/// existing scalar signature. Unbounded sums use mathematical bounds directly.
+fn arithmetic_target(
+    operation: Arithmetic,
+    first: &IntegerMathTerm,
+    second: &IntegerMathTerm,
+) -> Result<ScalarTerm, Unproven> {
+    let integer = [first, second]
+        .into_iter()
+        .find_map(|leaf| match leaf {
+            IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
+            _ => None,
+        })
+        .ok_or("arithmetic goal with no value operand")?;
+    let leaf = |leaf: &IntegerMathTerm| -> Result<ScalarTerm, Unproven> {
+        match leaf {
+            IntegerMathTerm::MathValue { source_type, value } if *source_type == integer => {
+                Ok(ScalarTerm::value(*value, ScalarType::Integer(integer)))
+            }
+            IntegerMathTerm::IntegerLiteral(literal) => literal
+                .as_integer_value(integer)
+                .and_then(|value| ScalarTerm::integer(integer, value).ok())
+                .ok_or("literal operand outside the carrier"),
+            _ => Err("operand is not a value or literal of the operation's type"),
+        }
+    };
+    let (first, second) = (leaf(first)?, leaf(second)?);
+    match operation {
+        Arithmetic::Add => ScalarTerm::exact_integer_add(integer, first.clone(), second.clone()),
+        Arithmetic::Subtract => {
+            ScalarTerm::exact_integer_subtract(integer, first.clone(), second.clone())
+        }
+        Arithmetic::Multiply => {
+            ScalarTerm::exact_integer_multiply(integer, first.clone(), second.clone())
+        }
+    }
+    .map_err(|_| "operation term")
 }

@@ -1,32 +1,7 @@
-//! `reflect::inspect_record_fields<Packet, describe>(&mut capture)` has an
-//! empty library body: the compiler closes it, in the caller, into one
-//! ordinary call of the selected callback per field of `Packet`, in declared
-//! order, each given the field's exact type and its `reflect::field` query
-//! (reflection.md, "Typed runtime visitation": "It checks every selected
-//! application and generates ordinary calls before Terminal Psi").
-//!
-//! ```text
-//! reflect::inspect_record_fields<Packet, describe>(&mut capture);
-//!     let context: &mut Capture = &mut capture;
-//!     let field: reflect::FieldInfo = reflect::field(Packet::id);
-//!     describe<u32>(context, &field);
-//!     ...one query and one call for each further field
-//! ```
-//!
-//! The callback is checked against the binder the library publishes,
-//! `requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo)`,
-//! before any call is written. generics.md, "Requirements and conformance
-//! evidence": selected implementations must refine the requirement, and a
-//! concrete selection cannot silently strengthen the generic API. So a
-//! callback that adds a precondition the binder does not publish is refused
-//! even where every generated call would meet it. The calls themselves are
-//! ordinary: the specialization pass then serves each one, and the
-//! lowered-form checker judges them like any other call.
-//!
-//! Runtime visitation uses the same expansion, capturing the subject once and
-//! borrowing its exact field for each ordinary call. Erased fields have no
-//! runtime loan. Mutable traversal changes only that borrow's access; the
-//! ordinary checker still owns disjointness, escape and handback.
+//! Expand typed visitors into ordinary calls. Each call gets the exact field
+//! type and its description. Runtime visitors borrow each field for its call;
+//! declaration inspection also describes erased fields without borrowing them.
+//! The callback must satisfy the library's published interface.
 
 use super::callable_binder::{Bound, satisfies_binder};
 use super::{Served, Stop, named_type, unserved};
@@ -48,10 +23,10 @@ use language_core::ReferenceAccess;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::{SymbolHandle, SymbolKind};
 
-/// Close every `inspect_record_fields` call statement in the machine at
-/// `position`. The first call that cannot be closed is left as typing wrote
-/// it, and the reason is returned for the caller to record against the
-/// machine holding it, which is then refused wherever a program demands it.
+mod active_cases;
+
+/// Expand reflection visitors into checked calls. A refusal belongs to the
+/// machine that names the visitor, so an unused generic body can remain open.
 pub(super) fn elaborate(
     program: &mut TypedTrees,
     position: usize,
@@ -62,15 +37,27 @@ pub(super) fn elaborate(
         // the state starts again from the new span.
         loop {
             let state = program.machine_states(&machine)[state_index].clone();
-            let Some((site, call)) = state.statement_nodes.handles().find_map(|handle| {
-                let StatementNode::Call(call) = program.statement_table.statement(handle) else {
-                    return None;
-                };
-                record_query(program, call.target_symbol).map(|_| (handle, call.clone()))
-            }) else {
+            let Some((site, call, operation)) =
+                state.statement_nodes.handles().find_map(|handle| {
+                    let StatementNode::Call(call) = program.statement_table.statement(handle)
+                    else {
+                        return None;
+                    };
+                    let operation = reflection_operation(program, call.target_symbol)?;
+                    Some((handle, call.clone(), operation))
+                })
+            else {
                 break;
             };
-            match close(program, &machine, &state, site, &call) {
+            let replacement = match operation {
+                ReflectionOperation::Record(operation) => {
+                    close(program, &machine, &state, site, &call, operation)
+                }
+                ReflectionOperation::ActiveCases(access) => {
+                    active_cases::expand(program, &machine, &state, site, &call, access)
+                }
+            };
+            match replacement {
                 Ok(replacement) => {
                     replace(program, &machine, state_index, &state, site, replacement);
                 }
@@ -87,17 +74,30 @@ enum RecordQuery {
     Visit(ReferenceAccess),
 }
 
-fn record_query(program: &TypedTrees, target: SymbolHandle) -> Option<RecordQuery> {
+#[derive(Clone, Copy)]
+enum ReflectionOperation {
+    Record(RecordQuery),
+    ActiveCases(ReferenceAccess),
+}
+
+fn reflection_operation(program: &TypedTrees, target: SymbolHandle) -> Option<ReflectionOperation> {
+    use ReflectionOperation::{ActiveCases, Record};
     let machine = declaration(program, target)?;
     match program.core_vocabulary(machine.symbol)? {
         CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields) => {
-            Some(RecordQuery::Inspect)
+            Some(Record(RecordQuery::Inspect))
         }
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields) => {
-            Some(RecordQuery::Visit(ReferenceAccess::Shared))
+            Some(Record(RecordQuery::Visit(ReferenceAccess::Shared)))
         }
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut) => {
-            Some(RecordQuery::Visit(ReferenceAccess::Mutable))
+            Some(Record(RecordQuery::Visit(ReferenceAccess::Mutable)))
+        }
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields) => {
+            Some(ActiveCases(ReferenceAccess::Shared))
+        }
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut) => {
+            Some(ActiveCases(ReferenceAccess::Mutable))
         }
         _ => None,
     }
@@ -120,12 +120,11 @@ fn close(
     state: &State,
     site: StatementHandle,
     call: &TableCall,
+    operation: RecordQuery,
 ) -> Served<Vec<StatementNode>> {
     let query = declaration(program, call.target_symbol)
         .cloned()
         .ok_or(unserved("a field inspection lost its declaration"))?;
-    let operation = record_query(program, call.target_symbol)
-        .ok_or(unserved("a field traversal lost its declaration"))?;
     let parameters = program.machine_callable_parameters(&query);
     let [subject_binder, visitor_binder, context_binder] = parameters.as_slice() else {
         return Err(unserved(
@@ -210,7 +209,7 @@ fn close(
         ],
         Some(&applications),
     )?;
-    let field_info = field_info_type(program, &binder)?;
+    let field_info = description_type(program, &binder, ReflectionDeclaration::FieldInfo)?;
     let field_query = field_query_entry(program, query.symbol)?;
     let lexical_owner = if call.authored_machine_application.is_valid() {
         program
@@ -267,6 +266,13 @@ fn close(
         operand,
         &mut replacement,
     );
+    let emission = CallbackSite {
+        state: state.symbol,
+        site,
+        origin: query.symbol,
+        lexical_owner,
+        call,
+    };
     for field in record.fields.iter().filter(included) {
         let operand = name(
             program,
@@ -274,131 +280,188 @@ fn close(
             vec![record.symbol, field.symbol],
             span,
         );
+        let value = subject_local
+            .map(|(subject, access)| field_borrow(program, subject, field, None, access, span));
+        emission.field(
+            program,
+            &field_query,
+            field_info,
+            &visitor,
+            context_local,
+            field,
+            operand,
+            value,
+            &mut replacement,
+        );
+    }
+    Ok(replacement)
+}
+
+struct CallbackSite<'call> {
+    state: SymbolHandle,
+    site: StatementHandle,
+    origin: SymbolHandle,
+    lexical_owner: SymbolHandle,
+    call: &'call TableCall,
+}
+
+impl CallbackSite<'_> {
+    #[allow(clippy::too_many_arguments)]
+    fn field(
+        &self,
+        program: &mut TypedTrees,
+        query: &FieldQuery,
+        info: TypeReferenceHandle,
+        visitor: &Callback,
+        context: SymbolHandle,
+        field: &DataField,
+        declaration: ExpressionHandle,
+        value: Option<ExpressionHandle>,
+        statements: &mut Vec<StatementNode>,
+    ) {
         let application = program.expression_table.retain_static_machine_application(
-            field_query.entry,
-            field_query.name.clone(),
+            query.entry,
+            query.name.clone(),
             &[],
         );
-        let application_row = program
+        let row = program
             .expression_table
             .static_machine_application_mut(application);
-        application_row.lexical_owner = lexical_owner;
-        application_row.binding_declaration = field_query.machine;
+        row.lexical_owner = self.lexical_owner;
+        row.binding_declaration = query.machine;
         let arguments = program
             .expression_table
-            .insert_expression_handles([operand]);
-        let description =
-            program
-                .expression_table
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    runtime_call: None,
-                    authored_call_selection: None,
-                    authored_call_binding: None,
-                    build_selection: Default::default(),
-                    authored_machine_application: application,
-                    exact_coercion_target: TypeReferenceHandle::invalid(),
-                    requirement_application: TypeReferenceHandle::invalid(),
-                    receiver: ExpressionHandle::invalid(),
-                    target_symbol: field_query.entry,
-                    static_machine_parameter: SymbolHandle::invalid(),
-                    target: field_query.name.clone(),
-                    static_requirement_dispatch: None,
-                    machine_arguments: Box::default(),
-                    quotient_operation: None,
-                    private_layout_operation: None,
-                    installed_interrupt_operation: None,
-                    layout_query: None,
-                    native_code_layout: None,
-                    arguments,
-                    evidence_arguments: Box::default(),
-                    operational_acknowledgement: call.operational_acknowledgement,
-                }));
-        program.expression_table.set_source_span(description, span);
-        let described = local(
+            .insert_expression_handles([declaration]);
+        let description = expression(
             program,
-            state.symbol,
-            query.symbol,
-            "field",
-            site,
-            field_info,
-            description,
-            &mut replacement,
+            ExpressionNode::Call(TableCallExpression {
+                authored_machine_application: application,
+                target_symbol: query.entry,
+                target: query.name.clone(),
+                arguments,
+                operational_acknowledgement: self.call.operational_acknowledgement,
+                ..Default::default()
+            }),
+            self.call.source_span,
         );
         let kind = StaticMachineArgument {
             type_reference: field.type_reference,
             ..Default::default()
         };
+        self.invoke(
+            program,
+            visitor,
+            context,
+            info,
+            description,
+            value,
+            &[kind],
+            statements,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn invoke(
+        &self,
+        program: &mut TypedTrees,
+        visitor: &Callback,
+        context: SymbolHandle,
+        info: TypeReferenceHandle,
+        description: ExpressionHandle,
+        value: Option<ExpressionHandle>,
+        machine_arguments: &[StaticMachineArgument],
+        statements: &mut Vec<StatementNode>,
+    ) {
+        let span = self.call.source_span;
+        let described = local(
+            program,
+            self.state,
+            self.origin,
+            "description",
+            self.site,
+            info,
+            description,
+            statements,
+        );
         let application = program.expression_table.retain_static_machine_application(
             visitor.entry,
             visitor.name.clone(),
-            std::slice::from_ref(&kind),
+            machine_arguments,
         );
         program
             .expression_table
             .static_machine_application_mut(application)
-            .lexical_owner = lexical_owner;
-        let context_argument = name(
+            .lexical_owner = self.lexical_owner;
+        let context = binding_name(program, context, span);
+        let described = binding_name(program, described, span);
+        let description = expression(
             program,
-            vec![Identifier::generated(program.symbols.name(context_local))],
-            vec![context_local],
+            ExpressionNode::Borrow(TableBorrowExpression {
+                target: described,
+                access: ReferenceAccess::Shared,
+            }),
             span,
         );
-        let description_name = name(
-            program,
-            vec![Identifier::generated(program.symbols.name(described))],
-            vec![described],
-            span,
-        );
-        let borrowed =
-            program
-                .expression_table
-                .insert(ExpressionNode::Borrow(TableBorrowExpression {
-                    target: description_name,
-                    access: ReferenceAccess::Shared,
-                }));
-        program.expression_table.set_source_span(borrowed, span);
-        let mut arguments = vec![context_argument, borrowed];
-        if let Some((subject, access)) = subject_local {
-            let receiver = name(
-                program,
-                vec![Identifier::generated(program.symbols.name(subject))],
-                vec![subject],
-                span,
-            );
-            let projected =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Member(TableMemberExpression {
-                        receiver,
-                        selection: MemberSelection::Field(field.symbol),
-                        member: field.name.clone(),
-                        case_variant: None,
-                    }));
-            program.expression_table.set_source_span(projected, span);
-            let borrowed =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Borrow(TableBorrowExpression {
-                        target: projected,
-                        access,
-                    }));
-            program.expression_table.set_source_span(borrowed, span);
-            arguments.push(borrowed);
-        }
-        let arguments = program.statement_table.insert_expression_handles(arguments);
-        replacement.push(StatementNode::Call(TableCall {
+        let arguments = program
+            .statement_table
+            .insert_expression_handles([context, description].into_iter().chain(value));
+        statements.push(StatementNode::Call(TableCall {
             authored_machine_application: application,
             target_symbol: visitor.entry,
             target: visitor.name.clone(),
-            machine_arguments: Box::new([kind]),
+            machine_arguments: machine_arguments.into(),
             arguments,
-            operational_acknowledgement: call.operational_acknowledgement,
-            discards_result: call.discards_result,
+            operational_acknowledgement: self.call.operational_acknowledgement,
+            discards_result: self.call.discards_result,
             source_span: span,
             ..Default::default()
         }));
     }
-    Ok(replacement)
+}
+
+fn expression(
+    program: &mut TypedTrees,
+    node: ExpressionNode,
+    span: source_text::SourceSpan,
+) -> ExpressionHandle {
+    let handle = program.expression_table.insert(node);
+    program.expression_table.set_source_span(handle, span);
+    handle
+}
+
+fn binding_name(
+    program: &mut TypedTrees,
+    symbol: SymbolHandle,
+    span: source_text::SourceSpan,
+) -> ExpressionHandle {
+    let spelling = Identifier::generated(program.symbols.name(symbol));
+    name(program, vec![spelling], vec![symbol], span)
+}
+
+fn field_borrow(
+    program: &mut TypedTrees,
+    subject: SymbolHandle,
+    field: &DataField,
+    case_variant: Option<Identifier>,
+    access: ReferenceAccess,
+    span: source_text::SourceSpan,
+) -> ExpressionHandle {
+    let receiver = binding_name(program, subject, span);
+    let target = expression(
+        program,
+        ExpressionNode::Member(TableMemberExpression {
+            receiver,
+            selection: MemberSelection::Field(field.symbol),
+            member: field.name.clone(),
+            case_variant,
+        }),
+        span,
+    );
+    expression(
+        program,
+        ExpressionNode::Borrow(TableBorrowExpression { target, access }),
+        span,
+    )
 }
 
 /// The subject's fields, in declared order, erased ones included:
@@ -415,7 +478,7 @@ fn record_fields(
     holder: &Machine,
     subject: &StaticMachineArgument,
 ) -> Served<Record> {
-    let type_reference = named_type(program, subject)?;
+    let type_reference = named_type(program, subject, holder.symbol)?;
     let symbol = subject.symbol;
     if subject.application.is_some()
         || subject.const_literal.is_some()
@@ -504,7 +567,7 @@ fn context_type(
                     .then_some(argument.type_reference)
                     .ok_or(unserved("a field context lost its retained runtime type"))
             } else {
-                named_type(program, argument)
+                named_type(program, argument, state.symbol)
             }
         })
         .transpose()?;
@@ -525,8 +588,7 @@ fn context_type(
             Ok(written)
         }
         (Some(_), Some(_)) => Err(Stop::Rejected(
-            "the context passed to reflect::inspect_record_fields is not of its written Context type"
-                .to_owned(),
+            "the visitor context has a different type from its written Context argument".to_owned(),
         )),
         (Some(context), None) | (None, Some(context)) => Ok(context),
         (None, None) => Err(unserved(
@@ -571,30 +633,34 @@ fn callback(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<Ca
     })
 }
 
-/// The `FieldInfo` the binder's second parameter borrows: the exact
-/// vocabulary type each generated query local is declared with.
-fn field_info_type(program: &TypedTrees, binder: &StateSignature) -> Served<TypeReferenceHandle> {
+/// The exact toolchain description type borrowed by a callback.
+fn description_type(
+    program: &TypedTrees,
+    binder: &StateSignature,
+    vocabulary: ReflectionDeclaration,
+) -> Served<TypeReferenceHandle> {
     let parameters = program.state_signature_parameters(binder);
     let Some(field) = parameters.get(1) else {
-        return Err(unserved("the callback binder lost its field parameter"));
+        return Err(unserved(
+            "the callback binder lost its description parameter",
+        ));
     };
     let TypeReferenceNode::Reference { referee, .. } = program
         .type_reference_table
         .type_reference(field.type_reference)
     else {
         return Err(unserved(
-            "the callback binder lost its borrowed field description",
+            "the callback binder lost its borrowed description",
         ));
     };
     let described = program
         .closed_data_definition(*referee)
         .is_some_and(|data| {
-            program.core_vocabulary(data.symbol)
-                == Some(CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo))
+            program.core_vocabulary(data.symbol) == Some(CoreVocabulary::Reflection(vocabulary))
         });
     if !described {
         return Err(unserved(
-            "the callback binder lost its FieldInfo vocabulary",
+            "the callback binder lost its reflection description type",
         ));
     }
     Ok(*referee)
@@ -701,8 +767,19 @@ fn replace(
     let mut body = arena::HandleSpan::empty();
     for original in state.statement_nodes.handles() {
         if original == site {
+            let arguments = match program.statement_table.statement(original) {
+                StatementNode::Call(call) => call.arguments,
+                _ => unreachable!("a reflection visitor was selected as a call"),
+            };
             for generated in replacement.take().into_iter().flatten() {
-                program.statement_table.push_statement(&mut body, generated);
+                let shares_operands = matches!(&generated, StatementNode::Call(call)
+                    if call.arguments == arguments);
+                let moved = program.statement_table.push_statement(&mut body, generated);
+                if shares_operands {
+                    program
+                        .expression_table
+                        .relocate_statement_operand_captures(original, moved);
+                }
             }
             continue;
         }

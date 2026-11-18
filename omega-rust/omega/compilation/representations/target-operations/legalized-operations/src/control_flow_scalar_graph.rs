@@ -1054,13 +1054,10 @@ impl LegalizedScalarInstructionKind {
             Self::StaticInterrupt { result, .. } => result.as_ref(),
             Self::Call(call) => call.structural_result.as_ref(),
             Self::AtomicAccess { outcome, .. } => outcome.as_ref().map(|(result, _)| result),
-            Self::NormalizedForeignCall(call) => match &call.result {
-                target_vocabulary::TargetBoundaryResult::Structural(home) => {
-                    home.operation_result().map(|(_, result)| result)
-                }
-                target_vocabulary::TargetBoundaryResult::Unit
-                | target_vocabulary::TargetBoundaryResult::Scalar(_) => None,
-            },
+            Self::NormalizedForeignCall(call) => call
+                .result
+                .structural_home()
+                .and_then(|home| home.operation_result().map(|(_, result)| result)),
             Self::ReleaseActivationClaim { .. }
             | Self::InstallStaticInterrupt { .. }
             | Self::ProgramImageAddress { .. }

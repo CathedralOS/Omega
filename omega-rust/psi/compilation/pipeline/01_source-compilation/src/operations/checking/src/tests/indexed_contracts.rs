@@ -28,6 +28,83 @@ fn invocation(text: &str, root: &str) -> Checked<crate::lowering::Elaboration> {
     )
 }
 
+#[test]
+fn reparse_subtracted_interval_bounds_its_real_field() {
+    // Keep the decoder's full record and argument order. The direct read
+    // separates its interval proof from the later nested copy/store calls.
+    const POSITIVE: &str = r#"data WindowsNativeReparseData {
+    tag: u32;
+    data_length: u16;
+    reserved: u16;
+    substitute_offset: u16;
+    substitute_length: u16;
+    print_offset: u16;
+    print_length: u16;
+    rest: [u16; 8184];
+}
+
+machine entry(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> u16
+requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
+    let character: u16 = data.rest[start + position];
+    character
+}
+"#;
+    let negative_source = POSITIVE.replacen("&& position < count", "&& position <= count", 1);
+    assert_ne!(negative_source, POSITIVE);
+
+    let positive = judge(Ok(
+        invocation(POSITIVE, "entry").expect("the full reparse record and bounded read must lower")
+    ))
+    .expect("the positive must reach the ordinary checker");
+    let negative = judge(Ok(invocation(&negative_source, "entry")
+        .expect("the one-bound negative must remain well typed")))
+    .expect("the negative must reach the ordinary checker");
+
+    // Print both outcomes before asserting either, without dumping accepted
+    // proof trees. A setup, arithmetic or storage failure is a distinct result.
+    let report = |label, verdict: &RouteVerdict| match verdict {
+        RouteVerdict::Accepted(_) => eprintln!("{label}: accepted"),
+        other => eprintln!("{label}: {other:#?}"),
+    };
+    report("positive reparse index", &positive);
+    report("negative reparse index", &negative);
+
+    let RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = negative
+    else {
+        panic!("the inclusive bound must be rejected for its one-past-end index")
+    };
+    assert!(formations.is_empty());
+    assert!(violations.is_empty());
+    assert!(unestablished.is_empty());
+    assert!(conflicts.is_empty());
+    assert!(exceeded.is_empty());
+    assert!(!unproved.is_empty());
+    assert!(
+        unproved.iter().all(|failure| {
+            matches!(
+                failure.kind,
+                ObligationKind::OperationSafety {
+                    site: terminal_psi::ExecutionSite::Operation(_)
+                }
+            ) && failure
+                .statement
+                .ends_with("cannot prove index is within length 8184")
+        }),
+        "only the actual field's index bound may fail: {unproved:#?}"
+    );
+    assert!(
+        matches!(positive, RouteVerdict::Accepted(_)),
+        "the strict subtracted interval must prove the real field's index"
+    );
+}
+
 fn indexed_buffer(last: u16) -> String {
     format!(
         r#"

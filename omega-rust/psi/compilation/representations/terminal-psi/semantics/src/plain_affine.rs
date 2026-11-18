@@ -348,9 +348,8 @@ struct Root {
     /// or independent content custody attached to its storage.
     unqualified_owned: bool,
     parameter: bool,
-    /// A parameter lent with `&mut`: the only storage the machine does not
-    /// own that an owned value may be moved out of, leaving a window the
-    /// machine must close before it returns (`Analysis::argument`).
+    /// A machine or block header lent with `&mut`. A block's incoming edges
+    /// authenticate the requested access; renaming storage grants none.
     exclusive: bool,
 }
 
@@ -447,6 +446,11 @@ impl<'a> Components<'a> {
                 .flat_map(|case| case.fields.iter().map(move |field| (Some(case.id), field))),
         )
     }
+}
+
+enum WindowBacking {
+    Exact(PlaceId, Vec<StructuralPathSegment>),
+    Alternatives(Vec<(PlaceId, Vec<StructuralPathSegment>)>),
 }
 
 struct Analysis<'a> {
@@ -633,16 +637,32 @@ fn reference_backing_uses(
                     }
                 }
                 slot.path.push(DescriptorPathSegment::Referent);
-                let source =
-                    references
-                        .location(graph.id, *at, &slot)
-                        .ok_or(Error::unsupported(
-                            "reference observation has no exact live backing",
-                        ))?;
-                if !graph.place_types.contains_key(&source.root) {
-                    return Err(Error::malformed("reference backing is outside its machine"));
+                let roots = uses.entry(*at).or_insert_with(Vec::new);
+                if let Some(source) = references.location(graph.id, *at, &slot) {
+                    if !graph.place_types.contains_key(&source.root) {
+                        return Err(Error::malformed("reference backing is outside its machine"));
+                    }
+                    roots.push(source.root);
+                    continue;
                 }
-                uses.entry(*at).or_insert_with(Vec::new).push(source.root);
+                // Liveness must keep every address the reference can select.
+                // The loan checker separately judges access to its referent.
+                let family = references
+                    .captured_storage_family(graph.id, *at, &slot)
+                    .map_err(|_| {
+                        Error::unsupported("reference observation has no exact live backing")
+                    })?;
+                for origin in family {
+                    let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                        source, ..
+                    } = origin
+                    else {
+                        return Err(Error::unsupported(
+                            "reference observation has no exact live backing",
+                        ));
+                    };
+                    roots.push(source);
+                }
             }
         }
     }
@@ -770,6 +790,147 @@ fn live_entries(
             return Ok(live);
         }
     }
+}
+
+/// Future uses of non-owning headers with no contained permission cells.
+/// Each block retains the last actual use, rather than a set at every operation.
+pub struct BorrowedAddressLiveness {
+    headers: IdSet<PlaceId>,
+    blocks: Vec<Option<BorrowedAddressUses>>,
+}
+
+struct BorrowedAddressUses {
+    end: u32,
+    last_uses: Vec<(PlaceId, u32)>,
+}
+
+impl BorrowedAddressLiveness {
+    pub fn is_address_header(&self, place: PlaceId) -> bool {
+        self.headers.contains(place)
+    }
+
+    pub fn is_live(
+        &self,
+        place: PlaceId,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+    ) -> Option<bool> {
+        let block = self.blocks.get(index(at.0.get()).ok()?)?.as_ref()?;
+        if at.1 > block.end {
+            return None;
+        }
+        Some(
+            block
+                .last_uses
+                .binary_search_by_key(&place, |(place, _)| *place)
+                .is_ok_and(|position| at.1 <= block.last_uses[position].1),
+        )
+    }
+}
+
+pub fn borrowed_address_liveness(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+) -> Result<BorrowedAddressLiveness, Error> {
+    let mut headers = IdSet::new();
+    let mut header_places = Vec::new();
+    for block in &machine.blocks {
+        for parameter in &block.structural_parameters {
+            if parameter.access == StructuralAccess::Owned {
+                continue;
+            }
+            let place = machine
+                .structural_places
+                .get(index(parameter.place.get())?)
+                .ok_or(Error::malformed(
+                    "borrowed address header is outside the place domain",
+                ))?;
+            if place.id != parameter.place
+                || !matches!(place.kind,
+                semantic_vocabulary::StructuralPlaceKind::BlockParameter { block: owner, position }
+                if owner == block.id && position == parameter.position)
+            {
+                return Err(Error::malformed(
+                    "borrowed address header has another block owner",
+                ));
+            }
+            crate::structural_declaration(types.iter(), parameter.structural_type).ok_or(
+                Error::malformed("borrowed address header lost its declared carrier"),
+            )?;
+            if !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+                && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
+                    .owned_slots(types, parameter.place, parameter.structural_type)
+                    .is_some_and(|slots| slots.is_empty())
+                && headers.insert(parameter.place)
+            {
+                header_places.push(parameter.place);
+            }
+        }
+    }
+    let mut result = BorrowedAddressLiveness {
+        headers,
+        blocks: (0..machine.blocks.len()).map(|_| None).collect(),
+    };
+    if header_places.is_empty() {
+        return Ok(result);
+    }
+    let backing = Default::default();
+    let live = live_entries(machine, types, None, &backing)?;
+    for block in &machine.blocks {
+        let end = u32::try_from(block.operations.len())
+            .map_err(|_| Error::malformed("reference observation position overflows"))?;
+        let mut last_uses = Vec::new();
+        let mut retain = |place, at| {
+            if result.headers.contains(place) {
+                last_uses.push((place, at));
+            }
+        };
+        for target in block.terminator.successor_targets() {
+            let target_live = live
+                .get(index(target.get())?)
+                .ok_or(Error::malformed("edge target is outside the machine"))?;
+            for &place in &header_places {
+                if target_live.contains(place) {
+                    retain(place, end);
+                }
+            }
+        }
+        for place in terminator_roots(&block.terminator) {
+            retain(place, end);
+        }
+        for (position, operation) in block.operations.iter().enumerate() {
+            // A block parameter cannot be defined again by an operation.
+            if operation
+                .result
+                .as_structural()
+                .is_some_and(|result_place| result.headers.contains(result_place.place))
+            {
+                return Err(Error::malformed(
+                    "borrowed address header is redefined inside its block",
+                ));
+            }
+            let position = u32::try_from(position)
+                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            for place in operation
+                .kind
+                .storage_uses()
+                .into_iter()
+                .filter_map(|(storage, _)| storage_root(storage))
+            {
+                retain(place, position);
+            }
+        }
+        last_uses.sort_unstable_by_key(|(place, position)| (*place, std::cmp::Reverse(*position)));
+        last_uses.dedup_by_key(|(place, _)| *place);
+        let row = result
+            .blocks
+            .get_mut(index(block.id.get())?)
+            .ok_or(Error::malformed("block is outside the machine"))?;
+        if row.is_some() {
+            return Err(Error::malformed("borrowed address block is repeated"));
+        }
+        *row = Some(BorrowedAddressUses { end, last_uses });
+    }
+    Ok(result)
 }
 
 /// Plans only no-code affine storage, including each receiving region's store
@@ -1468,6 +1629,7 @@ fn analyze(
                     ))?;
                 // A block binding changes the name of the incoming storage,
                 // not its owner. Borrowed referents stay outside cleanup.
+                exclusive = parameter.access == StructuralAccess::MutableBorrow;
                 (
                     parameter.structural_type,
                     parameter.access == StructuralAccess::Owned,
@@ -1857,8 +2019,12 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        if crate::borrowed_projection_type(types.iter(), source, &argument.path)
-            != Some(parameter.structural_type)
+        if crate::borrowed_projection_type(
+            types.iter(),
+            source,
+            &argument.path,
+            Some(parameter.structural_type),
+        ) != Some(parameter.structural_type)
         {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
@@ -2012,28 +2178,28 @@ impl<'a> Analysis<'a> {
         }
         let mut referent = path.to_vec();
         referent.push(StructuralPathSegment::Referent);
-        let (root, captured) = self.backing(state, source, &referent, site)?;
-        if self.root(root)?.is_none() {
-            return Ok(());
-        }
-        let (captured, inline) = self.observed(root, &captured)?;
-        // An incoming descriptor can name storage outside its carrier. The
-        // typed observation still checks that carrier, but only an exact
-        // inline region can hold a vacancy in this frontier: extraction uses
-        // `canonical`, which refuses indirect and runtime-selected regions.
-        // Their loan obligations remain with reference checking.
-        if !inline {
-            return Ok(());
-        }
-        if !state.regions[index(root.get())?]
-            .as_ref()
-            .is_some_and(|region| region.available(&captured))
-        {
-            self.unavailable.push(Unavailable {
-                site,
-                place: root,
-                unrestored: true,
-            });
+        let backings = match self.backings(state, source, &referent, site)? {
+            WindowBacking::Exact(root, path) => vec![(root, path)],
+            WindowBacking::Alternatives(backings) => backings,
+        };
+        for (root, captured) in backings {
+            if self.root(root)?.is_none() {
+                continue;
+            }
+            let (captured, inline) = self.observed(root, &captured)?;
+            // Indirect storage cannot hold a tracked vacancy. Its loan
+            // still has to pass the reference checker's restoration rules.
+            if inline
+                && !state.regions[index(root.get())?]
+                    .as_ref()
+                    .is_some_and(|region| region.available(&captured))
+            {
+                self.unavailable.push(Unavailable {
+                    site,
+                    place: root,
+                    unrestored: true,
+                });
+            }
         }
         Ok(())
     }
@@ -2828,7 +2994,7 @@ impl<'a> Analysis<'a> {
                 let root = self.root(source)?.ok_or(Error::unsupported(
                     "a borrowed move requires tracked storage contents",
                 ))?;
-                if !root.owned && (!root.parameter || !root.exclusive) {
+                if !root.owned && !root.exclusive {
                     return Err(Error::unsupported(
                         "a borrowed move requires its incoming mutable loan",
                     ));
@@ -3722,15 +3888,15 @@ impl<'a> Analysis<'a> {
 
     /// A reference carrier stays live while its exact captured lender holds
     /// the window. Resolve at the use, so reassignment cannot retarget a hole.
-    fn backing(
+    fn backings(
         &mut self,
         state: &State,
         root: PlaceId,
         path: &[StructuralPathSegment],
         site: Site,
-    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
+    ) -> Result<WindowBacking, Error> {
         if !path.contains(&StructuralPathSegment::Referent) {
-            return Ok((root, path.to_vec()));
+            return Ok(WindowBacking::Exact(root, path.to_vec()));
         }
         let body = self
             .body
@@ -3750,27 +3916,63 @@ impl<'a> Analysis<'a> {
         let position = self
             .position
             .ok_or(Error::malformed("a window has no use position"))?;
-        let captured = self
-            .references
-            .as_mut()
+        let references = self.references.as_mut().ok_or(Error::unsupported(
+            "a borrowed reference window requires its module's exact backing",
+        ))?;
+        if let Some(captured) = references.location(machine, position, &location) {
+            let declaration =
+                body.structural_place_type(captured.root)
+                    .ok_or(Error::unsupported(
+                        "a borrowed window has no typed lender storage",
+                    ))?;
+            let path = crate::descriptor_lifetimes::descriptor_path(
+                self.types,
+                declaration,
+                &captured.path,
+            )
             .ok_or(Error::unsupported(
-                "a borrowed reference window requires its module's exact backing",
-            ))?
-            .location(machine, position, &location)
-            .ok_or(Error::unsupported(
-                "a borrowed window has no exact live backing correspondence",
-            ))?;
-        let declaration = body
-            .structural_place_type(captured.root)
-            .ok_or(Error::unsupported(
-                "a borrowed window has no typed lender storage",
-            ))?;
-        let path =
-            crate::descriptor_lifetimes::descriptor_path(self.types, declaration, &captured.path)
-                .ok_or(Error::unsupported(
                 "a borrowed window has no typed lender path",
             ))?;
-        Ok((captured.root, path))
+            return Ok(WindowBacking::Exact(captured.root, path));
+        }
+        let unresolved =
+            || Error::unsupported("a borrowed window has no exact live backing correspondence");
+        let family = references
+            .captured_storage_family(machine, position, &location)
+            .map_err(|_| unresolved())?;
+        family
+            .into_iter()
+            .map(|origin| {
+                let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                } = origin
+                else {
+                    return Err(unresolved());
+                };
+                let path = projection.captured_storage_path().ok_or_else(unresolved)?;
+                Ok((source, path))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(WindowBacking::Alternatives)
+    }
+
+    /// A move or a receiving store changes one tracked vacancy. A family
+    /// can prove that every target was restored, but cannot identify which
+    /// target to remove from or add to the affine state.
+    fn backing(
+        &mut self,
+        state: &State,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        site: Site,
+    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
+        match self.backings(state, root, path, site)? {
+            WindowBacking::Exact(root, path) => Ok((root, path)),
+            WindowBacking::Alternatives(_) => Err(Error::unsupported(
+                "a borrowed window has no exact live backing correspondence",
+            )),
+        }
     }
 
     fn canonical(
@@ -5043,6 +5245,111 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn borrowed_address_names_end_at_last_use_but_descriptor_cells_do_not() {
+        use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
+        let mut types = reconvergence_types();
+        let mut machine = borrowed_backedge(StructuralAccess::MutableBorrow);
+        machine.blocks[1].operations.push(Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::MutableBorrow,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ));
+        let forwarding = machine.blocks[1].terminator.clone();
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        let names = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(names.is_address_header(id(2)));
+        assert_eq!(names.is_live(id(2), (id(2), 0)), Some(true));
+        assert_eq!(names.is_live(id(2), (id(2), 1)), Some(false));
+        assert_eq!(names.is_live(id(2), (id(99), 0)), None);
+        assert_eq!(names.is_live(id(2), (id(2), 2)), None);
+        assert!(borrowed_address_liveness(&machine, &types[..2]).is_err());
+        let mut foreign = machine.clone();
+        foreign.blocks[1].structural_parameters[0].place = id(u64::MAX);
+        assert!(borrowed_address_liveness(&foreign, &types).is_err());
+        foreign.blocks[1].structural_parameters[0].place = id(1);
+        assert!(borrowed_address_liveness(&foreign, &types).is_err());
+        machine.blocks[1].terminator = forwarding;
+        let names = borrowed_address_liveness(&machine, &types).unwrap();
+        assert_eq!(names.is_live(id(2), (id(2), 1)), Some(true));
+        types[2].shape = StructuralTypeShape::Reference {
+            referent: id(2),
+            access: StructuralAccess::SharedBorrow,
+        };
+        let cells = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(!cells.is_address_header(id(2)));
+        types[2].shape = types[0].shape.clone();
+        types[1].shape = StructuralTypeShape::Reference {
+            referent: id(1),
+            access: StructuralAccess::SharedBorrow,
+        };
+        types[1].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+        let contained = borrowed_address_liveness(&machine, &types).unwrap();
+        assert!(!contained.is_address_header(id(2)));
+    }
+
+    #[test]
+    fn a_byte_element_successor_keeps_its_actual_scalar_and_access() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::{ByteSequenceCarrier, StructuralMultiplicity};
+
+        let mut types = reconvergence_types();
+        types[0].shape = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            capacity: 2,
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+        for (declaration, bits) in types[1..].iter_mut().zip([8, 16]) {
+            declaration.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+            ));
+            declaration.multiplicity = StructuralMultiplicity::Unrestricted;
+        }
+        let mut machine = borrowed_backedge(StructuralAccess::SharedBorrow);
+        machine.contract.structural_parameters[0].structural_type = id(1);
+        machine.blocks[1].structural_parameters[0].structural_type = id(2);
+        let arguments = [StructuralArgument {
+            place: id(1),
+            path: vec![StructuralPathSegment::FixedIndex(0)],
+            access: StructuralAccess::SharedBorrow,
+        }];
+        let contracts = [Some((
+            id(1),
+            StructuralMultiplicity::Unrestricted,
+            StructuralAccess::SharedBorrow,
+            None,
+        ))];
+        validate_successor(&machine, &types, &contracts, id(2), &arguments)
+            .expect("the byte projection is the actual unqualified u8 scalar");
+        machine.blocks[1].structural_parameters[0].structural_type = id(3);
+        assert!(
+            validate_successor(&machine, &types, &contracts, id(2), &arguments).is_err(),
+            "a byte address cannot become a u16 address from the destination header"
+        );
+        machine.blocks[1].structural_parameters[0].structural_type = id(2);
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+        let mut exclusive = arguments;
+        exclusive[0].access = StructuralAccess::MutableBorrow;
+        assert!(
+            validate_successor(&machine, &types, &contracts, id(2), &exclusive).is_err(),
+            "a matching scalar type cannot strengthen the source view's permission"
+        );
     }
 
     #[test]

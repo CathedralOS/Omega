@@ -6743,22 +6743,7 @@ mod equality_transport {
         }
 
         pub(super) fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
-            let mut pending = vec![(term, index)];
-            while let Some((term, index)) = pending.pop() {
-                let node = self.arena.node(term);
-                if let Term::Variable(position) = node {
-                    if *position == index {
-                        return true;
-                    }
-                    continue;
-                }
-                for (child, binders) in node.subterms().iter().rev() {
-                    if let Some(nested) = index.checked_add(binders) {
-                        pending.push((child, nested));
-                    }
-                }
-            }
-            false
+            self.arena.contains_free_variable(term, index)
         }
     }
 
@@ -7421,6 +7406,10 @@ mod elaboration {
             if elaboration.steps > MAX_ELABORATION_NODES {
                 return Err(BoundedDenotationError::DepthLimitExceeded);
             }
+            if crate::proof::cites_validated_premise(proof, &elaboration.roster, elaboration.axioms)
+            {
+                return Ok(());
+            }
             elaboration
                 .context
                 .validate(&proof.conclusion)
@@ -7680,6 +7669,14 @@ mod elaboration {
             semantic_axioms: &'a [Proposition],
             machine_parameter_values: &'a BTreeSet<ValueId>,
         ) -> Result<Self, BoundedDenotationError> {
+            context.validate(goal).map_err(|error| {
+                BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
+            })?;
+            for proposition in assumptions.iter().chain(semantic_axioms) {
+                context.validate(proposition).map_err(|error| {
+                    BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
+                })?;
+            }
             let mut denotation = Denotation::new();
             let mut context_bindings =
                 Vec::with_capacity(assumptions.len() + semantic_axioms.len());
@@ -7832,17 +7829,17 @@ mod elaboration {
                 }
                 ProofRule::Assumption { index } => self.cited(*index, &proof.conclusion),
                 ProofRule::SemanticAxiom { index } => {
-                    let Some(axiom) = self.semantic_axiom(*index) else {
+                    let Some(axiom) = self.axioms.get(*index) else {
                         return Err(certificate!(ProofError::UnknownSemanticAxiom(*index)));
                     };
-                    if !propositions_match(&axiom, &proof.conclusion) {
+                    if !propositions_match(axiom, &proof.conclusion) {
                         return Err(certificate!(ProofError::SemanticAxiomConclusionMismatch(
                             *index
                         )));
                     }
-                    self.same_denotation(&axiom, &proof.conclusion)?;
+                    Self::same_denotation(&mut self.denotation, axiom, &proof.conclusion)?;
                     self.rules.insert(AcceptedProofRule::SemanticAxiom);
-                    self.semantic_axioms.record(*index, &axiom);
+                    self.semantic_axioms.record(*index, axiom);
                     let position = self.ambient + *index;
                     let position = u32::try_from(position)
                         .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
@@ -8594,42 +8591,34 @@ mod elaboration {
             index: usize,
             conclusion: &Proposition,
         ) -> Result<TermHandle, BoundedDenotationError> {
-            let Some(assumption) = self.roster.get(index).cloned() else {
+            let Some(assumption) = self.roster.get(index) else {
                 return Err(certificate!(ProofError::UnknownAssumption(index)));
             };
-            if !propositions_match(&assumption, conclusion) {
+            if !propositions_match(assumption, conclusion) {
                 return Err(certificate!(ProofError::AssumptionConclusionMismatch(
                     index
                 )));
             }
-            self.same_denotation(&assumption, conclusion)?;
+            Self::same_denotation(&mut self.denotation, assumption, conclusion)?;
             self.rules.insert(AcceptedProofRule::Assumption);
             if index < self.ambient {
-                self.assumptions.record(index, &assumption);
+                self.assumptions.record(index, assumption);
             }
             let position = self.positions[index];
             Ok(self.variable(position))
         }
 
-        fn semantic_axiom(&self, index: usize) -> Option<Proposition> {
-            self.axioms.get(index).cloned()
-        }
-
         fn same_denotation(
-            &mut self,
+            denotation: &mut Denotation,
             retained: &Proposition,
             requested: &Proposition,
         ) -> Result<(), BoundedDenotationError> {
             if retained == requested {
                 return Ok(());
             }
-            let retained = self.denotation.denote(retained)?;
-            let requested = self.denotation.denote(requested)?;
-            if self
-                .denotation
-                .arena
-                .structurally_equal(retained, requested)
-            {
+            let retained = denotation.denote(retained)?;
+            let requested = denotation.denote(requested)?;
+            if denotation.arena.structurally_equal(retained, requested) {
                 Ok(())
             } else {
                 Err(BoundedDenotationError::Unsupported(
@@ -14389,14 +14378,6 @@ fn denote_bounded_certificate_with_machine_parameters(
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     #[cfg(test)]
     crate::mathematical_core::bounded_observations::record_denotation();
-    context.validate(goal).map_err(|error| {
-        BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
-    })?;
-    for proposition in assumptions.iter().chain(semantic_axioms) {
-        context.validate(proposition).map_err(|error| {
-            BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
-        })?;
-    }
     let mut elaboration = Elaboration::new(
         context,
         goal,

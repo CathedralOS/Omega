@@ -3,5 +3,4 @@ machine build(builder: &mut Build) {
     let mut a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "a" });
     dependency::with_alias(&mut a_dependency, "a");
     let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
-    builder.freestanding = true;
 }

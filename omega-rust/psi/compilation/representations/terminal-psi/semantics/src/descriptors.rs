@@ -6,7 +6,7 @@ Semantic judgments for borrowed byte/element descriptors, observable descriptor 
 
 pub mod descriptor_lifetimes {
 
-    use semantic_vocabulary::{BlockId, PlaceId};
+    use semantic_vocabulary::{BlockId, EdgeId, ObligationId, PlaceId};
     use std::collections::{BTreeMap, BTreeSet};
 
     pub(crate) mod arrivals {
@@ -945,6 +945,75 @@ pub mod descriptor_lifetimes {
                 .filter_map(DescriptorFlowBinding::locations)
         }
 
+        /// Move the available names across this exact successor. Cleanup
+        /// affects names that remain in storage. A block argument instead
+        /// keeps the value captured before running the cleanup.
+        fn transport_locations(
+            &self,
+            before: &BTreeSet<DescriptorLocation>,
+            invalidate_containers: bool,
+            may: bool,
+        ) -> BTreeSet<DescriptorLocation> {
+            let definitions = self
+                .parameters
+                .iter()
+                .chain(&self.definitions)
+                .cloned()
+                .collect::<Vec<_>>();
+            let mut after_cleanup = before.clone();
+            for (_, effect) in &self.effects {
+                let derivations = if invalidate_containers {
+                    &effect.derivations
+                } else {
+                    &effect.authority_derivations
+                };
+                after_cleanup = transport_authority(
+                    &after_cleanup,
+                    &effect.definitions,
+                    derivations
+                        .iter()
+                        .map(|(source, destination)| (source, destination)),
+                    invalidate_containers,
+                    may,
+                );
+            }
+            let mut transported = transport_authority(
+                &after_cleanup,
+                &definitions,
+                std::iter::empty(),
+                invalidate_containers,
+                may,
+            );
+            let captured = if invalidate_containers {
+                transport_authority(
+                    before,
+                    &definitions,
+                    self.derivations(),
+                    invalidate_containers,
+                    may,
+                )
+            } else {
+                transport_authority(
+                    before,
+                    &definitions,
+                    self.authority_derivations(),
+                    invalidate_containers,
+                    may,
+                )
+            };
+            transported.extend(captured.into_iter().filter(|name| {
+                self.bindings
+                    .iter()
+                    .any(|binding| binding.parameter.contains(name))
+            }));
+            if !invalidate_containers {
+                for name in before {
+                    transported.extend(self.borrowed_authority(name));
+                }
+            }
+            transported
+        }
+
         fn forward_effects(
             &self,
             source: &DescriptorLocation,
@@ -1289,6 +1358,132 @@ pub mod descriptor_lifetimes {
         transported_locations(steps, establishment, value, at_entry, true, false, None)
     }
 
+    pub type LoanChoiceLocation = (DescriptorPosition, DescriptorLocation);
+
+    /// The descriptor carries exactly one loan on each predecessor. A node
+    /// keeps the edge that selected its parent even after later moves.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DescriptorLoanChoice {
+        pub root: LoanChoiceLocation,
+        pub nodes: BTreeMap<LoanChoiceLocation, LoanChoice>,
+    }
+
+    impl DescriptorLoanChoice {
+        pub fn loans(&self) -> impl Iterator<Item = ObligationId> + '_ {
+            self.nodes.values().filter_map(|node| match node {
+                LoanChoice::Loan(parent) => Some(*parent),
+                LoanChoice::Arrivals(_) => None,
+            })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum LoanChoice {
+        Loan(ObligationId),
+        Arrivals(Vec<LoanChoiceArrival>),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct LoanChoiceArrival {
+        /// Internal steps and genuine Terminal edges use the same flow.
+        /// A genuine edge keeps its identity even if another edge has the
+        /// same starting position and target.
+        pub edge: Option<EdgeId>,
+        pub source: LoanChoiceLocation,
+    }
+
+    pub(crate) fn joined_loan_authority(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        location: LoanChoiceLocation,
+        candidates: &[(ObligationId, &DescriptorLifetime)],
+    ) -> Option<DescriptorLoanChoice> {
+        let mut predecessors =
+            BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
+        for (position, step) in steps {
+            for edge in &step.successors {
+                predecessors
+                    .entry(edge.target)
+                    .or_default()
+                    .push((*position, edge));
+            }
+        }
+
+        let mut without_choice = BTreeSet::new();
+        let mut pending = vec![(location.clone(), false)];
+        let mut nodes = BTreeMap::new();
+        while let Some((requested, leaving)) = pending.pop() {
+            if leaving {
+                without_choice.remove(&requested);
+                continue;
+            }
+            if without_choice.contains(&requested) {
+                // A cycle without a known loan at its header does not
+                // establish that every arrival owns the descriptor.
+                return None;
+            }
+            if nodes.contains_key(&requested) {
+                continue;
+            }
+
+            let (at, descriptor) = &requested;
+            let mut reaching = candidates.iter().filter(|(_, lifetime)| {
+                lifetime
+                    .surviving
+                    .get(at)
+                    .is_some_and(|names| names.contains(descriptor))
+            });
+            let (identity, lifetime) = reaching.next()?;
+            if reaching.next().is_none()
+                && lifetime.live.contains(at)
+                && lifetime
+                    .authorized
+                    .get(at)
+                    .is_some_and(|names| names.contains(descriptor))
+            {
+                nodes.insert(requested, LoanChoice::Loan(*identity));
+                continue;
+            }
+
+            let mut arrivals = Vec::new();
+            for &(from, edge) in predecessors.get(at)? {
+                let names = candidates
+                    .iter()
+                    .filter_map(|(_, lifetime)| lifetime.surviving.get(&from))
+                    .flatten()
+                    .collect::<BTreeSet<_>>();
+                let mut matching = names.into_iter().filter(|source| {
+                    let before = BTreeSet::from([(*source).clone()]);
+                    let after = steps[&from].transport_authority(&before, false);
+                    edge.transport_locations(&after, false, false)
+                        .contains(descriptor)
+                });
+                let source = matching.next()?.clone();
+                if matching.next().is_some() {
+                    return None;
+                }
+                arrivals.push(LoanChoiceArrival {
+                    edge: edge.edge,
+                    source: (from, source),
+                });
+            }
+            if arrivals.is_empty() {
+                return None;
+            }
+            without_choice.insert(requested.clone());
+            pending.push((requested.clone(), true));
+            pending.extend(
+                arrivals
+                    .iter()
+                    .map(|arrival| (arrival.source.clone(), false)),
+            );
+            nodes.insert(requested, LoanChoice::Arrivals(arrivals));
+        }
+        Some(DescriptorLoanChoice {
+            root: location,
+            nodes,
+        })
+    }
+
     fn transported_locations(
         steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
         birth: DescriptorPosition,
@@ -1308,10 +1503,28 @@ pub mod descriptor_lifetimes {
                     .push((*position, edge));
             }
         }
-        let mut established = steps
-            .keys()
-            .map(|position| (*position, BTreeSet::new()))
-            .collect::<BTreeMap<_, _>>();
+        let mut established = if may {
+            steps
+                .keys()
+                .map(|position| (*position, BTreeSet::new()))
+                .collect::<BTreeMap<_, _>>()
+        } else {
+            // Must transport descends from the possible names at each cut.
+            // Starting at empty loses unchanged authority at every loop join.
+            // The possible names come only from this genuine formation, so
+            // disconnected cycles gain nothing. Empty incoming paths still
+            // participate in the intersection below; possibility never
+            // substitutes for a path's retained authority.
+            transported_locations(
+                steps,
+                birth,
+                descriptor,
+                at_entry,
+                invalidate_containers,
+                true,
+                arrival,
+            )
+        };
         if at_entry {
             established.insert(birth, BTreeSet::from([descriptor.clone()]));
         }
@@ -1341,63 +1554,8 @@ pub mod descriptor_lifetimes {
                             if !at_entry && arrival.is_none() && *predecessor == birth {
                                 after.insert(descriptor.clone());
                             }
-                            let definitions = edge
-                                .parameters
-                                .iter()
-                                .chain(&edge.definitions)
-                                .cloned()
-                                .collect::<Vec<_>>();
-                            let mut effected = after.clone();
-                            for (_, effect) in &edge.effects {
-                                let derivations = if invalidate_containers {
-                                    &effect.derivations
-                                } else {
-                                    &effect.authority_derivations
-                                };
-                                effected = transport_authority(
-                                    &effected,
-                                    &effect.definitions,
-                                    derivations
-                                        .iter()
-                                        .map(|(source, destination)| (source, destination)),
-                                    invalidate_containers,
-                                    may,
-                                );
-                            }
-                            let mut transported = transport_authority(
-                                &effected,
-                                &definitions,
-                                std::iter::empty(),
-                                invalidate_containers,
-                                may,
-                            );
-                            let captured = if invalidate_containers {
-                                transport_authority(
-                                    &after,
-                                    &definitions,
-                                    edge.derivations(),
-                                    invalidate_containers,
-                                    may,
-                                )
-                            } else {
-                                transport_authority(
-                                    &after,
-                                    &definitions,
-                                    edge.authority_derivations(),
-                                    invalidate_containers,
-                                    may,
-                                )
-                            };
-                            transported.extend(captured.into_iter().filter(|name| {
-                                edge.bindings
-                                    .iter()
-                                    .any(|binding| binding.parameter.contains(name))
-                            }));
-                            if !invalidate_containers {
-                                for name in &after {
-                                    transported.extend(edge.borrowed_authority(name));
-                                }
-                            }
+                            let mut transported =
+                                edge.transport_locations(&after, invalidate_containers, may);
                             if arrival == Some(position) && *predecessor == birth {
                                 transported.insert(descriptor.clone());
                             }
@@ -1495,6 +1653,137 @@ pub mod descriptor_lifetimes {
                 parameters: Vec::new(),
                 bindings: Vec::new(),
             }
+        }
+
+        #[test]
+        fn every_edge_selects_its_actual_parent_even_with_the_same_target() {
+            let selected = root(3);
+            let left = ObligationId::new(1).unwrap();
+            let right = ObligationId::new(2).unwrap();
+            let left_edge = EdgeId::new(1).unwrap();
+            let right_edge = EdgeId::new(2).unwrap();
+            let from = position(0);
+            let to = position(1);
+            let mut steps = BTreeMap::from([
+                (
+                    from,
+                    DescriptorFlowStep {
+                        successors: [(left_edge, root(1)), (right_edge, root(2))]
+                            .into_iter()
+                            .map(|(identity, source)| {
+                                let mut selected_edge = edge(1);
+                                selected_edge.edge = Some(identity);
+                                selected_edge.parameters.push(selected.clone());
+                                selected_edge.bindings.push(
+                                    DescriptorFlowBinding::new(
+                                        DescriptorFlowSource::Location(source),
+                                        selected.clone(),
+                                        terminal_psi::StructuralAccess::Owned,
+                                        terminal_psi::StructuralAccess::Owned,
+                                    )
+                                    .unwrap(),
+                                );
+                                selected_edge
+                            })
+                            .collect(),
+                        ..Default::default()
+                    },
+                ),
+                (
+                    to,
+                    DescriptorFlowStep {
+                        inputs: vec![(Some(selected.clone()), None)],
+                        ..Default::default()
+                    },
+                ),
+            ]);
+            let start = (to, selected.clone());
+            let choice = |steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>| {
+                let left_life = descriptor_entry_lifetime(steps, from, &root(1));
+                let right_life = descriptor_entry_lifetime(steps, from, &root(2));
+                joined_loan_authority(
+                    steps,
+                    start.clone(),
+                    &[(left, &left_life), (right, &right_life)],
+                )
+            };
+            let found = choice(&steps).unwrap();
+            assert_eq!(
+                found.nodes[&found.root],
+                LoanChoice::Arrivals(vec![
+                    LoanChoiceArrival {
+                        edge: Some(left_edge),
+                        source: (from, root(1))
+                    },
+                    LoanChoiceArrival {
+                        edge: Some(right_edge),
+                        source: (from, root(2))
+                    },
+                ])
+            );
+            assert_eq!(found.nodes[&(from, root(1))], LoanChoice::Loan(left));
+            assert_eq!(found.nodes[&(from, root(2))], LoanChoice::Loan(right));
+
+            steps.get_mut(&from).unwrap().successors[1].bindings.clear();
+            assert!(choice(&steps).is_none());
+        }
+
+        #[test]
+        fn a_loop_keeps_entry_authority_only_while_every_backedge_keeps_it() {
+            let mut steps = BTreeMap::from([
+                (
+                    position(0),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(1),
+                    DescriptorFlowStep {
+                        inputs: vec![(Some(root(1)), None)],
+                        successors: vec![edge(2), edge(3)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(2),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (position(3), DescriptorFlowStep::default()),
+                (
+                    position(4),
+                    DescriptorFlowStep {
+                        successors: vec![edge(5)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(5),
+                    DescriptorFlowStep {
+                        successors: vec![edge(4)],
+                        ..Default::default()
+                    },
+                ),
+            ]);
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            for cut in [position(1), position(2)] {
+                assert_eq!(lifetime.authorized[&cut], BTreeSet::from([root(1)]));
+                assert_eq!(lifetime.surviving[&cut], BTreeSet::from([root(1)]));
+            }
+            assert!(lifetime.authorized[&position(4)].is_empty());
+            assert!(lifetime.authorized[&position(5)].is_empty());
+            steps
+                .get_mut(&position(2))
+                .unwrap()
+                .definitions
+                .push(root(1));
+            let retired = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert!(retired.authorized[&position(1)].is_empty());
+            assert_eq!(retired.surviving[&position(1)], BTreeSet::from([root(1)]));
         }
 
         #[test]
@@ -9821,6 +10110,7 @@ pub mod descriptor_results {
                 VersionStart::Completed(producer),
                 observation,
                 payload,
+                None,
             )
         }
 
@@ -9837,7 +10127,38 @@ pub mod descriptor_results {
             }
             let machine =
                 descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
-            require_unchanged_from(machine, analysis, VersionStart::Entry, observation, payload)
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Entry,
+                observation,
+                payload,
+                None,
+            )
+        }
+
+        pub(crate) fn require_unchanged_entry_storage_with_incoming(
+            types: &[StructuralTypeDeclaration],
+            graph: &[DescriptorMachine],
+            analysis: &mut DescriptorAnalysis<'_>,
+            identity: MachineId,
+            observation: DescriptorPosition,
+            payload: &DescriptorPayloadTarget,
+            incoming: &super::payload_reachability::IncomingFlow,
+        ) -> Result<(), &'static str> {
+            if !analysis.uses_source_graph(types, graph) {
+                return Err("entry storage analysis belongs to another immutable source graph");
+            }
+            let machine =
+                descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Entry,
+                observation,
+                payload,
+                Some(incoming),
+            )
         }
 
         #[derive(Clone, Copy)]
@@ -9852,10 +10173,18 @@ pub mod descriptor_results {
             start: VersionStart,
             observation: DescriptorPosition,
             payload: &DescriptorPayloadTarget,
+            incoming: Option<&super::payload_reachability::IncomingFlow>,
         ) -> Result<(), &'static str> {
             let identity = machine.id;
-            let relevant = super::payload_reachability::predecessors(machine, observation)
-                .ok_or("produced payload observation has unresolved control flow")?;
+            let relevant = match incoming {
+                Some(incoming) => super::payload_reachability::predecessors_with_incoming(
+                    machine,
+                    incoming,
+                    observation,
+                ),
+                None => super::payload_reachability::predecessors(machine, observation),
+            }
+            .ok_or("produced payload observation has unresolved control flow")?;
             let home = match payload {
                 DescriptorPayloadTarget::Storage {
                     location,
@@ -14694,6 +15023,7 @@ pub mod descriptor_results {
             machine: &terminal_psi::TerminalMachine,
             operation: &terminal_psi::Operation,
             scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Option<TerminalPostconditions> {
             use terminal_psi::{
                 OperationKind, OperationResult, StructuralAccess, TerminalMachineResult,
@@ -14764,10 +15094,11 @@ pub mod descriptor_results {
                 bindings.push((formal.id, scalar_expressions.expression(*actual)?));
             }
             let mut storage = Vec::new();
-            for (formal, actual) in callee
+            for (ordinal, (formal, actual)) in callee
                 .structural_parameters
                 .iter()
                 .zip(structural_arguments)
+                .enumerate()
             {
                 let root_type = machine.structural_place_type(actual.place)?;
                 let selected = runtime_structural_path_tip(
@@ -14778,6 +15109,20 @@ pub mod descriptor_results {
                 if actual.access != formal.access
                     || (!selected.is_some_and(|selected| {
                         selected.id == formal.structural_type
+                            || nominal_calls
+                                .binary_search_by_key(
+                                    &(machine.id, operation.id, ordinal as u32),
+                                    |row| (row.caller, row.operation, row.argument),
+                                )
+                                .ok()
+                                .is_some_and(|position| {
+                                    let row = &nominal_calls[position];
+                                    row.actual == selected.id
+                                        && row.expected == formal.structural_type
+                                        && crate::calls::nominal_argument_matches(
+                                            module, machine, callee, arguments, row,
+                                        )
+                                })
                             || crate::calls::const_array_argument_matches(
                                 module,
                                 machine,
@@ -15313,6 +15658,7 @@ pub mod descriptor_results {
                     realizations,
                     extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
                     results,
+                    contents: Vec::new(),
                     invalidates_contents,
                 },
                 arguments,
@@ -15874,6 +16220,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
             // Setup failures have no operation. Reuse the same typed error
             // as the reader advances, so a later failure keeps its real site.
@@ -15890,6 +16237,7 @@ pub mod descriptor_results {
                 slot_kind,
                 selected_calls,
                 selector_graph,
+                nominal_calls,
                 &mut failure,
             )
             .ok_or(failure)
@@ -15902,6 +16250,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
             failure: &mut super::DescriptorGraphError,
         ) -> Option<DescriptorMachine> {
             let super::DescriptorGraphError::IncompleteMachine {
@@ -16021,6 +16370,7 @@ pub mod descriptor_results {
                         machine,
                         operation,
                         &scalar_expressions,
+                        nominal_calls,
                     ) {
                         graph
                             .payload_scalar_postconditions
@@ -17319,10 +17669,105 @@ pub mod descriptor_results {
                                     }
                                 }
                                 if let DescriptorInvocationTarget::Public {
-                                    effects_machine, ..
+                                    effects_machine,
+                                    contents,
+                                    ..
                                 } = &mut call.target
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
+                                    if !implemented
+                                        && slot_kind.tracks_references()
+                                        && let Some(result) = result
+                                    {
+                                        let inventory = slot_kind.owned_inventory(
+                                            &module.structural_types,
+                                            result.place,
+                                            result.structural_type,
+                                        )?;
+                                        let mut lifetime_dependencies = Vec::new();
+                                        if !inventory.unknown_contents.is_empty() {
+                                            for (position, formal) in public
+                                                .as_ref()?
+                                                .contract()
+                                                .structural_parameters
+                                                .iter()
+                                                .enumerate()
+                                            {
+                                                let ty = module
+                                                    .structural_type(formal.structural_type)?;
+                                                if formal.access != StructuralAccess::Owned
+                                                    && !ty.shape.is_view_descriptor()
+                                                {
+                                                    lifetime_dependencies.push(DescriptorLifetimeDebt {
+                                                        origin: DescriptorStoredOrigin::Parameter {
+                                                            position,
+                                                            projection: Projection::new(&[]),
+                                                        },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                                if formal.access
+                                                    == StructuralAccess::WriteOnlyBorrow
+                                                {
+                                                    continue;
+                                                }
+                                                let inputs = DescriptorSlotKind::BorrowedStorage
+                                                    .owned_inventory(
+                                                        &module.structural_types,
+                                                        formal.place,
+                                                        formal.structural_type,
+                                                    )?;
+                                                let locations = inputs.slots.into_iter().chain(
+                                                    inputs
+                                                        .unknown_contents
+                                                        .into_iter()
+                                                        .map(|packet| packet.location),
+                                                );
+                                                for location in locations {
+                                                    lifetime_dependencies
+                                                        .push(DescriptorLifetimeDebt {
+                                                        origin:
+                                                            DescriptorStoredOrigin::IncomingSlot {
+                                                                position,
+                                                                path: location.path,
+                                                            },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        for packet in inventory.unknown_contents {
+                                            let path = packet.location.path;
+                                            let (last, prefix) = path.split_last()?;
+                                            if *last != DescriptorPathSegment::UnknownContents {
+                                                return None;
+                                            }
+                                            let structural_type = descriptor_location_type(
+                                                &module.structural_types,
+                                                result.structural_type,
+                                                prefix,
+                                            )?;
+                                            let produced =
+                                                crate::descriptor_replay::ProducedContents {
+                                                    producer: DescriptorInvocationSite {
+                                                        machine: machine.id,
+                                                        owner: call.owner,
+                                                    },
+                                                    path: path.clone(),
+                                                    structural_type,
+                                                    lifetime_dependencies: lifetime_dependencies
+                                                        .clone(),
+                                                };
+                                            contents.push(DescriptorResultSlot {
+                                                path,
+                                                origins: vec![
+                                                    DescriptorStoredOrigin::ProducedContents(
+                                                        produced,
+                                                    ),
+                                                ],
+                                            });
+                                        }
+                                    }
                                 }
                                 insert_invocation(&mut graph.calls, position, call)?;
                             } else {
@@ -18959,6 +19404,7 @@ pub mod descriptor_results {
             realizations: Vec<MachineId>,
             extent: semantic_vocabulary::ReferenceOriginExtent,
             results: Vec<DescriptorResultSlot>,
+            contents: Vec<DescriptorResultSlot>,
             invalidates_contents: bool,
         },
     }
@@ -19259,6 +19705,23 @@ pub mod descriptor_results {
         )
     }
 
+    pub fn terminal_borrowed_storage_graph_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+        terminal_graph_rows_with_nominal_calls(
+            module,
+            roots,
+            DescriptorSlotKind::BorrowedStorage,
+            selected_calls,
+            nominal_calls,
+        )
+        .into_iter()
+        .collect()
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum DescriptorGraphError {
         MissingOrAmbiguousMachine(MachineId),
@@ -19548,6 +20011,16 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
+        terminal_graph_rows_with_nominal_calls(module, roots, kind, selected_calls, &[])
+    }
+
+    fn terminal_graph_rows_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        kind: DescriptorSlotKind,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
         let machines = match terminal_machine_roster(module) {
             Ok(machines) => machines,
             Err(error) => return vec![Err(error)],
@@ -19565,14 +20038,21 @@ pub mod descriptor_results {
                 );
                 continue;
             };
-            let graph =
-                match terminal_flow::adapt(module, &machines, body, kind, selected_calls, None) {
-                    Ok(graph) => graph,
-                    Err(error) => {
-                        reached.insert(identity, Err(error));
-                        continue;
-                    }
-                };
+            let graph = match terminal_flow::adapt(
+                module,
+                &machines,
+                body,
+                kind,
+                selected_calls,
+                None,
+                nominal_calls,
+            ) {
+                Ok(graph) => graph,
+                Err(error) => {
+                    reached.insert(identity, Err(error));
+                    continue;
+                }
+            };
             for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -19634,6 +20114,7 @@ pub mod descriptor_results {
                 kind,
                 selected_calls,
                 Some(&initial),
+                nominal_calls,
             ));
         }
         rows.extend(failures);
@@ -19679,7 +20160,8 @@ pub mod descriptor_results {
             .machines
             .iter()
             .map(|machine| {
-                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None).ok()
+                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None, &[])
+                    .ok()
             })
             .collect::<Option<Vec<_>>>()?;
         if !module.machines.iter().any(|machine| {
@@ -19700,6 +20182,7 @@ pub mod descriptor_results {
                     kind,
                     selected_calls,
                     Some(&initial),
+                    &[],
                 )
                 .ok()
             })

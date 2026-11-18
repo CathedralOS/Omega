@@ -17,6 +17,7 @@ use crate::source_state::expression::{
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::statement::TableCall;
 use crate::source_state::static_applications::StaticMachineApplicationHandle;
+use crate::source_state::types::TypeReferenceHandle;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
@@ -50,6 +51,18 @@ pub(super) struct StaticMachineTarget {
     position: u32,
     target: SymbolHandle,
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
+}
+
+struct RequiredCallback<'a> {
+    parameter: SymbolHandle,
+    source: &'a crate::source_state::signature::StateSignature,
+    signature: Signature,
+}
+
+struct CallbackConformance {
+    selected: MachineId,
+    arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
+    ordinal: u32,
 }
 
 impl<'t> Program<'t> {
@@ -276,7 +289,7 @@ impl<'t> Program<'t> {
     /// The machine a symbol enters: a machine itself, or the machine whose
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
-    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    pub(super) fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
@@ -1078,17 +1091,12 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
-    /// A sealed ordinary borrow returns the source's existing permission.
-    /// Its closed result belongs to the actual application, never to the
-    /// type a caller hopes to receive. Other interpretations still need
-    /// their evaluated policy, content, profile and resident correspondence.
     /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
-    /// take data types"). The operand is read as an ordinary value type, so
-    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
-    /// the observation measures exactly that row. Only a record row has a
-    /// storage geometry this reader can name; a scalar, a rigid type
-    /// parameter and the value form `align_of(view)` stay refused here
-    /// rather than receive a fabricated measurement.
+    /// take data types") measure the operand's existing physical storage.
+    /// Records keep their selected layout; primitive carriers use their
+    /// registered builtin storage. Forming a qualified type for this query
+    /// establishes no value or permission. The selected target supplies the
+    /// actual measurement.
     pub(super) fn layout_query(
         &mut self,
         id: MachineId,
@@ -1106,9 +1114,12 @@ impl<'t> Program<'t> {
         {
             return unserved("layout query without exactly one type operand");
         }
-        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
-        else {
-            return unserved("layout query of a carrier with no record row");
+        let subject = match self.value_type(id, query.operand.type_reference)? {
+            ValueType::Record(subject, _, _) => subject,
+            ValueType::Scalar(scalar, _) => self.plain_scalar_storage(id, scalar)?,
+            ValueType::Rigid(_) => {
+                return unserved("layout query with an unresolved storage carrier");
+            }
         };
         let measurement = match query.kind {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
@@ -1130,6 +1141,10 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// A sealed ordinary borrow returns the source's existing permission.
+    /// Its closed result belongs to the actual application, never to the
+    /// type a caller hopes to receive. Other interpretations still need
+    /// their evaluated policy, content, profile and resident correspondence.
     fn borrow_factory_call(
         &mut self,
         id: MachineId,
@@ -2023,6 +2038,7 @@ impl<'t> Program<'t> {
             source,
             None,
             &operands,
+            &arguments.const_sources,
         )?;
         let ExpressionKind::Call {
             static_reach_arguments,
@@ -2047,8 +2063,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Vec<terminal_psi::static_reach::StaticReachArgument>> {
         let mut bindings = Vec::with_capacity(arguments.len());
         for &(parameter, argument) in arguments {
-            self.static_argument_selection(caller, argument)?;
-            let contract = self
+            let required = self
                 .typed
                 .retained_static_machine_contract(parameter)
                 .ok_or_else(|| {
@@ -2057,8 +2072,8 @@ impl<'t> Program<'t> {
                         Construct::Machine,
                         Unserved::Call("callable argument lost its originating contract"),
                     )
-                })?;
-            let required = contract.signature();
+                })?
+                .signature();
             let scope = self.scopes.get(callee).cloned().ok_or_else(|| {
                 refuse(
                     caller,
@@ -2079,6 +2094,13 @@ impl<'t> Program<'t> {
             self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
+            let lexical_owner = *self.symbols.get(caller).ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its source owner"),
+                )
+            })?;
             let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
                 refuse(
                     caller,
@@ -2086,101 +2108,172 @@ impl<'t> Program<'t> {
                     Unserved::Call("callable argument lost its required header"),
                 )
             })?;
-            let target = self.entered_machine(argument.symbol).ok_or_else(|| {
-                refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("supplied callable has no declared machine body"),
-                )
-            })?;
-            let (body, nested) = if let Some(applied) = &argument.application {
-                if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
-                    return Err(refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call(
-                            "supplied callable has an unsupported member or lifetime application",
-                        ),
-                    ));
-                }
-                let actual = self.application_arguments(
-                    caller,
-                    target,
-                    argument.authored_machine_application,
-                    &applied.arguments,
-                )?;
-                let body = self.application(caller, target, actual.types, actual.references)?;
-                let nested =
-                    self.callable_application_arguments(caller, body, &actual.callables)?;
-                // A selected callable with scalar consts needs a fully applied
-                // required header; it cannot discard those values as metadata.
-                if !actual.values.is_empty() {
-                    return Err(refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("supplied callable retains scalar const inputs"),
-                    ));
-                }
-                (body, nested)
-            } else {
-                (self.machine(target)?, Vec::new())
-            };
-            self.fixed_inputs.push(body);
-            let application = self
-                .typed
-                .static_operand_identity(crate::source_state::type_identity::StaticOperandIdentityRequest {
-                    operand: crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
-                        argument,
-                    ),
-                    lexical_owner: *self.symbols.get(caller).ok_or_else(|| {
-                        refuse(
-                            caller,
-                            Construct::Machine,
-                            Unserved::Call("callable argument lost its source owner"),
-                        )
-                    })?,
-                    substitutions: &[],
-                })
-                .and_then(|identity| self.typed.type_identity_text(identity))
-                .filter(|identity| !identity.is_empty())
-                .ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("callable argument lost its exact application identity"),
-                    )
-                })?;
-            let envelope = self.static_envelope(caller, required, false)?;
-            let conformance =
-                u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Call("too many callback conformance questions"),
-                    )
-                })?;
+            let checked = self.callback_conformance(
+                caller,
+                RequiredCallback {
+                    parameter,
+                    source: required,
+                    signature,
+                },
+                argument,
+                lexical_owner,
+            )?;
             let position = self.static_reach_parameter(callee, parameter, requirement)?;
             bindings.push(terminal_psi::static_reach::StaticReachArgument {
                 parameter: position,
                 requirement,
-                selected: body,
-                arguments: nested,
-                conformance,
+                selected: checked.selected,
+                arguments: checked.arguments,
+                conformance: checked.ordinal,
             });
-            self.static_contracts.conformances.push(
-                crate::lowering::static_contracts::SourceConformance {
-                    declaration: parameter,
-                    requirement: required.symbol,
-                    application,
-                    implementation:
-                        crate::lowering::static_contracts::SourceImplementation::Machine(body),
-                    signature,
-                    envelope,
-                    provider: None,
-                },
-            );
         }
         Ok(bindings)
+    }
+
+    /// Closing a generic application does not discharge its callback contracts.
+    /// Read their full applied headers and ask the ordinary refinement checker.
+    pub(super) fn closed_callback_requirements(
+        &mut self,
+        caller: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<()> {
+        let unavailable = |what| refuse(caller, Construct::Machine, Unserved::Call(what));
+        let Some(crate::source_state::MachineInstantiation::Specialization(receipt)) = self
+            .typed
+            .machine_instantiation(symbol)
+            .map_err(unavailable)?
+        else {
+            return Ok(());
+        };
+        self.typed
+            .specialization_binding_declaration(receipt)
+            .map_err(unavailable)?;
+        let application = receipt.binding_application;
+        let invocation = self
+            .typed
+            .expression_table
+            .static_machine_application(application);
+        let lexical_owner = invocation.lexical_owner;
+        let contracts = self
+            .typed
+            .static_callback_requirements(application)
+            .map_err(unavailable)?;
+        for contract in contracts {
+            let signature = self.callback_requirement_signature(caller, contract.required)?;
+            self.callback_conformance(
+                caller,
+                RequiredCallback {
+                    parameter: contract.parameter,
+                    source: contract.required,
+                    signature,
+                },
+                contract.argument,
+                lexical_owner,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn callback_conformance(
+        &mut self,
+        caller: MachineId,
+        required: RequiredCallback<'_>,
+        argument: &StaticMachineArgument,
+        lexical_owner: SymbolHandle,
+    ) -> Checked<CallbackConformance> {
+        let RequiredCallback {
+            parameter,
+            source: required,
+            signature,
+        } = required;
+        self.static_argument_selection(caller, argument)?;
+        let target = self.entered_machine(argument.symbol).ok_or_else(|| {
+            refuse(
+                caller,
+                Construct::Machine,
+                Unserved::Call("supplied callable has no declared machine body"),
+            )
+        })?;
+        let (body, nested) = if let Some(applied) = &argument.application {
+            if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call(
+                        "supplied callable has an unsupported member or lifetime application",
+                    ),
+                ));
+            }
+            let actual = self.application_arguments(
+                caller,
+                target,
+                argument.authored_machine_application,
+                &applied.arguments,
+            )?;
+            let body = self.application(caller, target, actual.types, actual.references)?;
+            let nested = self.callable_application_arguments(caller, body, &actual.callables)?;
+            // A selected callable with scalar consts needs a fully applied
+            // required header; it cannot discard those values as metadata.
+            if !actual.values.is_empty() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("supplied callable retains scalar const inputs"),
+                ));
+            }
+            (body, nested)
+        } else {
+            (self.machine(target)?, Vec::new())
+        };
+        self.fixed_inputs.push(body);
+        let application = self
+            .typed
+            .static_operand_identity(
+                crate::source_state::type_identity::StaticOperandIdentityRequest {
+                    operand:
+                        crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                            argument,
+                        ),
+                    lexical_owner,
+                    substitutions: &[],
+                },
+            )
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its exact application identity"),
+                )
+            })?;
+        let envelope = self.static_envelope(caller, required, false)?;
+        let conformance =
+            u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("too many callback conformance questions"),
+                )
+            })?;
+        self.static_contracts.conformances.push(
+            crate::lowering::static_contracts::SourceConformance {
+                declaration: parameter,
+                requirement: required.symbol,
+                application,
+                implementation: crate::lowering::static_contracts::SourceImplementation::Machine(
+                    body,
+                ),
+                signature,
+                envelope,
+                provider: None,
+            },
+        );
+        Ok(CallbackConformance {
+            selected: body,
+            arguments: nested,
+            ordinal: conformance,
+        })
     }
 
     /// The source binder and its full applied requirement travel together.
@@ -2648,6 +2741,7 @@ impl<'t> Program<'t> {
                 source,
                 expected,
                 &operands,
+                &applied.const_sources,
             )
         } else {
             let callee = self.machine(target)?;
@@ -2852,6 +2946,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -2864,6 +2959,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let signature = self
             .source_call_signature(id, &callee, required_contract)?
@@ -2877,6 +2973,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             const_values,
+            const_sources,
         )
     }
 
@@ -3015,6 +3112,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -3028,6 +3126,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let free = if let Some(required) = required_contract {
             let signature = self
@@ -3191,14 +3290,34 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument types"),
             ));
         }
-        for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
+        let mut nominal_arguments = Vec::new();
+        let mut structural_ordinal = 0;
+        for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
+            let mut nominal_agrees = false;
+            if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
+                if let Some(argument) = self.nominal_call_argument(
+                    id,
+                    &callee,
+                    structural_ordinal,
+                    actual.result,
+                    formal,
+                    const_values,
+                    const_sources,
+                    slots,
+                )? {
+                    nominal_agrees = argument.agrees();
+                    nominal_arguments.push(argument);
+                }
+                structural_ordinal += 1;
+            }
             let agrees = if borrowed.is_some() {
                 self.same_type(actual.result, formal)
             } else {
                 self.agrees(actual.result, Some(formal))
             };
             let agrees = agrees
+                || nominal_agrees
                 || self.const_array_argument_agrees(
                     id,
                     &callee,
@@ -3284,6 +3403,14 @@ impl<'t> Program<'t> {
                 Construct::Machine,
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
+        }
+        if !nominal_arguments.is_empty() {
+            self.nominal_calls
+                .push(super::nominal_applications::NominalCallSource {
+                    caller: id,
+                    source,
+                    arguments: nominal_arguments,
+                });
         }
         Ok(Expression {
             call_context: None,
@@ -3389,7 +3516,12 @@ impl<'t> Program<'t> {
                 let parameters = program.typed.machine_type_parameters(symbol);
                 let Some(position) = parameters
                     .iter()
-                    .filter(|parameter| program.record_parameter(parameter.symbol).is_none())
+                    .filter(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Const { .. }
+                        ) && program.record_parameter(parameter.symbol).is_none()
+                    })
                     .position(|parameter| parameter.symbol == inputs[position].symbol)
                 else {
                     return false;
@@ -3663,19 +3795,47 @@ impl<'t> Program<'t> {
         let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
-            let Some(slot) = slot else {
+            if let Some(slot) = slot {
+                let lender = &slots[slot];
+                if !explicit && lender.borrowed.is_none() {
+                    return unserved("argument for a borrowed formal that is not a borrow");
+                }
+                if !names_storage(&place) {
+                    return unserved("borrow of a value that is not a place");
+                }
+                if access == ReferenceAccess::Mutable
+                    && lender.borrowed.is_none()
+                    && !lender.assignable
+                {
+                    return unserved("exclusive loan of an immutable binding");
+                }
+            } else if explicit && self.typed.expression_const_declaration(operand).is_some() {
+                if access != ReferenceAccess::Shared {
+                    return Err(crate::lowering::reject(
+                        id,
+                        source,
+                        "a constant has no writable storage to borrow",
+                    ));
+                }
+                // The constant names a value. Give this use its own
+                // storage before forming the shared loan.
+                let scalar_home = place
+                    .result
+                    .and_then(ValueType::scalar)
+                    .map(|scalar| self.plain_scalar_storage(id, scalar))
+                    .transpose()?;
+                place = Expression {
+                    call_context: None,
+                    result: place.result,
+                    source: place.source,
+                    kind: ExpressionKind::OwnedTemporary {
+                        occurrence: argument,
+                        value: Box::new(place),
+                        scalar_home,
+                    },
+                };
+            } else {
                 return unserved("borrow of a value that is not a place");
-            };
-            let lender = &slots[slot];
-            if !explicit && lender.borrowed.is_none() {
-                return unserved("argument for a borrowed formal that is not a borrow");
-            }
-            if !names_storage(&place) {
-                return unserved("borrow of a value that is not a place");
-            }
-            if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable
-            {
-                return unserved("exclusive loan of an immutable binding");
             }
         }
         let lender_text = self.typed.expression_table.display_name(argument);
@@ -4076,7 +4236,8 @@ impl Touches<'_> {
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Zero
             | ExpressionKind::Boolean(_) => Ok(false),
-            ExpressionKind::Not(operand)
+            ExpressionKind::OwnedTemporary { value: operand, .. }
+            | ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)

@@ -1113,7 +1113,8 @@ fn expression_homes<'b>(
             }
             expression_homes(place, homes);
         }
-        ExpressionKind::Not(operand)
+        ExpressionKind::OwnedTemporary { value: operand, .. }
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
@@ -2170,8 +2171,8 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
-        // Entering the cast result always owes its conjunction. Empty source
-        // theory is Truth; it is not a missing arrival for the saved domain.
+        // Adding a domain still needs an arrival proof, even for an empty
+        // predicate theory.
         let subject = crate::lowering::body::self_place()
             .ok_or_else(|| self.internal("cast subject place identity"))?;
         let mut predicate = Vec::with_capacity(clauses.len());
@@ -2190,12 +2191,18 @@ impl<'a> Lowering<'a> {
                 .predicate_establishments
                 .push((cast, stated.clone()));
         }
-        self.invariants.push(terminal_psi::ScalarBlockInvariant {
-            machine: id,
-            header: cast,
-            predicate: crate::lowering::canonical::conjunction(predicate, id)?,
-            arrivals: Vec::new(),
-        });
+        // Removing a domain leaves the same value. Keep its existing facts
+        // in scope, just as for a scalar cast that only removes domains.
+        let only_removes_domains =
+            changes_memberships && added.is_empty() && clauses.is_empty() && stated.is_none();
+        if !only_removes_domains {
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: cast,
+                predicate: crate::lowering::canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge_ordinal = self.tables.edges.len() as u64 + 1;
         self.jump_with_structural(
             cast,
@@ -2390,6 +2397,9 @@ impl<'a> Lowering<'a> {
         match &expression.kind {
             ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
+            }
+            ExpressionKind::OwnedTemporary { .. } => {
+                Err(self.internal("a loan temporary is used outside loan formation"))
             }
             ExpressionKind::Zero => {
                 let (root, place) = self.establish_zeroed(value_type, expression.source)?;
@@ -3041,6 +3051,31 @@ impl<'a> Lowering<'a> {
                 );
             }
         }
+        let view = self.element_view_projection(at.root, &at.path)?;
+        if let Some((descriptor, _, _)) = &view {
+            window = true;
+            exclusive_path &= match self.record_type(descriptor.record)?.shape {
+                StorageShape::ElementView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                    ..
+                }
+                | StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::MutableBorrow),
+                    }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(StructuralAccess::MutableBorrow),
+                        ..
+                    },
+                ) => true,
+                StorageShape::ElementView { access: None, .. }
+                | StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. },
+                ) => self.exclusive_roots.contains(&at.root),
+                _ => false,
+            };
+        }
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
         // out of a place reached through `&mut` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
@@ -3057,6 +3092,11 @@ impl<'a> Lowering<'a> {
             ));
         }
         self.name_contents(at.place, value_type)?;
+        // Whole records still select an element. Retain this descriptor's
+        // current length immediately before the indexed copy or move.
+        if let Some((descriptor, _, _)) = &view {
+            self.measured_view(descriptor, source)?;
+        }
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         let (root, exact) = self.produce(
@@ -3165,6 +3205,14 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
+        if matches!(place.kind, ExpressionKind::OwnedTemporary { .. }) {
+            // A returned reference or a folded call can keep borrowing
+            // this backing. It belongs to ordinary owned-root cleanup.
+            let captured = continuing!(self.capture_place(place));
+            return self
+                .captured_loan(place, access, captured, None)
+                .map(Reached::Value);
+        }
         let shared_view = match value_type {
             ValueType::Record(record, _, _) => match &self.record_type(record)?.shape {
                 StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view() => {
@@ -3333,6 +3381,26 @@ impl<'a> Lowering<'a> {
         expression: &Expression,
     ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
         let captured = match &expression.kind {
+            ExpressionKind::OwnedTemporary {
+                value, scalar_home, ..
+            } => {
+                let actual = value
+                    .result
+                    .ok_or_else(|| self.internal("a borrowed temporary has no carrier"))?;
+                if let Some(home) = scalar_home {
+                    let scalar = continuing!(self.scalar(value));
+                    let root = self.establish_home(scalar, *home, expression.source)?;
+                    (root, Vec::new(), self.exact_root(root)?, actual)
+                } else {
+                    let at = continuing!(self.located(value));
+                    if !at.fresh || !at.path.is_empty() {
+                        return Err(
+                            self.internal("a borrowed temporary did not produce its own storage")
+                        );
+                    }
+                    (at.root, at.path, at.place, actual)
+                }
+            }
             ExpressionKind::Slot(slot) => {
                 let value_type = self.slot_type(*slot)?;
                 let bound = *self.slot_mut(*slot)?;

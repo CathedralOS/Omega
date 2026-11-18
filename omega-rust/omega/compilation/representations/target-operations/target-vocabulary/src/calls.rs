@@ -67,14 +67,55 @@ pub struct MixedStructuralScalarFunctionAbi {
 pub enum TargetBoundaryResult {
     Unit,
     Structural(TargetStructuralHomeRequirement),
+    /// A foreign pointer becomes the address word of an internal scalar
+    /// reference. `codec` is the canonical runtime-abi storage codec word;
+    /// it interprets backing and grants no reference permission.
+    ScalarReference {
+        home: TargetStructuralHomeRequirement,
+        codec: u64,
+    },
     Scalar(TargetUnitScalarHomeRequirement), // Scalar value produced by settlement bytes and retained as a durable home.
 }
 
 impl TargetBoundaryResult {
+    /// The canonical storage interpretation of a declared scalar-reference
+    /// result. Callers retain its exact reference type and permission apart
+    /// from this codec; matching bytes establish neither.
+    pub fn declared_reference_codec<'a>(
+        result: semantic_vocabulary::StructuralTypeId,
+        mut declaration: impl FnMut(
+            semantic_vocabulary::StructuralTypeId,
+        ) -> Option<&'a terminal_psi::StructuralTypeDeclaration>,
+    ) -> Option<u64> {
+        use terminal_psi::StructuralTypeShape;
+        let StructuralTypeShape::Reference { referent, .. } = declaration(result)?.shape else {
+            return None;
+        };
+        let StructuralTypeShape::PrimitiveScalar(scalar) = declaration(referent)?.shape else {
+            return None;
+        };
+        runtime_abi::ScalarStorageCodec::from_scalar(scalar)
+            .and_then(runtime_abi::ScalarStorageCodec::encode)
+    }
+
     pub const fn scalar_home(&self) -> Option<&TargetUnitScalarHomeRequirement> {
         match self {
             Self::Scalar(home) => Some(home),
-            Self::Unit | Self::Structural(_) => None,
+            Self::Unit | Self::Structural(_) | Self::ScalarReference { .. } => None,
+        }
+    }
+
+    pub const fn structural_home(&self) -> Option<&TargetStructuralHomeRequirement> {
+        match self {
+            Self::Structural(home) | Self::ScalarReference { home, .. } => Some(home),
+            Self::Unit | Self::Scalar(_) => None,
+        }
+    }
+
+    pub const fn scalar_reference_codec(&self) -> Option<u64> {
+        match self {
+            Self::ScalarReference { codec, .. } => Some(*codec),
+            _ => None,
         }
     }
 }

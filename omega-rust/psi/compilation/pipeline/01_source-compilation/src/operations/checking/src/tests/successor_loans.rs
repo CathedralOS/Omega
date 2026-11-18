@@ -145,6 +145,63 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
 }
 
 #[test]
+fn loop_element_reborrows_keep_distinct_incoming_backing() {
+    let program = r#"
+        machine update(left: &mut u32, right: &mut u32) {
+            left = 1u32;
+            right = 2u32;
+        }
+        machine walk(items: &mut [u32], other: &mut [u32], index: u64) {
+            transition index < 4u64 && index < items.len && index < other.len {
+                true -> step(items, other, index)
+                false -> done()
+            }
+            machine step(items: &mut [u32], other: &mut [u32], index: u64)
+            requires index < 4u64 && index < items.len && index < other.len
+            {
+                update(&mut items[index], &mut other[index]);
+                transition { _ -> walk(items, other, index + 1u64) }
+            }
+            machine done() { }
+        }
+    "#;
+    for (program, accepts) in [
+        (program.to_owned(), true),
+        (
+            program.replace("&mut other[index]", "&mut items[index]"),
+            false,
+        ),
+    ] {
+        let typed = super::boundary_calls::typed(&program);
+        let verdict = super::entryless::judged_typed_result(&typed, false);
+        if accepts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        } else {
+            match verdict {
+                Ok(RouteVerdict::Rejected { conflicts, .. }) => assert!(
+                    conflicts.iter().any(|conflict| matches!(
+                        conflict.conflict,
+                        crate::checking::LoanConflict::TwiceExclusive
+                    )),
+                    "{conflicts:?}"
+                ),
+                Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => assert!(
+                    refusal.reason == RefusalReason::Conflict
+                        && refusal
+                            .detail
+                            .starts_with("successor borrow conflicts with an original live loan"),
+                    "duplicating the input must fail its actual alias check: {refusal:?}"
+                ),
+                other => panic!("duplicating an exclusive element borrow must reject: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn shared_array_views_keep_their_backing_when_sliced() {
     for (start, accepted) in [(1, true), (3, false)] {
         let source = format!(
@@ -347,12 +404,76 @@ machine main() crashes Trap {
         .program
     };
     let direct_field = source.replace("read_value(packet);", "packet.value;");
-    for text in [source, direct_field.as_str()] {
+    let forwarding_cycle = source
+        .replace(
+            "block visit(second, expected, &packet)",
+            "block forward(second, expected, &packet)",
+        )
+        .replace(
+            "    machine visit(",
+            r#"    machine copy_expected(expected: u8) -> u8 {
+        expected
+    }
+
+    machine forward(second: bool, expected: u8, packet: &Packet) {
+        let next_expected: u8 = copy_expected(expected);
+        transition second {
+            true -> block visit(true, next_expected, packet)
+            _ -> block visit(false, next_expected, packet)
+        }
+    }
+
+    machine visit("#,
+        );
+    for (text, forwards) in [
+        (source, false),
+        (direct_field.as_str(), false),
+        (forwarding_cycle.as_str(), true),
+    ] {
         let positive = prepare(text);
         let terminal_check_tables::compilation::TerminalCompilation::Prepared(program) = &positive
         else {
             panic!("the shared borrow cycle must lower");
         };
+        if forwards {
+            let closure = program
+                .closure
+                .as_ref()
+                .expect("the forwarding cycle lowers");
+            let machine = |name| {
+                closure
+                    .names
+                    .iter()
+                    .find_map(|(id, names)| (names.machine == name).then_some(id))
+                    .expect("the cycle declares this machine")
+            };
+            let forward = machine("forward");
+            let visit = machine("visit");
+            assert!(closure.sources.get(forward).unwrap().heads.is_empty());
+            assert!(
+                closure
+                    .module
+                    .machine(forward)
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .any(|block| block
+                        .operations
+                        .iter()
+                        .any(|operation| matches!(operation.kind,
+                    terminal_psi::OperationKind::CallUnit { callee, .. } if callee == visit)))
+            );
+            let folded_forward = closure
+                .sources
+                .get(visit)
+                .unwrap()
+                .heads
+                .iter()
+                .find_map(|(block, member)| (*member == forward).then_some(*block))
+                .expect("the receiver retains the forwarder's cyclic head");
+            assert!(closure.module.machine(visit).unwrap().blocks.iter().any(|block|
+                matches!(block.terminator, Terminator::Jump { target, .. } if target == folded_forward)));
+        }
         let expected_verdicts = 1 + program.forms.len() + program.witnesses.len();
         let verdicts = crate::checking::judge_compilation(positive);
         assert_eq!(verdicts.len(), expected_verdicts);

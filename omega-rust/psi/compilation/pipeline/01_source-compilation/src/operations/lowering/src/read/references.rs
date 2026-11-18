@@ -41,10 +41,12 @@ impl Program<'_> {
         }
         // Slice descriptors keep their own length and backing operations.
         // They do not become an address to a pretend slice-sized object.
-        if matches!(
-            table.type_reference(table.unconstrained_type_reference(referee)),
-            TypeReferenceNode::Slice { .. }
-        ) {
+        if self
+            .source_scope
+            .slice_application(self.typed, reference)
+            .map_err(|reason| refuse(machine, Construct::Machine, Unserved::Type(reason)))?
+            .is_some()
+        {
             return Ok(None);
         }
         let access = match access {
@@ -105,11 +107,16 @@ impl Program<'_> {
             .unconstrained_type_reference(referee);
         let referent = self.storage_type(machine, bare_referee, bare)?;
         let shape = StorageShape::Reference { referent, access };
-        if let Some((id, row)) = self
-            .records
-            .iter()
-            .find(|(_, record)| record.identity == identity)
-        {
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
+        let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
+        if let Some((id, row)) = self.records.iter().find(|(id, record)| {
+            record.identity == identity
+                && self.record_sources.get(*id).is_some_and(|source| {
+                    source
+                        .constant_input_owner
+                        .is_none_or(|owner| owner == machine)
+                })
+        }) {
             if row.shape != shape {
                 return Err(refuse(
                     machine,
@@ -132,6 +139,7 @@ impl Program<'_> {
             authored_layout: false,
         });
         self.record_sources.push(RecordSource {
+            constant_input_owner,
             declaration: symbols::SymbolHandle::invalid(),
             cleanup: None,
             application: Some(crate::source_state::SourceTypeApplication {
@@ -391,21 +399,28 @@ impl Program<'_> {
             })?;
             return Ok(self.intern_regions(vec![outer]));
         }
-        let crate::lowering::ExpressionKind::Slot(root) = root.kind else {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Expression("reference formation without an exact storage root"),
-            ));
+        use super::regions::{OwnedStorageRoot, Region};
+        use crate::lowering::ExpressionKind;
+        let root = match root.kind {
+            ExpressionKind::Slot(root) => {
+                let slot = &slots[root];
+                if slot.borrowed.is_some() {
+                    return Ok(slot.borrowed_regions);
+                }
+                OwnedStorageRoot::Binding(slot.symbol)
+            }
+            ExpressionKind::OwnedTemporary { occurrence, .. } => {
+                OwnedStorageRoot::Temporary(occurrence)
+            }
+            _ => {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Expression("reference formation without an exact storage root"),
+                ));
+            }
         };
-        let slot = &slots[root];
-        if slot.borrowed.is_some() {
-            return Ok(slot.borrowed_regions);
-        }
-        let region = super::regions::Region::Storage {
-            machine,
-            root: slot.symbol,
-        };
+        let region = Region::Storage { machine, root };
         Ok(self.intern_regions(vec![region]))
     }
 
@@ -591,6 +606,133 @@ mod tests {
     use source_text::{SourceSpan, Span};
     use std::{path::PathBuf, sync::Arc};
     use symbols::{SymbolKind, SymbolNameRef};
+
+    #[test]
+    fn reference_and_sequence_storage_use_the_substituted_element_type() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            crate::source_symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Machine, SymbolNameRef::Static("borrow"))]),
+        );
+        let scalar_symbol = declarations
+            .handles()
+            .nth(
+                symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::unsigned(32),
+                )
+                .ordinal(),
+            )
+            .unwrap();
+        let owner = declarations.handles().last().unwrap();
+        let parameter = symbols
+            .insert_children(
+                owner,
+                [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+            )
+            .handles()
+            .next()
+            .unwrap();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        typed.push_machine(crate::source_state::machine::Machine {
+            symbol: owner,
+            lifetime_parameters: vec![Identifier::from("a")],
+            ..Default::default()
+        });
+        let scalar = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: scalar_symbol,
+            name: "u32".into(),
+        });
+        let referee = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: parameter,
+            name: "T".into(),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some("a".into()),
+            });
+        let mut sequence_type = |element_type| {
+            let slice = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice { element_type });
+            typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: slice,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: Some("a".into()),
+                })
+        };
+        let sequence = sequence_type(referee);
+        let concrete_sequence = sequence_type(scalar);
+
+        let id = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program.lifetime_owner = owner;
+        let scalar_value = ValueType::plain(program.scalar_type(id, scalar).unwrap());
+        program.scope.push((parameter, scalar_value));
+        program.source_scope = Arc::new(crate::source_state::SourceTypeScope {
+            substitutions: vec![(parameter, scalar)],
+            ..Default::default()
+        });
+
+        let Some(ValueType::Record(row, _, _)) = program.reference_type(id, reference).unwrap()
+        else {
+            unreachable!()
+        };
+        let StorageShape::Reference { referent, .. } = program.records.get(row).unwrap().shape
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            program.records.get(referent).unwrap().identity,
+            typed.normalized_type_identity_text(scalar)
+        );
+        let Some(ValueType::Record(sequence_row, _, _)) = program.view_type(id, sequence).unwrap()
+        else {
+            unreachable!()
+        };
+        let direct = crate::source_state::type_identity::applied_type_identity_in_region_scope(
+            &typed,
+            concrete_sequence,
+            owner,
+            owner,
+            &[],
+            &[],
+        )
+        .and_then(|identity| typed.type_identity_text(identity))
+        .unwrap();
+        assert_eq!(program.records.get(sequence_row).unwrap().identity, direct);
+        assert!(matches!(
+            program.records.get(sequence_row).unwrap().shape,
+            StorageShape::ElementView { element, .. } if element == referent
+        ));
+        assert!(program.source_record_correspondence(id).unwrap().is_empty());
+
+        // Removing a source scope must refuse even with the same stored bits.
+        for row in [referent, sequence_row] {
+            let source = program.record_sources.get_mut(row).unwrap();
+            let scope = &mut source.application.as_mut().unwrap().scope;
+            let original_scope = std::mem::take(scope);
+            assert!(program.source_record_correspondence(id).is_err());
+            program
+                .record_sources
+                .get_mut(row)
+                .unwrap()
+                .application
+                .as_mut()
+                .unwrap()
+                .scope = original_scope;
+        }
+    }
 
     #[test]
     fn reference_occurrences_keep_their_own_domains_and_lifetime_owners() {

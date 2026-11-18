@@ -244,25 +244,27 @@ pub fn foreign_result_operand_count(
     ) {
         (target_operations::TargetBoundaryResult::Unit, None) => Some(0),
         (target_operations::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
-        (target_operations::TargetBoundaryResult::Structural(_), Some(placement)) => {
-            match placement.locations.as_slice() {
-                [
-                    ValueLocation::Indirect {
-                        pointer: calling_conventions::IndirectPointerLocation::Register(_),
-                        ..
-                    },
-                ] => Some(1),
-                locations
-                    if !locations.is_empty()
-                        && locations
-                            .iter()
-                            .all(|location| matches!(location, ValueLocation::Register { .. })) =>
-                {
-                    Some(locations.len())
-                }
-                _ => None,
+        (
+            target_operations::TargetBoundaryResult::Structural(_)
+            | target_operations::TargetBoundaryResult::ScalarReference { .. },
+            Some(placement),
+        ) => match placement.locations.as_slice() {
+            [
+                ValueLocation::Indirect {
+                    pointer: calling_conventions::IndirectPointerLocation::Register(_),
+                    ..
+                },
+            ] => Some(1),
+            locations
+                if !locations.is_empty()
+                    && locations
+                        .iter()
+                        .all(|location| matches!(location, ValueLocation::Register { .. })) =>
+            {
+                Some(locations.len())
             }
-        }
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -692,7 +694,7 @@ where
             "selected call operand count does not match argument and result roster",
         ));
     }
-    if let target_operations::TargetBoundaryResult::Structural(_) = record.call.result {
+    if record.call.result.structural_home().is_some() {
         let placement = plan
             .result
             .as_ref()
@@ -829,6 +831,7 @@ where
 }
 
 fn structural_result_capture(
+    geometry: Option<&calling_conventions::terminal_layout::NativeGeometry<'_>>,
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     record: &selected_instructions::SelectedNormalizedForeignCall,
@@ -839,9 +842,7 @@ fn structural_result_capture(
         FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionKind as Kind,
         SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, VirtualRegisterOrigin,
     };
-    let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result else {
-        return None;
-    };
+    let home = record.call.result.structural_home()?;
     let (operation, result) = home.operation_result()?;
     let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout else {
         return None;
@@ -854,9 +855,37 @@ fn structural_result_capture(
         .result
         .as_ref()?;
     let contract = function.structural.as_ref()?;
+    let geometry = geometry?;
+    let declared_codec = target_operations::TargetBoundaryResult::declared_reference_codec(
+        result.structural_type,
+        |id| geometry.declaration(id).ok(),
+    );
+    let codec = record.call.result.scalar_reference_codec();
+    let layout_matches = if let Some(codec) = codec {
+        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+        declared_codec == Some(codec)
+            && shape
+                == calling_conventions::ValueShape::integer(
+                    descriptor.byte_size,
+                    descriptor.alignment,
+                )
+            && placement.shape
+                == calling_conventions::ValueShape::integer(
+                    descriptor.address_byte_size,
+                    descriptor.alignment,
+                )
+            && matches!(
+                placement.locations.as_slice(),
+                [ValueLocation::Register { .. }]
+            )
+            && placement.is_complete_scalar_result()
+    } else {
+        declared_codec.is_none()
+            && placement.shape.byte_size == shape.byte_size
+            && placement.shape.alignment == shape.alignment
+    };
     if Some(operation) != record.invocation_site.operation()
-        || placement.shape.byte_size != shape.byte_size
-        || placement.shape.alignment != shape.alignment
+        || !layout_matches
         || !contract.structural_places.iter().any(|place| {
             place.id == result.place
                 && place.kind
@@ -1096,11 +1125,63 @@ fn structural_result_capture(
         previous = store.id;
         position = position.checked_add(1)?;
     }
+    if let Some(codec) = codec {
+        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+        let materialize = block.instructions.get(position)?;
+        let [value] = materialize.operands.as_slice() else {
+            return None;
+        };
+        if materialize.kind
+            != (Kind::MaterializeI64 {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec)),
+            })
+            || !transport_matches(
+                value.virtual_register,
+                materialize.id,
+                descriptor.codec_byte_offset,
+            )
+            || !foreign_invocation_provenance_matches(
+                &materialize.provenance,
+                record.invocation_site,
+            )
+        {
+            return None;
+        }
+        spans.push(InstructionSpanObligation::NonEmpty(materialize.id));
+        spans.push(InstructionSpanObligation::Before {
+            first: previous,
+            second: materialize.id,
+        });
+        let store = block.instructions.get(position.checked_add(1)?)?;
+        if store.kind
+            != (Kind::Store {
+                byte_offset: descriptor.codec_byte_offset,
+                byte_size: u8::try_from(descriptor.codec_byte_size).ok()?,
+            })
+            || store.operands.len() != 2
+            || store.operands[0].virtual_register != pointer.virtual_register
+            || store.operands[1].virtual_register != value.virtual_register
+            || !memory_matches(
+                store.id,
+                descriptor.codec_byte_offset,
+                descriptor.codec_byte_size,
+                SelectedMemoryAccessRole::WritePlace,
+            )
+        {
+            return None;
+        }
+        spans.push(InstructionSpanObligation::NonEmpty(store.id));
+        spans.push(InstructionSpanObligation::Before {
+            first: materialize.id,
+            second: store.id,
+        });
+    }
     Some(())
 }
 
 #[allow(clippy::too_many_arguments)]
 fn foreign_scalar_result_custody(
+    geometry: Option<&calling_conventions::terminal_layout::NativeGeometry<'_>>,
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     record: &selected_instructions::SelectedNormalizedForeignCall,
@@ -1123,11 +1204,8 @@ fn foreign_scalar_result_custody(
         transport: None,
     };
     let plan = &record.call.binding.boundary_entry_plan.call;
-    if matches!(
-        record.call.result,
-        target_operations::TargetBoundaryResult::Structural(_)
-    ) {
-        structural_result_capture(function, block, record, instruction, spans)
+    if record.call.result.structural_home().is_some() {
+        structural_result_capture(geometry, function, block, record, instruction, spans)
             .ok_or_else(|| invalid("structural result lost its exact storage capture"))?;
         return Ok(None);
     }
@@ -1339,6 +1417,21 @@ pub fn capture(
         if function.normalized_foreign_calls.is_empty() {
             continue;
         }
+        let result_geometry = function
+            .structural
+            .as_ref()
+            .map(|contract| {
+                calling_conventions::terminal_layout::NativeGeometry::with_owned_sequence_bounds(
+                    &contract.structural_types,
+                    contract.structural_types.owned_sequence_bounds(),
+                )
+            })
+            .transpose()
+            .map_err(|_| ObjectError::InvalidForeignCallProjection {
+                caller: function.machine,
+                owner: CallSiteOwner::from(function.normalized_foreign_calls[0].invocation_site),
+                reason: "foreign result declarations have invalid identities",
+            })?;
         let home_offsets = durable_home_offsets(function);
         let publication = selected.contracts.publication().function(function.machine);
         let mut frames = layout
@@ -1408,6 +1501,7 @@ pub fn capture(
                 },
             )?;
             let scalar_result = foreign_scalar_result_custody(
+                result_geometry.as_ref(),
                 function,
                 block,
                 record,
@@ -1441,7 +1535,7 @@ pub fn capture(
             let Some(frame) = frame else {
                 return Err(invalid("caller frame is missing or repeated"));
             };
-            if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
+            if let Some(home) = record.call.result.structural_home() {
                 let slot = selected_instructions::LocalStorageSlotId::Structural {
                     operation: record
                         .invocation_site

@@ -328,7 +328,7 @@ fn with_signature_scope<T>(
     use_scope(&nested)
 }
 
-fn normalize_signature(
+pub(crate) fn normalize_signature(
     program: &TypedTrees,
     signature: &StateSignature,
     context: &TypeIdentityContext<'_>,

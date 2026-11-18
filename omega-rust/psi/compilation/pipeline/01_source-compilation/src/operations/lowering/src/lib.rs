@@ -95,6 +95,22 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
     })
 }
 
+/// Read the selected data application through the same type reader as a
+/// dispatch. Only a proved-empty case can be left out of a generated visitor.
+pub(crate) fn proved_empty_sum_cases(
+    typed: &TypedTrees,
+    reference: crate::source_state::types::TypeReferenceHandle,
+    owner: SymbolHandle,
+) -> Option<Vec<bool>> {
+    let mut program = read::Program::with_captures(
+        typed,
+        false,
+        declaration_contracts::source_identity::DependencyScope::Product,
+        shared_reading(typed),
+    );
+    program.proved_empty_sum_cases(reference, owner)
+}
+
 pub(crate) struct SharedProgram {
     pub captures: crate::source_state::NamedConformanceCaptureIndex,
     exact_toolchain_sources:
@@ -702,6 +718,20 @@ fn prepare_generic_forms<'source>(
             )?);
             continue;
         }
+        if let Some(declared) = typed.unique_data_definition_by_symbol(*template) {
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
+            program.generic_data(declared)?;
+            forms.push(finish_reading(
+                program,
+                None,
+                IdTable::default(),
+                None,
+                None,
+                None,
+            )?);
+            continue;
+        }
         match prepare_form(
             typed,
             purpose,
@@ -1031,7 +1061,7 @@ fn capture_source_questions(
         &program.generic_templates,
     )
     .map_err(|error| Refusal {
-        source_span: None,
+        source_span: error.source_span(),
         machine: entry,
         concerns: Construct::Machine,
         reason: RefusalReason::Unsupported,
@@ -1308,8 +1338,9 @@ fn finish_reading_into<'source>(
     }
     suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
-    source.records = program.source_record_correspondence(diagnostic)?;
-    program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
+    elaboration.nominal_types = program.nominal_type_inputs();
+    elaboration.nominal_calls =
+        program.publish_nominal_calls(&source.calls, &mut elaboration.module)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
@@ -1328,7 +1359,15 @@ fn finish_reading_into<'source>(
         &program,
         &program.requirements,
     )?;
-    reference_results::publish(&mut elaboration, &program.selections)?;
+    reference_results::publish(&mut elaboration, &program.selections).map_err(|refusal| {
+        let span = refusal.source_span.or_else(|| {
+            program
+                .names
+                .get(refusal.machine)
+                .and_then(|names| names.declared)
+        });
+        refusal.with_source_span(span)
+    })?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
     program.publish_opaque_carriers(
@@ -1621,6 +1660,11 @@ fn lower_program<'source>(
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
+    let mut source_records = Vec::new();
+    if let Some(program) = declarations {
+        source_records = program.source_record_correspondence(diagnostic)?;
+        program.publish_source_declarations(diagnostic, &source_records, &mut module)?;
+    }
     let mut tables = CheckTables::default();
     let mut qualifications = qualifications::Qualifications::declare(
         diagnostic,
@@ -1720,7 +1764,10 @@ fn lower_program<'source>(
                 )?);
         }
     }
-    let mut source = SourceFormCorrespondence::default();
+    let mut source = SourceFormCorrespondence {
+        records: source_records,
+        ..SourceFormCorrespondence::default()
+    };
     let mut static_reach_applications = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
@@ -1730,7 +1777,7 @@ fn lower_program<'source>(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let component = components.members(id)?;
+        let component = components.invocation_members(id)?;
         let contract = u64::try_from(module.declaration_contracts.len())
             .ok()
             .and_then(|count| count.checked_add(id.get()))
@@ -1921,6 +1968,8 @@ fn lower_program<'source>(
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             generic_storage: Vec::new(),
+            nominal_calls: Vec::new(),
+            nominal_types: Vec::new(),
             value_arguments: IdTable::default(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),

@@ -214,17 +214,6 @@ public data OutputCompletion {
     case Sealed(receipt: OutputReceipt);
     case Retry(obligation: RequiredOutput, file: BuildPath);
 }
-// Authored granular privileged-service admission evidence
-// (wiki/spec/build/permissions.md#privileged-services): each flag admits
-// exactly one mediated privileged class for the produced image's assembly
-// authority discharge — `port_io` admits port I/O, `interrupt_table` admits
-// interrupt-table publication. They compose independently; machine-owner
-// authority has no granular grant and stays `freestanding`-only, and
-// `freestanding = true` already covers both classes.
-public data PrivilegedServices {
-    port_io: bool;
-    interrupt_table: bool;
-}
 // Build-owned ELF loader selection
 // (wiki/spec/build/configuration.md#elf-executable-loader-selection): the
 // exact `PT_INTERP` pathname one Linux target's dynamically linked output asks
@@ -275,7 +264,6 @@ public data Build<'storage> {
     identifier: &'storage [u8];
     elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
-    privileged_services: PrivilegedServices;
     source: BuildSource;
     inputs: BuildInputs;
     output: BuildOutput;

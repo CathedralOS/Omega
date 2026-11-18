@@ -1,13 +1,10 @@
 # build_facet_swap
 
-Assigning a fabricated value over a compiler-issued facet field
-(`builder.source`, `builder.inputs`, `builder.log`, `builder.product`,
-`builder.output`) is legal — this sample swaps all four inertly. The
-swap is not silent forgery: the evaluator binds the ACTIVATION facet,
-not the field contents.
+The root sample replaces `builder.source`, `builder.inputs`, `builder.log`
+and `builder.product` with newly constructed values. The Build completes
+with all four replacements unused.
 
-- `invalid_swapped_output`: after `builder.output = BuildOutput {}`,
-  `BuildOutput::resolve` on the replacement rejects "Build path
-  operation received a different activation facet". The first
-  operation on a swapped facet detects the forgery — assignments are
-  inert only because no operation touches them.
+The `invalid_swapped_output` control assigns `BuildOutput {}` to
+`builder.output`, then calls `BuildOutput::resolve` through that field.
+The call requires the original compiler-issued output facet, so the
+host rejects the replacement.

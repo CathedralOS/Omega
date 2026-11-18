@@ -241,13 +241,10 @@ pub struct Elaboration {
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
-    /// The requirements that are another generic machine's own contract, at
-    /// the type arguments one call in this generic check form's entry
-    /// applies it at (`same<T>(left, right)` inside `compare<T>`). A
-    /// specialization of the entry calls the machine stage 04 generated
-    /// from that machine for the same arguments, whose contract is this one
-    /// at them, so no refinement proof stands between the two. Each is
-    /// also in `requirements`. Empty for every concrete module.
+    /// Actual generic helper applications read in this check form. Their
+    /// bodies receive ordinary component and contract checks here; independent
+    /// forms also check each template universally. These are not bodyless
+    /// requirements and grant no unchecked guarantees.
     pub applications: Vec<MachineId>,
     /// How many of each machine's scalar formals are value parameters
     /// (`const Units: u64`) left rigid by a generic check form: they are the
@@ -260,14 +257,18 @@ pub struct Elaboration {
     /// Closed instances have none; a nonempty roster cannot be published.
     pub generic_binders: Vec<SymbolHandle>,
     pub generic_storage: Vec<GenericStorageBinding>,
+    /// Complete nominal applications under each open call’s actual const inputs.
+    /// These checking rows cannot grant executable publication.
+    pub nominal_types: Vec<(MachineId, StructuralTypeId)>,
+    pub nominal_calls: Vec<terminal_psi::generic_calls::NominalCallArgument>,
     /// The literals a requirement's value parameters are bound to in the
     /// machine that stands for it, in declaration order: a requirement read
     /// at the static arguments of a call (`Step::apply<7>(x)`), in a generic
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
-    /// The subject's generic machines. Each is a declaration the compilation
-    /// must judge, and none is a machine of this module: a generic body is
+    /// The subject's generic declarations, including data predicates. Each
+    /// must be judged in its own form; none is a machine of this module. A body is
     /// checked once as written, with its parameters rigid, or once per
     /// alternative of a finite family it lists (`elaborate_generic_forms`).
     /// The machines stage 04 generated from them for the program's own

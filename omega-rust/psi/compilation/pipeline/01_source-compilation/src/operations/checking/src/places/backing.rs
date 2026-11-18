@@ -135,6 +135,44 @@ impl Backing {
         let ([parent], [child]) = (self.regions.as_slice(), selected.regions.as_slice()) else {
             return false;
         };
+        Self::region_contains(parent, child)
+    }
+
+    /// Check the physical projections after the descriptor flow has proved
+    /// which lenders the value can carry. Every lender and every projected
+    /// region must occur in that correspondence.
+    pub(super) fn projections_from<'a>(
+        &self,
+        owners: impl Clone + Iterator<Item = &'a Self>,
+    ) -> bool {
+        let projects = |owner: &Self, child: &CapturedRegion| {
+            owner
+                .regions
+                .iter()
+                .any(|parent| Self::region_contains(parent, child))
+        };
+        self.regions
+            .iter()
+            .all(|child| owners.clone().any(|owner| projects(owner, child)))
+            && owners
+                .clone()
+                .all(|owner| self.regions.iter().any(|child| projects(owner, child)))
+    }
+
+    fn region_contains(parent: &CapturedRegion, child: &CapturedRegion) -> bool {
+        if child.place.root != parent.place.root
+            || !child.place.segments.starts_with(&parent.place.segments)
+        {
+            return false;
+        }
+        if !parent
+            .place
+            .segments
+            .iter()
+            .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
+        {
+            return true;
+        }
         let (
             Some(DescriptorCallOrigin::Argument {
                 source: a,
@@ -214,6 +252,16 @@ impl Backing {
     }
 
     /// Possible effect footprints only; this iterator proves no selected identity.
+    /// Each address keeps its capture while an earlier storage version is
+    /// checked. The joined descriptor may not yet exist at that point.
+    pub(super) fn captured_regions(&self) -> impl Iterator<Item = Self> + '_ {
+        self.regions.iter().map(|region| Self {
+            place: region.place.clone(),
+            regions: vec![region.clone()],
+            subject: None,
+        })
+    }
+
     pub(super) fn possible_regions(&self) -> impl Iterator<Item = &Lineage> {
         self.regions.iter().map(|region| &region.place)
     }
@@ -236,6 +284,130 @@ impl StorageAddresses for Backing {
 }
 
 impl<'a> Storage<'a> {
+    /// Retain only ancestors below the same typed borrowed arrival, using
+    /// the current copy operand and a complete single original address.
+    /// This caps solved depth; it gives no new value or selection identity.
+    pub(super) fn borrowed_transfer_depth(
+        &self,
+        tables: &MachineTables,
+        original: &Lineage,
+        backing: &Backing,
+        copied: &Lineage,
+        destination: &Lineage,
+        (block, before): (BlockId, usize),
+        concerns: Construct,
+    ) -> Checked<usize> {
+        let (Some((owner, subject)), [region]) = (&backing.subject, backing.regions.as_slice())
+        else {
+            return Ok(0);
+        };
+        let readable =
+            terminal_semantics::structural_argument_source(self.lowered, original.root, 0)
+                .is_some_and(|parameter| {
+                    matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                });
+        if *owner != block
+            || subject != original
+            || !readable
+            || original == &backing.place
+            || !matches!(
+                &region.origin,
+                Some(DescriptorCallOrigin::Argument { source, projection })
+                    if *source == region.place.root && !projection.indirect && projection.window.is_none()
+            )
+        {
+            return Ok(0);
+        }
+        if !matches!(
+            (self.shape(copied, concerns)?, self.shape(destination, concerns)?),
+            (Shape::Typed(source), Shape::Typed(result)) if source == result
+        ) {
+            return Ok(0);
+        }
+        let Some(prefix) = region
+            .place
+            .segments
+            .strip_suffix(original.segments.as_slice())
+        else {
+            return Ok(0);
+        };
+        if !prefix.iter().all(|step| {
+            matches!(
+                step,
+                Segment::Field(_) | Segment::Case(_) | Segment::FixedIndex(_)
+            )
+        }) {
+            return Ok(0);
+        }
+        let physical_owner = Lineage {
+            root: region.place.root,
+            segments: prefix.to_vec(),
+        };
+        let logical_owner = Lineage {
+            root: original.root,
+            segments: Vec::new(),
+        };
+        if !matches!(
+            (self.shape(&logical_owner, concerns)?, self.shape(&physical_owner, concerns)?),
+            (Shape::Typed(logical), Shape::Typed(physical)) if logical == physical
+        ) {
+            return Ok(0);
+        }
+
+        let leaf = self.shape_with(
+            original.root,
+            &original.segments,
+            concerns,
+            |shape, step| match step {
+                Segment::Field(_) | Segment::Case(_) => Ok(true),
+                Segment::FixedIndex(_) | Segment::RuntimeIndex { .. } => {
+                    let Shape::Typed(ty) = shape else {
+                        return Ok(false);
+                    };
+                    Ok(matches!(
+                        self.declaration(*ty, concerns)?.shape,
+                        StructuralTypeShape::FixedArray { .. }
+                    ))
+                }
+                _ => Ok(false),
+            },
+        )?;
+        if !matches!(leaf, Some(Shape::Scalar(_))) {
+            return Ok(0);
+        }
+        // These selectors are evaluated for this transfer, not compared
+        // with selectors at another point in the reaching walk.
+        for step in &original.segments {
+            let Segment::RuntimeIndex { selector } = step else {
+                continue;
+            };
+            let current = match terminal_check_tables::row(
+                &tables.values,
+                *selector,
+                self.machine,
+                concerns,
+            )?
+            .origin
+            {
+                ValueOrigin::MachineParameter { .. } => true,
+                ValueOrigin::BlockParameter { block: defined, .. } => defined == block,
+                ValueOrigin::Operation(operation) => {
+                    let (defined, position) =
+                        self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                    defined == block && position <= before
+                }
+                ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => false,
+            };
+            if !current {
+                return Ok(0);
+            }
+        }
+        Ok(original.segments.len())
+    }
+
     /// A store and read with the same current index value reach the same
     /// scalar. This supplies its value without proving physical containment,
     /// case membership, establishment or loan authority.

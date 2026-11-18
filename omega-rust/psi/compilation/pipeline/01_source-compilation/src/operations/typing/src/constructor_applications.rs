@@ -244,36 +244,46 @@ pub(crate) fn retain_indexed_operand_types(
             if expression.arena_index() as usize <= frontier {
                 return None;
             }
-            let ExpressionNode::Indexed(indexed) = node else {
+            let ExpressionNode::Indexed(_) = node else {
                 return None;
             };
-            Some((expression, indexed.collection))
+            Some(expression)
         })
         .collect::<Vec<_>>();
     let owners = crate::source_state::references::collect_program_operand_owners(program);
     let mut declared = crate::typing::typing_queries::DeclaredExpressionTypes::default();
-    for (expression, collection) in operands {
-        let Some(owner) = expression_owner(program, &owners, expression) else {
-            continue;
-        };
-        let Some(reference) = declared.get(program, owner, collection) else {
-            continue;
-        };
-        // Keep the original reference, qualifiers and applied arguments. This
-        // supplies neither implicit borrowing nor an operator-selection result.
-        program
-            .expression_table
-            .set_constructed_value_type_reference(collection, reference);
-        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
-        else {
-            unreachable!("collected an indexed expression");
-        };
-        if program.expression_table.range_node(indexed.index).is_some() {
-            // Domain removal has settled since the first formation pass.
-            // Select the builtin from this exact cast result before lowering
-            // can fall back to the original descriptor's source type.
-            retain_builtin_range_type(program, owner, expression, reference)?;
-        }
+    for expression in operands {
+        retain_indexed_operand_type(program, &owners, &mut declared, expression)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn retain_indexed_operand_type(
+    program: &mut TypedTrees,
+    owners: &crate::source_state::references::ProgramOperandOwners,
+    declared: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    expression: ExpressionHandle,
+) -> Result<(), Diagnostic> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        unreachable!("collected an indexed expression");
+    };
+    let collection = indexed.collection;
+    let index = indexed.index;
+    let Some(owner) = expression_owner(program, owners, expression) else {
+        return Ok(());
+    };
+    let Some(reference) = declared.get(program, owner, collection) else {
+        return Ok(());
+    };
+    // Keep the original reference, qualifiers and applied arguments. This
+    // supplies neither implicit borrowing nor an operator-selection result.
+    program
+        .expression_table
+        .set_constructed_value_type_reference(collection, reference);
+    if program.expression_table.range_node(index).is_some() {
+        // Domain removal has settled since the first formation pass. Select
+        // the range from this exact result before a consuming cast reads it.
+        retain_builtin_range_type(program, owner, expression, reference)?;
     }
     Ok(())
 }

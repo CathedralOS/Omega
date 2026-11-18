@@ -1467,6 +1467,9 @@ mod stored_calls {
             DescriptorStoredOrigin::Carried { .. } => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
             }
+            DescriptorStoredOrigin::ProducedContents(_) => eprintln!(
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=opaque-call-result"
+            ),
         }
     }
 
@@ -1688,6 +1691,7 @@ mod stored_calls {
                             DescriptorStoredOrigin::Invocation { .. } => return Err("stored-reference invocation origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::IncomingSlot { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
+                            DescriptorStoredOrigin::ProducedContents(_) => return Err("a generic call result has no concrete reference origin"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
                             DescriptorStoredOrigin::Carried { .. } => return Err("stored-reference carried sequence roster has no physical metadata conversion"),

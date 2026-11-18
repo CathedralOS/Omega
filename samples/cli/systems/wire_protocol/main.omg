@@ -202,8 +202,8 @@ requires remaining_steps <= 128
     requires remaining_steps <= 128
     requires index >= 0 && index < 32 && index < schema.field_count
     {
-        compact_binary.tag = schema.fields[index].number;
-        compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
+        compact_binary.tag = schema.fields[index as -Wrapping].number;
+        compact_binary.plans[index as -Wrapping] = field_plan(&schema.fields[index as -Wrapping].kind, compact_binary.tag);
         transition remaining_steps > 1 { true -> fill(compact_binary, schema, remaining_steps - 1, index + 1) _ -> done(compact_binary, schema) }
     }
     machine done(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan {

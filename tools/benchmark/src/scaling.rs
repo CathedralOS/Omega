@@ -5,7 +5,7 @@
 //! replayed from its first statement, a table rebuilt per query. Each one makes
 //! the cost of a machine grow with the number of other machines, so a compile
 //! goes quadratic. This command measures that directly. It checks the one-line
-//! `Main::main` plus N identical, uncalled machines for each N in `--sizes`,
+//! `main` plus N identical, uncalled machines for each N in `--sizes`,
 //! and compares the cost per added machine in the first and last intervals.
 //! Every machine is checked in full whether or not anything calls it, so a
 //! linear compiler keeps that ratio near 1.
@@ -154,15 +154,15 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
 /// per call (cost per citation then grows with the citations before it).
 fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let build = "machine build(builder: &mut Build) {\n    Build::application(builder, \"machine_count\");\n    builder.freestanding = true;\n}\n";
+    let build = "machine build(builder: &mut Build) {\n    Build::application(builder, \"machine_count\");\n}\n";
     let mut main = String::new();
     match shape {
         Shape::Machines => {
-            main.push_str("data Main {\n    marker: u64;\n}\nmachine Main::main(main: &mut Main) {\n    main.marker = 0;\n}\n");
+            main.push_str("data Main {\n    marker: u64;\n}\nmachine main(main: &mut Main) {\n    main.marker = 0;\n}\n");
             for index in 1..=size {
                 let _ = write!(
                     main,
-                    "machine Main::step_{index}(main: &mut Main) {{\n    main.marker = {index};\n}}\n"
+                    "machine step_{index}(main: &mut Main) {{\n    main.marker = {index};\n}}\n"
                 );
             }
         }

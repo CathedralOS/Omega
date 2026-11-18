@@ -340,3 +340,58 @@ fn known_definitions_preserve_offset_value_identities() {
     assert_eq!(known.definitions.get(ValueId::new(1).unwrap()), None);
     check_all(&known, &context, std::slice::from_ref(&equation), &[]);
 }
+
+#[test]
+fn application_transport_keeps_the_available_equation_prefix_and_carrier() {
+    let application = semantic_vocabulary::ScalarApplicationId::new(1).unwrap();
+    let proposition = Proposition::Equal(
+        ScalarTerm::Application {
+            application,
+            scalar_type: ScalarType::Boolean,
+        },
+        ScalarTerm::Boolean(true),
+    );
+    let facts = [Fact {
+        proposition: proposition.clone(),
+        origin: Origin::Assumption(0),
+        axiom: None,
+    }];
+    let defined = IdTable::default();
+    let mut scratch = TransportInputs::new(1);
+    Known::transport_inputs(&facts, &[0], &proposition, &defined, &mut scratch);
+    assert_eq!(scratch.selected, [0]);
+    Known::transport_inputs(&facts, &[], &proposition, &defined, &mut scratch);
+    assert!(
+        scratch.selected.is_empty(),
+        "a cached definition outside the available prefix supplies no equation"
+    );
+    assert_eq!(
+        scratch.indexed_equations, 1,
+        "shorter prefixes do not rebuild the application lookup"
+    );
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap();
+    let wrong_carrier = Proposition::Equal(
+        ScalarTerm::Application {
+            application,
+            scalar_type: ScalarType::Integer(integer),
+        },
+        ScalarTerm::integer(integer, semantic_vocabulary::IntegerValue::Unsigned(4)).unwrap(),
+    );
+    // An unrelated first equality may be retained as the transport rule's
+    // required input; it must never make the carrier's denotation change.
+    Known::transport_inputs(&facts, &[0], &wrong_carrier, &defined, &mut scratch);
+    assert_eq!(
+        proof_admission::check_value_equality_substitution(
+            &PropositionContext::default(),
+            &wrong_carrier,
+            scratch
+                .selected
+                .iter()
+                .map(|index| &facts[*index].proposition),
+        )
+        .unwrap(),
+        wrong_carrier,
+    );
+}

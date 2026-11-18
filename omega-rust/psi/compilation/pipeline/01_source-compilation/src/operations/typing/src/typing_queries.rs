@@ -925,16 +925,22 @@ impl<'program> DeclaredCallTargets<'program> {
             return receiver.is_none_or(|receiver| static_namespace(program, receiver));
         }
         match program.symbols.get(symbol).kind {
-            // mathematical_bindings.md, "Named mathematical definitions": a
-            // top-level `let` with a parameter telescope is applied by name,
-            // `core::Identity<T>(left, right)`. A module may qualify it; a
-            // value never does.
+            // Named mathematical definitions use their retained source row.
+            // Sealed Identity has its own mathematical statement call form.
+            // A module may qualify either; a value never does.
             SymbolKind::MathematicalDefinition => {
                 return receiver.is_none_or(|receiver| static_namespace(program, receiver))
-                    && self
-                        .mathematical_definitions
-                        .binary_search(&crate::typing::lowerer::symbol_key(symbol))
-                        .is_ok();
+                    && match program.symbols.fixed_core_declaration_for_symbol(symbol) {
+                        // Identity has a mathematical call form among the fixed
+                        // declarations. Binding it judges neither its operands
+                        // nor the statement it forms.
+                        Some(symbols::FixedCoreDeclaration::Identity) => true,
+                        Some(_) => false,
+                        None => self
+                            .mathematical_definitions
+                            .binary_search(&crate::typing::lowerer::symbol_key(symbol))
+                            .is_ok(),
+                    };
             }
             // A compiler operation such as `embed(value)` has one bare name
             // and no qualified or receiver form.
@@ -2706,8 +2712,10 @@ mod tests {
 
     #[test]
     fn a_call_names_each_kind_of_declaration_only_in_its_own_call_form() {
-        use crate::source_symbols::{builtin_function_symbols, builtin_type_symbols};
-        use symbols::BuiltinFunction;
+        use crate::source_symbols::{
+            builtin_function_symbols, builtin_type_symbols, fixed_core_declaration_symbols,
+        };
+        use symbols::{BuiltinFunction, FixedCoreDeclaration};
         let mut symbols = crate::source_symbols::SymbolTableBuilder::default();
         let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
         let children = symbols.insert_children(
@@ -2715,6 +2723,7 @@ mod tests {
             builtin_type_symbols()
                 .into_iter()
                 .chain(builtin_function_symbols())
+                .chain(fixed_core_declaration_symbols())
                 .chain([
                     (
                         SymbolKind::MathematicalDefinition,
@@ -2722,7 +2731,7 @@ mod tests {
                     ),
                     (
                         SymbolKind::MathematicalDefinition,
-                        symbols::SymbolNameRef::Static("undeclared"),
+                        symbols::SymbolNameRef::Static("core::Identity"),
                     ),
                     (
                         SymbolKind::MachineParameter,
@@ -2732,7 +2741,8 @@ mod tests {
                     (SymbolKind::Local, symbols::SymbolNameRef::Static("value")),
                 ]),
         );
-        let declared = symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT;
+        let declared =
+            symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT + FixedCoreDeclaration::COUNT;
         let [identity, undeclared, step, module, value] =
             [0, 1, 2, 3, 4].map(|offset| children.handles().nth(declared + offset).unwrap());
         let mut program = TypedTrees {
@@ -2759,7 +2769,35 @@ mod tests {
         assert!(targets.declares(identity, None));
         assert!(targets.declares(identity, Some(module)));
         assert!(!targets.declares(identity, Some(value)));
+        // An unrelated same-spelling symbol is not the sealed declaration or
+        // an authored definition merely because its label is core::Identity.
         assert!(!targets.declares(undeclared, None));
+        let sealed_identity = program
+            .symbols
+            .fixed_core_declaration_symbol(FixedCoreDeclaration::Identity)
+            .unwrap();
+        assert!(targets.declares(sealed_identity, None));
+        assert!(targets.declares(sealed_identity, Some(module)));
+        assert!(!targets.declares(sealed_identity, Some(value)));
+        assert_eq!(
+            targets.unserved(sealed_identity, CallReceiver::Absent),
+            None
+        );
+        assert_eq!(
+            targets.unserved(sealed_identity, CallReceiver::Named(value)),
+            Some(DeferredRequest::ReceiverCallSelection)
+        );
+        for declaration in FixedCoreDeclaration::ALL {
+            if declaration == FixedCoreDeclaration::Identity {
+                continue;
+            }
+            let symbol = program
+                .symbols
+                .fixed_core_declaration_symbol(declaration)
+                .unwrap();
+            assert!(!targets.declares(symbol, None));
+            assert!(!targets.declares(symbol, Some(module)));
+        }
         // A compiler operation has only its bare name.
         assert!(targets.declares(embed, None));
         assert!(!targets.declares(embed, Some(module)));

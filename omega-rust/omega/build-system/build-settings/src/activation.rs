@@ -63,7 +63,7 @@ use source_compiler::declaration_selection::ProductDeclarationRequest;
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
-    TerminalProgram, TerminalStructuralInputs, TerminalStructuralValue,
+    TerminalProgram, TerminalProjectedHostAtom, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_work::WorkMeter;
 
@@ -113,12 +113,76 @@ impl ReturnedBuild {
     }
 }
 
+// Empty Output values are ordinary assignable data. Only the host-supplied
+// payload, retained separately from their stable storage home, authorizes use.
+struct OriginalOutput {
+    path: Vec<terminal_psi::StructuralPathSegment>,
+    value: TerminalStructuralValue,
+}
+
+impl OriginalOutput {
+    fn new(
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        original: &TerminalStructuralValue,
+    ) -> Result<Self, String> {
+        let home = crate::host::requests::build_facet(artifact, original, "output")?;
+        let declaration = artifact
+            .module()
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == home.structural_type)
+            .ok_or("Build output facet lost its declaration")?;
+        if !matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Record { fields, .. } if fields.is_empty())
+        {
+            return Err("Build output facet requires an empty record declaration".into());
+        }
+        let relative = home
+            .path
+            .strip_prefix(original.path.as_slice())
+            .ok_or("Build output facet lost its original receiver path")?;
+        let (qualifications, projected_qualifications) =
+            terminal_psi::StructuralPathQualification::select(
+                &original.qualifications,
+                &original.projected_qualifications,
+                relative,
+            );
+        // This is the expected token for this stage's checked declaration.
+        // Only binding() publishes it, and resume binds only carried presence.
+        let mut value = TerminalStructuralValue::minted(
+            crate::host::ORIGINAL_OUTPUT_IDENTITY,
+            home.structural_type,
+            qualifications,
+        );
+        value.projected_qualifications = projected_qualifications;
+        Ok(Self {
+            path: relative.to_vec(),
+            value,
+        })
+    }
+
+    fn binding(&self) -> TerminalProjectedHostAtom {
+        TerminalProjectedHostAtom {
+            argument_index: 0,
+            path: self.path.clone(),
+            value: self.value.clone(),
+        }
+    }
+
+    fn is_issued(&self, instance: &TerminalInstance<'_, '_>) -> Result<bool, String> {
+        instance
+            .borrowed_entry_host_atom(0, &self.path)
+            .map(|value| value.as_ref() == Some(&self.value))
+            .map_err(describe)
+    }
+}
+
 pub struct TerminalBuildHost {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
+    output: OriginalOutput,
     requests: Arc<TerminalBuildRequestHost>,
     bindings: Arc<TerminalBuildBindingHost>,
     filesystem: Arc<crate::host::filesystem::TerminalBuildFilesystemHost>,
@@ -176,6 +240,7 @@ impl TerminalBuildHost {
             parameter.qualifications.clone(),
         );
         original.projected_qualifications = parameter.projected_qualifications.clone();
+        let output = OriginalOutput::new(artifact, &original)?;
         let requests = TerminalBuildRequestHost::new(
             artifact,
             produced.build_requests(),
@@ -191,6 +256,7 @@ impl TerminalBuildHost {
         let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
             &produced,
             &original,
+            &output.value,
             account,
             filesystem_scope,
             &machine.name,
@@ -202,6 +268,7 @@ impl TerminalBuildHost {
             providers,
             account: account.clone(),
             original,
+            output,
             requests,
             bindings,
             filesystem,
@@ -219,7 +286,7 @@ impl TerminalBuildHost {
             return Err("Build host has already started its activation".into());
         }
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
-        let instance = self.instantiate(None)?;
+        let instance = self.instantiate(None, true)?;
         let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
@@ -247,6 +314,7 @@ impl TerminalBuildHost {
         }
         let CarriedStage {
             build,
+            output_issued,
             requests,
             demanded_sources,
             helper_accounting,
@@ -258,7 +326,7 @@ impl TerminalBuildHost {
         self.bindings.adopt(binding_host)?;
         let contents =
             build.contents(self.produced.view().module(), self.original.structural_type)?;
-        let instance = self.instantiate(Some(contents))?;
+        let instance = self.instantiate(Some(contents), output_issued)?;
         let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
@@ -277,6 +345,7 @@ impl TerminalBuildHost {
     fn instantiate(
         self: &Arc<Self>,
         contents: Option<Vec<terminal_interpreter::TerminalBoundaryStorageValue>>,
+        output_issued: bool,
     ) -> Result<TerminalInstance<'static, 'static>, String> {
         let artifact = self.produced.view();
         let program = TerminalProgram::retain(self.produced.retain_code());
@@ -346,11 +415,15 @@ impl TerminalBuildHost {
             values,
         });
         let zero_initialized: &[u32] = if contents.is_some() { &[] } else { &[0] };
+        // An absent payload remains absent after stage reconstruction. Its
+        // empty record contents cannot reissue the original Output authority.
+        let output = output_issued.then(|| self.output.binding());
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 structural_inputs: TerminalStructuralInputs {
                     arguments: std::slice::from_ref(&self.original),
                     contents: contents.as_slice(),
+                    projected_host_atoms: output.as_slice(),
                     zero_initialized_arguments: zero_initialized,
                     ..Default::default()
                 },
@@ -402,6 +475,7 @@ impl TerminalBuildHost {
             }
         }
 
+        self.filesystem.set_output_issued(output_issued)?;
         Ok(instance)
     }
 }
@@ -410,6 +484,7 @@ impl TerminalBuildHost {
 /// next stage of the same activation.
 pub(crate) struct CarriedStage {
     build: carried_build::CarriedBuild,
+    output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
     helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
@@ -613,10 +688,12 @@ impl TerminalBuildActivation {
             );
         }
         let build = carried_build::CarriedBuild::capture(&self.instance)?;
+        let output_issued = self.host.output.is_issued(&self.instance)?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
         Ok(CarriedStage {
             build,
+            output_issued,
             requests: self.requests,
             demanded_sources: self.demanded_sources,
             helper_accounting: self.helper_accounting,

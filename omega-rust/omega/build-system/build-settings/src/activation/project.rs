@@ -20,23 +20,15 @@ pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclar
     let mut members = Vec::new();
     let mut artifact_only = false;
     for issued in requests {
-        match issued.request() {
+        let next_role = match issued.request() {
             BuildRequest::Package(name) => {
-                if role.is_some() || !members.is_empty() {
-                    return Err("Build returned duplicate or mixed project roles".into());
-                }
-                role = Some(BuildDeclaration::Package(PackageDeclaration {
-                    name: name.clone(),
-                }));
+                BuildDeclaration::Package(PackageDeclaration { name: name.clone() })
             }
             BuildRequest::Application(name) => {
-                if role.is_some() || !members.is_empty() {
-                    return Err("Build returned duplicate or mixed project roles".into());
-                }
-                role = Some(BuildDeclaration::Application(ApplicationDeclaration {
+                BuildDeclaration::Application(ApplicationDeclaration {
                     name: name.clone(),
                     artifact_only: false,
-                }));
+                })
             }
             BuildRequest::Member(path) => {
                 if role.is_some() {
@@ -49,14 +41,39 @@ pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclar
                     ));
                 }
                 members.push(path.clone());
+                continue;
             }
             BuildRequest::ArtifactOnly => {
                 if artifact_only {
                     return Err("Build requested artifact-only output more than once".into());
                 }
                 artifact_only = true;
+                continue;
             }
-            BuildRequest::Dependency { .. } => {}
+            BuildRequest::Dependency { .. } => continue,
+        };
+        match (&role, &next_role) {
+            (Some(BuildDeclaration::Package(previous)), BuildDeclaration::Package(next)) => {
+                return Err(format!(
+                    "Build declared the package project role more than once (`{}` and `{}`)",
+                    previous.name.as_str(),
+                    next.name.as_str()
+                ));
+            }
+            (
+                Some(BuildDeclaration::Application(previous)),
+                BuildDeclaration::Application(next),
+            ) => {
+                return Err(format!(
+                    "Build declared the application project role more than once (`{}` and `{}`)",
+                    previous.name.as_str(),
+                    next.name.as_str()
+                ));
+            }
+            _ if role.is_some() || !members.is_empty() => {
+                return Err("Build returned mixed project roles".into());
+            }
+            _ => role = Some(next_role),
         }
     }
     if !members.is_empty() {

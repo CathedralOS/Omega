@@ -506,7 +506,7 @@ pub(crate) mod target_layouts {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AdmittedTargetLayouts {
         terminal_psi: TerminalPsiIdentity,
-        target: String,
+        target: layout_plans::LayoutTargetFacts,
         closures: Vec<TargetLayoutClosure>,
         records: Vec<StructuralTypeDeclaration>,
         lifecycles: Vec<terminal_psi::TerminalAccessLifecyclePlan>,
@@ -516,6 +516,11 @@ pub(crate) mod target_layouts {
             self.terminal_psi
         }
         pub fn target(&self) -> &str {
+            &self.target.profile
+        }
+        /// The exact facts validated at admission, including when the
+        /// artifact has no layout applications or lifecycle rows.
+        pub fn target_facts(&self) -> &layout_plans::LayoutTargetFacts {
             &self.target
         }
         pub fn closures(&self) -> &[TargetLayoutClosure] {
@@ -720,7 +725,7 @@ pub(crate) mod target_layouts {
         }
         Ok(AdmittedTargetLayouts {
             terminal_psi: artifact.identity(),
-            target: selections.target().to_owned(),
+            target: target.clone(),
             closures,
             records,
             lifecycles,

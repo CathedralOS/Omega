@@ -79,13 +79,15 @@ instructions, with a proof-neutral entry marker for an ensures-only block.
 Checked assertions use exact block-point flow facts and refuse stale
 postconditions whose places were written.
 
-The current source checker constructs `AsmAuthorityAdmission` from
-`Build.freestanding` for the entire build. Its `privileged_services.port_io`
-and `privileged_services.interrupt_table` flags select narrower classes.
-The [hardware authority decision](../../../../../wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
-retires the global flag and requires each output's target and provider
-contracts to cover the instruction. The [code repair queue](../../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
-tracks this change and the interrupt-mask reach correction.
+Product and source-only preparation no longer carry the unused build-wide
+`AsmAuthorityAdmission` record. The [hardware authority contract](../../../../../wiki/spec/build/permissions.md#where-the-operation-can-run)
+requires each selected output's target to support the instruction and its
+selected provider contracts to cover the required authority. The legacy
+`Build.freestanding` field remains accepted during authored Build migration.
+Mixed firmware/hosted acceptance
+with a selected controller remains unproved. The [code repair queue](../../../../../OWNER_CODE_CONCERNS.md#a-build-wide-flag-admits-machine-control-for-every-output)
+tracks that acceptance, remaining authored-field migration and interrupt-mask
+reach correction.
 A source gate, catalog row, parser test or instruction encoder is not evidence
 for the final artifact or native execution.
 

@@ -15,7 +15,6 @@ access-vocabulary = { path = "../../representations/access-vocabulary" }
 declaration-contracts = { path = "../../representations/declaration-contracts" }
 schema-reflection = { path = "../../representations/schema-reflection" }
 application-identity = { path = "../../representations/application-identity" }
-storage-access = { path = "../../../runtime/storage-access" }
 layout-planning = { path = "../../layout-planning" }
 numeric-literals = { path = "../../representations/numeric-literals" }
 evaluation-contracts = { path = "../../../evaluation/evaluation-contracts" }

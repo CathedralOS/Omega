@@ -631,10 +631,10 @@ fn validate_scalar_call(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    if matches!(
-        kind.call_target(),
-        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
-    ) {
+    if kind
+        .call_target()
+        .is_some_and(|target| target.indirect_code_offset().is_some())
+    {
         let (bytes, footprint) = encoded_row(row, encoded)?;
         let views = operand_views(machine);
         let (expected_bytes, effects) = match target.architecture {

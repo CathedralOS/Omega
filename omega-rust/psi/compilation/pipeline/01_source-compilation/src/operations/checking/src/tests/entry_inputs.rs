@@ -138,6 +138,37 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
 }
 
 #[test]
+fn a_complete_byte_check_does_not_become_a_helper_requirement() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/inferred_branch_inputs/main.omg"
+    ));
+    let (typed, _) = crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(source),
+        &crate::preparation::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::build_purpose::symbol(&typed, "main");
+    let prepared = crate::lowering::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[None],
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    let verdicts = crate::checking::judge_compilation(prepared.program);
+    assert!(
+        !verdicts.is_empty()
+            && verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
 machine entry(bytes: &[u8], other: &[u8], index: u64) -> u8 {
@@ -318,6 +349,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     }
     let mut elaboration =
         crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
+    declare_body_models(&mut elaboration, &signatures);
     elaboration.private_inputs = vec![id(2)];
     let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
         panic!("the non-returning call has a positive input")
@@ -374,13 +406,11 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         signatures
     };
     let judged = |entry_requires| {
-        let mut elaboration = crate::lowering::lower_bodies(
-            id(1),
-            &bodies,
-            &signatures(entry_requires),
-            &IdTable::default(),
-        )
-        .unwrap();
+        let signatures = signatures(entry_requires);
+        let mut elaboration =
+            crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+                .unwrap();
+        declare_body_models(&mut elaboration, &signatures);
         elaboration.private_inputs = vec![id(2)];
         judge(Ok(elaboration)).unwrap()
     };
@@ -579,7 +609,7 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
                 }}
                 machine fetch(input: &mut Input) -> u32 {contract} {{
                     {write}
-                    let found: u32 = input.values[input.index];
+                    let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
                     transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
                 }}

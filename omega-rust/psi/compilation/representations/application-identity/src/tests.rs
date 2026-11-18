@@ -177,7 +177,7 @@ mod array_extent_identity {
 mod type_identity {
     use crate::type_identity::{
         TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, malformed_identity_offset,
-        visit_type_identity_package_owners,
+        validate_source_type_description, visit_type_identity_package_owners,
     };
 
     struct PackageOwnerCounter {
@@ -238,6 +238,20 @@ mod type_identity {
             .expect("type and const arguments may share one application");
         let malformed = r"generic(name(compiler-type\(atom\(u8\)\)),conformance(x))";
         assert!(visit_type_identity_package_owners(malformed, &mut counter).is_err());
+    }
+
+    #[test]
+    fn source_type_description_reads_an_open_toolchain_application() {
+        let description = concat!(
+            r"generic(name(nominal\(toolchain-owner\,path\(Buffer\)\)),named(name(u32)),",
+            r"const-name(nominal\(toolchain-owner\,path\(accept::N\)\)))",
+        );
+        assert_eq!(validate_source_type_description(description), Ok(()));
+        let mut counter = PackageOwnerCounter { owners: 0 };
+        assert!(visit_type_identity_package_owners(description, &mut counter).is_err());
+        assert!(validate_source_type_description(&format!("{description}!")).is_err());
+        let unresolved = description.replace("toolchain-owner", "unresolved-owner");
+        assert!(validate_source_type_description(&unresolved).is_err());
     }
 
     #[test]

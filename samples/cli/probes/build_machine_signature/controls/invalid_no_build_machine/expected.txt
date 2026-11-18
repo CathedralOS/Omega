@@ -1,1 +1,1 @@
-cannot resolve declared package closure: cannot resolve root package: cannot establish package declaration: build must declare exactly one kind through `Build::package`, `Build::application`, or one or more `Build::member` statements
+selected Build source requires exactly one free build entry

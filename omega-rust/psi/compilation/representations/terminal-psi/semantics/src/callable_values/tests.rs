@@ -817,3 +817,89 @@ fn callable_reborrows_do_not_erase_declaration_requirements() {
     second.shape = first.shape.clone();
     assert!(refuses(&[first.clone(), second]));
 }
+
+fn diagnostic_boundary_call(boundary: BoundaryMachineId) -> Operation {
+    Operation::unsuspended(
+        operation_id(1),
+        OperationResult::Unit,
+        O::BoundaryCall {
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+    )
+}
+
+#[test]
+fn terminal_projection_keeps_the_missing_boundary_error_context() {
+    let mut module = module();
+    let missing = BoundaryMachineId::new(2).unwrap();
+    let mut entry = machine(1);
+    entry.blocks[0]
+        .operations
+        .push(diagnostic_boundary_call(missing));
+    module.machines.push(entry);
+    let failure = terminal_callable_values_with_error_context(&module)
+        .err()
+        .expect("the actual malformed flow must refuse");
+    assert!(matches!(
+        &failure,
+        CallableValuePreparationError::StorageFlow(_)
+    ));
+    assert_eq!(failure.missing_boundary(&module), Some(missing));
+    assert_eq!(
+        terminal_callable_values(&module).err().unwrap(),
+        failure.in_module(&module)
+    );
+}
+
+#[test]
+fn missing_boundary_context_uses_the_guarded_point_without_redirecting_duplicate_ids() {
+    use crate::descriptor_results::DescriptorGraphError;
+    let mut module = module();
+    let missing = BoundaryMachineId::new(2).unwrap();
+    let present = BoundaryMachineId::new(1).unwrap();
+    let mut entry = machine(1);
+    // This is a diagnostic metadata control, not an accepted source program.
+    // The recorded second operation must not be redirected to the first ID.
+    entry.blocks[0].operations = vec![
+        diagnostic_boundary_call(missing),
+        diagnostic_boundary_call(present),
+    ];
+    module.machines.push(entry);
+    module.boundary_machines.push(boundary(1, false));
+    let failure = |index| {
+        CallableValuePreparationError::StorageFlow(DescriptorGraphError::IncompleteMachine {
+            machine: machine_id(1),
+            position: Some((BlockId::new(1).unwrap(), index)),
+            successor: None,
+            detail: None,
+        })
+    };
+    assert_eq!(failure(0).missing_boundary(&module), Some(missing));
+    assert_eq!(failure(1).missing_boundary(&module), None);
+    assert_eq!(
+        failure(2).missing_boundary(&module),
+        None,
+        "a terminator is not an operation"
+    );
+
+    let mut ambiguous_block = module.clone();
+    let duplicate = ambiguous_block.machines[0].blocks[0].clone();
+    ambiguous_block.machines[0].blocks.push(duplicate);
+    assert_eq!(failure(0).missing_boundary(&ambiguous_block), None);
+    let mut ambiguous_machine = module.clone();
+    ambiguous_machine
+        .machines
+        .push(ambiguous_machine.machines[0].clone());
+    assert_eq!(failure(0).missing_boundary(&ambiguous_machine), None);
+    let unlocated = CallableValuePreparationError::StorageFlow(
+        DescriptorGraphError::MissingOrAmbiguousMachine(machine_id(1)),
+    );
+    assert_eq!(unlocated.missing_boundary(&module), None);
+    let text: CallableValuePreparationError = "unchanged projection failure".into();
+    assert_eq!(text.missing_boundary(&module), None);
+    assert_eq!(text.in_module(&module), "unchanged projection failure");
+}

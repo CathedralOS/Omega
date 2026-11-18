@@ -9,7 +9,6 @@ pub struct UnbuiltSourceInputs<'a> {
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub freestanding: bool,
 }
 
 pub fn prepare_unbuilt_frontier(
@@ -91,11 +90,6 @@ pub fn prepare_unbuilt_frontier(
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
             representations: crate::ProductRepresentationInput::default(),
-            asm_authority: Some(
-                language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
-                    input.freestanding,
-                ),
-            ),
             wire_demands: &[],
             declarations: None,
         },

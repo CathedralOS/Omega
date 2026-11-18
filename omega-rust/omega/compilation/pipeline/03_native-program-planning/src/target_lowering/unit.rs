@@ -731,6 +731,32 @@ pub(crate) mod boundary_call {
                     .as_ref()
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let shape = home.layout.shape();
+                if let Some(codec) =
+                    target_operations::TargetBoundaryResult::declared_reference_codec(
+                        result.structural_type,
+                        |id| structural_types.get(id).copied(),
+                    )
+                {
+                    let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                    if shape
+                        != calling_conventions::ValueShape::integer(
+                            descriptor.byte_size,
+                            descriptor.alignment,
+                        )
+                        || placement.shape
+                            != calling_conventions::ValueShape::integer(
+                                descriptor.address_byte_size,
+                                descriptor.alignment,
+                            )
+                        || !placement.is_complete_scalar_result()
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    return Ok(target_operations::TargetBoundaryResult::ScalarReference {
+                        home,
+                        codec,
+                    });
+                }
                 if placement.locations.is_empty()
                     || placement.shape.byte_size != shape.byte_size
                     || placement.shape.alignment != shape.alignment

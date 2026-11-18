@@ -67,6 +67,7 @@ mod known;
 mod machine_batch;
 mod machine_inputs;
 mod minted;
+mod nominal_calls;
 mod operational;
 mod owned_cleanup;
 mod places;
@@ -1033,7 +1034,7 @@ fn check_prepared_machine(
     let mut uses = storage.uses(references, tables, empty_contracts, inhabitation)?;
     // Byte-domain establishments are judged from their actual source at the
     // producer, including qualified transfers whose result is never consumed.
-    for judged in storage.byte_predicate_establishments(module)? {
+    for judged in storage.byte_predicate_establishments(module, references)? {
         match uses.iter_mut().find(|used| used.at == judged.at) {
             Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
             Some(_) => {}
@@ -1174,7 +1175,7 @@ fn fill_knowledge<'a>(
     }
     for block in &lowered.blocks {
         for operation in &block.operations {
-            if let Some(equation) = result_equation(id, operation, types)? {
+            if let Some(equation) = result_equation(module, id, operation, types)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1198,7 +1199,7 @@ fn fill_knowledge<'a>(
                 .read_premises(references, tables, operation)?
                 .into_iter()
                 .chain(storage.returned_type_premises(references, tables, operation)?)
-                .chain(storage.subslice_predicate_premises(operation)?)
+                .chain(storage.subslice_predicate_premises(references, operation)?)
             {
                 push_knowledge(
                     tables,
@@ -1461,7 +1462,8 @@ fn with_prepared_machine<Outcome>(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
-    let reference_graph = places::reference_graph(module, id)?;
+    let reference_graph =
+        places::reference_graph_with_nominal_calls(module, id, formed.nominal_calls())?;
     let (context, ranking_bindings, result) = {
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
@@ -1642,10 +1644,24 @@ fn semantics_refusal(
 /// Terminal semantics states it, or `None` for an operation with none (a
 /// call).
 fn result_equation(
+    module: &TerminalModule,
     machine: MachineId,
     operation: &terminal_psi::Operation,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Option<Proposition>> {
+    if let Some(equation) =
+        terminal_semantics::scalar_application_read_equation(&module.scalar_applications, operation)
+            .map_err(|reason| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Operation(operation.id),
+                    reason,
+                )
+            })?
+    {
+        return Ok(Some(equation));
+    }
     let refuse = semantics_refusal(machine, operation.id);
     if let Some(semantics) =
         terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
@@ -2509,7 +2525,7 @@ fn verify_certificate(
         },
         assumptions,
         axioms,
-        EvidenceRoute::CertificateDerived(certificate.clone()),
+        EvidenceRoute::CertificateDerived(certificate.as_ref()),
     )
     .map_err(|error| {
         unproved(
@@ -2640,7 +2656,7 @@ pub fn derive_contract_obligation(
         },
         &[],
         &[],
-        EvidenceRoute::CertificateDerived(certificate.clone()),
+        EvidenceRoute::CertificateDerived(certificate.as_ref()),
     )
     .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
     Ok(certificate)

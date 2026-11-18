@@ -2393,10 +2393,6 @@ pub(crate) mod replay {
                     })
                 }
 
-                pub(crate) fn geometry(&self) -> &NativeGeometry<'a> {
-                    &self.layouts
-                }
-
                 pub(crate) fn value_shape(&mut self, root: StructuralTypeId) -> Option<ValueShape> {
                     self.layouts.shape(root).ok()
                 }

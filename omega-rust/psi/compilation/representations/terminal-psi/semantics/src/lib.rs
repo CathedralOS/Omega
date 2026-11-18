@@ -568,8 +568,9 @@ pub use bytes::byte_sequence_predicates::{
     byte_qualification_predicates_in, byte_sequence_argument_predicates,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
     byte_subslice_is_whole, byte_transfer_qualifications_hold, byte_view_call_result,
-    indexed_byte_store_goal, pure_byte_qualifications, scalar_array_qualifications_hold,
-    scalar_operation_literal, scalar_operation_origin, shared_byte_field_copy_predicates,
+    incoming_byte_sequence_argument_predicates, indexed_byte_store_goal, pure_byte_qualifications,
+    scalar_array_qualifications_hold, scalar_operation_literal, scalar_operation_origin,
+    shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
@@ -725,7 +726,9 @@ pub use structural::structural_effect::{
     ElementViewLeaf, element_view_leaf, element_view_write_goal,
 };
 
-pub use scalars::scalar_observations::structural_read_scalar_type;
+pub use scalars::scalar_observations::{
+    scalar_application_read_equation, structural_read_scalar_type,
+};
 
 pub use access::access_ram_origins::{
     AccessRamFormation, AccessRamOrigin, AccessRamOriginAnalysis,

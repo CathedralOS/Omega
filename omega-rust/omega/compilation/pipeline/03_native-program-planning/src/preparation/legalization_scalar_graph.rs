@@ -253,6 +253,7 @@ pub(crate) mod address_joins {
                                 root,
                                 &binding.argument.path,
                                 binding.argument.access,
+                                Some(declaration.structural_type),
                             )
                         })
                         .is_some_and(|referent| referent == declaration.structural_type)
@@ -291,7 +292,9 @@ pub(crate) mod address_joins {
         if let Some(source) = function.structural_parameter(place) {
             return permitted(source).then_some(source.structural_type);
         }
-        if let Some((owner, joined)) = parameter(function, place, plan) {
+        if let Some((owner, joined)) =
+            super::aggregate_results::borrowed_block_arrival(function, place, plan)
+        {
             return ((owner == block || dominates(function, owner, block)) && permitted(joined))
                 .then_some(joined.structural_type);
         }
@@ -4054,27 +4057,46 @@ pub(crate) mod normalized_foreign {
                         plan.geometry(),
                     )
                     .ok_or(LegalizationError::custody())?;
-                let shape = calling_conventions::classified_boundary_shape(
-                    result.structural_type,
-                    plan.geometry(),
-                    policy,
-                )
-                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-                Ok((
-                    TargetBoundaryResult::Structural(
-                        target_operations::TargetStructuralHomeRequirement {
-                            origin:
-                                target_operations::TargetStructuralHomeOrigin::OperationResult {
-                                    operation,
-                                    result: result.clone(),
-                                },
-                            layout: target_operations::TargetStructuralHomeLayout::Aggregate(
-                                storage,
-                            ),
-                        },
-                    ),
-                    Some(shape),
-                ))
+                let codec =
+                    TargetBoundaryResult::declared_reference_codec(result.structural_type, |id| {
+                        plan.geometry().declaration(id).ok()
+                    });
+                let shape = if codec.is_some() {
+                    let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                    ValueShape::integer(descriptor.address_byte_size, descriptor.alignment)
+                } else {
+                    calling_conventions::classified_boundary_shape(
+                        result.structural_type,
+                        plan.geometry(),
+                        policy,
+                    )
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?
+                };
+                let home = target_operations::TargetStructuralHomeRequirement {
+                    origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                        operation,
+                        result: result.clone(),
+                    },
+                    layout: target_operations::TargetStructuralHomeLayout::Aggregate(storage),
+                };
+                let result = match codec {
+                    Some(codec) => {
+                        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        if storage
+                            != ValueShape::integer(descriptor.byte_size, descriptor.alignment)
+                            || shape
+                                != ValueShape::integer(
+                                    descriptor.address_byte_size,
+                                    descriptor.alignment,
+                                )
+                        {
+                            return Err(LegalizationError::custody());
+                        }
+                        TargetBoundaryResult::ScalarReference { home, codec }
+                    }
+                    None => TargetBoundaryResult::Structural(home),
+                };
+                Ok((result, Some(shape)))
             }
             _ => Err(LegalizationError::custody()),
         }
@@ -9271,7 +9293,11 @@ mod diagnostic_tests {
             identities: Default::default(),
             functions: Vec::new(),
         };
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
+            &[],
+            target::NativeTarget::linux_x64(),
+        )
+        .unwrap();
         let input =
             crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
         let machine = MachineId::new(7).unwrap();

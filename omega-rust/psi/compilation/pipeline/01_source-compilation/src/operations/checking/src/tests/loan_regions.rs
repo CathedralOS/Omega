@@ -225,14 +225,10 @@ machine build_entry(cell: &Cell) {{
     assert_eq!(verdict(&source.replacen("&local", "cell", 1)), "accepted");
 }
 
-/// Where a reference that may be backed by either of two inputs still
-/// stops. The reader types each of these; the checker's place model
-/// resolves a reference to one backing and the published result contract
-/// names one input root, so a value that may borrow either is refused by
-/// name until both carry every possible source (lifetimes.md: "an unresolved
-/// dynamic selection conservatively retains all possible sources").
+/// A return still needs a result contract naming its possible input
+/// lenders. Local writes use the borrow that arrived on the chosen edge.
 #[test]
-fn a_reference_backed_by_either_of_two_inputs_is_refused_by_name() {
+fn a_reference_backed_by_either_of_two_inputs_is_refused_by_name_when_returned() {
     let returned = run(&format!(
         r#"{CELLS}{SELECTED}
 machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
@@ -256,13 +252,10 @@ machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
 }}
 {ENTRY}"#
     ));
-    // The refusal names its cause first, then where it stopped (#3491).
-    let joined = joined.unwrap_err();
-    assert!(
-        joined.starts_with("reference use without exact live backing correspondence for machine ")
-            && joined.contains("checking StructuralScalarFieldStore")
-            && joined.contains("declaration named-callable(")
-            && joined.contains("journey"),
-        "{joined}"
+    assert_eq!(
+        joined,
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
     );
 }

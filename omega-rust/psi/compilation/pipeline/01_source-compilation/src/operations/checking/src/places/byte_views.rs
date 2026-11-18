@@ -9,8 +9,9 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
-    Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralPathSegment, StructuralTypeShape,
+    ArrayExtent, ByteSequenceCarrier, Operation, OperationKind, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 /// What a `WholeRepresentation` formation measured and how it scales.
@@ -25,6 +26,15 @@ fn count_type() -> ScalarType {
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .expect("u64 is valid"),
     )
+}
+
+fn is_plain_byte_element(element: &StructuralTypeDeclaration) -> bool {
+    element.requires.is_empty()
+        && element.scalar_restriction.is_none()
+        && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if !integer.is_address()
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                && integer.bits() == Some(8))
 }
 
 impl<'a> Storage<'a> {
@@ -326,7 +336,7 @@ impl<'a> Storage<'a> {
         &self,
         operation: &Operation,
     ) -> Checked<terminal_semantics::CollectionExtent> {
-        use terminal_psi::{ByteSequenceCarrier, ElementViewRegion, StructuralPathQualification};
+        use terminal_psi::{ElementViewRegion, StructuralPathQualification};
         let concerns = Construct::Operation(operation.id);
         let (destination, source, element, region, access, multiplicity) = match &operation.kind {
             OperationKind::EstablishElementView {
@@ -495,11 +505,7 @@ impl<'a> Storage<'a> {
             backing.extent,
             terminal_semantics::CollectionExtent::Parameter { .. }
         ) {
-            let element_type = self.declaration(element, concerns)?;
-            let is_byte = element_type.requires.is_empty()
-                && element_type.scalar_restriction.is_none()
-                && matches!(element_type.shape, terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                    if !integer.is_address() && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8));
+            let is_byte = is_plain_byte_element(self.declaration(element, concerns)?);
             if typed == is_byte
                 || source.path.iter().any(|segment| {
                     matches!(
@@ -1075,27 +1081,39 @@ impl<'a> Storage<'a> {
                         self.unsupported(concerns, "a shared subslice has no captured backing path")
                     })?;
                     let root = self.root_type(source, concerns)?;
-                    let fixed = if let Some(element) = element {
-                        let backing = terminal_semantics::runtime_structural_path_tip(
-                            self.types.iter(),
-                            root,
-                            &enclosing.path,
-                        );
-                        backing.is_some_and(|declaration| {
-                            matches!(declaration.shape, StructuralTypeShape::FixedArray {
-                                element: backing,
-                                length: terminal_psi::ArrayExtent::Literal(length),
-                            } if backing == element && length != 0)
-                        })
-                    } else {
-                        terminal_semantics::fixed_byte_storage_window(
-                            self.types.iter(),
-                            root,
-                            &enclosing.path,
-                        )
-                        .is_some()
+                    let backing = terminal_semantics::runtime_structural_path_tip(
+                        self.types.iter(),
+                        root,
+                        &enclosing.path,
+                    );
+                    let matching_backing = match backing.map(|declaration| &declaration.shape) {
+                        Some(StructuralTypeShape::FixedArray {
+                            element: backing_element,
+                            length,
+                        }) => {
+                            // The view already measured this array. Its const
+                            // parameter belongs to this activation, and the
+                            // separate bounds proof checks the chosen range.
+                            let local_extent = match length {
+                                ArrayExtent::Literal(length) => *length != 0,
+                                ArrayExtent::Parameter { owner, .. } => *owner == self.machine,
+                                ArrayExtent::Application(_) => false,
+                            };
+                            let matching_element = match element {
+                                Some(element) => *backing_element == element,
+                                None => is_plain_byte_element(
+                                    self.declaration(*backing_element, concerns)?,
+                                ),
+                            };
+                            local_extent && matching_element
+                        }
+                        Some(StructuralTypeShape::ByteSequence(
+                            ByteSequenceCarrier::BoundedView { .. },
+                        )) => !typed,
+                        _ => false,
                     };
-                    fixed && self.descriptor_access(source, &enclosing.path, concerns, access)?
+                    matching_backing
+                        && self.descriptor_access(source, &enclosing.path, concerns, access)?
                 }
                 DescriptorCallOrigin::Literal { machine, place }
                     if !typed && access == StructuralAccess::SharedBorrow =>

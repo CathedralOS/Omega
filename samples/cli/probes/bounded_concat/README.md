@@ -8,13 +8,12 @@ has length 7, then traps if either check fails.
 
 The [Build file](build.omg) selects an entry for all four hosted targets.
 
-The source still calls undeclared `ascii_only`. It needs an ordinary checked
-ASCII predicate, explicit qualification under the current
-[domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains),
-and checker support for its fixed-array and qualified copy/view contracts.
-[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks that
-remaining work. The source and its oracle remain in place; no successful check
-or native/Psi execution is claimed.
+The probe uses Core's `ascii_only` predicate. Its slices and indexed writes need
+explicit casts under the current
+[domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains).
+The checker still loses the ASCII proof when a slice borrows a fixed array through a cast.
+[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks the
+remaining work.
 
 Reproduce the outstanding check and execution requirements with:
 

@@ -773,7 +773,6 @@ dependencies = [
  "target-x86_64",
  "task-plans",
  "terminal-psi",
- "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
@@ -1471,7 +1470,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "source-compiler",
  "symbols",
  "target",
  "target-operations",
@@ -1687,15 +1685,11 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "arena",
  "bounded-process",
- "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
- "source-admission",
- "source-compiler",
 ]
 
 [[package]]
@@ -2624,7 +2618,6 @@ dependencies = [
  "source-parser",
  "source-syntax",
  "source-text",
- "storage-access",
  "symbols",
  "syntax-trees",
  "terminal-check-tables",
@@ -2809,7 +2802,6 @@ dependencies = [
  "target-vocabulary",
  "task-plans",
  "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -2978,6 +2970,7 @@ dependencies = [
  "extents",
  "language-core",
  "native-provider-runtime",
+ "native-provider-sponsor",
  "numerics",
  "orchestration",
  "platform-custody",
@@ -3017,7 +3010,6 @@ dependencies = [
  "schema-reflection",
  "semantic-vocabulary",
  "source-text",
- "storage-access",
  "terminal-psi",
  "wire",
 ]

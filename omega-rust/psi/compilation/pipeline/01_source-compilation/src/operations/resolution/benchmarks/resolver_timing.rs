@@ -11,6 +11,7 @@ use source_compiler::source_inputs::SourceMap;
 use source_compiler::source_resolved::SymbolResolvedTrees;
 use source_compiler::source_symbols::SourceScopedTopLevelBinding;
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::Write;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 use std::sync::Arc;
@@ -37,6 +38,24 @@ impl Package {
         };
         let mut imports = Vec::new();
         match case {
+            "reach" => {
+                add(
+                    "pkg/main.omg",
+                    include_str!(
+                        "../../../../../../../../../tests/fixtures/pass/effects/optional_reach_declared_slack_exit/main.omg"
+                    ),
+                )?;
+            }
+            name if name.starts_with("machines-") => {
+                let count = name["machines-".len()..]
+                    .parse::<std::num::NonZeroUsize>()
+                    .map_err(|error| format!("machine count: {error}"))?;
+                let mut text = String::from("public machine main() -> u64 { 7u64 }\n");
+                for ordinal in 1..count.get() {
+                    writeln!(text, "machine spare_{ordinal}() -> u64 {{ 1u64 }}").unwrap();
+                }
+                add("pkg/main.omg", &text)?;
+            }
             "tiny" => {
                 add("pkg/main.omg", "public machine main() -> u64 { 7u64 }")?;
             }
@@ -97,6 +116,15 @@ fn fingerprint(
 ) -> u64 {
     let mut hash = DefaultHasher::new();
     for machine in trees.machines.iter() {
+        machine.service_reach_row.hash(&mut hash);
+        trees
+            .service_reach_rows
+            .services(machine.service_reach_row)
+            .hash(&mut hash);
+        trees
+            .service_reach_rows
+            .is_abstract(machine.service_reach_row)
+            .hash(&mut hash);
         machine.name.as_str().hash(&mut hash);
         machine.symbol.hash(&mut hash);
         trees
@@ -115,6 +143,12 @@ fn fingerprint(
             call.target.source_span().hash(&mut hash);
             call.target_symbol.hash(&mut hash);
         }
+    }
+    for definition in trees.service_reaches.definitions().iter() {
+        format!("{definition:?}").hash(&mut hash);
+    }
+    for row in &trees.authored_service_reach_rows {
+        format!("{row:?}").hash(&mut hash);
     }
     for selection in trees.authored_declaration_selections().iter() {
         format!("{selection:?}").hash(&mut hash);
@@ -166,7 +200,7 @@ fn measure() -> Result<(), String> {
         .filter(|s| s != "--bench")
         .collect();
     let [operation, case, repeats] = args.as_slice() else {
-        return Err("usage: resolver_timing <full|deferred|body|extension> <tiny|imports|generics> <repeats>".into());
+        return Err("usage: resolver_timing <full|deferred|body|extension> <tiny|imports|generics|reach|machines-N> <repeats>".into());
     };
     let repeats = repeats.parse::<u64>().map_err(|e| e.to_string())?;
     if repeats == 0 {
