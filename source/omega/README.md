@@ -66,9 +66,11 @@ start, entry-name end, and byte-buffer length. The header is followed by:
 All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
-apply. Only the source parser creates modules, from module declarations; no
-filename creates one, and an unsupported module declaration must be refused,
-not ignored. The current limits are 64 packages, 256 direct dependencies, 512
+apply. The current source-unit row omits the path, so this framing cannot
+distinguish two package directories. Implementing
+[directory namespaces](../../wiki/spec/language/modules.md#directory-namespaces)
+requires carrying each unit's logical package-relative path from the producer
+to the resolver. The current limits are 64 packages, 256 direct dependencies, 512
 units, 4 MiB of source and 128 KiB per unit, and 256 bytes per name or alias.
 These are resource limits, not language rules.
 
