@@ -133,6 +133,20 @@ pub fn finalize_callable_refinements(
             )
         })?;
     }
+    terminal_semantics::calls::callable_refinement::validate_callable_result_refinements(module)
+        .map_err(|error| {
+            crate::checking::refusal(
+                RefusalReason::ForeignIdentity,
+                error
+                    .machine
+                    .or_else(|| module.machines.first().map(|machine| machine.id))
+                    .unwrap_or_else(|| {
+                        semantic_vocabulary::MachineId::new(1).expect("first machine identity")
+                    }),
+                Construct::Machine,
+                &error.detail,
+            )
+        })?;
     let mut prepared = Vec::with_capacity(module.callables.descriptors.len());
     for descriptor in &module.callables.descriptors {
         let refuse = |reason, detail: &str| {

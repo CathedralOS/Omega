@@ -11977,6 +11977,11 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_callable_contracts(module)?;
+    terminal_semantics::calls::callable_refinement::validate_callable_result_refinements(module)
+        .map_err(|error| CodecError::MalformedCallableResult {
+            machine: error.machine,
+            reason: error.detail,
+        })?;
     terminal_semantics::nominal_cleanup::validate_selections(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::nominal_cleanup::validate_normal_returns(module)

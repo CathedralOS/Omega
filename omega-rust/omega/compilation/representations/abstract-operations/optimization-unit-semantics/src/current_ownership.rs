@@ -97,6 +97,7 @@ pub(crate) mod address_joins {
                             functions,
                             call_accesses.boundaries(),
                             call_accesses.dynamic_dispatch,
+                            call_accesses.callables,
                             types,
                         )
                     });
@@ -153,6 +154,7 @@ pub(crate) mod address_joins {
                 functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
                 boundaries: &[&terminal_psi::BoundaryMachineDeclaration],
                 dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+                callables: &terminal_psi::TerminalCallableCatalog,
                 types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
             ) -> Self {
                 let declarations = types.values().copied().cloned().collect::<Vec<_>>();
@@ -165,6 +167,7 @@ pub(crate) mod address_joins {
                     boundaries.iter().copied(),
                     &declarations,
                     dynamic_dispatch,
+                    callables,
                     |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
                 );
                 let mut analysis = graph
@@ -3147,6 +3150,7 @@ mod call_accesses {
         functions: BTreeMap<MachineId, Option<FunctionMutations>>,
         boundaries: Vec<&'unit BoundaryMachineDeclaration>,
         pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
+        pub(crate) callables: &'unit terminal_psi::TerminalCallableCatalog,
         pub(super) references: super::references::call_effects::ReferenceCallEffects,
         view_graph: Option<Vec<DescriptorMachine>>,
         borrowed_origins: BTreeMap<MachineId, BorrowedRegions>,
@@ -3157,6 +3161,7 @@ mod call_accesses {
             functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
             boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
             dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
+            callables: &'unit terminal_psi::TerminalCallableCatalog,
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         ) -> Self {
             let boundaries = boundaries.into_iter().collect::<Vec<_>>();
@@ -3164,6 +3169,7 @@ mod call_accesses {
                 functions,
                 &boundaries,
                 dynamic_dispatch,
+                callables,
                 types,
             );
             let declarations = types.values().copied().cloned().collect::<Vec<_>>();
@@ -3172,6 +3178,7 @@ mod call_accesses {
                 boundaries.iter().copied(),
                 &declarations,
                 dynamic_dispatch,
+                callables,
                 |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
             );
             let mut analysis = view_graph.as_ref().map(|graph| {
@@ -3199,6 +3206,7 @@ mod call_accesses {
                 functions: BTreeMap::new(),
                 boundaries,
                 dynamic_dispatch,
+                callables,
                 references,
                 view_graph,
                 borrowed_origins: BTreeMap::new(),
@@ -4724,6 +4732,7 @@ pub(crate) mod references {
                 functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
                 boundaries: &[&BoundaryMachineDeclaration],
                 dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+                callables: &terminal_psi::TerminalCallableCatalog,
                 types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
             ) -> Self {
                 let declarations = types
@@ -4735,6 +4744,7 @@ pub(crate) mod references {
                     boundaries.iter().copied(),
                     &declarations,
                     dynamic_dispatch,
+                    callables,
                     |_, node| Some(Cow::Borrowed(&node.operation)),
                 );
                 let mut analysis = graph
@@ -6556,6 +6566,7 @@ pub(crate) mod references {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         callables: &terminal_psi::TerminalCallableCatalog,
+        declared_types: &[terminal_psi::StructuralTypeDeclaration],
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         borrowed_sources: &BorrowedReferenceSources,
         call_effects: &call_effects::ReferenceCallEffects,
@@ -7307,10 +7318,14 @@ pub(crate) mod references {
                         }
                     }
                     abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
-                        let contract = callables
-                            .contract(*contract)
-                            .ok_or_else(|| refusal("reference call contract is absent or stale"))?;
-                        terminal_semantics::ReferenceCallContract::Callable(contract)
+                        let declared = terminal_semantics::references::callable_reference_result(
+                            declared_types,
+                            callables.contract(*contract).ok_or_else(|| {
+                                refusal("reference call has no callable contract")
+                            })?,
+                        )
+                        .map_err(&refusal)?;
+                        terminal_semantics::ReferenceCallContract::Callable(declared)
                     }
                     abstract_operations::AbstractCallTarget::Dynamic {
                         interface, slot, ..
@@ -8316,6 +8331,7 @@ mod replay {
                     functions,
                     dynamic_dispatch,
                     &unit.callables,
+                    &unit.structural_types,
                     structural_types,
                     pins.reference_sources(),
                     &call_accesses.references,

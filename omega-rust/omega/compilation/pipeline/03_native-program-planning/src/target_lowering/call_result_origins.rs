@@ -66,6 +66,7 @@ pub(crate) fn retain<'a>(
         &source.boundary_machines,
         &source.structural_types,
         &source.dynamic_dispatch,
+        &source.callables,
         |function, node| {
             if let AbstractOperation::BoundaryCall {
                 psi_operation,

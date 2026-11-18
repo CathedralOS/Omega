@@ -17491,7 +17491,12 @@ pub mod descriptor_results {
                             structural_arguments,
                             ..
                         } => {
-                            let contract = module.callables.contract(*contract)?;
+                            let contract = crate::references::callable_reference_result(
+                                &module.structural_types,
+                                module.callables.contract(*contract)?,
+                            )
+                            .inspect_err(|detail| *failure_detail = Some(*detail))
+                            .ok()?;
                             // A public callable supplies result origins and access ceilings.
                             // Its unknown body supplies no stored-content summary. Invalidate
                             // only writable argument paths, retaining unrelated storage.
@@ -17499,7 +17504,7 @@ pub mod descriptor_results {
                                 operation.id,
                                 &module.structural_types,
                                 slot_kind,
-                                contract,
+                                &contract,
                                 Vec::new(),
                                 structural_arguments,
                                 result,

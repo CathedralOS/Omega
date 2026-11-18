@@ -975,6 +975,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         &unit.boundary_machines,
         &unit.structural_types,
         &unit.dynamic_dispatch,
+        &unit.callables,
         |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
     )
     .expect("the metadata fixture has complete source descriptor structure");
