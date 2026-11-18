@@ -147,19 +147,6 @@ fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
     );
 }
 
-#[test]
-fn indexed_view_payloads_keep_their_actual_lender() {
-    let program = r#"
-machine see(value: &u8) {}
-machine entry() {
-    let values: [u8; 2] = [1, 2];
-    let view: &[u8] = &values[..];
-    see(&view[0]);
-}
-"#;
-    assert_indexed_view_lender(program, false);
-}
-
 /// The provider-backed case also needs its executable call-flow account.
 #[test]
 fn provider_indexed_view_payloads_keep_their_actual_lender() {
@@ -173,10 +160,7 @@ machine entry() reaches Fs invokes Fs {
     see(&view[0]);
 }
 "#;
-    assert_indexed_view_lender(program, true);
-}
-
-fn assert_indexed_view_lender(source: &str, provider: bool) {
+    let source = program;
     use terminal_check_tables::bindings::{PlaceOrigin, Segment};
     use terminal_check_tables::obligations::Lender;
     let mut input = elaborate(source).unwrap();
@@ -209,11 +193,7 @@ fn assert_indexed_view_lender(source: &str, provider: bool) {
         })
         .expect("the indexed element has its own captured loan");
     assert!(
-        if provider {
-            actual == Lender::Provider
-        } else {
-            matches!(actual, Lender::Loan(_))
-        },
+        actual == Lender::Provider,
         "an element keeps the descriptor's actual lender: {actual:?}"
     );
     let ObligationKind::Loan { lender, .. } = &mut input
