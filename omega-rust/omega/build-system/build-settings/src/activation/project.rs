@@ -55,7 +55,7 @@ pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclar
         match (&role, &next_role) {
             (Some(BuildDeclaration::Package(previous)), BuildDeclaration::Package(next)) => {
                 return Err(format!(
-                    "Build declared the package role more than once (`{}` and `{}`)",
+                    "Build declared the package project role more than once (`{}` and `{}`)",
                     previous.name.as_str(),
                     next.name.as_str()
                 ));
@@ -65,7 +65,7 @@ pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclar
                 BuildDeclaration::Application(next),
             ) => {
                 return Err(format!(
-                    "Build declared the application role more than once (`{}` and `{}`)",
+                    "Build declared the application project role more than once (`{}` and `{}`)",
                     previous.name.as_str(),
                     next.name.as_str()
                 ));
