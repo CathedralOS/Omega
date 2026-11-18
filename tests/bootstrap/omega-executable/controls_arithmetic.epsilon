@@ -30,6 +30,7 @@ machine Main::main(&mut self) {
             2 -> batch_2()
             3 -> batch_3()
             4 -> batch_4()
+            5 -> batch_5()
             _ -> self.console.exit_process(99)
         }
     }
@@ -122,10 +123,37 @@ machine Main::main(&mut self) {
         self.refusal("machine leaf()->u8 blocks {42} machine id(x:u8)->u8 blocks{x} machine main()->u8 blocks {block id(leaf())}",1,111);
         self.refusal("machine main()->u8 {let x:u8=42;block x}",1,112);
         self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {suspend block leaf()}",2,113);
-        // Nested machines need their own blocking summaries and transfer markers.
-        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",2,115);
-        self.refusal("machine leaf()->u8 blocks {42} public machine main()->u8 {transition true {true->quiet()} machine quiet()->u8 {42} machine unused()->u8 {block leaf()}}",2,116);
         self.positive("machine leaf()->u8 blocks false {59} public machine main()->u8 {block leaf()}",59,114);
+    }
+
+    state batch_5() {
+        // Both arms need markers even though only the selected arm executes.
+        self.positive("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->block work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",42,120);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",1,121);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->suspend work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",1,122);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->suspend block work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",2,123);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->block suspend work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",1,124);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {transition true {true->block block work() _->quiet()} machine work()->u8 {block leaf()} machine quiet()->u8 {0}}",1,125);
+        // The unentered helper cannot widen the public entry. Its own body is checked.
+        self.positive("machine leaf()->u8 blocks {42} public machine main()->u8 {transition true {true->quiet()} machine quiet()->u8 {42} machine unused()->u8 {block leaf()}}",42,126);
+        self.refusal("machine leaf()->u8 blocks {42} public machine main()->u8 {transition true {true->quiet()} machine quiet()->u8 {42} machine unused()->u8 {leaf()}}",1,127);
+        self.refusal("machine other()->u8 {transition true {true->hidden()} machine hidden()->u8 {0}} machine main()->u8 {transition true {true->block hidden()}}",1,128);
+        // An unseeded cycle is total. An exit with a published blocking ceiling
+        // reaches both cycle members, including the edge taken on the second visit.
+        self.positive("machine main()->u8 {transition true {true->first(false)} machine first(done:bool)->u8 {transition done {true->answer() _->block second()}} machine second()->u8 {transition true {true->first(true)}} machine answer()->u8 {43}}",43,129);
+        self.positive("machine main()->u8 {transition true {true->block first(false)} machine first(done:bool)->u8 {transition done {true->block answer() _->block second()}} machine second()->u8 {transition true {true->block first(true)}} machine answer()->u8 blocks true {44}}",44,130);
+        self.refusal("machine main()->u8 {transition true {true->block first(false)} machine first(done:bool)->u8 {transition done {true->block answer() _->second()}} machine second()->u8 {transition true {true->block first(true)}} machine answer()->u8 blocks true {44}}",1,131);
+        self.refusal("machine main()->u8 {transition true {true->block first(false)} machine first(done:bool)->u8 {transition done {true->block answer() _->block second()}} machine second()->u8 {transition true {true->first(true)}} machine answer()->u8 blocks true {44}}",1,132);
+        self.refusal("machine main()->u8 {transition true {true->block first(false)} machine first(done:bool)->u8 {transition done {true->block answer() _->block second()}} machine second()->u8 blocks false {transition true {true->block first(true)}} machine answer()->u8 blocks true {44}}",1,133);
+        self.refusal("machine main()->u8 {transition true {true->block first(false)} machine first(done:bool)->u8 {transition done {true->block answer() _->block second()}} machine second()->u8 {transition true {true->block first(true)}} machine answer()->u8 blocks true blocks false {44}}",1,134);
+        self.refusal("machine rec()->u8 {rec()} machine main()->u8 {42}",2,135);
+        self.refusal("machine separate()->u8 blocks {42} machine main()->u8 {transition true {true->block separate()}}",2,136);
+        self.refusal("machine main()->u8 blocks {transition true {true->quiet() _->wait()} machine quiet()->u8 {0} machine wait()->u8 blocks {42}}",1,138);
+        // The marker grants no exemption from the target's signature or entry contract.
+        self.refusal("machine main()->u8 {transition true {true->block limit()} machine limit(n:u64)->u8 blocks {45}}",1,139);
+        self.refusal("machine main()->u8 {transition true {true->block limit(4)} machine limit(n:u64)->u8 blocks requires n<4 {45}}",2,140);
+        self.positive("machine main()->u8 {transition true {true->block limit(3)} machine limit(n:u64)->u8 blocks requires n<4 {45}}",45,141);
+        self.positive("machine main()->u8 {transition true {true->block()} machine block()->u8 {59}}",59,137);
     }
 
 }

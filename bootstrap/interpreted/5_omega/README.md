@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,626 lines / 839,579 bytes with SHA-256
-`d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c`.
+manifest materializes 22,772 lines / 845,569 bytes with SHA-256
+`8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b`.
 The manifest itself is 1,674 bytes, SHA-256
-`f3a5797dedaca00c159f07d96732737631804ed2a82e1f119b85eeb7778794e8`;
+`f301e3918a1479aa68f0b058f5a3086aa957d290dc2d6a770c09b11dadaa7128`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -189,18 +189,22 @@ the selected entry. A forbidden unconditional first crash in an unconstrained
 entry rejects. Possible routes needing a path proof still return Incomplete,
 as do guarded clauses and Abort. Full product effect admission remains open.
 [Effect admission](../../../wiki/spec/language/effects.md)
-A bare `blocks` or `blocks true` publishes a possible block. Public machines
-with an omitted bound and machines declaring `blocks false` promise that
-their bodies cannot block. Private machines infer an omitted bound. The
-compiler follows ordinary calls from all bodies to derive these envelopes.
-Each call to a possibly blocking callee needs its own `block` acknowledgement,
-including calls nested in arguments. A redundant acknowledgement on a
-nonblocking call preserves its caller's bound. The marker changes no Alpha
-instructions. A possibly blocking machine with nested states stays Incomplete
-until the compiler can check the envelope of each transfer. Suspension,
-host services and their operational contracts
-remain outside this executable slice.
+A bare `blocks` or `blocks true` publishes a possible block on the machine
+that declares it. A public machine with an omitted bound and any machine
+declaring `blocks false` promise that their bodies cannot block. Private
+machines, including nested helpers, infer an omitted bound. The compiler
+propagates published ceilings back through ordinary calls and same-owner
+terminal transfers until it reaches every caller, including transfer cycles.
+An unentered nested helper contributes nothing to its owner's bound. Its own
+body must still satisfy its contract.
+
+Every call to a possibly blocking callee needs its own `block` acknowledgement,
+including a call in an argument or a transfer in an unselected arm.
+Redundant acknowledgements preserve the caller's bound. The existing Alpha
+calls and jumps implement both forms. Global terminal calls, suspension and
+host service admission remain outside this executable slice.
 [Call-site acknowledgements](../../../wiki/spec/language/effects.md#call-site-acknowledgements)
+and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
 
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.

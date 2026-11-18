@@ -138,6 +138,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.machine_first_clause = 0;
     self.state_first_parameter = 0;
     self.state_first_requirement = 0;
+    self.state_block_bound = -1;
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
     self.machine_is_public = 0;
@@ -265,6 +266,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.transition_target_kind = OmegaTransitionTargetKind::Machine;
     self.transition_result_expression = 0;
     self.transition_target_start = 0;
+    self.transition_acknowledgements = 0;
     self.transition_target_end = 0;
     self.transition_first_argument = 0;
     self.expression_frame_value_count = 0;
@@ -500,6 +502,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             114 -> acknowledgement_target()
             115 -> unmarked_path()
             116 -> combined_acknowledgement_target()
+            117 -> nested_block_value()
             _ -> internal_failure()
         }
     }
@@ -1358,6 +1361,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.machine_first_clause = self.machine_clause_count;
         self.state_first_parameter = self.machine_parameter_count;
         self.state_first_requirement = self.requirement_count;
+        self.state_block_bound = -1;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_is_explicit = 0;
@@ -3021,6 +3025,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.state_is_explicit = 1;
         self.state_first_parameter = self.machine_parameter_count;
         self.state_first_requirement = self.requirement_count;
+        self.state_block_bound = -1;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_has_return_type = 0;
@@ -3064,12 +3069,48 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.span_equals(source, self.scan.token_start,
             self.scan.token_end, "requires") {
             1 -> begin_machine_requirement()
+            _ -> explicit_state_block_identifier()
+        }
+    }
+    state explicit_state_block_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "blocks") {
+            1 -> nested_block_clause()
             _ -> incomplete_root()
         }
     }
+    state nested_block_clause() {
+        transition self.state_block_bound < 0 {
+            true -> read_nested_block_value()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStateBody,
+                self.scan.token_start, self.scan.token_end)
+        }
+    }
+    state read_nested_block_value() {
+        self.state_block_bound = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(117) }
+    }
+    state nested_block_value() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> nested_block_keyword()
+            _ -> explicit_state_header_token()
+        }
+    }
+    state nested_block_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::True -> finish_nested_block(1)
+            OmegaKeywordKind::False -> finish_nested_block(0)
+            _ -> explicit_state_header_token()
+        }
+    }
+    state finish_nested_block(bound: i32) {
+        self.state_block_bound = bound;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(59) }
+    }
 
     state explicit_state_parameters_position() {
-        transition self.requirement_count == self.state_first_requirement {
+        transition (self.requirement_count == self.state_first_requirement) && (self.state_block_bound < 0) {
             true -> begin_machine_parameters()
             _ -> incomplete_root()
         }
@@ -4718,6 +4759,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.transition_target_kind = OmegaTransitionTargetKind::Machine;
         self.transition_result_expression = 0;
         self.transition_target_start = 0;
+        self.transition_acknowledgements = 0;
         self.transition_target_end = 0;
         self.transition_first_argument = self.call_argument_count;
         self.cursor = self.scan.next_cursor;
@@ -4726,7 +4768,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state transition_target_token() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> retain_transition_target_name()
+            OmegaTokenKind::Identifier -> call_path_prefix(2)
             OmegaTokenKind::Keyword -> transition_target_keyword()
             _ -> incomplete_root()
         }
@@ -4756,6 +4798,18 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_transition_target_name() {
+        transition self.pending_callee == self.scan.token_start {
+            true -> retain_transition_acknowledgements()
+            _ -> transition_target_name()
+        }
+    }
+    state retain_transition_acknowledgements() {
+        self.transition_acknowledgements = self.pending_acknowledgements;
+        self.pending_callee = -1;
+        self.pending_acknowledgements = 0;
+        transition true { true -> transition_target_name() }
+    }
+    state transition_target_name() {
         self.transition_target_start = self.scan.token_start;
         self.transition_target_end = self.scan.token_end;
         self.cursor = self.scan.next_cursor;
@@ -4890,6 +4944,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             self.transition_target_kind;
         self.transition_statements[self.transition_statement_count].result_expression =
             self.transition_result_expression;
+        self.transition_statements[self.transition_statement_count].acknowledgements =
+            self.transition_acknowledgements;
         self.transition_statements[self.transition_statement_count].target.start =
             self.transition_target_start;
         self.transition_statements[self.transition_statement_count].target.end =
@@ -4947,6 +5003,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state ordinary_path(path_kind: i32) {
         transition path_kind {
             0 -> begin_statement_path_unmarked()
+            2 -> retain_transition_target_name()
             _ -> begin_path_expression_unmarked()
         }
     }
@@ -7823,6 +7880,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_implicit_state_bounded(continuation: i32) {
+        self.machine_states[self.machine_state_count].block_bound = -1;
         self.machine_states[self.machine_state_count].name.start = 0;
         self.machine_states[self.machine_state_count].name.end = 0;
         self.machine_states[self.machine_state_count].first_parameter =
@@ -7879,6 +7937,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_explicit_state_bounded() {
+        self.machine_states[self.machine_state_count].block_bound = self.state_block_bound;
         self.machine_states[self.machine_state_count].name_kind =
             OmegaMachineStateNameKind::Authored;
         self.machine_states[self.machine_state_count].name.start =
@@ -9637,7 +9696,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state check_machine_return_position() {
-        transition (self.state_has_return_type == 0) &&
+        transition (self.state_has_return_type == 0) && (self.state_block_bound < 0) &&
             (self.requirement_count == self.state_first_requirement) {
             true -> begin_machine_return_type()
             _ -> incomplete_root()
