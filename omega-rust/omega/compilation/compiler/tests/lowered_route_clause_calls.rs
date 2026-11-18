@@ -91,6 +91,62 @@ fn a_call_in_a_predicate_term_is_its_callee_body() {
 }
 
 #[test]
+fn integer_identity_uses_the_written_subjects_at_entry_and_return() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let check = |fixture: &std::path::Path| {
+                let main = fixture.join("main.omg");
+                orchestration::check_source(
+                    &mut compiler::CompilationSession::default(),
+                    compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+                )
+                .result
+            };
+            let positive =
+                unbuilt_frontier::repository("tests/fixtures/run/contracts/plain_integer_identity");
+            let checked = check(&positive)
+                .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+
+            for name in [
+                "identity_requires_wrong_input",
+                "identity_ensures_wrong_subject",
+            ] {
+                let fixture =
+                    unbuilt_frontier::repository("tests/fixtures/fail/contracts").join(name);
+                let expected = std::fs::read_to_string(fixture.join("expected.txt")).unwrap();
+                let diagnostics = check(&fixture)
+                    .expect_err("the written identity is not proved")
+                    .into_diagnostics();
+                let [diagnostic] = diagnostics.as_slice() else {
+                    panic!("{name}: {diagnostics:?}");
+                };
+                assert!(
+                    diagnostic.message.starts_with(expected.trim_end()),
+                    "{name}: {diagnostic:?}"
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+#[test]
 fn a_callee_the_reader_cannot_unfold_leaves_the_predicate_refused() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
