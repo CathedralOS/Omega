@@ -7,7 +7,7 @@
 
 use super::BuildCapturedSourceInventory;
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
-use build_time_evaluation::{
+use source_compiler::evaluation::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineExecutionMode,
     BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
 };

@@ -14,9 +14,9 @@ use package_manager::operations::{
     begin_local_project_preparation,
 };
 use products::NativeProductRequest;
+use provider_admission::provider_admission::current_terminal_authority_policy;
 use std::path::Path;
 use target::TargetProfile;
-use terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy;
 
 fn main() {
     compiler::checked::run_on_compile_thread(|| {

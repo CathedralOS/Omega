@@ -1,0 +1,343 @@
+//! Check the physical guard roster against the admitted callback and interrupt entries.
+use bound_installations::{BoundInstallations, BoundInstalledEntry};
+use installation_evidence::InstalledInterruptStackRequirement;
+use provider_admission::{
+    AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort,
+};
+use std::sync::Arc;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedInstallationResources {
+    program: BoundInstalledEntry,
+    facts: Arc<BoundInstallations>,
+    entry_execution: Option<AdmittedInstalledEntryExecution>,
+    installed: AdmittedInstalledInterruptCohort,
+    callbacks: AdmittedNativeCallbackCohort,
+}
+
+impl PlannedInstallationResources {
+    pub const fn program(&self) -> BoundInstalledEntry {
+        self.program
+    }
+
+    pub fn facts(&self) -> &Arc<BoundInstallations> {
+        &self.facts
+    }
+
+    pub fn installed_entry_execution(&self) -> Option<&AdmittedInstalledEntryExecution> {
+        self.entry_execution.as_ref()
+    }
+
+    pub fn installed_stack_requirements(&self) -> &[InstalledInterruptStackRequirement] {
+        &self.facts.stack_requirements
+    }
+
+    pub fn installed_interrupts(&self) -> &AdmittedInstalledInterruptCohort {
+        &self.installed
+    }
+
+    pub fn native_callbacks(&self) -> &AdmittedNativeCallbackCohort {
+        &self.callbacks
+    }
+
+    /// Joins this receipt to the original admitted leaf rosters without
+    /// repeating their proofs or retaining an earlier program representation.
+    pub fn matches_admission(
+        &self,
+        installed: &AdmittedInstalledInterruptCohort,
+        callbacks: &AdmittedNativeCallbackCohort,
+    ) -> bool {
+        &self.installed == installed && &self.callbacks == callbacks
+    }
+}
+
+pub fn admit_planned_guards(
+    program: BoundInstalledEntry,
+    cohort: &AdmittedInstalledInterruptCohort,
+    callbacks: &AdmittedNativeCallbackCohort,
+    entry_execution: Option<AdmittedInstalledEntryExecution>,
+    mut requirements: Vec<InstalledInterruptStackRequirement>,
+    active_operations: &[(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    )],
+) -> Result<PlannedInstallationResources, &'static str> {
+    if cohort.psi() != program.psi || callbacks.psi() != program.psi {
+        return Err("installed authority belongs to another program");
+    }
+    if let Some(execution) = &entry_execution {
+        let entry = execution.entry().entry();
+        if entry.psi() != program.psi
+            || entry.target() != program.target
+            || entry.machine() != program.machine
+        {
+            return Err("installed execution differs from the current private object");
+        }
+        execution.require_current(cohort)?;
+    }
+    let mut entries: Vec<_> = cohort
+        .entries()
+        .iter()
+        .map(|entry| ((entry.machine, entry.operation), entry.placement_index))
+        .collect();
+    validate_stack_requirements(program, &mut entries, &mut requirements)?;
+    if !active_operations.windows(2).all(|pair| pair[0] < pair[1]) {
+        return Err("surviving installation operations are not in canonical order");
+    }
+    if !entries
+        .iter()
+        .filter(|(operation, _)| active_operations.binary_search(operation).is_ok())
+        .copied()
+        .eq(requirements.iter().map(|row| {
+            (
+                (row.installation_machine, row.operation),
+                row.placement_index,
+            )
+        }))
+    {
+        return Err("installed stack requirements differ from the surviving handler placements");
+    }
+    let facts = project_installations(cohort, entry_execution.as_ref(), requirements);
+    Ok(PlannedInstallationResources {
+        program,
+        facts: Arc::new(facts),
+        entry_execution,
+        installed: cohort.clone(),
+        callbacks: callbacks.clone(),
+    })
+}
+
+fn validate_stack_requirements(
+    program: BoundInstalledEntry,
+    entries: &mut [(
+        (
+            semantic_vocabulary::MachineId,
+            semantic_vocabulary::OperationId,
+        ),
+        usize,
+    )],
+    requirements: &mut [InstalledInterruptStackRequirement],
+) -> Result<(), &'static str> {
+    entries.sort_unstable();
+    requirements.sort_unstable_by_key(|row| {
+        (
+            (row.installation_machine, row.operation),
+            row.placement_index,
+        )
+    });
+    if entries.windows(2).any(|pair| pair[0] == pair[1])
+        || requirements.windows(2).any(|pair| {
+            (
+                (pair[0].installation_machine, pair[0].operation),
+                pair[0].placement_index,
+            ) == (
+                (pair[1].installation_machine, pair[1].operation),
+                pair[1].placement_index,
+            )
+        })
+    {
+        return Err("installed stack requirement or admitted placement is duplicated");
+    }
+    for requirement in requirements {
+        if requirement.psi != program.psi
+            || requirement.target != program.target
+            || requirement.required_bytes().is_none()
+            || requirement.alignment == 0
+            || !requirement.alignment.is_power_of_two()
+            || entries
+                .binary_search(&(
+                    (requirement.installation_machine, requirement.operation),
+                    requirement.placement_index,
+                ))
+                .is_err()
+        {
+            return Err("installed stack requirement has no matching admitted entry");
+        }
+    }
+    Ok(())
+}
+
+/// Project admitted installation authority into the plain record instruction
+/// selection reads. The driver calls this after it has resolved the installed
+/// entry and measured each handler's stack; selection then checks that the
+/// record names the plan's program, target and entry.
+fn project_installations(
+    cohort: &AdmittedInstalledInterruptCohort,
+    entry_execution: Option<&AdmittedInstalledEntryExecution>,
+    stack_requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+) -> bound_installations::BoundInstallations {
+    use bound_installations as bound;
+    let installations = cohort
+        .scopes()
+        .iter()
+        .map(|scope| std::sync::Arc::clone(scope.shared_facts()))
+        .collect();
+    let entries = cohort
+        .entries()
+        .iter()
+        .map(|entry| bound::BoundInterruptEntry {
+            machine: entry.machine,
+            operation: entry.operation,
+            placement_index: entry.placement_index,
+            application: entry.placement.application_index,
+            callback_function: entry.callback_function,
+            table_placements: entry.placement.private_materialization.as_ref().and_then(
+                |materialization| {
+                    materialization
+                        .destination_application
+                        .placements()
+                        .cloned()
+                },
+            ),
+            callback: std::sync::Arc::clone(entry.entry().shared_contract()),
+        })
+        .collect();
+    bound::BoundInstallations {
+        psi: cohort.psi(),
+        installations,
+        entries,
+        helpers: provider_admission::installed_interrupt_helpers::checked_helpers(cohort),
+        installed_entry: entry_execution.map(|execution| {
+            let callback = execution.entry().entry();
+            bound::BoundInstalledEntry {
+                psi: callback.psi(),
+                target: callback.target(),
+                machine: callback.machine(),
+            }
+        }),
+        stack_requirements,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::MachineId;
+    use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+    fn program() -> BoundInstalledEntry {
+        BoundInstalledEntry {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([6; 32]),
+            },
+            target: target::TargetProfile::WindowsX64.native_target(),
+            machine: MachineId::new(1).unwrap(),
+        }
+    }
+
+    #[test]
+    fn binding_shares_both_admitted_rosters_and_refuses_a_foreign_program() {
+        let program = program();
+        let installed = AdmittedInstalledInterruptCohort::empty(program.psi);
+        let callbacks = AdmittedNativeCallbackCohort::empty(program.psi);
+        let authority =
+            admit_planned_guards(program, &installed, &callbacks, None, Vec::new(), &[]).unwrap();
+        assert_eq!(authority.program(), program);
+        assert!(authority.matches_admission(&installed, &callbacks));
+        assert!(std::ptr::eq(
+            authority.installed.entries(),
+            installed.entries()
+        ));
+        assert!(std::ptr::eq(
+            authority.installed.scopes(),
+            installed.scopes()
+        ));
+        assert!(std::ptr::eq(
+            authority.callbacks.callbacks(),
+            callbacks.callbacks()
+        ));
+        assert!(authority.installed_entry_execution().is_none());
+        assert!(authority.installed_stack_requirements().is_empty());
+
+        let mut foreign_psi = program.psi;
+        foreign_psi.program_fingerprint = SemanticFingerprint::from_bytes([9; 32]);
+        let foreign_installed = AdmittedInstalledInterruptCohort::empty(foreign_psi);
+        let foreign_callbacks = AdmittedNativeCallbackCohort::empty(foreign_psi);
+        assert!(!authority.matches_admission(&foreign_installed, &callbacks));
+        assert!(!authority.matches_admission(&installed, &foreign_callbacks));
+        assert_eq!(
+            admit_planned_guards(
+                program,
+                &foreign_installed,
+                &callbacks,
+                None,
+                Vec::new(),
+                &[]
+            )
+            .unwrap_err(),
+            "installed authority belongs to another program"
+        );
+        assert_eq!(
+            admit_planned_guards(
+                program,
+                &installed,
+                &foreign_callbacks,
+                None,
+                Vec::new(),
+                &[]
+            )
+            .unwrap_err(),
+            "installed authority belongs to another program"
+        );
+    }
+
+    #[test]
+    fn measured_stacks_keep_exact_roots_unique_entries_and_bounded_geometry() {
+        use runtime_abi::static_interrupts::{
+            InstalledInterruptEntryPlan, InstalledInterruptFrame,
+        };
+        let program = program();
+        let requirement = InstalledInterruptStackRequirement {
+            installation_machine: program.machine,
+            arrival: None,
+            fault_exclusion: None,
+            psi: program.psi,
+            target: program.target,
+            operation: semantic_vocabulary::OperationId::new(2).unwrap(),
+            placement_index: 0,
+            entry: program.machine,
+            entry_plan: InstalledInterruptEntryPlan::new(InstalledInterruptFrame::NoErrorCode),
+            body_bytes: 16,
+            bridge_bytes: 160,
+            call_stack_bias: 8,
+            alignment: 16,
+        };
+        let key = (
+            (requirement.installation_machine, requirement.operation),
+            requirement.placement_index,
+        );
+        assert_eq!(
+            validate_stack_requirements(program, &mut [key], &mut [requirement.clone()]),
+            Ok(())
+        );
+        let changes: [fn(&mut InstalledInterruptStackRequirement); 6] = [
+            |row| row.psi.program_fingerprint = SemanticFingerprint::from_bytes([9; 32]),
+            |row| row.target = target::TargetProfile::LinuxX64.native_target(),
+            |row| row.alignment = 3,
+            |row| row.body_bytes = u64::MAX,
+            |row| row.placement_index = 1,
+            |row| row.installation_machine = MachineId::new(2).unwrap(),
+        ];
+        for change in changes {
+            let mut invalid = requirement.clone();
+            change(&mut invalid);
+            assert_eq!(
+                validate_stack_requirements(program, &mut [key], &mut [invalid]),
+                Err("installed stack requirement has no matching admitted entry")
+            );
+        }
+        assert_eq!(
+            validate_stack_requirements(program, &mut [key, key], &mut [requirement.clone()]),
+            Err("installed stack requirement or admitted placement is duplicated")
+        );
+        assert_eq!(
+            validate_stack_requirements(
+                program,
+                &mut [key],
+                &mut [requirement.clone(), requirement],
+            ),
+            Err("installed stack requirement or admitted placement is duplicated")
+        );
+    }
+}

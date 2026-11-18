@@ -186,7 +186,7 @@ impl PackageCompilationInputs {
             errors.push(PackageCompilationInputError::DependencyCycle { cycle });
         }
 
-        let mut filesystem = source::SourceFileSystem::default();
+        let mut filesystem = source_capture::SourceFileSystem::default();
         for (identity, record) in &canonical_packages {
             if let Some(tree) = &record.captured_source
                 && let Err(error) =
@@ -334,12 +334,12 @@ pub(super) fn append_overlapping_source_roots(
 }
 
 fn captured_subtree_matches(
-    parent: &source::CapturedSourceTree,
+    parent: &source_capture::CapturedSourceTree,
     relative: &Path,
-    child: &source::CapturedSourceTree,
+    child: &source_capture::CapturedSourceTree,
 ) -> bool {
     if !parent.entries().any(|(path, node)| {
-        path == relative && matches!(node, source::CapturedSourceNode::Directory)
+        path == relative && matches!(node, source_capture::CapturedSourceNode::Directory)
     }) {
         return false;
     }
@@ -353,8 +353,8 @@ fn captured_subtree_matches(
         };
         let same_node = match (node, child_node) {
             (
-                source::CapturedSourceNode::Symlink { target: a },
-                source::CapturedSourceNode::Symlink { target: b },
+                source_capture::CapturedSourceNode::Symlink { target: a },
+                source_capture::CapturedSourceNode::Symlink { target: b },
             ) => a.as_os_str() == b.as_os_str(),
             _ => node == child_node,
         };

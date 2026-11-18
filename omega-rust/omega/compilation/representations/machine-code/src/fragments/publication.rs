@@ -37,7 +37,7 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(FunctionFragmentEmissionManifestDecodeError);
+::wire::truncated_from_adapter!(FunctionFragmentEmissionManifestDecodeError);
 
 register_homes::decode_error_display! {
     FunctionFragmentEmissionManifestDecodeError,

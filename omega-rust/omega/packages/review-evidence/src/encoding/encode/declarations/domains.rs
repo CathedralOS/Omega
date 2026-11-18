@@ -7,7 +7,7 @@ use crate::record::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
-use language_semantics::CarryPermission;
+use declaration_contracts::CarryPermission;
 
 pub(crate) fn encode_domain_alias_atom(
     encoder: &mut Encoder,

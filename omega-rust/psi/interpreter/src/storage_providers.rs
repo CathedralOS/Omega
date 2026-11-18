@@ -11,9 +11,10 @@ use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::engine::execution::TerminalExecution;
 use crate::storage::record::owned_value::StagedOwnedValue;
 use crate::storage::runtime_rows::RuntimeRows;
-use access_plans::{AdmittedResourceProfile, InitializationResourceCompatibility};
+use access_admission::InitializationResourceCompatibility;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use extents::Extent;
+use storage_access::AdmittedResourceProfile;
 use terminal_psi::TerminalAccessLifecyclePlan;
 
 pub(crate) mod backing {
@@ -200,9 +201,9 @@ pub(crate) mod entry {
     };
     use crate::engine::custody::project_structural_value;
     use crate::engine::execution::TerminalExecution;
-    use access_plans::AdmittedResourceProfile;
     use extents::Extent;
     use std::iter::once;
+    use storage_access::AdmittedResourceProfile;
     use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
     #[derive(Debug)]
@@ -642,9 +643,9 @@ pub(crate) mod supply {
     use crate::boundary::values::StructuralRuntimePlace;
     use crate::engine::execution::TerminalExecution;
     use crate::{TerminalEffectRejection, TerminalInterpretError};
-    use access_plans::AdmittedResourceProfile;
     use extents::Extent;
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
+    use storage_access::AdmittedResourceProfile;
 
     pub struct TerminalProviderStorageRequest {
         pub(crate) base: u64,
@@ -975,7 +976,8 @@ pub(crate) mod extraction {
     use crate::engine::custody::bind_result_claim;
     use crate::engine::execution::{TerminalExecution, operation_kind};
     use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
-    use access_plans::{AccessPlanDiagnostic, StableCapability};
+    use access_vocabulary::AccessPlanDiagnostic;
+    use access_vocabulary::StableCapability;
     use std::collections::BTreeSet;
     use terminal_psi::{
         BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
@@ -1300,10 +1302,14 @@ pub(crate) mod field_access {
     use crate::boundary::values::{StructuralRuntimePlace, TerminalScalarValue};
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
-    use access_plans::{AccessOperation, BorrowPolarity, EffectiveSupplyKind, ObservationModel};
+    use access_admission::EffectiveSupplyKind;
+    use access_vocabulary::AccessOperation;
+    use access_vocabulary::BorrowPolarity;
+    use access_vocabulary::ObservationModel;
     use layout_plans::{
         AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
     };
+    use storage_access::AccessAuthorization;
     use terminal_psi::{
         StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalAccessFieldPlan,
         TerminalAccessViewPlan, TerminalAccessorKind,
@@ -1312,7 +1318,7 @@ pub(crate) mod field_access {
 
     pub(crate) enum ProviderFieldContent<'view> {
         Resident,
-        Borrowed(&'view access_plans::AccessResourceCompatibility),
+        Borrowed(&'view access_admission::AccessResourceCompatibility),
     }
 
     impl TerminalExecution<'_> {
@@ -1515,7 +1521,7 @@ pub(crate) mod field_access {
                 .restrict_to_loan(&loan)
                 .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
             if descriptor.observation() == ObservationModel::Stable {
-                access_plans::require_stable_region_supply(
+                access_admission::require_stable_region_supply(
                     &actual,
                     footprint.byte_offset(),
                     footprint.length_bytes(),
@@ -1585,7 +1591,7 @@ pub(crate) mod field_access {
                     None => ScalarFieldValue::new(entry.field(), u16::from(width) * 8, bits),
                 }
                 .map_err(TerminalInterpretError::ValueImage)?;
-                layout_plans::stage_scalar_field(
+                storage_materialization::stage_scalar_field(
                     &layout,
                     &value,
                     ByteOrder::LittleEndian,
@@ -1603,7 +1609,7 @@ pub(crate) mod field_access {
                 .map_err(TerminalInterpretError::ValueImage)?;
                 let mut encoded = [0_u8; 16];
                 let decoded = encoded.get_mut(..usize::from(width)).ok_or(malformed())?;
-                layout_plans::decode_aggregate_field_into(
+                storage_materialization::decode_aggregate_field_into(
                     &layout,
                     &schema,
                     ByteOrder::LittleEndian,
@@ -1679,10 +1685,10 @@ pub(crate) mod initialization {
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
     use crate::storage::record::storage::ConstructorStorage;
-    use access_plans::{
-        InitializationResourceCompatibility, ValidatedPlacement, ValidatedResourceProfile,
-        validate_initialization_resources,
-    };
+    use access_admission::InitializationResourceCompatibility;
+    use access_admission::ValidatedPlacement;
+    use access_admission::ValidatedResourceProfile;
+    use access_admission::validate_initialization_resources;
     use semantic_vocabulary::IntegerValue;
     use terminal_psi::{
         StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralPathSegment,
@@ -2325,11 +2331,18 @@ pub(crate) mod profile_values {
     };
     use crate::engine::custody::project_structural_value;
     use crate::engine::execution::TerminalExecution;
-    use access_plans::{
-        AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach,
-        BoundaryServiceReachId, ExternalCapability, ExternalReadBehavior, PeerWritability,
-        ResourceProfile, ResourceRegion, StableCapability, TransferRule,
-    };
+    use access_vocabulary::AtomicCapability;
+    use access_vocabulary::AtomicPermissions;
+    use access_vocabulary::AtomicTransferRule;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::BoundaryServiceReachId;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::ExternalReadBehavior;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
+    use access_vocabulary::TransferRule;
     use semantic_vocabulary::{IntegerValue, StructuralCaseId};
     use terminal_psi::{StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeShape};
 
@@ -2629,7 +2642,7 @@ pub(crate) mod profiles {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::engine::execution::TerminalExecution;
-    use access_plans::ValidatedResourceProfile;
+    use access_admission::ValidatedResourceProfile;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
     use terminal_psi::{StructuralAccess, StructuralArgument, TerminalAccessLifecycleExecution};
 
@@ -2762,7 +2775,7 @@ pub(crate) mod profiles {
                 ));
             }
             let supplied = super::profile_values::read(self, profile)?;
-            let normalized = access_plans::validate_resource_profile(supplied, binding.length)
+            let normalized = access_admission::validate_resource_profile(supplied, binding.length)
                 .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
                     boundary: requirement.boundary,
                     diagnostic,
@@ -3017,7 +3030,7 @@ pub(crate) mod relocation {
                 .loan(source_binding.offset, source_binding.length)
                 .map_err(|error| TerminalInterpretError::ResourceProfile {
                     boundary: plan.boundary,
-                    diagnostic: access_plans::AccessPlanDiagnostic(format!(
+                    diagnostic: access_vocabulary::AccessPlanDiagnostic(format!(
                         "relocation source loan: {error}"
                     )),
                 })?;
@@ -3026,7 +3039,7 @@ pub(crate) mod relocation {
                 .loan(destination_binding.offset, destination_binding.length)
                 .map_err(|error| TerminalInterpretError::ResourceProfile {
                     boundary: plan.boundary,
-                    diagnostic: access_plans::AccessPlanDiagnostic(format!(
+                    diagnostic: access_vocabulary::AccessPlanDiagnostic(format!(
                         "relocation destination loan: {error}"
                     )),
                 })?;
@@ -3043,14 +3056,14 @@ pub(crate) mod relocation {
                     boundary: plan.boundary,
                     diagnostic,
                 })?;
-            let selected = access_plans::validate_run_relocation_resources(
+            let selected = access_admission::validate_run_relocation_resources(
                 &plan.placement,
                 count,
                 destination_base,
                 &source_supply,
                 &destination_supply,
             );
-            let admitted = access_plans::validate_run_relocation_resources(
+            let admitted = access_admission::validate_run_relocation_resources(
                 &plan.placement,
                 count,
                 destination_base,
@@ -3362,7 +3375,7 @@ pub(crate) mod value_image {
                     layout_entry.member_identity,
                 )?;
                 let mut bytes = zeroed(schema.byte_size, execution.account.as_ref())?;
-                layout_plans::decode_aggregate_field_into(
+                storage_materialization::decode_aggregate_field_into(
                     plan.placement.layout(),
                     &schema,
                     ByteOrder::LittleEndian,
@@ -3515,7 +3528,7 @@ pub(crate) mod value_image {
                                 field_schema(self.execution, &self.geometry, field, &name, None)?;
                             let mut contents =
                                 zeroed(schema.byte_size, self.execution.account.as_ref())?;
-                            layout_plans::decode_aggregate_field_into(
+                            storage_materialization::decode_aggregate_field_into(
                                 &layout,
                                 &schema,
                                 ByteOrder::LittleEndian,
@@ -4160,7 +4173,7 @@ pub(crate) mod value_image {
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
         let mut bytes = zeroed(layout.size.ok_or(malformed())?, account)?;
-        layout_plans::stage_aggregate_layout(
+        storage_materialization::stage_aggregate_layout(
             layout,
             schemas,
             values,
@@ -4175,7 +4188,9 @@ pub(crate) mod view {
     use super::initialization::InitializationRejection;
     use super::{ProviderStorageBinding, RuntimeProviderStorage};
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use access_plans::{AccessResourceCompatibility, ValidatedPlacement, ValidatedResourceProfile};
+    use access_admission::AccessResourceCompatibility;
+    use access_admission::ValidatedPlacement;
+    use access_admission::ValidatedResourceProfile;
 
     impl RuntimeProviderStorage {
         pub(crate) fn prepare_view(
@@ -4209,7 +4224,8 @@ pub(crate) mod view {
                 .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
             let mut actual = None;
             for profile in [supplied, &admitted] {
-                let Ok(compatibility) = access_plans::validate_access_resources(placement, profile)
+                let Ok(compatibility) =
+                    access_admission::validate_access_resources(placement, profile)
                 else {
                     return Ok(Err(InitializationRejection::IncompatibleSupply));
                 };
@@ -4246,7 +4262,7 @@ pub(crate) enum ResidentStorageSlot {
         window: ProviderStorageBinding,
         initialized_by: semantic_vocabulary::BoundaryMachineId,
         custody: crate::storage::record::owned_value::StagedOwnedValue,
-        compatibility: access_plans::InitializationResourceCompatibility,
+        compatibility: access_admission::InitializationResourceCompatibility,
         _lease: Option<EvaluationStorageLease>,
     },
 }

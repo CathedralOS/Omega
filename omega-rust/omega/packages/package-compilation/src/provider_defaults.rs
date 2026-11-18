@@ -4,11 +4,14 @@
 // handoff: its source capture is admitted independently by source preparation.
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
-use build_time_evaluation::provider_declarations::{ProviderSelection, RetainedProviderSelection};
 use diagnostics::Diagnostic;
-use source::{SourceFile, SourceResolutionStratum};
+use source_admission::RetainedDeclaration;
+use source_admission::SourceFile;
+use source_admission::SourceResolutionStratum;
+use source_compiler::evaluation::provider_declarations::{
+    ProviderSelection, RetainedProviderSelection,
+};
 use std::path::PathBuf;
-use symbols::RetainedDeclaration;
 
 pub(super) struct CompletedProviderDefaults {
     supplier: PackageBuildHandoff,
@@ -34,7 +37,7 @@ impl CompletedProviderDefaults {
     pub(crate) fn reached_source_seeds(
         &self,
         inputs: &PackageCompilationInputs,
-        loaded_sources: Option<&source::SourceMap>,
+        loaded_sources: Option<&source_compiler::source_inputs::SourceMap>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;
         let package_sliced = loaded_sources.is_some_and(|sources| {
@@ -100,7 +103,7 @@ impl CompletedProviderDefaults {
         inputs.admit_provider_activation(&self.supplier)?;
         let mut selections = Vec::new();
         // One guarded span lookup serves every selection's two declarations.
-        let mut candidates = symbols::SourceSpanCandidates::default();
+        let mut candidates = source_compiler::source_symbols::SourceSpanCandidates::default();
         for selection in self.selections() {
             let mut selected = selection.clone();
             selected.subject = self.admit_declaration(inputs, &selected.subject)?;
@@ -116,7 +119,8 @@ impl CompletedProviderDefaults {
                     inputs.admit_retained_product_application(&self.supplier, application)?;
             }
             let subject_loaded = source.typed().symbols.source_files().any(|file| {
-                file.dependency_scope == source::DependencyScope::Product
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Product
                     && source
                         .typed()
                         .symbols

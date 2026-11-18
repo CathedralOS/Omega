@@ -9,9 +9,9 @@
 mod claims;
 pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
 
+use arena::IdSet;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Segment, EdgeId, IdSet, OperationId, PlaceId,
-    StructuralTypeId,
+    CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId,
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
@@ -4045,7 +4045,7 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{StructuralFieldId, StructuralPlaceKind};
 
-    fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
+    fn id<T: arena::NumericId>(raw: u64) -> T {
         T::new(raw).unwrap()
     }
 

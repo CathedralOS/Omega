@@ -13,7 +13,7 @@ use filesystem_authority::{
     FilesystemSponsorLimits, canonical_filesystem_metadata_path_is_canonical, observation_codec,
 };
 
-use evaluation_accounting::{
+use evaluation_contracts::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };

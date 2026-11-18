@@ -60,7 +60,7 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
         .count()
 }
 
-fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
+fn source_verdicts(fixture: &str) -> Vec<source_compiler::checking::RouteVerdict> {
     let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
     frontier_verdicts(&frontier)
@@ -68,25 +68,25 @@ fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerd
 
 fn frontier_verdicts(
     frontier: &compiler::TypedFrontier,
-) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
+) -> Vec<source_compiler::checking::RouteVerdict> {
     let subjects = [frontier.subject];
     let calling = frontier.normalization.calling.borrow(&frontier.typed);
-    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+    let prepared = source_compiler::lowering::prepare_compilation(
         &frontier.typed,
-        typed_trees_to_terminal_psi::Compilation {
+        source_compiler::lowering::Compilation {
             calling: calling.selection(),
             providers: frontier.provider_selections(),
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &subjects,
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
             supplies: &frontier.supplies,
         },
         terminal_codec::TerminalPublication::Portable,
     );
-    terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+    source_compiler::checking::judge_compilation(prepared.program)
         .into_iter()
         .map(|verdict| verdict.expect("source reaches judgment, not a formation defect"))
         .collect()
@@ -101,7 +101,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     let mut closed_arguments = 0usize;
     let mut missing = Vec::new();
     for (reference, node) in typed.type_reference_table.type_reference_rows() {
-        let typed_trees::types::TypeReferenceNode::Generic {
+        let source_compiler::source_state::types::TypeReferenceNode::Generic {
             base_symbol,
             arguments,
             ..
@@ -115,10 +115,10 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
         let arguments = typed
             .type_reference_table
             .type_reference_handles(*arguments);
-        if !arguments
-            .iter()
-            .all(|argument| typed_trees::canonical_const_argument_value(typed, *argument).is_some())
-        {
+        if !arguments.iter().all(|argument| {
+            source_compiler::source_state::canonical_const_argument_value(typed, *argument)
+                .is_some()
+        }) {
             panic!(
                 "closed receiving application {reference:?} lost its canonical arguments: {arguments:?}"
             );
@@ -141,14 +141,14 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
-            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+            source_compiler::checking::RouteVerdict::Accepted(_)
         )),
         "{}",
         verdicts
             .iter()
             .filter(|verdict| !matches!(
                 verdict,
-                terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+                source_compiler::checking::RouteVerdict::Accepted(_)
             ))
             .map(|verdict| format!("{verdict:?}"))
             .collect::<Vec<_>>()
@@ -194,7 +194,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     let same = unbuilt_frontier::staged_frontier("named_const_same_value", &same);
     assert!(frontier_verdicts(&same).iter().all(|verdict| matches!(
         verdict,
-        terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        source_compiler::checking::RouteVerdict::Accepted(_)
     )));
 
     let boolean = std::fs::read_to_string(repository(
@@ -211,7 +211,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
-            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+            source_compiler::checking::RouteVerdict::Accepted(_)
         )),
         "{verdicts:?}"
     );
@@ -266,10 +266,10 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
 /// must refuse that witness even if a public caller's arithmetic is provable.
 #[test]
 fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
+    use source_compiler::checking::RouteVerdict;
     use terminal_check_tables::UnprovedCause;
     use terminal_check_tables::compilation::TerminalCompilation;
     use terminal_check_tables::obligations::ObligationKind;
-    use terminal_psi_to_terminal_psi::RouteVerdict;
 
     let _guard = lock_fixture_compilation();
     let original = std::fs::read_to_string(repository(
@@ -307,18 +307,18 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     let typed = std::sync::Arc::new(typed);
     let subjects = [subject];
     let calling = normalization.calling.borrow(&typed);
-    let compilation = || typed_trees_to_terminal_psi::Compilation {
+    let compilation = || source_compiler::lowering::Compilation {
         calling: calling.selection(),
         providers: normalization.providers(&typed),
         declaration_metadata: &[],
         entries: &entries,
         subjects: &subjects,
-        purpose: source::DependencyScope::Product,
+        purpose: declaration_contracts::source_identity::DependencyScope::Product,
         selected: &selected,
         bindings: &bindings,
         supplies: &supplies,
     };
-    let prepared = match typed_trees_to_terminal_psi::prepare_compilation(
+    let prepared = match source_compiler::lowering::prepare_compilation(
         &typed,
         compilation(),
         terminal_codec::TerminalPublication::Portable,
@@ -372,7 +372,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     }
 
     let verdicts =
-        terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared));
+        source_compiler::checking::judge_compilation(TerminalCompilation::Prepared(prepared));
     assert_eq!(
         verdicts.len(),
         6,
@@ -485,7 +485,7 @@ fn a_value_parameter_body_is_checked_once_and_carried() {
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
-            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+            source_compiler::checking::RouteVerdict::Accepted(_)
         )),
         "{verdicts:#?}"
     );
@@ -536,14 +536,14 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
-            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
-                | terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }
+            source_compiler::checking::RouteVerdict::Accepted(_)
+                | source_compiler::checking::RouteVerdict::Rejected { .. }
         )),
         "{verdicts:#?}"
     );
     assert!(
         verdicts.iter().any(|verdict| matches!(verdict,
-        terminal_psi_to_terminal_psi::RouteVerdict::Rejected { unproved, .. }
+        source_compiler::checking::RouteVerdict::Rejected { unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind,
             terminal_check_tables::obligations::ObligationKind::CallRequirement { .. })
             && row.cause == terminal_check_tables::UnprovedCause::NoDerivation))),
@@ -601,10 +601,15 @@ fn native_and_psi_execute_the_finite_family_contract() {
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("generic fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
-        installation_assumptions: Vec::new(), retain_native_inputs: false,
-        retain_native_stage_inputs: false, image: Default::default(), private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,
@@ -664,17 +669,13 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
                 Some(&specialization.instance),
                 "{fixture}: preparation must retain the generated instance as its root"
             );
-            match terminal_psi_to_terminal_psi::judge(Ok(closure)) {
-                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Accepted { .. }) => {
-                    "accepted".into()
-                }
-                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }) => {
-                    "rejected".into()
-                }
-                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Incomplete { .. }) => {
+            match source_compiler::checking::judge(Ok(closure)) {
+                Ok(source_compiler::checking::RouteVerdict::Accepted { .. }) => "accepted".into(),
+                Ok(source_compiler::checking::RouteVerdict::Rejected { .. }) => "rejected".into(),
+                Ok(source_compiler::checking::RouteVerdict::Incomplete { .. }) => {
                     "incomplete".into()
                 }
-                Ok(terminal_psi_to_terminal_psi::RouteVerdict::FallBack(refusal)) => {
+                Ok(source_compiler::checking::RouteVerdict::FallBack(refusal)) => {
                     format!("falls back: {}", refusal.detail)
                 }
                 Err(refusal) => format!("defect: {}", refusal.detail),
@@ -816,7 +817,9 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
                 declarations[0].specialization.as_ref().unwrap().commitment,
                 declarations[1].specialization.as_ref().unwrap().commitment
             );
-            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt
@@ -1116,7 +1119,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
             .expect("published map captures reload independently");
             let module = reloaded.semantic_module();
             assert_eq!(module, accepted.module());
-            let retained = |capture: &typed_trees::CapturedMachineApplication| {
+            let retained = |capture: &source_compiler::source_state::CapturedMachineApplication| {
                 let machine = module
                     .machine(accepted.machine_of(capture.instance).unwrap())
                     .unwrap();
@@ -1204,7 +1207,9 @@ fn the_default_product_publishes_generic_named_map_captures() {
                     )
                 );
             }
-            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt
@@ -1252,7 +1257,9 @@ fn the_default_product_publishes_width_parameter_identity() {
             assert!(accepted.closure().elaboration.generic_binders.is_empty());
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
-            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt

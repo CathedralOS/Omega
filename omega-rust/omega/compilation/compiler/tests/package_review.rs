@@ -354,6 +354,70 @@ fn check_reopened_installation_reach(
 }
 
 #[test]
+fn package_target_batch_binds_runtime_consent_to_its_own_target() {
+    let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
+    let targets = [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ];
+    let source = fixture_package_inputs::discover_fixture(&fixture, Default::default()).unwrap();
+    let mut prepared = fixture_package_inputs::review_fixture(
+        source,
+        &targets,
+        compiler::CompilationProduct::Check,
+    )
+    .unwrap();
+    let mut requests = Vec::new();
+    for (target, request) in prepared.plans {
+        let package = request
+            .occurrences
+            .last()
+            .unwrap()
+            .package_inputs()
+            .unwrap()
+            .root();
+        let build = orchestration::prepare_package(
+            prepared.session.compiler(),
+            request.occurrences,
+            &mut prepared.completed,
+        )
+        .unwrap_or_else(|error| panic!("package source: {:?}", error.failure));
+        requests.push((
+            target,
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: Some(compiler::TerminalPermissionAcceptance {
+                    schema_version: review_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+                    package,
+                    target: target::TargetProfile::LinuxX64,
+                    rows: Vec::new(),
+                }),
+            },
+        ));
+    }
+    requests.sort_by_key(|(profile, _)| *profile != targets[0]);
+    let outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(requests)
+        .unwrap();
+    let [(first, matching), (second, foreign)] = outcomes
+        .try_into()
+        .unwrap_or_else(|_| panic!("both requested targets must return an outcome"));
+    assert_eq!([first, second], targets);
+    matching.unwrap().into_report().unwrap();
+    let Err(foreign) = foreign else {
+        panic!("a different target's lock was accepted")
+    };
+    let diagnostics = diagnostics::join_messages(&foreign.into_diagnostics());
+    assert!(
+        diagnostics.contains("policy package or target differs from the exact root activation"),
+        "{diagnostics}"
+    );
+}
+
+#[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
     let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
@@ -776,7 +840,7 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
         decode_package_provider_selections, encode_package_provider_selections,
     };
 
-    fn authored_name(declaration: &symbols::RetainedDeclaration) -> &str {
+    fn authored_name(declaration: &source_admission::RetainedDeclaration) -> &str {
         let span = declaration.span();
         &declaration.source().source[span.start..span.end]
     }
@@ -906,6 +970,100 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let retained = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("native proposal");
+    // The executable route commits its provider choices to target code. The
+    // original checked program and its Build/source companions keep one identity.
+    let (mut session, build, _) = captured_package_build(
+        &project,
+        &workspace.path().join("checked"),
+        target::TargetProfile::LinuxX64,
+        Some(historical_constant_snapshot()),
+    );
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .expect("accepted scalar source");
+    let publication = checked.terminal_publication();
+    let source = publication
+        .require_published(publication.optimizations())
+        .unwrap();
+    let original = source.artifact().view();
+    let original_bytes = source.artifact().to_bytes();
+    assert!(original.module().folded_constants.dependencies.is_empty());
+    let source_demand = publication
+        .prepare_provider_demand(
+            Some("linux_x86_64"),
+            &checked.build().config.provider_selections,
+            &checked.build().config.native_bindings,
+            checked.sources().package_identity().is_some(),
+        )
+        .expect("close the Linux source provider choices");
+    let demand = portable_publication::ProductCodeSource {
+        publication,
+        sources: checked.sources(),
+    }
+    .publish_provider_demand(
+        Some(target::TargetProfile::LinuxX64),
+        source_demand,
+        &mut source_compiler::UnmeasuredProduction,
+    )
+    .expect("source publishes the exact Linux scalar reach");
+    let backend_plan::ProviderDemandInputs::Target { folded_entry, .. } = demand.inputs() else {
+        panic!("expected target-specific provider demand");
+    };
+    let reach = folded_entry.clone().unwrap();
+    let planner = native_compiler::select_published_providers(demand)
+        .expect("plan native providers from the published demand");
+    let mut selected = planner.clone();
+    selected
+        .bind_folded_entry(
+            source.artifact(),
+            source.evidence().map(std::sync::Arc::as_ref),
+        )
+        .expect("normal target planner binds the exact reached providers");
+    let folded = selected.effective_artifact(source.artifact()).unwrap();
+    assert_eq!(
+        folded.view().identity(),
+        retained.artifact().view().identity()
+    );
+    assert_ne!(folded.view().identity(), original.identity());
+    let mut without_dependencies = folded.semantic_module().clone();
+    without_dependencies.folded_constants = Default::default();
+    assert_eq!(&without_dependencies, original.module());
+    assert_eq!(folded.debug_bytes(), source.artifact().debug_bytes());
+    assert_eq!(source.artifact().to_bytes(), original_bytes);
+    assert!(std::sync::Arc::ptr_eq(
+        &source,
+        &publication
+            .require_published(publication.optimizations())
+            .unwrap()
+    ));
+    assert!(source.build_bindings().calls_for(original.into()).is_some());
+    assert!(
+        source
+            .build_bindings()
+            .calls_for(folded.view().into())
+            .is_none()
+    );
+    assert_eq!(
+        checked.execution().realization().program(),
+        original.identity()
+    );
+    let replayed = planner
+        .with_folded_program(folded.view())
+        .expect("receive the same exact dependency table")
+        .into_result();
+    assert_eq!(replayed.original_program(), original.identity());
+    assert_eq!(replayed.realization().program(), folded.view().identity());
+    products::PublishedNativeEntry::for_program(folded, &replayed)
+        .expect("replayed entry retains its original nomination and its effective code");
+    assert!(
+        selected
+            .bind_folded_entry(
+                source.artifact(),
+                source.evidence().map(std::sync::Arc::as_ref),
+            )
+            .is_err()
+    );
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
@@ -918,6 +1076,24 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     );
     let view = decoded.view();
     let plans = proposal.providers().selection.plans();
+    assert_eq!(
+        reach.bind(original, "linux_x86_64", plans).unwrap(),
+        view.module().folded_constants
+    );
+    assert_eq!(
+        reach.bind(original, "linux_arm64", plans).unwrap_err(),
+        "folded scalar entry belongs to another program or deployment"
+    );
+    assert_eq!(
+        reach.bind(view, "linux_x86_64", plans).unwrap_err(),
+        "folded scalar entry belongs to another program or deployment"
+    );
+    assert!(
+        selected
+            .effective_artifact(retained.shared_artifact())
+            .is_err(),
+        "derived code must not reenter planning as its own source"
+    );
     let preimages =
         backend_plan::matching_folded_constant_dependencies(view, "linux_x86_64", plans.iter())
             .expect("native admission rejoins exact real plans");
@@ -964,6 +1140,11 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let alternate = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("alternate native proposal");
+    assert!(
+        planner
+            .with_folded_program(alternate.artifact().view())
+            .is_err()
+    );
     let alternate_plans = alternate
         .native_realization_proposal()
         .unwrap()
@@ -1006,7 +1187,6 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .retained_native_artifact()
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),
@@ -1698,6 +1878,9 @@ machine build(builder: &mut Build) {
 
 #[test]
 fn review_recovery_retains_native_build_intents_without_runtime_demand() {
+    use review_evidence::{project_checked_package_policy, record::PackagePolicyBaseline};
+    use std::sync::Arc;
+
     let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-unused-native-binding",
@@ -1721,7 +1904,26 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
 
     // The two original Build choices execute even though this entry never
     // calls Probe. Review retains the binding for the requested profile.
-    let policy = reviewed_and_recovered(&root, "linux_x86_64");
+    let target = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
+    let (mut session, build, inputs) =
+        captured_package_build(&root, &workspace.path().join("session"), target, None);
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .expect("idle entry");
+    assert!(
+        checked
+            .execution()
+            .realization()
+            .evaluated_native_bindings()
+            .is_empty()
+    );
+    let review =
+        review_evidence::project_package_review(&checked, inputs.root(), target, usize::MAX)
+            .expect("review the idle entry and its completed Build");
+    let bytes = review.policy.canonical_bytes().unwrap();
+    let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    assert_eq!(policy.canonical_bytes().unwrap(), bytes);
     let [binding] = policy.native_bindings() else {
         panic!("one evaluated binding for the reviewed target");
     };
@@ -1739,6 +1941,55 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
     assert_eq!(
         application.physical().policy(),
         calling_conventions::CallingPolicy::SystemVAMD64
+    );
+
+    // The original settled target cannot vouch for a different Build receipt
+    // or for a fresh judgment that has yet to publish the calling program.
+    let publication = Arc::new(
+        source_compiler::SourcePublication::judge(
+            Arc::clone(checked.source_inspection().program()),
+            checked.terminal_publication().roster().unwrap().clone(),
+            checked.terminal_publication().optimizations().clone(),
+        )
+        .unwrap(),
+    );
+    let inspection = Arc::new(products::SelectedProviderSource::new(
+        Arc::clone(checked.source_inspection().inventory()),
+        Arc::clone(checked.execution().shared_plans()),
+    ));
+    let inspect = |build| {
+        let review = products::CheckedCompilation::from_settled_execution(
+            products::CheckedCompilationInputs {
+                settled: checked.execution().clone(),
+                source_inspection: Arc::clone(&inspection),
+                build: Arc::new(build),
+                build_admission: checked.build_admission().clone(),
+            },
+            Arc::new(checked.sources().clone()),
+            Default::default(),
+            Arc::clone(&publication),
+        )
+        .unwrap();
+        let refusal = project_checked_package_policy(&review, target, inputs.root()).unwrap_err();
+        diagnostics::join_messages(&refusal)
+    };
+    let mut changed = checked.build().clone();
+    let authored = changed
+        .config
+        .native_bindings
+        .iter_mut()
+        .find(|supply| supply.selection.target.canonical_name() == target.target_name())
+        .unwrap();
+    authored.selection.source_occurrence_digest[0] ^= 1;
+    assert!(inspect(changed).contains("the complete selected native supply custody"));
+    let mut missing = checked.build().clone();
+    missing
+        .config
+        .native_bindings
+        .retain(|binding| binding.selection.target.canonical_name() != target.target_name());
+    assert!(inspect(missing).contains("the complete selected native supply custody"));
+    assert!(
+        inspect(checked.build().clone()).contains("the checked program for native calling policy")
     );
 }
 
@@ -1835,7 +2086,8 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
         installation_assumptions: Vec::new(),
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2049,17 +2301,17 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         },
     )
     .expect("discover the exact closed registrar binding");
-    let product =
-        compiler::CompilationProduct::Native(products::NativeProductRequest {
-            installation_assumptions: Vec::new(),
-            retain_native_inputs: true,
-            retain_native_stage_inputs: false,
-            image: Default::default(),
-            private_entry_ram: Vec::new(),
-            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-            terminal_authority_permission_policy: None,
-            optimization_rollback: Default::default(),
-        });
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: true,
+        retain_native_stage_inputs: false,
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,
         &[target::TargetProfile::MacosArm64],
@@ -2387,46 +2639,45 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
 fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
     let text =
         "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let id = sources
         .add_checked_instance(
             "/unit/build.omg".into(),
             text,
             "/unit".into(),
             None,
-            source::SourceOrigin::Toolchain,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Build,
+            source_admission::SourceOrigin::Toolchain,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Build,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed.realized_machine_named("build").unwrap().symbol;
-    let prepared = source_compiler::SourcePreparationRequest {
-        program: typed,
-        accounting: Default::default(),
-        admission: Default::default(),
-        compilation: source_compiler::TerminalSourceCompilation {
-            entries: &[entry],
-            subjects: &[],
-            purpose: source::DependencyScope::Build,
-            selected: &[],
-            declaration_metadata: &[],
-            bindings: &[],
-            calling: None,
-            providers: None,
-            supplies: &[],
-        },
-    }
-    .prepare()
-    .unwrap();
+    let prepared =
+        source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation: source_compiler::TerminalSourceCompilation {
+                entries: &[entry],
+                subjects: &[],
+                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                selected: &[],
+                declaration_metadata: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+        })
+        .unwrap();
     assert_eq!(prepared.accounting.receipts().len(), 1);
     prepared.accounting.validate_charges().unwrap();
     prepared.accounting
@@ -2588,7 +2839,7 @@ fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
             .receipts()
             .iter()
             .filter_map(|record| match record {
-                build_time_evaluation::PureEvaluationRecord::Invocation(receipt)
+                source_compiler::evaluation::PureEvaluationRecord::Invocation(receipt)
                     if receipt.request_source().symbols.name(receipt.requester()) == "VALUE" =>
                 {
                     Some(receipt.request_source().identity.get())
@@ -2751,6 +3002,60 @@ fn captured_package_build(
         .complete(session.compiler(), target, inputs.clone())
         .unwrap_or_else(|failure| panic!("Product preparation: {:?}", failure.into_diagnostics()));
     (session, build, inputs)
+}
+
+#[test]
+fn runtime_consent_requires_the_complete_source_inventory_only_when_requested() {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "runtime-lock-unused-public-constant",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    let root = project.join("main.omg");
+    std::fs::write(&root, "public const Limit: u64 = 8;\nmachine main() {}\n").unwrap();
+    std::fs::write(project.join("build.omg"), REVIEW_BUILD_SOURCE).unwrap();
+
+    let target = target::TargetProfile::LinuxX64;
+    for locked in [false, true] {
+        let session_root = workspace
+            .path()
+            .join(if locked { "locked" } else { "ordinary" });
+        let (mut session, build, inputs) =
+            captured_package_build(&root, &session_root, target, None);
+        let permissions = locked.then(|| compiler::TerminalPermissionAcceptance {
+            schema_version: review_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+            package: inputs.root(),
+            target,
+            rows: Vec::new(),
+        });
+        let request = compiler::PreparedPackageProduct {
+            build,
+            product: compiler::CompilationProduct::Check,
+            permissions,
+        };
+        let [((), product)] = session
+            .compiler()
+            .complete_package_products(vec![((), request)])
+            .unwrap()
+            .try_into()
+            .unwrap_or_else(|_| panic!("one package product was requested"));
+        if locked {
+            let Err(refusal) = product else {
+                panic!("lock consent omitted the unsupported public declaration")
+            };
+            let errors = refusal.into_diagnostics();
+            assert_eq!(errors.len(), 1, "{errors:?}");
+            assert_eq!(
+                errors[0].message,
+                "package review cannot retain public constant contracts from the accepted declaration"
+            );
+        } else {
+            product.unwrap().into_report().unwrap();
+        }
+        session.close().unwrap();
+    }
 }
 
 #[test]
@@ -2954,7 +3259,7 @@ machine main() {}
         input.module().unwrap(),
         checked.terminal_publication().accepted().unwrap().module()
     ));
-    let detached: typed_trees::TypedTrees = checked
+    let detached: source_compiler::source_state::TypedTrees = checked
         .source_inspection()
         .program()
         .as_ref()
@@ -3021,7 +3326,7 @@ machine main() {}
     let roster = checked.terminal_publication().roster().unwrap().clone();
     let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
-        products::ProductTerminalPublication::judge(
+        source_compiler::SourcePublication::judge(
             source,
             roster,
             checked.terminal_publication().optimizations().clone(),

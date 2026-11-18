@@ -1081,10 +1081,15 @@ pub(crate) mod access_lifecycles {
 }
 pub(crate) mod access_ram_correspondence {
 
-    use access_plans::{
-        AtomicCapability, BoundaryReach, ExternalCapability, PeerWritability, ResourceProfile,
-        ResourceRegion, StableCapability, validate_access_resources, validate_resource_profile,
-    };
+    use access_admission::validate_access_resources;
+    use access_admission::validate_resource_profile;
+    use access_vocabulary::AtomicCapability;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
     use semantic_vocabulary::StructuralTypeId;
     use terminal_psi::{
         StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalModule,
@@ -1181,7 +1186,7 @@ pub(crate) mod access_ram_correspondence {
                 .get(field.access_slot as usize)
                 .filter(|entry| entry.key().slot() == field.access_slot)
                 .ok_or_else(|| "RAM interpretation lost its exact access slot".to_owned())?;
-            if access.access() == &access_plans::FieldAccess::Inaccessible {
+            if access.access() == &access_vocabulary::FieldAccess::Inaccessible {
                 continue;
             }
             let mut selected = schema_fields.iter().filter(|candidate| {
@@ -1887,7 +1892,7 @@ pub(crate) mod access_view_plans {
                     .get(field.access_slot as usize)
                     .filter(|entry| entry.key().slot() == field.access_slot)
                     .filter(|entry| {
-                        !matches!(entry.access(), access_plans::FieldAccess::Inaccessible)
+                        !matches!(entry.access(), access_vocabulary::FieldAccess::Inaccessible)
                     })
                     .ok_or(AccessViewPlanError::FieldSlotMismatch)?;
                 let view_field = view_fields
@@ -2054,7 +2059,7 @@ pub(crate) mod access_view_plans {
                     .entries()
                     .iter()
                     .filter(|entry| {
-                        !matches!(entry.access(), access_plans::FieldAccess::Inaccessible)
+                        !matches!(entry.access(), access_vocabulary::FieldAccess::Inaccessible)
                     })
                     .count()
                 || view_fields.len() != plan.fields.len()

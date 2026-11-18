@@ -2,11 +2,10 @@
 We sponsor an isolated provider process (`NativeProviderProcess`) and its
 immutable file-backed native homes (`NativeHomeId`).
 
-The provider process is a physical failure and lifetime boundary, not a semantic
-fallback. Each installed slot (`NativeAdapterId`) consumes a produced exact ABI
-image (`NativeForeignAdapterImage`). Mapped ranges stay owned independently in
-both processes; only the host interpreter can correlate normal calls with actual
-claims, content guarantees, and retained loans.
+The host sponsor resolves each requested adapter identity against its published
+images and installs it on a private channel. The process owns the resulting
+slots and mapped ranges for one worker incarnation. The interpreter correlates
+normal calls with actual claims, content guarantees, and retained loans.
 
 When creating a shared home, we insert the parent's physical `SharedBacking`
 before lending the mapping to the worker so a rejected attach cannot free a
@@ -16,20 +15,18 @@ process cleanup.
 */
 
 use crate::{
-    channel,
     provider_references::{NativeResultStorage, ProviderReferenceResult},
     shared_backing::SharedBacking,
-    wire::{self, BorrowGeometry, Cursor, Duplex, Geometry, Packet, invalid},
+    wire::{self, BorrowGeometry, Geometry, Packet, invalid},
     worker,
 };
-use bounded_process::{BoundedProcessChild, BoundedProcessLimits, BoundedProcessPrepared};
+use bounded_process::BoundedProcessChild;
+use calling_conventions::PublishedForeignAdapterIdentity;
 use calling_conventions::{ValueClass, ValueShape};
-use native_artifact::NativeForeignAdapterImage;
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     io,
-    path::PathBuf,
+    path::Path,
     process::{Command, ExitStatus},
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
@@ -90,11 +87,74 @@ impl From<io::Error> for NativeProviderError {
     }
 }
 
+/// Framed, non-installing worker operation issued by the runtime for this
+/// session. Only the host that owns the transport can submit it.
+pub struct NativeProviderOperation<'a>(&'a [u8]);
+impl NativeProviderOperation<'_> {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0
+    }
+}
+
+/// Non-executable parameter and result geometry, checked against the ABI by
+/// the runtime before the host installs its matching published adapter.
+pub struct NativeAdapterStorage<'a>(&'a [u8]);
+impl NativeAdapterStorage<'_> {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0
+    }
+}
+
+/// A live worker session supplied by the explicit native sponsor. The
+/// interpreter has no handle to the worker's private installation channel.
+pub trait NativeProviderSession {
+    fn home_directory(&self) -> &Path;
+    /// Release the sponsor's newly created mappings directory only after this
+    /// worker has retired. A custom sponsor owns its own storage cleanup.
+    fn release_home_directory(&mut self);
+
+    fn install(
+        &mut self,
+        adapter: &PublishedForeignAdapterIdentity,
+        ordinal: u64,
+        storage: NativeAdapterStorage<'_>,
+    ) -> io::Result<Vec<u8>>;
+    fn exchange(&mut self, operation: NativeProviderOperation<'_>) -> io::Result<Vec<u8>>;
+}
+
+/// A command and its explicitly supplied native host. The interpreter starts
+/// it only when an admitted call actually needs a provider.
+pub struct NativeProviderCommand {
+    command: Command,
+    start: Box<
+        dyn FnOnce(Command, Duration) -> Result<NativeProviderProcess, NativeProviderError> + Send,
+    >,
+}
+impl NativeProviderCommand {
+    pub fn new(
+        command: Command,
+        start: impl FnOnce(Command, Duration) -> Result<NativeProviderProcess, NativeProviderError>
+        + Send
+        + 'static,
+    ) -> Self {
+        Self {
+            command,
+            start: Box::new(start),
+        }
+    }
+    pub fn current_dir(&mut self, directory: &Path) {
+        self.command.current_dir(directory);
+    }
+
+    pub fn start(self, timeout: Duration) -> Result<NativeProviderProcess, NativeProviderError> {
+        (self.start)(self.command, timeout)
+    }
+}
+
 pub struct NativeProviderProcess {
     child: Option<BoundedProcessChild>,
-    channel: Box<dyn Duplex>,
+    session: Box<dyn NativeProviderSession>,
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
-    directory: PathBuf,
     pub(crate) era: u64,
     pub(crate) adapters: Vec<NativeResultStorage>,
     pub(crate) provider_references: Vec<Option<ProviderReferenceResult>>,
@@ -103,117 +163,87 @@ pub struct NativeProviderProcess {
 }
 
 impl NativeProviderProcess {
-    pub fn launch(command: Command, timeout: Duration) -> Result<Self, NativeProviderError> {
-        if timeout.is_zero() || timeout > Duration::from_secs(3600) {
-            return Err(invalid("native sponsor deadline is out of range").into());
-        }
+    /// Adopt a worker created by its sponsor. Installation stays with that
+    /// sponsor. The requester can only name an adapter in the published roster.
+    pub fn from_sponsor(
+        child: BoundedProcessChild,
+        mut session: Box<dyn NativeProviderSession>,
+        timeout: Duration,
+    ) -> Result<Self, NativeProviderError> {
         static NEXT_ERA: AtomicU64 = AtomicU64::new(1);
-        let era = NEXT_ERA
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |era| {
-                era.checked_add(1)
-            })
-            .map_err(|_| invalid("native provider occurrence identities exhausted"))?;
-        let instant = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(io::Error::other)?
-            .as_nanos();
-        let directory = std::env::temp_dir().join(format!(
-            "omega-native-provider-{}-{instant}-{era}",
-            std::process::id()
-        ));
-        let builder = std::fs::DirBuilder::new();
-        #[cfg(unix)]
-        let builder = {
-            use std::os::unix::fs::DirBuilderExt;
-            let mut builder = builder;
-            builder.mode(0o700);
-            builder
+        let era = if timeout.is_zero() || timeout > Duration::from_secs(3600) {
+            Err(invalid("native sponsor deadline is out of range"))
+        } else {
+            NEXT_ERA
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |era| {
+                    era.checked_add(1)
+                })
+                .map_err(|_| invalid("native provider occurrence identities exhausted"))
         };
-        builder.create(&directory)?;
-        let launched = (|| {
-            let private = channel::prepare(timeout)?;
-            let mut prepared = BoundedProcessPrepared::new(
-                command,
-                BoundedProcessLimits::new(
-                    120,
-                    8 * 1024 * 1024 * 1024,
-                    64 * 1024 * 1024,
-                    128,
-                    16,
-                    1024 * 1024 * 1024,
-                    2 * 1024 * 1024 * 1024,
-                ),
-                "isolated native provider",
-            )?;
-            prepared.stdin_null().stdout_null().stderr_null();
-            prepared
-                .env(worker::ROOT_ENV, &directory)
-                .env(worker::PARENT_ENV, std::process::id().to_string())
-                .env(worker::TIMEOUT_ENV, timeout.as_millis().max(1).to_string());
-            #[cfg(unix)]
-            let stream = {
-                let descriptor = prepared.retain_descriptor(private.child)?;
-                prepared.env(worker::CHANNEL_ENV, descriptor.to_string());
-                private.parent
-            };
-            #[cfg(windows)]
-            prepared.env(worker::CHANNEL_ENV, &private.name);
-            let mut child = BoundedProcessChild::spawn(prepared)?;
-            #[cfg(windows)]
-            let stream = private.accept(child.id())?;
-            #[cfg(unix)]
-            let _ = &mut child;
-            Ok::<_, io::Error>((child, Box::new(stream) as Box<dyn Duplex>))
-        })();
-        match launched {
-            Ok((child, channel)) => Ok(Self {
-                child: Some(child),
-                channel,
-                homes: BTreeMap::new(),
-                directory,
-                era,
-                adapters: Vec::new(),
-                provider_references: Vec::new(),
-                timeout,
-                faulted: false,
-            }),
+        let era = match era {
+            Ok(era) => era,
             Err(error) => {
-                let _ = std::fs::remove_dir_all(directory);
-                Err(error.into())
+                drop(child);
+                session.release_home_directory();
+                return Err(error.into());
             }
-        }
+        };
+        Ok(Self {
+            child: Some(child),
+            session,
+            homes: BTreeMap::new(),
+            era,
+            adapters: Vec::new(),
+            provider_references: Vec::new(),
+            timeout,
+            faulted: false,
+        })
     }
 
-    pub fn install(
+    pub fn install_published(
         &mut self,
-        adapter: &NativeForeignAdapterImage,
+        adapter: &PublishedForeignAdapterIdentity,
         storage: &[NativeParameterStorage],
     ) -> Result<NativeAdapterId, NativeProviderError> {
-        self.install_with_result(adapter, storage, NativeResultStorage::Value)
+        self.install_published_with_result(adapter, storage, NativeResultStorage::Value)
     }
 
     /// Result storage comes from the host's complete admitted boundary
     /// contract. An adapter's pointer-shaped ABI alone grants no referent.
-    pub fn install_with_result(
+    pub fn install_published_with_result(
         &mut self,
-        adapter: &NativeForeignAdapterImage,
+        adapter: &PublishedForeignAdapterIdentity,
         storage: &[NativeParameterStorage],
         result_storage: NativeResultStorage,
     ) -> Result<NativeAdapterId, NativeProviderError> {
-        if adapter.bridge().request().target != target::NativeTarget::host() {
+        self.install_admitted(
+            adapter,
+            storage,
+            result_storage,
+            |this, ordinal, storage| {
+                this.session
+                    .install(adapter, ordinal, NativeAdapterStorage(storage))
+            },
+        )
+    }
+
+    fn install_admitted(
+        &mut self,
+        adapter: &PublishedForeignAdapterIdentity,
+        storage: &[NativeParameterStorage],
+        result_storage: NativeResultStorage,
+        install: impl FnOnce(&mut Self, u64, &[u8]) -> io::Result<Vec<u8>>,
+    ) -> Result<NativeAdapterId, NativeProviderError> {
+        if adapter.bridge.target != target::NativeTarget::host() {
             return Err(invalid("native frame product targets another host").into());
         }
-        let plan = &adapter.bridge().request().foreign.plan().call;
+        let plan = &adapter.bridge.foreign.plan().call;
         if storage.len() != plan.parameters.len() {
             return Err(invalid("native parameter storage has an incomplete telescope").into());
         }
         let ordinal = u64::try_from(self.adapters.len())
             .map_err(|_| invalid("native adapter occurrence identities exhausted"))?;
-        let mut packet = Packet::new(1);
-        packet.number(ordinal);
-        packet.text(adapter.export())?;
-        packet.bytes(adapter.container().contents())?;
-        packet.bytes(&Sha256::digest(adapter.container().contents()))?;
+        let mut packet = Packet(Vec::new());
         packet.number(plan.parameters.len() as u64);
         for (parameter, storage) in plan.parameters.iter().zip(storage) {
             geometry(parameter.shape, *storage)?.write(&mut packet);
@@ -247,7 +277,19 @@ impl NativeProviderProcess {
                 .write(&mut packet);
             }
         }
-        self.exchange(packet)?;
+        if self.faulted || self.child.is_none() {
+            return Err(invalid("native provider incarnation is closed or faulted").into());
+        }
+        let result = install(self, ordinal, &packet.0).and_then(|acknowledgment| {
+            if acknowledgment.is_empty() {
+                Ok(acknowledgment)
+            } else {
+                Err(invalid(
+                    "native adapter installation returned a malformed acknowledgment",
+                ))
+            }
+        });
+        self.finish_exchange(result)?;
         let id = NativeAdapterId {
             era: self.era,
             ordinal,
@@ -267,7 +309,7 @@ impl NativeProviderProcess {
         let ordinal = (self.homes.len() as u64)
             .checked_add(1)
             .ok_or_else(|| invalid("native home occurrence identities exhausted"))?;
-        let path = worker::home_path(&self.directory, ordinal);
+        let path = worker::home_path(self.session.home_directory(), ordinal);
         let home = SharedBacking::create(&path, extent)?;
         if let Err(error) = home.pointer(0, extent, alignment) {
             drop(home);
@@ -435,20 +477,14 @@ impl NativeProviderProcess {
         if self.faulted || self.child.is_none() {
             return Err(invalid("native provider incarnation is closed or faulted").into());
         }
-        let exchange = (|| {
-            wire::send(self.channel.as_mut(), &packet.0)?;
-            let response = wire::receive(self.channel.as_mut())?;
-            let mut cursor = Cursor::new(&response);
-            match cursor.byte()? {
-                0 => {
-                    let result = cursor.bytes()?.to_vec();
-                    cursor.finish()?;
-                    Ok(result)
-                }
-                1 => Err(io::Error::other(cursor.text()?.to_owned())),
-                _ => Err(invalid("native worker response is malformed")),
-            }
-        })();
+        let exchange = self.session.exchange(NativeProviderOperation(&packet.0));
+        self.finish_exchange(exchange)
+    }
+
+    fn finish_exchange(
+        &mut self,
+        exchange: io::Result<Vec<u8>>,
+    ) -> Result<Vec<u8>, NativeProviderError> {
         exchange.map_err(|error| {
             self.faulted = true;
             let deadline = Instant::now() + self.timeout.min(Duration::from_millis(100));
@@ -493,10 +529,13 @@ impl Drop for NativeProviderProcess {
     fn drop(&mut self) {
         if self.retire_process().is_ok() {
             self.homes.clear();
-            let _ = std::fs::remove_dir_all(&self.directory);
+            self.session.release_home_directory();
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test_session;
 
 fn geometry(shape: ValueShape, storage: NativeParameterStorage) -> io::Result<Geometry> {
     match storage {

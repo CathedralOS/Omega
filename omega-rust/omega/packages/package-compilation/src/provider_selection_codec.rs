@@ -5,19 +5,24 @@
 // digest uses package identities and relative source paths so relocating a
 // checkout does not alter the semantic digest.
 
-use build_time_evaluation::provider_declarations::{
+use declaration_contracts::selection::CompositionMode;
+use declaration_contracts::selection::ProductTarget;
+use declaration_contracts::source_identity::DependencyScope;
+use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use semantic_vocabulary::PackageKeyIdentity;
+use source_admission::RetainedDeclaration;
+use source_admission::SourceFile;
+use source_admission::SourceOrigin;
+use source_admission::SourceResolutionStratum;
+use source_compiler::declaration_selection::BuildSelectionOrigin;
+use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
+use source_compiler::evaluation::provider_declarations::{
     RetainedProductApplication, RetainedProviderSelection,
 };
-use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use language_semantics::declaration_selection::product_operands::ProductStaticOperandGraph;
-use language_semantics::declaration_selection::{
-    BuildSelectionOrigin, CompositionMode, ProductTarget,
-};
-use semantic_vocabulary::PackageKeyIdentity;
-use source::{DependencyScope, SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, Span};
+use source_text::{SourceId, Span};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use symbols::{RetainedDeclaration, SymbolKind};
+use symbols::SymbolKind;
 
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const MAXIMUM_ROWS: u64 = 1 << 20;
@@ -57,7 +62,7 @@ impl SelectionSources {
                 .sources
                 .get(span.source_id)
                 .expect("captured application source coordinates belong to their retained map");
-            source::SourceSpan::new(self.intern_source(source), span.span)
+            source_text::SourceSpan::new(self.intern_source(source), span.span)
         });
     }
 
@@ -95,7 +100,7 @@ impl SelectionSources {
                 .iter()
                 .position(|existing| *existing == source)
                 .expect("selection source pool contains every closed application coordinate");
-            source::SourceSpan::new(SourceId(index), span.span)
+            source_text::SourceSpan::new(SourceId(index), span.span)
         });
         let limits = compiler_storage::RecordLimits {
             bytes: usize::MAX,
@@ -261,7 +266,7 @@ pub fn decode_package_provider_selections(
         return None;
     }
     let sources = decode_sources(&mut cursor)?;
-    let application_sources = Arc::new(source::SourceMap::from_files(
+    let application_sources = Arc::new(source_compiler::source_inputs::SourceMap::from_files(
         sources
             .iter()
             .cloned()
@@ -362,7 +367,7 @@ pub(super) fn decode_product_applications(
     bytes: &[u8],
 ) -> Option<Vec<Option<RetainedProductApplication>>> {
     let mut cursor = ObservationCursor::new(bytes);
-    let sources = Arc::new(source::SourceMap::from_files(
+    let sources = Arc::new(source_compiler::source_inputs::SourceMap::from_files(
         decode_sources(&mut cursor)?
             .into_iter()
             .enumerate()
@@ -427,7 +432,7 @@ fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>>
 
 fn decode_application(
     cursor: &mut ObservationCursor<'_>,
-    sources: &Arc<source::SourceMap>,
+    sources: &Arc<source_compiler::source_inputs::SourceMap>,
 ) -> Option<Option<RetainedProductApplication>> {
     match cursor.u8()? {
         0 => Some(None),

@@ -3,8 +3,10 @@
 // (`Arc::ptr_eq`). Source declarations do not replace route-owned provider
 // application evidence; projection refuses while that evidence is unavailable.
 
+use source_compiler::source_state::{
+    FrozenTypedTrees, provider_declarations::PreparedProviderInventory,
+};
 use std::sync::Arc;
-use typed_trees::{FrozenTypedTrees, provider_declarations::PreparedProviderInventory};
 
 pub struct SelectedProviderSource {
     inventory: Arc<PreparedProviderInventory>,

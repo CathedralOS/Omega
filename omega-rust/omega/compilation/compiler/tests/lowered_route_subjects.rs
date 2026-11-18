@@ -15,11 +15,12 @@ mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use semantic_vocabulary::{IdTable, MachineId};
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate, elaborate_closure};
+use source_compiler::source_state::deferred_refusals::DeferredRequest;
 use symbols::SymbolHandle;
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees::deferred_refusals::DeferredRequest;
-use typed_trees_to_terminal_psi::{Compilation, elaborate, elaborate_closure};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -247,7 +248,7 @@ fn route_verdict(
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization
@@ -285,7 +286,7 @@ fn wrong_verdicts(programs: &[(&str, Expected)]) -> Vec<String> {
 
 fn assert_authored_site(
     frontier: &compiler::TypedFrontier,
-    site: Option<source::SourceSpan>,
+    site: Option<source_text::SourceSpan>,
     path: &str,
     anchor: &str,
     text: &str,
@@ -300,12 +301,10 @@ fn assert_authored_site(
         + anchor
             .find(text)
             .expect("the anchor contains the rejected name");
-    assert_eq!(site.span, source::Span::new(start, start + text.len()));
+    assert_eq!(site.span, source_text::Span::new(start, start + text.len()));
 }
 
-fn rule_violation(
-    frontier: &compiler::TypedFrontier,
-) -> terminal_psi_to_terminal_psi::RuleViolation {
+fn rule_violation(frontier: &compiler::TypedFrontier) -> source_compiler::checking::RuleViolation {
     let (_, verdict) = route_verdict(frontier);
     let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("the route must reject a rule violation: {verdict:?}");
@@ -316,7 +315,7 @@ fn rule_violation(
 
 fn unproved_subject_obligation(
     frontier: &compiler::TypedFrontier,
-) -> terminal_psi_to_terminal_psi::UnprovedObligation {
+) -> source_compiler::checking::UnprovedObligation {
     let (_, verdict) = route_verdict(frontier);
     let Ok(RouteVerdict::Rejected {
         formations,
@@ -622,7 +621,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization
@@ -665,7 +664,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[Some(another)],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &[selected],
                 calling: frontier
                     .normalization
@@ -691,8 +690,9 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                     .symbol_provenance_source_span(*symbol)
                     .and_then(|span| typed.symbols.source_file(span))
                     .is_some_and(|file| {
-                        file.origin == source::SourceOrigin::User
-                            && file.dependency_scope == source::DependencyScope::Product
+                        file.origin == source_admission::SourceOrigin::User
+                            && file.dependency_scope
+                                == declaration_contracts::source_identity::DependencyScope::Product
                     })
         })
         .expect("the fixture declares `pick` beside its entry");
@@ -725,7 +725,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &[exit.symbol, exit_process],
             bindings: &frontier.bindings,
             supplies: &[],
@@ -916,14 +916,14 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
 
 /// Every part `judge_compilation` judges of a staged program.
 fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdict> {
-    terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
             Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -1592,14 +1592,14 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         publication.artifact.semantic_module(),
         &closure.elaboration.module
     );
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
+    let input = native_program_planning::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("Omega 00 retains the original-input guarantees")
     .into_optimization_artifact()
     .into_optimization_input();
-    abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+    native_program_planning::test_support::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )

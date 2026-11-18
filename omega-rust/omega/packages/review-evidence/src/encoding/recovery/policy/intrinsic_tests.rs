@@ -79,11 +79,12 @@ fn intrinsic_payloads_round_trip_without_changing_existing_bytes() {
 
 #[test]
 fn existing_intrinsic_variants_still_round_trip() {
-    use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
-    use provider_planning::{
+    use effects::{
         CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
         CompilerPrimitiveIntegerComparisonOperation,
     };
+    use numeric_literals::FloatFormat;
+    use numerics::arithmetic::ArithmeticDomain;
     let cases = [
         Execution::BuiltinFunction(
             symbols::BuiltinFunction::from_ordinal(0).expect("first builtin"),
@@ -133,10 +134,10 @@ fn existing_intrinsic_variants_still_round_trip() {
 
 #[test]
 fn integer_width_intrinsic_evidence_round_trips_and_refuses_malformed_metadata() {
-    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
-    use provider_planning::{
+    use effects::{
         CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
     };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
     for width in [1, 13, 64, 257, u64::MAX] {
         for integer in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
             for value in [

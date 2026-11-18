@@ -12,7 +12,7 @@ pub struct PropositionDefinition {
     pub is_public: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
-    pub transparent_formula_source_span: Option<source::SourceSpan>,
+    pub transparent_formula_source_span: Option<source_text::SourceSpan>,
     pub body: PropositionBody,
 }
 
@@ -179,7 +179,7 @@ pub struct SatisfiesClause {
     pub alias: Option<Identifier>,
     pub via: Option<ExternalBinding>,
     pub via_expression: ExpressionHandle,
-    pub via_keyword_source_span: Option<source::SourceSpan>,
+    pub via_keyword_source_span: Option<source_text::SourceSpan>,
 }
 
 #[derive(

@@ -1,6 +1,7 @@
 // Shared by the allocation-counting and transparent-System timing examples.
 
-use semantic_vocabulary::{IdTable, Proposition, PropositionContext, ValueId};
+use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
+use arena::{IdTable};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::sync::Arc;
@@ -61,40 +62,40 @@ struct Input {
 fn inputs(path: &std::path::Path) -> Vec<Input> {
     let text = std::fs::read_to_string(path).unwrap();
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             path.into(),
             text.as_str(),
             path.parent().unwrap().into(),
             Some(package),
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Product,
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
     let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "main")
         .unwrap()
         .symbol;
-    let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
+    let mut elaboration = source_compiler::lowering::elaborate_for(
         &typed,
-        typed_trees_to_terminal_psi::Compilation {
+        source_compiler::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -104,9 +105,9 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let discharge = terminal_psi_to_terminal_psi::discharge(
+    let discharge = source_compiler::checking::discharge(
         &mut elaboration,
-        &mut terminal_psi_to_terminal_psi::ProofSearchActivity::default(),
+        &mut source_compiler::checking::ProofSearchActivity::default(),
     )
     .unwrap();
     let mut inputs = Vec::new();

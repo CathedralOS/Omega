@@ -1,0 +1,11411 @@
+/*
+We compute and intern canonical, binder-aware type identities (`type_identity`)
+across open indices, constraints, lifetimes, portable machine applications, and
+callable signatures in `TypedTrees`.
+*/
+
+pub(crate) mod callable_identity {
+    use super::constraint_identity::{atom, compound};
+    use super::coordinates::CoordinateTag;
+    use super::{NormalizedResultDispatchSet, TypeIdentityId};
+    use crate::source_state::TypedTrees;
+    use crate::source_state::machine::Machine;
+    use crate::source_state::operator::OperatorDefinition;
+    use crate::source_state::signature::StateSignature;
+    use crate::source_state::trait_definition::TraitDefinition;
+
+    type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+
+    #[derive(
+        Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+    )]
+    pub struct CallableIdentityId(u32);
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+    pub struct CallablePathId(u32);
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+    pub struct CallableParametersId(u32);
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+    pub struct CallableResultDispatchId(u32);
+
+    // Callable paths are interned only so identities compare by path; no
+    // reader looks a path back up by slot, so that handle omits `slot`.
+    macro_rules! interned_handle {
+        ($name:ident) => {
+            impl $name {
+                pub fn is_valid(self) -> bool {
+                    self.0 != 0
+                }
+
+                fn from_slot(slot: usize) -> Self {
+                    Self(slot as u32 + 1)
+                }
+            }
+        };
+        ($name:ident, readable) => {
+            interned_handle!($name);
+
+            impl $name {
+                fn slot(self) -> Option<usize> {
+                    (self.0 != 0).then(|| self.0 as usize - 1)
+                }
+            }
+        };
+    }
+
+    interned_handle!(CallableIdentityId, readable);
+    interned_handle!(CallablePathId);
+    interned_handle!(CallableParametersId, readable);
+    interned_handle!(CallableResultDispatchId, readable);
+
+    pub(crate) struct CallableIdentityParts {
+        pub(crate) path: String,
+        pub(crate) parameters: String,
+        pub(crate) result_dispatch: NormalizedResultDispatchSet,
+    }
+
+    struct BoundaryOperatorIdentityParts {
+        path: String,
+        parameter_types: Vec<TypeIdentityId>,
+        result_type: TypeIdentityId,
+        parameters: String,
+        result_dispatch: NormalizedResultDispatchSet,
+        text: String,
+    }
+
+    // These values are immutable interner keys or derived lookup directories.
+    // A fork owns its directory writes, while old text/dispatch keys retain
+    // their payload when the directory gains a genuinely new identity.
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    struct SharedValue<T>(std::sync::Arc<T>);
+
+    impl<T> Clone for SharedValue<T> {
+        fn clone(&self) -> Self {
+            Self(std::sync::Arc::clone(&self.0))
+        }
+    }
+    impl<T> From<T> for SharedValue<T> {
+        fn from(value: T) -> Self {
+            Self(std::sync::Arc::new(value))
+        }
+    }
+    impl<T: Default> Default for SharedValue<T> {
+        fn default() -> Self {
+            T::default().into()
+        }
+    }
+    impl<T> std::ops::Deref for SharedValue<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+    impl<T: Clone> std::ops::DerefMut for SharedValue<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            std::sync::Arc::make_mut(&mut self.0)
+        }
+    }
+    impl<T> std::borrow::Borrow<T> for SharedValue<T> {
+        fn borrow(&self) -> &T {
+            self
+        }
+    }
+    impl std::borrow::Borrow<str> for SharedValue<Box<str>> {
+        fn borrow(&self) -> &str {
+            self
+        }
+    }
+    impl<T: compiler_storage::Record> compiler_storage::Record for SharedValue<T> {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            // Preserve the old key/directory bytes; sharing is local ownership,
+            // not an additional persisted identity or numbering authority.
+            T::write(self, output)
+        }
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            let owner =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<T>())
+                    .ok_or_else(|| input.error("callable identity owner allocation overflow"))?;
+            input.allocate(owner)?;
+            Ok(T::read(input)?.into())
+        }
+    }
+
+    #[derive(Clone, compiler_storage::Record)]
+    struct CallableIdentityRecord {
+        path: CallablePathId,
+        parameters: CallableParametersId,
+        result_dispatch: CallableResultDispatchId,
+        text: Box<str>,
+    }
+
+    #[derive(Clone, Default, compiler_storage::Record)]
+    pub struct CallableIdentityTable {
+        paths: arena::RetainedRows<Box<str>>,
+        path_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallablePathId>>,
+        parameters: arena::RetainedRows<Box<str>>,
+        parameter_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallableParametersId>>,
+        result_dispatches: arena::RetainedRows<NormalizedResultDispatchSet>,
+        result_dispatch_slots: SharedValue<
+            std::collections::HashMap<
+                SharedValue<NormalizedResultDispatchSet>,
+                CallableResultDispatchId,
+            >,
+        >,
+        records: arena::RetainedRows<CallableIdentityRecord>,
+        record_slots: SharedValue<
+            HashMap<
+                (
+                    CallablePathId,
+                    CallableParametersId,
+                    CallableResultDispatchId,
+                ),
+                CallableIdentityId,
+            >,
+        >,
+        boundary_operator_slots: SharedValue<
+            HashMap<
+                SharedValue<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId)>,
+                CallableIdentityId,
+            >,
+        >,
+    }
+
+    fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher + Clone>(
+        text: &str,
+        texts: &mut arena::RetainedRows<Box<str>>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<Box<str>>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I {
+        if let Some(interned) = slots.get(text) {
+            return *interned;
+        }
+        let interned = mint(texts.len());
+        let text: Box<str> = text.into();
+        texts.push(text.clone());
+        slots.insert(text.into(), interned);
+        interned
+    }
+
+    fn intern_owned<K, I: Copy, S: std::hash::BuildHasher + Clone>(
+        value: K,
+        values: &mut arena::RetainedRows<K>,
+        slots: &mut SharedValue<std::collections::HashMap<SharedValue<K>, I, S>>,
+        mint: impl Fn(usize) -> I,
+    ) -> I
+    where
+        K: Eq + std::hash::Hash + Clone,
+    {
+        if let Some(interned) = slots.get(&value) {
+            return *interned;
+        }
+        let interned = mint(values.len());
+        values.push(value.clone());
+        slots.insert(value.into(), interned);
+        interned
+    }
+    impl CallableIdentityTable {
+        fn intern_path(&mut self, path: &str) -> CallablePathId {
+            intern_boxed_text(
+                path,
+                &mut self.paths,
+                &mut self.path_slots,
+                CallablePathId::from_slot,
+            )
+        }
+
+        fn intern_parameters(&mut self, parameters: &str) -> CallableParametersId {
+            intern_boxed_text(
+                parameters,
+                &mut self.parameters,
+                &mut self.parameter_slots,
+                CallableParametersId::from_slot,
+            )
+        }
+
+        fn intern_result_dispatch(
+            &mut self,
+            result_dispatch: NormalizedResultDispatchSet,
+        ) -> CallableResultDispatchId {
+            intern_owned(
+                result_dispatch,
+                &mut self.result_dispatches,
+                &mut self.result_dispatch_slots,
+                CallableResultDispatchId::from_slot,
+            )
+        }
+
+        fn intern(&mut self, parts: CallableIdentityParts) -> CallableIdentityId {
+            let dispatch_text = parts.result_dispatch.identity();
+            let path = self.intern_path(&parts.path);
+            let parameters = self.intern_parameters(&parts.parameters);
+            let result_dispatch = self.intern_result_dispatch(parts.result_dispatch);
+            let slot = (path, parameters, result_dispatch);
+            if let Some(interned) = self.record_slots.get(&slot) {
+                return *interned;
+            }
+            let text: Box<str> = compound(
+                CoordinateTag::NamedCallable,
+                [
+                    atom(CoordinateTag::Path, &parts.path),
+                    atom(CoordinateTag::Parameters, &parts.parameters),
+                    atom(CoordinateTag::ResultDispatch, &dispatch_text),
+                ],
+            )
+            .into();
+            let interned = CallableIdentityId::from_slot(self.records.len());
+            self.records.push(CallableIdentityRecord {
+                path,
+                parameters,
+                result_dispatch,
+                text,
+            });
+            self.record_slots.insert(slot, interned);
+            interned
+        }
+
+        fn intern_boundary_operator(
+            &mut self,
+            parts: BoundaryOperatorIdentityParts,
+        ) -> CallableIdentityId {
+            let path = self.intern_path(&parts.path);
+            let key = (path, parts.parameter_types, parts.result_type);
+            if let Some(identity) = self.boundary_operator_slots.get(&key) {
+                return *identity;
+            }
+            let parameters = self.intern_parameters(&parts.parameters);
+            let result_dispatch = self.intern_result_dispatch(parts.result_dispatch);
+            let identity = CallableIdentityId::from_slot(self.records.len());
+            let text: Box<str> = parts.text.into();
+            self.records.push(CallableIdentityRecord {
+                path,
+                parameters,
+                result_dispatch,
+                text,
+            });
+            self.boundary_operator_slots.insert(key.into(), identity);
+            identity
+        }
+
+        fn record(&self, identity: CallableIdentityId) -> Option<&CallableIdentityRecord> {
+            self.records.get(identity.slot()?)
+        }
+    }
+
+    #[cfg(test)]
+    mod ownership_tests {
+        use super::*;
+
+        #[test]
+        fn shared_callable_key_preserves_bytes_and_charges_its_owner() {
+            let original: Box<str> = "callable".into();
+            let shared: SharedValue<_> = original.clone().into();
+            let limits = compiler_storage::RecordLimits::default();
+            let bytes = compiler_storage::encode(&original, limits).unwrap();
+            assert_eq!(compiler_storage::encode(&shared, limits).unwrap(), bytes);
+            let decoded: SharedValue<Box<str>> = compiler_storage::decode(&bytes, limits).unwrap();
+            assert_eq!(*decoded, original);
+            let tight = compiler_storage::RecordLimits {
+                allocation: original.len(),
+                ..limits
+            };
+            assert!(compiler_storage::decode::<Box<str>>(&bytes, tight).is_ok());
+            assert!(compiler_storage::decode::<SharedValue<Box<str>>>(&bytes, tight).is_err());
+        }
+
+        #[test]
+        fn callable_fork_retains_side_payloads_until_a_new_identity_is_inserted() {
+            let parts = |name: &str| CallableIdentityParts {
+                path: name.into(),
+                parameters: "parameters".into(),
+                result_dispatch: NormalizedResultDispatchSet::default(),
+            };
+            let original = arena::OwnedInterner::<CallableIdentityTable>::default();
+            let first = original.with_mut(|table| table.intern(parts("first")));
+            let fork = original.clone();
+            let retained = original.with(|table| &table.records[0] as *const _);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+            assert_eq!(fork.with_mut(|table| table.intern(parts("first"))), first);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+
+            let second = fork.with_mut(|table| table.intern(parts("second")));
+            assert_ne!(first, second);
+            assert_eq!(original.with(|table| table.records.len()), 1);
+            assert_eq!(fork.with(|table| table.records.len()), 2);
+            assert_eq!(fork.with(|table| &table.records[0] as *const _), retained);
+            assert_eq!(
+                original.with(|table| &table.paths[0] as *const _),
+                fork.with(|table| &table.paths[0] as *const _)
+            );
+            assert!(original.with(|table| table.path_slots.get("second").is_none()));
+            assert!(original.with(|table| table.record(second).is_none()));
+            assert_eq!(
+                original.with(|table| table.record(first).unwrap().text.clone()),
+                fork.with(|table| table.record(first).unwrap().text.clone())
+            );
+        }
+    }
+
+    impl TypedTrees {
+        /// Derives from the supplied signature, then reuses the canonical record.
+        /// Callers may supply temporary declarations that are not owned by these
+        /// trees, so neither their address nor a tree revision identifies their contents.
+        pub fn machine_callable_identity(&self, machine: &Machine) -> CallableIdentityId {
+            let parts = self.machine_callable_identity_parts(machine);
+            self.intern_callable_identity(parts)
+        }
+
+        pub fn trait_requirement_callable_identity(
+            &self,
+            trait_definition: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> CallableIdentityId {
+            let parts =
+                self.trait_requirement_callable_identity_parts(trait_definition, requirement);
+            self.intern_callable_identity(Some(parts))
+        }
+
+        /// Keep the declaration's own parameter categories with its signature.
+        /// The receiving artifact checks this definition against each emitted
+        /// method tuple; describing it establishes no conformance or proof.
+        pub fn requirement_schema_definition(
+            &self,
+            owner: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> Result<(Vec<u8>, Vec<u8>), &'static str> {
+            use crate::source_state::data::TypeParameterKind;
+            let parameters = self.state_signature_type_parameters(requirement);
+            if parameters.is_empty() != requirement.type_parameters.is_empty() {
+                return Err("requirement schema has an invalid parameter span");
+            }
+            let signature = self.trait_requirement_callable_identity_text(owner, requirement);
+            if signature.is_empty() {
+                return Err("requirement schema has no exact original signature");
+            }
+            let mut bytes = b"omega.requirement-schema.v5\0".to_vec();
+            let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
+                bytes.extend(
+                    u64::try_from(value)
+                        .map_err(|_| "requirement schema length overflows")?
+                        .to_le_bytes(),
+                );
+                Ok(())
+            };
+            length(&mut bytes, signature.len())?;
+            bytes.extend(signature.as_bytes());
+            length(&mut bytes, requirement.lifetime_parameters.len())?;
+            length(&mut bytes, parameters.len())?;
+            let mut kinds = Vec::with_capacity(parameters.len());
+            for parameter in parameters {
+                let (kind, contract) = match &parameter.kind {
+                    TypeParameterKind::Type => (1, String::new()),
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
+                        if !self
+                            .type_reference_table
+                            .contains_type_reference(*type_reference)
+                        {
+                            return Err("requirement schema has a stale parameter carrier");
+                        }
+                        let identity = self
+                            .type_identity_text(
+                                self.package_qualified_type_identity(*type_reference),
+                            )
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or(
+                                "requirement schema parameter has no declared carrier identity",
+                            )?;
+                        let kind = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+                            2
+                        } else {
+                            3
+                        };
+                        (kind, identity)
+                    }
+                    TypeParameterKind::Machine { .. }
+                    | TypeParameterKind::Implementation
+                    | TypeParameterKind::Proposition { .. } => {
+                        return Err(
+                            "requirement schema needs its complete higher-order parameter contract",
+                        );
+                    }
+                };
+                kinds.push(kind);
+                bytes.push(kind);
+                bytes.push(match parameter.bounds.multiplicity {
+                    declaration_contracts::Multiplicity::Unrestricted => 1,
+                    declaration_contracts::Multiplicity::Affine => 2,
+                    declaration_contracts::Multiplicity::Linear => 3,
+                });
+                if let Some(carry) = parameter.bounds.carry {
+                    bytes.extend(carry.to_string().as_bytes());
+                }
+                bytes.push(0);
+                length(&mut bytes, contract.len())?;
+                bytes.extend(contract.as_bytes());
+            }
+            // Callable identity uses result domains for overload selection;
+            // it does not describe the result's reference or lifetime. Keep
+            // the declaration's complete types here before that distinction
+            // is erased, so a receiver can check the derived loan groups.
+            let scope =
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let types = self.requirement_definition_types(&scope, requirement);
+            bytes.push(u8::from(types.is_some()));
+            if let Some((parameters, result, elided)) = types {
+                length(&mut bytes, owner.lifetime_parameters.len())?;
+                length(&mut bytes, elided)?;
+                length(&mut bytes, parameters.len())?;
+                for parameter in parameters {
+                    length(&mut bytes, parameter.len())?;
+                    bytes.extend(parameter.as_bytes());
+                }
+                length(&mut bytes, result.len())?;
+                bytes.extend(result.as_bytes());
+            }
+            Ok((bytes, kinds))
+        }
+
+        /// Normalize a requirement's parameter and result types in one
+        /// signature so every occurrence keeps its declared lifetime. The
+        /// retained scope supplies the exact type and lifetime application.
+        pub fn requirement_definition_types(
+            &self,
+            scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+            requirement: &StateSignature,
+        ) -> Option<(Vec<String>, String, usize)> {
+            let owner = scope.declaration;
+            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
+            type_parameters.extend(
+                self.state_signature_type_parameters(requirement)
+                    .iter()
+                    .cloned(),
+            );
+            scope.with_identity_scopes(self, |application_scopes| {
+                self.signature_definition_types(
+                    super::callable_type_binders(owner.symbol, (&type_parameters).into()),
+                    (requirement.symbol, requirement.symbol),
+                    &[
+                        (owner.symbol, owner.lifetime_parameters.len()),
+                        (requirement.symbol, requirement.lifetime_parameters.len()),
+                    ],
+                    self.state_signature_parameters(requirement),
+                    requirement.return_type,
+                    &super::identity_context::TypeIdentityContext {
+                        substitutions: &scope.substitutions,
+                        substitution_scope_starts: &scope.substitution_scope_starts,
+                        application_scopes,
+                        application_argument_owner: scope.argument_owner,
+                        ..Default::default()
+                    },
+                )
+            })
+        }
+
+        /// Keep a machine's declared lifetime relation in its published type
+        /// identities. Overload identity deliberately omits this information;
+        /// a checked declaration must retain the stronger source promise.
+        pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
+            let [entry] = self.machine_states(machine).as_array()?;
+            // Captured lifetimes keep their portable declaration owner. Only
+            // this callable's own binders receive schema ordinals; otherwise
+            // a captured region absent from the inputs could look universal.
+            let lifetime_owner = self.lifetime_declaration_owner(machine.symbol);
+            let declared = super::declaration_lifetime_parameters(self, lifetime_owner)?.len();
+            let (parameters, result, _) = self.signature_definition_types(
+                super::callable_type_binders(machine.symbol, self.machine_type_parameters(machine)),
+                (machine.symbol, entry.symbol),
+                &[(lifetime_owner, declared)],
+                self.state_parameters(entry),
+                entry.return_type,
+                &super::identity_context::TypeIdentityContext {
+                    application_argument_owner: machine.symbol,
+                    ..Default::default()
+                },
+            )?;
+            Some((parameters, result))
+        }
+
+        fn signature_definition_types(
+            &self,
+            binders: Vec<(symbols::SymbolHandle, String)>,
+            signature: (symbols::SymbolHandle, symbols::SymbolHandle),
+            lifetime_owners: &[(symbols::SymbolHandle, usize)],
+            parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+            result: crate::source_state::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
+        ) -> Option<(Vec<String>, String, usize)> {
+            self.signature_types_in_context(
+                super::identity_context::SignatureTypeIdentityContext {
+                    binders,
+                    signature,
+                    lifetime_owners,
+                    substitutions: application.substitutions,
+                    region_projection: None,
+                },
+                parameters,
+                result,
+                application,
+            )
+        }
+
+        pub(crate) fn signature_types(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
+            parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+            result: crate::source_state::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
+            let application = super::identity_context::TypeIdentityContext {
+                substitutions: scope.substitutions,
+                substitution_semantics:
+                    super::identity_context::SubstitutionSemantics::Simultaneous,
+                require_owned_substitution_regions: true,
+                application_argument_owner: scope.signature.0,
+                ..Default::default()
+            };
+            self.signature_types_in_context(scope, parameters, result, &application)
+        }
+
+        fn signature_types_in_context(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
+            parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+            result: crate::source_state::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
+        ) -> Option<(Vec<String>, String, usize)> {
+            use super::LifetimeParameterIdentity;
+            use super::identity_context::{
+                SignatureElision, TypeIdentityContext, TypeIdentityQualification,
+                normalize_type_reference,
+            };
+            use std::cell::Cell;
+
+            let super::identity_context::SignatureTypeIdentityContext {
+                mut binders,
+                signature,
+                lifetime_owners,
+                substitutions: _,
+                region_projection,
+            } = scope;
+            binders.extend(
+                parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
+            );
+            let lifetimes = lifetime_owners
+                .iter()
+                .copied()
+                .flat_map(|(declaration, count)| {
+                    (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                        declaration,
+                        ordinal,
+                    })
+                })
+                .enumerate()
+                .map(|(ordinal, lifetime)| (lifetime, ordinal))
+                .collect::<Vec<_>>();
+            let invalid = Cell::new(false);
+            let declared = lifetime_owners.last()?.1;
+            let outer = lifetimes.len() - declared;
+            let elision = SignatureElision::inputs(lifetimes.len());
+            let context = TypeIdentityContext {
+                binders: &binders,
+                lifetime_binders: &lifetimes,
+                signature_region_projection: region_projection,
+                signature_elision: Some(&elision),
+                application_owner: signature.0,
+                application_argument_owner: application.application_argument_owner,
+                signature_owners: Some(signature),
+                qualification: TypeIdentityQualification::PackageQualified,
+                invalid_application: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                ..*application
+            };
+            let declared_type = |reference| {
+                self.contains_type_reference(reference)
+                    .then(|| normalize_type_reference(self, reference, &context))
+            };
+            let parameters = parameters
+                .iter()
+                .map(|parameter| declared_type(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()?;
+            // Only the callable's own lifetimes participate in output
+            // elision; enclosing lifetimes remain distinct captured regions.
+            elision.enter_result(declared, outer);
+            // An omitted result is the signature's Unit result, represented
+            // by the zero handle. A nonzero stale handle remains unavailable.
+            let result = if result.is_valid() {
+                declared_type(result)?
+            } else {
+                normalize_type_reference(self, result, &context)
+            };
+            (!invalid.get()).then_some((parameters, result, elision.minted()))
+        }
+
+        pub fn operator_callable_identity(
+            &self,
+            operator: &OperatorDefinition,
+        ) -> CallableIdentityId {
+            self.intern_callable_identity(self.operator_callable_identity_parts(operator))
+        }
+
+        pub fn boundary_operator_requirement_callable_identity(
+            &self,
+            operator: &OperatorDefinition,
+        ) -> CallableIdentityId {
+            if !operator.is_boundary {
+                return Default::default();
+            }
+            if let Some(requirement) = self.machine(operator.symbol) {
+                return self.machine_callable_identity(requirement);
+            }
+            let parts = self.boundary_operator_identity_parts(operator);
+            self.callable_identities.with_mut(|table| {
+                parts
+                    .map(|parts| table.intern_boundary_operator(parts))
+                    .unwrap_or_default()
+            })
+        }
+
+        fn boundary_operator_identity_parts(
+            &self,
+            operator: &OperatorDefinition,
+        ) -> Option<BoundaryOperatorIdentityParts> {
+            let parameter_types = self
+                .operator_parameters(operator)
+                .iter()
+                .map(|parameter| self.normalized_type_identity(parameter.type_reference))
+                .collect::<Vec<_>>();
+            let parameters = parameter_types
+                .iter()
+                .map(|identity| self.type_identity_text(*identity))
+                .collect::<Option<Vec<_>>>()?
+                .join(",");
+            let result_type = if operator.return_type.is_valid() {
+                let identity = self.normalized_type_identity(operator.return_type);
+                identity.is_valid().then_some(identity)?
+            } else {
+                Default::default()
+            };
+            Some(BoundaryOperatorIdentityParts {
+                path: self.operator_path_string(operator.name),
+                parameter_types,
+                result_type,
+                parameters,
+                result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
+                text: crate::source_state::operator::boundary_operator_requirement_identity(
+                    self, operator,
+                ),
+            })
+        }
+
+        fn intern_callable_identity(
+            &self,
+            parts: Option<CallableIdentityParts>,
+        ) -> CallableIdentityId {
+            self.callable_identities
+                .with_mut(|table| parts.map(|parts| table.intern(parts)).unwrap_or_default())
+        }
+
+        pub fn callable_identity_parameters(
+            &self,
+            identity: CallableIdentityId,
+        ) -> CallableParametersId {
+            self.read_callable_identities(|table| {
+                table
+                    .record(identity)
+                    .map(|record| record.parameters)
+                    .unwrap_or_default()
+            })
+        }
+
+        pub fn callable_identity_result_dispatch(
+            &self,
+            identity: CallableIdentityId,
+        ) -> CallableResultDispatchId {
+            self.read_callable_identities(|table| {
+                table
+                    .record(identity)
+                    .map(|record| record.result_dispatch)
+                    .unwrap_or_default()
+            })
+        }
+
+        pub fn callable_identity_text(&self, identity: CallableIdentityId) -> String {
+            self.read_callable_identities(|table| {
+                table
+                    .record(identity)
+                    .map(|record| record.text.as_ref().to_owned())
+                    .unwrap_or_default()
+            })
+        }
+
+        pub fn machine_callable_identity_text(&self, machine: &Machine) -> Option<String> {
+            let identity = self.machine_callable_identity(machine);
+            identity
+                .is_valid()
+                .then(|| self.callable_identity_text(identity))
+        }
+
+        pub fn trait_requirement_callable_identity_text(
+            &self,
+            trait_definition: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> String {
+            self.callable_identity_text(
+                self.trait_requirement_callable_identity(trait_definition, requirement),
+            )
+        }
+
+        pub fn callable_parameters_text(&self, parameters: CallableParametersId) -> String {
+            self.read_callable_identities(|table| {
+                parameters
+                    .slot()
+                    .and_then(|slot| table.parameters.get(slot))
+                    .map(|parameters| parameters.as_ref().to_owned())
+                    .unwrap_or_default()
+            })
+        }
+
+        pub fn callable_result_dispatch_text(&self, dispatch: CallableResultDispatchId) -> String {
+            self.read_callable_identities(|table| {
+                dispatch
+                    .slot()
+                    .and_then(|slot| table.result_dispatches.get(slot))
+                    .map(NormalizedResultDispatchSet::identity)
+                    .unwrap_or_default()
+            })
+        }
+
+        pub fn callable_result_dispatch_is_empty(
+            &self,
+            dispatch: CallableResultDispatchId,
+        ) -> bool {
+            self.read_callable_identities(|table| {
+                dispatch
+                    .slot()
+                    .and_then(|slot| table.result_dispatches.get(slot))
+                    .is_none_or(NormalizedResultDispatchSet::is_empty)
+            })
+        }
+
+        fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
+            self.callable_identities.with(read)
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use crate::source_state::TypedTrees;
+        use crate::source_state::machine::Machine;
+        use crate::source_state::name::Identifier;
+        use crate::source_state::signature::StateSignature;
+        use crate::source_state::state::State;
+        use crate::source_state::trait_definition::TraitDefinition;
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        #[test]
+        fn callable_identity_reads_the_supplied_machine_not_its_address() {
+            let mut symbols = SymbolTableBuilder::new();
+            let symbol = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let states = program.machine_states.insert_many([State::default()]);
+            let mut machine = Machine {
+                symbol,
+                name: Identifier::generated("first"),
+                states,
+                ..Default::default()
+            };
+            let original = program.machine_callable_identity(&machine);
+            assert!(original.is_valid());
+            machine.name = Identifier::generated("second");
+            let changed = program.machine_callable_identity(&machine);
+            let cold = program.clone().machine_callable_identity(&machine);
+            assert_eq!(changed, cold);
+            assert_ne!(changed, original);
+            machine.name = Identifier::generated("first");
+            assert_eq!(program.machine_callable_identity(&machine), original);
+            program
+                .statement_table
+                .insert(crate::source_state::statement::StatementNode::default());
+            assert_eq!(program.machine_callable_identity(&machine), original);
+            program
+                .callable_identities
+                .with(|table| assert_eq!(table.records.len(), 2));
+        }
+
+        #[test]
+        fn callable_identity_reads_the_supplied_requirement_not_its_address() {
+            let mut symbols = SymbolTableBuilder::new();
+            let owner = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Order"));
+            let program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let definition = TraitDefinition {
+                symbol: owner,
+                name: Identifier::generated("Order"),
+                ..Default::default()
+            };
+            let mut requirement = StateSignature {
+                name: Identifier::generated("first"),
+                ..Default::default()
+            };
+            let original = program.trait_requirement_callable_identity(&definition, &requirement);
+            assert!(original.is_valid());
+            requirement.name = Identifier::generated("second");
+            let changed = program.trait_requirement_callable_identity(&definition, &requirement);
+            let cold = program
+                .clone()
+                .trait_requirement_callable_identity(&definition, &requirement);
+            assert_eq!(changed, cold);
+            assert_ne!(changed, original);
+        }
+
+        #[test]
+        fn callable_identity_reads_the_supplied_operator_not_its_address() {
+            let mut program = TypedTrees::default();
+            let first = program
+                .operator_path_members
+                .insert_many([Identifier::generated("first")]);
+            let second = program
+                .operator_path_members
+                .insert_many([Identifier::generated("second")]);
+            for is_boundary in [false, true] {
+                let mut operator = crate::source_state::operator::OperatorDefinition {
+                    is_boundary,
+                    name: first,
+                    ..Default::default()
+                };
+                let identity =
+                    |program: &TypedTrees, operator: &crate::source_state::operator::OperatorDefinition| {
+                        if is_boundary {
+                            program.boundary_operator_requirement_callable_identity(operator)
+                        } else {
+                            program.operator_callable_identity(operator)
+                        }
+                    };
+                let original = identity(&program, &operator);
+                assert!(original.is_valid());
+                operator.name = second;
+                let changed = identity(&program, &operator);
+                assert_eq!(changed, identity(&program.clone(), &operator));
+                assert_ne!(changed, original);
+                operator.name = first;
+                assert_eq!(identity(&program, &operator), original);
+            }
+        }
+    }
+}
+pub(crate) mod constraint_identity {
+    use crate::source_state::TypedTrees;
+    use crate::source_state::type_identity::substitution;
+    use crate::source_state::type_system::type_identity::identity_context::{
+        TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
+    };
+    use crate::source_state::types::{
+        DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
+        TypeReferenceHandle, TypeReferenceNode,
+    };
+    use application_identity::type_identity::vocabulary::{
+        ArrayLengthForm, ConstraintForm, DomainFamily, Label, Spelled,
+    };
+    use arena::HandleSpan;
+
+    pub(crate) fn normalize_constrained_base(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> (String, Vec<NormalizedConstraint>) {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let (base, mut all_constraints) =
+                    normalize_constrained_base(program, *base_type, context);
+                all_constraints.extend(normalized_constraints(program, *constraints, context));
+                (base, all_constraints)
+            }
+            _ => (
+                normalize_type_reference(program, type_reference, context),
+                Vec::new(),
+            ),
+        }
+    }
+
+    pub(crate) fn normalized_constraints(
+        program: &TypedTrees,
+        constraints: HandleSpan<TypeConstraintNode>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Vec<NormalizedConstraint> {
+        program
+            .type_reference_table
+            .constraints(constraints)
+            .iter()
+            .map(|constraint| match constraint {
+                TypeConstraintNode::Named(name) => {
+                    NormalizedConstraint::Named(name.as_str().to_owned())
+                }
+
+                TypeConstraintNode::ArithmeticDomain(domain) => {
+                    NormalizedConstraint::Arithmetic(domain.name().to_owned())
+                }
+                TypeConstraintNode::Domain(domain) => match domain.subject {
+                    DomainConstraintSubject::Declared => NormalizedConstraint::DeclaredDomain(
+                        normalized_declared_domain_identity(program, domain, context),
+                    ),
+                    DomainConstraintSubject::Carry(_)
+                    | DomainConstraintSubject::Value(_)
+                    | DomainConstraintSubject::OmegaLayout { .. } => {
+                        NormalizedConstraint::CompilerDomain(normalized_compiler_domain_identity(
+                            program, domain, context,
+                        ))
+                    }
+                },
+            })
+            .collect()
+    }
+
+    fn normalized_declared_domain_identity(
+        program: &TypedTrees,
+        domain: &DomainConstraint,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        let ordinary_name = declared_domain_identity(program, domain, context);
+        if let Some(arguments) =
+            program.domain_arguments_for_instance(domain.symbol, domain.semantic_id)
+            && !arguments.is_empty()
+        {
+            return compound(
+                ConstraintForm::DeclaredDomain,
+                std::iter::once(atom(
+                    Label::Name,
+                    &context.name(program, domain.symbol, &ordinary_name),
+                ))
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|argument| normalize_type_reference(program, *argument, context)),
+                ),
+            );
+        }
+        if context.qualification == TypeIdentityQualification::Ordinary
+            && domain.arguments.is_empty()
+        {
+            return ordinary_name;
+        }
+        compound(
+            ConstraintForm::DeclaredDomain,
+            std::iter::once(atom(
+                Label::Name,
+                &context.name(program, domain.symbol, &ordinary_name),
+            ))
+            .chain(
+                domain
+                    .arguments
+                    .iter()
+                    .map(|argument| normalize_type_reference(program, *argument, context)),
+            ),
+        )
+    }
+
+    pub(crate) fn normalized_compiler_domain_identity(
+        program: &TypedTrees,
+        domain: &DomainConstraint,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match domain.subject {
+            DomainConstraintSubject::Declared => {
+                normalized_declared_domain_identity(program, domain, context)
+            }
+            DomainConstraintSubject::Carry(permission) => compound(
+                ConstraintForm::CompilerDomain,
+                [
+                    atom(Label::Family, DomainFamily::Carry.spelling()),
+                    atom(
+                        Label::Permission,
+                        match permission {
+                            declaration_contracts::CarryPermission::AcrossSuspend => {
+                                "across-suspend"
+                            }
+                            declaration_contracts::CarryPermission::AnyCpu => "any-cpu",
+                            declaration_contracts::CarryPermission::AnyThread => "any-thread",
+                            declaration_contracts::CarryPermission::MovableAddress => {
+                                "movable-address"
+                            }
+                        },
+                    ),
+                ],
+            ),
+            DomainConstraintSubject::Value(value_domain) => compound(
+                ConstraintForm::CompilerDomain,
+                [
+                    atom(Label::Family, DomainFamily::Value.spelling()),
+                    atom(
+                        Label::Domain,
+                        match value_domain {
+                            declaration_contracts::value_domain::ValueDomain::Finite => "finite",
+                        },
+                    ),
+                ],
+            ),
+            DomainConstraintSubject::OmegaLayout { grammar } => compound(
+                ConstraintForm::CompilerDomain,
+                [
+                    atom(Label::Family, DomainFamily::OmegaLayout.spelling()),
+                    atom(
+                        Label::Grammar,
+                        match grammar {
+                            crate::source_state::types::OmegaLayoutGrammar::Derived => "derived",
+                        },
+                    ),
+                ]
+                .into_iter()
+                .chain(domain.arguments.iter().map(|argument| {
+                    compound(
+                        Label::Schema,
+                        [normalize_type_reference(program, *argument, context)],
+                    )
+                })),
+            ),
+        }
+    }
+
+    fn declared_domain_identity(
+        program: &TypedTrees,
+        domain: &DomainConstraint,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if domain.semantic_id.is_valid()
+            && let Some(name) = program.semantic_domains.name(domain.semantic_id)
+        {
+            return name.to_owned();
+        }
+        // A selected declaration keeps its identity even when application
+        // metadata is not yet formed. Its authored alias is diagnostic only.
+        if program.symbols.symbols().nodes().is_valid(domain.symbol) {
+            return context.name(program, domain.symbol, domain.name.as_str());
+        }
+        domain.name.as_str().to_owned()
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    pub(crate) enum NormalizedConstraint {
+        Arithmetic(String),
+        CompilerDomain(String),
+        DeclaredDomain(String),
+        Named(String),
+    }
+
+    impl NormalizedConstraint {
+        pub(crate) fn encode(self) -> String {
+            match self {
+                Self::Arithmetic(name) => {
+                    compound(ConstraintForm::ArithmeticDomain, [atom(Label::Name, &name)])
+                }
+                Self::CompilerDomain(identity) => identity,
+                Self::DeclaredDomain(name) => {
+                    compound(ConstraintForm::DeclaredDomain, [atom(Label::Name, &name)])
+                }
+                Self::Named(name) => {
+                    compound(ConstraintForm::NamedConstraint, [atom(Label::Name, &name)])
+                }
+            }
+        }
+    }
+
+    pub(crate) fn normalize_array_length(
+        program: &TypedTrees,
+        length: &FixedArrayLength,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match length {
+            FixedArrayLength::Expression(value) => {
+                let TypeReferenceNode::ConstExpression(expression) =
+                    program.type_reference_table.type_reference(*value)
+                else {
+                    return atom(
+                        ArrayLengthForm::InvalidExpression,
+                        "missing constant recipe",
+                    );
+                };
+                substitution::array_length_expression(program, *expression, context)
+            }
+            FixedArrayLength::Literal(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
+            FixedArrayLength::ConstParameter { symbol, name } => {
+                substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(
+                    || substitution::unbound_array_length(program, *symbol, name.as_str(), context),
+                )
+            }
+            FixedArrayLength::ConstCall { machine, name, .. } => atom(
+                ArrayLengthForm::ConstCall,
+                &context.name(program, *machine, name.as_str()),
+            ),
+        }
+    }
+
+    pub(crate) use application_identity::type_identity::encoding::atom;
+    pub(crate) use application_identity::type_identity::encoding::bare;
+    pub(crate) use application_identity::type_identity::encoding::byte_atom;
+    pub(crate) use application_identity::type_identity::encoding::compound;
+
+    #[cfg(test)]
+    pub(crate) mod byte_atom_tests {
+        use super::byte_atom;
+        use application_identity::type_identity::vocabulary::OwnerForm;
+        use application_identity::type_identity::vocabulary::Spelled;
+
+        fn original_byte_atom(tag: &str, value: &[u8]) -> String {
+            let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
+            output.push_str(tag);
+            output.push('(');
+            output.push_str(&value.len().to_string());
+            output.push(':');
+            for byte in value {
+                output.push_str(&format!("{byte:02x}"));
+            }
+            output.push(')');
+            output
+        }
+
+        #[test]
+        fn byte_atoms_match_original_identity_encoding() {
+            for tag in [OwnerForm::Package, OwnerForm::ToolchainSource] {
+                for length in [0, 1, 2, 15, 16, 31, 32, 33, 63, 64, 255, 256, 4097] {
+                    let bytes = (0..length)
+                        .map(|position| (position as u8).wrapping_mul(73))
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        byte_atom(tag, &bytes),
+                        original_byte_atom(tag.spelling(), &bytes)
+                    );
+                }
+                for byte in 0..=u8::MAX {
+                    assert_eq!(
+                        byte_atom(tag, &[byte]),
+                        original_byte_atom(tag.spelling(), &[byte])
+                    );
+                }
+            }
+            assert_eq!(
+                byte_atom(OwnerForm::Package, &[0, 15, 16, 255]),
+                "package-owner(4:000f10ff)"
+            );
+        }
+    }
+}
+pub(crate) mod coordinates {
+    pub(crate) use application_identity::type_identity::encoding::CoordinateTag;
+}
+pub(crate) mod derived_declarations {
+    use super::constraint_identity::{atom, compound};
+    use super::identity_context::{
+        TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
+    };
+    use crate::source_state::TypedTrees;
+    use crate::source_state::types::TypeReferenceNode;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::NameForm;
+    use symbols::SymbolHandle;
+
+    pub(crate) fn nominal_name(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+        hermetic: bool,
+    ) -> Result<Option<String>, &'static str> {
+        let qualified = TypeIdentityContext {
+            storage_value_indices: false,
+            qualification: TypeIdentityQualification::PackageQualified,
+            ..*context
+        };
+        for view in &program.access_view_plans {
+            let field = view.fields.iter().find(|field| {
+                field.accessor_data_symbol == symbol
+                    || field.accessor_targets.iter().any(|target| {
+                        target.machine_symbol == symbol || target.state_symbol == symbol
+                    })
+            });
+            if view.data_symbol != symbol && field.is_none() {
+                continue;
+            }
+            let origin = program
+                .data_definition_by_symbol(view.data_symbol)
+                .and_then(|definition| definition.generic_instance)
+                .ok_or("derived placed declaration has no retained applied origin")?;
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                lifetime_arguments,
+                ..
+            } = program.type_reference_table.type_reference(origin)
+            else {
+                return Err("derived placed origin is not an exact generic application");
+            };
+            let [policy, schema] = program.type_reference_handles(*arguments) else {
+                return Err("derived placed origin lost its policy/schema operands");
+            };
+            if !view.template_symbol.is_valid()
+                || *base_symbol != view.template_symbol
+                || *base_symbol == view.data_symbol
+                || !lifetime_arguments.is_empty()
+                || !matches!(program.type_reference_table.type_reference(*policy), TypeReferenceNode::Named { symbol, .. } if *symbol == view.policy_symbol)
+                || !matches!(program.type_reference_table.type_reference(*schema), TypeReferenceNode::Named { symbol, .. } if *symbol == view.schema_symbol)
+                || [view.policy_symbol, view.schema_symbol].contains(&view.data_symbol)
+            {
+                return Err("derived placed origin changed its exact template/policy/schema join");
+            }
+            if hermetic
+                && [view.template_symbol, view.policy_symbol, view.schema_symbol]
+                    .iter()
+                    .any(|symbol| {
+                        program.symbols.symbol_package_identity(*symbol).is_none()
+                            && !program
+                                .symbols
+                                .symbol_source_origin(*symbol)
+                                .is_some_and(source_admission::SourceOrigin::is_toolchain)
+                    })
+            {
+                return Err("derived placed declaration contains an unowned nominal operand");
+            }
+            let owner = normalize_type_reference(program, origin, &qualified);
+            if view.data_symbol == symbol {
+                return Ok(Some(compound(NameForm::DerivedApplication, [owner])));
+            }
+            let field = field.ok_or("derived placed declaration lost its field producer")?;
+            let selector = match field.member_identity {
+                Some(identity) => atom(Label::Member, &identity.to_string()),
+                None => atom(Label::Field, &field.field_name),
+            };
+            let accessor = compound(NameForm::PlacedField, [owner, selector]);
+            if field.accessor_data_symbol == symbol {
+                return Ok(Some(accessor));
+            }
+            for target in &field.accessor_targets {
+                let role = if target.machine_symbol == symbol {
+                    "machine"
+                } else if target.state_symbol == symbol {
+                    "state"
+                } else {
+                    continue;
+                };
+                return Ok(Some(compound(
+                    NameForm::PlacedOperation,
+                    [
+                        accessor,
+                        atom(Label::Operation, &target.operation),
+                        atom(Label::Role, role),
+                    ],
+                )));
+            }
+            return Err("derived placed callable lost its exact operation producer");
+        }
+        Ok(None)
+    }
+}
+pub(crate) mod identity_context {
+
+    use super::LifetimeParameterIdentity;
+    use crate::source_state::TypedTrees;
+    use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+    use crate::source_state::type_identity::substitution;
+    use crate::source_state::type_system::type_identity::constraint_identity::{
+        NormalizedConstraint, atom, bare, byte_atom, compound, normalize_array_length,
+        normalize_constrained_base, normalized_constraints,
+    };
+    use crate::source_state::type_system::type_identity::open_index_identity::index_binary_operator_name;
+    use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::JoinedPath;
+    use application_identity::type_identity::vocabulary::IndexForm;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::NameForm;
+    use application_identity::type_identity::vocabulary::OwnerForm;
+    use application_identity::type_identity::vocabulary::RegionForm;
+    use application_identity::type_identity::vocabulary::Spelled;
+    use application_identity::type_identity::vocabulary::TypeForm;
+    use std::cell::Cell;
+    use symbols::SymbolHandle;
+
+    use super::normalized_identities::{IdentityPart, TypeIdentityId};
+
+    /// A compound identity whose parts are normalized, before the caller
+    /// chooses to intern it or only to read its text.
+    pub(crate) struct Composite {
+        tag: &'static str,
+        parts: Vec<IdentityPart>,
+    }
+
+    impl Composite {
+        pub(crate) fn new(
+            tag: impl Spelled,
+            parts: impl IntoIterator<Item = IdentityPart>,
+        ) -> Self {
+            Self {
+                tag: tag.spelling(),
+                parts: parts.into_iter().collect(),
+            }
+        }
+
+        pub(crate) fn intern(self, program: &TypedTrees) -> TypeIdentityId {
+            program
+                .type_identities
+                .intern_composite(self.tag, self.parts)
+        }
+
+        pub(crate) fn text(self, program: &TypedTrees) -> String {
+            program
+                .type_identities
+                .composite_text(self.tag, &self.parts)
+        }
+    }
+
+    fn text_identity(program: &TypedTrees, text: String) -> TypeIdentityId {
+        program.type_identities.intern(&text)
+    }
+
+    pub(crate) mod match_dispatch {
+
+        use super::{TypeIdentityContext, atom, bare, compound, normalize_index_expression};
+        use crate::source_state::TypedTrees;
+        use crate::source_state::expression::{
+            ExpressionHandle, MatchFieldAction, MatchPattern, TableMatchExpression,
+            TableSavedSubject,
+        };
+        use application_identity::type_identity::vocabulary::FieldActionForm;
+        use application_identity::type_identity::vocabulary::IndexForm;
+        use application_identity::type_identity::vocabulary::Label;
+        use application_identity::type_identity::vocabulary::PatternForm;
+
+        fn unavailable(context: &TypeIdentityContext<'_>) -> String {
+            if let Some(invalid) = context.invalid_index_argument {
+                invalid.set(true);
+            }
+            if let Some(invalid) = context.invalid_application {
+                invalid.set(true);
+            }
+            if let Some(invalid) = context.missing_exact_nominal_owner {
+                invalid.set(true);
+            }
+            bare(IndexForm::UnboundMatchSubject)
+        }
+
+        pub(crate) fn normalize_match(
+            program: &TypedTrees,
+            expression: ExpressionHandle,
+            dispatch: &TableMatchExpression,
+            context: &TypeIdentityContext<'_>,
+        ) -> String {
+            let table = &program.expression_table;
+            if !table.expression_is_valid(dispatch.subject) {
+                return unavailable(context);
+            }
+            let subject = normalize_index_expression(program, dispatch.subject, context);
+            let mut subjects = context.match_subjects.to_vec();
+            if dispatch.capture.is_valid() {
+                if !table.contains_value_capture(dispatch.capture)
+                    || table.value_capture(dispatch.capture).subject != dispatch.subject
+                    || table.value_capture(dispatch.capture).definition != expression
+                    || subjects.contains(&dispatch.capture)
+                {
+                    return unavailable(context);
+                }
+                subjects.push(dispatch.capture);
+            } else if table
+                .match_arms(dispatch.arms)
+                .iter()
+                .any(|arm| matches!(arm.pattern, MatchPattern::Destructure(_)))
+            {
+                return unavailable(context);
+            }
+            let nested = TypeIdentityContext {
+                match_subjects: &subjects,
+                ..*context
+            };
+            compound(
+                IndexForm::Match,
+                std::iter::once(subject).chain(table.match_arms(dispatch.arms).iter().map(|arm| {
+                    let pattern = match arm.pattern {
+                        MatchPattern::Value(value) => {
+                            normalize_index_expression(program, value, &nested)
+                        }
+                        MatchPattern::Wildcard => bare(PatternForm::Wildcard),
+                        MatchPattern::Destructure(pattern) => {
+                            let fields = table.match_fields(pattern.fields).iter().map(|field| {
+                                let action = match &field.action {
+                                    MatchFieldAction::Bind(_) => bare(
+                                        if field.component == language_core::PatternComponent::Case
+                                        {
+                                            FieldActionForm::BindCase
+                                        } else {
+                                            FieldActionForm::Bind
+                                        },
+                                    ),
+                                    MatchFieldAction::Equal(value) => compound(
+                                        FieldActionForm::Equal,
+                                        [normalize_index_expression(program, *value, &nested)],
+                                    ),
+                                    MatchFieldAction::Waive => bare(
+                                        if field.component == language_core::PatternComponent::Case
+                                        {
+                                            FieldActionForm::WaiveCase
+                                        } else {
+                                            FieldActionForm::Waive
+                                        },
+                                    ),
+                                };
+                                compound(
+                                    Label::Field,
+                                    [
+                                        atom(
+                                            Label::Name,
+                                            &context.name(
+                                                program,
+                                                field.field_symbol,
+                                                field.member.as_str(),
+                                            ),
+                                        ),
+                                        action,
+                                    ],
+                                )
+                            });
+                            let selectors = table
+                                .match_proof_selectors(pattern.proof_selectors)
+                                .iter()
+                                .enumerate()
+                                .map(|(ordinal, selector)| {
+                                    compound(
+                                        Label::ProofSelector,
+                                        [
+                                            atom(Label::Field, selector.output_field.as_str()),
+                                            atom(Label::Binding, &ordinal.to_string()),
+                                        ],
+                                    )
+                                });
+                            compound(
+                                PatternForm::Destructure,
+                                [
+                                    normalize_index_expression(program, pattern.head, &nested),
+                                    compound(Label::Fields, fields),
+                                    atom(Label::Rest, if pattern.has_rest { "yes" } else { "no" }),
+                                    if pattern.guard.is_valid() {
+                                        normalize_index_expression(program, pattern.guard, &nested)
+                                    } else {
+                                        bare(Label::NoGuard)
+                                    },
+                                    compound(Label::ProofSelectors, selectors),
+                                ],
+                            )
+                        }
+                    };
+                    compound(
+                        Label::Arm,
+                        [
+                            pattern,
+                            normalize_index_expression(program, arm.value, &nested),
+                        ],
+                    )
+                })),
+            )
+        }
+
+        pub(crate) fn normalize_saved_subject(
+            program: &TypedTrees,
+            saved: &TableSavedSubject,
+            context: &TypeIdentityContext<'_>,
+        ) -> String {
+            if !program
+                .expression_table
+                .contains_value_capture(saved.capture)
+                || !program
+                    .expression_table
+                    .expression_is_valid(saved.pattern_head)
+            {
+                return unavailable(context);
+            }
+            let Some(depth) = context
+                .match_subjects
+                .iter()
+                .rev()
+                .position(|capture| *capture == saved.capture)
+            else {
+                return unavailable(context);
+            };
+            let identity = compound(
+                IndexForm::SavedSubject,
+                [
+                    atom(Label::Depth, &depth.to_string()),
+                    normalize_index_expression(program, saved.pattern_head, context),
+                ],
+            );
+            if saved.component == language_core::PatternComponent::Case {
+                compound(IndexForm::CaseComponent, [identity])
+            } else {
+                identity
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) mod argument_roles_tests {
+        use crate::source_state::TypedTrees;
+        use crate::source_state::data::{DataDefinition, TypeParameter, TypeParameterKind};
+        use crate::source_state::expression::ExpressionNode;
+        use crate::source_state::name::Identifier;
+        use crate::source_state::trait_definition::Conformance;
+        use crate::source_state::type_identity::TypeIdentityRequest;
+        use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+        use crate::source_symbols::SymbolTableBuilder;
+        use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
+        use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
+
+        fn named(
+            program: &mut TypedTrees,
+            symbol: SymbolHandle,
+            name: &str,
+        ) -> TypeReferenceHandle {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(name),
+                })
+        }
+
+        fn application(
+            program: &mut TypedTrees,
+            symbol: SymbolHandle,
+            name: &str,
+            arguments: Vec<TypeReferenceHandle>,
+        ) -> TypeReferenceHandle {
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles(arguments);
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: symbol,
+                    base_name: Identifier::generated(name),
+                    lifetime_arguments: Vec::new(),
+                    arguments,
+                })
+        }
+
+        #[test]
+        fn resolved_region_substitution_is_scoped_and_simultaneous() {
+            use crate::source_state::machine::Machine;
+            use crate::source_state::type_identity::{
+                LifetimeParameterIdentity, applied_type_identity_in_region_scope,
+            };
+            let mut builder = SymbolTableBuilder::default();
+            let required =
+                builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("required"));
+            let actual = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("actual"));
+            let captured =
+                builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("captured"));
+            let scalar = builder.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u32"));
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [
+                (required, "required"),
+                (actual, "actual"),
+                (captured, "captured"),
+            ] {
+                program.push_machine(Machine {
+                    symbol,
+                    name: Identifier::generated(name),
+                    lifetime_parameters: vec![
+                        Identifier::generated("slot"),
+                        Identifier::generated("later"),
+                    ],
+                    ..Default::default()
+                });
+            }
+            let scalar = named(&mut program, scalar, "u32");
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: scalar,
+                    access: declaration_contracts::ReferenceAccess::Shared,
+                    lifetime: Some(Identifier::generated("slot")),
+                });
+            let later = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: scalar,
+                    access: declaration_contracts::ReferenceAccess::Shared,
+                    lifetime: Some(Identifier::generated("later")),
+                });
+            let region = |declaration| LifetimeParameterIdentity {
+                declaration,
+                ordinal: 0,
+            };
+            let identity =
+                |owner, rows: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)]| {
+                    applied_type_identity_in_region_scope(
+                        &program,
+                        reference,
+                        owner,
+                        owner,
+                        &[],
+                        rows,
+                    )
+                    .unwrap()
+                };
+            assert_ne!(identity(actual, &[]), identity(required, &[]));
+
+            use crate::source_state::type_identity::{
+                DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+            };
+            let declared = |owner, reference| {
+                program
+                    .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                        operand: IndexIdentityArgument::TypeArgument(reference),
+                        lexical_owner: owner,
+                        binders: &[],
+                        exact_toolchain_sources: &[],
+                        lifetime_binders: &[
+                            (region(owner), 0),
+                            (
+                                LifetimeParameterIdentity {
+                                    declaration: owner,
+                                    ordinal: 1,
+                                },
+                                1,
+                            ),
+                        ],
+                    })
+                    .unwrap()
+            };
+            assert_eq!(declared(required, reference), declared(actual, reference));
+            assert_ne!(declared(required, reference), declared(required, later));
+            assert_ne!(identity(actual, &[]), identity(captured, &[]));
+            assert_eq!(
+                identity(actual, &[(region(actual), region(required))]),
+                identity(required, &[])
+            );
+            assert_eq!(
+                identity(actual, &[(region(captured), region(required))]),
+                identity(actual, &[])
+            );
+            assert_eq!(
+                identity(
+                    actual,
+                    &[
+                        (region(actual), region(required)),
+                        (region(required), region(captured))
+                    ]
+                ),
+                identity(required, &[])
+            );
+            assert_eq!(
+                identity(actual, &[(region(actual), region(captured))]),
+                identity(captured, &[])
+            );
+            assert_ne!(identity(actual, &[]), identity(required, &[]));
+        }
+
+        #[test]
+        fn ordinary_nested_implementation_const_roles_preserve_values_and_policy_identity() {
+            let mut symbols = SymbolTableBuilder::default();
+            let u64_symbol =
+                symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u64"));
+            let payload = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Payload"));
+            let policy =
+                symbols.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Policy"));
+            let other_policy = symbols.insert_root(
+                SymbolKind::Conformance,
+                SymbolNameRef::Static("OtherPolicy"),
+            );
+            let storage = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Storage"));
+            let indexed = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Indexed"));
+            let policy_slot = symbols
+                .insert_children(
+                    policy,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let other_slot = symbols
+                .insert_children(
+                    other_policy,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let storage_slots = symbols
+                .insert_children(
+                    storage,
+                    [
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Policy")),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let value_slot = symbols
+                .insert_children(
+                    indexed,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("Subject"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let caller = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
+            let subjects = symbols
+                .insert_children(
+                    caller,
+                    [
+                        (SymbolKind::Parameter, SymbolNameRef::Static("left")),
+                        (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..TypedTrees::default()
+            };
+            let u64_type = named(&mut program, u64_symbol, "u64");
+            let payload_type = named(&mut program, payload, "Payload");
+            program.push_data_definition(DataDefinition {
+                symbol: payload,
+                name: Identifier::generated("Payload"),
+                ..DataDefinition::default()
+            });
+            for (symbol, slot, name) in [
+                (policy, policy_slot, "Policy"),
+                (other_policy, other_slot, "OtherPolicy"),
+            ] {
+                let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+                    symbol: slot,
+                    name: Identifier::generated("N"),
+                    kind: TypeParameterKind::Const {
+                        type_reference: u64_type,
+                    },
+                    ..TypeParameter::default()
+                }]);
+                program.push_conformance(Conformance {
+                    symbol,
+                    alias: Some(Identifier::generated(name)),
+                    type_parameters,
+                    ..Conformance::default()
+                });
+                assert!(matches!(
+                    program.declaration_type_parameters(symbol)[0].kind,
+                    TypeParameterKind::Const { .. }
+                ));
+            }
+            let type_parameters = program.data_type_parameters.insert_many([
+                TypeParameter {
+                    symbol: storage_slots[0],
+                    name: Identifier::generated("T"),
+                    kind: TypeParameterKind::Type,
+                    ..TypeParameter::default()
+                },
+                TypeParameter {
+                    symbol: storage_slots[1],
+                    name: Identifier::generated("Policy"),
+                    kind: TypeParameterKind::Implementation,
+                    ..TypeParameter::default()
+                },
+            ]);
+            program.push_data_definition(DataDefinition {
+                symbol: storage,
+                name: Identifier::generated("Storage"),
+                type_parameters,
+                ..DataDefinition::default()
+            });
+
+            let remembered_seven = named(&mut program, SymbolHandle::invalid(), "7");
+            let integer = program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(7).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U64,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            ));
+            let authored_seven = program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(integer));
+            let eight = named(&mut program, SymbolHandle::invalid(), "8");
+            let remembered_policy =
+                application(&mut program, policy, "Policy", vec![remembered_seven]);
+            let authored_policy = application(&mut program, policy, "Policy", vec![authored_seven]);
+            // A retained Generic reference still denotes the supplied value
+            // application. Its type description is a separate operand role.
+            let explicit = program
+                .static_operand_from_type_reference(authored_policy)
+                .expect("the exact generic implementation operand");
+            let mut retained = explicit.clone();
+            retained.type_reference = authored_policy;
+            let value = crate::source_state::type_identity::applied_index_identity(
+                &program,
+                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                    &explicit,
+                ),
+                caller,
+                &[],
+            )
+            .expect("the explicit value application has an identity");
+            assert_eq!(
+                crate::source_state::type_identity::applied_index_identity(
+                    &program,
+                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                        &retained
+                    ),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "a retained generic reference must preserve its explicit value application",
+            );
+            assert_ne!(
+                crate::source_state::type_identity::applied_index_identity(
+                    &program,
+                    crate::source_state::type_identity::IndexIdentityArgument::TypeArgument(
+                        authored_policy
+                    ),
+                    caller,
+                    &[],
+                ),
+                Some(value),
+                "an explicit type description keeps its separate nominal role",
+            );
+            let wrong_value_policy = application(&mut program, policy, "Policy", vec![eight]);
+            let wrong_declaration_policy = application(
+                &mut program,
+                other_policy,
+                "OtherPolicy",
+                vec![remembered_seven],
+            );
+            let remembered = application(
+                &mut program,
+                storage,
+                "Storage",
+                vec![payload_type, remembered_policy],
+            );
+            let authored = application(
+                &mut program,
+                storage,
+                "Storage",
+                vec![payload_type, authored_policy],
+            );
+            let wrong_value = application(
+                &mut program,
+                storage,
+                "Storage",
+                vec![payload_type, wrong_value_policy],
+            );
+            let wrong_declaration = application(
+                &mut program,
+                storage,
+                "Storage",
+                vec![payload_type, wrong_declaration_policy],
+            );
+            let ordinary = |program: &TypedTrees, reference| {
+                program.type_identity(TypeIdentityRequest::ordinary(reference))
+            };
+            assert_ne!(
+                ordinary(&program, remembered),
+                ordinary(&program, wrong_value)
+            );
+            assert_ne!(
+                ordinary(&program, remembered),
+                ordinary(&program, wrong_declaration)
+            );
+
+            let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+                symbol: value_slot,
+                name: Identifier::generated("Subject"),
+                kind: TypeParameterKind::Value {
+                    type_reference: u64_type,
+                },
+                ..TypeParameter::default()
+            }]);
+            program.push_data_definition(DataDefinition {
+                symbol: indexed,
+                name: Identifier::generated("Indexed"),
+                type_parameters,
+                ..DataDefinition::default()
+            });
+            let left = named(&mut program, subjects[0], "left");
+            let right = named(&mut program, subjects[1], "right");
+            let left = application(&mut program, indexed, "Indexed", vec![left]);
+            let right = application(&mut program, indexed, "Indexed", vec![right]);
+            assert_ne!(ordinary(&program, left), ordinary(&program, right));
+            assert_eq!(
+                program.storage_type_identity(TypeIdentityRequest::ordinary(left)),
+                program.storage_type_identity(TypeIdentityRequest::ordinary(right))
+            );
+
+            let borrow = |program: &mut TypedTrees, referee| {
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Reference {
+                        referee,
+                        access: declaration_contracts::ReferenceAccess::Shared,
+                        lifetime: None,
+                    })
+            };
+            let remembered_borrow = borrow(&mut program, remembered);
+            let authored_borrow = borrow(&mut program, authored);
+            let actual =
+                program.type_identity_request_text(TypeIdentityRequest::ordinary(remembered));
+            let expected =
+                program.type_identity_request_text(TypeIdentityRequest::ordinary(authored));
+            eprintln!("specialized carrier: {actual}\nauthored carrier: {expected}");
+            let same_carrier = ordinary(&program, remembered) == ordinary(&program, authored);
+            let same_borrow =
+                ordinary(&program, remembered_borrow) == ordinary(&program, authored_borrow);
+            assert!(
+                same_carrier && same_borrow,
+                "same declaration-owned Const value must preserve ordinary and borrowed carrier identity\nspecialized: {actual}\nauthored: {expected}"
+            );
+        }
+    }
+
+    /// A callable's own regions are universally instantiated at each call.
+    /// Captured regions retain the exact declaration that supplied them.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum SignatureRegion {
+        Bound(usize),
+        Captured(LifetimeParameterIdentity),
+        /// An omitted region of one fixed enclosing type argument. Its source
+        /// application may choose any region; the callback must accept all of
+        /// them while repeated uses of that type argument keep the same choice.
+        Argument {
+            binding: usize,
+            ordinal: usize,
+        },
+    }
+
+    pub(crate) struct SignatureTypeIdentityContext<'scope> {
+        pub(crate) binders: Vec<(SymbolHandle, String)>,
+        pub(crate) signature: (SymbolHandle, SymbolHandle),
+        pub(crate) lifetime_owners: &'scope [(SymbolHandle, usize)],
+        pub(crate) substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+        pub(crate) region_projection: Option<&'scope dyn Fn(SignatureRegion) -> SignatureRegion>,
+    }
+
+    #[derive(Default)]
+    pub(crate) struct TypeIdentityContext<'binders> {
+        pub(crate) portable_machine_applications:
+            Option<&'binders super::portable_machine_applications::PortableMachineApplications>,
+        pub(crate) storage_value_indices: bool,
+        pub(crate) declared_carrier: bool,
+        // Leave out the domains of every constrained type and keep everything
+        // else, lifetimes included: the identity of the carrier a qualified
+        // occurrence stores (`applied_carrier_identity_in_region_scope`).
+        pub(crate) erase_constraints: bool,
+        pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
+        pub(crate) application_owner: SymbolHandle,
+        pub(crate) application_argument_owner: SymbolHandle,
+        pub(crate) resolved_lifetimes:
+            &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+        pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
+        pub(crate) active_runtime_call_expressions: &'binders [ExpressionHandle],
+        pub(crate) active_callable_signatures:
+            &'binders [&'binders crate::source_state::signature::StateSignature],
+        pub(crate) callable_scope_owners: &'binders [(SymbolHandle, SymbolHandle)],
+        pub(crate) callable_operand_shape: bool,
+        pub(crate) structural_callable_identity: bool,
+        // A complete declaration schema gives `result` one exact header owner.
+        // Other identity requests keep their existing descriptive behavior.
+        pub(crate) signature_owners: Option<(SymbolHandle, SymbolHandle)>,
+        pub(crate) invalid_application: Option<&'binders Cell<bool>>,
+        pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
+        // A description can retain elision without claiming a concrete region.
+        // Existing checked identities point this observation at their error flag.
+        pub(crate) encountered_elided_regions: Option<&'binders Cell<bool>>,
+        // A requirement schema's declared types give each elided signature
+        // position the lifetime stage 05 gives it, so a receiver can derive
+        // the same loan groups from the schema alone.
+        pub(crate) signature_elision: Option<&'binders SignatureElision>,
+        pub(crate) signature_region_projection:
+            Option<&'binders dyn Fn(SignatureRegion) -> SignatureRegion>,
+        pub(crate) binders: &'binders [(SymbolHandle, String)],
+        pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+        // Caller type arguments retain their supplying regions. They must not
+        // acquire a lifetime from the receiving signature's same-spelled tag.
+        pub(crate) require_owned_substitution_regions: bool,
+        pub(crate) signature_argument: Option<usize>,
+        pub(crate) substitution_scope_starts: &'binders [usize],
+        pub(crate) substitution_semantics: SubstitutionSemantics,
+        pub(crate) active_const_substitutions: &'binders [SymbolHandle],
+        pub(crate) index_substitutions:
+            &'binders [(SymbolHandle, super::IndexIdentityArgument<'binders>)],
+        pub(crate) invalid_index_argument: Option<&'binders Cell<bool>>,
+        pub(crate) match_subjects:
+            &'binders [arena::Handle<crate::source_state::expression::CompletedValueCapture>],
+        pub(crate) exact_toolchain_sources: &'binders [(source_text::SourceId, [u8; 32])],
+        pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
+        pub(crate) qualification: TypeIdentityQualification,
+        pub(crate) static_context: crate::source_state::expression::ExpressionHandle,
+    }
+
+    /// lifetimes.md, "Returned views": in a signature's inputs each elided
+    /// position is a fresh lifetime of the declaration; "For an elided
+    /// output, one unambiguous reference input supplies the relation", and
+    /// with none the result lifetime is chosen by the caller. Stage 05's
+    /// `Elision::Inputs` and `Elision::Result` read the same rule, counting
+    /// the requirement's own lifetimes, declared and minted.
+    pub(crate) struct SignatureElision {
+        /// The next schema ordinal a fresh lifetime takes.
+        next: Cell<usize>,
+        minted: Cell<usize>,
+        position: Cell<ElidedPosition>,
+    }
+
+    #[derive(Clone, Copy)]
+    enum ElidedPosition {
+        Fresh,
+        FirstResult,
+        Only(usize),
+        Ambiguous,
+    }
+
+    impl SignatureElision {
+        /// Fresh lifetimes take ordinals from `first`, after every declared one.
+        pub(crate) fn inputs(first: usize) -> Self {
+            Self {
+                next: Cell::new(first),
+                minted: Cell::new(0),
+                position: Cell::new(ElidedPosition::Fresh),
+            }
+        }
+
+        pub(crate) fn minted(&self) -> usize {
+            self.minted.get()
+        }
+
+        /// Enter the result, whose elided lifetime is the requirement's one
+        /// lifetime at ordinal `only`, a fresh one when it has none, and
+        /// ambiguous when it has several.
+        pub(crate) fn enter_result(&self, declared: usize, only: usize) {
+            self.position.set(match declared + self.minted.get() {
+                0 => ElidedPosition::FirstResult,
+                1 => ElidedPosition::Only(only),
+                _ => ElidedPosition::Ambiguous,
+            });
+        }
+
+        /// The schema ordinal of one elided position, or `None` when it is
+        /// ambiguous and needs an explicit relation.
+        pub(crate) fn region(&self) -> Option<usize> {
+            match self.position.get() {
+                ElidedPosition::Fresh | ElidedPosition::FirstResult => {
+                    let ordinal = self.next.get();
+                    self.next.set(ordinal + 1);
+                    self.minted.set(self.minted.get() + 1);
+                    // With no inputs the first result occurrence introduces
+                    // one caller-chosen lifetime; later occurrences reuse it.
+                    if matches!(self.position.get(), ElidedPosition::FirstResult) {
+                        self.position.set(ElidedPosition::Only(ordinal));
+                    }
+                    Some(ordinal)
+                }
+                ElidedPosition::Only(ordinal) => Some(ordinal),
+                ElidedPosition::Ambiguous => None,
+            }
+        }
+    }
+
+    pub(crate) fn schema_region(ordinal: usize) -> String {
+        compound(
+            RegionForm::Region,
+            [
+                atom(Label::Owner, "schema"),
+                atom(Label::Ordinal, &ordinal.to_string()),
+            ],
+        )
+    }
+
+    #[derive(Clone, Copy, Default)]
+    pub(crate) enum SubstitutionSemantics {
+        #[default]
+        Transitive,
+        Simultaneous,
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum TypeIdentityQualification {
+        #[default]
+        Ordinary,
+        PackageQualified,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum PackageQualifiedNominalOwner {
+        Package([u8; 32]),
+        ToolchainSource([u8; 32]),
+        Toolchain,
+        Unresolved,
+    }
+
+    impl PackageQualifiedNominalOwner {
+        fn encode(self) -> String {
+            match self {
+                Self::Package(digest) => byte_atom(OwnerForm::Package, &digest),
+                Self::ToolchainSource(digest) => byte_atom(OwnerForm::ToolchainSource, &digest),
+                Self::Toolchain => bare(OwnerForm::Toolchain),
+                Self::Unresolved => bare(OwnerForm::Unresolved),
+            }
+        }
+    }
+
+    impl TypeIdentityContext<'_> {
+        pub(crate) fn enter_type_operand(
+            &self,
+            program: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Self {
+            let operand_owner = program
+                .type_reference_table
+                .operand_lifetime_owner(reference);
+            if self.invalid_application.is_some()
+                && operand_owner.is_valid()
+                && !program
+                    .type_reference_table
+                    .has_resolved_operand_lifetimes(reference)
+                && !self.declared_carrier
+            {
+                Self {
+                    application_owner: operand_owner,
+                    application_scopes: self
+                        .application_scopes
+                        .iter()
+                        .rposition(|scope| {
+                            program.lifetime_declaration_owner(scope.declaration)
+                                == program.lifetime_declaration_owner(operand_owner)
+                        })
+                        .map_or(&[][..], |ordinal| &self.application_scopes[..=ordinal]),
+                    ..*self
+                }
+            } else {
+                Self { ..*self }
+            }
+        }
+
+        /*
+            Type equality names the value an implementation constructs, so two
+            constructors of one value compare equal. A portable or
+            package-qualified identity keeps the written constructor: it names
+            the declaration an artifact depends on, and equal values must not
+            lose the dependencies of the one actually used.
+        */
+        pub(crate) fn identifies_constructed_values(&self) -> bool {
+            self.portable_machine_applications.is_none()
+                && self.qualification == TypeIdentityQualification::Ordinary
+        }
+
+        pub(crate) fn applied_argument(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<(super::IndexIdentityArgument<'_>, Self)> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            for (ordinal, scope) in self.application_scopes.iter().enumerate().rev() {
+                if let Some((_, argument)) =
+                    scope.arguments.iter().find(|(binder, _)| *binder == symbol)
+                {
+                    return Some((
+                        *argument,
+                        Self {
+                            application_scopes: &self.application_scopes[..ordinal],
+                            application_owner: if self.application_argument_owner.is_valid() {
+                                self.application_argument_owner
+                            } else {
+                                self.application_owner
+                            },
+                            ..*self
+                        },
+                    ));
+                }
+            }
+            None
+        }
+
+        pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
+            if self.structural_callable_identity {
+                let mut owner = program.lifetime_declaration_owner(self.application_owner);
+                let mut visited = Vec::new();
+                while owner.is_valid() && !visited.contains(&owner) {
+                    visited.push(owner);
+                    let parameters = self
+                        .active_callable_signatures
+                        .iter()
+                        .rev()
+                        .find(|signature| signature.symbol == owner)
+                        .map(|signature| signature.lifetime_parameters.as_slice())
+                        .or_else(|| super::declaration_lifetime_parameters(program, owner));
+                    if let Some(ordinal) = parameters.and_then(|parameters| {
+                        parameters
+                            .iter()
+                            .position(|parameter| parameter.as_str() == name)
+                    }) {
+                        let region = LifetimeParameterIdentity {
+                            declaration: owner,
+                            ordinal,
+                        };
+                        if self
+                            .lifetime_binders
+                            .iter()
+                            .any(|(bound, _)| *bound == region)
+                        {
+                            return self.encode_lifetime(program, region);
+                        }
+                        return self.resolved_lifetime(program, region);
+                    }
+                    let parent = self
+                        .callable_scope_owners
+                        .iter()
+                        .rev()
+                        .find(|(signature, _)| *signature == owner)
+                        .map_or_else(
+                            || program.declaration_scope_parent(owner),
+                            |(_, lexical)| *lexical,
+                        );
+                    owner = program.lifetime_declaration_owner(parent);
+                }
+            }
+            if let Some((region, _)) = super::applied_lifetime_parameter_identity_with_supplier(
+                program,
+                self.application_owner,
+                if self.application_argument_owner.is_valid() {
+                    self.application_argument_owner
+                } else {
+                    self.application_owner
+                },
+                name,
+                self.application_scopes,
+            ) {
+                return self.encode_lifetime(program, region);
+            }
+            if let Some(invalid) = self.invalid_application {
+                invalid.set(true);
+            }
+            bare(RegionForm::Unresolved)
+        }
+
+        pub(crate) fn replacement_context(&self) -> Self {
+            Self {
+                substitutions: match self.substitution_semantics {
+                    SubstitutionSemantics::Transitive => self.substitutions,
+                    SubstitutionSemantics::Simultaneous => &[],
+                },
+                ..*self
+            }
+        }
+
+        pub(crate) fn replacement_context_at(&self, replacement_ordinal: usize) -> Self {
+            let Some((scope_ordinal, start)) = self
+                .substitution_scope_starts
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, start)| **start <= replacement_ordinal)
+            else {
+                return self.replacement_context();
+            };
+            Self {
+                substitutions: &self.substitutions[..*start],
+                substitution_scope_starts: &self.substitution_scope_starts[..scope_ordinal],
+                ..*self
+            }
+        }
+
+        fn resolved_lifetime(
+            &self,
+            program: &TypedTrees,
+            region: LifetimeParameterIdentity,
+        ) -> String {
+            let Some((region, _)) = super::apply_resolved_lifetime_parameter_identity(
+                program,
+                region,
+                if self.application_argument_owner.is_valid() {
+                    self.application_argument_owner
+                } else {
+                    self.application_owner
+                },
+                self.application_scopes,
+            ) else {
+                if let Some(invalid) = self.invalid_application {
+                    invalid.set(true);
+                }
+                return bare(RegionForm::Unresolved);
+            };
+            self.encode_lifetime(program, region)
+        }
+
+        pub(crate) fn encode_lifetime(
+            &self,
+            program: &TypedTrees,
+            region: LifetimeParameterIdentity,
+        ) -> String {
+            let region = self
+                .resolved_lifetimes
+                .iter()
+                .find(|(parameter, _)| *parameter == region)
+                .map_or(region, |(_, argument)| *argument);
+            // A stored callable's own binders are universal inside its type.
+            // Callback comparison may instantiate the surrounding machine's
+            // regions, but must not instantiate or exchange these inner binders
+            // with captured outer regions. Keep their frame coordinates rigid.
+            if self.require_owned_substitution_regions
+                && let Some(depth) = self
+                    .active_callable_signatures
+                    .iter()
+                    .rposition(|signature| signature.symbol == region.declaration)
+            {
+                return compound(
+                    RegionForm::Region,
+                    [
+                        atom(Label::Owner, &format!("callable:{depth}")),
+                        atom(Label::Ordinal, &region.ordinal.to_string()),
+                    ],
+                );
+            }
+            let region = self
+                .lifetime_binders
+                .iter()
+                .find(|(parameter, _)| *parameter == region)
+                .map_or(SignatureRegion::Captured(region), |(_, binder)| {
+                    SignatureRegion::Bound(*binder)
+                });
+            self.encode_signature_region(program, region)
+        }
+
+        pub(crate) fn encode_signature_region(
+            &self,
+            program: &TypedTrees,
+            region: SignatureRegion,
+        ) -> String {
+            let region = self
+                .signature_region_projection
+                .map_or(region, |projection| projection(region));
+            let region = match region {
+                SignatureRegion::Bound(ordinal) => return schema_region(ordinal),
+                SignatureRegion::Captured(region) => region,
+                SignatureRegion::Argument { binding, ordinal } => {
+                    return compound(
+                        RegionForm::Region,
+                        [
+                            atom(Label::Owner, &format!("argument:{binding}")),
+                            atom(Label::Ordinal, &ordinal.to_string()),
+                        ],
+                    );
+                }
+            };
+            if self.qualification == TypeIdentityQualification::PackageQualified
+                || self.structural_callable_identity
+            {
+                let identity = if self.portable_machine_applications.is_some()
+                    || self.structural_callable_identity
+                {
+                    super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
+                        program, region, self,
+                    )
+                } else {
+                    super::lifetime_parameters::portable_lifetime_parameter_identity(
+                        program, region,
+                    )
+                };
+                if let Some(identity) = identity {
+                    return identity;
+                }
+                if let Some(invalid) = self.invalid_application {
+                    invalid.set(true);
+                }
+                return bare(RegionForm::Unresolved);
+            }
+            compound(
+                RegionForm::Region,
+                [
+                    atom(
+                        Label::Owner,
+                        &format!(
+                            "{}:{}",
+                            region.declaration.arena_index(),
+                            region.declaration.generation()
+                        ),
+                    ),
+                    atom(Label::Ordinal, &region.ordinal.to_string()),
+                ],
+            )
+        }
+
+        fn encode_elided_signature_region(&self, program: &TypedTrees, ordinal: usize) -> String {
+            let region = self
+                .signature_argument
+                .map_or(SignatureRegion::Bound(ordinal), |binding| {
+                    SignatureRegion::Argument { binding, ordinal }
+                });
+            self.encode_signature_region(program, region)
+        }
+
+        fn lifetime_slot(
+            &self,
+            program: &TypedTrees,
+            name: &crate::source_state::name::Identifier,
+            region: Option<LifetimeParameterIdentity>,
+        ) -> String {
+            if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
+                if self.structural_callable_identity
+                    && self
+                        .lifetime_binders
+                        .iter()
+                        .any(|(bound, _)| *bound == region)
+                {
+                    return self.encode_lifetime(program, region);
+                }
+                self.resolved_lifetime(program, region)
+            } else {
+                self.lifetime(program, name.as_str())
+            }
+        }
+
+        pub(crate) fn name(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            fallback: &str,
+        ) -> String {
+            if (self.structural_callable_identity || self.signature_owners.is_some())
+                && !symbol.is_valid()
+            {
+                return substitution::rejected(self);
+            }
+            if let Some((_, replacement)) = self
+                .binders
+                .iter()
+                .find(|(candidate, _)| *candidate == symbol)
+            {
+                return replacement.clone();
+            }
+            if !symbol.is_valid() && !fallback.contains("::") {
+                let mut replacements = self.binders.iter().filter(|(candidate, _)| {
+                    candidate.is_valid() && program.symbols.name(*candidate) == fallback
+                });
+                if let Some((_, replacement)) = replacements.next() {
+                    if replacements.any(|(_, other)| other != replacement) {
+                        return substitution::rejected(self);
+                    }
+                    return replacement.clone();
+                }
+            }
+            if symbol.is_valid() {
+                let path = program.symbols.display_path(symbol, "::");
+                if !path.is_empty() {
+                    return self.qualify_non_binder_name(program, symbol, path);
+                }
+            }
+            self.qualify_non_binder_name(program, symbol, fallback.to_owned())
+        }
+
+        pub(crate) fn qualify_non_binder_name(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            path: String,
+        ) -> String {
+            if let Some(projection) = self.portable_machine_applications
+                && let Some(identity) = projection.nominal_name(program, symbol, self)
+            {
+                return identity;
+            }
+            match super::derived_declarations::nominal_name(program, symbol, self, false) {
+                Ok(Some(identity)) => return identity,
+                Err(reason) => {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    return atom(NameForm::InvalidDerivedOrigin, reason);
+                }
+                Ok(None) => {}
+            }
+            if self.qualification == TypeIdentityQualification::Ordinary
+                && (program.symbols.builtin_type_atom(symbol).is_some()
+                    || (program.symbols.symbol_package_identity(symbol).is_none()
+                        && !program
+                            .symbols
+                            .symbol_source_origin(symbol)
+                            .is_some_and(source_admission::SourceOrigin::is_toolchain)))
+            {
+                return path;
+            }
+            if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
+                return application_identity::type_identity::builtin_type_name(builtin_atom);
+            }
+            let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
+                PackageQualifiedNominalOwner::Package(package.digest())
+            } else if program
+                .symbols
+                .symbol_source_origin(symbol)
+                .is_some_and(source_admission::SourceOrigin::is_toolchain)
+            {
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source_admission::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
+            } else {
+                if let Some(missing) = self.missing_exact_nominal_owner {
+                    missing.set(true);
+                }
+                PackageQualifiedNominalOwner::Unresolved
+            };
+            package_qualified_nominal_name(owner, &path)
+        }
+    }
+
+    pub(crate) fn package_qualified_nominal_name(
+        owner: PackageQualifiedNominalOwner,
+        path: &str,
+    ) -> String {
+        compound(NameForm::Nominal, [owner.encode(), atom(Label::Path, path)])
+    }
+
+    fn elided_signature_lifetime_count(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> usize {
+        if context.signature_elision.is_none() {
+            return 0;
+        }
+        if let Some(declaration) = program.unique_data_definition_by_symbol(symbol) {
+            return declaration.lifetime_parameters.len();
+        }
+        if program.data_definition_by_symbol(symbol).is_some() {
+            // An ambiguous declaration cannot supply a guessed empty arity.
+            let _ = substitution::rejected(context);
+        }
+        0
+    }
+
+    fn generic_type_identity(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        name: &str,
+        lifetimes: &[crate::source_state::name::Identifier],
+        regions: &[LifetimeParameterIdentity],
+        arguments: impl Iterator<Item = IdentityPart>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Composite {
+        let mut arguments = arguments.peekable();
+        if context.declared_carrier && arguments.peek().is_none() {
+            return Composite::new(
+                TypeForm::Named,
+                [IdentityPart::Text(normalize_const_or_nominal_name(
+                    program,
+                    symbol,
+                    name,
+                    Label::Name,
+                    context,
+                ))],
+            );
+        }
+        let regions = if context.invalid_application.is_some()
+            && !context.declared_carrier
+            && !context.callable_operand_shape
+        {
+            if lifetimes.is_empty() {
+                (0..elided_signature_lifetime_count(program, symbol, context))
+                    .map(|_| {
+                        context
+                            .signature_elision
+                            .and_then(SignatureElision::region)
+                            .map_or_else(
+                                || substitution::rejected(context),
+                                |ordinal| context.encode_elided_signature_region(program, ordinal),
+                            )
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                lifetimes
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, lifetime)| {
+                        context.lifetime_slot(program, lifetime, regions.get(ordinal).copied())
+                    })
+                    .collect()
+            }
+        } else {
+            Vec::new()
+        };
+        Composite::new(
+            TypeForm::Generic,
+            std::iter::once(atom(Label::Name, &context.name(program, symbol, name)))
+                .chain(regions)
+                .map(IdentityPart::Text)
+                .chain(arguments),
+        )
+    }
+
+    fn generic_reference_identity<'program>(
+        program: &'program TypedTrees,
+        mut symbol: SymbolHandle,
+        mut name: &'program crate::source_state::name::Identifier,
+        lifetimes: &[crate::source_state::name::Identifier],
+        regions: &[LifetimeParameterIdentity],
+        mut arguments: arena::HandleSpan<TypeReferenceHandle>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Composite {
+        if arguments.is_empty()
+            && let Some(definition) = program.unique_data_definition_by_symbol(symbol)
+            && program.data_type_parameters(definition).is_empty()
+            && let Some(origin) = definition.generic_instance
+            && program.type_reference_table.contains_type_reference(origin)
+            && let TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                arguments: origin_arguments,
+                lifetime_arguments: origin_lifetimes,
+            } = program.type_reference_table.type_reference(origin)
+            && *base_symbol != symbol
+        {
+            if let Some(encountered) = context.encountered_regions
+                && (!origin_lifetimes.is_empty()
+                    || program
+                        .data_definition_by_symbol(*base_symbol)
+                        .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty()))
+            {
+                encountered.set(true);
+            }
+            symbol = *base_symbol;
+            name = base_name;
+            arguments = *origin_arguments;
+        }
+        let constructed = context.identifies_constructed_values();
+        let lifetime_is_relevant =
+            |ordinal| !constructed || program.application_lifetime_is_relevant(symbol, ordinal);
+        let argument_is_relevant =
+            |ordinal| !constructed || program.application_argument_is_relevant(symbol, ordinal);
+        let lifetimes = lifetimes
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, lifetime)| lifetime.clone())
+            .collect::<Vec<_>>();
+        let regions = regions
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, region)| *region)
+            .collect::<Vec<_>>();
+        let (lifetimes, regions) = (lifetimes.as_slice(), regions.as_slice());
+        let arguments = program
+            .type_reference_handles(arguments)
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| argument_is_relevant(*ordinal))
+            .collect::<Vec<_>>();
+        let parameters = program.declaration_type_parameters(symbol);
+        if constructed {
+            symbol = program.implementation_value_head(symbol);
+        }
+        if arguments.is_empty()
+            && ((lifetimes.is_empty()
+                && elided_signature_lifetime_count(program, symbol, context) == 0)
+                || context.invalid_application.is_none()
+                || context.declared_carrier)
+        {
+            return Composite::new(
+                TypeForm::Named,
+                [IdentityPart::Text(normalize_const_or_nominal_name(
+                    program,
+                    symbol,
+                    name.as_str(),
+                    Label::Name,
+                    context,
+                ))],
+            );
+        }
+        generic_type_identity(
+            program,
+            symbol,
+            name.as_str(),
+            lifetimes,
+            regions,
+            arguments.into_iter().map(|(ordinal, argument)| {
+                if context.storage_value_indices
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        super::storage_identity::independent_value_index(program, symbol, parameter)
+                    })
+                {
+                    return IdentityPart::Text(bare(TypeForm::Unit));
+                }
+                if context.invalid_application.is_some()
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Machine { .. }
+                        )
+                    })
+                {
+                    return IdentityPart::Text(
+                        match program.static_operand_from_type_reference(*argument) {
+                            Ok(selected) => substitution::index_argument(
+                                program,
+                                super::IndexIdentityArgument::StaticArgument(&selected),
+                                context,
+                            ),
+                            Err(_) => substitution::rejected(context),
+                        },
+                    );
+                }
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                if is_index {
+                    IdentityPart::Text(substitution::index_argument(
+                        program,
+                        super::IndexIdentityArgument::TypeReference(*argument),
+                        context,
+                    ))
+                } else {
+                    IdentityPart::Identity(normalize_type_identity(program, *argument, context))
+                }
+            }),
+            context,
+        )
+    }
+
+    pub(crate) fn static_nominal_argument_identity(
+        program: &TypedTrees,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+        context: &TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        if argument
+            .application
+            .as_ref()
+            .is_some_and(|application| application.member.is_valid())
+        {
+            return None;
+        }
+        if context.invalid_application.is_none()
+            || !argument.symbol.is_valid()
+            || !matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::Data
+                    | symbols::SymbolKind::BuiltinType
+                    | symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::ConformanceParameter
+            )
+        {
+            return None;
+        }
+        if let Some((replacement, outer)) = context.applied_argument(argument.symbol) {
+            return Some(substitution::index_argument(program, replacement, &outer));
+        }
+        if argument.application.is_none()
+            && program
+                .data_type_parameter_by_symbol(argument.symbol)
+                .is_some_and(|binder| binder.kind.is_const_or_value())
+        {
+            return None;
+        }
+        let constructed = context.identifies_constructed_values();
+        let head = if constructed {
+            program.implementation_value_head(argument.symbol)
+        } else {
+            argument.symbol
+        };
+        if let Some(application) = &argument.application {
+            let lifetimes = application
+                .lifetime_arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_lifetime_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, lifetime)| lifetime.clone())
+                .collect::<Vec<_>>();
+            let arguments = application
+                .arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_argument_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, argument)| {
+                    substitution::index_argument(
+                        program,
+                        super::IndexIdentityArgument::StaticArgument(argument),
+                        context,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let binders_dropped = lifetimes.len() != application.lifetime_arguments.len()
+                || arguments.len() != application.arguments.len();
+            if (head != argument.symbol || binders_dropped)
+                && lifetimes.is_empty()
+                && arguments.is_empty()
+            {
+                return Some(compound(
+                    TypeForm::Named,
+                    [normalize_const_or_nominal_name(
+                        program,
+                        head,
+                        "",
+                        Label::Name,
+                        context,
+                    )],
+                ));
+            }
+            return Some(
+                generic_type_identity(
+                    program,
+                    head,
+                    "",
+                    &lifetimes,
+                    &[],
+                    arguments.into_iter().map(IdentityPart::Text),
+                    context,
+                )
+                .text(program),
+            );
+        }
+        if let Some(origin) = program
+            .data_definition_by_symbol(argument.symbol)
+            .and_then(|data| data.generic_instance)
+        {
+            return Some(normalize_type_reference(program, origin, context));
+        }
+        Some(compound(
+            TypeForm::Named,
+            [normalize_const_or_nominal_name(
+                program,
+                head,
+                "",
+                Label::Name,
+                context,
+            )],
+        ))
+    }
+
+    /// The text of a type's identity, for a caller that spells it into
+    /// a larger text of its own.
+    pub(crate) fn normalize_type_reference(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        let identity = normalize_type_identity(program, type_reference, context);
+        program
+            .type_identities
+            .text(identity)
+            .expect("a normalized identity was minted by the program's table")
+            .to_owned()
+    }
+
+    /// The identity of a type under `context`. A compound type is composed
+    /// from its children's identities, so a type whose structure the program
+    /// has already met finds its identity without spelling its text again.
+    pub(crate) fn normalize_type_identity(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> TypeIdentityId {
+        if let Some(encountered) = context.encountered_regions {
+            let has_regions = match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Reference { .. } => true,
+                TypeReferenceNode::Generic {
+                    base_symbol,
+                    lifetime_arguments,
+                    ..
+                } => {
+                    !lifetime_arguments.is_empty()
+                        || program
+                            .data_definition_by_symbol(*base_symbol)
+                            .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                        || program
+                            .trait_definition_by_symbol(*base_symbol)
+                            .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                }
+                TypeReferenceNode::Named { symbol, .. } => {
+                    program
+                        .data_definition_by_symbol(*symbol)
+                        .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                        || program
+                            .trait_definition_by_symbol(*symbol)
+                            .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                }
+                _ => false,
+            };
+            if has_regions {
+                encountered.set(true);
+            }
+        }
+        let scoped_context = context.enter_type_operand(program, type_reference);
+        let context = &scoped_context;
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+            && let Some((argument, outer)) = context.applied_argument(*symbol)
+        {
+            return text_identity(
+                program,
+                substitution::index_argument(program, argument, &outer),
+            );
+        }
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+            && let Some((
+                _,
+                super::IndexIdentityArgument::TypeReference(reference)
+                | super::IndexIdentityArgument::TypeArgument(reference),
+            )) = context
+                .index_substitutions
+                .iter()
+                .find(|(binder, _)| binder == symbol)
+        {
+            return normalize_type_identity(
+                program,
+                *reference,
+                &TypeIdentityContext {
+                    index_substitutions: &[],
+                    ..*context
+                },
+            );
+        }
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+            && let Some(generic_instance) = program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|definition| definition.generic_instance)
+            && generic_instance != type_reference
+        {
+            return normalize_type_identity(program, generic_instance, context);
+        }
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+            && let Some((ordinal, (_, replacement))) = context
+                .substitutions
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, (candidate, _))| candidate == symbol)
+            && *replacement != type_reference
+        {
+            let replacement_context = context.replacement_context_at(ordinal);
+            // The actual type's omitted regions are universally arbitrary, but
+            // fixed across every use of this binding, including the result.
+            // They establish no storage or loan; owned named regions retain
+            // their original declaration instead of entering this local scope.
+            let argument_elision = SignatureElision::inputs(0);
+            let replacement_context = if context.require_owned_substitution_regions {
+                let owner = program
+                    .type_reference_table
+                    .operand_lifetime_owner(*replacement);
+                TypeIdentityContext {
+                    application_owner: owner,
+                    application_argument_owner: owner,
+                    application_scopes: &[],
+                    signature_elision: Some(&argument_elision),
+                    signature_argument: Some(ordinal),
+                    ..replacement_context
+                }
+            } else {
+                replacement_context
+            };
+            return normalize_type_identity(program, *replacement, &replacement_context);
+        }
+        if context.static_context.is_valid() {
+            let refined =
+                program.statically_refined_type_reference(context.static_context, type_reference);
+            if refined != type_reference
+                && crate::source_state::domain::index_argument_is_closed(program, refined)
+            {
+                return normalize_type_identity(program, refined, context);
+            }
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime,
+            } => {
+                // Reserve the outer reference binder before its referent.
+                let region = context
+                    .invalid_application
+                    .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
+                    .filter(|_| {
+                        context.active_callable_signatures.is_empty()
+                            || lifetime.is_some()
+                            || !program
+                                .type_reference_table
+                                .operand_lifetimes(type_reference)
+                                .is_empty()
+                    })
+                    .map(|_| {
+                        lifetime.as_ref().map_or_else(
+                            || {
+                                if let Some(elision) = context.signature_elision {
+                                    if let Some(ordinal) = elision.region() {
+                                        return context
+                                            .encode_elided_signature_region(program, ordinal);
+                                    }
+                                } else if let Some(region) = program
+                                    .type_reference_table
+                                    .operand_lifetimes(type_reference)
+                                    .first()
+                                {
+                                    return context.resolved_lifetime(program, *region);
+                                }
+                                if context.qualification
+                                    == TypeIdentityQualification::PackageQualified
+                                    && let Some(elided) = context.encountered_elided_regions
+                                {
+                                    elided.set(true);
+                                }
+                                bare(RegionForm::Elided)
+                            },
+                            |lifetime| {
+                                context.lifetime_slot(
+                                    program,
+                                    lifetime,
+                                    program
+                                        .type_reference_table
+                                        .operand_lifetimes(type_reference)
+                                        .first()
+                                        .copied(),
+                                )
+                            },
+                        )
+                    });
+                Composite::new(
+                    match access {
+                        language_core::ReferenceAccess::Shared => TypeForm::Reference,
+                        language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
+                        language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
+                    },
+                    std::iter::once(IdentityPart::Identity(normalize_type_identity(
+                        program, *referee, context,
+                    )))
+                    .chain(region.map(IdentityPart::Text)),
+                )
+                .intern(program)
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                if context.declared_carrier || context.erase_constraints {
+                    return normalize_type_identity(program, *base_type, context);
+                }
+                let (base, mut all_constraints) =
+                    normalize_constrained_base(program, *base_type, context);
+                all_constraints.extend(normalized_constraints(program, *constraints, context));
+                all_constraints.sort();
+                all_constraints.dedup();
+                Composite::new(
+                    TypeForm::Constrained,
+                    std::iter::once(base)
+                        .chain(
+                            all_constraints
+                                .into_iter()
+                                .map(NormalizedConstraint::encode),
+                        )
+                        .map(IdentityPart::Text),
+                )
+                .intern(program)
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => Composite::new(
+                TypeForm::Array,
+                [
+                    IdentityPart::Identity(normalize_type_identity(
+                        program,
+                        *element_type,
+                        context,
+                    )),
+                    IdentityPart::Text(normalize_array_length(program, length, context)),
+                ],
+            )
+            .intern(program),
+            TypeReferenceNode::Slice { element_type } => Composite::new(
+                TypeForm::Slice,
+                [IdentityPart::Identity(normalize_type_identity(
+                    program,
+                    *element_type,
+                    context,
+                ))],
+            )
+            .intern(program),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+                ..
+            } => generic_reference_identity(
+                program,
+                *base_symbol,
+                base_name,
+                lifetime_arguments,
+                program
+                    .type_reference_table
+                    .operand_lifetimes(type_reference),
+                *arguments,
+                context,
+            )
+            .intern(program),
+            TypeReferenceNode::ConstExpression(expression) => Composite::new(
+                TypeForm::IndexExpression,
+                [IdentityPart::Text(normalize_index_expression(
+                    program,
+                    *expression,
+                    context,
+                ))],
+            )
+            .intern(program),
+            TypeReferenceNode::Callable { contract } => {
+                // The callable type owns its invocation lifetimes; an outer
+                // callback signature or type argument does not supply elision
+                // for the callable's independent parameter/result contract.
+                let nested = TypeIdentityContext {
+                    signature_elision: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_elision
+                    },
+                    signature_argument: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_argument
+                    },
+                    ..*context
+                };
+                text_identity(
+                    program,
+                    crate::source_state::runtime_callable_identity::normalize_contract(
+                        program, *contract, &nested,
+                    )
+                    .unwrap_or_else(|_| substitution::rejected(context)),
+                )
+            }
+            TypeReferenceNode::Named { symbol, name: _ }
+                if (context.structural_callable_identity || context.signature_owners.is_some())
+                    && !symbol.is_valid() =>
+            {
+                text_identity(program, substitution::rejected(context))
+            }
+            TypeReferenceNode::Named { symbol, name }
+                if elided_signature_lifetime_count(program, *symbol, context) != 0 =>
+            {
+                generic_reference_identity(
+                    program,
+                    *symbol,
+                    name,
+                    &[],
+                    &[],
+                    arena::HandleSpan::empty(),
+                    context,
+                )
+                .intern(program)
+            }
+            TypeReferenceNode::Named { symbol, name } => Composite::new(
+                TypeForm::Named,
+                [IdentityPart::Text(normalize_const_or_nominal_name(
+                    program,
+                    if context.identifies_constructed_values() {
+                        program.implementation_value_head(*symbol)
+                    } else {
+                        *symbol
+                    },
+                    name.as_str(),
+                    Label::Name,
+                    context,
+                ))],
+            )
+            .intern(program),
+            TypeReferenceNode::Unit => text_identity(program, bare(TypeForm::Unit)),
+        }
+    }
+
+    pub(crate) fn normalize_index_expression(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if context.structural_callable_identity
+                    && (path.reserved_result_of.is_valid()
+                        || program.expression_table.names_reserved_result(expression))
+                {
+                    if !program.expression_table.names_reserved_result(expression)
+                        || !program
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(path.reserved_result_of)
+                    {
+                        return substitution::rejected(context);
+                    }
+                    // A signature's reserved result uses its active frame
+                    // coordinate. Authenticate its owner and shape before
+                    // alpha-normalizing that declaration-owned binder.
+                    let Some(depth) = context
+                        .active_callable_signatures
+                        .iter()
+                        .rposition(|signature| signature.symbol == path.reserved_result_of)
+                    else {
+                        return substitution::rejected(context);
+                    };
+                    return atom(IndexForm::ConstName, &format!("$C{depth}R"));
+                }
+                if let Some((machine, entry)) = context.signature_owners {
+                    if path.reserved_result_of.is_valid() {
+                        return if path.reserved_result_of == machine
+                            || path.reserved_result_of == entry
+                        {
+                            atom(IndexForm::ConstName, "$result")
+                        } else {
+                            substitution::rejected(context)
+                        };
+                    }
+                    if program.expression_table.names_reserved_result(expression) {
+                        return substitution::rejected(context);
+                    }
+                }
+                if path.static_application.is_valid() {
+                    return match program
+                        .expression_table
+                        .static_member(path.static_application)
+                    {
+                        Some(argument) => substitution::index_argument(
+                            program,
+                            crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(argument),
+                            context,
+                        ),
+                        None => substitution::rejected(context),
+                    };
+                }
+                let members = program.expression_table.name_path_members(path.members);
+                let fallback = members.joined_path();
+                let symbol = if path.symbol.is_valid() {
+                    path.symbol
+                } else if members.len() == 1 {
+                    path.head_symbol
+                } else {
+                    SymbolHandle::invalid()
+                };
+                if (context.structural_callable_identity || context.signature_owners.is_some())
+                    && !symbol.is_valid()
+                {
+                    return substitution::rejected(context);
+                }
+                let identity = substitution::index(program, symbol, &fallback, context)
+                    .unwrap_or_else(|| {
+                        substitution::index_name(program, symbol, fallback.as_str(), context)
+                    });
+                if program.pattern_component(expression)
+                    == Some(language_core::PatternComponent::Case)
+                {
+                    compound(IndexForm::CaseComponent, [identity])
+                } else {
+                    identity
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                // A raw non-Exact operation needs its selected carrier as well
+                // as its policy. Until that complete operation is represented,
+                // refuse an exact identity instead of erasing its semantics.
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return substitution::rejected(context);
+                }
+                compound(
+                    index_binary_operator_name(binary.operator),
+                    [
+                        normalize_index_expression(program, binary.left, context),
+                        normalize_index_expression(program, binary.right, context),
+                    ],
+                )
+            }
+            ExpressionNode::Integer(value) => substitution::index_integer(value, context),
+            ExpressionNode::Unary(unary) => compound(
+                match unary.operator {
+                    crate::source_state::expression::UnaryOperator::BitwiseNot => {
+                        IndexForm::BitwiseNot
+                    }
+                    crate::source_state::expression::UnaryOperator::LogicalNot => {
+                        IndexForm::LogicalNot
+                    }
+                },
+                [normalize_index_expression(program, unary.operand, context)],
+            ),
+            ExpressionNode::Boolean(value) => atom(IndexForm::Boolean, &value.to_string()),
+            ExpressionNode::Float(value) => atom(IndexForm::Float, &value.to_string()),
+            ExpressionNode::UndeterminedNaN(format) => {
+                atom(IndexForm::UndeterminedNan, format.name())
+            }
+            ExpressionNode::String(value) => byte_atom(IndexForm::String, value),
+            ExpressionNode::ArrayLiteral(elements) => compound(
+                IndexForm::ArrayLiteral,
+                program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .iter()
+                    .map(|element| normalize_index_expression(program, *element, context)),
+            ),
+            ExpressionNode::Match(dispatch) => {
+                match_dispatch::normalize_match(program, expression, dispatch, context)
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                match_dispatch::normalize_saved_subject(program, saved, context)
+            }
+            ExpressionNode::Atomic(atomic) => compound(
+                IndexForm::Atomic,
+                [
+                    normalize_index_expression(program, atomic.value, context),
+                    normalize_index_expression(program, atomic.result, context),
+                    atom(Label::Ordering, &format!("{:?}", atomic.ordering)),
+                    atom(
+                        Label::ResultCustody,
+                        &format!("{:?}", atomic.result_custody),
+                    ),
+                ],
+            ),
+            ExpressionNode::Cast(cast) => compound(
+                IndexForm::Cast,
+                [
+                    normalize_index_expression(program, cast.value, context),
+                    normalize_type_reference(program, cast.target_type, context),
+                    atom(Label::Domain, cast.domain.name()),
+                ],
+            ),
+            ExpressionNode::Call(call) if call.runtime_call.is_some() => {
+                let Some(binding) = call.runtime_call else {
+                    return substitution::rejected(context);
+                };
+                if !program.expression_table.expression_is_valid(binding.callee)
+                    || context
+                        .active_runtime_call_expressions
+                        .contains(&expression)
+                {
+                    return substitution::rejected(context);
+                }
+                let mut active = context.active_runtime_call_expressions.to_vec();
+                active.push(expression);
+                let nested = TypeIdentityContext {
+                    active_runtime_call_expressions: &active,
+                    structural_callable_identity: true,
+                    ..*context
+                };
+                let Ok(contract) =
+                    crate::source_state::runtime_callable_identity::normalize_contract(
+                        program,
+                        binding.contract,
+                        &nested,
+                    )
+                else {
+                    return substitution::rejected(context);
+                };
+                let arguments = crate::source_state::references::StaticArgumentCall::Expression(
+                    expression, call,
+                )
+                .arguments(program);
+                compound(
+                    IndexForm::RuntimeCall,
+                    [
+                        normalize_index_expression(program, binding.callee, &nested),
+                        contract,
+                    ]
+                    .into_iter()
+                    .chain((!arguments.is_empty()).then(|| {
+                        compound(
+                            Label::StaticArguments,
+                            arguments.iter().map(|argument| {
+                                substitution::index_argument(
+                                    program,
+                                    super::IndexIdentityArgument::StaticArgument(argument),
+                                    &nested,
+                                )
+                            }),
+                        )
+                    }))
+                    .chain(
+                        program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|argument| {
+                                normalize_index_expression(program, *argument, &nested)
+                            }),
+                    ),
+                )
+            }
+            ExpressionNode::Call(call) => compound(
+                IndexForm::Call,
+                std::iter::once(atom(
+                    Label::Target,
+                    &context.name(program, call.target_symbol, call.target.as_str()),
+                ))
+                .chain({
+                    let arguments =
+                        crate::source_state::references::StaticArgumentCall::Expression(
+                            expression, call,
+                        )
+                        .arguments(program);
+                    (!arguments.is_empty()).then(|| {
+                        compound(
+                            Label::StaticArguments,
+                            arguments.iter().map(|argument| {
+                                substitution::index_argument(
+                                    program,
+                                    super::IndexIdentityArgument::StaticArgument(argument),
+                                    context,
+                                )
+                            }),
+                        )
+                    })
+                })
+                .chain(
+                    call.receiver
+                        .is_valid()
+                        .then(|| normalize_index_expression(program, call.receiver, context)),
+                )
+                .chain(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| normalize_index_expression(program, *argument, context)),
+                ),
+            ),
+            ExpressionNode::Indexed(indexed) => compound(
+                IndexForm::Indexed,
+                [
+                    normalize_index_expression(program, indexed.collection, context),
+                    normalize_index_expression(program, indexed.index, context),
+                ],
+            ),
+            ExpressionNode::Member(member) => compound(
+                IndexForm::Member,
+                std::iter::once(normalize_index_expression(
+                    program,
+                    member.receiver,
+                    context,
+                ))
+                .chain(std::iter::once(
+                    if context.structural_callable_identity || context.signature_owners.is_some() {
+                        // A schema identifies the typed selection, including the
+                        // distinction between a record field and a measurement.
+                        use crate::source_state::expression::MemberSelection;
+                        match member.selection {
+                            MemberSelection::Field(symbol) if symbol.is_valid() => atom(
+                                Label::Member,
+                                &context.name(program, symbol, member.member.as_str()),
+                            ),
+                            MemberSelection::CollectionMeasure(measure) => {
+                                atom(Label::Member, &format!("collection-measure:{measure:?}"))
+                            }
+                            MemberSelection::Field(_) | MemberSelection::Unresolved => {
+                                substitution::rejected(context)
+                            }
+                        }
+                    } else {
+                        atom(Label::Member, member.member.as_str())
+                    },
+                ))
+                .chain(
+                    member
+                        .case_variant
+                        .iter()
+                        .map(|variant| atom(Label::Case, variant.as_str())),
+                ),
+            ),
+            ExpressionNode::Borrow(borrow) => compound(
+                match borrow.access {
+                    language_core::ReferenceAccess::Shared => IndexForm::Borrow,
+                    language_core::ReferenceAccess::Mutable => IndexForm::MutableBorrow,
+                    language_core::ReferenceAccess::WriteOnly => IndexForm::WriteOnlyBorrow,
+                },
+                [normalize_index_expression(program, borrow.target, context)],
+            ),
+            ExpressionNode::Range(range) => compound(
+                if range.end_inclusive {
+                    IndexForm::InclusiveRange
+                } else {
+                    IndexForm::ExclusiveRange
+                },
+                [
+                    normalize_index_expression(program, range.start, context),
+                    normalize_index_expression(program, range.end, context),
+                ],
+            ),
+            ExpressionNode::StructLiteral(literal) => compound(
+                IndexForm::StructLiteral,
+                std::iter::once(atom(
+                    Label::Type,
+                    &context.name(program, literal.type_symbol, literal.type_name.as_str()),
+                ))
+                .chain(
+                    literal
+                        .zero_omitted_fields
+                        .then(|| atom(Label::Kind, "zero-omitted-fields")),
+                )
+                .chain(
+                    literal
+                        .case_name
+                        .as_ref()
+                        .map(|case| atom(Label::Case, case.as_str())),
+                )
+                .chain(
+                    program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .map(|field| {
+                            compound(
+                                Label::Field,
+                                [
+                                    atom(Label::Name, field.name.as_str()),
+                                    normalize_index_expression(program, field.value, context),
+                                ],
+                            )
+                        }),
+                ),
+            ),
+            ExpressionNode::TypeExpression(type_reference) => compound(
+                IndexForm::TypeExpression,
+                [normalize_type_reference(program, *type_reference, context)],
+            ),
+            ExpressionNode::ZeroValue(type_reference) => compound(
+                IndexForm::ZeroValue,
+                [normalize_type_reference(program, *type_reference, context)],
+            ),
+            ExpressionNode::MachineValue(value) => {
+                crate::source_state::runtime_callable_identity::normalize_machine_value(
+                    program, value, context,
+                )
+                .unwrap_or_else(|_| substitution::rejected(context))
+            }
+        }
+    }
+
+    pub(crate) fn normalize_const_or_nominal_name(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+        nominal_tag: impl Spelled,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if !symbol.is_valid() {
+            if let Some(value) =
+                application_identity::const_value::CanonicalConstValue::from_atom(spelling)
+            {
+                return compound(
+                    IndexForm::CanonicalConst,
+                    [
+                        atom(Label::Type, &value.type_name),
+                        atom(Label::Encoding, &value.encoding),
+                    ],
+                );
+            }
+            if let Ok(value) = spelling.parse::<i128>() {
+                return atom(IndexForm::IntegerConst, &value.to_string());
+            }
+        }
+        atom(nominal_tag, &context.name(program, symbol, spelling))
+    }
+}
+pub(crate) mod lifetime_parameters {
+    use super::constraint_identity::{atom, compound};
+    use crate::source_state::TypedTrees;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::RegionForm;
+    use symbols::SymbolHandle;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct LifetimeParameterIdentity {
+        pub declaration: SymbolHandle,
+        pub ordinal: usize,
+    }
+
+    pub fn portable_lifetime_parameter_identity(
+        program: &TypedTrees,
+        region: LifetimeParameterIdentity,
+    ) -> Option<String> {
+        portable_lifetime_parameter_identity_in_context(
+            program,
+            region,
+            &super::identity_context::TypeIdentityContext {
+                qualification: super::TypeIdentityQualification::PackageQualified,
+                ..Default::default()
+            },
+        )
+    }
+
+    pub(crate) fn portable_lifetime_parameter_identity_in_context(
+        program: &TypedTrees,
+        region: LifetimeParameterIdentity,
+        context: &super::identity_context::TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        lifetime_parameter_name(program, region)?;
+        let owner = region.declaration;
+        let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
+            ("machine", program.machine_callable_identity_text(machine)?)
+        } else if let Some((declaration, requirement)) = program.trait_machine_signature(owner) {
+            (
+                "requirement",
+                program.trait_requirement_callable_identity_text(declaration, requirement),
+            )
+        } else if program.conformance_by_symbol(owner).is_some() {
+            ("implementation", program.symbols.display_path(owner, "::"))
+        } else if let Some(declaration) = program.trait_definition_by_symbol(owner) {
+            ("trait", program.trait_declaration_path(declaration))
+        } else if program
+            .type_aliases()
+            .iter()
+            .any(|alias| alias.symbol == owner)
+        {
+            (
+                "type-alias-parameter",
+                program.symbols.display_path(owner, "::"),
+            )
+        } else if program.data_definition_by_symbol(owner).is_some() {
+            ("data", program.symbols.display_path(owner, "::"))
+        } else {
+            return None;
+        };
+        if declaration.is_empty() {
+            return None;
+        }
+        let coordinate = context.qualify_non_binder_name(program, owner, declaration);
+        Some(compound(
+            RegionForm::Region,
+            [
+                atom(Label::Kind, kind),
+                atom(Label::Declaration, &coordinate),
+                atom(Label::Ordinal, &region.ordinal.to_string()),
+            ],
+        ))
+    }
+
+    pub fn applied_lifetime_parameter_identity(
+        program: &TypedTrees,
+        lexical_owner: SymbolHandle,
+        name: &str,
+        scopes: &[super::AppliedTypeIdentityScope<'_>],
+    ) -> Option<LifetimeParameterIdentity> {
+        applied_lifetime_parameter_identity_with_supplier(
+            program,
+            lexical_owner,
+            lexical_owner,
+            name,
+            scopes,
+        )
+        .map(|(identity, _)| identity)
+    }
+
+    pub fn applied_lifetime_parameter_identity_with_supplier(
+        program: &TypedTrees,
+        lexical_owner: SymbolHandle,
+        argument_owner: SymbolHandle,
+        name: &str,
+        scopes: &[super::AppliedTypeIdentityScope<'_>],
+    ) -> Option<(LifetimeParameterIdentity, bool)> {
+        let lexical_declaration = program.lifetime_declaration_owner(lexical_owner);
+        if let Some(region) = lifetime_parameter_identity(program, lexical_owner, name)
+            && region.declaration == lexical_declaration
+            && !scopes.iter().any(|scope| {
+                program.lifetime_declaration_owner(scope.declaration) == lexical_declaration
+            })
+        {
+            return Some((region, false));
+        }
+        for (ordinal, scope) in scopes.iter().enumerate().rev() {
+            if let Some((_, argument)) = scope
+                .lifetimes
+                .iter()
+                .find(|(parameter, _)| parameter == name)
+            {
+                return applied_lifetime_parameter_identity(
+                    program,
+                    argument_owner,
+                    argument,
+                    &scopes[..ordinal],
+                )
+                .map(|identity| (identity, true));
+            }
+            if let Some(region) = lifetime_parameter_identity(program, scope.declaration, name)
+                && region.declaration == program.lifetime_declaration_owner(scope.declaration)
+            {
+                return Some((region, false));
+            }
+        }
+        lifetime_parameter_identity(program, lexical_owner, name).map(|identity| (identity, false))
+    }
+
+    pub fn apply_resolved_lifetime_parameter_identity(
+        program: &TypedTrees,
+        region: LifetimeParameterIdentity,
+        argument_owner: SymbolHandle,
+        scopes: &[super::AppliedTypeIdentityScope<'_>],
+    ) -> Option<(LifetimeParameterIdentity, bool)> {
+        let parameter = lifetime_parameter_name(program, region)?;
+        for (ordinal, scope) in scopes.iter().enumerate().rev() {
+            if program.lifetime_declaration_owner(scope.declaration) != region.declaration {
+                continue;
+            }
+            let Some((_, argument)) = scope
+                .lifetimes
+                .iter()
+                .find(|(name, _)| name == parameter.as_str())
+            else {
+                return Some((region, false));
+            };
+            return applied_lifetime_parameter_identity(
+                program,
+                argument_owner,
+                argument,
+                &scopes[..ordinal],
+            )
+            .map(|actual| (actual, true));
+        }
+        Some((region, false))
+    }
+
+    pub fn lifetime_parameter_identity(
+        program: &TypedTrees,
+        lexical_owner: SymbolHandle,
+        name: &str,
+    ) -> Option<LifetimeParameterIdentity> {
+        let mut owner = program.lifetime_declaration_owner(lexical_owner);
+        while owner.is_valid() {
+            let parameters = declaration_lifetime_parameters(program, owner);
+            if let Some(ordinal) = parameters.and_then(|parameters| {
+                parameters
+                    .iter()
+                    .position(|parameter| parameter.as_str() == name)
+            }) {
+                return Some(LifetimeParameterIdentity {
+                    declaration: owner,
+                    ordinal,
+                });
+            }
+            owner = program.lifetime_declaration_owner(program.declaration_scope_parent(owner));
+        }
+        None
+    }
+
+    pub fn lifetime_parameter_name(
+        program: &TypedTrees,
+        region: LifetimeParameterIdentity,
+    ) -> Option<&crate::source_state::name::Identifier> {
+        declaration_lifetime_parameters(program, region.declaration)?.get(region.ordinal)
+    }
+
+    pub fn declaration_lifetime_parameters(
+        program: &TypedTrees,
+        owner: SymbolHandle,
+    ) -> Option<&[crate::source_state::name::Identifier]> {
+        program
+            .machine_by_symbol(owner)
+            .map(|owner| owner.lifetime_parameters.as_slice())
+            .or_else(|| {
+                program
+                    .type_aliases()
+                    .iter()
+                    .find(|alias| alias.symbol == owner)
+                    .map(|alias| alias.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                program
+                    .conformance_by_symbol(owner)
+                    .map(|owner| owner.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                program
+                    .trait_definition_by_symbol(owner)
+                    .map(|owner| owner.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                program
+                    .data_definition_by_symbol(owner)
+                    .map(|owner| owner.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                program
+                    .trait_machine_signature(owner)
+                    .map(|(_, signature)| signature.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                let mut rows = program
+                    .runtime_callable_contracts
+                    .iter()
+                    .filter(|(_, contract)| contract.signature.symbol == owner)
+                    .map(|(_, contract)| contract.signature.lifetime_parameters.as_slice());
+                let roster = rows.next()?;
+                rows.all(|other| other == roster).then_some(roster)
+            })
+            .or_else(|| {
+                program
+                    .retained_static_machine_contract(owner)
+                    .map(|contract| contract.signature().lifetime_parameters.as_slice())
+            })
+    }
+}
+pub(crate) mod normalized_identities {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct TypeIdentityId(u32);
+
+    /*
+        Written under the table's canonical numbering when one is installed
+        (`TypeIdentityTable::renumber_canonically`), so the bytes do not depend
+        on which checking thread first minted an identity.
+    */
+    impl compiler_storage::Record for TypeIdentityId {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let number = match self.slot() {
+                    None => 0,
+                    Some(slot) => u32::try_from(output.renumbered::<TypeIdentityId>(slot)? + 1)
+                        .map_err(|_| output.error("type identity number overflow"))?,
+                };
+                compiler_storage::Record::write(&number, output)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| Ok(Self(compiler_storage::Record::read(input)?)))
+        }
+    }
+
+    impl TypeIdentityId {
+        pub fn is_valid(self) -> bool {
+            self.0 != 0
+        }
+
+        pub fn storage_index(self) -> Option<usize> {
+            self.slot()
+        }
+
+        fn slot(self) -> Option<usize> {
+            (self.0 != 0).then(|| self.0 as usize - 1)
+        }
+
+        fn from_slot(slot: usize) -> Self {
+            Self(slot as u32 + 1)
+        }
+    }
+
+    pub type NormalizedTypeIdentity = TypeIdentityId;
+
+    #[derive(Default)]
+    pub struct TypeIdentityTable {
+        texts: arena::OwnedTextInterner,
+        composites: std::sync::RwLock<std::sync::Arc<CompositeIndex>>,
+    }
+
+    /*
+        A compound identity is spelled `tag(part,part,...)`, and most of its
+        parts are identities of their own. `composites` finds the identity of a
+        compound this table has already spelled by its tag and parts, so asking
+        again for a type built from known identities neither spells its text
+        nor copies its children's text into it. Each entry stands for one
+        distinct structure, minted with its text, and names the identity that
+        text interns to; a structure written with a text part where another
+        has an identity part reaches the same identity. Only the texts are the
+        table's record: the index is rebuilt as identities are asked for again.
+    */
+    type CompositeIndex = std::collections::HashMap<
+        std::sync::Arc<(&'static str, Vec<IdentityPart>)>,
+        TypeIdentityId,
+        symbols::BuildSymbolHasher,
+    >;
+
+    /// One part of a compound identity: an identity of this table, or text
+    /// that is not itself one (a name, a length, a region).
+    #[derive(Clone, PartialEq, Eq, Hash)]
+    pub(crate) enum IdentityPart {
+        Identity(TypeIdentityId),
+        Text(String),
+    }
+
+    impl Clone for TypeIdentityTable {
+        fn clone(&self) -> Self {
+            // Hold the cache snapshot while capturing text publication, so a
+            // concurrent new key cannot name a text beyond this fork's prefix.
+            let composites = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner());
+            Self {
+                texts: self.texts.clone(),
+                composites: std::sync::RwLock::new(std::sync::Arc::clone(&composites)),
+            }
+        }
+    }
+
+    impl PartialEq for TypeIdentityTable {
+        fn eq(&self, other: &Self) -> bool {
+            self.texts == other.texts
+        }
+    }
+
+    impl Eq for TypeIdentityTable {}
+
+    impl std::fmt::Debug for TypeIdentityTable {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("TypeIdentityTable")
+                .field("texts", &self.texts)
+                .finish_non_exhaustive()
+        }
+    }
+
+    /*
+        Parallel checking passes mint identities into one shared table in the
+        order their threads first ask, so the same program numbers them
+        differently from run to run. A record of the program is written under
+        a canonical numbering instead: the table's texts in sorted order, and
+        every `TypeIdentityId` by its text's place there. Equal programs then
+        write equal bytes, which exact-key reuse of checked slices needs.
+        Reading needs no change; the table comes back in canonical order.
+    */
+    impl compiler_storage::Record for TypeIdentityTable {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let installed = output
+                    .renumbering_owner::<TypeIdentityId>()
+                    .map(|(owner, numbers)| (owner, numbers.to_vec()));
+                match installed {
+                    None => compiler_storage::Record::write(&self.texts, output),
+                    Some((owner, _)) if owner != self.owner() => Err(output
+                        .error("a second type identity table under another table's numbering")),
+                    Some((_, numbers)) => self.texts.write_renumbered(output, &numbers),
+                }
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| {
+                let cache_allocation =
+                    compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                        CompositeIndex,
+                    >())
+                    .ok_or_else(|| input.error("type identity cache allocation overflow"))?;
+                input.allocate(cache_allocation)?;
+                Ok(Self {
+                    texts: compiler_storage::Record::read(input)?,
+                    composites: Default::default(),
+                })
+            })
+        }
+    }
+
+    impl TypeIdentityTable {
+        fn owner(&self) -> *const () {
+            std::ptr::from_ref(self).cast()
+        }
+
+        /*
+            Installs this table's canonical numbering on `output`; see the
+            `Record` implementation. Every identity in the written value must
+            come from this table, and none may be minted while it is written.
+        */
+        pub fn renumber_canonically(&self, output: &mut compiler_storage::RecordWriter) {
+            output.renumber::<TypeIdentityId>(self.owner(), self.texts.sorted_numbering().into());
+        }
+
+        pub fn intern(&self, text: &str) -> TypeIdentityId {
+            TypeIdentityId::from_slot(self.texts.intern(text))
+        }
+
+        pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
+            self.texts.text(identity.slot()?)
+        }
+
+        /// The identity of `tag(parts...)`, spelling its text only the first
+        /// time this table meets that structure.
+        pub(crate) fn intern_composite(
+            &self,
+            tag: &'static str,
+            parts: Vec<IdentityPart>,
+        ) -> TypeIdentityId {
+            let key = (tag, parts);
+            if let Some(identity) = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .get(&key)
+            {
+                return *identity;
+            }
+            let identity = self.intern(&self.composite_text(key.0, &key.1));
+            let mut index = self
+                .composites
+                .write()
+                .unwrap_or_else(|error| error.into_inner());
+            // Another writer may have installed this key while we spelled it.
+            // Existing keys borrow their tuple without detaching the map or
+            // allocating a key owner. A new key copies directory metadata,
+            // retaining every earlier key's vector and text payload.
+            if let Some(identity) = index.get(&key) {
+                return *identity;
+            }
+            std::sync::Arc::make_mut(&mut index).insert(std::sync::Arc::new(key), identity);
+            identity
+        }
+
+        /// The text of `tag(parts...)` without interning it.
+        pub(crate) fn composite_text(&self, tag: &str, parts: &[IdentityPart]) -> String {
+            fn spelled<'table>(
+                table: &'table TypeIdentityTable,
+                part: &'table IdentityPart,
+            ) -> &'table str {
+                match part {
+                    IdentityPart::Identity(identity) => table
+                        .text(*identity)
+                        .expect("a part identity was minted by this table"),
+                    IdentityPart::Text(text) => text,
+                }
+            }
+            let part = |each| spelled(self, each);
+            let mut output = String::with_capacity(
+                tag.len()
+                    + parts.len()
+                    + 1
+                    + parts.iter().map(|each| part(each).len()).sum::<usize>(),
+            );
+            output.push_str(tag);
+            output.push('(');
+            for (index, each) in parts.iter().enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                output.push_str(part(each));
+            }
+            output.push(')');
+            output
+        }
+
+        #[cfg(test)]
+        pub(crate) fn composite_count(&self) -> usize {
+            self.composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .len()
+        }
+
+        #[cfg(test)]
+        pub(crate) fn text_count(&self) -> usize {
+            self.texts.len()
+        }
+
+        pub fn by_text(&self, text: &str) -> TypeIdentityId {
+            self.texts
+                .slot(text)
+                .map(TypeIdentityId::from_slot)
+                .unwrap_or_default()
+        }
+    }
+
+    #[cfg(test)]
+    mod canonical_numbering_tests {
+        use super::{IdentityPart, TypeIdentityId, TypeIdentityTable};
+        use compiler_storage::RecordLimits;
+        use std::collections::BTreeMap;
+
+        /* A program's identities as checking leaves them: a table, the
+        identities its facts name, and a map ordered by identity. */
+        #[derive(Default, compiler_storage::Record)]
+        struct Checked {
+            identities: TypeIdentityTable,
+            named: Vec<TypeIdentityId>,
+            by_identity: BTreeMap<TypeIdentityId, u32>,
+        }
+
+        const NAMED: [&str; 3] = ["b", "a", "c"];
+
+        fn checked(minted: &[&str]) -> Checked {
+            let identities = TypeIdentityTable::default();
+            for text in minted {
+                identities.intern(text);
+            }
+            let named: Vec<_> = NAMED.iter().map(|text| identities.by_text(text)).collect();
+            let by_identity = named
+                .iter()
+                .zip(0..)
+                .map(|(id, place)| (*id, place))
+                .collect();
+            Checked {
+                identities,
+                named,
+                by_identity,
+            }
+        }
+
+        fn encoded(checked: &Checked) -> Result<Vec<u8>, compiler_storage::RecordError> {
+            compiler_storage::encode_with(checked, RecordLimits::default(), |output| {
+                checked.identities.renumber_canonically(output)
+            })
+        }
+
+        #[test]
+        fn a_program_whose_threads_minted_in_another_order_writes_equal_bytes() {
+            let first = checked(&["a", "b", "c"]);
+            let raced = checked(&["c", "a", "b"]);
+            assert_ne!(
+                first.named, raced.named,
+                "the two orders mint other numbers"
+            );
+            let bytes = encoded(&raced).unwrap();
+            assert_eq!(encoded(&first).unwrap(), bytes);
+            let read: Checked = compiler_storage::decode(&bytes, RecordLimits::default()).unwrap();
+            for (identity, text) in read.named.iter().zip(NAMED) {
+                assert_eq!(read.identities.text(*identity), Some(text));
+            }
+            let places: Vec<u32> = NAMED
+                .iter()
+                .map(|text| read.by_identity[&read.identities.by_text(text)])
+                .collect();
+            assert_eq!(places, [0, 1, 2]);
+        }
+
+        #[test]
+        fn a_second_table_under_the_first_tables_numbering_is_refused() {
+            #[derive(compiler_storage::Record)]
+            struct Two {
+                first: TypeIdentityTable,
+                second: TypeIdentityTable,
+            }
+            let two = Two {
+                first: checked(&["a"]).identities,
+                second: checked(&["a", "b"]).identities,
+            };
+            let written = compiler_storage::encode_with(&two, RecordLimits::default(), |output| {
+                two.first.renumber_canonically(output)
+            });
+            assert!(written.is_err());
+        }
+
+        #[test]
+        fn an_identity_minted_after_the_numbering_was_taken_is_refused() {
+            let checked = checked(&["a", "b", "c"]);
+            let mut output = compiler_storage::RecordWriter::new(RecordLimits::default());
+            checked.identities.renumber_canonically(&mut output);
+            let late = checked.identities.intern("d");
+            assert!(compiler_storage::Record::write(&late, &mut output).is_err());
+        }
+
+        #[test]
+        fn new_composite_keys_share_the_retained_key_payloads() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite(
+                "retained",
+                vec![
+                    IdentityPart::Identity(atom),
+                    IdentityPart::Text("retained text".repeat(16)),
+                ],
+            );
+            let child = parent.clone();
+            child.intern_composite("new", vec![IdentityPart::Text("new output".into())]);
+            let parent_cache = parent.composites.read().unwrap();
+            let child_cache = child.composites.read().unwrap();
+            let parent_key = parent_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            let child_key = child_cache
+                .iter()
+                .find(|(_, identity)| **identity == compound)
+                .unwrap()
+                .0;
+            assert!(std::ptr::eq(parent_key.1.as_ptr(), child_key.1.as_ptr()));
+            let IdentityPart::Text(parent_text) = &parent_key.1[1] else {
+                panic!("retained text part")
+            };
+            let IdentityPart::Text(child_text) = &child_key.1[1] else {
+                panic!("retained text part")
+            };
+            assert!(std::ptr::eq(parent_text.as_ptr(), child_text.as_ptr()));
+            assert_eq!(parent_cache.len(), 1);
+            assert_eq!(child_cache.len(), 2);
+            assert_eq!(parent.by_text("atom"), atom);
+            assert_eq!(child.by_text("atom"), atom);
+        }
+
+        #[test]
+        fn identity_forks_share_text_and_cache_until_new_composites_need_private_keys() {
+            let parent = TypeIdentityTable::default();
+            let atom = parent.intern("atom");
+            let compound = parent.intern_composite("tag", vec![IdentityPart::Identity(atom)]);
+            let child = parent.clone();
+            assert!(std::ptr::eq(
+                parent.text(atom).unwrap(),
+                child.text(atom).unwrap()
+            ));
+            let cache_pointer = |table: &TypeIdentityTable| {
+                std::sync::Arc::as_ptr(&table.composites.read().unwrap())
+            };
+            let parent_cache = cache_pointer(&parent);
+            let child_cache = cache_pointer(&child);
+            assert_eq!(parent_cache, child_cache);
+            assert_eq!(
+                child.intern_composite("tag", vec![IdentityPart::Identity(atom)]),
+                compound
+            );
+            assert_eq!(cache_pointer(&child), parent_cache);
+            let parent_only = parent.intern("parent-only");
+            let child_only = child.intern("child-only");
+            assert_eq!(
+                parent_only, child_only,
+                "forks keep independent append numbering"
+            );
+            assert!(!child.by_text("parent-only").is_valid());
+            child.intern_composite("tag", vec![IdentityPart::Identity(child_only)]);
+            assert_eq!(parent.composite_count(), 1);
+            assert_eq!(child.composite_count(), 2);
+            assert_ne!(cache_pointer(&child), parent_cache);
+
+            let independent = TypeIdentityTable::default();
+            independent.intern("child-only");
+            independent.intern_composite("tag", vec![IdentityPart::Text("child-only".into())]);
+            independent.intern("atom");
+            independent.intern_composite("tag", vec![IdentityPart::Text("atom".into())]);
+            let encoded = |table: &TypeIdentityTable| {
+                compiler_storage::encode_with(table, RecordLimits::default(), |output| {
+                    table.renumber_canonically(output)
+                })
+                .unwrap()
+            };
+            assert_eq!(encoded(&child), encoded(&independent));
+        }
+
+        #[test]
+        fn identity_decoder_charges_the_empty_shared_cache_before_constructing_it() {
+            fn minimum_allocation<T: compiler_storage::Record>(bytes: &[u8]) -> usize {
+                let mut lower = 0;
+                let mut upper = 4096;
+                assert!(
+                    compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: upper,
+                            ..Default::default()
+                        }
+                    )
+                    .is_ok()
+                );
+                while lower < upper {
+                    let candidate = lower + (upper - lower) / 2;
+                    if compiler_storage::decode::<T>(
+                        bytes,
+                        RecordLimits {
+                            allocation: candidate,
+                            ..Default::default()
+                        },
+                    )
+                    .is_ok()
+                    {
+                        upper = candidate;
+                    } else {
+                        lower = candidate + 1;
+                    }
+                }
+                lower
+            }
+            let bytes = compiler_storage::encode(&TypeIdentityTable::default(), Default::default())
+                .unwrap();
+            let text_allocation = minimum_allocation::<arena::OwnedTextInterner>(&bytes);
+            let cache_allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                    super::CompositeIndex,
+                >())
+                .unwrap();
+            let required = text_allocation + cache_allocation;
+            assert_eq!(minimum_allocation::<TypeIdentityTable>(&bytes), required);
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required - 1,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+            );
+            assert!(
+                compiler_storage::decode::<TypeIdentityTable>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: required,
+                        ..Default::default()
+                    }
+                )
+                .is_ok()
+            );
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+    pub struct NormalizedResultDispatchSet {
+        pub(crate) terms: Vec<NormalizedDomainTerm>,
+    }
+
+    impl NormalizedResultDispatchSet {
+        pub fn terms(&self) -> &[NormalizedDomainTerm] {
+            &self.terms
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.terms.is_empty()
+        }
+
+        pub fn identity(&self) -> String {
+            self.terms
+                .iter()
+                .map(|term| match term {
+                    NormalizedDomainTerm::Arithmetic(name) => format!("arithmetic:{name}"),
+                    NormalizedDomainTerm::Compiler(identity) => format!("compiler:{identity}"),
+                    NormalizedDomainTerm::Declared(name) => format!("declared:{name}"),
+                })
+                .collect::<Vec<_>>()
+                .join("&")
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+    pub enum NormalizedDomainTerm {
+        Arithmetic(String),
+        Compiler(String),
+        Declared(String),
+    }
+}
+pub(crate) mod open_index_identity {
+    use crate::source_state::expression::BinaryOperator;
+    use application_identity::type_identity::vocabulary::IndexForm;
+
+    pub(crate) fn index_binary_operator_name(operator: BinaryOperator) -> IndexForm {
+        match operator {
+            BinaryOperator::Add => IndexForm::Add,
+            BinaryOperator::And => IndexForm::And,
+            BinaryOperator::BitwiseAnd => IndexForm::BitwiseAnd,
+            BinaryOperator::BitwiseOr => IndexForm::BitwiseOr,
+            BinaryOperator::BitwiseXor => IndexForm::BitwiseXor,
+            BinaryOperator::Divide => IndexForm::Divide,
+            BinaryOperator::Equal => IndexForm::Equal,
+            BinaryOperator::Greater => IndexForm::Greater,
+            BinaryOperator::GreaterOrEqual => IndexForm::GreaterOrEqual,
+            BinaryOperator::Less => IndexForm::Less,
+            BinaryOperator::LessOrEqual => IndexForm::LessOrEqual,
+            BinaryOperator::Modulo => IndexForm::Modulo,
+            BinaryOperator::Multiply => IndexForm::Multiply,
+            BinaryOperator::NotEqual => IndexForm::NotEqual,
+            BinaryOperator::Or => IndexForm::Or,
+            BinaryOperator::ShiftLeft => IndexForm::ShiftLeft,
+            BinaryOperator::ShiftRight => IndexForm::ShiftRight,
+            BinaryOperator::Subtract => IndexForm::Subtract,
+            BinaryOperator::CaseMembership => IndexForm::CaseMembership,
+        }
+    }
+}
+#[cfg(test)]
+pub(crate) mod package_policy_reading_tests {
+    pub(crate) mod fixture {
+        use crate::source_inputs::SourceMap;
+        use crate::source_state::TypedTrees;
+        use crate::source_state::data::{DataDefinition, TypeParameter, TypeParameterKind};
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionHandle, ExpressionNode, NamePath, StaticMachineArgument,
+            TableBinaryExpression, TableCallExpression,
+        };
+        use crate::source_state::name::Identifier;
+        use crate::source_state::type_identity::ExactOwnerTypeIdentityRequest;
+        use crate::source_state::types::{
+            FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+        };
+        use crate::source_state::{AccessFieldPlan, AccessViewPlan, AccessorTarget};
+        use crate::source_symbols::SymbolTableBuilder;
+        use access_admission::AccessFields;
+        use access_admission::validate_placement;
+        use access_vocabulary::BoundaryReach;
+        use access_vocabulary::FieldAccess;
+        use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+        use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
+        use semantic_vocabulary::PackageKeyIdentity;
+        use source_admission::SourceOrigin;
+        use source_text::{SourceId, SourceSpan, Span};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+        use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef};
+
+        const DECLARATIONS: &[(u8, SymbolKind, &str)] = &[
+            (1, SymbolKind::Data, "Payload"),
+            (1, SymbolKind::CallableContract, "Callback"),
+            (1, SymbolKind::Data, "Container"),
+            (2, SymbolKind::Data, "Record"),
+            (2, SymbolKind::Data, "Count"),
+            (2, SymbolKind::Const, "LIMIT"),
+            (2, SymbolKind::Field, "left"),
+            (3, SymbolKind::Trait, "Hooks"),
+            (3, SymbolKind::Machine, "size"),
+            (3, SymbolKind::Const, "WIDTH"),
+            (3, SymbolKind::Field, "right"),
+            (4, SymbolKind::Machine, "Selected"),
+            (4, SymbolKind::Domain, "Aligned"),
+            (4, SymbolKind::Field, "spare"),
+            (0, SymbolKind::Data, "Source"),
+            (1, SymbolKind::Data, "Window"),
+            (2, SymbolKind::Data, "Policy"),
+            (3, SymbolKind::Data, "Schema"),
+            (1, SymbolKind::Data, "Placed"),
+            (1, SymbolKind::Data, "Accessor"),
+            (1, SymbolKind::Data, "Cursor"),
+            (3, SymbolKind::Machine, "read_machine"),
+            (3, SymbolKind::State, "read_state"),
+        ];
+
+        const PARAMETERS: [&str; 3] = ["T", "N", "V"];
+        const CALLABLE_NAMES: [&str; 3] = ["subject", "amount", "entry"];
+
+        const TOOLCHAIN_DIGEST: [u8; 32] = [9; 32];
+
+        pub(crate) struct Fixture {
+            pub(crate) program: TypedTrees,
+            toolchain: [(SourceId, [u8; 32]); 1],
+            symbols: Vec<(&'static str, SymbolHandle)>,
+            pub(crate) u64_type: TypeReferenceHandle,
+            callable_type: Option<TypeReferenceHandle>,
+            machine_selection: Option<crate::source_state::callable_values::MachineValue>,
+        }
+
+        impl Fixture {
+            pub(crate) fn new() -> Self {
+                let names = DECLARATIONS
+                    .iter()
+                    .map(|(_, _, name)| *name)
+                    .chain(PARAMETERS)
+                    .chain(CALLABLE_NAMES)
+                    .collect::<Vec<_>>();
+                let mut text = String::new();
+                let mut spans = Vec::new();
+                for name in &names {
+                    let start = text.len();
+                    text.push_str(name);
+                    spans.push((*name, Span::new(start, text.len())));
+                    text.push(' ');
+                }
+                let mut sources = SourceMap::default();
+                let package_sources = [1u8, 2, 3, 4].map(|package| {
+                    let file = sources.add_with_metadata(
+                        PathBuf::from(format!("package{package}.omg")),
+                        text.clone(),
+                        PathBuf::from("package"),
+                        PackageKeyIdentity::from_digest([package; 32]),
+                        SourceOrigin::User,
+                    );
+                    (package, file.source_id)
+                });
+                let toolchain_source = sources
+                    .add_with_metadata(
+                        PathBuf::from("toolchain").join("toolchain.omg"),
+                        text.clone(),
+                        PathBuf::from("toolchain"),
+                        None,
+                        SourceOrigin::Toolchain,
+                    )
+                    .source_id;
+                let span_of = |name: &str, package: u8| {
+                    let source = if package == 0 {
+                        toolchain_source
+                    } else {
+                        package_sources
+                            .iter()
+                            .find(|(candidate, _)| *candidate == package)
+                            .expect("a declared package has a source")
+                            .1
+                    };
+                    let span = spans
+                        .iter()
+                        .find(|(candidate, _)| *candidate == name)
+                        .expect("every name is in the source text")
+                        .1;
+                    SymbolNameRef::Source(SourceSpan::new(source, span))
+                };
+
+                let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let mut children = SymbolTableBuilder::child_handles(
+                    builder.insert_children(
+                        root,
+                        crate::source_symbols::builtin_type_symbols()
+                            .into_iter()
+                            .chain(
+                                DECLARATIONS
+                                    .iter()
+                                    .map(|(package, kind, name)| (*kind, span_of(name, *package))),
+                            ),
+                    ),
+                )
+                .collect::<Vec<_>>();
+                let declared = children.split_off(BuiltinTypeAtom::ALL.len());
+                let u64_symbol = children[BuiltinTypeAtom::U64.ordinal()];
+                let mut symbols = DECLARATIONS
+                    .iter()
+                    .map(|(_, _, name)| *name)
+                    .zip(declared)
+                    .collect::<Vec<_>>();
+                let container = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Container")
+                    .expect("Container is declared")
+                    .1;
+                let parameters = SymbolTableBuilder::child_handles(
+                    builder.insert_children(
+                        container,
+                        PARAMETERS
+                            .iter()
+                            .map(|name| (SymbolKind::TypeParameter, span_of(name, 1))),
+                    ),
+                )
+                .collect::<Vec<_>>();
+                symbols.extend(PARAMETERS.iter().copied().zip(parameters));
+                let callback = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Callback")
+                    .unwrap()
+                    .1;
+                let selected = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Selected")
+                    .unwrap()
+                    .1;
+                let callback_parameters = builder.insert_children(
+                    callback,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 1)),
+                        (SymbolKind::Parameter, span_of("amount", 1)),
+                    ],
+                );
+                symbols.extend([
+                    ("callback_subject", callback_parameters.handle_at(0)),
+                    ("callback_amount", callback_parameters.handle_at(1)),
+                ]);
+                let selected_entry = builder
+                    .insert_children(selected, [(SymbolKind::State, span_of("entry", 4))])
+                    .handle_at(0);
+                symbols.push(("selected_entry", selected_entry));
+                let selected_parameters = builder.insert_children(
+                    selected_entry,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 4)),
+                        (SymbolKind::Parameter, span_of("amount", 4)),
+                    ],
+                );
+                symbols.extend([
+                    ("selected_subject", selected_parameters.handle_at(0)),
+                    ("selected_amount", selected_parameters.handle_at(1)),
+                ]);
+
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..TypedTrees::default()
+                };
+                let u64_type = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: u64_symbol,
+                        name: Identifier::generated("u64"),
+                    });
+                let kinds = [
+                    TypeParameterKind::Type,
+                    TypeParameterKind::Const {
+                        type_reference: u64_type,
+                    },
+                    TypeParameterKind::Value {
+                        type_reference: u64_type,
+                    },
+                ];
+                let type_parameters =
+                    program
+                        .data_type_parameters
+                        .insert_many(PARAMETERS.iter().zip(&kinds).map(|(name, kind)| {
+                            TypeParameter {
+                                symbol: symbols
+                                    .iter()
+                                    .find(|(candidate, _)| candidate == name)
+                                    .expect("a parameter is declared")
+                                    .1,
+                                name: Identifier::generated(*name),
+                                kind: kind.clone(),
+                                ..TypeParameter::default()
+                            }
+                        }));
+                program.push_data_definition(DataDefinition {
+                    symbol: container,
+                    name: Identifier::generated("Container"),
+                    type_parameters,
+                    ..DataDefinition::default()
+                });
+                let toolchain = [(toolchain_source, TOOLCHAIN_DIGEST)];
+                let mut fixture = Self {
+                    program,
+                    toolchain,
+                    symbols,
+                    u64_type,
+                    callable_type: None,
+                    machine_selection: None,
+                };
+                fixture.install_placed_view();
+                fixture.install_callable();
+                fixture
+            }
+
+            fn install_callable(&mut self) {
+                use crate::source_state::callable_values::{MachineValue, RuntimeCallableContract};
+                use crate::source_state::domain::ProofFact;
+                use crate::source_state::machine::{Machine, MachineBodyStatus};
+                use crate::source_state::signature::{
+                    SignatureContract, SignatureContractKind, StateParameter, StateSignature,
+                };
+                use crate::source_state::state::State;
+                use crate::source_state::statement::{
+                    StatementNode, TableTransition, TransitionTargetNode,
+                };
+
+                // Allocate the closed reaches-none row before signatures
+                // retain its actual handle.
+                let service_reach_row = self.program.service_reach_rows.intern(Vec::new());
+                let payload = self.named("Payload");
+                let subject_type = self.type_node(TypeReferenceNode::Reference {
+                    referee: payload,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+                let parameters = |fixture: &mut Self, subject, amount| {
+                    fixture.program.state_parameters.insert_many([
+                        StateParameter {
+                            symbol: subject,
+                            name: Identifier::generated("subject"),
+                            type_reference: subject_type,
+                            ..Default::default()
+                        },
+                        StateParameter {
+                            symbol: amount,
+                            name: Identifier::generated("amount"),
+                            type_reference: fixture.u64_type,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let contracts = |fixture: &mut Self, owner, amount| {
+                    let amount = fixture.program.expression_table.insert_tree(
+                        &crate::source_state::expression::Expression::Name(NamePath::resolved(
+                            vec![Identifier::generated("amount")],
+                            amount,
+                            amount,
+                        )),
+                    );
+                    let result = fixture.program.expression_table.insert_tree(
+                        &crate::source_state::expression::Expression::Name(
+                            NamePath::unresolved(vec![Identifier::generated("result")])
+                                .denoting_reserved_result_of(owner),
+                        ),
+                    );
+                    let low = fixture.integer(3);
+                    let high = fixture.integer(100);
+                    let low = fixture.binary(amount, BinaryOperator::GreaterOrEqual, low);
+                    let high = fixture.binary(amount, BinaryOperator::LessOrEqual, high);
+                    let requires = fixture.binary(low, BinaryOperator::And, high);
+                    let ensures = fixture.binary(result, BinaryOperator::LessOrEqual, amount);
+                    let requires = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(requires)]);
+                    let ensures = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(ensures)]);
+                    fixture.program.signature_contracts.insert_many([
+                        SignatureContract {
+                            kind: SignatureContractKind::Requires,
+                            facts: requires,
+                            ..Default::default()
+                        },
+                        SignatureContract {
+                            kind: SignatureContractKind::Ensures,
+                            facts: ensures,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let callback = self.symbol("Callback");
+                let lexical_owner = self.program.symbols.get(callback).parent;
+                let callback_subject = self.symbol("callback_subject");
+                let callback_amount = self.symbol("callback_amount");
+                let callback_parameters = parameters(self, callback_subject, callback_amount);
+                let callback_contracts = contracts(self, callback, callback_amount);
+                let contract =
+                    self.program
+                        .runtime_callable_contracts
+                        .insert(RuntimeCallableContract {
+                            signature: StateSignature {
+                                symbol: callback,
+                                name: Identifier::generated("Callback"),
+                                parameters: callback_parameters,
+                                return_type: self.u64_type,
+                                contracts: callback_contracts,
+                                service_reach_row,
+                                declares_no_crash_route: true,
+                                ..Default::default()
+                            },
+                            lexical_owner,
+                            resolved_source: None,
+                        });
+                let callable_type = self.type_node(TypeReferenceNode::Callable { contract });
+                let selected = self.symbol("Selected");
+                let entry = self.symbol("selected_entry");
+                let selected_subject = self.symbol("selected_subject");
+                let selected_amount = self.symbol("selected_amount");
+                let selected_parameters = parameters(self, selected_subject, selected_amount);
+                let selected_contracts = contracts(self, selected, selected_amount);
+                let amount = self.program.expression_table.insert_tree(
+                    &crate::source_state::expression::Expression::Name(NamePath::resolved(
+                        vec![Identifier::generated("amount")],
+                        selected_amount,
+                        selected_amount,
+                    )),
+                );
+                let target = self
+                    .program
+                    .statement_table
+                    .insert_transition_target(TransitionTargetNode::Value(amount));
+                let body =
+                    self.program
+                        .statement_table
+                        .insert_statements([StatementNode::Transition(TableTransition {
+                            target,
+                            ..Default::default()
+                        })]);
+                let states = self.program.machine_states.insert_many([State {
+                    symbol: entry,
+                    name: Identifier::generated("entry"),
+                    parameters: selected_parameters,
+                    return_type: self.u64_type,
+                    statement_nodes: body,
+                    ..Default::default()
+                }]);
+                self.program.push_machine(Machine {
+                    symbol: selected,
+                    name: Identifier::generated("Selected"),
+                    states,
+                    contracts: selected_contracts,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    service_reach_row,
+                    declares_no_crash_route: true,
+                    ..Default::default()
+                });
+                let application = self
+                    .program
+                    .expression_table
+                    .retain_static_machine_application(
+                        entry,
+                        Identifier::generated("Selected"),
+                        &[],
+                    );
+                let source = self
+                    .program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                source.binding_declaration = selected;
+                source.lexical_owner = lexical_owner;
+                self.callable_type = Some(callable_type);
+                self.machine_selection = Some(MachineValue {
+                    type_reference: callable_type,
+                    selected: StaticMachineArgument {
+                        symbol: selected,
+                        path: Box::new([Identifier::generated("Selected")]),
+                        ..Default::default()
+                    },
+                    application,
+                    conformance: SymbolHandle::invalid(),
+                    requirement: SymbolHandle::invalid(),
+                });
+            }
+
+            pub(crate) fn callable(&self) -> TypeReferenceHandle {
+                self.callable_type
+                    .expect("fixture publishes its complete callable header")
+            }
+
+            pub(crate) fn machine_value(&mut self) -> ExpressionHandle {
+                let value = self
+                    .machine_selection
+                    .clone()
+                    .expect("fixture publishes its exact selected machine application");
+                self.expression(ExpressionNode::MachineValue(value))
+            }
+
+            fn install_placed_view(&mut self) {
+                let (policy, schema) = (self.named("Policy"), self.named("Schema"));
+                let origin = self.generic("Window", vec![policy, schema]);
+                let entry = |field: &str, offset| LayoutFieldEntryReport {
+                    field: field.into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset },
+                };
+                let layout = LayoutPlanReport {
+                    schema_report_fingerprint: 1,
+                    entries: vec![entry("words", 0), entry("flags", 8)],
+                    offsets: None,
+                    size: Some(16),
+                    align: 8,
+                };
+                let access = AccessFields::inaccessible(&layout).expect("schema slots");
+                let keys = [
+                    access.key_at(0).expect("first field"),
+                    access.key_at(1).expect("second field"),
+                ];
+                let placement = validate_placement(layout, access, BoundaryReach::default())
+                    .expect("an inaccessible placement validates");
+                let field =
+                    |key, name: &str, member_identity, accessor: &str, targets| AccessFieldPlan {
+                        access_key: key,
+                        view_field_symbol: SymbolHandle::invalid(),
+                        field_name: name.to_owned(),
+                        member_identity,
+                        field_symbol: SymbolHandle::invalid(),
+                        accessor_name: accessor.to_owned(),
+                        accessor_type: self.u64_type,
+                        accessor_data_symbol: self.symbol(accessor),
+                        accessor_targets: targets,
+                        value_type: self.u64_type,
+                        access: FieldAccess::Inaccessible,
+                        atomic_resident: None,
+                    };
+                let read = AccessorTarget {
+                    operation: "read".to_owned(),
+                    machine_symbol: self.symbol("read_machine"),
+                    state_symbol: self.symbol("read_state"),
+                };
+                let fields = vec![
+                    field(keys[0], "words", Some(7), "Accessor", vec![read]),
+                    field(keys[1], "flags", None, "Cursor", Vec::new()),
+                ];
+                self.program.access_view_plans.push(AccessViewPlan {
+                    template_symbol: self.symbol("Window"),
+                    data_name: "Placed".to_owned(),
+                    data_symbol: self.symbol("Placed"),
+                    policy_name: "Policy".to_owned(),
+                    policy_symbol: self.symbol("Policy"),
+                    policy_plan_machine_symbol: SymbolHandle::invalid(),
+                    schema_name: "Schema".to_owned(),
+                    schema_symbol: self.symbol("Schema"),
+                    placement,
+                    fields,
+                });
+                self.program.push_data_definition(DataDefinition {
+                    symbol: self.symbol("Placed"),
+                    name: Identifier::generated("Placed"),
+                    generic_instance: Some(origin),
+                    ..DataDefinition::default()
+                });
+            }
+
+            pub(crate) fn symbol(&self, name: &str) -> SymbolHandle {
+                self.symbols
+                    .iter()
+                    .find(|(candidate, _)| *candidate == name)
+                    .unwrap_or_else(|| panic!("`{name}` is not declared"))
+                    .1
+            }
+
+            pub(crate) fn type_node(&mut self, node: TypeReferenceNode) -> TypeReferenceHandle {
+                self.program.type_reference_table.insert(node)
+            }
+
+            pub(crate) fn named(&mut self, name: &str) -> TypeReferenceHandle {
+                let symbol = self.symbol(name);
+                self.type_node(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(name),
+                })
+            }
+
+            pub(crate) fn spelled(&mut self, spelling: &str) -> TypeReferenceHandle {
+                self.type_node(TypeReferenceNode::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: Identifier::generated(spelling),
+                })
+            }
+
+            pub(crate) fn generic(
+                &mut self,
+                base: &str,
+                arguments: Vec<TypeReferenceHandle>,
+            ) -> TypeReferenceHandle {
+                let base_symbol = self.symbol(base);
+                let arguments = self
+                    .program
+                    .type_reference_table
+                    .insert_type_reference_handles(arguments);
+                self.type_node(TypeReferenceNode::Generic {
+                    base_symbol,
+                    base_name: Identifier::generated(base),
+                    lifetime_arguments: Vec::new(),
+                    arguments,
+                })
+            }
+
+            pub(crate) fn constrained(
+                &mut self,
+                constraints: Vec<TypeConstraintNode>,
+            ) -> TypeReferenceHandle {
+                let constraints = self
+                    .program
+                    .type_reference_table
+                    .insert_constraints(constraints);
+                self.type_node(TypeReferenceNode::Constrained {
+                    base_type: self.u64_type,
+                    constraints,
+                })
+            }
+
+            pub(crate) fn array(&mut self, length: FixedArrayLength) -> TypeReferenceHandle {
+                self.type_node(TypeReferenceNode::FixedArray {
+                    element_type: self.u64_type,
+                    length,
+                })
+            }
+
+            pub(crate) fn index(&mut self, expression: ExpressionHandle) -> TypeReferenceHandle {
+                self.type_node(TypeReferenceNode::ConstExpression(expression))
+            }
+
+            pub(crate) fn expression(&mut self, node: ExpressionNode) -> ExpressionHandle {
+                self.program.expression_table.insert(node)
+            }
+
+            pub(crate) fn integer(&mut self, value: i64) -> ExpressionHandle {
+                self.expression(ExpressionNode::Integer(
+                    IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                        landed_type: LandedIntegerType::U64,
+                        domain: ArithmeticDomain::Exact,
+                    }),
+                ))
+            }
+
+            pub(crate) fn name(&mut self, name: &str) -> ExpressionHandle {
+                let symbol = self.symbol(name);
+                self.program.expression_table.insert_tree(
+                    &crate::source_state::expression::Expression::Name(NamePath::resolved(
+                        vec![Identifier::generated(name)],
+                        symbol,
+                        symbol,
+                    )),
+                )
+            }
+
+            pub(crate) fn binary(
+                &mut self,
+                left: ExpressionHandle,
+                operator: BinaryOperator,
+                right: ExpressionHandle,
+            ) -> ExpressionHandle {
+                self.expression(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+            }
+
+            pub(crate) fn call(
+                &mut self,
+                receiver: ExpressionHandle,
+                arguments: Vec<ExpressionHandle>,
+                machine_arguments: Vec<StaticMachineArgument>,
+            ) -> ExpressionHandle {
+                self.call_to("size", receiver, arguments, machine_arguments)
+            }
+
+            pub(crate) fn call_to(
+                &mut self,
+                target: &str,
+                receiver: ExpressionHandle,
+                arguments: Vec<ExpressionHandle>,
+                machine_arguments: Vec<StaticMachineArgument>,
+            ) -> ExpressionHandle {
+                let arguments = self
+                    .program
+                    .expression_table
+                    .insert_expression_handles(arguments);
+                self.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: Default::default(),
+                    authored_machine_application: Default::default(),
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver,
+                    target_symbol: self.symbol(target),
+                    static_machine_parameter: Default::default(),
+                    target: Identifier::generated(target),
+                    static_requirement_dispatch: None,
+                    machine_arguments: machine_arguments.into_boxed_slice(),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }))
+            }
+
+            pub(crate) fn render_in_lifetime_scope(
+                &self,
+                reference: TypeReferenceHandle,
+                owner: SymbolHandle,
+                lifetimes: &[(super::super::LifetimeParameterIdentity, usize)],
+                binders: &[(SymbolHandle, String)],
+                substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+            ) -> Option<String> {
+                let identity =
+                    self.program
+                        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                            type_reference: reference,
+                            lifetime_scope: Some((owner, lifetimes)),
+                            binders,
+                            substitutions,
+                            exact_toolchain_sources: &self.toolchain,
+                        })?;
+                self.program.type_identity_text(identity)
+            }
+
+            pub(crate) fn render(
+                &self,
+                reference: TypeReferenceHandle,
+                binders: &[(SymbolHandle, String)],
+                substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+            ) -> String {
+                let identity = self
+                    .program
+                    .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                        type_reference: reference,
+                        lifetime_scope: None,
+                        binders,
+                        substitutions,
+                        exact_toolchain_sources: &self.toolchain,
+                    })
+                    .expect("every nominal of a witness has an exact owner");
+                self.program
+                    .type_identity_text(identity)
+                    .expect("an interned identity has text")
+            }
+        }
+    }
+    pub(crate) mod kinds {
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionNode, MatchFieldAction, MatchPattern,
+        };
+        use crate::source_state::types::{
+            DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceNode,
+        };
+
+        macro_rules! node_kinds {
+    ($kinds:ident, $kind_of:ident for $node:ty { $($kind:ident => $pattern:pat,)+ }) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+        pub(crate) enum $kinds {
+            $($kind,)+
+        }
+
+        impl $kinds {
+            pub(crate) const ALL: &'static [Self] = &[$(Self::$kind,)+];
+        }
+
+        pub(crate) fn $kind_of(node: &$node) -> $kinds {
+            match node {
+                $($pattern => $kinds::$kind,)+
+            }
+        }
+    };
+}
+
+        node_kinds!(TypeKind, type_kind for TypeReferenceNode {
+            Reference => TypeReferenceNode::Reference { .. },
+            Constrained => TypeReferenceNode::Constrained { .. },
+            FixedArray => TypeReferenceNode::FixedArray { .. },
+            Slice => TypeReferenceNode::Slice { .. },
+            Generic => TypeReferenceNode::Generic { .. },
+            ConstExpression => TypeReferenceNode::ConstExpression(_),
+            Callable => TypeReferenceNode::Callable { .. },
+            Named => TypeReferenceNode::Named { .. },
+            Unit => TypeReferenceNode::Unit,
+        });
+
+        node_kinds!(ConstraintKind, constraint_kind for TypeConstraintNode {
+            Named => TypeConstraintNode::Named(_),
+            ArithmeticDomain => TypeConstraintNode::ArithmeticDomain(_),
+            Domain => TypeConstraintNode::Domain(_),
+        });
+
+        node_kinds!(DomainKind, domain_kind for DomainConstraintSubject {
+            Declared => DomainConstraintSubject::Declared,
+            Carry => DomainConstraintSubject::Carry(_),
+            Value => DomainConstraintSubject::Value(_),
+            OmegaLayout => DomainConstraintSubject::OmegaLayout { .. },
+        });
+
+        node_kinds!(LengthKind, length_kind for FixedArrayLength {
+            Literal => FixedArrayLength::Literal(_),
+            Expression => FixedArrayLength::Expression(_),
+            ConstParameter => FixedArrayLength::ConstParameter { .. },
+            ConstCall => FixedArrayLength::ConstCall { .. },
+        });
+
+        node_kinds!(ExpressionKind, expression_kind for ExpressionNode {
+            MachineValue => ExpressionNode::MachineValue(_),
+            TypeExpression => ExpressionNode::TypeExpression(_),
+            Match => ExpressionNode::Match(_),
+            SavedSubject => ExpressionNode::SavedSubject(_),
+            ArrayLiteral => ExpressionNode::ArrayLiteral(_),
+            Atomic => ExpressionNode::Atomic(_),
+            Binary => ExpressionNode::Binary(_),
+            Boolean => ExpressionNode::Boolean(_),
+            Cast => ExpressionNode::Cast(_),
+            Call => ExpressionNode::Call(_),
+            Float => ExpressionNode::Float(_),
+            UndeterminedNan => ExpressionNode::UndeterminedNaN(_),
+            Indexed => ExpressionNode::Indexed(_),
+            Integer => ExpressionNode::Integer(_),
+            Member => ExpressionNode::Member(_),
+            Borrow => ExpressionNode::Borrow(_),
+            Name => ExpressionNode::Name(_),
+            Range => ExpressionNode::Range(_),
+            StructLiteral => ExpressionNode::StructLiteral(_),
+            String => ExpressionNode::String(_),
+            Unary => ExpressionNode::Unary(_),
+            ZeroValue => ExpressionNode::ZeroValue(_),
+        });
+
+        node_kinds!(OperatorKind, operator_kind for BinaryOperator {
+            Add => BinaryOperator::Add,
+            And => BinaryOperator::And,
+            BitwiseAnd => BinaryOperator::BitwiseAnd,
+            BitwiseOr => BinaryOperator::BitwiseOr,
+            BitwiseXor => BinaryOperator::BitwiseXor,
+            Divide => BinaryOperator::Divide,
+            Equal => BinaryOperator::Equal,
+            Greater => BinaryOperator::Greater,
+            GreaterOrEqual => BinaryOperator::GreaterOrEqual,
+            Less => BinaryOperator::Less,
+            LessOrEqual => BinaryOperator::LessOrEqual,
+            Modulo => BinaryOperator::Modulo,
+            Multiply => BinaryOperator::Multiply,
+            NotEqual => BinaryOperator::NotEqual,
+            Or => BinaryOperator::Or,
+            ShiftLeft => BinaryOperator::ShiftLeft,
+            ShiftRight => BinaryOperator::ShiftRight,
+            Subtract => BinaryOperator::Subtract,
+            CaseMembership => BinaryOperator::CaseMembership,
+        });
+
+        node_kinds!(PatternKind, pattern_kind for MatchPattern {
+            Value => MatchPattern::Value(_),
+            Destructure => MatchPattern::Destructure(_),
+            Wildcard => MatchPattern::Wildcard,
+        });
+
+        node_kinds!(ActionKind, action_kind for MatchFieldAction {
+            Bind => MatchFieldAction::Bind(_),
+            Equal => MatchFieldAction::Equal(_),
+            Waive => MatchFieldAction::Waive,
+        });
+    }
+    pub(crate) mod witnesses {
+
+        use super::fixture::Fixture;
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern,
+            NamePath, StaticMachineArgument, StaticSymbolApplication, TableAtomicExpression,
+            TableBorrowExpression, TableDestructurePattern, TableIndexedExpression, TableMatchArm,
+            TableMatchExpression, TableMatchField, TableMemberExpression, TableRangeExpression,
+            TableSavedSubject, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
+            UnaryOperator,
+        };
+        use crate::source_state::name::Identifier;
+        use crate::source_state::statement::OutcomeProofSelector;
+        use crate::source_state::types::{
+            DomainConstraint, DomainConstraintSubject, FixedArrayLength, OmegaLayoutGrammar,
+            TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+        };
+        use application_identity::const_value::CanonicalConstValue;
+        use declaration_contracts::CarryPermission;
+        use declaration_contracts::value_domain::ValueDomain;
+        use language_core::atomic::{
+            AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
+        };
+        use numeric_literals::{FloatFormat, FloatLiteral, IntegerLiteral};
+        use numerics::arithmetic::ArithmeticDomain;
+        use source_text::SourceSpan;
+        use symbols::SymbolHandle;
+
+        pub(crate) struct Witness {
+            pub(crate) form: &'static str,
+            pub(crate) reference: TypeReferenceHandle,
+            pub(crate) binders: Vec<(SymbolHandle, String)>,
+            pub(crate) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+            pub(crate) owners: &'static [u8],
+        }
+
+        pub(crate) fn witness(
+            form: &'static str,
+            reference: TypeReferenceHandle,
+            owners: &'static [u8],
+        ) -> Witness {
+            Witness {
+                form,
+                reference,
+                binders: Vec::new(),
+                substitutions: Vec::new(),
+                owners,
+            }
+        }
+
+        pub(crate) fn type_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
+            let n = fixture.symbol("N");
+            let mut witnesses = Vec::new();
+
+            witnesses.push(witness(
+                "unit",
+                fixture.type_node(TypeReferenceNode::Unit),
+                &[],
+            ));
+            witnesses.push(witness("builtin", fixture.u64_type, &[]));
+            witnesses.push(witness(
+                "complete callable contract",
+                fixture.callable(),
+                &[1],
+            ));
+            let payload = fixture.named("Payload");
+            witnesses.push(witness("nominal", payload, &[1]));
+            let source = fixture.named("Source");
+            witnesses.push(witness("toolchain nominal", source, &[]));
+            for access in [
+                language_core::ReferenceAccess::Shared,
+                language_core::ReferenceAccess::Mutable,
+                language_core::ReferenceAccess::WriteOnly,
+            ] {
+                let reference = fixture.type_node(TypeReferenceNode::Reference {
+                    referee: payload,
+                    access,
+                    lifetime: None,
+                });
+                witnesses.push(witness("reference", reference, &[1]));
+            }
+            let record = fixture.named("Record");
+            let slice = fixture.type_node(TypeReferenceNode::Slice {
+                element_type: record,
+            });
+            witnesses.push(witness("slice", slice, &[2]));
+
+            witnesses.push(witness(
+                "array of a literal extent",
+                fixture.array(FixedArrayLength::Literal(4)),
+                &[],
+            ));
+            let bound = fixture.array(FixedArrayLength::ConstParameter {
+                symbol: n,
+                name: Identifier::generated("N"),
+            });
+            witnesses.push(Witness {
+                binders: vec![(n, "type-parameter:1".to_owned())],
+                ..witness("array of a bound extent", bound, &[])
+            });
+            let five = fixture.spelled("5");
+            witnesses.push(Witness {
+                substitutions: vec![(n, five)],
+                ..witness("array of a substituted extent", bound, &[])
+            });
+            let width = fixture.symbol("WIDTH");
+            witnesses.push(witness(
+                "array of a declared extent",
+                fixture.array(FixedArrayLength::ConstParameter {
+                    symbol: width,
+                    name: Identifier::generated("WIDTH"),
+                }),
+                &[3],
+            ));
+            let sum = {
+                let width = fixture.name("WIDTH");
+                let one = fixture.integer(1);
+                fixture.binary(width, BinaryOperator::Add, one)
+            };
+            let extent = fixture.index(sum);
+            witnesses.push(witness(
+                "array of an expression extent",
+                fixture.array(FixedArrayLength::Expression(extent)),
+                &[3],
+            ));
+            witnesses.push(witness(
+                "array of a call extent",
+                fixture.array(FixedArrayLength::ConstCall {
+                    machine: fixture.symbol("size"),
+                    name: Identifier::generated("size"),
+                    source_span: SourceSpan::default(),
+                }),
+                &[3],
+            ));
+
+            let limit = fixture.named("LIMIT");
+            let applied = fixture.generic("Container", vec![record, five, limit]);
+            witnesses.push(witness(
+                "generic with type and const operands",
+                applied,
+                &[1, 2],
+            ));
+            let open = {
+                let width = fixture.name("WIDTH");
+                let one = fixture.integer(1);
+                let sum = fixture.binary(width, BinaryOperator::Add, one);
+                fixture.index(sum)
+            };
+            let two = {
+                let two = fixture.integer(2);
+                fixture.index(two)
+            };
+            let computed = fixture.generic("Container", vec![payload, open, two]);
+            witnesses.push(witness("generic with computed operands", computed, &[1, 3]));
+            let canonical = fixture.spelled(&CanonicalConstValue::boolean(true).atom());
+            let constant = fixture.generic("Container", vec![payload, canonical, five]);
+            witnesses.push(witness("generic with a canonical constant", constant, &[1]));
+            let lifetime_only = fixture.generic("Container", Vec::new());
+            witnesses.push(witness("generic without operands", lifetime_only, &[1]));
+
+            witnesses.push(witness("integer constant", five, &[]));
+            witnesses.push(witness("canonical constant", canonical, &[]));
+
+            witnesses
+        }
+
+        pub(crate) fn constraint_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
+            let payload = fixture.named("Payload");
+            let eight = fixture.spelled("8");
+            let domain = |subject, symbol: SymbolHandle, name: &str, arguments| DomainConstraint {
+                name: Identifier::generated(name),
+                arguments,
+                subject,
+                symbol,
+                ..DomainConstraint::default()
+            };
+            let aligned = fixture.symbol("Aligned");
+            let mut witnesses = Vec::new();
+            fn add(
+                witnesses: &mut Vec<Witness>,
+                fixture: &mut Fixture,
+                form: &'static str,
+                constraints: Vec<TypeConstraintNode>,
+                owners: &'static [u8],
+            ) {
+                let reference = fixture.constrained(constraints);
+                witnesses.push(witness(form, reference, owners));
+            }
+
+            add(
+                &mut witnesses,
+                fixture,
+                "named constraint",
+                vec![TypeConstraintNode::Named(Identifier::generated("Even"))],
+                &[],
+            );
+            add(
+                &mut witnesses,
+                fixture,
+                "arithmetic domain",
+                vec![TypeConstraintNode::ArithmeticDomain(
+                    ArithmeticDomain::Wrapping,
+                )],
+                &[],
+            );
+            add(
+                &mut witnesses,
+                fixture,
+                "declared domain",
+                vec![TypeConstraintNode::Domain(domain(
+                    DomainConstraintSubject::Declared,
+                    aligned,
+                    "Aligned",
+                    Vec::new(),
+                ))],
+                &[4],
+            );
+            add(
+                &mut witnesses,
+                fixture,
+                "declared domain with operands",
+                vec![TypeConstraintNode::Domain(domain(
+                    DomainConstraintSubject::Declared,
+                    aligned,
+                    "Aligned",
+                    vec![payload, eight],
+                ))],
+                &[1, 4],
+            );
+            for permission in CarryPermission::ALL {
+                add(
+                    &mut witnesses,
+                    fixture,
+                    "carry domain",
+                    vec![TypeConstraintNode::Domain(domain(
+                        DomainConstraintSubject::Carry(permission),
+                        SymbolHandle::invalid(),
+                        "carry",
+                        Vec::new(),
+                    ))],
+                    &[],
+                );
+            }
+            add(
+                &mut witnesses,
+                fixture,
+                "value domain",
+                vec![TypeConstraintNode::Domain(domain(
+                    DomainConstraintSubject::Value(ValueDomain::Finite),
+                    SymbolHandle::invalid(),
+                    "finite",
+                    Vec::new(),
+                ))],
+                &[],
+            );
+            add(
+                &mut witnesses,
+                fixture,
+                "layout domain",
+                vec![TypeConstraintNode::Domain(domain(
+                    DomainConstraintSubject::OmegaLayout {
+                        grammar: OmegaLayoutGrammar::Derived,
+                    },
+                    SymbolHandle::invalid(),
+                    "layout",
+                    vec![payload],
+                ))],
+                &[1],
+            );
+            add(
+                &mut witnesses,
+                fixture,
+                "every kind of constraint at once",
+                vec![
+                    TypeConstraintNode::Named(Identifier::generated("Even")),
+                    TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Saturating),
+                    TypeConstraintNode::Domain(domain(
+                        DomainConstraintSubject::Declared,
+                        aligned,
+                        "Aligned",
+                        vec![payload],
+                    )),
+                ],
+                &[1, 4],
+            );
+            witnesses
+        }
+
+        pub(crate) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
+            let mut witnesses = Vec::new();
+            let mut add = |fixture: &mut Fixture,
+                           form: &'static str,
+                           expression: ExpressionHandle,
+                           owners: &'static [u8]| {
+                let reference = fixture.index(expression);
+                witnesses.push(witness(form, reference, owners));
+            };
+
+            let machine_value = fixture.machine_value();
+            add(fixture, "exact machine selection", machine_value, &[1, 4]);
+            let name = fixture.name("LIMIT");
+            add(fixture, "declared name", name, &[2]);
+            let value = fixture.integer(7);
+            add(fixture, "integer", value, &[]);
+            let spelled = fixture.program.expression_table.insert_tree(
+                &crate::source_state::expression::Expression::Name(NamePath::unresolved(vec![
+                    Identifier::generated("true"),
+                ])),
+            );
+            add(fixture, "spelled Boolean name", spelled, &[]);
+            let boolean = fixture.expression(ExpressionNode::Boolean(true));
+            add(fixture, "Boolean", boolean, &[]);
+            let float = fixture.expression(ExpressionNode::Float(FloatLiteral::new(1.5)));
+            add(fixture, "float", float, &[]);
+            let nan = fixture.expression(ExpressionNode::UndeterminedNaN(FloatFormat::F64));
+            add(fixture, "undetermined NaN", nan, &[]);
+            let string = fixture.expression(ExpressionNode::String(
+                source_text::SourceBytes::from(&b"bytes"[..]),
+            ));
+            add(fixture, "string", string, &[]);
+            for operator in [UnaryOperator::BitwiseNot, UnaryOperator::LogicalNot] {
+                let operand = fixture.name("WIDTH");
+                let unary = fixture.expression(ExpressionNode::Unary(TableUnaryExpression {
+                    operator,
+                    operand,
+                }));
+                add(fixture, "unary", unary, &[3]);
+            }
+            for operator in [
+                BinaryOperator::Add,
+                BinaryOperator::And,
+                BinaryOperator::BitwiseAnd,
+                BinaryOperator::BitwiseOr,
+                BinaryOperator::BitwiseXor,
+                BinaryOperator::Divide,
+                BinaryOperator::Equal,
+                BinaryOperator::Greater,
+                BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Less,
+                BinaryOperator::LessOrEqual,
+                BinaryOperator::Modulo,
+                BinaryOperator::Multiply,
+                BinaryOperator::NotEqual,
+                BinaryOperator::Or,
+                BinaryOperator::ShiftLeft,
+                BinaryOperator::ShiftRight,
+                BinaryOperator::Subtract,
+                BinaryOperator::CaseMembership,
+            ] {
+                let (left, right) = (fixture.integer(1), fixture.name("LIMIT"));
+                let binary = fixture.binary(left, operator, right);
+                add(fixture, "binary", binary, &[2]);
+            }
+
+            let target = fixture.named("Count");
+            let cast = {
+                let value = crate::source_state::expression::Expression::Integer(
+                    IntegerLiteral::from_value(3),
+                );
+                fixture.program.expression_table.insert_tree(
+                    &crate::source_state::expression::Expression::Cast(Box::new(
+                        crate::source_state::expression::CastExpression {
+                            value,
+                            target_type: target,
+                            target_label: NamePath::unresolved(Vec::new()),
+                            domain: ArithmeticDomain::Wrapping,
+                            form: language_core::cast_form::CastForm::Value,
+                        },
+                    )),
+                )
+            };
+            add(fixture, "cast", cast, &[2]);
+
+            let (receiver, argument) = (fixture.name("LIMIT"), fixture.integer(3));
+            let plain = fixture.call(receiver, vec![argument], Vec::new());
+            add(fixture, "call", plain, &[2, 3]);
+            let selected = StaticMachineArgument {
+                symbol: fixture.symbol("Selected"),
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
+                    lifetime_arguments: Box::new([Identifier::generated("a")]),
+                    arguments: Box::new([StaticMachineArgument {
+                        const_literal: Some(IntegerLiteral::from_value(7)),
+                        ..StaticMachineArgument::default()
+                    }]),
+                })),
+                ..StaticMachineArgument::default()
+            };
+            let operand = fixture.named("Payload");
+            let applied = fixture.call(
+                ExpressionHandle::invalid(),
+                Vec::new(),
+                vec![
+                    selected,
+                    StaticMachineArgument {
+                        type_reference: operand,
+                        ..StaticMachineArgument::default()
+                    },
+                ],
+            );
+            add(fixture, "call with static operands", applied, &[1, 3, 4]);
+
+            let (collection, index) = (fixture.name("LIMIT"), fixture.integer(0));
+            let indexed = fixture.expression(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }));
+            add(fixture, "indexed", indexed, &[2]);
+            let receiver = fixture.name("LIMIT");
+            let member = fixture.expression(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                selection: crate::source_state::expression::MemberSelection::Unresolved,
+                member: Identifier::generated("tag"),
+                case_variant: Some(Identifier::generated("On")),
+            }));
+            add(fixture, "member", member, &[2]);
+            for access in [
+                language_core::ReferenceAccess::Shared,
+                language_core::ReferenceAccess::Mutable,
+                language_core::ReferenceAccess::WriteOnly,
+            ] {
+                let target = fixture.name("LIMIT");
+                let borrow = fixture.expression(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access,
+                }));
+                add(fixture, "borrow", borrow, &[2]);
+            }
+            for end_inclusive in [true, false] {
+                let (start, end) = (fixture.integer(0), fixture.name("WIDTH"));
+                let range = fixture.expression(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                }));
+                add(fixture, "range", range, &[3]);
+            }
+            let (first, second) = (fixture.integer(1), fixture.name("LIMIT"));
+            let elements = fixture
+                .program
+                .expression_table
+                .insert_expression_handles([first, second]);
+            let array = fixture.expression(ExpressionNode::ArrayLiteral(elements));
+            add(fixture, "array literal", array, &[2]);
+            let empty = fixture
+                .program
+                .expression_table
+                .insert_expression_handles([]);
+            let empty = fixture.expression(ExpressionNode::ArrayLiteral(empty));
+            add(fixture, "empty array literal", empty, &[]);
+            let value = fixture.name("WIDTH");
+            let fields =
+                fixture
+                    .program
+                    .expression_table
+                    .insert_struct_fields([TableStructLiteralField {
+                        name: Identifier::generated("width"),
+                        field_symbol: SymbolHandle::invalid(),
+                        value,
+                    }]);
+            let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
+                application_type: Default::default(),
+                type_name: Identifier::generated("Record"),
+                type_symbol: fixture.symbol("Record"),
+                case_name: Some(Identifier::generated("On")),
+                case_symbol: None,
+                fields,
+            }));
+            add(fixture, "struct literal", literal, &[2, 3]);
+            let operand = fixture.named("Payload");
+            let type_expression = fixture.expression(ExpressionNode::TypeExpression(operand));
+            add(fixture, "type expression", type_expression, &[1]);
+            let zero = fixture.expression(ExpressionNode::ZeroValue(operand));
+            add(fixture, "zero value", zero, &[1]);
+            let (value, result) = (fixture.name("LIMIT"), fixture.name("WIDTH"));
+            let atomic = fixture.expression(ExpressionNode::Atomic(TableAtomicExpression {
+                value,
+                result,
+                ordering: AtomicOrderingPlan::Load(MemoryOrdering::Receive),
+                result_custody: AtomicExpressionResultCustody::Scalar,
+            }));
+            add(fixture, "atomic", atomic, &[2, 3]);
+
+            for (form, name) in [
+                ("derived view", "Placed"),
+                ("derived accessor by member identity", "Accessor"),
+                ("derived accessor by field name", "Cursor"),
+                ("derived operation state", "read_state"),
+            ] {
+                let derived = fixture.name(name);
+                add(fixture, form, derived, &[1, 2, 3]);
+            }
+            let receiver = fixture.name("LIMIT");
+            let operation = fixture.call_to("read_machine", receiver, Vec::new(), Vec::new());
+            add(fixture, "derived operation machine", operation, &[1, 2, 3]);
+
+            let (subject, wanted, chosen, otherwise) = (
+                fixture.name("LIMIT"),
+                fixture.integer(0),
+                fixture.name("WIDTH"),
+                fixture.integer(1),
+            );
+            let arms = fixture.program.expression_table.insert_match_arms([
+                TableMatchArm {
+                    pattern: MatchPattern::Value(wanted),
+                    value: chosen,
+                    source_span: SourceSpan::default(),
+                },
+                TableMatchArm {
+                    pattern: MatchPattern::Wildcard,
+                    value: otherwise,
+                    source_span: SourceSpan::default(),
+                },
+            ]);
+            let dispatch = fixture.expression(ExpressionNode::Match(TableMatchExpression {
+                subject,
+                arms,
+                ..TableMatchExpression::default()
+            }));
+            add(fixture, "match on values", dispatch, &[2, 3]);
+
+            let subject = fixture.name("LIMIT");
+            let capture = fixture
+                .program
+                .expression_table
+                .insert_match_subject(subject);
+            let head = fixture.name("Record");
+            let saved = fixture.expression(ExpressionNode::SavedSubject(TableSavedSubject {
+                component: Default::default(),
+                capture,
+                pattern_head: head,
+            }));
+            let wanted = fixture.name("WIDTH");
+            let guard = fixture.name("Count");
+            let (left, right, spare) = (
+                fixture.symbol("left"),
+                fixture.symbol("right"),
+                fixture.symbol("spare"),
+            );
+            let fields = fixture.program.expression_table.insert_match_fields([
+                TableMatchField {
+                    component: Default::default(),
+                    member: Identifier::generated("left"),
+                    field_symbol: left,
+                    action: MatchFieldAction::Bind(Identifier::generated("bound")),
+                },
+                TableMatchField {
+                    component: Default::default(),
+                    member: Identifier::generated("right"),
+                    field_symbol: right,
+                    action: MatchFieldAction::Equal(wanted),
+                },
+                TableMatchField {
+                    component: Default::default(),
+                    member: Identifier::generated("spare"),
+                    field_symbol: spare,
+                    action: MatchFieldAction::Waive,
+                },
+            ]);
+            let selectors = fixture
+                .program
+                .expression_table
+                .insert_match_proof_selectors([OutcomeProofSelector {
+                    output_field: Identifier::generated("left"),
+                    binding: Identifier::generated("bound"),
+                }]);
+            let unguarded = fixture.program.expression_table.insert_match_arms([
+                TableMatchArm {
+                    pattern: MatchPattern::Destructure(TableDestructurePattern {
+                        application_type: Default::default(),
+                        head,
+                        fields,
+                        has_rest: true,
+                        guard,
+                        condition: ExpressionHandle::invalid(),
+                        proof_selectors: selectors,
+                    }),
+                    value: saved,
+                    source_span: SourceSpan::default(),
+                },
+                TableMatchArm {
+                    pattern: MatchPattern::Destructure(TableDestructurePattern {
+                        application_type: Default::default(),
+                        head,
+                        fields: Default::default(),
+                        has_rest: false,
+                        guard: ExpressionHandle::invalid(),
+                        condition: ExpressionHandle::invalid(),
+                        proof_selectors: Default::default(),
+                    }),
+                    value: head,
+                    source_span: SourceSpan::default(),
+                },
+            ]);
+            let destructuring = fixture.expression(ExpressionNode::Match(TableMatchExpression {
+                subject,
+                capture,
+                arms: unguarded,
+            }));
+            add(
+                fixture,
+                "match that destructures",
+                destructuring,
+                &[2, 3, 4],
+            );
+            witnesses
+        }
+    }
+
+    use self::fixture::Fixture;
+    use self::kinds::{
+        ActionKind, ConstraintKind, DomainKind, ExpressionKind, LengthKind, OperatorKind,
+        PatternKind, TypeKind, action_kind, constraint_kind, domain_kind, expression_kind,
+        length_kind, operator_kind, pattern_kind, type_kind,
+    };
+    use self::witnesses::{Witness, constraint_witnesses, expression_witnesses, type_witnesses};
+    use crate::source_state::expression::{ExpressionNode, MatchPattern};
+    use crate::source_state::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+    use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+    use application_identity::type_identity::TypeIdentityVisitError;
+    use application_identity::type_identity::visit_type_identity_package_owners;
+    use std::collections::BTreeSet;
+
+    #[derive(Default)]
+    struct Owners {
+        seen: BTreeSet<[u8; 32]>,
+        embedded: Vec<String>,
+        depth: usize,
+    }
+
+    impl TypeIdentityPackageOwnerVisitor for Owners {
+        fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
+            self.depth += 1;
+            Ok(())
+        }
+        fn leave(&mut self) {
+            self.depth -= 1;
+        }
+        fn reserve(&mut self, _: usize) -> Result<(), TypeIdentityVisitError> {
+            Ok(())
+        }
+        fn package_owner(&mut self, digest: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
+            self.seen.insert(digest);
+            Ok(())
+        }
+        fn embedded_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError> {
+            self.embedded.push(name.to_owned());
+            Ok(())
+        }
+    }
+
+    fn read(identity: &str) -> (Result<(), TypeIdentityVisitError>, Owners) {
+        let mut owners = Owners::default();
+        let result = visit_type_identity_package_owners(identity, &mut owners);
+        assert_eq!(owners.depth, 0, "every entered node is left: {identity}");
+        (result, owners)
+    }
+
+    fn check(fixture: &Fixture, witnesses: &[Witness]) {
+        let mut failures = Vec::new();
+        for witness in witnesses {
+            let text = fixture.render(witness.reference, &witness.binders, &witness.substitutions);
+            let (result, owners) = read(&text);
+            let expected = witness
+                .owners
+                .iter()
+                .map(|package| [*package; 32])
+                .collect::<BTreeSet<_>>();
+            if result != Ok(()) || owners.seen != expected {
+                failures.push(format!(
+                    "{}: {result:?}, {} of {} package owners visited\n    {text}",
+                    witness.form,
+                    owners.seen.len(),
+                    expected.len(),
+                ));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} of {} forms do not read back:\n{}",
+            failures.len(),
+            witnesses.len(),
+            failures.join("\n"),
+        );
+    }
+
+    #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source_admission::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
+        );
+    }
+
+    #[test]
+    fn a_repeated_identity_request_spells_no_new_text() {
+        // Asking again for identities the table already holds must reach the
+        // same identities through its composite index, minting no text and no
+        // structure: retained storage follows distinct types, not requests.
+        let mut fixture = Fixture::new();
+        let mut witnesses = type_witnesses(&mut fixture);
+        witnesses.extend(constraint_witnesses(&mut fixture));
+        witnesses.extend(expression_witnesses(&mut fixture));
+        let element = fixture.named("Payload");
+        let mut deep = element;
+        for _ in 0..12 {
+            deep = fixture.type_node(TypeReferenceNode::Slice { element_type: deep });
+        }
+        let ask = |fixture: &Fixture| {
+            let mut identities = witnesses
+                .iter()
+                .map(|witness| {
+                    fixture.render(witness.reference, &witness.binders, &witness.substitutions)
+                })
+                .collect::<Vec<_>>();
+            for reference in [element, deep] {
+                let identity = fixture.program.normalized_type_identity(reference);
+                identities.push(fixture.program.type_identity_text(identity).unwrap());
+            }
+            identities
+        };
+        let first = ask(&fixture);
+        let table = &fixture.program.type_identities;
+        let (texts, composites) = (table.text_count(), table.composite_count());
+        assert!(composites > 0, "compound types are found by structure");
+        assert_eq!(ask(&fixture), first);
+        assert_eq!(table.text_count(), texts, "a repeated request minted text");
+        assert_eq!(
+            table.composite_count(),
+            composites,
+            "a repeated request minted a structure"
+        );
+        let [.., element, deep] = first.as_slice() else {
+            unreachable!("the element and the deep slice are asked last")
+        };
+        assert_eq!(
+            deep,
+            &(0..12).fold(element.clone(), |inner, _| format!("slice({inner})")),
+        );
+    }
+
+    #[test]
+    fn every_type_form_the_renderer_writes_reads_back() {
+        let mut fixture = Fixture::new();
+        let witnesses = type_witnesses(&mut fixture);
+        check(&fixture, &witnesses);
+    }
+
+    #[test]
+    fn every_constraint_form_the_renderer_writes_reads_back() {
+        let mut fixture = Fixture::new();
+        let witnesses = constraint_witnesses(&mut fixture);
+        check(&fixture, &witnesses);
+    }
+
+    #[test]
+    fn every_index_form_the_renderer_writes_reads_back() {
+        let mut fixture = Fixture::new();
+        let witnesses = expression_witnesses(&mut fixture);
+        check(&fixture, &witnesses);
+    }
+
+    #[test]
+    fn callable_selection_keeps_its_contract_and_exact_declaration_names() {
+        use super::constraint_identity::atom;
+        use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
+        use application_identity::type_identity::vocabulary::Label;
+
+        let mut fixture = Fixture::new();
+        let callable = fixture.render(fixture.callable(), &[], &[]);
+        let selection = fixture.machine_value();
+        let selection = fixture.index(selection);
+        let selection = fixture.render(selection, &[], &[]);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            ..Default::default()
+        };
+        let declaration_name = |name| context.name(&fixture.program, fixture.symbol(name), "");
+        assert!(callable.contains(&atom(Label::Name, &declaration_name("Payload"))));
+        for clause in ["requires", "ensures"] {
+            assert!(callable.contains(&atom(Label::Kind, clause)), "{callable}");
+        }
+        for declaration in ["Selected", "selected_entry"] {
+            assert!(
+                selection.contains(&atom(Label::Symbol, &declaration_name(declaration))),
+                "selection lost {declaration}: {selection}",
+            );
+        }
+        assert_eq!(read(&callable).0, Ok(()), "{callable}");
+        assert_eq!(read(&selection).0, Ok(()), "{selection}");
+
+        let callback = fixture.symbol("Callback");
+        let callable_type = fixture.callable();
+        let result = fixture
+            .program
+            .expression_table
+            .expression_entries()
+            .find_map(|(expression, node)| match node {
+                crate::source_state::expression::ExpressionNode::Name(path)
+                    if path.reserved_result_of == callback =>
+                {
+                    Some(expression)
+                }
+                _ => None,
+            })
+            .expect("the callback retains its exact result occurrence");
+        let foreign_owner = fixture.symbol("Selected");
+        for owner in [foreign_owner, symbols::SymbolHandle::invalid()] {
+            let crate::source_state::expression::ExpressionNode::Name(path) =
+                fixture.program.expression_table.expression_mut(result)
+            else {
+                panic!("the result occurrence changed kind");
+            };
+            path.reserved_result_of = owner;
+            assert!(
+                fixture
+                    .program
+                    .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                        callable_type
+                    ))
+                    .is_err(),
+                "a valid foreign declaration or missing owner must not bind result"
+            );
+        }
+        let crate::source_state::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.reserved_result_of = callback;
+        path.head_symbol = callback;
+        assert!(
+            fixture
+                .program
+                .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                    callable_type
+                ))
+                .is_err(),
+            "an owner marker cannot turn an ordinary resolved name into result"
+        );
+        let crate::source_state::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.head_symbol = symbols::SymbolHandle::invalid();
+        assert_eq!(fixture.render(callable_type, &[], &[]), callable);
+    }
+
+    #[test]
+    fn witnesses_reach_every_node_kind() {
+        let mut fixture = Fixture::new();
+        let mut witnesses = type_witnesses(&mut fixture);
+        witnesses.extend(constraint_witnesses(&mut fixture));
+        witnesses.extend(expression_witnesses(&mut fixture));
+        check(&fixture, &witnesses);
+
+        let table = &fixture.program.type_reference_table;
+        let mut types = BTreeSet::new();
+        let mut constraints = BTreeSet::new();
+        let mut domains = BTreeSet::new();
+        let mut lengths = BTreeSet::new();
+        for (_, node) in table.type_reference_rows() {
+            types.insert(type_kind(node));
+            match node {
+                TypeReferenceNode::Constrained {
+                    constraints: span, ..
+                } => {
+                    for constraint in table.constraints(*span) {
+                        constraints.insert(constraint_kind(constraint));
+                        if let TypeConstraintNode::Domain(domain) = constraint {
+                            domains.insert(domain_kind(&domain.subject));
+                        }
+                    }
+                }
+                TypeReferenceNode::FixedArray { length, .. } => {
+                    lengths.insert(length_kind(length));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(types, TypeKind::ALL.iter().copied().collect());
+        assert_eq!(constraints, ConstraintKind::ALL.iter().copied().collect());
+        assert_eq!(domains, DomainKind::ALL.iter().copied().collect());
+        assert_eq!(lengths, LengthKind::ALL.iter().copied().collect());
+
+        let table = &fixture.program.expression_table;
+        let mut expressions = BTreeSet::new();
+        let mut operators = BTreeSet::new();
+        let mut patterns = BTreeSet::new();
+        let mut actions = BTreeSet::new();
+        for (_, node) in table.iter_expressions() {
+            expressions.insert(expression_kind(node));
+            match node {
+                ExpressionNode::Binary(binary) => {
+                    operators.insert(operator_kind(&binary.operator));
+                }
+                ExpressionNode::Match(dispatch) => {
+                    for arm in table.match_arms(dispatch.arms) {
+                        patterns.insert(pattern_kind(&arm.pattern));
+                        if let MatchPattern::Destructure(pattern) = &arm.pattern {
+                            for field in table.match_fields(pattern.fields) {
+                                actions.insert(action_kind(&field.action));
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(expressions, ExpressionKind::ALL.iter().copied().collect());
+        assert_eq!(operators, OperatorKind::ALL.iter().copied().collect());
+        assert_eq!(patterns, PatternKind::ALL.iter().copied().collect());
+        assert_eq!(actions, ActionKind::ALL.iter().copied().collect());
+    }
+
+    #[test]
+    fn an_unflagged_marker_is_refused_with_its_reason() {
+        let mut fixture = Fixture::new();
+        let not_a_recipe = fixture.named("Payload");
+        let array = fixture.array(FixedArrayLength::Expression(not_a_recipe));
+        let text = fixture.render(array, &[], &[]);
+        assert_eq!(
+            read(&text).0,
+            Err(TypeIdentityVisitError::Unadmitted(
+                application_identity::type_identity::vocabulary::Unadmitted::InvalidIdentity
+            )),
+            "{text}"
+        );
+    }
+}
+pub(crate) mod portable_machine_applications {
+    use super::IndexIdentityArgument;
+    pub(crate) mod captures {
+        use super::{
+            CoordinateTag, IndexIdentityArgument, PortableMachineApplications, TypeIdentityContext,
+            atom, compound, conformances, static_binding_operand,
+        };
+        use crate::source_state::CapturedMachineApplication;
+        use crate::source_state::TypedTrees;
+        use crate::source_state::expression::{StaticMachineArgument, StaticSymbolApplication};
+
+        impl PortableMachineApplications {
+            pub(crate) fn capture(
+                &self,
+                program: &TypedTrees,
+                capture: &CapturedMachineApplication,
+                context: &TypeIdentityContext<'_>,
+            ) -> Result<String, String> {
+                let original = program
+                    .machine_by_symbol(capture.template)
+                    .ok_or("captured member lost its original declaration")?;
+                let instance = program
+                    .machine_by_symbol(capture.instance)
+                    .ok_or("captured member lost its executable declaration")?;
+                let closed = &capture.conformance_application;
+                let implementation = program
+                    .conformance_by_symbol(closed.declaration)
+                    .ok_or("captured member lost its selecting implementation")?;
+                if capture.instance == capture.template
+                    || program.declaration_scope_parent(capture.template) != implementation.symbol
+                    || !implementation.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == capture.template
+                    })
+                {
+                    return Err(
+                        "captured member does not belong to its selecting implementation".into(),
+                    );
+                }
+                if !capture.binding_application.is_valid()
+                    || !capture.supplying_application.is_valid()
+                {
+                    return Err("captured member lost its binding or supplying application".into());
+                }
+                let binding = program.static_machine_application(capture.binding_application);
+                let supplying = program.static_machine_application(capture.supplying_application);
+                if binding.binding_declaration != implementation.symbol
+                    || binding.lexical_owner != supplying.lexical_owner
+                {
+                    return Err(
+                        "captured member bindings changed implementation or supplying owner".into(),
+                    );
+                }
+                let context = TypeIdentityContext {
+                    application_owner: binding.lexical_owner,
+                    application_argument_owner: binding.lexical_owner,
+                    ..*context
+                };
+                let parameters = program.conformance_type_parameters(implementation);
+                let arguments =
+                    program.static_machine_application_arguments(capture.binding_application);
+                let bindings =
+                    program.static_machine_application_bindings(capture.binding_application);
+                if parameters.len() != bindings.len() || parameters.len() != arguments.len() {
+                    return Err(
+                        "captured member has an incomplete implementation argument list".into(),
+                    );
+                }
+                for (parameter, argument) in parameters.iter().zip(arguments) {
+                    let mut matching = bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let selected = matching
+                        .next()
+                        .ok_or("captured member is missing an implementation parameter binding")?;
+                    if matching.next().is_some() {
+                        return Err(
+                            "captured member repeats an implementation parameter binding".into(),
+                        );
+                    }
+                    let (_, operand) = static_binding_operand(&parameter.kind, &selected.value)?;
+                    if super::super::substitution::index_argument(program, operand, &context)
+                        != super::super::substitution::index_argument(
+                            program,
+                            IndexIdentityArgument::StaticArgument(argument),
+                            &context,
+                        )
+                    {
+                        return Err(format!(
+                            "captured member binding for `{}` differs from its selected argument",
+                            parameter.name
+                        ));
+                    }
+                }
+                let lifetimes = program
+                    .static_application_lifetimes_for_declaration(
+                        capture.binding_application,
+                        implementation.symbol,
+                    )
+                    .map_err(str::to_owned)?;
+                if lifetimes.len() != implementation.lifetime_parameters.len() {
+                    return Err(
+                        "captured member has an incomplete implementation lifetime list".into(),
+                    );
+                }
+                let mut lifetime_arguments = Vec::with_capacity(lifetimes.len());
+                for parameter in &implementation.lifetime_parameters {
+                    let argument = lifetimes
+                        .iter()
+                        .find(|binding| binding.parameter == *parameter)
+                        .ok_or("captured member lost an implementation lifetime binding")?;
+                    lifetime_arguments.push(argument.argument.clone());
+                }
+                let selected = StaticMachineArgument {
+                    symbol: implementation.symbol,
+                    application: Some(Box::new(StaticSymbolApplication {
+                        member: Default::default(),
+                        arguments: arguments.into(),
+                        lifetime_arguments: lifetime_arguments.into(),
+                    })),
+                    ..Default::default()
+                };
+                let implementation_identity =
+                    conformances::project(program, closed, &selected, &context)?;
+
+                let source_parameters = program
+                    .machine_type_parameters(original)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(original.conformance_bounds.iter().map(|bound| bound.binder))
+                    .collect::<Vec<_>>();
+                let instance_parameters = program
+                    .machine_type_parameters(instance)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(instance.conformance_bounds.iter().map(|bound| bound.binder))
+                    .collect::<Vec<_>>();
+                if source_parameters.len() != capture.parameters.len()
+                    || instance_parameters.len() != capture.parameters.len()
+                    || capture
+                        .parameters
+                        .iter()
+                        .zip(source_parameters.iter().zip(&instance_parameters))
+                        .any(
+                            |((source, realized), (expected_source, expected_instance))| {
+                                source != expected_source || realized != expected_instance
+                            },
+                        )
+                {
+                    return Err("captured member changed its own parameter correspondence".into());
+                }
+                let states = program
+                    .captured_machine_states
+                    .span_or_empty(capture.states);
+                if states.len() != program.machine_states(original).len()
+                    || states.len() != program.machine_states(instance).len()
+                    || states.iter().enumerate().any(|(ordinal, state)| {
+                        states.slice(0..ordinal).iter().any(|earlier| {
+                            earlier.template == state.template || earlier.instance == state.instance
+                        }) || !program.instantiated_machine_state_matches(
+                            capture.instance,
+                            capture.template,
+                            state.template,
+                            state.instance,
+                        )
+                    })
+                {
+                    return Err("captured member changed its explicit entry correspondence".into());
+                }
+                let origin = self.origin(
+                    program,
+                    capture.instance,
+                    capture.template,
+                    &capture.normalized_template_identity,
+                    &context,
+                )?;
+                Ok(compound(
+                    CoordinateTag::CapturedCallable,
+                    [
+                        origin,
+                        atom(CoordinateTag::Declaration, &implementation_identity),
+                    ],
+                ))
+            }
+        }
+    }
+    pub(crate) mod conformances {
+        use super::super::IndexIdentityArgument;
+        use super::super::constraint_identity::{atom, compound};
+        use super::super::coordinates::CoordinateTag;
+        use super::super::identity_context::TypeIdentityContext;
+        use super::super::substitution::index_argument;
+        use crate::source_state::TypedTrees;
+        use crate::source_state::expression::{StaticMachineArgument, StaticSymbolApplication};
+        use crate::source_state::name::Identifier;
+        use crate::source_state::{ClosedConformanceApplication, ClosedConformanceConstArgument};
+        use application_identity::type_identity::vocabulary::Label;
+
+        pub(crate) fn project(
+            program: &TypedTrees,
+            closed: &ClosedConformanceApplication,
+            supplied: &StaticMachineArgument,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            let declaration = program
+                .conformance_by_symbol(closed.declaration)
+                .ok_or("specialized callable lost its selected implementation declaration")?;
+            if declaration.trait_symbol != closed.trait_definition {
+                return Err("selected implementation changed its declared trait".into());
+            }
+            if declaration.rows.len() != closed.rows.len()
+                || declaration
+                    .rows
+                    .iter()
+                    .zip(&closed.rows)
+                    .any(|(declared, selected)| {
+                        declared.declaring_trait != selected.declaring_trait
+                            || declared.requirement != selected.requirement
+                            || declared.realization_machine != selected.realization_machine
+                            || declared.realization_state != selected.realization_state
+                    })
+            {
+                return Err(
+                    "selected implementation methods differ from its exact declaration rows".into(),
+                );
+            }
+            let mut selected = StaticMachineArgument {
+                symbol: closed.declaration,
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: closed
+                        .lifetime_arguments
+                        .iter()
+                        .map(Identifier::generated)
+                        .collect(),
+                    arguments: closed.arguments.clone(),
+                })),
+                ..Default::default()
+            };
+            let mut supplied = supplied.clone();
+            if program.conformance_type_parameters(declaration).is_empty()
+                && declaration.lifetime_parameters.is_empty()
+            {
+                for argument in [&mut supplied, &mut selected] {
+                    if argument.application.as_ref().is_some_and(|application| {
+                        !application.member.is_valid()
+                            && application.arguments.is_empty()
+                            && application.lifetime_arguments.is_empty()
+                    }) {
+                        argument.application = None;
+                    }
+                }
+            }
+            let own_arguments = index_argument(
+                program,
+                IndexIdentityArgument::StaticArgument(&selected),
+                context,
+            );
+            if own_arguments
+                != index_argument(
+                    program,
+                    IndexIdentityArgument::StaticArgument(&supplied),
+                    context,
+                )
+            {
+                return Err(
+                    "specialized callable conformance binding differs from its checked application"
+                        .into(),
+                );
+            }
+            let scope = closed
+                .trait_scope
+                .scope(program)
+                .ok_or("selected implementation lost its prepared trait application")?;
+            if scope.declaration.symbol != closed.trait_definition {
+                return Err("selected implementation's prepared scope names another trait".into());
+            }
+            validate_selected_scope(program, declaration, closed, &scope, context)?;
+            let trait_application = scope.with_identity_scopes(program, |scopes| {
+                let mut arguments = Vec::new();
+                for parameter in program.trait_type_parameters(scope.declaration) {
+                    let (reference, outer) = scope
+                        .parameter_application(parameter.symbol)
+                        .ok_or("selected implementation lost a target trait argument")?;
+                    let context = TypeIdentityContext {
+                        application_owner: scope.argument_owner,
+                        application_argument_owner: scope.argument_owner,
+                        application_scopes: &scopes[..outer],
+                        ..*context
+                    };
+                    let operand = if parameter.kind.is_const_or_value() {
+                        IndexIdentityArgument::TypeReference(reference)
+                    } else {
+                        IndexIdentityArgument::TypeArgument(reference)
+                    };
+                    arguments.push(index_argument(program, operand, &context));
+                }
+                let context = TypeIdentityContext {
+                    application_owner: scope.argument_owner,
+                    application_argument_owner: scope.argument_owner,
+                    application_scopes: scopes,
+                    ..*context
+                };
+                let lifetimes = scope
+                    .declaration
+                    .lifetime_parameters
+                    .iter()
+                    .map(|parameter| context.lifetime(program, parameter.as_str()));
+                Ok::<_, String>(compound(
+                    CoordinateTag::TraitApplication,
+                    [
+                        context.name(program, closed.trait_definition, ""),
+                        compound(CoordinateTag::Arguments, arguments),
+                        compound(CoordinateTag::Lifetimes, lifetimes),
+                    ],
+                ))
+            })?;
+            let type_identity = |reference| {
+                index_argument(
+                    program,
+                    IndexIdentityArgument::TypeArgument(reference),
+                    context,
+                )
+            };
+            let constants = closed.const_arguments.iter().map(|argument| {
+                let fields = match argument {
+                    ClosedConformanceConstArgument::Evaluated {
+                        parameter_carrier,
+                        declared_carrier,
+                        value,
+                    } => vec![
+                        atom(Label::Kind, "evaluated"),
+                        type_identity(*parameter_carrier),
+                        type_identity(*declared_carrier),
+                        atom(CoordinateTag::Const, &value.encoding),
+                    ],
+                    ClosedConformanceConstArgument::CallerExpression {
+                        parameter_carrier,
+                        expression,
+                    } => vec![
+                        atom(Label::Kind, "expression"),
+                        type_identity(*parameter_carrier),
+                        index_argument(
+                            program,
+                            IndexIdentityArgument::TypeReference(*expression),
+                            context,
+                        ),
+                    ],
+                    ClosedConformanceConstArgument::CallerBinder {
+                        parameter_carrier,
+                        binder,
+                        binder_carrier,
+                    } => vec![
+                        atom(Label::Kind, "binder"),
+                        type_identity(*parameter_carrier),
+                        type_identity(*binder_carrier),
+                        index_argument(program, IndexIdentityArgument::Subject(*binder), context),
+                    ],
+                };
+                compound(CoordinateTag::Const, fields)
+            });
+            let callable = |symbol| {
+                index_argument(
+                    program,
+                    IndexIdentityArgument::StaticArgument(&StaticMachineArgument {
+                        symbol,
+                        ..Default::default()
+                    }),
+                    context,
+                )
+            };
+            let mut rows = Vec::with_capacity(closed.rows.len());
+            for row in &closed.rows {
+                let (owner, requirement) = program
+                    .trait_machine_signature(row.requirement)
+                    .ok_or("selected implementation lost a checked requirement declaration")?;
+                if owner.symbol != row.declaring_trait {
+                    return Err(
+                        "selected implementation requirement belongs to another trait".into(),
+                    );
+                }
+                let machine = program
+                    .machine_by_symbol(row.realization_machine)
+                    .ok_or("selected implementation lost its checked method realization")?;
+                if !program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == row.realization_state)
+                {
+                    return Err(
+                        "selected implementation method and entry name different declarations"
+                            .into(),
+                    );
+                }
+                rows.push(compound(
+                    CoordinateTag::Declaration,
+                    [
+                        context.name(program, row.declaring_trait, ""),
+                        context.qualify_non_binder_name(
+                            program,
+                            row.requirement,
+                            program.trait_requirement_callable_identity_text(owner, requirement),
+                        ),
+                        callable(row.realization_machine),
+                        callable(row.realization_state),
+                    ],
+                ));
+            }
+            Ok(compound(
+                CoordinateTag::Declaration,
+                [
+                    own_arguments,
+                    trait_application,
+                    compound(CoordinateTag::Const, constants),
+                    compound(
+                        CoordinateTag::Arguments,
+                        closed
+                            .machine_arguments
+                            .iter()
+                            .map(|symbol| callable(*symbol)),
+                    ),
+                    compound(CoordinateTag::Declaration, rows),
+                ],
+            ))
+        }
+
+        fn validate_selected_scope(
+            program: &TypedTrees,
+            declaration: &crate::source_state::trait_definition::Conformance,
+            closed: &ClosedConformanceApplication,
+            scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<(), String> {
+            if scope.argument_owner != context.application_owner {
+                return Err(
+                    "selected implementation scope belongs to another supplying declaration".into(),
+                );
+            }
+            let parameters = program.conformance_type_parameters(declaration);
+            let references = scope.with_identity_scopes(program, |scopes| {
+                let own = scopes
+                    .first()
+                    .filter(|own| own.declaration == declaration.symbol)
+                    .ok_or("selected implementation scope lost its own argument frame")?;
+                if own.arguments.len() != parameters.len()
+                    || closed.arguments.len() != parameters.len()
+                    || own.lifetimes.len() != declaration.lifetime_parameters.len()
+                    || closed.lifetime_arguments.len() != declaration.lifetime_parameters.len()
+                {
+                    return Err(
+                        "selected implementation scope has an incomplete own telescope".into(),
+                    );
+                }
+                for ((formal, actual), (parameter, supplied)) in own.lifetimes.iter().zip(
+                    declaration
+                        .lifetime_parameters
+                        .iter()
+                        .zip(&closed.lifetime_arguments),
+                ) {
+                    if formal != parameter.as_str() || actual != supplied {
+                        return Err(
+                            "selected implementation scope changed an own lifetime argument".into(),
+                        );
+                    }
+                }
+                let mut references = Vec::with_capacity(parameters.len());
+                for (((binder, actual), parameter), supplied) in own
+                    .arguments
+                    .iter()
+                    .zip(parameters)
+                    .zip(closed.arguments.iter())
+                {
+                    if *binder != parameter.symbol {
+                        return Err(
+                            "selected implementation scope changed an own parameter declaration"
+                                .into(),
+                        );
+                    }
+                    let reference = match actual {
+                        IndexIdentityArgument::TypeArgument(reference)
+                        | IndexIdentityArgument::TypeReference(reference) => *reference,
+                        _ => {
+                            return Err(
+                                "selected implementation scope lost its prepared type operand"
+                                    .into(),
+                            );
+                        }
+                    };
+                    let actual = program
+                        .static_operand_from_type_reference(reference)
+                        .map_err(str::to_owned)?;
+                    if index_argument(
+                        program,
+                        IndexIdentityArgument::StaticArgument(&actual),
+                        context,
+                    ) != index_argument(
+                        program,
+                        IndexIdentityArgument::StaticArgument(supplied),
+                        context,
+                    ) {
+                        return Err(
+                            "selected implementation scope changed an own static argument".into(),
+                        );
+                    }
+                    references.push(reference);
+                }
+                Ok::<_, String>(references)
+            })?;
+            let lifetimes = closed
+                .lifetime_arguments
+                .iter()
+                .map(Identifier::generated)
+                .collect::<Vec<_>>();
+            let expected =
+                crate::source_state::trait_definition::AppliedTraitScope::from_conformance_application(
+                    program,
+                    declaration,
+                    crate::source_state::trait_definition::TraitApplicationArguments {
+                        lexical_owner: context.application_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &references,
+                        lifetimes: &lifetimes,
+                    },
+                )
+                .ok_or(
+                    "selected implementation declaration has no matching prepared application",
+                )?;
+            if !scope.same_application(program, &expected) {
+                return Err("selected implementation's target trait arguments differ from its declaration application".into());
+            }
+            Ok(())
+        }
+    }
+
+    use super::constraint_identity::{atom, compound};
+    use super::coordinates::CoordinateTag;
+    use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
+    use crate::source_state::TypedTrees;
+    use crate::source_state::callable_applications::MachineInstantiation;
+    use crate::source_state::data::TypeParameterKind;
+    use crate::source_state::static_applications::StaticMachineBindingValue;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::NameForm;
+    use std::cell::{Cell, RefCell};
+    use symbols::SymbolHandle;
+
+    pub fn portable_machine_application_identity(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<Option<String>, String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let result = projection.identity(program, symbol, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err(
+                "specialization argument lost its exact owner, static operand, or lifetime scope"
+                    .into(),
+            );
+        }
+        Ok(result)
+    }
+
+    pub fn portable_machine_selection_identity(
+        program: &TypedTrees,
+        selected: &crate::source_state::expression::StaticMachineArgument,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let result = projection.selection(program, selected, application, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("selected callable lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_machine_selection_identity_in_context(
+        program: &TypedTrees,
+        selected: &crate::source_state::expression::StaticMachineArgument,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<(SymbolHandle, Option<String>), String> {
+        match context.portable_machine_applications {
+            Some(projection) => projection.selection(program, selected, application, context),
+            None => portable_machine_selection_identity(
+                program,
+                selected,
+                application,
+                context.exact_toolchain_sources,
+            ),
+        }
+    }
+
+    pub(crate) fn portable_operation_record_value(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<application_identity::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_in_context(
+            program,
+            symbol,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_owner),
+                ..Default::default()
+            },
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    /// A nested record keeps the enclosing identity's application and lifetime
+    /// scopes and its policy for exact source owners. A portable record request
+    /// above explicitly requires those owners; local comparisons do not add
+    /// that requirement merely by reading a conformance's value.
+    pub(crate) fn portable_operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<application_identity::const_value::CanonicalConstValue, String> {
+        let projection = PortableMachineApplications::default();
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            portable_machine_applications: Some(&projection),
+            invalid_application: context.invalid_application.or(Some(&invalid)),
+            encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
+            invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
+            ..*context
+        };
+        let result = projection.record_value(program, symbol, &context)?;
+        if let Some(reason) = projection.error.into_inner() {
+            return Err(reason);
+        }
+        if invalid.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn portable_record_schema_identity_in_context(
+        program: &TypedTrees,
+        scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<String, String> {
+        // The existing schema production, with the current projection kept
+        // through every supplying scope instead of starting a fresh query.
+        scope.with_identity_scopes(program, |scopes| {
+            let mut arguments = Vec::new();
+            for parameter in program.trait_type_parameters(scope.declaration) {
+                let (reference, outer) = scope
+                    .parameter_application(parameter.symbol)
+                    .ok_or("static record schema lost a complete argument")?;
+                let supplying = scopes
+                    .get(..outer)
+                    .ok_or("static record schema lost its supplying scope")?;
+                let argument_context = TypeIdentityContext {
+                    application_owner: scope.argument_owner,
+                    application_argument_owner: scope.argument_owner,
+                    application_scopes: supplying,
+                    ..*context
+                };
+                let operand = if parameter.kind.is_const_or_value()
+                    || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                {
+                    IndexIdentityArgument::TypeReference(reference)
+                } else {
+                    IndexIdentityArgument::TypeArgument(reference)
+                };
+                arguments.push(super::substitution::index_argument(
+                    program,
+                    operand,
+                    &argument_context,
+                ));
+            }
+            let lifetime_context = TypeIdentityContext {
+                application_owner: scope.argument_owner,
+                application_argument_owner: scope.argument_owner,
+                application_scopes: scopes,
+                ..*context
+            };
+            Ok::<_, String>(compound(
+                CoordinateTag::TraitApplication,
+                [
+                    atom(
+                        CoordinateTag::Declaration,
+                        &context.name(program, scope.declaration.symbol, ""),
+                    ),
+                    compound(CoordinateTag::Arguments, arguments),
+                    compound(
+                        CoordinateTag::Lifetimes,
+                        scope
+                            .declaration
+                            .lifetime_parameters
+                            .iter()
+                            .map(|parameter| {
+                                lifetime_context.lifetime(program, parameter.as_str())
+                            }),
+                    ),
+                ],
+            ))
+        })
+    }
+
+    #[derive(Default)]
+    pub(crate) struct PortableMachineApplications {
+        active: RefCell<Vec<SymbolHandle>>,
+        error: RefCell<Option<String>>,
+    }
+
+    impl PortableMachineApplications {
+        pub(crate) fn record_value(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<application_identity::const_value::CanonicalConstValue, String> {
+            if self.active.borrow().contains(&symbol) {
+                return Err("static record has a cyclic selected argument identity".into());
+            }
+            self.active.borrow_mut().push(symbol);
+            let result = program
+                .canonical_operation_record_value_in_context(symbol, context)
+                .map_err(str::to_owned);
+            self.active.borrow_mut().pop();
+            if let Err(reason) = &result {
+                self.error
+                    .borrow_mut()
+                    .get_or_insert_with(|| reason.clone());
+            }
+            result
+        }
+
+        fn selection(
+            &self,
+            program: &TypedTrees,
+            selected: &crate::source_state::expression::StaticMachineArgument,
+            supplied: crate::source_state::static_applications::StaticMachineApplicationHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<(SymbolHandle, Option<String>), String> {
+            if !program.symbols.symbols().nodes().is_valid(selected.symbol)
+                || selected.const_literal.is_some()
+                || selected.evidence_projection.is_some()
+            {
+                return Err("selected callable has no exact declaration operand".into());
+            }
+            let machine = program
+                .machine_by_symbol(selected.symbol)
+                .or_else(|| program.machine_holding_state(selected.symbol))
+                .ok_or("selected callable has no machine declaration")?;
+            if selected.symbol != machine.symbol
+                && !program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == selected.symbol)
+            {
+                return Err("selected callable has no exact initial entry".into());
+            }
+            let receipt = program
+                .machine_instantiation(machine.symbol)
+                .map_err(|reason| reason.to_string())?;
+            let declaration = receipt.map_or(machine.symbol, |receipt| receipt.template());
+            let receipt_binding_declaration = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                _ => declaration,
+            };
+            let identity = self.identity(program, selected.symbol, context)?;
+            let retained = if supplied.is_valid() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(supplied)
+                {
+                    return Err("selected callable has a stale source application".into());
+                }
+                Some(program.static_machine_application(supplied))
+            } else {
+                None
+            };
+            if let Some(source) = retained {
+                if !program
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+                {
+                    return Err(
+                        "selected callable source application has no actual supplying owner".into(),
+                    );
+                }
+                let registered = source.registration_operation;
+                let original = program
+                    .machine_by_symbol(declaration)
+                    .ok_or("selected callable lost its original declaration")?;
+                let retained_enclosing_application = matches!(receipt,
+                    Some(MachineInstantiation::Specialization(receipt))
+                        if supplied == receipt.binding_application
+                            && source.binding_declaration == receipt_binding_declaration);
+                if !retained_enclosing_application
+                    && registered != selected.symbol
+                    && registered != machine.symbol
+                    && registered != declaration
+                    && !program
+                        .machine_states(original)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == registered)
+                {
+                    return Err(
+                        "selected callable source application names another operation".into(),
+                    );
+                }
+            }
+            let explicit = selected.application.as_deref();
+            if explicit.is_some_and(|source| source.member.is_valid()) {
+                return Err("selected callable retains an unresolved member application".into());
+            }
+            if let Some(MachineInstantiation::Capture(capture)) = receipt {
+                // The complete capture account is normalized by identity().
+                // A distinct own application requires its actual specialization
+                // receipt rather than reinterpreting the implementation tuple.
+                let empty_explicit = explicit.is_none_or(|source| {
+                    source.arguments.is_empty() && source.lifetime_arguments.is_empty()
+                });
+                let empty_retained = retained.is_none_or(|source| {
+                    (source.binding_declaration == machine.symbol
+                        || source.binding_declaration == capture.template)
+                        && program
+                            .static_machine_application_bindings(supplied)
+                            .is_empty()
+                        && program
+                            .static_machine_application_lifetimes(supplied)
+                            .is_empty()
+                });
+                if !empty_explicit || !empty_retained {
+                    return Err(
+                        "captured callable needs its exact own specialization account".into(),
+                    );
+                }
+                return Ok((declaration, identity));
+            }
+            let template = program
+                .machine_by_symbol(declaration)
+                .ok_or("selected callable lost its original declaration")?;
+            let (parameters, checked_conformances, checked_declarations) = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => (
+                    program
+                        .data_type_parameters
+                        .span(receipt.template_parameters)
+                        .ok_or("selected callable lost its original parameters")?
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    receipt.conformance_applications.as_slice(),
+                    receipt.conformance_arguments.as_slice(),
+                ),
+                _ => (
+                    program
+                        .machine_type_parameters(template)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    &[][..],
+                    &[][..],
+                ),
+            };
+            let receipt_application = match receipt {
+                Some(MachineInstantiation::Specialization(receipt)) => {
+                    Some(receipt.binding_application)
+                }
+                _ => None,
+            };
+            // An empty frame of an already selected executable adds no tuple.
+            let empty_selected_frame = retained.is_some_and(|source| {
+                source.binding_declaration == machine.symbol
+                    && machine.symbol != declaration
+                    && program
+                        .static_machine_application_bindings(supplied)
+                        .is_empty()
+                    && program
+                        .static_machine_application_lifetimes(supplied)
+                        .is_empty()
+            });
+            let source_application = if retained.is_some() && !empty_selected_frame {
+                Some(supplied)
+            } else {
+                receipt_application
+            };
+            let binding_declaration =
+                if source_application == receipt_application && receipt_application.is_some() {
+                    receipt_binding_declaration
+                } else {
+                    declaration
+                };
+            if let Some(source) = retained
+                && source.binding_declaration != binding_declaration
+                && !empty_selected_frame
+            {
+                return Err("selected callable source bindings name another declaration".into());
+            }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("selected callable lost its exact binding declaration")?;
+            if let Some(source) = explicit {
+                if source.arguments.len() != parameters.len()
+                    || source.lifetime_arguments.len() != binding_owner.lifetime_parameters.len()
+                {
+                    return Err("selected callable explicit tuple is incomplete".into());
+                }
+                let source_application = source_application
+                    .ok_or("explicit callable tuple has no retained binding account")?;
+                let row = program.static_machine_application(source_application);
+                let argument_context = TypeIdentityContext {
+                    application_owner: row.lexical_owner,
+                    application_argument_owner: row.lexical_owner,
+                    ..*context
+                };
+                let bindings = program.static_machine_application_bindings(source_application);
+                for (parameter, argument) in parameters.iter().zip(source.arguments.iter()) {
+                    let mut matches = bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let binding = matches
+                        .next()
+                        .ok_or("explicit callable tuple lost a parameter binding")?;
+                    if matches.next().is_some() {
+                        return Err("explicit callable tuple repeats a parameter binding".into());
+                    }
+                    let (_, operand) = static_binding_operand(&parameter.kind, &binding.value)?;
+                    if super::substitution::index_argument(program, operand, &argument_context)
+                        != super::substitution::index_argument(
+                            program,
+                            IndexIdentityArgument::StaticArgument(argument),
+                            &argument_context,
+                        )
+                    {
+                        return Err(
+                            "explicit callable tuple differs from its retained binding account"
+                                .into(),
+                        );
+                    }
+                }
+                let lifetimes = program
+                    .static_application_lifetimes_for_declaration(
+                        source_application,
+                        binding_declaration,
+                    )
+                    .map_err(str::to_owned)?;
+                for (parameter, actual) in binding_owner
+                    .lifetime_parameters
+                    .iter()
+                    .zip(source.lifetime_arguments.iter())
+                {
+                    let binding = lifetimes
+                        .iter()
+                        .find(|binding| &binding.parameter == parameter)
+                        .ok_or("explicit callable tuple lost a lifetime binding")?;
+                    if argument_context.lifetime(program, actual.as_str())
+                        != argument_context.lifetime(program, binding.argument.as_str())
+                    {
+                        return Err("explicit callable lifetime tuple differs from its retained binding account".into());
+                    }
+                }
+            }
+            let Some(source_application) = source_application else {
+                if explicit.is_some() {
+                    return Err("selected callable lost its explicit binding account".into());
+                }
+                return Ok((declaration, identity));
+            };
+            let source = program.static_machine_application(source_application);
+            if parameters.is_empty() && binding_owner.lifetime_parameters.is_empty() {
+                if !program
+                    .static_machine_application_bindings(source_application)
+                    .is_empty()
+                    || !program
+                        .static_machine_application_lifetimes(source_application)
+                        .is_empty()
+                {
+                    return Err("monomorphic callable retains unexpected static bindings".into());
+                }
+                return Ok((declaration, identity));
+            }
+            if !source.lexical_owner.is_valid() {
+                return Err("selected callable lost its actual supplying scope".into());
+            }
+            let supplied_identity = self.bound_application(
+                program,
+                machine.symbol,
+                declaration,
+                &parameters,
+                source_application,
+                binding_declaration,
+                checked_conformances,
+                checked_declarations,
+                context,
+            )?;
+            if identity
+                .as_ref()
+                .is_some_and(|identity| identity != &supplied_identity)
+            {
+                return Err(
+                    "selected callable source tuple differs from its generated receipt".into(),
+                );
+            }
+            Ok((declaration, Some(supplied_identity)))
+        }
+
+        pub(crate) fn nominal_name(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Option<String> {
+            match self.identity(program, symbol, context) {
+                Ok(identity) => identity,
+                Err(reason) => {
+                    self.error
+                        .borrow_mut()
+                        .get_or_insert_with(|| reason.clone());
+                    Some(atom(NameForm::InvalidDerivedOrigin, &reason))
+                }
+            }
+        }
+
+        fn identity(
+            &self,
+            program: &TypedTrees,
+            symbol: SymbolHandle,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<Option<String>, String> {
+            let Some(machine) = program
+                .machine_by_symbol(symbol)
+                .or_else(|| program.machine_holding_state(symbol))
+            else {
+                return Ok(None);
+            };
+            let Some(receipt) = program
+                .machine_instantiation(machine.symbol)
+                .map_err(|reason| format!("callable `{}`: {reason}", machine.name))?
+            else {
+                return Ok(None);
+            };
+            if self.active.borrow().contains(&machine.symbol) {
+                return Err("specialized callable has a cyclic static argument identity".into());
+            }
+            self.active.borrow_mut().push(machine.symbol);
+            let result = match receipt {
+                MachineInstantiation::Specialization(specialization) => {
+                    self.application(program, specialization, context)
+                }
+                MachineInstantiation::Capture(capture) => self.capture(program, capture, context),
+            };
+            self.active.borrow_mut().pop();
+            let identity =
+                result.map_err(|reason| format!("callable `{}`: {reason}", machine.name))?;
+            if symbol == machine.symbol {
+                return Ok(Some(identity));
+            }
+            let states = program.machine_states(machine);
+            if states.first().is_some_and(|entry| entry.symbol == symbol) {
+                Ok(Some(identity))
+            } else {
+                let original = program
+                    .machine_by_symbol(receipt.template())
+                    .ok_or("specialized callable lost its original nested declaration owner")?;
+                let mut matches = program.machine_states(original).iter().filter(|state| {
+                    program.instantiated_machine_state_matches(
+                        machine.symbol,
+                        receipt.template(),
+                        state.symbol,
+                        symbol,
+                    )
+                });
+                let declaration = matches.next().ok_or(
+                    "specialized nested callable does not rejoin its original declaration",
+                )?;
+                if matches.next().is_some() {
+                    return Err(
+                        "specialized nested callable has ambiguous original declarations".into(),
+                    );
+                }
+                Ok(Some(compound(
+                    CoordinateTag::NestedMachine,
+                    [
+                        identity,
+                        atom(CoordinateTag::Name, declaration.name.as_str()),
+                    ],
+                )))
+            }
+        }
+
+        fn origin(
+            &self,
+            program: &TypedTrees,
+            instance: SymbolHandle,
+            template: SymbolHandle,
+            normalized_template_identity: &str,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            if instance != template
+                && let Some(origin) = self.identity(program, template, context)?
+            {
+                return Ok(origin);
+            }
+            if normalized_template_identity.is_empty() {
+                return Err("callable application lost its original overload identity".into());
+            }
+            let declaration_context = TypeIdentityContext {
+                portable_machine_applications: None,
+                ..*context
+            };
+            Ok(compound(
+                CoordinateTag::NamedCallable,
+                [
+                    declaration_context.name(program, template, ""),
+                    atom(CoordinateTag::Template, normalized_template_identity),
+                ],
+            ))
+        }
+
+        fn application(
+            &self,
+            program: &TypedTrees,
+            receipt: &crate::source_state::MachineSpecialization,
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            let parameters = program
+                .data_type_parameters
+                .span(receipt.template_parameters)
+                .ok_or("specialized callable lost its original static parameters")?
+                .iter()
+                .collect::<Vec<_>>();
+            self.bound_application(
+                program,
+                receipt.instance,
+                receipt.template,
+                &parameters,
+                receipt.binding_application,
+                program
+                    .specialization_binding_declaration(receipt)
+                    .map_err(str::to_owned)?,
+                &receipt.conformance_applications,
+                &receipt.conformance_arguments,
+                context,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn bound_application(
+            &self,
+            program: &TypedTrees,
+            instance: SymbolHandle,
+            template_symbol: SymbolHandle,
+            parameters: &[&crate::source_state::data::TypeParameter],
+            binding_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+            binding_declaration: SymbolHandle,
+            conformance_applications: &[crate::source_state::ClosedConformanceApplication],
+            conformance_arguments: &[SymbolHandle],
+            context: &TypeIdentityContext<'_>,
+        ) -> Result<String, String> {
+            if !binding_application.is_valid() {
+                return Err(
+                    "specialized callable lost its original declaration or binding application"
+                        .into(),
+                );
+            }
+            let application = program.static_machine_application(binding_application);
+            if application.binding_declaration != binding_declaration {
+                return Err("specialized callable bindings belong to another declaration".into());
+            }
+            let binding_owner = program
+                .machine_by_symbol(binding_declaration)
+                .ok_or("specialized callable lost its actual binding declaration")?;
+            let template = program
+                .machine_by_symbol(template_symbol)
+                .ok_or("specialized callable lost its original machine declaration")?;
+            let template_identity = program
+                .machine_callable_identity_text(template)
+                .ok_or("specialized callable lost its original overload identity")?;
+            let bindings = program.static_machine_application_bindings(binding_application);
+            if parameters.len() != bindings.len() {
+                return Err("specialized callable has an incomplete static argument list".into());
+            }
+            let declaration = self.origin(
+                program,
+                instance,
+                template_symbol,
+                &template_identity,
+                context,
+            )?;
+            let argument_context = TypeIdentityContext {
+                application_owner: application.lexical_owner,
+                application_argument_owner: application.lexical_owner,
+                ..*context
+            };
+            let mut arguments = Vec::with_capacity(parameters.len());
+            let mut conformances = conformance_applications.iter();
+            let mut conformance_declarations = conformance_arguments.iter();
+            for &parameter in parameters {
+                let mut matches = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let binding = matches
+                    .next()
+                    .ok_or("specialized callable is missing an original parameter binding")?;
+                if matches.next().is_some() {
+                    return Err("specialized callable repeats an original parameter binding".into());
+                }
+                let (kind, operand) = static_binding_operand(&parameter.kind, &binding.value)?;
+                let mut fields = vec![atom(Label::Kind, kind)];
+                if let StaticMachineBindingValue::Conformance(argument) = &binding.value {
+                    let closed = conformances
+                        .next()
+                        .ok_or("specialized callable lost a checked conformance application")?;
+                    if conformance_declarations.next() != Some(&closed.declaration) {
+                        return Err(
+                            "specialized callable has inconsistent checked conformance selection"
+                                .into(),
+                        );
+                    }
+                    fields.push(conformances::project(
+                        program,
+                        closed,
+                        argument,
+                        &argument_context,
+                    )?);
+                } else {
+                    fields.push(super::substitution::index_argument(
+                        program,
+                        operand,
+                        &argument_context,
+                    ));
+                }
+                arguments.push(compound(CoordinateTag::Parameter, fields));
+            }
+            if conformances.next().is_some() || conformance_declarations.next().is_some() {
+                return Err(
+                    "specialized callable retains a conformance without an original parameter"
+                        .into(),
+                );
+            }
+            let bindings = program
+                .static_application_lifetimes_for_declaration(
+                    binding_application,
+                    binding_declaration,
+                )
+                .map_err(str::to_owned)?;
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
+                return Err("specialized callable has an incomplete lifetime argument list".into());
+            }
+            let mut lifetimes = Vec::with_capacity(bindings.len());
+            for parameter in &binding_owner.lifetime_parameters {
+                let binding = bindings
+                    .iter()
+                    .find(|binding| &binding.parameter == parameter)
+                    .ok_or("specialized callable lost an original lifetime argument")?;
+                lifetimes.push(argument_context.lifetime(program, binding.argument.as_str()));
+            }
+            Ok(compound(
+                CoordinateTag::SpecializedCallable,
+                [
+                    declaration,
+                    compound(CoordinateTag::Arguments, arguments),
+                    compound(CoordinateTag::Lifetimes, lifetimes),
+                ],
+            ))
+        }
+    }
+
+    pub(super) fn static_binding_operand<'a>(
+        kind: &TypeParameterKind,
+        value: &'a StaticMachineBindingValue,
+    ) -> Result<(&'static str, IndexIdentityArgument<'a>), String> {
+        Ok(match (kind, value) {
+            (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
+                ("type", IndexIdentityArgument::TypeArgument(*reference))
+            }
+            (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(reference)) => {
+                ("const", IndexIdentityArgument::TypeReference(*reference))
+            }
+            (TypeParameterKind::Value { .. }, StaticMachineBindingValue::Const(reference)) => {
+                ("value", IndexIdentityArgument::TypeReference(*reference))
+            }
+            (
+                TypeParameterKind::Value { .. },
+                StaticMachineBindingValue::RuntimeValue {
+                    type_reference,
+                    subject,
+                    expression,
+                },
+            ) if !subject.is_valid() && !expression.is_valid() => (
+                "runtime-carrier",
+                IndexIdentityArgument::TypeArgument(*type_reference),
+            ),
+            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(argument)) => {
+                ("machine", IndexIdentityArgument::StaticArgument(argument))
+            }
+            (
+                TypeParameterKind::Implementation,
+                StaticMachineBindingValue::Conformance(argument),
+            ) => (
+                "conformance",
+                IndexIdentityArgument::StaticArgument(argument),
+            ),
+            _ => {
+                return Err(
+                    "specialized callable argument differs from its original parameter kind".into(),
+                );
+            }
+        })
+    }
+}
+pub(crate) mod result_dispatch_terms {
+    use crate::source_state::TypedTrees;
+    use crate::source_state::type_system::type_identity::NormalizedDomainTerm;
+    use crate::source_state::type_system::type_identity::constraint_identity::normalized_compiler_domain_identity;
+    use crate::source_state::type_system::type_identity::identity_context::TypeIdentityContext;
+    use crate::source_state::types::{
+        DomainConstraint, DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle,
+        TypeReferenceNode,
+    };
+    use symbols::SymbolHandle;
+
+    pub(crate) fn collect_result_dispatch_terms(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        terms: &mut Vec<NormalizedDomainTerm>,
+        alias_stack: &mut Vec<SymbolHandle>,
+    ) {
+        if !type_reference.is_valid() {
+            return;
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect_result_dispatch_terms(program, *referee, terms, alias_stack);
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                collect_result_dispatch_terms(program, *base_type, terms, alias_stack);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        TypeConstraintNode::ArithmeticDomain(domain) => {
+                            terms.push(NormalizedDomainTerm::Arithmetic(domain.name().to_owned()))
+                        }
+                        TypeConstraintNode::Domain(domain) => {
+                            if domain.subject == DomainConstraintSubject::Declared {
+                                collect_declared_result_dispatch_terms(
+                                    program,
+                                    domain,
+                                    terms,
+                                    alias_stack,
+                                );
+                            } else {
+                                terms.push(NormalizedDomainTerm::Compiler(
+                                    normalized_compiler_domain_identity(
+                                        program,
+                                        domain,
+                                        &TypeIdentityContext::default(),
+                                    ),
+                                ));
+                            }
+                        }
+                        TypeConstraintNode::Named(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Callable { .. }
+            | TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Unit => {}
+        }
+    }
+
+    fn collect_declared_result_dispatch_terms(
+        program: &TypedTrees,
+        constraint: &DomainConstraint,
+        terms: &mut Vec<NormalizedDomainTerm>,
+        alias_stack: &mut Vec<SymbolHandle>,
+    ) {
+        let definition = constraint
+            .symbol
+            .is_valid()
+            .then(|| program.domain_definition(constraint.symbol));
+        if let Some(Some(definition)) = definition {
+            if let Some(alias) = definition.alias.as_ref() {
+                if alias_stack.contains(&definition.symbol) {
+                    return;
+                }
+                alias_stack.push(definition.symbol);
+                for constituent in &alias.constituents {
+                    let Some(constituent_definition) =
+                        program.domain_definition(constituent.domain_symbol)
+                    else {
+                        continue;
+                    };
+                    let constituent_constraint = DomainConstraint {
+                        name: constituent_definition.name.clone(),
+                        arguments: Vec::new(),
+                        subject: crate::source_state::types::DomainConstraintSubject::Declared,
+                        symbol: constituent_definition.symbol,
+                        semantic_id: constituent_definition.semantic_id,
+                        classification: constituent_definition.classification,
+                        predicate_presence: constituent_definition.predicate_presence,
+                        semantic_roles: constituent_definition.semantic_roles,
+                        establishment_routes: constituent_definition.establishment_routes.clone(),
+                        source_selection: None,
+                        names_no_visible_domain: false,
+                    };
+                    collect_declared_result_dispatch_terms(
+                        program,
+                        &constituent_constraint,
+                        terms,
+                        alias_stack,
+                    );
+                }
+                alias_stack.pop();
+                return;
+            }
+            if definition.predicate_presence.is_present()
+                && definition.semantic_roles.is_empty()
+                && definition.issuance()
+                    == crate::source_state::domain::DomainIssuance::Unrestricted
+            {
+                return;
+            }
+            terms.push(NormalizedDomainTerm::Declared(declared_domain_name(
+                program,
+                definition.semantic_id,
+                definition.name.as_str(),
+            )));
+            return;
+        }
+
+        if constraint.predicate_presence.is_present()
+            && constraint.semantic_roles.is_empty()
+            && constraint.establishment_routes.is_empty()
+        {
+            return;
+        }
+        terms.push(NormalizedDomainTerm::Declared(declared_domain_name(
+            program,
+            constraint.semantic_id,
+            constraint.name.as_str(),
+        )));
+    }
+
+    fn declared_domain_name(
+        program: &TypedTrees,
+        semantic_id: declaration_contracts::SemanticDomainId,
+        fallback: &str,
+    ) -> String {
+        semantic_id
+            .is_valid()
+            .then(|| program.semantic_domains.name(semantic_id))
+            .flatten()
+            .unwrap_or(fallback)
+            .to_owned()
+    }
+}
+pub(crate) mod static_operand_identity {
+    use super::{
+        IndexIdentityArgument, NormalizedTypeIdentity, SubstitutionSemantics, TypeIdentityContext,
+        program_intern_type_identity, substitution,
+    };
+    use crate::source_state::{TypedTrees, types::TypeReferenceHandle};
+    use std::cell::Cell;
+    use symbols::SymbolHandle;
+
+    #[derive(Clone, Copy)]
+    pub struct StaticOperandIdentityRequest<'a> {
+        pub operand: IndexIdentityArgument<'a>,
+        pub lexical_owner: SymbolHandle,
+        pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
+    }
+
+    pub struct DeclaredStaticOperandIdentityRequest<'a> {
+        pub operand: IndexIdentityArgument<'a>,
+        pub lexical_owner: SymbolHandle,
+        pub binders: &'a [(SymbolHandle, String)],
+        pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+        pub exact_toolchain_sources: &'a [(source_text::SourceId, [u8; 32])],
+    }
+
+    impl TypedTrees {
+        /// Reconstructs the original callable operand from one retained argument
+        /// tuple. Build capture and its identity must read the same actuals,
+        /// including literal values kept beside their receiving carriers.
+        pub fn specialization_source_operand(
+            &self,
+            receipt: &crate::source_state::MachineSpecialization,
+        ) -> Result<crate::source_state::expression::StaticMachineArgument, &'static str> {
+            use crate::source_state::data::TypeParameterKind;
+            use crate::source_state::expression::{StaticMachineArgument, StaticSymbolApplication};
+            use crate::source_state::static_applications::StaticMachineBindingValue;
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(receipt.binding_application)
+            {
+                return Err("source application lost its retained bindings");
+            }
+            let template = self
+                .machine_by_symbol(receipt.template)
+                .ok_or("source application lost its original declaration")?;
+            let binding_declaration = self.specialization_binding_declaration(receipt)?;
+            let binding_owner = self
+                .machine_by_symbol(binding_declaration)
+                .ok_or("source application lost its binding declaration")?;
+            let parameters = self.machine_callable_parameters(binding_owner);
+            // The enclosing tuple does not supply a child's additional own arguments.
+            if self.machine_callable_parameters(template).len() != parameters.len()
+                || (binding_declaration != receipt.template
+                    && !template.lifetime_parameters.is_empty())
+            {
+                return Err(
+                    "source callable still needs its remaining own static or lifetime arguments",
+                );
+            }
+            let bindings = self.static_machine_application_bindings(receipt.binding_application);
+            let authored = self.static_machine_application_arguments(receipt.binding_application);
+            if parameters.len() != bindings.len() || parameters.len() != authored.len() {
+                return Err("source application has an incomplete argument tuple");
+            }
+            let mut arguments = Vec::with_capacity(parameters.len());
+            for (parameter, authored) in parameters.iter().zip(authored) {
+                let mut selected = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let (Some(binding), None) = (selected.next(), selected.next()) else {
+                    return Err("source application has no unique parameter binding");
+                };
+                if !matches!(
+                    (&parameter.kind, &binding.value),
+                    (TypeParameterKind::Type, StaticMachineBindingValue::Type(_))
+                        | (
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                            StaticMachineBindingValue::Const(_)
+                        )
+                        | (
+                            TypeParameterKind::Machine { .. },
+                            StaticMachineBindingValue::Machine(_)
+                        )
+                        | (
+                            TypeParameterKind::Implementation,
+                            StaticMachineBindingValue::Conformance(_)
+                        )
+                ) {
+                    return Err("source application binding disagrees with its parameter kind");
+                }
+                arguments.push(match &binding.value {
+                    StaticMachineBindingValue::Type(reference) => {
+                        self.static_operand_from_type_reference(*reference)?
+                    }
+                    // The current source producer retains a literal beside its
+                    // receiving carrier. A nonliteral const binding instead
+                    // retains the complete const type-reference operand.
+                    StaticMachineBindingValue::Const(_) if authored.const_literal.is_some() => {
+                        authored.clone()
+                    }
+                    StaticMachineBindingValue::Const(reference) => {
+                        self.static_operand_from_type_reference(*reference)?
+                    }
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
+                    StaticMachineBindingValue::RuntimeValue { .. } => {
+                        return Err("a runtime value is not a static source application key");
+                    }
+                });
+            }
+            let bindings = self.static_application_lifetimes_for_declaration(
+                receipt.binding_application,
+                binding_declaration,
+            )?;
+            if bindings.len() != binding_owner.lifetime_parameters.len() {
+                return Err("source application has an incomplete lifetime tuple");
+            }
+            let lifetimes = binding_owner
+                .lifetime_parameters
+                .iter()
+                .map(|parameter| {
+                    let mut selected = bindings
+                        .iter()
+                        .filter(|binding| &binding.parameter == parameter);
+                    let (Some(binding), None) = (selected.next(), selected.next()) else {
+                        return Err("source application has no unique lifetime binding");
+                    };
+                    Ok(binding.argument.clone())
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            Ok(StaticMachineArgument {
+                symbol: receipt.template,
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: lifetimes.into_boxed_slice(),
+                    arguments: arguments.into_boxed_slice(),
+                })),
+                ..Default::default()
+            })
+        }
+
+        /// Identifies the source application, independent of generated names or
+        /// allocation order, through ordinary static-operand normalization.
+        pub fn specialization_source_identity(
+            &self,
+            receipt: &crate::source_state::MachineSpecialization,
+        ) -> Result<String, &'static str> {
+            let operand = self.specialization_source_operand(receipt)?;
+            let source = self.static_machine_application(receipt.binding_application);
+            self.static_operand_identity(StaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(&operand),
+                lexical_owner: source.lexical_owner,
+                substitutions: &[],
+            })
+            .and_then(|identity| self.type_identity_text(identity))
+            .ok_or("source application lost its static operand or lifetime identity")
+        }
+
+        pub fn declared_static_operand_identity(
+            &self,
+            request: DeclaredStaticOperandIdentityRequest<'_>,
+        ) -> Option<NormalizedTypeIdentity> {
+            let invalid = Cell::new(false);
+            let identity = substitution::index_argument(
+                self,
+                request.operand,
+                &TypeIdentityContext {
+                    application_owner: request.lexical_owner,
+                    application_argument_owner: request.lexical_owner,
+                    binders: request.binders,
+                    lifetime_binders: request.lifetime_binders,
+                    exact_toolchain_sources: request.exact_toolchain_sources,
+                    qualification: super::TypeIdentityQualification::PackageQualified,
+                    invalid_application: Some(&invalid),
+                    encountered_elided_regions: Some(&invalid),
+                    invalid_index_argument: Some(&invalid),
+                    ..Default::default()
+                },
+            );
+            (!invalid.get()).then(|| program_intern_type_identity(self, identity))
+        }
+
+        pub fn static_operand_identity(
+            &self,
+            request: StaticOperandIdentityRequest<'_>,
+        ) -> Option<NormalizedTypeIdentity> {
+            self.static_operand_identity_with_semantics(request, SubstitutionSemantics::Transitive)
+        }
+
+        pub fn static_operand_identity_with_simultaneous_substitutions(
+            &self,
+            request: StaticOperandIdentityRequest<'_>,
+        ) -> Option<NormalizedTypeIdentity> {
+            self.static_operand_identity_with_semantics(
+                request,
+                SubstitutionSemantics::Simultaneous,
+            )
+        }
+
+        fn static_operand_identity_with_semantics(
+            &self,
+            request: StaticOperandIdentityRequest<'_>,
+            substitution_semantics: SubstitutionSemantics,
+        ) -> Option<NormalizedTypeIdentity> {
+            let invalid = Cell::new(false);
+            let identity = substitution::index_argument(
+                self,
+                request.operand,
+                &TypeIdentityContext {
+                    application_owner: request.lexical_owner,
+                    substitutions: request.substitutions,
+                    substitution_semantics,
+                    invalid_application: Some(&invalid),
+                    encountered_elided_regions: Some(&invalid),
+                    invalid_index_argument: Some(&invalid),
+                    ..TypeIdentityContext::default()
+                },
+            );
+            (!invalid.get()).then(|| program_intern_type_identity(self, identity))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::source_state::{
+            expression::ExpressionNode, name::Identifier, types::TypeReferenceNode,
+        };
+        use crate::source_symbols::SymbolTableBuilder;
+        use numeric_literals::{IntegerLiteral, IntegerRadix};
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        #[test]
+        fn receiving_static_indices_do_not_resubstitute_sibling_bindings() {
+            let mut symbols = SymbolTableBuilder::default();
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Owner"));
+            let parameters = symbols
+                .insert_children(
+                    owner,
+                    [
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("M")),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..TypedTrees::default()
+            };
+            let references = parameters
+                .iter()
+                .map(|symbol| {
+                    let name = Identifier::from(program.symbols.name(*symbol));
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: *symbol,
+                            name,
+                        })
+                })
+                .collect::<Vec<_>>();
+            let integer = program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "7").unwrap(),
+            ));
+            let seven = program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(integer));
+            let bindings = [(parameters[0], references[1]), (parameters[1], seven)];
+            let request = StaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::TypeReference(references[0]),
+                lexical_owner: owner,
+                substitutions: &bindings,
+            };
+            let direct = |reference| {
+                program.static_operand_identity(StaticOperandIdentityRequest {
+                    operand: IndexIdentityArgument::TypeReference(reference),
+                    substitutions: &[],
+                    ..request
+                })
+            };
+            let receiving =
+                program.static_operand_identity_with_simultaneous_substitutions(request);
+            assert!(receiving.is_some());
+            assert_eq!(receiving, direct(references[1]));
+            assert_eq!(program.static_operand_identity(request), direct(seven));
+            assert_ne!(receiving, direct(seven));
+            let permutation = [
+                (parameters[0], references[1]),
+                (parameters[1], references[0]),
+            ];
+            let request = StaticOperandIdentityRequest {
+                substitutions: &permutation,
+                ..request
+            };
+            assert_eq!(
+                program.static_operand_identity_with_simultaneous_substitutions(request),
+                direct(references[1]),
+            );
+            assert!(program.static_operand_identity(request).is_none());
+        }
+    }
+}
+pub(crate) mod storage_identity {
+    use crate::source_state::TypedTrees;
+    use crate::source_state::data::{TypeParameter, TypeParameterKind};
+    use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+    use symbols::SymbolHandle;
+
+    pub(crate) fn independent_value_index(
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        parameter: &TypeParameter,
+    ) -> bool {
+        if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+            return false;
+        }
+        let Some(data) = program.unique_data_definition_by_symbol(owner) else {
+            return false;
+        };
+        if data.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+            || data.quotient.is_some()
+        {
+            return false;
+        }
+        program
+            .data_member_fields(program.data_members(data))
+            .all(|field| independent_type(program, field.type_reference, parameter.symbol, 0))
+    }
+
+    fn independent_type(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        parameter: SymbolHandle,
+        depth: usize,
+    ) -> bool {
+        if depth > 128 || !program.contains_type_reference(reference) {
+            return false;
+        }
+        let child = |reference| independent_type(program, reference, parameter, depth + 1);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                *symbol != parameter
+                    && program
+                        .data_definition_by_symbol(*symbol)
+                        .and_then(|data| data.generic_instance)
+                        .is_none_or(child)
+            }
+            TypeReferenceNode::Reference { referee, .. } => child(*referee),
+            TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(_),
+            } => child(*element_type),
+            TypeReferenceNode::Generic { arguments, .. } => program
+                .type_reference_handles(*arguments)
+                .iter()
+                .all(|argument| child(*argument)),
+            TypeReferenceNode::Unit => true,
+            _ => false,
+        }
+    }
+}
+pub(crate) mod substitution {
+    use super::IndexIdentityArgument;
+    use crate::source_state::type_system::type_identity::constraint_identity::atom;
+    use crate::source_state::type_system::type_identity::constraint_identity::bare;
+    use crate::source_state::type_system::type_identity::constraint_identity::compound;
+    use crate::source_state::type_system::type_identity::identity_context::TypeIdentityContext;
+    use crate::source_state::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
+    use crate::source_state::type_system::type_identity::identity_context::normalize_index_expression;
+    use crate::source_state::type_system::type_identity::identity_context::normalize_type_reference;
+
+    use crate::source_state::{
+        TypedTrees,
+        expression::ExpressionNode,
+        types::{TypeReferenceHandle, TypeReferenceNode},
+    };
+    use application_identity::const_value::CanonicalConstValue;
+    use application_identity::const_value::DecodedCanonicalConstValue;
+    use application_identity::type_identity::vocabulary::ArrayLengthForm;
+    use application_identity::type_identity::vocabulary::IndexForm;
+    use application_identity::type_identity::vocabulary::Label;
+    use symbols::SymbolHandle;
+
+    pub(crate) fn index_argument(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match argument {
+            IndexIdentityArgument::TypeArgument(reference) => {
+                if !program.contains_type_reference(reference) {
+                    return rejected(context);
+                }
+                normalize_type_reference(program, reference, context)
+            }
+            IndexIdentityArgument::Expression(expression) => {
+                if !program.expression_table.expression_is_valid(expression) {
+                    return rejected(context);
+                }
+                normalize_index_expression(program, expression, context)
+            }
+            IndexIdentityArgument::TypeReference(reference) => {
+                if !program.contains_type_reference(reference) {
+                    return rejected(context);
+                }
+                index_reference(program, reference, context)
+            }
+            IndexIdentityArgument::Subject(symbol) => {
+                if !symbol.is_valid() {
+                    return rejected(context);
+                }
+                index_name(program, symbol, program.symbols.name(symbol), context)
+            }
+            IndexIdentityArgument::FieldProjection { receiver, field } => {
+                if !program.expression_table.expression_is_valid(receiver) || !field.is_valid() {
+                    return rejected(context);
+                }
+                let declaration = program.symbols.get(field);
+                let case = declaration.parent;
+                if declaration.kind != symbols::SymbolKind::Field
+                    || !case.is_valid()
+                    || program.symbols.get(case).kind != symbols::SymbolKind::Variant
+                {
+                    return rejected(context);
+                }
+                compound(
+                    IndexForm::Member,
+                    [
+                        normalize_index_expression(program, receiver, context),
+                        atom(Label::Member, program.symbols.name(field)),
+                        atom(Label::Case, program.symbols.name(case)),
+                    ],
+                )
+            }
+            IndexIdentityArgument::StaticArgument(argument) => {
+                if argument
+                    .application
+                    .as_ref()
+                    .is_some_and(|application| application.member.is_valid())
+                {
+                    return rejected(context);
+                }
+                if argument.type_reference.is_valid() {
+                    if !program.contains_type_reference(argument.type_reference) {
+                        return rejected(context);
+                    }
+                    let selected = program
+                        .static_operand_from_type_reference(argument.type_reference)
+                        .ok();
+                    if context.invalid_application.is_some()
+                        && let Some(selected) = &selected
+                        && selected.symbol.is_valid()
+                        && matches!(
+                            program.symbols.get(selected.symbol).kind,
+                            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                        )
+                    {
+                        return index_argument(
+                            program,
+                            IndexIdentityArgument::StaticArgument(selected),
+                            context,
+                        );
+                    }
+                    // A retained value reference and its explicit operand
+                    // must identify the same value, including record fields
+                    // and selected operations.
+                    if matches!(
+                        program.type_reference_node(argument.type_reference),
+                        TypeReferenceNode::ConstExpression(_)
+                    ) || selected.as_ref().is_some_and(|selected| {
+                        crate::source_state::static_const_argument_value(program, selected)
+                            .is_some()
+                            || (selected.symbol.is_valid()
+                                && program.conformance_by_symbol(selected.symbol).is_some())
+                    }) {
+                        return index_reference(program, argument.type_reference, context);
+                    }
+                    return normalize_type_reference(program, argument.type_reference, context);
+                }
+                if let Some(literal) = &argument.const_literal {
+                    return index_integer(literal, context);
+                }
+                if !argument.symbol.is_valid()
+                    && argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && let [spelling] = argument.path.as_ref()
+                    && CanonicalConstValue::from_atom(spelling.as_str())
+                        .and_then(|value| value.decode_encoding())
+                        .is_some()
+                {
+                    return index_name(program, argument.symbol, spelling.as_str(), context);
+                }
+                if let Some(identity) =
+                    static_callable_argument_identity(program, argument, context)
+                {
+                    return identity;
+                }
+                if let Some(identity) = super::identity_context::static_nominal_argument_identity(
+                    program, argument, context,
+                ) {
+                    return identity;
+                }
+                if !argument.symbol.is_valid() || argument.evidence_projection.is_some() {
+                    return rejected(context);
+                }
+                let owner = index_name(program, argument.symbol, "", context);
+                let Some(application) = &argument.application else {
+                    return owner;
+                };
+                compound(
+                    IndexForm::StaticApplication,
+                    std::iter::once(owner)
+                        .chain(application.lifetime_arguments.iter().map(|lifetime| {
+                            if context.invalid_application.is_some() {
+                                context.lifetime(program, lifetime.as_str())
+                            } else {
+                                atom(Label::Lifetime, lifetime.as_str())
+                            }
+                        }))
+                        .chain(application.arguments.iter().map(|argument| {
+                            index_argument(
+                                program,
+                                IndexIdentityArgument::StaticArgument(argument),
+                                context,
+                            )
+                        })),
+                )
+            }
+        }
+    }
+
+    fn static_callable_argument_identity(
+        program: &TypedTrees,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+        context: &TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        if context.invalid_application.is_none()
+            || !argument.symbol.is_valid()
+            || !matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::Machine | symbols::SymbolKind::State
+            )
+        {
+            return None;
+        }
+        let machine = match program.symbols.get(argument.symbol).kind {
+            symbols::SymbolKind::Machine => program.machine_by_symbol(argument.symbol),
+            symbols::SymbolKind::State => program.machine_holding_state(argument.symbol),
+            _ => unreachable!("callable kinds checked above"),
+        };
+        let Some(machine) = machine else {
+            return Some(rejected(context));
+        };
+        let states = program.machine_states(machine);
+        let state = if argument.symbol == machine.symbol {
+            states.first()
+        } else {
+            let mut matching = states
+                .iter()
+                .filter(|state| state.symbol == argument.symbol);
+            let selected = matching.next();
+            if matching.next().is_some() {
+                return Some(rejected(context));
+            }
+            selected
+        };
+        let Some(state) = state.filter(|state| state.symbol.is_valid()) else {
+            return Some(rejected(context));
+        };
+        if let Some(projection) = context.portable_machine_applications
+            && let Some(identity) = projection.nominal_name(program, argument.symbol, context)
+        {
+            let mut operands = vec![atom(IndexForm::ConstName, &identity)];
+            if let Some(application) = &argument.application {
+                operands.extend(
+                    application
+                        .lifetime_arguments
+                        .iter()
+                        .map(|lifetime| context.lifetime(program, lifetime.as_str())),
+                );
+                operands.extend(application.arguments.iter().map(|argument| {
+                    index_argument(
+                        program,
+                        IndexIdentityArgument::StaticArgument(argument),
+                        context,
+                    )
+                }));
+            }
+            return Some(compound(IndexForm::StaticApplication, operands));
+        }
+        let Some(overload) = program.machine_callable_identity_text(machine) else {
+            return Some(rejected(context));
+        };
+        let mut operands = vec![
+            atom(
+                IndexForm::ConstName,
+                &context.qualify_non_binder_name(
+                    program,
+                    machine.symbol,
+                    program.symbols.display_path(machine.symbol, "::"),
+                ),
+            ),
+            atom(
+                IndexForm::ConstName,
+                &context.qualify_non_binder_name(
+                    program,
+                    state.symbol,
+                    program.symbols.display_path(state.symbol, "::"),
+                ),
+            ),
+            atom(IndexForm::ConstName, &overload),
+        ];
+        if let Some(application) = &argument.application {
+            operands.extend(
+                application
+                    .lifetime_arguments
+                    .iter()
+                    .map(|lifetime| context.lifetime(program, lifetime.as_str())),
+            );
+            operands.extend(application.arguments.iter().map(|argument| {
+                index_argument(
+                    program,
+                    IndexIdentityArgument::StaticArgument(argument),
+                    context,
+                )
+            }));
+        }
+        Some(compound(IndexForm::StaticApplication, operands))
+    }
+
+    pub(crate) fn index_integer(
+        literal: &numeric_literals::IntegerLiteral,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        literal.value_bignum().map_or_else(
+            || rejected(context),
+            |value| atom(IndexForm::Integer, &value.to_string()),
+        )
+    }
+
+    pub(crate) fn index_name(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if let Some(identity) = index(program, symbol, spelling, context) {
+            return identity;
+        }
+        if let Some(value) = integer(program, symbol, spelling) {
+            return atom(IndexForm::Integer, &value.to_string());
+        }
+        if let Some(value) = boolean(program, symbol, spelling) {
+            return atom(IndexForm::Boolean, &value.to_string());
+        }
+        if let Some(record) = program.conformance_by_symbol(symbol)
+            && record.lifetime_parameters.is_empty()
+            && program.conformance_type_parameters(record).is_empty()
+        {
+            return match context.portable_machine_applications {
+                Some(projection) => projection.record_value(program, symbol, context),
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
+                    program, symbol, context,
+                ),
+            }
+            .ok()
+            .and_then(|value| value.index_identity())
+            .unwrap_or_else(|| rejected(context));
+        }
+        if let Some(declaration) = program.const_declaration_by_symbol(symbol)
+            && let Some(encoding) = declaration
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding())
+            && let Some(
+                DecodedCanonicalConstValue::Array { .. }
+                | DecodedCanonicalConstValue::Record { .. }
+                | DecodedCanonicalConstValue::Variant { .. },
+            ) = CanonicalConstValue::new("", encoding, "").decode_encoding()
+        {
+            return compound(
+                IndexForm::CanonicalConst,
+                [
+                    atom(
+                        Label::Type,
+                        &program.normalized_type_identity_text(declaration.declared_type),
+                    ),
+                    atom(Label::Encoding, encoding),
+                ],
+            );
+        }
+        normalize_const_or_nominal_name(program, symbol, spelling, IndexForm::ConstName, context)
+    }
+
+    fn selected(
+        context: &TypeIdentityContext<'_>,
+        symbol: SymbolHandle,
+    ) -> Option<(usize, TypeReferenceHandle)> {
+        if symbol.is_valid() {
+            return context
+                .substitutions
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, (candidate, _))| *candidate == symbol)
+                .map(|(index, (_, reference))| (index, *reference));
+        }
+        None
+    }
+
+    fn selected_index<R>(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+        render: impl FnOnce(&TypedTrees, IndexIdentityArgument<'_>, &TypeIdentityContext<'_>) -> R,
+        reject: impl FnOnce(&TypeIdentityContext<'_>) -> R,
+    ) -> Option<R> {
+        if let Some((argument, outer)) = context.applied_argument(symbol) {
+            return Some(render(program, argument, &outer));
+        }
+        if symbol.is_valid()
+            && let Some((_, replacement)) = context
+                .index_substitutions
+                .iter()
+                .find(|(candidate, _)| *candidate == symbol)
+        {
+            return Some(render(
+                program,
+                *replacement,
+                &TypeIdentityContext {
+                    index_substitutions: &[],
+                    ..*context
+                },
+            ));
+        }
+        let (ordinal, reference) = selected(context, symbol)?;
+        if context.active_const_substitutions.len() >= 64
+            || context.active_const_substitutions.contains(&symbol)
+        {
+            return Some(reject(context));
+        }
+        let mut active = context.active_const_substitutions.to_vec();
+        active.push(symbol);
+        let nested = TypeIdentityContext {
+            active_const_substitutions: &active,
+            ..context.replacement_context_at(ordinal)
+        };
+        Some(render(
+            program,
+            IndexIdentityArgument::TypeReference(reference),
+            &nested,
+        ))
+    }
+
+    /// Follow the same actual-argument frames used by index identity before
+    /// checking its declared integer type. A type binder is never a value,
+    /// and a policy-qualified integer is not its plain carrier.
+    pub(crate) fn integer_argument_matches(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+        expected: crate::source_state::types::PrimitiveType,
+    ) -> bool {
+        use crate::source_state::data::TypeParameterKind;
+        let operand = match argument {
+            IndexIdentityArgument::TypeReference(reference) => {
+                match program.static_operand_from_type_reference(reference) {
+                    Ok(operand) => operand,
+                    Err(_) => return false,
+                }
+            }
+            IndexIdentityArgument::Subject(symbol) => {
+                crate::source_state::expression::StaticMachineArgument {
+                    symbol,
+                    ..Default::default()
+                }
+            }
+            IndexIdentityArgument::StaticArgument(argument) => argument.clone(),
+            _ => return false,
+        };
+        let declared = program.data_type_parameter_by_symbol(operand.symbol);
+        if let Some(parameter) = declared
+            && !matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                if matches!(program.type_reference_node(type_reference), TypeReferenceNode::Named { .. })
+                    && program.primitive_type_reference(type_reference) == Some(expected))
+        {
+            return false;
+        }
+        if let Some(matches) = selected_index(
+            program,
+            operand.symbol,
+            context,
+            |program, argument, context| {
+                integer_argument_matches(program, argument, context, expected)
+            },
+            |_| false,
+        ) {
+            return matches;
+        }
+        if declared.is_some() {
+            return true;
+        }
+        program
+            .prepare_callable_scalar_argument(expected, &operand)
+            .is_ok()
+    }
+
+    pub(crate) fn index(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        _spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        selected_index(program, symbol, context, index_argument, rejected)
+    }
+
+    fn index_reference(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if context.invalid_application.is_some()
+            && let Ok(selected) = program.static_operand_from_type_reference(reference)
+            && selected.symbol.is_valid()
+            && matches!(
+                program.symbols.get(selected.symbol).kind,
+                symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::State
+                    | symbols::SymbolKind::Conformance
+            )
+        {
+            return index_argument(
+                program,
+                IndexIdentityArgument::StaticArgument(&selected),
+                context,
+            );
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, name } => {
+                index_name(program, *symbol, name.as_str(), context)
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                normalize_index_expression(program, *expression, context)
+            }
+            _ => normalize_type_reference(program, reference, context),
+        }
+    }
+
+    pub(crate) fn array_length(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        _spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> Option<String> {
+        selected_index(program, symbol, context, array_length_argument, rejected)
+    }
+
+    fn literal_array_length(
+        value: impl TryInto<usize>,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match value.try_into() {
+            Ok(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
+            Err(_) => rejected(context),
+        }
+    }
+
+    pub(crate) fn unbound_array_length(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if symbol.is_valid() {
+            let is_value = match program.symbols.get(symbol).kind {
+                symbols::SymbolKind::Const | symbols::SymbolKind::Parameter => true,
+                symbols::SymbolKind::TypeParameter => program
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value()),
+                _ => false,
+            };
+            if !is_value {
+                return rejected(context);
+            }
+        }
+        if let Some(value) = integer(program, symbol, spelling) {
+            literal_array_length(value, context)
+        } else {
+            atom(
+                ArrayLengthForm::ConstParameter,
+                &context.name(program, symbol, spelling),
+            )
+        }
+    }
+
+    pub(crate) fn array_length_expression(
+        program: &TypedTrees,
+        expression: crate::source_state::expression::ExpressionHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if let ExpressionNode::Integer(value) = program.expression_table.expression(expression) {
+            return value.value_bignum().map_or_else(
+                || rejected(context),
+                |value| literal_array_length(value, context),
+            );
+        }
+        if let Some(value) = crate::source_state::const_integer::closed_literal(
+            &program.expression_table,
+            expression,
+        ) {
+            return value.value_bignum().map_or_else(
+                || rejected(context),
+                |value| literal_array_length(value, context),
+            );
+        }
+        compound(
+            ArrayLengthForm::ConstExpression,
+            [normalize_index_expression(program, expression, context)],
+        )
+    }
+
+    fn array_length_reference(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        if !program.contains_type_reference(reference) {
+            return rejected(context);
+        }
+        // Retained callable/conformance index applications use the existing
+        // exact operand route. Ordinary type-only references are not values.
+        if context.invalid_application.is_some()
+            && let Ok(selected) = program.static_operand_from_type_reference(reference)
+            && selected.symbol.is_valid()
+            && matches!(
+                program.symbols.get(selected.symbol).kind,
+                symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::State
+                    | symbols::SymbolKind::Conformance
+            )
+        {
+            return compound(
+                ArrayLengthForm::ConstExpression,
+                [index_reference(program, reference, context)],
+            );
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, name } => {
+                array_length(program, *symbol, name.as_str(), context).unwrap_or_else(|| {
+                    unbound_array_length(program, *symbol, name.as_str(), context)
+                })
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                array_length_expression(program, *expression, context)
+            }
+            _ => rejected(context),
+        }
+    }
+
+    fn array_length_argument(
+        program: &TypedTrees,
+        argument: IndexIdentityArgument<'_>,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
+        match argument {
+            IndexIdentityArgument::TypeArgument(_) => rejected(context),
+            IndexIdentityArgument::TypeReference(reference) => {
+                array_length_reference(program, reference, context)
+            }
+            IndexIdentityArgument::Expression(expression)
+                if program.expression_table.expression_is_valid(expression) =>
+            {
+                array_length_expression(program, expression, context)
+            }
+            IndexIdentityArgument::Subject(symbol) if symbol.is_valid() => {
+                array_length(program, symbol, program.symbols.name(symbol), context).unwrap_or_else(
+                    || unbound_array_length(program, symbol, program.symbols.name(symbol), context),
+                )
+            }
+            IndexIdentityArgument::StaticArgument(argument)
+                if argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && argument.type_reference.is_valid() =>
+            {
+                array_length_reference(program, argument.type_reference, context)
+            }
+            IndexIdentityArgument::StaticArgument(argument)
+                if argument.application.is_none()
+                    && argument.evidence_projection.is_none()
+                    && !argument.type_reference.is_valid()
+                    && argument.const_literal.is_some() =>
+            {
+                argument
+                    .const_literal
+                    .as_ref()
+                    .and_then(numeric_literals::IntegerLiteral::value_bignum)
+                    .map_or_else(
+                        || rejected(context),
+                        |value| literal_array_length(value, context),
+                    )
+            }
+            _ => compound(
+                ArrayLengthForm::ConstExpression,
+                [index_argument(program, argument, context)],
+            ),
+        }
+    }
+
+    pub(crate) fn rejected(context: &TypeIdentityContext<'_>) -> String {
+        if let Some(invalid) = context.invalid_application {
+            invalid.set(true);
+        }
+        if let Some(invalid) = context.invalid_index_argument {
+            invalid.set(true);
+        }
+        if let Some(missing) = context.missing_exact_nominal_owner {
+            missing.set(true);
+        }
+        bare(IndexForm::UnsupportedConstSubstitution)
+    }
+
+    fn boolean(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<bool> {
+        let value = if symbol.is_valid() {
+            let declaration = program.const_declaration_by_symbol(symbol)?;
+            let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+            CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()?
+        } else {
+            if let Some(value) =
+                application_identity::const_value::boolean_literal_spelling(spelling)
+            {
+                return Some(value);
+            }
+            CanonicalConstValue::from_atom(spelling)?.decode_encoding()?
+        };
+        match value {
+            DecodedCanonicalConstValue::Boolean(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn integer(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+    ) -> Option<bignum::BigInt> {
+        if !symbol.is_valid() {
+            if let Some(value) = bignum::BigInt::from_decimal_str(spelling) {
+                return Some(value);
+            }
+            let value = CanonicalConstValue::from_atom(spelling)?;
+            return match value.identity().decode_encoding()? {
+                DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
+                _ => None,
+            };
+        }
+        let declaration = program.const_declaration_by_symbol(symbol)?;
+        let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+        match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
+            _ => None,
+        }
+    }
+}
+
+pub use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+pub use application_identity::type_identity::TypeIdentityVisitError;
+pub use application_identity::type_identity::visit_type_identity_package_owners;
+pub use callable_identity::{
+    CallableIdentityId, CallableIdentityTable, CallableParametersId, CallablePathId,
+    CallableResultDispatchId,
+};
+pub use lifetime_parameters::{
+    LifetimeParameterIdentity, applied_lifetime_parameter_identity,
+    applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
+    declaration_lifetime_parameters, lifetime_parameter_identity, lifetime_parameter_name,
+    portable_lifetime_parameter_identity,
+};
+pub use normalized_identities::{
+    NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
+    TypeIdentityTable,
+};
+pub use portable_machine_applications::{
+    portable_machine_application_identity, portable_machine_selection_identity,
+};
+pub(crate) use portable_machine_applications::{
+    portable_machine_selection_identity_in_context, portable_record_schema_identity_in_context,
+};
+pub use static_operand_identity::{
+    DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
+};
+
+use crate::source_state::TypedTrees;
+use crate::source_state::data;
+use crate::source_state::trait_definition::TraitDefinition;
+
+/*
+    Every program numbers type identities in its own table, and a program can
+    hold another (its product declaration frontier). Under a canonical
+    numbering, each program's fields are written under its own table's, and
+    the enclosing one is restored after; see `TypeIdentityTable`'s `Record`.
+*/
+pub(crate) fn write_under_own_numbering(
+    program: &TypedTrees,
+    output: &mut compiler_storage::RecordWriter,
+    write: impl FnOnce(&mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError>,
+) -> Result<(), compiler_storage::RecordError> {
+    let Some(enclosing) = output.take_renumbering::<TypeIdentityId>() else {
+        return write(output);
+    };
+    program.type_identities.renumber_canonically(output);
+    let written = write(output);
+    output.restore_renumbering::<TypeIdentityId>(Some(enclosing));
+    written
+}
+
+fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
+    program.type_identities.intern(&identity)
+}
+use crate::source_state::type_system::type_identity::constraint_identity::atom;
+use crate::source_state::type_system::type_identity::constraint_identity::compound;
+use crate::source_state::type_system::type_identity::coordinates::CoordinateTag;
+use crate::source_state::type_system::type_identity::identity_context::SubstitutionSemantics;
+use crate::source_state::type_system::type_identity::identity_context::TypeIdentityContext;
+pub use crate::source_state::type_system::type_identity::identity_context::TypeIdentityQualification;
+use crate::source_state::type_system::type_identity::identity_context::normalize_type_identity;
+use crate::source_state::type_system::type_identity::result_dispatch_terms::collect_result_dispatch_terms;
+use crate::source_state::types::TypeReferenceHandle;
+use application_identity::type_identity::vocabulary::Label;
+use application_identity::type_identity::vocabulary::TypeForm;
+use std::cell::Cell;
+use symbols::SymbolHandle;
+
+#[derive(Clone, Copy)]
+pub enum IndexIdentityArgument<'argument> {
+    TypeArgument(TypeReferenceHandle),
+    TypeReference(TypeReferenceHandle),
+    Expression(crate::source_state::expression::ExpressionHandle),
+    Subject(SymbolHandle),
+    FieldProjection {
+        receiver: crate::source_state::expression::ExpressionHandle,
+        field: SymbolHandle,
+    },
+    StaticArgument(&'argument crate::source_state::expression::StaticMachineArgument),
+}
+
+#[derive(Clone, Copy)]
+pub struct AppliedTypeIdentityScope<'argument> {
+    pub declaration: SymbolHandle,
+    pub arguments: &'argument [(SymbolHandle, IndexIdentityArgument<'argument>)],
+    pub lifetimes: &'argument [(String, String)],
+}
+
+pub fn applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        lexical_owner,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        &[],
+    )
+}
+
+pub fn applied_type_identity_in_region_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        resolved_lifetimes,
+    )
+}
+
+/// `applied_type_identity_in_region_scope` of the carrier an occurrence
+/// stores: the same identity with the domains of each constrained type left
+/// out and everything else, lifetimes included, kept. `&'a [u8] in Utf8` and
+/// `&'a [u8]` store one carrier; a domain qualifies the value and is no part
+/// of its storage type (domains.md, "Carrier-exact membership").
+pub fn applied_carrier_identity_in_region_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_identity(
+        program,
+        reference,
+        &TypeIdentityContext {
+            erase_constraints: true,
+            application_owner: receiving_owner,
+            application_argument_owner: argument_owner,
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+pub fn applied_declared_carrier_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_identity(
+        program,
+        reference,
+        &TypeIdentityContext {
+            declared_carrier: true,
+            application_scopes: scopes,
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+pub fn applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        &[],
+    )
+}
+
+pub fn portable_applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+        &[],
+    )
+}
+
+fn qualified_applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            application_scopes: scopes,
+            resolved_lifetimes,
+            application_owner: lexical_owner,
+            qualification,
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+}
+
+pub fn portable_applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        lexical_owner,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+        &[],
+    )
+}
+
+/// Descriptions retain declared lifetime relationships, including elision,
+/// with the actual supplying scope and requested nominal qualification.
+/// This produces descriptive data; portable/static clients keep their own
+/// concrete-region requirement through the same normalization owner.
+pub fn descriptive_type_identity_in_region_scope(
+    program: &TypedTrees,
+    request: TypeIdentityRequest<'_>,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let elided = Cell::new(false);
+    let identity = normalize_type_identity(
+        program,
+        request.type_reference,
+        &TypeIdentityContext {
+            binders: request.binders,
+            substitutions: request.substitutions,
+            qualification: request.qualification,
+            application_scopes: scopes,
+            application_owner: receiving_owner,
+            application_argument_owner: argument_owner,
+            resolved_lifetimes,
+            invalid_application: Some(&invalid),
+            // Elision remains explicit descriptive information. Missing named
+            // scopes and malformed applications still set `invalid`.
+            encountered_elided_regions: Some(&elided),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+fn qualified_applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_identity(
+        program,
+        reference,
+        &TypeIdentityContext {
+            application_scopes: scopes,
+            resolved_lifetimes,
+            application_owner: lexical_owner,
+            application_argument_owner: argument_owner,
+            qualification,
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+pub fn applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_lifetime_identity(
+        program,
+        name,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+pub fn portable_applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_lifetime_identity(
+        program,
+        name,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+    )
+}
+
+fn qualified_applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = TypeIdentityContext {
+        application_scopes: scopes,
+        application_owner: lexical_owner,
+        qualification,
+        invalid_application: Some(&invalid),
+        encountered_elided_regions: Some(&invalid),
+        ..TypeIdentityContext::default()
+    }
+    .lifetime(program, name);
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+}
+
+pub(crate) fn local_trait_application_identity(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    arguments: &[NormalizedTypeIdentity],
+    lifetimes: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    let render = |identities: &[NormalizedTypeIdentity]| {
+        identities
+            .iter()
+            .map(|identity| program.type_identity_text(*identity))
+            .collect::<Option<Vec<_>>>()
+    };
+    let identity = compound(
+        CoordinateTag::LocalTraitApplication,
+        [
+            atom(
+                CoordinateTag::Declaration,
+                &format!("{}:{}", declaration.arena_index(), declaration.generation()),
+            ),
+            compound(CoordinateTag::Arguments, render(arguments)?),
+            compound(CoordinateTag::Lifetimes, render(lifetimes)?),
+        ],
+    );
+    Some(program_intern_type_identity(program, identity))
+}
+
+pub(crate) fn local_trait_contract_identity(
+    program: &TypedTrees,
+    base: NormalizedTypeIdentity,
+    refinements: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    if refinements.is_empty() {
+        return Some(base);
+    }
+    let mut refinements = refinements.to_vec();
+    refinements.sort();
+    refinements.dedup();
+    let refinements = refinements
+        .iter()
+        .map(|identity| program.type_identity_text(*identity))
+        .collect::<Option<Vec<_>>>()?;
+    Some(program_intern_type_identity(
+        program,
+        compound(
+            CoordinateTag::LocalTraitContract,
+            [
+                program.type_identity_text(base)?,
+                compound(CoordinateTag::Refinements, refinements),
+            ],
+        ),
+    ))
+}
+
+pub(crate) fn portable_trait_application_identity(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    arguments: &[NormalizedTypeIdentity],
+    lifetimes: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    let path = program.symbols.display_path(declaration, "::");
+    if !declaration.is_valid() || path.is_empty() {
+        return None;
+    }
+    let coordinate = TypeIdentityContext {
+        qualification: TypeIdentityQualification::PackageQualified,
+        ..TypeIdentityContext::default()
+    }
+    .qualify_non_binder_name(program, declaration, path);
+    let render = |identities: &[NormalizedTypeIdentity]| {
+        identities
+            .iter()
+            .map(|identity| program.type_identity_text(*identity))
+            .collect::<Option<Vec<_>>>()
+    };
+    Some(program_intern_type_identity(
+        program,
+        compound(
+            CoordinateTag::TraitApplication,
+            [
+                atom(CoordinateTag::Declaration, &coordinate),
+                compound(CoordinateTag::Arguments, render(arguments)?),
+                compound(CoordinateTag::Lifetimes, render(lifetimes)?),
+            ],
+        ),
+    ))
+}
+
+pub fn normalized_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+) -> Option<String> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            index_substitutions: substitutions,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+pub(crate) fn scoped_integer_argument_matches(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    expected: crate::source_state::types::PrimitiveType,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> bool {
+    substitution::integer_argument_matches(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            ..TypeIdentityContext::default()
+        },
+        expected,
+    )
+}
+
+pub(crate) fn scoped_index_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        IndexIdentityArgument::TypeReference(reference),
+        &TypeIdentityContext {
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+}
+
+pub(crate) fn normalized_const_index_expression_identity(
+    program: &TypedTrees,
+    expression: crate::source_state::expression::ExpressionHandle,
+) -> Option<String> {
+    let invalid = Cell::new(false);
+    let identity = identity_context::normalize_index_expression(
+        program,
+        expression,
+        &identity_context::TypeIdentityContext {
+            invalid_index_argument: Some(&invalid),
+            ..identity_context::TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
+#[derive(Clone, Copy)]
+pub struct TypeIdentityRequest<'a> {
+    pub type_reference: TypeReferenceHandle,
+    pub binders: &'a [(SymbolHandle, String)],
+    pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
+    pub qualification: TypeIdentityQualification,
+}
+
+impl TypeIdentityRequest<'_> {
+    pub const fn ordinary(type_reference: TypeReferenceHandle) -> Self {
+        Self {
+            type_reference,
+            binders: &[],
+            substitutions: &[],
+            qualification: TypeIdentityQualification::Ordinary,
+        }
+    }
+
+    pub const fn package_qualified(type_reference: TypeReferenceHandle) -> Self {
+        Self {
+            type_reference,
+            binders: &[],
+            substitutions: &[],
+            qualification: TypeIdentityQualification::PackageQualified,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ExactOwnerTypeIdentityRequest<'a> {
+    pub type_reference: TypeReferenceHandle,
+    /// The actual lexical declaration and its retained binder roster let
+    /// unresolved lifetime names use the same exact scope as resolved IDs.
+    /// Absence keeps the existing carrier-only identity request.
+    pub lifetime_scope: Option<(SymbolHandle, &'a [(LifetimeParameterIdentity, usize)])>,
+    pub binders: &'a [(SymbolHandle, String)],
+    pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
+    pub exact_toolchain_sources: &'a [(source_text::SourceId, [u8; 32])],
+}
+
+impl TypedTrees {
+    pub fn closed_data_field_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&data::DataDefinition> {
+        // A field keeps its semantic type through a representation choice,
+        // including before that choice's geometry has been evaluated. Following
+        // the authenticated storage argument grants no layout or access rights.
+        let mut reference = reference;
+        for _ in 0..=self.type_reference_table.type_reference_count() {
+            if !self.type_reference_table.contains_type_reference(reference) {
+                return None;
+            }
+            match self.type_reference_table.type_reference(reference) {
+                crate::source_state::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                } => {
+                    reference = *base_type;
+                }
+                crate::source_state::types::TypeReferenceNode::Generic { .. } => {
+                    match self.layout_storage_arguments(reference) {
+                        Some(storage) => reference = storage.semantic_type,
+                        None => return self.closed_data_definition(reference),
+                    }
+                }
+                _ => return self.closed_data_definition(reference),
+            }
+        }
+        None
+    }
+
+    pub fn closed_data_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&data::DataDefinition> {
+        use crate::source_state::types::TypeReferenceNode;
+
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return None;
+        }
+        if let Some(application) = self.data_application_definition(reference) {
+            return self
+                .data_application_is_closed(reference)
+                .then_some(application);
+        }
+        let data = match self.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                self.unique_data_definition_by_symbol(*symbol)?
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } => {
+                let owner = self.unique_data_definition_by_symbol(*base_symbol)?;
+                if lifetime_arguments.len() != owner.lifetime_parameters.len() {
+                    return None;
+                }
+                let arguments = self.type_reference_table.type_reference_handles(*arguments);
+                if arguments.is_empty() {
+                    owner
+                } else {
+                    if arguments.len() != self.data_type_parameters(owner).len() {
+                        return None;
+                    }
+                    let identity = self.normalized_type_identity(reference);
+                    let mut instances = self.data_definitions().iter().filter(|data| {
+                        let Some(origin) = data.generic_instance else {
+                            return false;
+                        };
+                        self.type_reference_table.contains_type_reference(origin)
+                            && matches!(self.type_reference_table.type_reference(origin),
+                                TypeReferenceNode::Generic { base_symbol: origin_owner, lifetime_arguments, .. }
+                                    if origin_owner == base_symbol && lifetime_arguments.is_empty())
+                            && self.normalized_type_identity(origin) == identity
+                            && data.lifetime_parameters == owner.lifetime_parameters
+                    });
+                    let instance = instances.next()?;
+                    if instances.next().is_some() {
+                        return None;
+                    }
+                    self.unique_data_definition_by_symbol(instance.symbol)?
+                }
+            }
+            _ => return None,
+        };
+        data.type_parameters.is_empty().then_some(data)
+    }
+
+    pub fn closed_data_constructor_definition(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+    ) -> Option<&data::DataDefinition> {
+        self.closed_data_field_definition(reference)?;
+        self.data_constructor_definition(reference, authored)
+    }
+
+    pub fn data_constructor_definition(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+    ) -> Option<&data::DataDefinition> {
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return None;
+        }
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        if let Some(storage) = self.layout_storage_arguments(reference) {
+            return self.data_constructor_definition(
+                self.type_reference_table
+                    .unconstrained_type_reference(storage.semantic_type),
+                authored,
+            );
+        }
+        let instance = self
+            .data_application_definition(reference)
+            .or_else(|| self.closed_data_definition(reference))?;
+        if authored == instance.symbol {
+            return Some(instance);
+        }
+        let identity = self.normalized_type_identity(reference);
+        let declaration = |symbol| {
+            let nominal = self.unique_data_definition_by_symbol(symbol)?;
+            let Some(origin) = nominal.generic_instance else {
+                return Some(symbol);
+            };
+            if !self.type_reference_table.contains_type_reference(origin) {
+                return None;
+            }
+            let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                self.type_reference_table.type_reference(origin)
+            else {
+                return None;
+            };
+            (self.normalized_type_identity(origin) == identity).then_some(*base_symbol)
+        };
+        (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
+    }
+
+    pub fn closed_data_constructor_field(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&data::DataField> {
+        self.closed_data_field_definition(reference)?;
+        self.data_constructor_field(reference, authored, retained)
+    }
+
+    pub fn data_constructor_case(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&data::DataVariant> {
+        use data::DataMember;
+        let instance = self.data_constructor_definition(reference, authored)?;
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
+            return None;
+        }
+        let source_owner = self.symbols.get(retained).parent;
+        self.data_constructor_definition(reference, source_owner)?;
+        let source = self.unique_data_definition_by_symbol(source_owner)?;
+        let (ordinal, original) = self.data_members(source).iter().enumerate().find_map(
+            |(ordinal, member)| match member {
+                DataMember::Variant(case) if case.symbol == retained => Some((ordinal, case)),
+                _ => None,
+            },
+        )?;
+        let DataMember::Variant(selected) = self.data_members(instance).get(ordinal)? else {
+            return None;
+        };
+        (original.name == selected.name
+            && original.identity == selected.identity
+            && selected.symbol.is_valid())
+        .then_some(selected)
+    }
+
+    pub fn data_constructor_field(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&data::DataField> {
+        use data::DataMember;
+        let instance = self.data_constructor_definition(reference, authored)?;
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
+            return None;
+        }
+        let parent = self.symbols.get(retained).parent;
+        let source_owner = if self.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+            self.symbols.get(parent).parent
+        } else {
+            parent
+        };
+        self.data_constructor_definition(reference, source_owner)?;
+        let source = self.unique_data_definition_by_symbol(source_owner)?;
+        let corresponding_field = |original: &data::DataField, selected: &data::DataField| {
+            original.name == selected.name
+                && original.identity == selected.identity
+                && original.relevance == selected.relevance
+                && selected.symbol.is_valid()
+                && self.contains_type_reference(selected.type_reference)
+        };
+        for (ordinal, member) in self.data_members(source).iter().enumerate() {
+            match member {
+                DataMember::Field(original) if original.symbol == retained => {
+                    let DataMember::Field(selected) = self.data_members(instance).get(ordinal)?
+                    else {
+                        return None;
+                    };
+                    return corresponding_field(original, selected).then_some(selected);
+                }
+                DataMember::Variant(original_case) => {
+                    let Some((field_ordinal, original)) = self
+                        .data_payload_fields(original_case)
+                        .iter()
+                        .enumerate()
+                        .find(|(_, field)| field.symbol == retained)
+                    else {
+                        continue;
+                    };
+                    let DataMember::Variant(selected_case) =
+                        self.data_members(instance).get(ordinal)?
+                    else {
+                        return None;
+                    };
+                    if original_case.name != selected_case.name
+                        || original_case.identity != selected_case.identity
+                    {
+                        return None;
+                    }
+                    let selected = self.data_payload_fields(selected_case).get(field_ordinal)?;
+                    return corresponding_field(original, selected).then_some(selected);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    pub fn closed_data_member_field(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+        member_name: &str,
+    ) -> Option<&data::DataField> {
+        let instance = self.closed_data_field_definition(reference)?;
+        let mut fields =
+            self.data_members(instance)
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, member)| {
+                    let data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    (field.name.as_str() == member_name).then_some((ordinal, field))
+                });
+        let (ordinal, field) = fields.next()?;
+        if fields.next().is_some() {
+            return None;
+        }
+        if !field.symbol.is_valid()
+            || !self.contains_type_reference(field.type_reference)
+            || self.symbols.get(field.symbol).parent != instance.symbol
+        {
+            return None;
+        }
+        if retained == field.symbol {
+            return Some(field);
+        }
+        let origin = instance.generic_instance?;
+        if !self.type_reference_table.contains_type_reference(origin) {
+            return None;
+        }
+        let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } =
+            self.type_reference_table.type_reference(origin)
+        else {
+            return None;
+        };
+        if self.closed_data_definition(origin)?.symbol != instance.symbol {
+            return None;
+        }
+        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
+        let data::DataMember::Field(original) = self.data_members(template).get(ordinal)? else {
+            return None;
+        };
+        (field.name == original.name
+            && field.identity == original.identity
+            && field.relevance == original.relevance
+            && original.symbol.is_valid()
+            && self.symbols.get(original.symbol).parent == template.symbol
+            && (!retained.is_valid() || retained == field.symbol || retained == original.symbol))
+            .then_some(field)
+    }
+
+    fn data_field_declaration_symbol(
+        &self,
+        mut symbol: SymbolHandle,
+    ) -> Result<SymbolHandle, String> {
+        if !symbol.is_valid() || self.symbols.get(symbol).kind != symbols::SymbolKind::Field {
+            return Ok(symbol);
+        }
+        for _ in 0..=self.data_definitions().len() {
+            let parent = self.symbols.get(symbol).parent;
+            if !parent.is_valid() {
+                return Err("a field declaration has no retained owner".to_owned());
+            }
+            let owner = if self.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+                self.symbols.get(parent).parent
+            } else {
+                parent
+            };
+            if !owner.is_valid() || self.symbols.get(owner).kind != symbols::SymbolKind::Data {
+                return Ok(symbol);
+            }
+            let data = self
+                .unique_data_definition_by_symbol(owner)
+                .ok_or_else(|| "a field has no unique retained declaration owner".to_owned())?;
+            let Some(origin) = data.generic_instance else {
+                return Ok(symbol);
+            };
+            if !self.contains_type_reference(origin) {
+                return Err("a specialized field lost its owner application".to_owned());
+            }
+            if self
+                .closed_data_definition(origin)
+                .is_none_or(|instance| instance.symbol != data.symbol)
+            {
+                return Err(
+                    "a specialized field origin does not retain its exact data instance".to_owned(),
+                );
+            }
+            let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                self.type_reference_table.type_reference(origin)
+            else {
+                return Err("a specialized field owner is not a generic application".to_owned());
+            };
+            let template = self
+                .unique_data_definition_by_symbol(*base_symbol)
+                .ok_or_else(|| {
+                    "a specialized field has no unique original declaration owner".to_owned()
+                })?;
+            let mut correspondence = None;
+            for (ordinal, member) in self.data_members(data).iter().enumerate() {
+                match member {
+                    data::DataMember::Field(selected) if selected.symbol == symbol => {
+                        if let Some(data::DataMember::Field(original)) =
+                            self.data_members(template).get(ordinal)
+                        {
+                            correspondence = Some((selected, original, template.symbol));
+                        }
+                        break;
+                    }
+                    data::DataMember::Variant(selected_case) if selected_case.symbol == parent => {
+                        if let Some(data::DataMember::Variant(original_case)) =
+                            self.data_members(template).get(ordinal)
+                            && selected_case.name == original_case.name
+                            && selected_case.identity == original_case.identity
+                            && let Some((field_ordinal, selected)) = self
+                                .data_payload_fields(selected_case)
+                                .iter()
+                                .enumerate()
+                                .find(|(_, field)| field.symbol == symbol)
+                            && let Some(original) =
+                                self.data_payload_fields(original_case).get(field_ordinal)
+                        {
+                            correspondence = Some((selected, original, original_case.symbol));
+                        }
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            let Some((selected, original, original_parent)) = correspondence else {
+                return Err("a specialized field lost its original member coordinate".to_owned());
+            };
+            if selected.name != original.name
+                || selected.identity != original.identity
+                || selected.relevance != original.relevance
+                || !original.symbol.is_valid()
+                || self.symbols.get(original.symbol).parent != original_parent
+                || !self
+                    .symbols
+                    .same_symbol_source_package(symbol, original.symbol)
+            {
+                return Err(
+                    "a specialized field changed its original declaration custody".to_owned(),
+                );
+            }
+            symbol = original.symbol;
+        }
+        Err("a field declaration has a cyclic specialization origin".to_owned())
+    }
+
+    pub fn normalized_hermetic_symbol_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<String, String> {
+        if !symbol.is_valid() {
+            return Err("a hermetic identity contains an unresolved declaration".to_owned());
+        }
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return Err("a hermetic identity contains a stale declaration".to_owned());
+        }
+        let symbol = self.data_field_declaration_symbol(symbol)?;
+        if let Some(application) = self.closed_requirement_application(symbol) {
+            return self.closed_requirement_declaration_identity(symbol, application);
+        }
+        if let Some(identity) = derived_declarations::nominal_name(
+            self,
+            symbol,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..Default::default()
+            },
+            true,
+        )
+        .map_err(str::to_owned)?
+        {
+            return Ok(identity);
+        }
+        let path = self.symbols.display_path(symbol, "::");
+        // Overloads share a source path but are different declarations. Keep
+        // the existing callable signature with that path, so selecting one
+        // overload cannot name another declaration with different parameters.
+        let callable = if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let machine = self
+                .machine_declaration_for_lexical_scope(symbol)
+                .ok_or("a machine identity has no retained declaration")?;
+            Some(
+                self.machine_callable_identity_text(machine)
+                    .ok_or("a machine declaration has no complete callable identity")?,
+            )
+        } else if let Some((owner, signature)) = self.trait_machine_signature(symbol) {
+            Some(self.trait_requirement_callable_identity_text(owner, signature))
+        } else {
+            None
+        };
+        let path = match callable {
+            Some(callable) => {
+                application_identity::type_identity::encoding::callable_declaration_path(
+                    &path, &callable,
+                )
+            }
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
+                self.domain_declaration_path(symbol, path)?
+            }
+            None => path,
+        };
+        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
+            return Ok(
+                application_identity::type_identity::package_declaration_identity(package, &path),
+            );
+        }
+        match self.symbols.symbol_source_origin(symbol) {
+            Some(source_admission::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+            Some(source_admission::SourceOrigin::ToolchainContract) => {
+                Ok(format!("toolchain-contract::{path}"))
+            }
+            Some(origin) => Err(format!(
+                "declaration `{path}` has non-hermetic source origin `{origin:?}`"
+            )),
+            None => Err(format!(
+                "declaration `{path}` has no retained source/package provenance"
+            )),
+        }
+    }
+
+    fn domain_declaration_path(
+        &self,
+        symbol: SymbolHandle,
+        path: String,
+    ) -> Result<String, String> {
+        let declaration = self
+            .domain_definition(symbol)
+            .ok_or("a domain identity has no retained declaration")?;
+        let subject = crate::source_state::reflection::construction::schema_type_identity(
+            self,
+            declaration.target_type,
+            declaration.symbol,
+        )
+        .map_err(|detail| format!("a domain identity lost its declared subject: {detail}"))?;
+        // One predicate meaning can apply across capacities. Both the source
+        // dictionary and portable domain catalog still name the declaration's
+        // complete subject rather than its shared family display path.
+        Ok(compound(
+            CoordinateTag::Declaration,
+            [
+                atom(CoordinateTag::Path, &path),
+                compound(CoordinateTag::Owner, [subject]),
+            ],
+        ))
+    }
+
+    fn closed_requirement_declaration_identity(
+        &self,
+        symbol: SymbolHandle,
+        application: crate::source_state::ClosedRequirementApplication<'_>,
+    ) -> Result<String, String> {
+        let live = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+        if !live(application.template)
+            || !live(application.declaring_trait)
+            || self.symbols.get(symbol).generated_from != application.template
+            || application.signature.symbol != symbol
+        {
+            return Err("a closed requirement identity lost its declaration origin".into());
+        }
+        let owner = self
+            .trait_definition_by_symbol(application.declaring_trait)
+            .ok_or("a closed requirement identity lost its declaring trait")?;
+        let declared = self
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|signature| signature.symbol == application.template)
+            .ok_or("a closed requirement identity lost its original requirement")?;
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application.application)
+        {
+            return Err("a closed requirement identity has a stale application".into());
+        }
+        let source = self.static_machine_application(application.application);
+        if source.registration_operation != application.template
+            || source.binding_declaration != application.template
+            || !live(source.lexical_owner)
+        {
+            return Err("a closed requirement identity applies another declaration".into());
+        }
+        let parameters = self.state_signature_type_parameters(declared);
+        let bindings = self.static_machine_application_bindings(application.application);
+        if parameters.len() != bindings.len()
+            || parameters.len()
+                != self
+                    .static_machine_application_arguments(application.application)
+                    .len()
+            || parameters.len() != application.local_arguments.len()
+            || parameters.len() != application.portable_local_arguments.len()
+            || parameters.len() != application.invocation_contract_parameters.len()
+            || self.trait_type_parameters(owner).len() != application.trait_arguments.len()
+        {
+            return Err("a closed requirement identity has an incomplete argument tuple".into());
+        }
+        if application
+            .trait_arguments
+            .iter()
+            .copied()
+            .chain(
+                application
+                    .local_arguments
+                    .iter()
+                    .map(|argument| argument.type_reference()),
+            )
+            .any(|reference| !self.contains_type_reference(reference))
+        {
+            return Err("a closed requirement identity has a stale argument".into());
+        }
+        let outer = self
+            .type_identity_text(application.portable_trait_application_identity)
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a closed requirement identity lost its portable trait application")?;
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let binding = &bindings[ordinal];
+            if !live(parameter.symbol) || binding.parameter != parameter.symbol {
+                return Err("a closed requirement identity binds another parameter".into());
+            }
+            let (kind, _) = portable_machine_applications::static_binding_operand(
+                &parameter.kind,
+                &binding.value,
+            )?;
+            if matches!(
+                application.local_arguments[ordinal],
+                crate::source_state::RequirementLocalArgument::RuntimeValue { .. }
+            ) != matches!(
+                binding.value,
+                crate::source_state::static_applications::StaticMachineBindingValue::RuntimeValue { .. }
+            ) {
+                return Err("a closed requirement identity changes an argument's category".into());
+            }
+            let identity = application.portable_local_arguments[ordinal];
+            if self
+                .type_identities
+                .text(identity)
+                .is_none_or(|text| text.is_empty())
+            {
+                return Err("a closed requirement identity lost a portable argument".into());
+            }
+            let argument = self
+                .requirement_argument_identity_text(application.local_arguments[ordinal], identity)
+                .ok_or("a closed requirement identity lost a portable argument")?;
+            arguments.push(compound(
+                CoordinateTag::Parameter,
+                [atom(Label::Kind, kind), argument],
+            ));
+        }
+        // Generated roots share a display name. Their declaration identity must
+        // retain the original owner and every applied argument instead.
+        Ok(compound(
+            CoordinateTag::ClosedRequirement,
+            [
+                atom(
+                    CoordinateTag::Template,
+                    &self.normalized_hermetic_symbol_identity(application.template)?,
+                ),
+                atom(CoordinateTag::TraitApplication, &outer),
+                compound(CoordinateTag::LocalArguments, arguments),
+            ],
+        ))
+    }
+
+    pub fn normalized_type_identity(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> NormalizedTypeIdentity {
+        self.type_identity(TypeIdentityRequest::ordinary(type_reference))
+    }
+
+    pub fn type_identity_text(&self, identity: TypeIdentityId) -> Option<String> {
+        self.type_identities.text(identity).map(str::to_owned)
+    }
+
+    pub fn requirement_argument_identity_text(
+        &self,
+        argument: crate::source_state::RequirementLocalArgument,
+        identity: NormalizedTypeIdentity,
+    ) -> Option<String> {
+        let text = self.type_identity_text(identity)?;
+        Some(match argument {
+            crate::source_state::RequirementLocalArgument::Static(_) => text,
+            crate::source_state::RequirementLocalArgument::RuntimeValue { .. } => {
+                atom(CoordinateTag::RuntimeValueCarrier, &text)
+            }
+        })
+    }
+
+    pub fn normalized_type_identity_text(&self, type_reference: TypeReferenceHandle) -> String {
+        self.type_identity_text(self.normalized_type_identity(type_reference))
+            .unwrap_or_default()
+    }
+
+    /// Projects a retained domain application into the existing canonical
+    /// application grammar. The caller supplies its exact declaration identity;
+    /// the retained telescope supplies every carrier/type/const coordinate.
+    pub fn domain_application_identity(
+        &self,
+        declaration: SymbolHandle,
+        identity: declaration_contracts::SemanticDomainId,
+        declaration_identity: &str,
+        toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<String, &'static str> {
+        self.domain_application_identity_in_scope(
+            declaration,
+            identity,
+            declaration_identity,
+            toolchain_sources,
+            &[],
+            &[],
+        )
+    }
+
+    pub fn domain_application_identity_in_scope(
+        &self,
+        declaration: SymbolHandle,
+        identity: declaration_contracts::SemanticDomainId,
+        declaration_identity: &str,
+        toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<String, &'static str> {
+        let arguments = self
+            .domain_arguments_for_instance(declaration, identity)
+            .ok_or("domain identity lost its complete application")?;
+        if arguments.is_empty() {
+            return Ok(declaration_identity.to_owned());
+        }
+        let definition = self
+            .domain_definition(declaration)
+            .ok_or("domain identity lost its declaration")?;
+        let parameters = self.domain_type_parameters(definition);
+        if parameters.len() != arguments.len() {
+            return Err("domain identity has an incomplete declaration telescope");
+        }
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources: toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            ..Default::default()
+        };
+        let parts = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                let argument = match parameter.kind {
+                    crate::source_state::data::TypeParameterKind::Type => {
+                        IndexIdentityArgument::TypeArgument(*argument)
+                    }
+                    crate::source_state::data::TypeParameterKind::Const { .. } => {
+                        IndexIdentityArgument::TypeReference(*argument)
+                    }
+                    _ => {
+                        invalid.set(true);
+                        return String::new();
+                    }
+                };
+                substitution::index_argument(self, argument, &context)
+            });
+        let application = compound(
+            TypeForm::Generic,
+            std::iter::once(atom(Label::Name, declaration_identity)).chain(parts),
+        );
+        if invalid.get() {
+            return Err("domain identity has an unresolved or unowned application argument");
+        }
+        Ok(application)
+    }
+
+    pub fn validate_runtime_membership_application(
+        &self,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<(), &'static str> {
+        if !membership.domain_symbol.is_valid() || !membership.semantic_domain.is_valid() {
+            return Err("runtime membership has no exact domain application");
+        }
+        let supplied = self
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments);
+        let retained = self
+            .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)
+            .ok_or("runtime membership has no retained domain index arguments")?;
+        if supplied.len() != retained.len() {
+            return Err("runtime membership changes its domain index arguments");
+        }
+        if let Some(occurrence) = membership.authored_domain_selection {
+            let selected = self
+                .authored_declaration_selections()
+                .get(occurrence)
+                .and_then(|selection| selection.target().as_resolved().copied())
+                .map(|selected| selected.selected_symbol());
+            if selected != Some(membership.domain_symbol) {
+                return Err("runtime membership changes its authored domain declaration");
+            }
+        }
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            substitutions,
+            substitution_scope_starts: scope_starts,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let definition = self
+            .domain_definition_for_instance(membership.domain_symbol, membership.semantic_domain)
+            .ok_or("runtime membership lost its domain definition")?;
+        let parameters = self.domain_type_parameters(definition);
+        if !supplied.is_empty() && parameters.len() != supplied.len() {
+            return Err("runtime membership lost its complete domain telescope");
+        }
+        if supplied.iter().zip(retained).any(|(actual, expected)| {
+            let actual = normalize_type_identity(self, *actual, &context);
+            let expected = normalize_type_identity(self, *expected, &context);
+            !actual.is_valid() || !expected.is_valid() || actual != expected
+        }) || invalid.get()
+        {
+            return Err("runtime membership changes or loses its exact domain index arguments");
+        }
+        Ok(())
+    }
+
+    pub fn runtime_membership_domain_identity(
+        &self,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+        toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<String, &'static str> {
+        self.validate_runtime_membership_application(membership, substitutions, scope_starts)?;
+        let declaration = self
+            .exact_owner_nominal_identity(membership.domain_symbol, toolchain_sources)
+            .and_then(|identity| self.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("runtime membership has no exact domain declaration identity")?;
+        self.domain_application_identity_in_scope(
+            membership.domain_symbol,
+            membership.semantic_domain,
+            &declaration,
+            toolchain_sources,
+            substitutions,
+            scope_starts,
+        )
+    }
+
+    pub fn normalized_nominal_type_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        if !symbol.is_valid() || self.symbols.display_path(symbol, "::").is_empty() {
+            return None;
+        }
+        derived_declarations::nominal_name(self, symbol, &TypeIdentityContext::default(), false)
+            .ok()?;
+        if let Some(origin) = self
+            .data_definition_by_symbol(symbol)
+            .and_then(|data| data.generic_instance)
+        {
+            return Some(self.normalized_type_identity(origin));
+        }
+        Some(program_intern_type_identity(
+            self,
+            compound(
+                TypeForm::Named,
+                [identity_context::normalize_const_or_nominal_name(
+                    self,
+                    symbol,
+                    "",
+                    Label::Name,
+                    &TypeIdentityContext::default(),
+                )],
+            ),
+        ))
+    }
+
+    pub fn package_qualified_type_identity(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> NormalizedTypeIdentity {
+        self.type_identity(TypeIdentityRequest::package_qualified(type_reference))
+    }
+
+    pub fn package_qualified_type_identity_text(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> String {
+        self.type_identity_text(self.package_qualified_type_identity(type_reference))
+            .unwrap_or_default()
+    }
+
+    pub fn type_identity_request_text(&self, request: TypeIdentityRequest<'_>) -> String {
+        self.type_identity_text(self.type_identity(request))
+            .unwrap_or_default()
+    }
+
+    pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Transitive,
+            &[],
+        )
+    }
+
+    pub fn storage_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+    ) -> NormalizedTypeIdentity {
+        normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                storage_value_indices: true,
+                binders: request.binders,
+                substitutions: request.substitutions,
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        )
+    }
+
+    pub fn type_identity_with_simultaneous_substitutions(
+        &self,
+        request: TypeIdentityRequest<'_>,
+    ) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Simultaneous,
+            &[],
+        )
+    }
+
+    pub fn scoped_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Transitive,
+            scope_starts,
+        )
+    }
+
+    pub fn scoped_declared_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, None)
+    }
+
+    pub fn scoped_carrier_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        self.scoped_carrier_identity(request, scope_starts, Some(owner))
+    }
+
+    fn scoped_carrier_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+        owner: Option<SymbolHandle>,
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self.contains_type_reference(request.type_reference) {
+            return None;
+        }
+        let invalid = Cell::new(false);
+        let identity = normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                declared_carrier: owner.is_none(),
+                erase_constraints: owner.is_some(),
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                application_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                application_argument_owner: owner.unwrap_or_else(SymbolHandle::invalid),
+                invalid_application: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!invalid.get()).then_some(identity)
+    }
+
+    pub fn region_free_scoped_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self.contains_type_reference(request.type_reference) {
+            return None;
+        }
+        let encountered_regions = Cell::new(false);
+        let identity = normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                encountered_regions: Some(&encountered_regions),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!encountered_regions.get()).then_some(identity)
+    }
+
+    fn type_identity_with_substitution_semantics(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        substitution_semantics: SubstitutionSemantics,
+        substitution_scope_starts: &[usize],
+    ) -> NormalizedTypeIdentity {
+        normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_semantics,
+                substitution_scope_starts,
+                active_const_substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_nominal_owner: None,
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        )
+    }
+
+    pub fn exact_owner_type_identity(
+        &self,
+        request: ExactOwnerTypeIdentityRequest<'_>,
+    ) -> Option<NormalizedTypeIdentity> {
+        let missing_exact_nominal_owner = Cell::new(false);
+        let invalid = Cell::new(false);
+        let (lifetime_owner, lifetime_binders) = request
+            .lifetime_scope
+            .unwrap_or((SymbolHandle::invalid(), &[]));
+        if request.lifetime_scope.is_some() && !lifetime_owner.is_valid() {
+            return None;
+        }
+        if request.lifetime_scope.is_some_and(|(_, binders)| {
+            binders
+                .iter()
+                .any(|(region, _)| lifetime_parameter_name(self, *region).is_none())
+        }) {
+            return None;
+        }
+        let identity = normalize_type_identity(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                application_owner: lifetime_owner,
+                application_argument_owner: lifetime_owner,
+                lifetime_binders,
+                invalid_application: request.lifetime_scope.map(|_| &invalid),
+                encountered_elided_regions: request.lifetime_scope.map(|_| &invalid),
+                substitutions: request.substitutions,
+                substitution_semantics: SubstitutionSemantics::Transitive,
+                active_const_substitutions: &[],
+                exact_toolchain_sources: request.exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!missing_exact_nominal_owner.get() && !invalid.get()).then_some(identity)
+    }
+
+    pub fn exact_owner_nominal_identity(
+        &self,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Option<NormalizedTypeIdentity> {
+        if !symbol.is_valid() || !self.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
+        }
+        let path = self.symbols.display_path(symbol, "::");
+        if path.is_empty() {
+            return None;
+        }
+        let path = if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain {
+            self.domain_declaration_path(symbol, path).ok()?
+        } else {
+            path
+        };
+        let missing_exact_nominal_owner = Cell::new(false);
+        let identity = program_intern_type_identity(
+            self,
+            TypeIdentityContext {
+                binders: &[],
+                substitutions: &[],
+                substitution_semantics: SubstitutionSemantics::Transitive,
+                active_const_substitutions: &[],
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
+            }
+            .qualify_non_binder_name(self, symbol, path),
+        );
+        (!missing_exact_nominal_owner.get()).then_some(identity)
+    }
+
+    pub fn normalized_result_dispatch_set(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> NormalizedResultDispatchSet {
+        let mut terms = Vec::new();
+        collect_result_dispatch_terms(self, type_reference, &mut terms, &mut Vec::new());
+        terms.sort();
+        terms.dedup();
+        NormalizedResultDispatchSet { terms }
+    }
+
+    fn machine_callable_identity_parts(
+        &self,
+        machine: &crate::source_state::machine::Machine,
+    ) -> Option<callable_identity::CallableIdentityParts> {
+        let entry = self.machine_states(machine).first()?;
+        let module = self.symbols.symbol_module(machine.symbol);
+        let parent = self.symbols.get(machine.symbol).parent;
+        let lexical_path =
+            if parent.is_valid() && self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
+                let owner = self.machine_by_symbol(parent)?;
+                compound(
+                    CoordinateTag::NestedMachine,
+                    [
+                        atom(
+                            CoordinateTag::Owner,
+                            &self.machine_callable_identity_text(owner)?,
+                        ),
+                        atom(CoordinateTag::Name, machine.name.as_str()),
+                    ],
+                )
+            } else if module.is_valid() {
+                format!(
+                    "{}::{}",
+                    self.symbols.display_path(module, "::"),
+                    machine.name
+                )
+            } else {
+                machine.name.as_str().to_owned()
+            };
+        Some(self.named_callable_identity_parts(
+            &lexical_path,
+            machine.symbol,
+            self.machine_type_parameters(machine),
+            self.state_parameters(entry),
+            entry.return_type,
+        ))
+    }
+
+    pub fn machine_entry_result_type_identity(
+        &self,
+        machine: &crate::source_state::machine::Machine,
+    ) -> Option<NormalizedTypeIdentity> {
+        let entry = self.machine_states(machine).first()?;
+        let binders = callable_type_binders(machine.symbol, self.machine_type_parameters(machine));
+        Some(self.type_identity(TypeIdentityRequest {
+            binders: &binders,
+            ..TypeIdentityRequest::ordinary(entry.return_type)
+        }))
+    }
+
+    pub fn trait_declaration_path(&self, trait_definition: &TraitDefinition) -> String {
+        if self
+            .symbols
+            .symbol_module(trait_definition.symbol)
+            .is_valid()
+        {
+            self.symbols.display_path(trait_definition.symbol, "::")
+        } else {
+            trait_definition.name.as_str().to_owned()
+        }
+    }
+
+    fn trait_requirement_callable_identity_parts(
+        &self,
+        trait_definition: &TraitDefinition,
+        requirement: &crate::source_state::signature::StateSignature,
+    ) -> callable_identity::CallableIdentityParts {
+        let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
+        type_parameters.extend(
+            self.state_signature_type_parameters(requirement)
+                .iter()
+                .cloned(),
+        );
+        let mut identity = self.named_callable_identity_parts(
+            &format!(
+                "{}::{}",
+                self.trait_declaration_path(trait_definition),
+                requirement.name
+            ),
+            trait_definition.symbol,
+            (&type_parameters).into(),
+            self.state_signature_parameters(requirement),
+            requirement.return_type,
+        );
+        if let Some(application) = self.closed_requirement_application(requirement.symbol) {
+            let template =
+                self.trait_machine_signature_by_symbol(trait_definition, application.template);
+            let template_identity = template
+                .map(|template| {
+                    self.trait_requirement_callable_identity_text(trait_definition, template)
+                })
+                .unwrap_or_default();
+            let outer = self
+                .type_identity_text(application.portable_trait_application_identity)
+                .unwrap_or_default();
+            let local = application
+                .portable_local_arguments
+                .iter()
+                .zip(application.local_arguments)
+                .map(|(identity, argument)| {
+                    self.requirement_argument_identity_text(*argument, *identity)
+                        .unwrap_or_default()
+                })
+                .collect::<Vec<_>>();
+            identity.parameters = compound(
+                CoordinateTag::ClosedRequirement,
+                [
+                    atom(CoordinateTag::Template, &template_identity),
+                    atom(CoordinateTag::TraitApplication, &outer),
+                    compound(CoordinateTag::LocalArguments, local),
+                    atom(CoordinateTag::Parameters, &identity.parameters),
+                ],
+            );
+        }
+        identity
+    }
+
+    fn operator_callable_identity_parts(
+        &self,
+        operator: &crate::source_state::operator::OperatorDefinition,
+    ) -> Option<callable_identity::CallableIdentityParts> {
+        let path = self.operator_path_string(operator.name);
+        let flags = self
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| {
+                format!(
+                    "mutable={};const={}",
+                    parameter.is_mutable, parameter.is_const
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        Some(callable_identity::CallableIdentityParts {
+            path,
+            parameters: format!(
+                "operands({});flags({flags})",
+                crate::source_state::operator::operator_operand_signature(self, operator).ok()?
+            ),
+            result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
+        })
+    }
+
+    fn named_callable_identity_parts(
+        &self,
+        path: &str,
+        owner_symbol: SymbolHandle,
+        type_parameters: arena::RootRows<'_, data::TypeParameter>,
+        parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+        return_type: TypeReferenceHandle,
+    ) -> callable_identity::CallableIdentityParts {
+        let binders = callable_type_binders(owner_symbol, type_parameters);
+        let parameters = parameters
+            .iter()
+            .map(|parameter| {
+                compound(
+                    CoordinateTag::Parameter,
+                    [
+                        atom(
+                            CoordinateTag::Mutable,
+                            if parameter.is_mutable { "yes" } else { "no" },
+                        ),
+                        atom(
+                            CoordinateTag::Const,
+                            if parameter.is_const { "yes" } else { "no" },
+                        ),
+                        self.type_identity_request_text(TypeIdentityRequest {
+                            binders: &binders,
+                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                        }),
+                    ],
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        callable_identity::CallableIdentityParts {
+            path: TypeIdentityContext::default().qualify_non_binder_name(
+                self,
+                owner_symbol,
+                path.to_owned(),
+            ),
+            parameters,
+            result_dispatch: self.normalized_result_dispatch_set(return_type),
+        }
+    }
+}
+
+fn callable_type_binders(
+    owner: SymbolHandle,
+    parameters: arena::RootRows<'_, data::TypeParameter>,
+) -> Vec<(SymbolHandle, String)> {
+    let mut binders = Vec::with_capacity(parameters.len() + 1);
+    if owner.is_valid() {
+        binders.push((owner, "$Self".to_owned()));
+    }
+    binders.extend(
+        parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.symbol.is_valid())
+            .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
+    );
+    binders
+}
+
+#[cfg(test)]
+mod closed_requirement_declaration_tests {
+    use super::package_policy_reading_tests::fixture::Fixture;
+    use crate::source_state::data::{TypeParameter, TypeParameterKind};
+    use crate::source_state::expression::StaticMachineArgument;
+    use crate::source_state::name::Identifier;
+    use crate::source_state::signature::StateSignature;
+    use crate::source_state::static_applications::{
+        StaticMachineBinding, StaticMachineBindingValue,
+    };
+    use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
+    use symbols::{SymbolHandle, SymbolKind};
+
+    #[test]
+    fn incomplete_machine_declarations_do_not_fall_back_to_a_source_path() {
+        let mut fixture = Fixture::new();
+        let symbol = fixture.symbol("size");
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no retained declaration")
+        );
+        fixture
+            .program
+            .push_machine(crate::source_state::machine::Machine {
+                symbol,
+                name: Identifier::generated("size"),
+                ..Default::default()
+            });
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no complete callable identity")
+        );
+    }
+
+    #[test]
+    fn closed_requirement_identities_retain_template_and_all_arguments() {
+        let mut fixture = Fixture::new();
+        let receiver = fixture.symbol("Hooks");
+        let other_type = fixture.named("Payload");
+        let seven = fixture.integer(7);
+        let seven = fixture.index(seven);
+        let eight = fixture.integer(8);
+        let eight = fixture.index(eight);
+        let scalar = fixture.u64_type;
+        let program = &mut fixture.program;
+        let template = program
+            .symbols
+            .insert_generated_children(receiver, [(SymbolKind::State, "send")])
+            .start();
+        let binders = program.symbols.insert_generated_children(
+            template,
+            [
+                (SymbolKind::TypeParameter, "T"),
+                (SymbolKind::TypeParameter, "N"),
+                (SymbolKind::TypeParameter, "V"),
+            ],
+        );
+        let kinds = [
+            TypeParameterKind::Type,
+            TypeParameterKind::Const {
+                type_reference: scalar,
+            },
+            TypeParameterKind::Value {
+                type_reference: scalar,
+            },
+        ];
+        let parameters =
+            program.data_type_parameters.insert_many(
+                ["T", "N", "V"].into_iter().zip(kinds).enumerate().map(
+                    |(ordinal, (name, kind))| TypeParameter {
+                        symbol: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                        name: Identifier::generated(name),
+                        kind,
+                        ..Default::default()
+                    },
+                ),
+            );
+        let mut declaration = TraitDefinition {
+            symbol: receiver,
+            name: Identifier::generated("Hooks"),
+            is_boundary: true,
+            ..Default::default()
+        };
+        program.push_trait_machine_signature(
+            &mut declaration,
+            StateSignature {
+                symbol: template,
+                name: Identifier::generated("send"),
+                type_parameters: parameters,
+                return_type: scalar,
+                ..Default::default()
+            },
+        );
+        let environment = AppliedTraitScope::abstract_scope(&declaration).environment();
+        program.push_trait_definition(declaration);
+        let close = |program: &mut crate::source_state::TypedTrees,
+                     values: [StaticMachineBindingValue; 3]| {
+            let actuals = values.each_ref().map(|value| StaticMachineArgument {
+                type_reference: match value {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference)
+                    | StaticMachineBindingValue::RuntimeValue {
+                        type_reference: reference,
+                        ..
+                    } => *reference,
+                    _ => unreachable!("the fixture supplies only types and values"),
+                },
+                ..Default::default()
+            });
+            let application = program.expression_table.retain_static_machine_application(
+                template,
+                Identifier::generated("send"),
+                &actuals,
+            );
+            let source = program
+                .expression_table
+                .static_machine_application_mut(application);
+            source.binding_declaration = template;
+            source.lexical_owner = receiver;
+            let bindings = values
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, value)| StaticMachineBinding {
+                    parameter: binders.handle_at(u32::try_from(ordinal).unwrap()),
+                    value,
+                })
+                .collect::<Vec<_>>();
+            program
+                .expression_table
+                .set_static_machine_application_bindings(application, &bindings);
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, template, &[]);
+            let instance = program
+                .instantiate_requirement_application(&environment, template, &[], application)
+                .unwrap();
+            (instance, application)
+        };
+        use StaticMachineBindingValue::{Const, RuntimeValue, Type};
+        let (first, source) = close(program, [Type(scalar), Const(seven), Const(seven)]);
+        assert_eq!(
+            first,
+            close(program, [Type(scalar), Const(seven), Const(seven)]).0
+        );
+        let second_type = close(program, [Type(other_type), Const(seven), Const(seven)]).0;
+        let second_const = close(program, [Type(scalar), Const(eight), Const(seven)]).0;
+        let runtime = close(
+            program,
+            [
+                Type(scalar),
+                Const(seven),
+                RuntimeValue {
+                    type_reference: scalar,
+                    subject: SymbolHandle::invalid(),
+                    expression: Default::default(),
+                },
+            ],
+        )
+        .0;
+        let identities = [first, second_type, second_const, runtime].map(|symbol| {
+            assert_eq!(
+                program.symbols.symbol_provenance_source_span(symbol),
+                program.symbols.symbol_provenance_source_span(template)
+            );
+            program.normalized_hermetic_symbol_identity(symbol).unwrap()
+        });
+        for (ordinal, identity) in identities.iter().enumerate() {
+            assert!(
+                identity.contains(&super::atom(
+                    super::CoordinateTag::Template,
+                    &program
+                        .normalized_hermetic_symbol_identity(template)
+                        .unwrap(),
+                ))
+            );
+            assert!(
+                identities[..ordinal]
+                    .iter()
+                    .all(|previous| previous != identity)
+            );
+        }
+        for kind in ["type", "const"] {
+            assert!(
+                identities[0].contains(&super::atom(super::Label::Kind, kind)),
+                "missing {kind} argument category in {:?}",
+                identities[0],
+            );
+        }
+        assert!(
+            identities[3].contains("runtime-value-carrier"),
+            "missing runtime argument category in {:?}",
+            identities[3],
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = receiver;
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        program
+            .expression_table
+            .static_machine_application_mut(source)
+            .binding_declaration = template;
+        program
+            .expression_table
+            .set_static_machine_application_bindings(source, &[]);
+        assert!(program.normalized_hermetic_symbol_identity(first).is_err());
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::invalid())
+                .is_err()
+        );
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(SymbolHandle::from_parts(u32::MAX, 1))
+                .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod nested_callback_region_tests {
+    use crate::source_inputs::SourceMap;
+    use crate::source_state::TypedTrees;
+    use crate::source_state::callable_signature_shapes::CallableShapeMismatch;
+    use crate::source_state::callable_values::RuntimeCallableContract;
+    use crate::source_state::machine::Machine;
+    use crate::source_state::name::Identifier;
+    use crate::source_state::signature::{StateParameter, StateSignature};
+    use crate::source_state::state::State;
+    use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source_admission::SourceOrigin;
+    use source_text::{SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef};
+
+    fn reference(
+        program: &mut TypedTrees,
+        unit: TypeReferenceHandle,
+        lifetime: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from(lifetime)),
+            })
+    }
+
+    fn compare(swapped: bool) -> Vec<CallableShapeMismatch> {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                PathBuf::from("nested_callback_regions.omg"),
+                "environment".to_owned(),
+                PathBuf::from("nested_callback_regions"),
+                PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let environment = symbols.insert_root(
+            SymbolKind::Machine,
+            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, "environment".len()))),
+        );
+        let environment_entry = symbols
+            .insert_children(
+                environment,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let callback = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+        let callback_entry = symbols
+            .insert_children(
+                callback,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let required_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("required_value"),
+        );
+        let supplied_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("supplied_value"),
+        );
+        let required_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("required_contract"),
+        );
+        let supplied_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("supplied_contract"),
+        );
+        let formals = [required_contract, supplied_contract].map(|owner| {
+            let children = symbols.insert_children(
+                owner,
+                [
+                    (SymbolKind::Parameter, SymbolNameRef::Static("first")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("second")),
+                ],
+            );
+            [children.handle_at(0), children.handle_at(1)]
+        });
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let states = program.machine_states.insert_many([State {
+            symbol: environment_entry,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        // The enclosing borrowed region has a real declaration owner, separate
+        // from either callable type's universally quantified invocation binder.
+        program.push_machine(Machine {
+            symbol: environment,
+            name: Identifier::from("environment"),
+            lifetime_parameters: vec![Identifier::from("captured")],
+            states,
+            ..Default::default()
+        });
+        let mut contracts = Vec::new();
+        for (position, (owner, lexical_owner, own_lifetime, parameters)) in [
+            (
+                required_contract,
+                environment,
+                "local",
+                ["local", "captured"],
+            ),
+            (
+                supplied_contract,
+                callback,
+                "renamed",
+                if swapped {
+                    ["chosen", "renamed"]
+                } else {
+                    ["renamed", "chosen"]
+                },
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let parameters = parameters
+                .into_iter()
+                .zip(formals[position])
+                .map(|(lifetime, symbol)| {
+                    let type_reference = reference(&mut program, unit, lifetime);
+                    StateParameter {
+                        symbol,
+                        name: Identifier::generated(program.symbols.name(symbol)),
+                        type_reference,
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters.insert_many(parameters);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: owner,
+                        lifetime_parameters: vec![Identifier::from(own_lifetime)],
+                        parameters,
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    lexical_owner,
+                    ..Default::default()
+                });
+            contracts.push(
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Callable { contract }),
+            );
+        }
+        let required = StateSignature {
+            symbol: environment,
+            parameters: program.state_parameters.insert_many([StateParameter {
+                symbol: required_parameter,
+                type_reference: contracts[0],
+                ..Default::default()
+            }]),
+            return_type: unit,
+            ..Default::default()
+        };
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            symbol: supplied_parameter,
+            type_reference: contracts[1],
+            ..Default::default()
+        }]);
+        let states = program.machine_states.insert_many([State {
+            symbol: callback_entry,
+            parameters,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        let callback = Machine {
+            symbol: callback,
+            name: Identifier::from("callback"),
+            lifetime_parameters: vec![Identifier::from("chosen")],
+            states,
+            ..Default::default()
+        };
+        program.push_machine(callback.clone());
+        program
+            .compare_callback_signature_types(&required, &callback, &[], &[])
+            .expect("the nested callable types have complete owned signatures")
+    }
+
+    #[test]
+    fn callback_nested_binders_alpha_rename_and_outer_captures_still_instantiate() {
+        assert!(compare(false).is_empty());
+    }
+
+    #[test]
+    fn callback_nested_binders_cannot_exchange_own_and_captured_regions() {
+        assert_eq!(
+            compare(true),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+    }
+}
+
+#[cfg(test)]
+mod declared_array_extent_tests {
+    use super::LifetimeParameterIdentity;
+    use super::package_policy_reading_tests::fixture::Fixture;
+    use crate::source_state::machine::Machine;
+    use crate::source_state::name::Identifier;
+    use crate::source_state::types::FixedArrayLength;
+    use application_identity::type_identity::malformed_identity_offset;
+
+    #[test]
+    fn scoped_declared_array_extents_retain_parseable_index_recipes() {
+        let mut fixture = Fixture::new();
+        let owner = fixture.symbol("size");
+        fixture.program.push_machine(Machine {
+            symbol: owner,
+            name: Identifier::generated("size"),
+            lifetime_parameters: vec![Identifier::generated("region")],
+            ..Default::default()
+        });
+        let lifetimes = [(
+            LifetimeParameterIdentity {
+                declaration: owner,
+                ordinal: 0,
+            },
+            0,
+        )];
+        let n = fixture.symbol("N");
+        let binders = [(n, "type-parameter:0".to_owned())];
+        let literal = fixture.array(FixedArrayLength::Literal(12288));
+        let other_literal = fixture.array(FixedArrayLength::Literal(12289));
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let width = fixture.symbol("WIDTH");
+        let declared = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: width,
+            name: Identifier::generated("WIDTH"),
+        });
+        let integer = fixture.integer(12288);
+        let expression = fixture.index(integer);
+        let expression = fixture.array(FixedArrayLength::Expression(expression));
+        let replacement = fixture.spelled("12288");
+        let substitutions = [(n, replacement)];
+        let plain_literal = fixture.render(literal, &binders, &[]);
+        assert_eq!(
+            fixture.render(parameter, &binders, &substitutions),
+            plain_literal
+        );
+        assert_eq!(fixture.render(expression, &binders, &[]), plain_literal);
+        for scope in [&[][..], &lifetimes[..]] {
+            let render = |reference, replacements: &[_]| {
+                fixture
+                    .render_in_lifetime_scope(reference, owner, scope, &binders, replacements)
+                    .expect("a complete array declaration has an exact identity")
+            };
+            let literal_identity = render(literal, &[]);
+            assert_eq!(
+                malformed_identity_offset(&literal_identity),
+                None,
+                "the actual scoped formatter must emit a canonical array extent: {literal_identity}"
+            );
+            assert_eq!(
+                literal_identity, plain_literal,
+                "tracking a region scope cannot change this array"
+            );
+            let substituted = render(parameter, &substitutions);
+            let expression_identity = render(expression, &[]);
+            assert_eq!(
+                literal_identity, substituted,
+                "substitution preserves the literal index"
+            );
+            assert_eq!(
+                literal_identity, expression_identity,
+                "literal recipes normalize alike"
+            );
+            assert_ne!(
+                literal_identity,
+                render(other_literal, &[]),
+                "the extent remains part of identity"
+            );
+            for identity in [
+                literal_identity,
+                render(parameter, &[]),
+                render(declared, &[]),
+                expression_identity,
+            ] {
+                assert_eq!(malformed_identity_offset(&identity), None, "{identity}");
+            }
+        }
+        // Unscoped declarations retain their existing literal/const forms, and
+        // the canonical reader must continue to accept those too.
+        for reference in [literal, parameter, declared, expression] {
+            let identity = fixture.render(reference, &binders, &[]);
+            assert_eq!(malformed_identity_offset(&identity), None, "{identity}");
+        }
+    }
+
+    #[test]
+    fn applied_array_extents_use_the_same_selected_constant_value() {
+        use super::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        use crate::source_state::expression::StaticMachineArgument;
+        use numeric_literals::IntegerLiteral;
+
+        let mut fixture = Fixture::new();
+        let n = fixture.symbol("N");
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let literal = fixture.array(FixedArrayLength::Literal(12288));
+        let expected = fixture.render(literal, &[], &[]);
+        let expression = fixture.integer(12288);
+        let reference = fixture.index(expression);
+        let selected = StaticMachineArgument {
+            const_literal: Some(IntegerLiteral::from_value(12288)),
+            ..Default::default()
+        };
+        let typed_selected = StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        };
+        for argument in [
+            IndexIdentityArgument::Expression(expression),
+            IndexIdentityArgument::TypeReference(reference),
+            IndexIdentityArgument::StaticArgument(&selected),
+            IndexIdentityArgument::StaticArgument(&typed_selected),
+        ] {
+            let arguments = [(n, argument)];
+            let scopes = [AppliedTypeIdentityScope {
+                declaration: fixture.symbol("Container"),
+                arguments: &arguments,
+                lifetimes: &[],
+            }];
+            let identity = super::portable_applied_type_identity(
+                &fixture.program,
+                parameter,
+                fixture.symbol("size"),
+                &scopes,
+            )
+            .expect("a selected constant keeps its exact array identity");
+            let identity = fixture.program.type_identity_text(identity).unwrap();
+            assert_eq!(identity, expected);
+            assert_eq!(malformed_identity_offset(&identity), None);
+        }
+    }
+
+    #[test]
+    fn array_extent_applications_refuse_type_only_operands() {
+        use super::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        use crate::source_state::types::TypeReferenceNode;
+        let mut fixture = Fixture::new();
+        let n = fixture.symbol("N");
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        assert!(
+            fixture
+                .render_in_lifetime_scope(
+                    parameter,
+                    fixture.symbol("size"),
+                    &[],
+                    &[(n, "type-parameter:0".to_owned())],
+                    &[]
+                )
+                .is_some(),
+            "the matching const binder is a valid extent"
+        );
+        let value = fixture.integer(4);
+        let value = fixture.index(value);
+        let data = fixture.named("Payload");
+        let unit = fixture.type_node(TypeReferenceNode::Unit);
+        let reference = fixture.type_node(TypeReferenceNode::Reference {
+            referee: fixture.u64_type,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        });
+        for argument in [
+            IndexIdentityArgument::TypeArgument(value),
+            IndexIdentityArgument::TypeReference(fixture.u64_type),
+            IndexIdentityArgument::TypeReference(data),
+            IndexIdentityArgument::TypeReference(unit),
+            IndexIdentityArgument::TypeReference(reference),
+        ] {
+            let arguments = [(n, argument)];
+            let scopes = [AppliedTypeIdentityScope {
+                declaration: fixture.symbol("Container"),
+                arguments: &arguments,
+                lifetimes: &[],
+            }];
+            assert!(
+                super::portable_applied_type_identity(
+                    &fixture.program,
+                    parameter,
+                    fixture.symbol("size"),
+                    &scopes,
+                )
+                .is_none(),
+                "a type operand cannot become an extent value"
+            );
+        }
+        let t = fixture.symbol("T");
+        let type_parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: t,
+            name: Identifier::generated("T"),
+        });
+        assert!(
+            fixture
+                .render_in_lifetime_scope(
+                    type_parameter,
+                    fixture.symbol("size"),
+                    &[],
+                    &[(t, "type-parameter:0".to_owned())],
+                    &[]
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn array_extent_folding_preserves_carriers_and_refuses_unrepresented_policies() {
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionNode, TableBinaryExpression,
+        };
+        use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
+        let mut fixture = Fixture::new();
+        let typed = |value, carrier| {
+            IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::from_name(carrier).unwrap(),
+                domain: ArithmeticDomain::Exact,
+            })
+        };
+        let impossible = fixture.array(FixedArrayLength::Literal(256));
+        let expected256 = fixture.render(impossible, &[], &[]);
+        for carrier in ["u8", "u16"] {
+            let left = fixture.expression(ExpressionNode::Integer(typed(255, carrier)));
+            let right = fixture.expression(ExpressionNode::Integer(typed(1, carrier)));
+            for policy in [ArithmeticDomain::Wrapping, ArithmeticDomain::Saturating] {
+                let expression =
+                    fixture.expression(ExpressionNode::Binary(TableBinaryExpression {
+                        left,
+                        right,
+                        operator: BinaryOperator::Add,
+                        policy,
+                    }));
+                let expression = fixture.index(expression);
+                let array = fixture.array(FixedArrayLength::Expression(expression));
+                assert!(
+                    fixture
+                        .render_in_lifetime_scope(array, fixture.symbol("size"), &[], &[], &[])
+                        .is_none(),
+                    "raw policy syntax has no complete carrier-aware canonical identity"
+                );
+            }
+        }
+        let left = fixture.expression(ExpressionNode::Integer(typed(255, "u8")));
+        let right = fixture.expression(ExpressionNode::Integer(typed(1, "u8")));
+        let overflow = fixture.expression(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            right,
+            operator: BinaryOperator::Add,
+            policy: ArithmeticDomain::Exact,
+        }));
+        let overflow = fixture.index(overflow);
+        let overflow = fixture.array(FixedArrayLength::Expression(overflow));
+        assert_ne!(
+            fixture.render(overflow, &[], &[]),
+            expected256,
+            "typed overflow cannot be folded as anonymous arithmetic"
+        );
+        let left = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(255)));
+        let right = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let sum = fixture.binary(left, BinaryOperator::Add, right);
+        let sum = fixture.index(sum);
+        let sum = fixture.array(FixedArrayLength::Expression(sum));
+        assert_eq!(fixture.render(sum, &[], &[]), expected256);
+        let seven = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
+        let two = fixture.expression(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let division = fixture.binary(seven, BinaryOperator::Divide, two);
+        let division = fixture.index(division);
+        let division = fixture.array(FixedArrayLength::Expression(division));
+        let three = fixture.array(FixedArrayLength::Literal(3));
+        assert_ne!(
+            fixture.render(division, &[], &[]),
+            fixture.render(three, &[], &[]),
+            "anonymous rational division is not truncating integer division"
+        );
+    }
+
+    #[test]
+    fn scoped_array_extents_keep_invalid_application_and_region_refusals() {
+        let mut fixture = Fixture::new();
+        let owner = fixture.symbol("size");
+        fixture.program.push_machine(Machine {
+            symbol: owner,
+            name: Identifier::generated("size"),
+            lifetime_parameters: vec![Identifier::generated("region")],
+            ..Default::default()
+        });
+        let n = fixture.symbol("N");
+        let binders = [(n, "type-parameter:0".to_owned())];
+        let parameter = fixture.array(FixedArrayLength::ConstParameter {
+            symbol: n,
+            name: Identifier::generated("N"),
+        });
+        let negative = fixture.integer(-1);
+        let negative = fixture.index(negative);
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &[], &binders, &[(n, negative)])
+                .is_none(),
+            "normalizing an index recipe cannot admit a negative array extent"
+        );
+        let self_reference = fixture.named("N");
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &[], &binders, &[(n, self_reference)])
+                .is_none(),
+            "a cyclic substitution cannot produce a partial exact identity"
+        );
+        let unknown_region = [(
+            LifetimeParameterIdentity {
+                declaration: owner,
+                ordinal: 1,
+            },
+            0,
+        )];
+        assert!(
+            fixture
+                .render_in_lifetime_scope(parameter, owner, &unknown_region, &binders, &[])
+                .is_none(),
+            "the new extent framing cannot admit a foreign region"
+        );
+    }
+}

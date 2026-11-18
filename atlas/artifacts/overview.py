@@ -363,8 +363,8 @@ def render_overview(architecture):
     from .proposed import proposed_model
     model = layout_model(overview_model(architecture))
     revision=re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
-    model.update(view='current',badge=f'Current · compiler snapshot {revision[:12]}',
-                 intro='Follow the numbered stages across the map. Orange arrows mark the dependencies flagged in the repair plan.')
+    model.update(view='current',badge=f'Before migration · {revision[:12]}',
+                 intro='This snapshot shows the earlier compiler. Trace an orange arrow to its source, then switch to Stages 00–10 to follow the repair.')
     proposed=layout_model(proposed_model())
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
@@ -378,33 +378,36 @@ def render_overview(architecture):
         '<button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><button type="button" data-camera="natural" aria-label="Reset zoom to 100%" title="Reset zoom to 100%"><output class="connected-scale">100%</output></button><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="expand">Expand</button></div></div>'
     )
     parts = ['<div class="arch-reading" id="compiler-overview" data-view="current">',
-             '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
+             '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" id="stages" data-view="proposed" aria-pressed="false">Stages 00–10</button><button type="button" id="before-migration" data-view="current" aria-pressed="true">Before migration</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
              f'<div class="connected-tools" hidden><label class="trace-picker">Trace <select aria-label="Trace a pipeline detour"><option value="">All connections</option>{trace_options}</select></label><label class="stage-picker" hidden>Stage <select aria-label="Jump to stage">{options}</select></label><label class="component-picker">Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
     parts.append('</select></label><button type="button" data-camera="clear">Clear selection</button></div><p class="trace-explanation" hidden></p><div class="connected-workspace"><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
-    parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Current compiler architecture"><defs>')
+    parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Compiler architecture before migration"><defs>')
     for name in ('arrow','return','check','service'):
         parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs>'+render_scene(model))
-    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div>'+footer+'</div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
+    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div>'+footer+'</div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Pre-migration arrows and pinned source</summary><ol>')
     for e in model['edges']:
         if e['label']:
             parts.append(f'<li>{esc(nodes[e["start"]]["title"])} → {esc(nodes[e["end"]]["title"])}: {esc(e["label"])} · <a href="{e["source"]}">Source</a></li>')
     parts.append('</ol></details><script type="application/json" id="overview-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script>')
     parts.append('<template id="overview-proposed-scene"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+render_scene(proposed)+'</svg></template>')
     parts.append('<script type="application/json" id="overview-proposed-model">'+json.dumps(proposed,ensure_ascii=False).replace('<','\\u003c')+'</script>')
-    parts.append('<details class="proposed-contracts"><summary>Proposed contracts and open questions</summary><p>Proposed phase boundaries are judgment, not implemented or verified behavior. <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">Open planning gates</a>.</p><dl>')
+    parts.append('<details class="proposed-contracts"><summary>Numbered stages, contracts and Rust sources</summary><p>Each stage links to the implementation. The <a href="foundation-backend-plan.html#compiler-verification">verification record</a> identifies the builds and routes that were exercised. The <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">original planning gates</a> explain the design obligations.</p><dl>')
     for n in proposed['nodes']:
         anchor=' id="proposed-handlers"' if n['id']=='native-planning-target' else ''
         if n['id']=='binding-summarize': anchor=' id="proposed-handler-binding"'
         parts.append(f'<dt{anchor}>{esc(n["title"])}</dt><dd><p>{esc(n["description"])}</p>')
         if n['gate']:
-            parts.append(f'<p>Open contract: {esc(n["gate"])}</p>')
+            parts.append(f'<p>Obligation in the recorded plan. {esc(n["gate"])}</p>')
+        if evidence := n.get('implementation'):
+            links = ' · '.join(f'<a href="{esc(url)}">{esc(label)}</a>' for label, url in evidence['evidence'])
+            parts.append(f'<p><strong>Implemented on the migration branch.</strong> {esc(evidence["description"])} · {links}</p>')
         if n.get('evidence'):
-            parts.append('<p>Current compiler · '+' · '.join(
+            parts.append('<p>Pinned compiler source · '+' · '.join(
                 f'<a href="{esc(url)}">{esc(label)}</a>' for label,url in n['evidence'])+'</p>')
         parts.append(f'<a href="{n["page"]}.html#{n["anchor"]}">Read proposal</a> · <a href="{n["source"]}">Recorded plan</a></dd>')
     parts.append('</dl></details>')

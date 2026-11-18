@@ -43,7 +43,7 @@ use std::path::{Path, PathBuf};
 #[path = "../tests/support/unbuilt_dependencies.rs"]
 mod unbuilt_dependencies;
 
-use terminal_psi_to_terminal_psi::{CompilationRefusal, RouteVerdict};
+use source_compiler::checking::{CompilationRefusal, RouteVerdict};
 
 fn brief(text: impl std::fmt::Debug) -> String {
     format!("{text:?}")
@@ -108,14 +108,14 @@ fn probe(
         frontier.bindings.clear();
         Vec::new()
     };
-    let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    let verdicts = source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
-            typed_trees_to_terminal_psi::Compilation {
+            source_compiler::lowering::Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &subjects,
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization

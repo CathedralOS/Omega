@@ -10,11 +10,12 @@ name = "proof_admission"
 path = "src/lib.rs"
 
 [dependencies]
+bignum = { path = "../../foundation/bignum" }
 compiler-storage = { path = "../../foundation/compiler-storage" }
 arena = { path = "../../foundation/arena" }
 terminal-psi = { path = "../representations/terminal-psi" }
-semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-numerics = { path = "../../foundation/numerics" }
+semantic-vocabulary = { path = "../representations/semantic-vocabulary" }
+numerics = { path = "../representations/scalar-values" }
 
 [[test]]
 name = "suite"

@@ -1,6 +1,7 @@
 // Physical tests verifying shared-backing page persistence across process
 // unmapping and cross-process pointer linking inside the provider worker.
 
+use crate::native_provider_runtime::test_session::TestProviderProcess;
 use crate::{channel, shared_backing::SharedBacking};
 use bounded_process::{BoundedProcessChild, BoundedProcessLimits, BoundedProcessPrepared};
 use std::{
@@ -193,7 +194,7 @@ fn private_worker_and_host_share_pages_until_each_mapping_retires() {
 
 #[test]
 fn pointer_links_use_worker_homes_and_reject_foreign_incarnations() {
-    use crate::{NativePointerSlot, NativePointerTarget, NativeProviderProcess};
+    use crate::{NativePointerSlot, NativePointerTarget};
     let launch = || {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command.args([
@@ -201,7 +202,7 @@ fn pointer_links_use_worker_homes_and_reject_foreign_incarnations() {
             "physical_tests::internal_native_provider_worker",
             "--nocapture",
         ]);
-        NativeProviderProcess::launch(command, TIMEOUT).unwrap()
+        TestProviderProcess::launch(command, TIMEOUT).unwrap()
     };
     let mut process = launch();
     let descriptor = process.create_home(24, 8).unwrap();

@@ -18,25 +18,27 @@ obligations through `trust_model`.
 */
 
 /*
-`CompileReport` records which payload a compilation produced and validates its
-custody joins over payload-specific variants rather than optional fields. Report
-construction belongs to `CompileReportSettlement`, while output path selection
-and atomic filesystem installation belong exclusively to
-`publication::publish_compilation`. Native evidence and image receipt
-construction remain with `native_artifact`, and filesystem staging mechanics
-remain with `platform_custody`.
+CompileReportSettlement joins a finished product to the source accounting,
+timings, and completed Build outputs of the admitted compilation. Phase 10 owns
+the direct and dynamically linked product states, checks receipts against those
+products, and installs their files. The report publishes Build-output
+companions after phase 10 completes the primary product.
 */
 
 pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
+pub use published_runtime_input::RuntimeExecutionProvisions;
 pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
     recover_native_derivation_inputs,
 };
 
 mod checked_compilation;
+mod published_compilation;
+pub use portable_publication::{ExecutablePackageInputs, PublishedProgram};
+pub use published_compilation::{PublishedCompilation, PublishedExecutableProgram};
 mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
@@ -44,18 +46,16 @@ mod evaluated_build;
 mod independent_component;
 mod package_build;
 mod prepared_build;
-pub use typed_trees::ProductSourceIdentity;
+pub use source_compiler::source_state::ProductSourceIdentity;
 mod prepared_source;
 mod program_entry;
+pub use program_entry::PublishedNativeEntry;
+mod provider_selection;
+pub use provider_selection::{SelectedExecution, SelectedProviderResult};
 mod provider_instances;
 pub use provider_instances::SelectedProviderSource;
 pub mod publication;
-mod terminal_publication;
 mod test_products;
-pub use terminal_publication::{
-    ProductRoster, ProductTerminalPublication, SourceCallingContext, SourceCallingInputs,
-    SourceNormalizationInputs, SourceProgramEntryInput,
-};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };
@@ -86,15 +86,7 @@ pub use evaluated_build::{
     ServiceAuditRegistration,
 };
 pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
-pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
-pub use native_artifact::{
-    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
-    NativePublicationEvidenceDigest, NativePublicationInputsDigest,
-    executable_installation_evidence_digest,
-};
-pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
-pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
-pub use optimization_core::OptimizationRollbackReceipt;
+pub use optimization_requests::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{
@@ -102,9 +94,17 @@ pub use prepared_build::{
     SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    BuildStage, DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
-    SourcePreparation, TypedCompilationFrontier,
+    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
+    TypedCompilationFrontier,
 };
+pub use product_publication::RetainedNativeArtifact;
+pub use product_publication::{
+    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
+    NativePublicationEvidenceDigest, NativePublicationInputsDigest,
+    executable_installation_evidence_digest,
+};
+pub use product_publication::{NativePackagePublicationReceipt, PackagePublicationComponent};
+pub use product_publication::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use provider_admission::provider_admission::TerminalCompilerBuiltinProposal;
 pub use terminal_installation::PrivateEntryRamInitialization;
 pub use verified_optimization_input::native_proposal::{
@@ -115,4 +115,4 @@ pub use verified_optimization_input::{
 };
 
 // The actual invocation records retained by source and failure reports.
-pub use build_time_evaluation::SourceCompletionAccounting;
+pub use source_compiler::evaluation::SourceCompletionAccounting;

@@ -2861,10 +2861,11 @@ mod block_parameters {
     #[cfg(test)]
     mod projected_transfer_tests {
         use super::*;
-        use semantic_vocabulary::{PsiSemanticId, StructuralPlaceKind};
+        use arena::NumericId;
+        use semantic_vocabulary::StructuralPlaceKind;
         use terminal_psi::{ArrayExtent, StructuralPlaceDeclaration, StructuralTypeShape};
 
-        fn id<T: PsiSemanticId>(raw: u64) -> T {
+        fn id<T: NumericId>(raw: u64) -> T {
             T::new(raw).unwrap()
         }
 
@@ -10725,14 +10726,15 @@ mod value_custody {
     #[cfg(test)]
     mod store_tests {
         use super::*;
-        use semantic_vocabulary::{PsiSemanticId, StructuralPlaceKind};
+        use arena::NumericId;
+        use semantic_vocabulary::StructuralPlaceKind;
         use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::{
             ArrayExtent, StructuralParameterDeclaration, StructuralPlaceDeclaration,
             StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
         };
 
-        fn id<T: PsiSemanticId>(raw: u64) -> T {
+        fn id<T: NumericId>(raw: u64) -> T {
             T::new(raw).unwrap()
         }
 

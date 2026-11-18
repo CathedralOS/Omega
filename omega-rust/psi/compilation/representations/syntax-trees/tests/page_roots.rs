@@ -1,5 +1,5 @@
-use numerics::literals::IntegerLiteral;
-use source::SourceId;
+use numeric_literals::IntegerLiteral;
+use source_text::SourceId;
 use syntax_trees::{SyntaxTrees, expression::ExpressionNode};
 
 #[test]

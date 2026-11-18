@@ -1,4 +1,4 @@
-use source::{SourceId, SourceSpan, Span};
+use source_text::{SourceId, SourceSpan, Span};
 use std::sync::Arc;
 use syntax_trees::{SyntaxTrees, identifier::Identifier};
 

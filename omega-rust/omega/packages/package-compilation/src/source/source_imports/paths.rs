@@ -3,35 +3,24 @@
 
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::identifier::JoinedSyntaxPath;
 
-pub(super) fn is_bundled_omega_path(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    path: &[Identifier],
-) -> bool {
+pub(super) fn is_bundled_omega_path(path: &[String]) -> bool {
     path.first()
-        .is_some_and(|segment| segment.as_str(syntax_trees) == "omega")
+        .is_some_and(|segment| segment.as_str() == "omega")
         && path
             .get(1)
-            .is_some_and(|segment| segment.as_str(syntax_trees) == "language")
+            .is_some_and(|segment| segment.as_str() == "language")
 }
 
-pub(super) fn is_bundled_core_path(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    path: &[Identifier],
-) -> bool {
-    is_bundled_omega_path(syntax_trees, path)
+pub(super) fn is_bundled_core_path(path: &[String]) -> bool {
+    is_bundled_omega_path(path)
         && path
             .get(2)
-            .is_some_and(|segment| segment.as_str(syntax_trees) == "core")
+            .is_some_and(|segment| segment.as_str() == "core")
 }
 
-pub(super) fn identifier_path_text(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    path: &[Identifier],
-) -> String {
-    path.joined_path_in(syntax_trees)
+pub(super) fn identifier_path_text(path: &[String]) -> String {
+    path.join("::")
 }
 
 pub(crate) fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {

@@ -12,6 +12,7 @@ mod native_bindings;
 mod numeric;
 mod package_review;
 mod policy;
+mod provider_rows;
 mod providers;
 mod runtime_permissions;
 mod semantic_bindings;

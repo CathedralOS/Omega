@@ -9,12 +9,13 @@ version.workspace = true
 test-fixtures = []
 
 [dependencies]
+source-capture = { path = "../../../host-support/source-capture" }
+wire = { path = "../../../psi/foundation/wire" }
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
-filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
-bounded-process = { path = "../../foundation/bounded-process" }
-optimization-core = { path = "../../foundation/optimization-core" }
-platform-custody = { path = "../../foundation/platform-custody" }
-source = { path = "../../../psi/foundation/source" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+bounded-process = { path = "../../host-support/bounded-process" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }
+platform-custody = { path = "../../host-support/platform-custody" }
 resolver-execution = { path = "../resolver-execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"

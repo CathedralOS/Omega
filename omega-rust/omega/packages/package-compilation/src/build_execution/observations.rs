@@ -6,7 +6,7 @@
 
 use build_output::BuildStagedOutputTree;
 
-pub use evaluation_accounting::BuildEvaluationUsage;
+pub use evaluation_contracts::BuildEvaluationUsage;
 pub use filesystem_authority::{
     FilesystemGrantAccess as BuildFilesystemGrantAccess,
     FilesystemGrantRefusal as BuildFilesystemGrantRefusal,

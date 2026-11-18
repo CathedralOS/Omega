@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 #[derive(Default)]
 pub struct CompilationSession {
-    preparation: products::SourcePreparation,
+    preparation: source_compiler::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
     component_products: Vec<Arc<products::IndependentComponentProduct>>,
@@ -113,7 +113,7 @@ impl CompilationSession {
             let root = source.root().to_path_buf();
             let package_inputs = source.package_inputs().cloned();
             let selected = self
-                .select_completed_source(source, returned, product.inspection_name(), None)
+                .select_completed_source(source, returned, Some(&product), None)
                 .result
                 .map_err(crate::CompilationProductError::from)?;
             let mut outputs = crate::target_batch::produce_products(vec![(
@@ -123,7 +123,6 @@ impl CompilationSession {
                     package_inputs,
                     root,
                     product,
-                    permissions: None,
                 }),
             )]);
             match outputs.pop() {
@@ -168,7 +167,7 @@ impl CompilationSession {
     /// is `None` and the source declares one) is bound to the request
     /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
     /// nothing else a Build decides is present. Judge the result with
-    /// `terminal_psi_to_terminal_psi::judge_compilation`. This is the route's probe
+    /// `source_compiler::checking::judge_compilation`. This is the route's probe
     /// (`checking::unbuilt_source`), not a way to compile: it yields no
     /// product.
     pub fn typed_frontier_without_build(
@@ -205,10 +204,10 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-        inspection: Option<&str>,
+        product: Option<&crate::CompilationProduct>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        match source.select(returned, inspection, frontier) {
+        match source.select(returned, product, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => refusal(failure),
         }

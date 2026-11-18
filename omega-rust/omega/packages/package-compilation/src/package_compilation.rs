@@ -42,8 +42,6 @@ mod dependency_graph;
 mod errors;
 #[path = "native_bindings.rs"]
 mod native_bindings;
-#[path = "native_evaluation.rs"]
-mod native_evaluation;
 #[path = "native_output_codec.rs"]
 pub mod native_output_codec;
 #[path = "provider_defaults.rs"]
@@ -52,10 +50,10 @@ mod provider_defaults;
 pub mod provider_selection_codec;
 #[path = "provider_selections.rs"]
 mod provider_selections;
+use evaluation_receipts::NativeBuildEvaluation;
 pub use native_bindings::{
     NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
 };
-pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
@@ -104,7 +102,7 @@ impl Default for PackageCompilationTargetInputs {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageCompilationSourceInputs {
-    filesystem: source::SourceFileSystem,
+    filesystem: source_capture::SourceFileSystem,
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
@@ -123,7 +121,7 @@ struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
-    captured_source: Option<Arc<source::CapturedSourceTree>>,
+    captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     captured_build_source: Option<build_output::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageKeyIdentity>,
     build_dependencies: BTreeMap<String, PackageKeyIdentity>, // Only the compilation root may hold build-scope edges.
@@ -319,7 +317,7 @@ impl PackageCompilationInputs {
     pub(crate) fn validate_unbound_source_join(
         &self,
         root: &Path,
-        capture: &source::CapturedSourceTree,
+        capture: &source_capture::CapturedSourceTree,
     ) -> Result<(), String> {
         let record = self
             .source
@@ -332,7 +330,7 @@ impl PackageCompilationInputs {
         Ok(())
     }
 
-    pub(crate) fn source_filesystem(&self) -> &source::SourceFileSystem {
+    pub(crate) fn source_filesystem(&self) -> &source_capture::SourceFileSystem {
         &self.source.filesystem
     }
 
@@ -557,7 +555,7 @@ impl PackageCompilationInputs {
     }
 }
 
-impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+impl source_compiler::evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
     fn declaration_selection_scope(
         &self,
     ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {

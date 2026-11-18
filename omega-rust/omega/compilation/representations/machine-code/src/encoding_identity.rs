@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `SelectedFormEncoding` (`SelectedFormEncodingIdentity`,
-schema `omega.terminal.layout-independent-selected-form-encoding.v30`) and footprint interning
+schema `omega.terminal.layout-independent-selected-form-encoding.v31`) and footprint interning
 buckets (`omega.selected-form-decoded-footprint.storage.v1`).
 
 Each encoded row hashes its own instruction bytes and decoded footprint through its span and handle
@@ -24,7 +24,7 @@ use super::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v30";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v31";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -198,11 +198,21 @@ fn encode_encoding_row(
             hasher.byte(0);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
         }
-        SelectedFormEncodingState::DeferredControl { reason } => {
+        SelectedFormEncodingState::DeferredControl {
+            reason,
+            alternatives,
+        } => {
             hasher.byte(1);
             hasher.byte(match reason {
                 DeferredControlEncodingReason::RequiresResolvedBranchLayout => 0,
             });
+            encode_branch_alternative(hasher, &alternatives.baseline);
+            for alternative in [&alternatives.widened, &alternatives.shortened] {
+                hasher.byte(u8::from(alternative.is_some()));
+                if let Some(alternative) = alternative {
+                    encode_branch_alternative(hasher, alternative);
+                }
+            }
         }
         SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
             hasher.byte(2);
@@ -243,6 +253,24 @@ pub(super) fn footprint_bucket(footprint: &SelectedFormDecodedFootprint) -> [u8;
     );
     encode_footprint(&mut hasher, footprint);
     hasher.finish()
+}
+
+fn encode_branch_alternative(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    row: &crate::EncodedBranchAlternative,
+) {
+    selected_instructions::encode_machine_alternative_key_identity(hasher, row.alternative);
+    hasher.byte(match row.field {
+        crate::BranchDisplacementField::Relative8 => 0,
+        crate::BranchDisplacementField::Relative32 => 1,
+        crate::BranchDisplacementField::Aarch64Conditional19 => 2,
+        crate::BranchDisplacementField::Aarch64Branch26 => 3,
+    });
+    hasher.raw(&row.field_offset.to_le_bytes());
+    hasher.raw(&row.reference_offset.to_le_bytes());
+    hasher.raw(&(row.bytes.len() as u64).to_le_bytes());
+    hasher.raw(&row.bytes);
+    encode_footprint(hasher, &row.footprint);
 }
 
 fn encode_footprint(
@@ -424,6 +452,31 @@ mod tests {
                 machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                 state: SelectedFormEncodingState::DeferredControl {
                     reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
+                    alternatives: Box::new(crate::EncodedControlAlternatives {
+                        baseline: crate::EncodedBranchAlternative {
+                            alternative: MachineAlternativeKey {
+                                family: MachineAlternativeFamily::ConditionalBranchNonZero,
+                                variant: 0,
+                            },
+                            bytes: vec![0x0f, 0x85, 0, 0, 0, 0],
+                            field: crate::BranchDisplacementField::Relative32,
+                            field_offset: 2,
+                            reference_offset: 6,
+                            footprint: SelectedFormDecodedFootprint {
+                                register_reads: vec![],
+                                register_writes: vec![],
+                                implicit_defs: vec![],
+                                implicit_clobbers: vec![],
+                                encoded:
+                                    selected_instructions::MachineEncodedEffects::fallthrough_v1(
+                                        vec![],
+                                        vec![],
+                                    ),
+                            },
+                        },
+                        widened: None,
+                        shortened: None,
+                    }),
                 },
                 code: SelectedFormEncodedByteSpan::default(),
                 footprint: SelectedFormDecodedFootprintHandle::default(),
@@ -527,11 +580,11 @@ mod tests {
     }
 
     #[test]
-    fn current_encoding_binds_the_version_30_alternative_schema() {
+    fn current_encoding_binds_the_version_31_control_alternative_schema() {
         let mut program = deferred_program();
         use sha2::{Digest, Sha256};
         let mut canonical =
-            b"omega.terminal.layout-independent-selected-form-encoding.v30".to_vec();
+            b"omega.terminal.layout-independent-selected-form-encoding.v31".to_vec();
         canonical.extend_from_slice(&[1; 32]);
         canonical.extend_from_slice(&[2; 32]);
         canonical.push(0);
@@ -539,14 +592,26 @@ mod tests {
         crate::codec_bytes::push_encoded(&mut canonical, 7_u32.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 6_u16.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, 0_u32.to_le_bytes());
-        canonical.extend_from_slice(&[0, 0, 1, 0, 0]);
+        canonical.extend_from_slice(&[0, 0, 1, 0]);
+        // Baseline JNE rel32 template: key, field geometry, bytes, then
+        // four empty decoded-register sets and five empty effect operands.
+        canonical.extend_from_slice(&6_u16.to_le_bytes());
+        canonical.extend_from_slice(&0_u32.to_le_bytes());
+        canonical.push(1);
+        canonical.extend_from_slice(&2_u32.to_le_bytes());
+        canonical.extend_from_slice(&6_u32.to_le_bytes());
+        canonical.extend_from_slice(&6_u64.to_le_bytes());
+        canonical.extend_from_slice(&[0x0f, 0x85, 0, 0, 0, 0]);
+        canonical.extend_from_slice(&[0; 9 * 8]);
+        canonical.extend_from_slice(&[0; 4]); // Memory, stack, trap, control tags.
+        canonical.extend_from_slice(&[0, 0, 0]); // No widened/shortened form or frame.
         for count in [0_u64, 1, 0, 0, 0, 0] {
             crate::codec_bytes::push_encoded(&mut canonical, count.to_le_bytes());
         }
-        assert_eq!(canonical.len(), 196);
+        assert_eq!(canonical.len(), 303);
         let expected = [
-            113, 54, 82, 228, 121, 126, 144, 23, 241, 114, 164, 231, 135, 55, 91, 13, 24, 208, 106,
-            132, 17, 59, 245, 119, 31, 223, 130, 185, 243, 54, 200, 71,
+            76, 227, 238, 46, 11, 125, 97, 55, 199, 86, 162, 121, 35, 94, 100, 60, 91, 31, 166, 30,
+            141, 133, 1, 214, 20, 229, 152, 174, 153, 145, 62, 248,
         ];
         assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
         assert_eq!(program.recomputed_identity().bytes(), expected);
@@ -559,6 +624,32 @@ mod tests {
         };
         assert_eq!(retained.rows()[0].instruction, SelectedInstructionId(7));
         assert_eq!(retained.identity().bytes(), expected);
+    }
+
+    #[test]
+    fn encoding_identity_binds_every_control_template_field() {
+        let original = deferred_program();
+        let identity = original.recomputed_identity();
+        for field in 0..9 {
+            let mut changed = original.clone();
+            let SelectedFormEncodingState::DeferredControl { alternatives, .. } =
+                &mut changed.rows[0].state
+            else {
+                unreachable!()
+            };
+            match field {
+                0 => alternatives.baseline.bytes[0] ^= 1,
+                1 => alternatives.baseline.field = crate::BranchDisplacementField::Relative8,
+                2 => alternatives.baseline.field_offset += 1,
+                3 => alternatives.baseline.reference_offset += 1,
+                4 => alternatives.baseline.alternative.variant += 1,
+                5 => alternatives.baseline.footprint.register_reads.push(register_model::RegisterViewId(1)),
+                6 => alternatives.widened = Some(alternatives.baseline.clone()),
+                7 => alternatives.shortened = Some(alternatives.baseline.clone()),
+                _ => alternatives.baseline.footprint.encoded.control = selected_instructions::MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+            }
+            assert_ne!(changed.recomputed_identity(), identity, "field {field}");
+        }
     }
 
     #[test]

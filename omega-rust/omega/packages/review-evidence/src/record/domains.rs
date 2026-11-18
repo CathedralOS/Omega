@@ -58,5 +58,5 @@ impl PackageReviewDomainEstablishmentRoute {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewDomainAliasAtom {
     Declared(PackageReviewNominalIdentity),
-    Carry(language_semantics::CarryPermission),
+    Carry(declaration_contracts::CarryPermission),
 }

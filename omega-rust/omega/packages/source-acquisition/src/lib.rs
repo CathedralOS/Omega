@@ -30,7 +30,7 @@ consume a fixed byte-for-byte source tree.
 #![cfg_attr(windows, feature(windows_by_handle))]
 
 mod custody;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 mod error;
 pub mod git;
 pub(crate) mod identity;

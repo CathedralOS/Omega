@@ -1,0 +1,51 @@
+[package]
+name = "physical-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+physical-program = { path = "../../representations/physical-program" }
+program-entry-plan = { path = "../../representations/program-entry" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+physical-recipes = { path = "../../representations/physical-recipes" }
+installation-admission = { path = "../../verification/installation-admission" }
+function-identity = { path = "../../representations/function-identity" }
+task-plans = { path = "../../representations/task-plans" }
+target-operations = { path = "../../representations/target-operations" }
+provider-admission = { path = "../../verification/provider-admission" }
+arena = { path = "../../../../psi/foundation/arena" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+access-admission = { path = "../../../../psi/compilation/access-admission" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }
+bound-installations = { path = "../../representations/bound-installations" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+storage-access = { path = "../../../../psi/runtime/storage-access" }
+access-vocabulary = { path = "../../../../psi/compilation/representations/access-vocabulary" }
+frame-admission = { path = "../../verification/frame-admission" }
+machine-code = { path = "../../representations/machine-code" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
+register-environment = { path = "../../target-description/register-environment" }
+register-homes = { path = "../../representations/register-homes" }
+register-model = { path = "../../target-description/register-model" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target = { path = "../../target-description/target" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+target-x86_64 = { path = "../../target-description/target-x86_64" }
+target-aarch64 = { path = "../../target-description/target-aarch64" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+native-vocabulary = { path = "../../representations/native-vocabulary" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
+
+[dev-dependencies]
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
