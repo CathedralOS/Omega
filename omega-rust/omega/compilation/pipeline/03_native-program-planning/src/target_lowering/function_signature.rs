@@ -862,7 +862,7 @@ pub(crate) mod structural_type_lookup {
             )
             .with_target_carriers(Some(self.carriers))
             .with_record_storage(self)
-            .region_source_compatible(source, path, reference, stored)
+            .view_source_compatible(source, path, reference, stored)
         }
 
         pub(crate) fn subtree(
@@ -1110,6 +1110,56 @@ mod native_region_geometry_tests {
         )
         .unwrap();
         assert!(!types.storage_region_source_compatible(id(7), &window(31), id(8), None));
+    }
+
+    fn whole_field_catalog(byte_length: u64, misaligned: bool) -> StructuralTypeCatalog {
+        let mut rows = explicit_window_catalog()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let bytes = rows.iter_mut().find(|row| row.id == id(2)).unwrap();
+        let StructuralTypeShape::FixedArray { length, .. } = &mut bytes.shape else {
+            panic!("whole-field control lost its byte array");
+        };
+        *length = ArrayExtent::Literal(byte_length);
+        if misaligned {
+            let receiver = rows.iter_mut().find(|row| row.id == id(7)).unwrap();
+            let StructuralTypeShape::Record { fields, .. } = &mut receiver.shape else {
+                panic!("whole-field control lost its enclosing record");
+            };
+            fields.insert(2, field(4, StructuralFieldType::Scalar(integer(8))));
+        }
+        StructuralTypeCatalog::new(rows, Vec::new())
+    }
+
+    fn whole_field() -> [StructuralPathSegment; 1] {
+        [StructuralPathSegment::Field(TerminalIdentityIndex(3))]
+    }
+
+    #[test]
+    fn a_whole_byte_field_uses_its_enclosing_native_geometry() {
+        let catalog = whole_field_catalog(32, false);
+        let types = lookup(&catalog);
+        assert_eq!(byte_offset(&types), 16);
+        assert!(types.storage_region_source_compatible(id(7), &whole_field(), id(8), None));
+    }
+
+    #[test]
+    fn a_short_whole_byte_field_cannot_supply_the_complete_record() {
+        let catalog = whole_field_catalog(31, false);
+        let types = lookup(&catalog);
+        assert_eq!(byte_offset(&types), 16);
+        assert!(!types.storage_region_source_compatible(id(7), &whole_field(), id(8), None));
+    }
+
+    #[test]
+    fn a_misaligned_whole_byte_field_cannot_supply_the_complete_record() {
+        let catalog = whole_field_catalog(32, true);
+        let types = lookup(&catalog);
+        assert_eq!(byte_offset(&types), 17);
+        assert_eq!(types.shape(id(7)).unwrap().alignment, 8);
+        assert_eq!(types.shape(id(6)).unwrap().alignment, 8);
+        assert!(!types.storage_region_source_compatible(id(7), &whole_field(), id(8), None));
     }
 
     fn carrier_catalog(
