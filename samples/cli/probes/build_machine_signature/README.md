@@ -1,21 +1,13 @@
 # build_machine_signature
 
-The build activation is one machine named `build` whose first parameter
-is pinned to the spelling `builder: &mut Build`. The parameter NAME is
-part of the contract — `context: &mut Build` rejects identically to a
-missing parameter. The entry returns nothing
-([Build declarations](../../../../wiki/spec/build/declarations.md#project-role):
-"A simple entry remains `machine build(builder: &mut Build)`").
+A [Build entry](../../../../wiki/spec/build/declarations.md#project-role)
+is one free machine named `build`. These cases use the entry with a mutable
+Build borrow and no additional execution backing. `valid_renamed_param`
+passes that borrow through the binding named `context`.
 
-Controls pin the enforced shape:
-
-- `invalid_param_name` / `invalid_param_missing` /
-  `invalid_param_immutable` / `invalid_extra_param`: each rejects
-  "package build machine's first parameter must be
-  `builder: &mut Build`" — the extra-parameter case shows arity is
-  enforced through the same first-parameter diagnostic.
-- `invalid_no_kind`: a `build` machine calling no `Build::` kind
-  rejects "build must declare exactly one kind".
-- `invalid_no_build_machine`: a file declaring only `machine setup`
-  produces the same "exactly one kind" diagnostic — the activation is
-  the machine named `build`, not any machine that calls `Build::`.
+- `invalid_param_missing` and `invalid_extra_param` check the parameter
+  roster for this invocation.
+- `invalid_param_immutable` tries to declare the application through a shared
+  Build reference.
+- `invalid_no_build_machine` declares only `setup`.
+- `invalid_no_kind` returns without declaring a project role.
