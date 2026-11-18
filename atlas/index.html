@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Trace the compiler. Find the detours. Follow the repair plan.">
+  <meta name="description" content="Explore the numbered compiler and the architecture it replaces.">
   <title>See how Omega fits together.</title>
   <link rel="stylesheet" href="design/tokens.css">
   <style>/* Layout only. The portable design kit owns color, type, space and shape. */
@@ -577,24 +577,26 @@ main h2,main h3 { scroll-margin-top:100px; }
 
       <div class="eyebrow">Compiler architecture &amp; repair plans</div>
       <h1>See how Omega fits together.</h1>
-      <p class="lede">Trace the compiler. Find the detours. Follow the repair plan.</p>
+      <p class="lede">Explore the numbered compiler and the architecture it replaces.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas"><code>427f763820e3</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/artifacts/home.html">Page source</a></span></div>
-      <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
+      <div class="meta"><span>Numbered implementation <a href="https://github.com/CathedralOS/Omega/tree/c329436ed22f18b41352985cff202b46129e6538"><code>c329436ed22</code></a></span><span>Pre-migration snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1fe5ae10eef6469a3537e78030000ffaee704272/atlas"><code>1fe5ae10eef6</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/artifacts/home.html">Page source</a></span></div>
+      <p class="publication">The pre-migration snapshot supplies the repository inventory and historical routes. Implementation links and execution records identify the compiler revision they cover. Atlas content identifies the sources used to build this page.</p></details>
 
     </header>
 
-    <main id="main"><div class="home-choices" aria-label="Start exploring Atlas">
+    <main id="main"><p>Compare the <a href="pages/architecture.html#before-migration">pre-migration compiler at 3f9ce43f0c9d</a> or open <a href="pages/pipeline-map.html">Claude’s original illustrated map</a>.</p>
+
+<div class="home-choices" aria-label="Start exploring Atlas">
   <a class="route-card" href="pages/architecture.html" aria-label="Open compiler map">
-    <span class="eyebrow">Understand the system</span>
-    <h2>The whole compiler</h2>
-    <p>Trace the pre-migration compiler from Build. Open the plan to see which routes the migration branch implements.</p>
+    <span class="eyebrow">Implementation at c329436ed22</span>
+    <h2>The whole compiler, stages 00–10</h2>
+    <p>Follow a compilation from its inputs to published products. Select a stage to see its Rust code and the value it hands forward.</p>
     <span class="route-link">Open compiler map →</span>
   </a>
-  <a class="route-card" href="pages/foundation-backend-plan.html#start-with-the-extra-arrows" aria-label="Read the repair plan">
-    <span class="eyebrow">Change the structure</span>
-    <h2>Why the arrows branch</h2>
-    <p>See the detours, the evidence behind them, and the plan to remove them.</p>
+  <a class="route-card" href="pages/foundation-backend-plan.html#compiler-verification" aria-label="Read the repair plan">
+    <span class="eyebrow">Plan and verification</span>
+    <h2>What the compiler checks</h2>
+    <p>Read the migration contracts, the hosted checks and the results from running the public compiler.</p>
     <span class="route-link">Read the repair plan →</span>
   </a>
 </div>
@@ -609,7 +611,7 @@ main h2,main h3 { scroll-margin-top:100px; }
 
 <section class="home-context" aria-label="Decisions and evidence">
   <div><h2>Decisions guide the repairs.</h2><p><a href="pages/rulings.html">Owner rulings →</a> <a href="pages/questions.html">Open design questions →</a></p></div>
-  <div><h2>Keep the evidence in view.</h2><p><a href="pages/pipeline-current.html">Pre-migration pipeline account →</a> <a href="pages/pipeline-map.html">Historical original drawing →</a></p></div>
+  <div><h2>Trace an earlier design decision.</h2><p><a href="pages/pipeline-current.html">Pre-migration pipeline account →</a> <a href="pages/foundation-backend-plan.html#start-with-the-extra-arrows">Why the old arrows branch →</a></p></div>
 </section>
 </main>
   </div>
@@ -633,7 +635,7 @@ main h2,main h3 { scroll-margin-top:100px; }
 <li><a href="pages/questions.html">Open questions</a></li>
 <li><a href="pages/rulings.html">Owner rulings</a></li>
 <li><a href="pages/pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/427f763820e3a6baa0f89ff61e79815dc3c814cd/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1fe5ae10eef6469a3537e78030000ffaee704272/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -937,8 +939,6 @@ main h2,main h3 { scroll-margin-top:100px; }
     button('Close ×',()=>{traceDetour(comparing,false);selectionTrigger?.focus({preventScroll:true});}).className='connected-detail-close';
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
-      const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
-      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Obligation in the recorded plan. '+chosen.gate;detail.append(gate);}
       if(chosen.implementation){
         const observation=document.createElement('p');
         const label=document.createElement('strong');label.textContent='Implemented on the migration branch. ';
@@ -946,6 +946,8 @@ main h2,main h3 { scroll-margin-top:100px; }
         for(const [title,url] of chosen.implementation.evidence){observation.append(' · ');link(title,url,observation);}
         detail.append(observation);
       }
+      const p=document.createElement('p');p.textContent=(view==='proposed'?'Recorded design. ':'')+chosen.description;detail.append(p);
+      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Obligation in the recorded plan. '+chosen.gate;detail.append(gate);}
       if(chosen.evidence){
         const sources=document.createElement('p');sources.textContent='Pinned compiler source';
         for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
@@ -987,7 +989,7 @@ main h2,main h3 { scroll-margin-top:100px; }
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
     root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
-    svg.setAttribute('aria-label',view==='proposed'?'Proposed stage order with separate implementation evidence':'Compiler architecture before migration');
+    svg.setAttribute('aria-label',view==='proposed'?'Compiler stages 00–10 with Rust implementation sources':'Compiler architecture before migration');
   }
   function comparisonTrace(){
     if(traceSelect.value || view!=='current' || !selected)return traceSelect.value;
@@ -1072,9 +1074,13 @@ main h2,main h3 { scroll-margin-top:100px; }
     switchView('proposed');traceDetour('handlers',!binding);
     if(binding)visitStage('binding-summarize');
   }
-  window.addEventListener('hashchange',openHandlerHandoff);
-  openHandlerHandoff();
-  if(location.hash==='#proposed')switchView('proposed');
+  function openLinkedView(){
+    if(!location.hash||location.hash==='#stages'||location.hash==='#proposed')switchView('proposed');
+    else if(location.hash==='#before-migration')switchView('current');
+    else openHandlerHandoff();
+  }
+  window.addEventListener('hashchange',openLinkedView);
+  openLinkedView();
 })();
 </script>
 </body>
