@@ -1686,15 +1686,11 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "arena",
  "bounded-process",
- "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
- "source-admission",
- "source-compiler",
 ]
 
 [[package]]
