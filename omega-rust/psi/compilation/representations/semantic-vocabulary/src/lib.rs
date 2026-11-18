@@ -970,12 +970,16 @@ pub use scalars::bounded_integer_type::BoundedIntegerType;
 pub use storage::authored_storage::{
     AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
 };
+pub use storage::content::ContentPlaceSegment as StructuralPlaceSegment;
 pub use storage::content::{
-    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    content_conservation_report_fingerprint, encode_fingerprint_string,
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceVersion,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, content_conservation_report_fingerprint,
+    encode_fingerprint_string,
 };
+/// A content place orders case names before field names. Import this concrete
+/// type and qualify its variants, for example `ContentPlaceSegment::Case`.
+pub type ContentPlaceSegment = StructuralPlaceSegment<false>;
 pub use storage::structural_places::{AffineConstructionElement, StructuralPlaceKind};
 
 pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};

@@ -452,7 +452,9 @@ pub struct ServiceResultClaim {
 /// A semantic result selector, relative to the method's exact declared result
 /// application. Field and case identities use the declaration's named or
 /// numbered member identity. Implicit reference traversal adds no selector.
-pub use semantic_vocabulary::ContentPlaceSegment as ServiceResultProjection;
+/// Rust's variant imports require an enum declaration. Import this concrete
+/// type and qualify its variants, for example `ServiceResultProjection::Field`.
+pub type ServiceResultProjection = semantic_vocabulary::StructuralPlaceSegment<true>;
 
 /// The service contract writes fields, cases and fixed indices in this order.
 fn service_member_tag(member: &ServiceResultProjection) -> u8 {
@@ -463,31 +465,11 @@ fn service_member_tag(member: &ServiceResultProjection) -> u8 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceNormalResultMembership {
     pub path: Vec<ServiceResultProjection>,
     /// Complete canonical declaration/application identity, including indices.
     pub domain: String,
-}
-
-impl Ord for ServiceNormalResultMembership {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        fn member_key(member: &ServiceResultProjection) -> (u8, &ServiceResultProjection) {
-            (service_member_tag(member), member)
-        }
-
-        self.path
-            .iter()
-            .map(member_key)
-            .cmp(other.path.iter().map(member_key))
-            .then_with(|| self.domain.cmp(&other.domain))
-    }
-}
-
-impl PartialOrd for ServiceNormalResultMembership {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 impl ServiceNormalResultMembership {
@@ -523,3 +505,6 @@ impl ProviderSchemaDeclaration {
 
 mod commitment;
 pub use commitment::{ServiceContractSink, declared_type_signature};
+
+#[cfg(test)]
+mod segment_tests;

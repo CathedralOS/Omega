@@ -236,11 +236,52 @@ pub(crate) mod content {
         Current,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub enum ContentPlaceSegment {
+    // Content records encode case, field, then index in declaration order.
+    // Service result paths compare and hash fields before cases.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum ContentPlaceSegment<const FIELD_FIRST: bool = false> {
         Case(String),
         Field(String),
         FixedIndex(u64),
+    }
+
+    impl<const FIELD_FIRST: bool> ContentPlaceSegment<FIELD_FIRST> {
+        fn ordinal(&self) -> isize {
+            match self {
+                Self::Case(_) => FIELD_FIRST as isize,
+                Self::Field(_) => (!FIELD_FIRST) as isize,
+                Self::FixedIndex(_) => 2,
+            }
+        }
+    }
+
+    impl<const FIELD_FIRST: bool> Ord for ContentPlaceSegment<FIELD_FIRST> {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            match (self, other) {
+                (Self::Case(left), Self::Case(right)) | (Self::Field(left), Self::Field(right)) => {
+                    left.cmp(right)
+                }
+                (Self::FixedIndex(left), Self::FixedIndex(right)) => left.cmp(right),
+                _ => self.ordinal().cmp(&other.ordinal()),
+            }
+        }
+    }
+
+    impl<const FIELD_FIRST: bool> PartialOrd for ContentPlaceSegment<FIELD_FIRST> {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl<const FIELD_FIRST: bool> std::hash::Hash for ContentPlaceSegment<FIELD_FIRST> {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Rust's derived Hash writes its isize discriminant before the payload.
+            self.ordinal().hash(state);
+            match self {
+                Self::Case(name) | Self::Field(name) => name.hash(state),
+                Self::FixedIndex(index) => index.hash(state),
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
