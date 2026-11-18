@@ -51,7 +51,7 @@ pub(crate) use external_mechanisms::{
 };
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 11;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 12;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 3;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =
@@ -436,5 +436,196 @@ mod integer_width_tests {
         ] {
             assert!(policy.classify(mechanism).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod interrupt_control_tests {
+    use super::super::terminal_authority_permission_policy::{
+        TerminalAuthorityPermissionPolicyRow, terminal_authority_permission_policy_with_rows,
+    };
+    use super::*;
+    use effects::{
+        SelectedProviderPlanFacts, TerminalAuthorityClosureLeaf,
+        TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
+        provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
+    };
+    use symbols::BuiltinFunction;
+
+    #[test]
+    fn mask_intrinsics_have_only_interrupt_control() {
+        use BuiltinFunction::*;
+        use TerminalAuthorityClass::*;
+        let policy = current_terminal_authority_policy();
+        for (function, expected) in [
+            (AsmDisableInterrupts, Some(InterruptControl)),
+            (AsmEnableInterrupts, Some(InterruptControl)),
+            (AsmHlt, Some(MachineControl)),
+            (AsmRestoreFlags, Some(MachineControl)),
+            (AsmWriteCr3, Some(MachineControl)),
+            (AsmPortIn, Some(PortIo)),
+            (AsmPortOut, Some(PortIo)),
+            (AsmFullFence, None),
+            (AsmSnapshotFlags, None),
+        ] {
+            let mechanism = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+            assert_eq!(
+                policy.classify(mechanism).unwrap().classes(),
+                expected.as_slice(),
+                "{function:?} under {:?}",
+                policy.identity(),
+            );
+        }
+    }
+
+    #[test]
+    fn mask_receiving_permissions_use_exact_classes_and_rows() {
+        use BuiltinFunction::*;
+        use TerminalAuthorityClass::*;
+        let physical = current_terminal_authority_policy();
+        let mut names = terminal_psi::TerminalIdentityTable::default().into_builder();
+        let requirement = names.intern("Mask::update");
+        let names = names.build();
+        let schema = ServiceSchemaDigest::from_digest([1; 32]);
+        let plan = ProviderPlanDigest::from_digest([2; 32]);
+        for (function, allowed, missing) in [
+            (AsmDisableInterrupts, vec![InterruptControl], None),
+            (AsmEnableInterrupts, vec![InterruptControl], None),
+            (
+                AsmDisableInterrupts,
+                vec![MachineControl],
+                Some(InterruptControl),
+            ),
+            (AsmDisableInterrupts, vec![], Some(InterruptControl)),
+            (
+                AsmDisableInterrupts,
+                vec![MachineControl, InterruptControl],
+                None,
+            ),
+            (AsmWriteCr3, vec![InterruptControl], Some(MachineControl)),
+        ] {
+            let permissions = terminal_authority_permission_policy_with_rows(
+                vec![TerminalAuthorityPermissionPolicyRow::new(
+                    schema,
+                    requirement,
+                    TerminalAuthorityDisposition::from_classes(allowed),
+                )],
+                names.clone(),
+            )
+            .unwrap();
+            assert!(
+                permissions
+                    .permission_for(schema, "OtherMask::update")
+                    .is_err()
+            );
+            assert!(
+                permissions
+                    .permission_for(ServiceSchemaDigest::from_digest([9; 32]), "Mask::update",)
+                    .is_err()
+            );
+            let mechanism = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+            let leaf = TerminalAuthorityClosureLeaf::new(
+                schema,
+                requirement,
+                requirement,
+                plan,
+                mechanism.into(),
+                TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+                Some(physical.classify(mechanism).unwrap()),
+                Some(permissions.permission_for(schema, "Mask::update").unwrap()),
+            );
+            if let Some(class) = missing {
+                assert_eq!(
+                    format!("{:?}", leaf.unwrap_err()),
+                    format!("ExercisedAuthorityNotPermitted {{ class: {class:?} }}")
+                );
+            } else {
+                TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+                    [3; 32],
+                    target::TargetProfile::LinuxX64.native_target(),
+                    SelectedProviderPlanFacts::default().identity_digest(),
+                    physical.identity(),
+                    Some(permissions.identity()),
+                    vec![leaf.unwrap()],
+                    &names,
+                )
+                .unwrap();
+            }
+        }
+        let absent = terminal_authority_permission_policy_with_rows(vec![], names.clone()).unwrap();
+        assert!(absent.permission_for(schema, "Mask::update").is_err());
+        // Classification without a requested receiver policy grants no receiving admission.
+        let mechanism = CompilerIntrinsicExecutionIdentity::BuiltinFunction(AsmDisableInterrupts);
+        let classified = TerminalAuthorityClosureLeaf::new(
+            schema,
+            requirement,
+            requirement,
+            plan,
+            mechanism.into(),
+            TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+            Some(physical.classify(mechanism).unwrap()),
+            None,
+        )
+        .unwrap();
+        TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+            [3; 32],
+            target::TargetProfile::LinuxX64.native_target(),
+            SelectedProviderPlanFacts::default().identity_digest(),
+            physical.identity(),
+            None,
+            vec![classified],
+            &names,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn mask_compiler_rows_cannot_be_overridden() {
+        for function in [
+            BuiltinFunction::AsmDisableInterrupts,
+            BuiltinFunction::AsmEnableInterrupts,
+        ] {
+            let intrinsic = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+            let result =
+                terminal_authority_policy_with_rows(vec![TerminalAuthorityPolicyRow::new(
+                    intrinsic.into(),
+                    TerminalAuthorityDisposition::from_classes([]),
+                )]);
+            assert!(matches!(result,
+                Err(TerminalAuthorityPolicyBuildError::CompilerIntrinsicRowIsReserved(actual))
+                if actual == intrinsic));
+        }
+    }
+
+    #[test]
+    fn mask_policy_epoch_and_commitment_bind_reviewed_identity() {
+        let policy = current_terminal_authority_policy();
+        let identity = policy.identity();
+        assert_eq!(identity.version(), 12);
+        assert_eq!(
+            identity,
+            terminal_authority_policy_with_rows(vec![])
+                .unwrap()
+                .identity()
+        );
+        let review = |physical| {
+            TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+                [3; 32],
+                target::TargetProfile::LinuxX64.native_target(),
+                SelectedProviderPlanFacts::default().identity_digest(),
+                physical,
+                None,
+                vec![],
+                &terminal_psi::TerminalIdentityTable::default(),
+            )
+            .unwrap()
+        };
+        let current = review(identity);
+        let old_epoch = TerminalAuthorityPolicyIdentity::from_parts(11, identity.commitment());
+        assert_ne!(current.identity(), review(old_epoch).identity());
+        let mut changed = identity.commitment();
+        changed[0] ^= 1;
+        let wrong_commitment = TerminalAuthorityPolicyIdentity::from_parts(12, changed);
+        assert_ne!(current.identity(), review(wrong_commitment).identity());
     }
 }
