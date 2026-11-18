@@ -173,8 +173,9 @@ machine build(builder: &mut Build) {{
     assert_eq!(groups[0].results, vec![Vec::new()]);
     let mut worker = Command::new(std::env::current_exe().unwrap());
     worker.args(["--exact", "internal_native_provider_worker", "--nocapture"]);
+    let worker =
+        native_provider_sponsor::for_provisions(worker, report.published_runtime_provisions());
     let observed = terminal_runtime::execute(TerminalRuntimeRequest {
-        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),
