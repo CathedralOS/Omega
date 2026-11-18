@@ -624,7 +624,7 @@ pub(crate) mod errors {
         ContentTransformationMismatch(&'static str),
         ResourceProfile {
             boundary: BoundaryMachineId,
-            diagnostic: access_plans::AccessPlanDiagnostic,
+            diagnostic: access_vocabulary::AccessPlanDiagnostic,
         },
         ValueImage(layout_plans::MaterializationDiagnostic),
         ValueImageGeometry(terminal_semantics::StorageGeometryError),
@@ -692,7 +692,7 @@ pub(crate) mod errors {
         },
         Crash(TerminalCrash),
         Work(WorkMeterError),
-        Storage(evaluation_accounting::EvaluationAccountingError),
+        Storage(evaluation_contracts::EvaluationAccountingError),
         StorageAllocationFailed {
             requested_bytes: usize,
             reason: String,
@@ -946,7 +946,7 @@ pub(crate) mod result_custody {
     };
     use crate::storage::structural_storage::{StorageKey, cells};
     use arena::Handle;
-    use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
+    use evaluation_contracts::{EvaluationAccountingError, EvaluationResource};
 
     pub(crate) struct ResultCustody<'storage> {
         cells: u64,

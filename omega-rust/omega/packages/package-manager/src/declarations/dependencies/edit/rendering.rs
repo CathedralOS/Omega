@@ -31,7 +31,7 @@ pub(crate) fn canonical_dependency_statement(
     let source = match request {
         DependencySourceRequest::Path { location, .. } => format!(
             "Source::Path {{ location: {} }}",
-            source::display_literal_bytes(location.as_bytes())
+            source_text::display_literal_bytes(location.as_bytes())
         ),
         DependencySourceRequest::Git {
             repository,
@@ -43,13 +43,13 @@ pub(crate) fn canonical_dependency_statement(
                 PackageSelection::Root => String::new(),
                 PackageSelection::Named(package) => format!(
                     ", selection: PackageSelection::Named {{ package: {} }}",
-                    source::display_literal_bytes(package.as_str().as_bytes())
+                    source_text::display_literal_bytes(package.as_str().as_bytes())
                 ),
             };
             format!(
                 "Source::Git {{ repository: {}, revision: {}{selection} }}",
-                source::display_literal_bytes(repository.as_bytes()),
-                source::display_literal_bytes(revision.as_bytes())
+                source_text::display_literal_bytes(repository.as_bytes()),
+                source_text::display_literal_bytes(revision.as_bytes())
             )
         }
     };
@@ -64,7 +64,7 @@ pub(crate) fn canonical_dependency_statement(
         "let mut {local}: {DEPENDENCY_DESCRIPTION_TYPE_NAME} = {description};\n\
          {DEPENDENCY_HELPER_OWNER}::{WITH_ALIAS_HELPER_NAME}(&mut {local}, {});\n\
          let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({BUILDER_PARAMETER_NAME}, {local});",
-        source::display_literal_bytes(alias.as_str().as_bytes())
+        source_text::display_literal_bytes(alias.as_str().as_bytes())
     )
 }
 

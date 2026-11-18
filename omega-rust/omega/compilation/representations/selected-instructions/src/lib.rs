@@ -45,8 +45,8 @@
 
 pub(crate) mod codec_bytes {
     #[cfg(test)]
-    pub(crate) use optimization_core::codec_bytes::patch_encoded;
-    pub(crate) use optimization_core::codec_bytes::push_encoded;
+    pub(crate) use ::wire::codec_bytes::patch_encoded;
+    pub(crate) use ::wire::codec_bytes::push_encoded;
 
     pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
         push_encoded(bytes, (length as u64).to_le_bytes());
@@ -64,7 +64,7 @@ pub(crate) mod codec_bytes {
     }
 }
 
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 
 #[cfg(feature = "test-support")]
 pub mod fixture;

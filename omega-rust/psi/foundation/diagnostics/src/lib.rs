@@ -35,7 +35,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 const MAXIMUM_MESSAGE_BYTES: usize = 4_096;
 
@@ -368,7 +368,7 @@ fn write_one_diagnostic(formatter: &mut impl fmt::Write, diagnostic: &Diagnostic
         write!(formatter, "\n  {severity}: ")?;
         let bytes = diagnostic.message.as_bytes();
         let shown = bytes.len().min(MAXIMUM_MESSAGE_BYTES);
-        let escaped = source::display_literal_bytes(&bytes[..shown]);
+        let escaped = source_text::display_literal_bytes(&bytes[..shown]);
         formatter.write_str(&escaped[1..escaped.len() - 1])?;
         if shown != bytes.len() {
             write!(
@@ -493,9 +493,9 @@ mod tests {
 
     #[test]
     fn located_diagnostics_render_their_location_line_after_the_message() {
-        let span = source::SourceSpan {
-            source_id: source::SourceId(3),
-            span: source::Span { start: 7, end: 12 },
+        let span = source_text::SourceSpan {
+            source_id: source_text::SourceId(3),
+            span: source_text::Span { start: 7, end: 12 },
         };
         let mut resolved = Diagnostic::error("resolved problem").with_source_span(span);
         resolved.resolved_location = Some(crate::ResolvedSourceLocation {
@@ -596,3 +596,6 @@ mod tests {
         assert_eq!(join_messages(&diagnostics[..0]), "");
     }
 }
+
+mod refusal_site;
+pub use refusal_site::CompilerCheckSite;

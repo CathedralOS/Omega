@@ -17,23 +17,23 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct GeneratedSourceExtension {
-    sources: Arc<source::SourceMap>,
-    custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    base_sources: Arc<source::SourceMap>,
+    sources: Arc<source_compiler::source_inputs::SourceMap>,
+    custody: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
+    base_sources: Arc<source_compiler::source_inputs::SourceMap>,
 }
 
 impl GeneratedSourceExtension {
-    pub fn custody(&self) -> &[(source::SourceId, build_output::PackageGeneratedSource)] {
+    pub fn custody(&self) -> &[(source_text::SourceId, build_output::PackageGeneratedSource)] {
         &self.custody
     }
 
     pub(crate) fn into_source_inputs(
         self,
-        base_sources: &Arc<source::SourceMap>,
+        base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
     ) -> Result<
         (
-            Arc<source::SourceMap>,
-            Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+            Arc<source_compiler::source_inputs::SourceMap>,
+            Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
         ),
         Vec<Diagnostic>,
     > {
@@ -47,11 +47,11 @@ impl GeneratedSourceExtension {
 }
 
 pub fn admit_generated_extension(
-    base_sources: &Arc<source::SourceMap>,
+    base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     generated_sources: &[build_output::PackageGeneratedSource],
-    catalogue: &mut source::SourceCatalogue,
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<GeneratedSourceExtension, Vec<Diagnostic>> {
     let mut sources = (**base_sources).clone();
     let mut retained = Vec::with_capacity(generated_sources.len());
@@ -119,9 +119,9 @@ pub fn admit_generated_extension(
                 source,
                 package_root.to_path_buf(),
                 package_identity,
-                source::SourceOrigin::User,
-                source::SourceResolutionStratum::CurrentActivationExtension,
-                source::DependencyScope::Product,
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::CurrentActivationExtension,
+                declaration_contracts::source_identity::DependencyScope::Product,
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
         retained.push((added.source_id, generated.clone()));
@@ -137,7 +137,7 @@ pub(crate) struct DependencyGeneratedSource<'source> {
     pub logical_path: std::path::PathBuf,
     pub source: &'source build_output::PackageGeneratedSource,
     pub package: semantic_vocabulary::PackageKeyIdentity,
-    pub scope: source::DependencyScope,
+    pub scope: declaration_contracts::source_identity::DependencyScope,
 }
 
 impl<'source> DependencyGeneratedSource<'source> {
@@ -145,7 +145,13 @@ impl<'source> DependencyGeneratedSource<'source> {
         &self,
         package_inputs: &crate::PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
-    ) -> Result<Vec<(std::path::PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+    ) -> Result<
+        Vec<(
+            std::path::PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
+        Vec<Diagnostic>,
+    > {
         let filesystem = package_inputs.source_filesystem();
         let package_root = package_inputs
             .package_root(self.package)
@@ -172,16 +178,22 @@ impl<'source> DependencyGeneratedSource<'source> {
 
 pub(crate) fn admit_dependency_build_handoffs(
     package_inputs: &crate::PackageCompilationInputs,
-    source_scope: source::DependencyScope,
+    source_scope: declaration_contracts::source_identity::DependencyScope,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
     let filesystem = package_inputs.source_filesystem();
     let mut entries = Vec::new();
     for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
         let scope = match purpose {
-            build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
-            build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
+            build_declarations::DependencyPurpose::Product => {
+                declaration_contracts::source_identity::DependencyScope::Product
+            }
+            build_declarations::DependencyPurpose::Build => {
+                declaration_contracts::source_identity::DependencyScope::Build
+            }
         };
-        if source_scope == source::DependencyScope::Build && scope != source_scope {
+        if source_scope == declaration_contracts::source_identity::DependencyScope::Build
+            && scope != source_scope
+        {
             continue;
         }
         let package_root = package_inputs

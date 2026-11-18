@@ -1,0 +1,23 @@
+[package]
+name = "program-entry-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "program_entry_plan"
+path = "src/lib.rs"
+
+[dependencies]
+machine-code = { path = "../machine-code" }
+physical-recipes = { path = "../physical-recipes" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+declaration-contracts = { path = "../../../../psi/compilation/representations/declaration-contracts" }
+wire = { path = "../../../../psi/foundation/wire" }
+optimization-core = { path = "../optimization-contracts" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+effects = { path = "../native-effects" }
+target = { path = "../../target-description/target" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }

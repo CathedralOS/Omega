@@ -1253,13 +1253,13 @@ pub mod activation_storage {
                             "activation-bearing result has no authenticated establishment or owned transport",
                         );
                     }
-                    let branch = extents::ActivationClaimBranch::trunk();
-                    let demand = extents::compose_claim_bounds(
+                    let branch = resource_bounds::ActivationClaimBranch::trunk();
+                    let demand = resource_bounds::compose_claim_bounds(
                         state
                             .live
                             .iter()
                             .filter(|live| live.counts_demand)
-                            .map(|live| extents::ClaimBoundRow {
+                            .map(|live| resource_bounds::ClaimBoundRow {
                                 bound: Some(live.bound),
                                 alignment: 1,
                                 branch: &branch,
@@ -2021,7 +2021,8 @@ pub(crate) mod arrival_storage {
 }
 pub mod borrowed_storage {
     use crate::scalars::scalar_ordering::ScalarOrdering;
-    use semantic_vocabulary::{BlockId, IdTable, MachineId, PlaceId, ValueId};
+    use arena::IdTable;
+    use semantic_vocabulary::{BlockId, MachineId, PlaceId, ValueId};
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::StructuralPathSegment;
 
@@ -3580,7 +3581,7 @@ pub(crate) mod calling_storage {
 
         #[test]
         fn selected_opaque_carrier_owes_its_actual_array_extent() {
-            use language_semantics::opaque_representations::*;
+            use application_identity::opaque_representations::*;
             let mut module = array_module();
             module.structural_types.push(declaration(
                 3,
@@ -3591,7 +3592,7 @@ pub(crate) mod calling_storage {
             ));
             let encoding = b"dependency-query-selection".to_vec();
             let (report, conformance) =
-                language_semantics::conformance_identity::source_identity_commitments(&encoding);
+                application_identity::conformance_identity::source_identity_commitments(&encoding);
             let lifecycle = OpaqueRepresentationLifecycleDisposition::Inert;
             let copy = OpaqueRepresentationCopyDisposition::PlacementOnly;
             let origin = OpaqueRepresentationApplicationOrigin::NamedConformance;

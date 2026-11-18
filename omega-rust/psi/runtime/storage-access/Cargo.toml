@@ -1,0 +1,16 @@
+[package]
+name = "storage-access"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+language-core = { path = "../../compilation/representations/source-vocabulary" }
+access-vocabulary = { path = "../../compilation/representations/access-vocabulary" }
+access-admission = { path = "../../compilation/access-admission" }
+extent-contracts = { path = "../../compilation/representations/extent-contracts" }
+extents = { path = "../extents" }
+
+[dev-dependencies]
+access-admission = { path = "../../compilation/access-admission", features = ["test-support"] }
+layout-plans = { path = "../../compilation/representations/storage-layout", features = ["test-support"] }

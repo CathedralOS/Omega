@@ -44,7 +44,7 @@ pub struct PreparedCompilation {
 impl PreparedCompilation {
     pub fn source_completion_accounting(
         &self,
-    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+    ) -> Option<&source_compiler::evaluation::SourceCompletionAccounting> {
         Some(
             self.source
                 .as_ref()?
@@ -119,7 +119,8 @@ impl crate::CompilationSession {
                             let prepared = PreparedProductTarget::capture(
                                 source,
                                 target.profile(),
-                                target.package_inputs(),
+                                None,
+                                Some(shared.requested_product),
                             )
                             .map_err(|diagnostics| {
                                 crate::CompileFailure::source_completion(
@@ -179,7 +180,6 @@ fn select_target_product(
         package_inputs,
         root: shared.root_path.clone(),
         product,
-        permissions: None,
     })
 }
 

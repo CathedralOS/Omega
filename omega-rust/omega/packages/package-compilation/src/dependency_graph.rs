@@ -7,7 +7,7 @@ use super::construction::is_snake_case;
 use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
 use crate::BuildDeclarationKind;
 use build_declarations::DependencyPurpose;
-use semantic_vocabulary::PackageKeyIdentity;
+use semantic_vocabulary::{PackageKeyIdentity, compiler_evaluation::ProductDeclarationScope};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's own Build reads its Build dependencies. Source supplied by a
@@ -116,38 +116,26 @@ impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
     }
 
     fn package_label(&self, identity: PackageKeyIdentity) -> String {
-        use std::fmt::Write as _;
-        let mut label = String::with_capacity(72);
-        label.push_str("package ");
-        for byte in identity.digest() {
-            let _ = write!(label, "{byte:02x}");
-        }
-        label
+        ProductDeclarationScope::label(identity)
     }
 
     fn declaration_selection_scope(
         &self,
     ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        let mut scope = self
-            .packages
-            .iter()
-            .map(|owner| (*owner, vec![*owner]))
-            .collect::<BTreeMap<_, _>>();
-        for edge in &self.dependencies {
-            scope
-                .get_mut(&edge.requester)
-                .expect("canonical Product closure includes each edge's requester")
-                .push(edge.target);
-        }
-        for owners in scope.values_mut() {
-            owners.sort_unstable();
-            owners.dedup();
-        }
-        Some(scope)
+        Some(self.declaration_permissions().into_requesters())
     }
 }
 
 impl PackageDependencyClosure {
+    pub fn declaration_permissions(&self) -> ProductDeclarationScope {
+        ProductDeclarationScope::from_direct_dependencies(
+            &self.packages,
+            self.dependencies
+                .iter()
+                .map(|edge| (edge.requester, edge.target)),
+        )
+    }
+
     pub const fn root(&self) -> PackageKeyIdentity {
         self.root
     }
@@ -514,6 +502,16 @@ mod selection_authority_tests {
             ],
         )
         .expect("canonical Product closure");
+        let captured = graph.declaration_permissions();
+        for requester in [root, dependency, transitive, absent] {
+            for owner in [root, dependency, transitive, absent] {
+                assert_eq!(
+                    captured.allows_declaration_selection(requester, owner),
+                    graph.allows_declaration_selection(requester, owner)
+                );
+                assert_eq!(captured.package_label(owner), graph.package_label(owner));
+            }
+        }
         assert!(graph.allows_declaration_selection(root, root));
         assert!(graph.allows_declaration_selection(root, dependency));
         assert!(graph.allows_declaration_selection(dependency, transitive));

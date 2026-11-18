@@ -8,10 +8,10 @@
 
 use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
 use installation_evidence::InstallationEnvironmentAssumption;
+use native_program_planning::{PreparedNativeExecution, RetainedTerminalArtifact};
+use target::ExecutableImageEmissionRequest;
 use terminal_installation::admit_target_layouts;
-use terminal_psi_to_abstract_operations::{PreparedNativeExecution, RetainedTerminalArtifact};
 
 pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
@@ -106,7 +106,7 @@ pub(crate) fn prepare<'input>(
 
 fn validate_installation_environment_inputs(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
+    proposal: &native_program_planning::TerminalNativeRealizationProposal,
     assumptions: &[InstallationEnvironmentAssumption],
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: &str| {

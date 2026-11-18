@@ -69,7 +69,7 @@ use terminal_psi::{
     TerminalPsiIdentity, TerminalRootServiceReach,
 };
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 
 mod construction;
 mod dominance;
@@ -365,7 +365,7 @@ impl OptimizedAbstractProgram {
 
 pub(crate) use native_vocabulary::identity_encoding::encode_scalar_type;
 
-pub(crate) use optimization_core::cursor::TakeError;
+pub(crate) use ::wire::cursor::TakeError;
 
 pub(crate) struct Cursor<'encoded> {
     encoded: &'encoded [u8],

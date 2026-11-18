@@ -60,8 +60,9 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
                         .program_entry_contracts
                         .is_empty()
                 );
-                let refusal = compiler::prepare_program_entry(&checked)
-                    .expect_err("execution still needs an actual checked entry");
+                let refusal =
+                    compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                        .expect_err("execution still needs an actual checked entry");
                 assert_eq!(refusal.len(), 1);
                 assert_eq!(
                     refusal[0].message,
@@ -85,27 +86,26 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
 #[test]
 fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
     let source_text = "trait A {}\ntrait B {}\nGood satisfies A {}\nWrong satisfies B {}\ntrait Holder<Policy satisfies A> {}\ntrait OtherHolder<Policy satisfies B> {}\nboundary trait Chosen: Holder<Good> {}\nboundary trait Other: OtherHolder<Wrong> {}\n";
-    let mut sources = source::SourceMap::default();
+    let mut sources = source_compiler::source_inputs::SourceMap::default();
     let source_id = sources
         .add_checked_instance(
             "source/main.omg".into(),
             source_text,
             "source".into(),
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::Base,
-            source::DependencyScope::Product,
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            declaration_contracts::source_identity::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(source_text)
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let declaration = |name: &str| {
         typed
             .traits()
@@ -114,10 +114,10 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
             .unwrap()
     };
     let scope = |name: &str| {
-        typed_trees::trait_definition::AppliedTraitScope::new(
+        source_compiler::source_state::trait_definition::AppliedTraitScope::new(
             &typed,
             declaration(name),
-            typed_trees::trait_definition::TraitApplicationArguments {
+            source_compiler::source_state::trait_definition::TraitApplicationArguments {
                 lexical_owner: declaration(name).symbol,
                 enclosing_data_applications: &[],
                 arguments: &[],
@@ -231,7 +231,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             assert!(!evidence.seals.is_empty());
             assert_eq!(evidence.module, program.artifact().manifest().semantic());
 
-            let (signature, application) = compiler::prepare_program_entry(&checked).unwrap();
+            let (signature, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             let receipt = application.receipt.unwrap().expect("actual entry receipt");
             assert_eq!(
                 receipt.source_signature_identity(),
@@ -297,10 +299,12 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .inventory()
                 .services_for(accepted.source().as_ref())
                 .expect("the accepted source's retained Product service catalog");
-            let schema = package_compilation::selected_program_entry_boundary(
+            let schema = source_compiler::entry_contracts::selected_program_entry_boundary(
                 catalog,
-                signature.target_slot(),
-                None,
+                &package_compilation::source_imports::source_target(
+                    signature.target_slot().owner,
+                    None,
+                ),
             )
             .expect("the selected target's authenticated source schema");
             assert!(
@@ -313,9 +317,119 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             );
             let mut executable_roster = checked.terminal_publication().roster().unwrap().clone();
             assert!(executable_roster.declaration_metadata.contains(&schema));
-            let executable = executable_roster
-                .judge(std::sync::Arc::clone(accepted.source()))
-                .expect("all original scope is judged with the requested descriptors");
+            let fresh = std::sync::Arc::new(
+                source_compiler::SourcePublication::judge(
+                    std::sync::Arc::clone(accepted.source()),
+                    executable_roster.clone(),
+                    checked.terminal_publication().optimizations().clone(),
+                )
+                .expect("all original scope is judged with the requested descriptors"),
+            );
+            let receive = |settled: &products::SelectedProviderResult| {
+                products::CheckedCompilation::from_settled_execution(
+                    products::CheckedCompilationInputs {
+                        settled: settled.clone(),
+                        source_inspection: std::sync::Arc::new(
+                            products::SelectedProviderSource::new(
+                                std::sync::Arc::clone(checked.source_inspection().inventory()),
+                                std::sync::Arc::clone(settled.shared_plans()),
+                            ),
+                        ),
+                        build: std::sync::Arc::new(checked.build().clone()),
+                        build_admission: checked.build_admission().clone(),
+                    },
+                    std::sync::Arc::new(checked.sources().clone()),
+                    Default::default(),
+                    std::sync::Arc::clone(&fresh),
+                )
+            };
+            let rechecked = receive(checked.execution())
+                .expect("a fresh judgment of the same program can receive its selected providers");
+            rechecked.admit_trust().unwrap();
+            assert!(fresh.published().is_none());
+
+            let independently_checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "independent program owner: {:?}",
+                    failure.into_diagnostics()
+                )
+            });
+            assert_eq!(
+                independently_checked.execution().original_program(),
+                checked.execution().original_program()
+            );
+            assert!(!std::sync::Arc::ptr_eq(
+                independently_checked.source_inspection().program(),
+                checked.source_inspection().program(),
+            ));
+            assert_eq!(
+                receive(independently_checked.execution()).unwrap_err()[0].message,
+                "selected providers belong to a different accepted program"
+            );
+
+            let unrelated = workspace.join("different-program");
+            std::fs::create_dir_all(&unrelated).unwrap();
+            std::fs::copy(workspace.join("build.omg"), unrelated.join("build.omg")).unwrap();
+            let other_main = unrelated.join("main.omg");
+            std::fs::write(&other_main, "machine main() {}\n").unwrap();
+            let other_checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&other_main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("second program: {:?}", failure.into_diagnostics()));
+            assert_eq!(
+                other_checked.execution().target_profile(),
+                checked.execution().target_profile()
+            );
+            assert_ne!(
+                other_checked.execution().original_program(),
+                checked.execution().original_program()
+            );
+            // Both programs use the same Build entry and target. Publish the
+            // other checked source with its own optimization and program identities.
+            let other_publication = other_checked.terminal_publication();
+            let other_program = portable_publication::ProductCodeSource {
+                publication: other_publication,
+                sources: other_checked.sources(),
+            }
+            .publish(
+                other_publication.optimizations(),
+                &mut source_compiler::UnmeasuredProduction,
+            )
+            .expect("publish the independently checked program");
+            let refusal = products::PublishedNativeEntry::for_program(
+                other_program.artifact(),
+                checked.execution(),
+            )
+            .err()
+            .expect("a different program cannot borrow this target selection");
+            assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
+            let mismatch = receive(other_checked.execution()).unwrap_err();
+            assert_eq!(
+                mismatch[0].message,
+                "selected providers belong to a different accepted program"
+            );
+            assert!(rechecked.published_artifact().is_none());
+            let ready = portable_publication::ProductCodeSource {
+                publication: &fresh,
+                sources: checked.sources(),
+            }
+            .publish(
+                fresh.optimizations(),
+                &mut source_compiler::UnmeasuredProduction,
+            )
+            .expect("publish only after checking the fresh source");
+            assert!(std::sync::Arc::ptr_eq(
+                rechecked.published_artifact().unwrap(),
+                ready.artifact()
+            ));
+            let executable = fresh.accepted().unwrap();
             assert!(std::sync::Arc::ptr_eq(
                 accepted.source(),
                 executable.source()
@@ -351,20 +465,23 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             .map(|(expected_owner, expected_source)| {
                 let path = repository.join(expected_source);
                 let mut rows = catalog.abi_signatures().iter().filter(|row| {
-                    row.projections_in_context(typed, source::DependencyScope::Product)
-                        .any(|projection| {
-                            typed
-                                .trait_machine_signature(projection.source)
-                                .is_some_and(|(owner, signature)| {
-                                    owner.name.as_str() == expected_owner
-                                        && signature.name.as_str() == "enter"
-                                })
-                                && typed
-                                    .symbols
-                                    .symbol_provenance_source_span(projection.source)
-                                    .and_then(|span| typed.symbols.source_file(span))
-                                    .is_some_and(|source| source.path == path)
-                        })
+                    row.projections_in_context(
+                        typed,
+                        declaration_contracts::source_identity::DependencyScope::Product,
+                    )
+                    .any(|projection| {
+                        typed
+                            .trait_machine_signature(projection.source)
+                            .is_some_and(|(owner, signature)| {
+                                owner.name.as_str() == expected_owner
+                                    && signature.name.as_str() == "enter"
+                            })
+                            && typed
+                                .symbols
+                                .symbol_provenance_source_span(projection.source)
+                                .and_then(|span| typed.symbols.source_file(span))
+                                .is_some_and(|source| source.path == path)
+                    })
                 });
                 let row = rows
                     .next()
@@ -468,7 +585,7 @@ fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_repor
                 retain_native_stage_inputs: false,
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
-                terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: Default::default(),
             });

@@ -8,7 +8,9 @@ mod target;
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 use crate::record::PackagePolicyServiceMethod;
 use crate::record::public_policy::validation::scope;
-use language_semantics::type_identity::encoding::{CoordinateTag, atom, compound};
+use application_identity::type_identity::encoding::CoordinateTag;
+use application_identity::type_identity::encoding::atom;
+use application_identity::type_identity::encoding::compound;
 
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {

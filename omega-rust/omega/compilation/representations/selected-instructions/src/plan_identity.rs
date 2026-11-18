@@ -179,7 +179,7 @@ fn encode_function_header(
 ) {
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v7\0");
     push_encoded(bytes, function.machine.get().to_le_bytes());
-    optimization_core::encode_option_u64(
+    wire::codec_bytes::encode_option_u64(
         bytes,
         function.attachment.map(|attachment| attachment.get()),
     );
@@ -601,7 +601,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             push_encoded(bytes, index.operand.value.get().to_le_bytes());
             encode_scalar_type(bytes, index.operand.scalar_type);
             push_encoded(bytes, index.stride.to_le_bytes());
-            optimization_core::encode_option_u64(bytes, index.extent);
+            wire::codec_bytes::encode_option_u64(bytes, index.extent);
             push_encoded(bytes, index.obligation.get().to_le_bytes());
             bytes.extend_from_slice(&index.accepted_fact.bytes());
         }

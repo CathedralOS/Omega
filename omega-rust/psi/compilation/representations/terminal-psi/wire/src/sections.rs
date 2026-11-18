@@ -779,5 +779,5 @@ pub(crate) mod optimization_execution {
     impl std::error::Error for PsiOptimizationExecutionRecordBuildError {}
     impl std::error::Error for PsiOptimizationExecutionRecordDecodeError {}
 
-    optimization::truncated_from_adapter!(PsiOptimizationExecutionRecordDecodeError => Self::UnexpectedEnd);
+    ::wire::truncated_from_adapter!(PsiOptimizationExecutionRecordDecodeError => Self::UnexpectedEnd);
 }

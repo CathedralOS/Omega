@@ -3,7 +3,7 @@
 //! separately from the retained module, and an unhandled declaration form makes
 //! the review incomplete instead of vanishing from its inventory.
 
-use super::PackageReviewInput;
+use super::input::PolicySource;
 use crate::record::{
     PackagePolicyDataShape, PackagePolicyDomainShape, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact,
@@ -14,12 +14,12 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::source_state::TypedTrees;
+use source_compiler::source_state::data::{DataField, DataMember};
+use source_compiler::source_state::domain::DomainDefinition;
+use source_compiler::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use source_compiler::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataField, DataMember};
-use typed_trees::domain::DomainDefinition;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceHandle;
 
 /// Names in a reviewed clause come from its retained declaration, never from
 /// their spelling. Domain predicates and callable clauses share this projection.
@@ -27,8 +27,8 @@ use typed_trees::types::TypeReferenceHandle;
 pub(super) struct ContractScope<'a> {
     pub owner: SymbolHandle,
     pub subject: Option<(SymbolHandle, TypeReferenceHandle)>,
-    pub statics: arena::RootRows<'a, typed_trees::data::TypeParameter>,
-    pub parameters: arena::RootRows<'a, typed_trees::signature::StateParameter>,
+    pub statics: arena::RootRows<'a, source_compiler::source_state::data::TypeParameter>,
+    pub parameters: arena::RootRows<'a, source_compiler::source_state::signature::StateParameter>,
     pub result: Option<TypeReferenceHandle>,
 }
 
@@ -43,7 +43,7 @@ pub(super) fn unavailable(what: &str) -> Vec<Diagnostic> {
 /// context may not substitute its source numbers or diagnostic spelling.
 pub(super) fn nominal_identity(
     typed: &TypedTrees,
-    toolchain_sources: &[(source::SourceId, [u8; 32])],
+    toolchain_sources: &[(source_text::SourceId, [u8; 32])],
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let symbols = &typed.symbols;
@@ -74,21 +74,17 @@ pub(super) fn nominal_identity(
     Ok(PackageReviewNominalIdentity { owner, path })
 }
 
-impl<'a> PackageReviewInput<'a> {
-    pub(super) fn typed(&self) -> &'a TypedTrees {
-        self.candidate()
-    }
-
+impl<'a> PolicySource<'a> {
     pub(super) fn owns(
         &self,
         symbol: SymbolHandle,
         package: PackageKeyIdentity,
     ) -> Result<bool, Vec<Diagnostic>> {
-        typed_trees::source_subjects::contains(
+        source_compiler::source_state::source_subjects::contains(
             self.typed(),
             symbol,
             &[Some(package)],
-            source::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Product,
         )
         .map_err(unavailable)
     }
@@ -99,7 +95,7 @@ impl<'a> PackageReviewInput<'a> {
     ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
         nominal_identity(
             self.typed(),
-            self.compilation().sources().exact_toolchain_sources(),
+            self.sources().exact_toolchain_sources(),
             symbol,
         )
     }
@@ -116,7 +112,10 @@ impl<'a> PackageReviewInput<'a> {
         reference: TypeReferenceHandle,
         lifetime_scope: Option<(
             SymbolHandle,
-            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
@@ -145,18 +144,23 @@ impl<'a> PackageReviewInput<'a> {
         reference: TypeReferenceHandle,
         lifetime_scope: Option<(
             SymbolHandle,
-            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let canonical = self
             .typed()
-            .exact_owner_type_identity(typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
-                type_reference: reference,
-                lifetime_scope,
-                binders: &[],
-                substitutions: &[],
-                exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
-            })
+            .exact_owner_type_identity(
+                source_compiler::source_state::type_identity::ExactOwnerTypeIdentityRequest {
+                    type_reference: reference,
+                    lifetime_scope,
+                    binders: &[],
+                    substitutions: &[],
+                    exact_toolchain_sources: self.sources().exact_toolchain_sources(),
+                },
+            )
             .and_then(|identity| self.typed().type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| unavailable("a type without a package-qualified identity"))?;
@@ -169,14 +173,14 @@ impl<'a> PackageReviewInput<'a> {
         exposure: PackageReviewSemanticDependencyExposure,
     ) -> Result<(), Vec<Diagnostic>> {
         let package = self
-            .compilation()
             .sources()
             .package_identity()
             .ok_or_else(|| unavailable("a type outside the reviewed package subject"))?;
         let symbols = &self.typed().symbols;
-        for symbol in
-            typed_trees::references::collect_type_symbol_dependencies(self.typed(), reference)
-        {
+        for symbol in source_compiler::source_state::references::collect_type_symbol_dependencies(
+            self.typed(),
+            reference,
+        ) {
             if !symbols.symbols().nodes().is_valid(symbol) {
                 return Err(unavailable("a stale declaration in a public type"));
             }
@@ -217,7 +221,10 @@ impl<'a> PackageReviewInput<'a> {
         field: &DataField,
         lifetimes: (
             SymbolHandle,
-            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         ),
     ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
         Ok(PackageReviewDataField {
@@ -251,7 +258,7 @@ impl<'a> PackageReviewInput<'a> {
                 || !definition.conformance_bounds.is_empty()
                 || definition.quotient.is_some()
                 || definition.cleanup_selection.is_some()
-                || definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+                || definition.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
             {
                 return Err(unavailable(
                     "this data declaration's complete generic or cleanup signature",
@@ -260,7 +267,7 @@ impl<'a> PackageReviewInput<'a> {
             let lifetimes = (0..definition.lifetime_parameters.len())
                 .map(|ordinal| {
                     (
-                        typed_trees::type_identity::LifetimeParameterIdentity {
+                        source_compiler::source_state::type_identity::LifetimeParameterIdentity {
                             declaration: definition.symbol,
                             ordinal,
                         },
@@ -357,7 +364,8 @@ impl<'a> PackageReviewInput<'a> {
             let mut predicate_facts = Vec::new();
             for handle in definition.facts.handles() {
                 let fact = self.typed().proof_facts.get(handle);
-                let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                let source_compiler::source_state::domain::ProofFact::Expression(expression) = fact
+                else {
                     return Err(unavailable("a non-expression domain predicate fact"));
                 };
                 predicate_facts.push(PackageReviewContractFact::Expression(self.expression(
@@ -422,13 +430,14 @@ impl<'a> PackageReviewInput<'a> {
         if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
             return Ok(());
         }
-        let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)
-            .ok_or_else(|| unavailable("an unserved contract operator family"))?;
+        let spelling =
+            source_compiler::source_state::operator::binary_operator_spelling(binary.operator)
+                .ok_or_else(|| unavailable("an unserved contract operator family"))?;
         let operands = [
             self.operand_type(binary.left, scope)?,
             self.operand_type(binary.right, scope)?,
         ];
-        if typed_trees::operator::has_builtin_spelled_expression_meaning(
+        if source_compiler::source_state::operator::has_builtin_spelled_expression_meaning(
             typed,
             scope.owner,
             expression,
@@ -464,10 +473,12 @@ impl<'a> PackageReviewInput<'a> {
                 }
                 if let Some(parameter) = scope.statics.iter().find(|p| p.symbol == name.symbol) {
                     return match parameter.kind {
-                        typed_trees::data::TypeParameterKind::Const { type_reference }
-                        | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                            Ok(Some(type_reference))
+                        source_compiler::source_state::data::TypeParameterKind::Const {
+                            type_reference,
                         }
+                        | source_compiler::source_state::data::TypeParameterKind::Value {
+                            type_reference,
+                        } => Ok(Some(type_reference)),
                         _ => Err(unavailable("a non-value contract binder")),
                     };
                 }
@@ -489,7 +500,7 @@ impl<'a> PackageReviewInput<'a> {
                     return Ok(None);
                 };
                 (
-                    typed_trees::types::builtin_type_atom(landing.landed_type),
+                    source_compiler::source_state::types::builtin_type_atom(landing.landed_type),
                     landing.domain,
                 )
             }

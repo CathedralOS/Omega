@@ -5,16 +5,19 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-flow-effects = { path = "../../foundation/flow-effects" }
+schema-reflection = { path = "../representations/schema-reflection" }
+diagnostics = { path = "../../foundation/diagnostics" }
+graphs = { path = "../../foundation/graphs" }
+bignum = { path = "../../foundation/bignum" }
+flow-effects = { path = "../representations/source-effects" }
 arena = { path = "../../foundation/arena" }
-numerics = { path = "../../foundation/numerics" }
+numerics = { path = "../representations/scalar-values" }
 proof-admission = { path = "../proof-admission" }
-layout-plans = { path = "../../foundation/layout-plans" }
+layout-plans = { path = "../representations/storage-layout" }
 compiler-storage = { path = "../../foundation/compiler-storage" }
-semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+semantic-vocabulary = { path = "../representations/semantic-vocabulary" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
 
 [dev-dependencies]
-language-semantics = { path = "../../foundation/language-semantics" }

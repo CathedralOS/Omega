@@ -278,7 +278,7 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 - **Identity, lifetime & soundness:** Snapshots and loans track exact storage
   versions; proof preserves ownership, authority, and termination obligations
   while respecting the boundary between erased math and executable values.
-- **Typed-to-Terminal Psi (`Psi 05–06`):** Lower and check constructs without loss in
+- **Typed-to-Terminal Psi (lowering and checking within stage 01):** Lower and check constructs without loss in
   canonical target-neutral Terminal Psi (`PSITERM\0`), materializing explicit
   affine cleanup, restoration windows, crash routes, and ranking edges.
 - **Native realization & execution:** Lower Terminal Psi through ABI calling
@@ -451,8 +451,8 @@ reads the allowed lanes from this table:
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
-| `omega` | The Terminal-Psi-consuming compiler stage in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or `source/omega/`. |
-| `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/`. |
+| `omega` | Native planning and its carried representations in `omega-rust/omega/compilation/{pipeline,representations,verification}/`, or `source/omega/`. |
+| `backend` | Target and ABI descriptions in `omega-rust/omega/compilation/target-description/`, and encoding, layout, object and image construction in its numbered `pipeline/` stages 06–09. |
 | `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-compiler/`, or an inseparable contract change spanning Psi and Omega. |
 | `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
 | `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |

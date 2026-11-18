@@ -25,9 +25,9 @@ pub use bindings::PackageSourceBindings;
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 
 use crate::review::CompileResolvedPackageReviewsError;
-use evaluation_accounting::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
-    TerminalStorageScheduleIdentity,
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::{
+    BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use filesystem_authority::FilesystemSponsor;
 use std::fs;

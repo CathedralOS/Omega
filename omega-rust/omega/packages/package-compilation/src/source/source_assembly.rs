@@ -30,25 +30,29 @@ use crate::source::source_imports::{
 };
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
-use source::{SourceContents, SourceOrigin, SourceResolutionStratum};
+use source_admission::SourceContents;
+use source_admission::SourceOrigin;
+use source_admission::SourceResolutionStratum;
+use source_compiler::SourceSyntax;
 use source_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
-    pub root_sources: Vec<source::SourceId>, // Selected root-package `SourceId`s.
-    pub syntax_trees: SyntaxTrees,           // Parsed syntax forest.
-    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>, // Parser-issued authored item roots per source.
-    pub sources: Arc<source::SourceMap>, // Selected `SourceMap` cohort.
+    pub root_sources: Vec<source_text::SourceId>, // Selected root-package `SourceId`s.
+    pub syntax_trees: SourceSyntax,               // Parsed syntax forest.
+    pub source_items: Vec<(source_text::SourceId, source_compiler::SourceItems)>, // Parser-issued authored item roots per source.
+    pub sources: Arc<source_compiler::source_inputs::SourceMap>, // Selected `SourceMap` cohort.
     pub anonymous_owner: Option<crate::AnonymousSourceCapture>, // Unbound anonymous capture carried until `Product` sealing.
     pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
-    pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>, // Build-prelude aliases and module import bindings.
-    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
-    pub build_scope_sources: HashSet<source::SourceId>, // Sources owned by the `Build` execution scope.
+    pub source_scoped_top_level_bindings:
+        Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, // Build-prelude aliases and module import bindings.
+    pub generated_source_custody:
+        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
+    pub build_scope_sources: HashSet<source_text::SourceId>, // Sources owned by the `Build` execution scope.
 }
 
 #[derive(compiler_storage::Record)]
@@ -79,7 +83,7 @@ impl DeferredProductSources {
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
         let checkpoint = &self.checkpoint;
         checkpoint.validate_child(inputs.original())?;
@@ -115,7 +119,10 @@ impl DeferredProductSources {
             .iter()
             .flat_map(|roots| roots.iter())
         {
-            imports.seed(root.clone(), source::DependencyScope::Product);
+            imports.seed(
+                root.clone(),
+                declaration_contracts::source_identity::DependencyScope::Product,
+            );
         }
         load_source_frontiers(
             &mut storage,
@@ -125,10 +132,14 @@ impl DeferredProductSources {
             catalogue,
         )?;
         let core_root = crate::source::source_imports::bundled_core_root()?;
-        seed_core_vocabulary(&mut imports, &core_root, source::DependencyScope::Product);
+        seed_core_vocabulary(
+            &mut imports,
+            &core_root,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        );
         for scope in [
-            source::DependencyScope::Build,
-            source::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Product,
         ] {
             if sources_mention_floats(&storage, scope) {
                 imports.seed(core_root.join("float_operations.omg"), scope);
@@ -137,7 +148,7 @@ impl DeferredProductSources {
         for seed in inputs.entry_contract_seeds(&storage)? {
             imports.seed(
                 seed.register_custody(&mut storage)?,
-                source::DependencyScope::Product,
+                declaration_contracts::source_identity::DependencyScope::Product,
             );
         }
         load_source_frontiers(
@@ -165,7 +176,10 @@ impl DeferredProductSources {
         let build_scope_sources = storage
             .sources
             .selected_files()
-            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .filter(|file| {
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build
+            })
             .map(|file| file.source_id)
             .collect();
         Ok(AssembledSyntax {
@@ -201,7 +215,7 @@ impl DeferredProductSources {
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let checkpoint = &self.checkpoint;
         checkpoint.validate_child(inputs.original())?;
@@ -242,11 +256,18 @@ impl DeferredProductSources {
             catalogue,
         )?;
         let core_root = crate::source::source_imports::bundled_core_root()?;
-        seed_core_vocabulary(&mut imports, &core_root, source::DependencyScope::Build);
-        if sources_mention_floats(&storage, source::DependencyScope::Build) {
+        seed_core_vocabulary(
+            &mut imports,
+            &core_root,
+            declaration_contracts::source_identity::DependencyScope::Build,
+        );
+        if sources_mention_floats(
+            &storage,
+            declaration_contracts::source_identity::DependencyScope::Build,
+        ) {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                source::DependencyScope::Build,
+                declaration_contracts::source_identity::DependencyScope::Build,
             );
         }
         load_source_frontiers(
@@ -278,7 +299,10 @@ impl DeferredProductSources {
         let build_scope_sources = storage
             .sources
             .selected_files()
-            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .filter(|file| {
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build
+            })
             .map(|file| file.source_id)
             .collect();
         let capture = storage.retain_anonymous_owner(&generated_source_custody)?;
@@ -317,7 +341,7 @@ impl DeferredProductSources {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut checkpoint = self.checkpoint;
         checkpoint.join_product_inputs(package_inputs, timings, catalogue)?;
@@ -332,7 +356,10 @@ impl DeferredProductSources {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         for root in roots.iter() {
-            imports.seed(root.clone(), source::DependencyScope::Product);
+            imports.seed(
+                root.clone(),
+                declaration_contracts::source_identity::DependencyScope::Product,
+            );
         }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
@@ -390,7 +417,7 @@ impl ImmutableSourceParseCheckpoint {
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(inputs) = package_inputs.filter(|_| self.package_source_inputs.is_none()) else {
             return self.validate_child(package_inputs);
@@ -420,7 +447,6 @@ impl ImmutableSourceParseCheckpoint {
         let parsed = parse_admitted(storage, loaded.into_iter().collect(), timings)?;
         let (discovered, mut requests) = discover_package_imports(
             &parsed,
-            &storage.syntax_trees,
             inputs,
             PackageImportPhase::TargetIndependent,
             &mut storage.resolved_imports,
@@ -490,7 +516,7 @@ impl ImmutableSourceParseCheckpoint {
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
         source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
             .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
@@ -515,7 +541,7 @@ impl ImmutableSourceParseCheckpoint {
         package_inputs: Option<&PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
@@ -523,7 +549,7 @@ impl ImmutableSourceParseCheckpoint {
         let mut imports = ImportQueue::default();
         let mut product_roots = Vec::new();
         for (path, scope) in project.sources() {
-            if *scope == source::DependencyScope::Product {
+            if *scope == declaration_contracts::source_identity::DependencyScope::Product {
                 product_roots.push(path.clone());
             } else {
                 imports.seed(path.clone(), *scope);
@@ -556,14 +582,14 @@ impl ImmutableSourceParseCheckpoint {
         mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
         let deferred_product = self.product_roots.is_some().then(|| self.fork());
         let source_scope = if deferred_product.is_some() {
-            source::DependencyScope::Build
+            declaration_contracts::source_identity::DependencyScope::Build
         } else {
-            source::DependencyScope::Product
+            declaration_contracts::source_identity::DependencyScope::Product
         };
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
@@ -614,7 +640,7 @@ impl ImmutableSourceParseCheckpoint {
             for seed in seeds {
                 imports.seed(
                     seed.register_custody(&mut source_storage)?,
-                    source::DependencyScope::Product,
+                    declaration_contracts::source_identity::DependencyScope::Product,
                 );
             }
             load_phase!(PackageImportPhase::ExactTarget(None))?;
@@ -627,11 +653,15 @@ impl ImmutableSourceParseCheckpoint {
                 let mut added = false;
                 for seed in seeds {
                     let already_selected = source_storage.sources.selected_files().any(|file| {
-                        file.dependency_scope == source::DependencyScope::Product
+                        file.dependency_scope
+                            == declaration_contracts::source_identity::DependencyScope::Product
                             && file.path == seed
                     });
                     if !already_selected {
-                        imports.seed(seed, source::DependencyScope::Product);
+                        imports.seed(
+                            seed,
+                            declaration_contracts::source_identity::DependencyScope::Product,
+                        );
                         added = true;
                     }
                 }
@@ -643,19 +673,27 @@ impl ImmutableSourceParseCheckpoint {
         }
         let core_root = crate::source::source_imports::bundled_core_root()?;
         seed_core_vocabulary(&mut imports, &core_root, source_scope);
-        if sources_mention_floats(&source_storage, source::DependencyScope::Build) {
+        if sources_mention_floats(
+            &source_storage,
+            declaration_contracts::source_identity::DependencyScope::Build,
+        ) {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                source::DependencyScope::Build,
+                declaration_contracts::source_identity::DependencyScope::Build,
             );
         }
-        if sources_mention_floats(&source_storage, source::DependencyScope::Product)
-            || (deferred_product.is_none()
-                && sources_mention_floats(&source_storage, source::DependencyScope::Build))
+        if sources_mention_floats(
+            &source_storage,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ) || (deferred_product.is_none()
+            && sources_mention_floats(
+                &source_storage,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ))
         {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                source::DependencyScope::Product,
+                declaration_contracts::source_identity::DependencyScope::Product,
             );
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
@@ -673,7 +711,6 @@ impl ImmutableSourceParseCheckpoint {
             Some(inputs) => {
                 discover_package_imports(
                     &parsed,
-                    &source_storage.syntax_trees,
                     inputs,
                     PackageImportPhase::ExactTarget(None),
                     &mut source_storage.resolved_imports,
@@ -685,7 +722,6 @@ impl ImmutableSourceParseCheckpoint {
             }
             None => discover_imports(
                 &parsed,
-                &source_storage.syntax_trees,
                 &self.root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
@@ -746,7 +782,10 @@ impl ImmutableSourceParseCheckpoint {
         let build_scope_sources = source_storage
             .sources
             .selected_files()
-            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .filter(|file| {
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build
+            })
             .map(|file| file.source_id)
             .collect();
         let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
@@ -775,10 +814,10 @@ impl ImmutableSourceParseCheckpoint {
 
     fn rejoin_sources(
         &mut self,
-        current: &source::SourceMap,
+        current: &source_compiler::source_inputs::SourceMap,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(), Vec<Diagnostic>> {
         let previous = &self.source_storage.sources;
         let selected = previous
@@ -792,7 +831,7 @@ impl ImmutableSourceParseCheckpoint {
             })
             .collect::<Result<HashSet<_>, _>>()?;
         let primary = previous
-            .get(self.source_storage.syntax_trees.source_id)
+            .get(self.source_storage.syntax_trees.primary_source())
             .and_then(|file| current.rejoined_source_id(file))
             .ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -816,24 +855,23 @@ impl ImmutableSourceParseCheckpoint {
         sources.retain_selected_sources(|file| selected.contains(&file.source_id));
         let loaded = sources
             .selected_files()
-            .map(|file| source::LoadedSource {
+            .map(|file| source_admission::LoadedSource {
                 source_id: file.source_id,
                 path: file.path.clone(),
                 source: file.source.clone(),
                 origin: Some(file.origin),
                 scope: file.dependency_scope,
             })
-            .collect::<source::LoadedSources>();
+            .collect::<source_admission::LoadedSources>();
         let storage = Arc::make_mut(&mut self.source_storage);
         storage.sources = sources;
-        storage.syntax_trees = SyntaxTrees::new(primary);
+        storage.syntax_trees = SourceSyntax::new(primary);
         storage.source_roots = Default::default();
         storage.resolved_imports.clear();
         let parsed = parse_admitted(storage, loaded, timings)?;
         let (discovered, mut requests) = match package_inputs {
             Some(inputs) => discover_package_imports(
                 &parsed,
-                &storage.syntax_trees,
                 inputs,
                 PackageImportPhase::TargetIndependent,
                 &mut storage.resolved_imports,
@@ -844,7 +882,6 @@ impl ImmutableSourceParseCheckpoint {
             None => (
                 discover_imports(
                     &parsed,
-                    &storage.syntax_trees,
                     &self.root_path,
                     &storage.filesystem,
                     &mut storage.resolved_imports,
@@ -896,11 +933,16 @@ impl ImmutableSourceParseCheckpoint {
 }
 
 impl GeneratedSourceExtension {
-    pub fn parse(
+    pub fn source_input(
         self,
-        base_sources: &Arc<source::SourceMap>,
-        timings: &mut CompileTimings,
-    ) -> Result<(Arc<source::SourceMap>, Vec<SyntaxTrees>), Vec<Diagnostic>> {
+        base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
+    ) -> Result<
+        (
+            Arc<source_compiler::source_inputs::SourceMap>,
+            source_admission::LoadedSources,
+        ),
+        Vec<Diagnostic>,
+    > {
         let (sources, custody) = self.into_source_inputs(base_sources)?;
         let mut generated_sources = Vec::with_capacity(custody.len());
         for (source_id, _) in &custody {
@@ -909,7 +951,7 @@ impl GeneratedSourceExtension {
                     "admitted generated source has no retained source instance",
                 )]
             })?;
-            generated_sources.push(source::LoadedSource {
+            generated_sources.push(source_admission::LoadedSource {
                 source_id: *source_id,
                 path: source.path.clone(),
                 source: source.source.clone(),
@@ -917,9 +959,7 @@ impl GeneratedSourceExtension {
                 scope: source.dependency_scope,
             });
         }
-        let units = SourceInput(generated_sources.into_iter().collect())
-            .into_units(&mut ParsingTimings(timings))?;
-        Ok((sources, units))
+        Ok((sources, generated_sources.into_iter().collect()))
     }
 }
 
@@ -927,10 +967,10 @@ fn append_dependency_build_handoffs_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
-    source_scope: source::DependencyScope,
+    source_scope: declaration_contracts::source_identity::DependencyScope,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
-) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let entries = crate::source::source_imports::admit_dependency_build_handoffs(
         package_inputs,
         source_scope,
@@ -967,7 +1007,6 @@ fn append_dependency_build_handoffs_to_storage(
         )?;
         let discovered = discover_imports_with_packages(
             &parsed,
-            &source_storage.syntax_trees,
             package_inputs,
             Some(package),
             &mut source_storage.resolved_imports,
@@ -994,8 +1033,8 @@ fn append_stage_generated_sources(
     imports: &mut ImportQueue,
     inputs: &crate::source::source_imports::ProductQueryInputs,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
-) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     use crate::source::source_imports::LogicalSourceDiscovery as _;
     let mut retained = Vec::new();
     // Two aliases may name one package. Its generated source is admitted once.
@@ -1036,12 +1075,15 @@ fn append_stage_generated_sources(
                     logical_path.display(),
                 ))]
             })?;
-            imports.mark_loaded(&logical_path, source::DependencyScope::Build);
+            imports.mark_loaded(
+                &logical_path,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            );
             let unit = storage.admit_source(
                 SourceContents {
                     path: logical_path,
                     source: Arc::from(text),
-                    scope: source::DependencyScope::Build,
+                    scope: declaration_contracts::source_identity::DependencyScope::Build,
                 },
                 Some(SourceOrigin::User),
                 SourceResolutionStratum::DependencyActivationExtension,
@@ -1070,7 +1112,12 @@ fn append_stage_generated_sources(
         imports.enqueue(
             authored
                 .into_iter()
-                .map(|path| (path, source::DependencyScope::Build))
+                .map(|path| {
+                    (
+                        path,
+                        declaration_contracts::source_identity::DependencyScope::Build,
+                    )
+                })
                 .collect(),
         )?;
     }
@@ -1084,7 +1131,7 @@ fn load_imports(
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     load_source_frontiers(
         source_storage,
@@ -1113,7 +1160,7 @@ fn load_source_frontiers(
     imports: &mut ImportQueue,
     routing: SourceRouting<'_>,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {
@@ -1129,7 +1176,7 @@ fn load_source_frontiers(
         for (path, scope) in &frontier {
             imports.enqueue(source_storage.logical_siblings(path, *scope)?)?;
         }
-        let loaded = source_compiler::load_source_files(
+        let loaded = super::source_loading::load_source_files(
             frontier,
             &source_storage.filesystem,
             &mut ParsingTimings(timings),
@@ -1148,7 +1195,9 @@ fn load_source_frontiers(
         if source_storage.source_roots.is_empty()
             && let Some(first) = admitted.first()
         {
-            source_storage.syntax_trees.source_id = first.source_id;
+            source_storage
+                .syntax_trees
+                .set_primary_source(first.source_id);
         }
         let parsed = parse_admitted(source_storage, admitted.into_iter().collect(), timings)?;
         let discovered = routing.discover(&parsed, source_storage, &mut retained_requests)?;
@@ -1164,10 +1213,16 @@ impl SourceRouting<'_> {
     /// through here, the toolchain's Build prelude included.
     fn discover(
         &self,
-        parsed: &syntax_trees::ParsedSources,
+        parsed: &source_compiler::ParsedSourceBatch,
         source_storage: &mut SourceStorage,
         retained_requests: &mut Vec<PendingPackageImport>,
-    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+    ) -> Result<
+        Vec<(
+            PathBuf,
+            declaration_contracts::source_identity::DependencyScope,
+        )>,
+        Vec<Diagnostic>,
+    > {
         match self {
             SourceRouting::Compilation {
                 package_inputs: Some(package_inputs),
@@ -1176,7 +1231,6 @@ impl SourceRouting<'_> {
             } => {
                 let (discovered, mut requests) = discover_package_imports(
                     parsed,
-                    &source_storage.syntax_trees,
                     package_inputs,
                     *phase,
                     &mut source_storage.resolved_imports,
@@ -1193,7 +1247,6 @@ impl SourceRouting<'_> {
                 ..
             } => discover_imports(
                 parsed,
-                &source_storage.syntax_trees,
                 root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
@@ -1207,13 +1260,13 @@ impl SourceRouting<'_> {
 fn append_default_build(
     storage: &mut SourceStorage,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
     let admitted = storage.admit_source(
         SourceContents {
             path: PathBuf::from("<default-build>"),
             source: Arc::from(build_declarations::default_build_source()),
-            scope: source::DependencyScope::Build,
+            scope: declaration_contracts::source_identity::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
@@ -1226,7 +1279,7 @@ fn append_default_build(
     // Only the first package of a compilation gets coordinate zero by
     // accident; a dependency without `build.omg` is admitted later.
     if storage.source_roots.is_empty() {
-        storage.syntax_trees.source_id = admitted.source_id;
+        storage.syntax_trees.set_primary_source(admitted.source_id);
     }
     let parsed = SourceInput([admitted].into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
@@ -1249,8 +1302,8 @@ fn append_build_prelude(
     routing: SourceRouting<'_>,
     build_source: Option<BuildSourceSelection>,
     timings: &mut CompileTimings,
-    catalogue: &mut source::SourceCatalogue,
-) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+) -> Result<Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     let Some(prelude) = crate::source::source_imports::prepare_build_prelude(
         storage,
         build_source.map(BuildSourceSelection::source_id),
@@ -1261,7 +1314,7 @@ fn append_build_prelude(
         SourceContents {
             path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
             source: Arc::from(prelude.source.declarations),
-            scope: source::DependencyScope::Build,
+            scope: declaration_contracts::source_identity::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
@@ -1270,7 +1323,11 @@ fn append_build_prelude(
     let mut bindings: Vec<_> = prelude
         .alias_for
         .map(|build_source| {
-            symbols::SourceScopedTopLevelBinding::new(build_source, admitted.source_id, "Build")
+            source_compiler::source_symbols::SourceScopedTopLevelBinding::new(
+                build_source,
+                admitted.source_id,
+                "Build",
+            )
         })
         .into_iter()
         .collect();
@@ -1281,7 +1338,7 @@ fn append_build_prelude(
             SourceContents {
                 path: PathBuf::from(format!("<build-prelude:{namespace}>")),
                 source: Arc::from(text),
-                scope: source::DependencyScope::Build,
+                scope: declaration_contracts::source_identity::DependencyScope::Build,
             },
             Some(SourceOrigin::Toolchain),
             SourceResolutionStratum::Base,
@@ -1307,18 +1364,18 @@ fn append_build_prelude(
     // Build's directly available vocabulary includes real code namespaces.
     // Import their admitted source identities just as the loader does for an
     // authored module, rather than making a same-spelled data type own helpers.
-    for file in storage
-        .sources
-        .selected_files()
-        .filter(|file| file.dependency_scope == source::DependencyScope::Build)
-    {
+    for file in storage.sources.selected_files().filter(|file| {
+        file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build
+    }) {
         for &(namespace, declaration_source) in &namespaces {
-            bindings.push(symbols::SourceScopedTopLevelBinding::module_import(
-                file.source_id,
-                declaration_source,
-                namespace,
-                0,
-            ));
+            bindings.push(
+                source_compiler::source_symbols::SourceScopedTopLevelBinding::module_import(
+                    file.source_id,
+                    declaration_source,
+                    namespace,
+                    0,
+                ),
+            );
         }
     }
     Ok(bindings)
@@ -1331,9 +1388,9 @@ struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 /// unchanged, so selecting a logical module does not parse it a second time.
 fn parse_admitted(
     storage: &mut SourceStorage,
-    admitted: source::LoadedSources,
+    admitted: source_admission::LoadedSources,
     timings: &mut CompileTimings,
-) -> Result<syntax_trees::ParsedSources, Vec<Diagnostic>> {
+) -> Result<source_compiler::ParsedSourceBatch, Vec<Diagnostic>> {
     let owners = &storage.package_roots;
     SourceInput(admitted).append_reusing(
         &mut storage.syntax_trees,
@@ -1349,7 +1406,7 @@ fn parse_admitted(
 fn seed_core_vocabulary(
     imports: &mut ImportQueue,
     core_root: &Path,
-    scope: source::DependencyScope,
+    scope: declaration_contracts::source_identity::DependencyScope,
 ) {
     for file in ["code_layout.omg", "indexing.omg"] {
         imports.seed(core_root.join(file), scope);
@@ -1358,7 +1415,7 @@ fn seed_core_vocabulary(
 
 fn sources_mention_floats(
     source_storage: &crate::source::source_imports::SourceStorage,
-    scope: source::DependencyScope,
+    scope: declaration_contracts::source_identity::DependencyScope,
 ) -> bool {
     source_storage
         .sources
@@ -1374,24 +1431,12 @@ fn sources_mention_floats(
         })
         || source_storage
             .syntax_trees
-            .tables
-            .expressions
-            .iter_expressions()
-            .any(|(handle, node)| {
-                matches!(node, syntax_trees::expression::ExpressionNode::Float(_))
-                    && source_storage
-                        .sources
-                        .file_at(
-                            source_storage
-                                .syntax_trees
-                                .tables
-                                .expressions
-                                .source_span(handle),
-                        )
-                        .is_some_and(|file| {
-                            source_storage.sources.source_is_selected(file.source_id)
-                                && file.dependency_scope == scope
-                        })
+            .float_literal_spans()
+            .any(|span| {
+                source_storage.sources.file_at(span).is_some_and(|file| {
+                    source_storage.sources.source_is_selected(file.source_id)
+                        && file.dependency_scope == scope
+                })
             })
 }
 
@@ -1440,7 +1485,7 @@ mod requirement_preparation_tests {
             );
             file.source_id
         };
-        let mut catalogue = source::SourceCatalogue::default();
+        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let mut timings = CompileTimings::default();
         let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
             &root,
@@ -1453,9 +1498,14 @@ mod requirement_preparation_tests {
         let (_, mut build) = checkpoint
             .assemble(None, &mut timings, &mut catalogue)
             .expect("the initial Build source assembly");
-        let build_source = collection_source(&build, source::DependencyScope::Build);
+        let build_source = collection_source(
+            &build,
+            declaration_contracts::source_identity::DependencyScope::Build,
+        );
         assert!(!build.sources.selected_files().any(|file| {
-            file.path == indexing && file.dependency_scope == source::DependencyScope::Product
+            file.path == indexing
+                && file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Product
         }));
         let continuation = build
             .product_sources
@@ -1468,12 +1518,18 @@ mod requirement_preparation_tests {
                 &mut catalogue,
             )
             .expect("a paused Build's query uses its captured Product sources");
-        let query_source = collection_source(&query, source::DependencyScope::Product);
+        let query_source = collection_source(
+            &query,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        );
         assert_ne!(build_source, query_source);
         let (_, product) = continuation
             .assemble(None, &mut timings, &mut catalogue)
             .expect("the final Product source assembly");
-        let product_source = collection_source(&product, source::DependencyScope::Product);
+        let product_source = collection_source(
+            &product,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        );
         assert_ne!(build_source, product_source);
         // An exact immutable dependency may retain its Product coordinate;
         // it is the authored consumer occurrence that each assembly renews.
@@ -1485,7 +1541,8 @@ mod requirement_preparation_tests {
                 .filter(|file| {
                     file.path == root
                         && file.origin == SourceOrigin::User
-                        && file.dependency_scope == source::DependencyScope::Product
+                        && file.dependency_scope
+                            == declaration_contracts::source_identity::DependencyScope::Product
                 })
                 .map(|file| file.source_id)
                 .collect::<Vec<_>>();
@@ -1504,7 +1561,7 @@ mod requirement_preparation_tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(
             "../../../../tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
         );
-        let mut catalogue = source::SourceCatalogue::default();
+        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let mut timings = CompileTimings::default();
         let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
             &root,
@@ -1524,19 +1581,21 @@ mod requirement_preparation_tests {
             root_sources: assembled.root_sources,
             frontends: Default::default(),
             build_helper_identity: "linux_x86_64",
+            build_sources: Default::default(),
+            build_stage: None,
             sources: assembled.sources,
             top_level_bindings: assembled.source_scoped_top_level_bindings,
             selection_authority: None,
         };
-        let mut prepared = request
+        let (prepared, _) = request
             .prepare(&mut source_compiler::UnmeasuredProduction)
             .expect("exact declared requirement calls reach typed preparation");
-        let typed = prepared.build_input().typed;
+        let typed = prepared.typed();
         let unresolved: Vec<_> = typed
             .deferred_refusals
             .iter()
             .filter(|row| {
-                row.request == typed_trees::deferred_refusals::DeferredRequest::UnresolvedCallTarget
+                row.request == source_compiler::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
                     && sources.file_at(row.source_span).is_some_and(|file| {
                         file.origin == SourceOrigin::Toolchain || file.path.ends_with("build.omg")
                     })
@@ -1556,7 +1615,8 @@ mod requirement_preparation_tests {
         );
         let mut occurrences = Vec::new();
         for (_, expression) in typed.expression_table.expression_entries() {
-            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+            let source_compiler::source_state::expression::ExpressionNode::Call(call) = expression
+            else {
                 continue;
             };
             if !call.build_selection.is_valid() {
@@ -1566,7 +1626,7 @@ mod requirement_preparation_tests {
                 .expression_table
                 .build_selection_request(call.build_selection)
                 .expect("a captured Build call keeps its real selection request");
-            let language_semantics::declaration_selection::BuildSelectionRequest::Entry(binding) =
+            let source_compiler::declaration_selection::BuildSelectionRequest::Entry(binding) =
                 request
             else {
                 continue;

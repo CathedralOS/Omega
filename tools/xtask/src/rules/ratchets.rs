@@ -9,7 +9,8 @@ use super::{collect_files_with_ext, is_ident_byte};
 const RUST_ROOT: &str = "omega-rust";
 const READS_BASELINE: &str = "tools/ratchets/source_text_reads.txt";
 const STATUS_BASELINE: &str = "tools/ratchets/contract_status_phrases.txt";
-const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
+pub(super) const SEMANTIC_IDS: &str =
+    "omega-rust/psi/compilation/representations/semantic-vocabulary/src/identity.rs";
 const DENSE_MAP_BASELINE: &str = "tools/ratchets/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/ratchets/cache_state.txt";
 const PLACE_TRANSPORT_BASELINE: &str = "tools/ratchets/place_transport.txt";
@@ -22,9 +23,9 @@ const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
     :CheckingInteriorState
 */
 pub(super) const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src",
+    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/preparation/src",
+    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src",
+    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src",
 ];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 
@@ -444,8 +445,9 @@ fn find_test_module(text: &str) -> Option<(usize, usize)> {
     None
 }
 
-pub(super) fn semantic_id_names(root: &Path) -> BTreeSet<String> {
-    let text = fs::read_to_string(root.join(SEMANTIC_IDS)).unwrap_or_default();
+pub(super) fn semantic_id_names(root: &Path) -> Result<BTreeSet<String>, String> {
+    let text = fs::read_to_string(root.join(SEMANTIC_IDS))
+        .map_err(|error| format!("{SEMANTIC_IDS}: cannot read the dense-ID catalog: {error}"))?;
     let mut ids = BTreeSet::new();
     let mut i = 0;
     while let Some(rel) = text[i..].find("semantic_id!(") {
@@ -460,7 +462,12 @@ pub(super) fn semantic_id_names(root: &Path) -> BTreeSet<String> {
         }
         i = after;
     }
-    ids
+    if ids.is_empty() {
+        return Err(format!(
+            "{SEMANTIC_IDS}: dense-ID catalog contains no semantic_id declarations"
+        ));
+    }
+    Ok(ids)
 }
 
 fn count_dense_id_maps(text: &str, semantic_ids: &BTreeSet<String>) -> usize {

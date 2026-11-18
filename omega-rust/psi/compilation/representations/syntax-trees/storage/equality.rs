@@ -109,10 +109,10 @@ plain!(
     u64,
     i64,
     String,
-    source::SourceSpan,
-    source::Span,
-    source::SourceId,
-    source::SourceBytes
+    source_text::SourceSpan,
+    source_text::Span,
+    source_text::SourceId,
+    source_text::SourceBytes
 );
 
 impl<T: SyntaxEquivalent> SyntaxEquivalent for [T] {
@@ -126,8 +126,8 @@ impl<T: SyntaxEquivalent> SyntaxEquivalent for [T] {
 }
 plain!(
     language_core::OperatorSpelling,
-    numerics::literals::FloatFormat,
-    numerics::literals::IntegerLiteral
+    numeric_literals::FloatFormat,
+    numeric_literals::IntegerLiteral
 );
 plain!(
     language_core::LocalBindingRole,

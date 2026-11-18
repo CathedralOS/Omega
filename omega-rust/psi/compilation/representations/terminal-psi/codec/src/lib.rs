@@ -41,7 +41,7 @@ pub(crate) use canonical_artifact::execution_code;
 #[cfg(test)]
 mod qualified_cleanup_tests;
 
-pub(crate) use optimization::{codec_bytes, cursor};
+pub(crate) use ::wire::{codec_bytes, cursor};
 
 pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,

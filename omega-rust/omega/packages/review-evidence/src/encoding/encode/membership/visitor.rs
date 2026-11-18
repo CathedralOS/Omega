@@ -4,10 +4,10 @@ use super::{
     MalformedIdentityExcerpt, Observer, PackagePolicyMembershipError as Error,
     PackagePolicyMembershipLimits as Limits, PackagePolicyMembershipUsage as Usage,
 };
-use language_semantics::type_identity::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, malformed_identity_offset,
-    visit_type_identity_package_owners,
-};
+use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+use application_identity::type_identity::TypeIdentityVisitError;
+use application_identity::type_identity::malformed_identity_offset;
+use application_identity::type_identity::visit_type_identity_package_owners;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct Visitor<Contains> {
@@ -195,7 +195,7 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> TypeIdentityPackageOwnerVisito
             Ok(())
         } else {
             Err(TypeIdentityVisitError::Unadmitted(
-                language_semantics::type_identity::vocabulary::Unadmitted::ApplicationScope,
+                application_identity::type_identity::vocabulary::Unadmitted::ApplicationScope,
             ))
         }
     }

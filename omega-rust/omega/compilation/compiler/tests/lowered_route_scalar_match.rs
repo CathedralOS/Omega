@@ -14,8 +14,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees_to_terminal_psi::{Compilation, elaborate};
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -44,7 +44,7 @@ fn judged(name: &str, source: &str) -> RouteVerdict {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
             supplies: &[],
@@ -475,11 +475,15 @@ fn execute_policy_transition_fixture(root: &std::path::Path, check_consent: bool
     let discovered = fixture_package_inputs::discover_fixture(root, Default::default())
         .unwrap_or_else(|errors| panic!("{root:?} discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
-        retain_native_inputs: false, retain_native_stage_inputs: false,
-        installation_assumptions: Vec::new(), image: Default::default(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(),
+        image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,

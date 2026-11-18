@@ -275,7 +275,7 @@ fn finish_saved_project(
             ),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
-            image_request: image_emission::ExecutableImageEmissionRequest::direct(
+            image_request: target::ExecutableImageEmissionRequest::direct(
                 proposal.application().subsystem,
             ),
             imports: &[],

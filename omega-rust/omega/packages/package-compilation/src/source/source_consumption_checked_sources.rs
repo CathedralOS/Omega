@@ -15,14 +15,15 @@ use super::{
 };
 use crate::{PackageBuildHandoff, PackageCompilationInputs};
 use diagnostics::Diagnostic;
+use source_compiler::source_state::{FrozenTypedTrees, ProductSourceIdentity};
 use std::sync::Arc;
-use typed_trees::{FrozenTypedTrees, ProductSourceIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSourceCustody {
     pub source_file_count: usize,
     pub build_execution_profile: Option<target::TargetProfile>,
-    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    pub generated_source_custody:
+        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
 }
 
@@ -32,7 +33,7 @@ pub struct CheckedSourceCustody {
     build: BuildSourceCustody,
     package_purpose: Option<build_declarations::DependencyPurpose>,
     package_subject: Option<PackageCompilationSubject>,
-    exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
+    exact_toolchain_sources: Vec<(source_text::SourceId, [u8; 32])>,
     // These are the consumer-scoped decisions supplied to this compilation,
     // not nominations reconstructed from names after checking. Retaining them
     // with their source owner lets review describe the exact input decisions.
@@ -42,7 +43,7 @@ pub struct CheckedSourceCustody {
 impl BuildSourceCustody {
     pub fn package_build_handoff(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &source_compiler::source_state::TypedTrees,
         inputs: &PackageCompilationInputs,
         target: target::TargetProfile,
         own_generated_sources: Vec<build_output::PackageGeneratedSource>,
@@ -65,10 +66,10 @@ impl BuildSourceCustody {
 
     pub fn admit_generated_extension<'inputs>(
         &mut self,
-        base_sources: &std::sync::Arc<source::SourceMap>,
+        base_sources: &std::sync::Arc<source_compiler::source_inputs::SourceMap>,
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         generated_sources: &[build_output::PackageGeneratedSource],
-        catalogue: &mut source::SourceCatalogue,
+        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<
         Option<(
             crate::source::source_imports::GeneratedSourceExtension,
@@ -200,7 +201,7 @@ impl CheckedSourceCustody {
         self.build.base_source_consumption_commitment
     }
 
-    pub fn exact_toolchain_sources(&self) -> &[(source::SourceId, [u8; 32])] {
+    pub fn exact_toolchain_sources(&self) -> &[(source_text::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
     }
 
@@ -247,7 +248,9 @@ mod tests {
 
     #[test]
     fn source_seal_binds_the_exact_frozen_owner_without_claiming_a_verdict() {
-        let program = Arc::new(FrozenTypedTrees::from(typed_trees::TypedTrees::default()));
+        let program = Arc::new(FrozenTypedTrees::from(
+            source_compiler::source_state::TypedTrees::default(),
+        ));
         let other = Arc::new(program.as_ref().clone());
         let seal = build().seal(&program, None).unwrap();
         assert!(seal.require_owner(&program).is_ok());

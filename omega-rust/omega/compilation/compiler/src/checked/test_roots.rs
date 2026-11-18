@@ -45,7 +45,7 @@ test runs rather than recognized by its package name.
 */
 fn group_filesystem(
     source: &CheckedProductSource,
-    group: &build_time_evaluation::test_groups::TestGroupRegistration,
+    group: &source_compiler::evaluation::test_groups::TestGroupRegistration,
 ) -> Result<TestFilesystem, Vec<Diagnostic>> {
     let Some(service) = group.services.first() else {
         return Ok(TestFilesystem::Unprovided);
@@ -105,7 +105,11 @@ pub(crate) fn select_test_roots(
                 .machine_trait_conformances(machine)
                 .iter()
                 .filter_map(|conformance| {
-                    typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)
+                    source_compiler::source_state::machine::resolve_satisfied_declaration(
+                        typed,
+                        machine,
+                        conformance,
+                    )
                 })
                 .any(|declaration| declaration.symbol() == group.requirement);
             if !satisfies {
@@ -150,7 +154,7 @@ pub(crate) fn select_test_roots(
         }
         for (test_path, symbol) in tests {
             let mut computed = (*source.computed_build_config).clone();
-            computed.config.root_bindings = vec![provider_planning::program_entry::RootBinding {
+            computed.config.root_bindings = vec![declaration_contracts::selection::RootBinding {
                 slot: format!("{}::ProgramEntry", target.target_name()),
                 implementation: test_path.clone(),
                 implementation_symbol: symbol,

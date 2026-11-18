@@ -7,13 +7,11 @@ representations, runtimes and validators must agree before the new route replace
 the old one. Internal work has dependencies and can be divided among agents;
 partial routes are not separately rolled out.
 
-The current task is **plan first**. No compiler migration is implemented by this
-document. The six [owner rulings](../rulings.md) remain authoritative and unchanged.
-The destination below is a concrete recommendation applying them. Proposed
-boundaries and names are **judgment**; feasibility obligations are **unverified**
-until the named evidence is supplied. Those obligations must be settled in this
-plan before implementation starts. A new folder name is not evidence that a
-contract is possible.
+The compiler at `c329436ed22` implements numbered stages 00–10. Open the full
+map to follow their Rust code or read the verification record for the exact
+builds, commands and results. The design below records the original **judgment**
+and obligations under the six owner rulings. [Full architecture](../artifacts/architecture.md)
+· [Compiler verification](#compiler-verification) · [Owner rulings](../rulings.md)
 
 **Reading the map?** Start with [the extra-arrow repair list](#start-with-the-extra-arrows)
 and the [handler detour](#why-handlers-leave-and-return). The remaining sections
@@ -793,24 +791,104 @@ example does not establish that outcome.
 
 ### Implementation checkpoint
 
-The branch at `2ff15fbb385` contains numbered owners 00–10. Its source
-owner lexes and parses each activated file into a syntax page and recycles the
-token buffers. Retained syntax can be reused for the same bytes. A later
-lexical failure still takes precedence over a syntax failure according to the
-existing diagnostic contract. [Per-file stream][checkpoint-stream]
+The full map opens at **Stages 00–10**. Each stage links to its implementation at `c329436ed22`. **Before migration** preserves the compiler at `3f9ce43f0c9d`. Select an operation for its contract and dated evidence. The original source traces below use `788ecf2489d`. The object-to-image handoff uses `80cc31a4df8`. [Full map](../artifacts/architecture.md)
 
-Stage 03 closes the callback roster from retained target operations. Stage 04
-orders handler dependencies and produces the physical bodies. Stage 05
-compares the complete handler demand with each installation before granting
-it authority. The ordering tests cover a shared handler, an unreachable cycle,
-a demanded cycle and a chain of 50,000 installations. [Body roster][checkpoint-roster],
-[handler order and tests][checkpoint-order], [installation checks][checkpoint-bind]
+#### Compiler verification
 
-The workspace and its test targets type-checked at this checkpoint. The
-whole-migration acceptance in §10 is still **unverified**, including the
-release-mode dependency graph, runtime consumers and end-to-end program runs.
+| Compiler revision | What ran | Result |
+| --- | --- | --- |
+| `c329436ed22` | GitHub PR admission checked rules, formatting and every workspace target on the merge tree. | Passed. [Admission job](https://github.com/CathedralOS/Omega/actions/runs/44241832259/job/134591328279) · [Exact check command](https://github.com/CathedralOS/Omega/blob/c329436ed22f18b41352985cff202b46129e6538/.github/workflows/admission.yml#L98-L116) |
+| `ba6f2878314d` | Clippy linted every workspace target with warnings treated as errors. | Passed. [Clippy job](https://github.com/CathedralOS/Omega/actions/runs/44241626718/job/134590658245) · [Pinned build](https://github.com/CathedralOS/Omega/blob/6663af86b612592a686daeb6b6099bfcb484ac36/.github/workflows/compiler-linear-pipeline-lint.yml#L17-L19) |
+| `464945420ba4` | The retained runtime resumed execution. The native reader recovered the selected machine’s linked code layout from its published image. The lowered-publication suite and public Build host accounting checks also ran. | These jobs passed. The ordinary compiler built the selected-provider fixture for Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64. Every image matched the bytes already run on its native host. [Runtime](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668562) · [Image readback](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668783) · [Lowered publication](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668293) · [Build and four images](https://github.com/CathedralOS/Omega/actions/runs/44236765613/job/134574668598) |
+| `fa159e507e29` | The hosted build published its exact Linux compiler and a selected-provider executable for each of the same four targets. | Each executable again matched the native-host record. [Compiler and images](https://github.com/CathedralOS/Omega/actions/runs/44238276226/job/134579604878) · [Four matching hosts](#native-execution-on-four-matching-hosts) |
 
-[checkpoint-stream]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L75-L132
+The official compiler from [#4049](https://github.com/CathedralOS/Omega/pull/4049), `1b54028582cc`, and the published migration compiler `fa159e507e29` ran the real Console sample on Linux x86-64. Each used the same frozen library and source with `omega run --both samples/cli/basics/cli_mvp/main.omg` and a newline on standard input. Both printed `Hello, Omega.` and the close prompt. The complete 66-byte transcripts matched. The native program, Psi interpreter and CLI all exited 0 on both builds. [Official compiler](https://github.com/CathedralOS/Omega/actions/runs/44236005981/job/134575797260) · [Migration compiler](https://github.com/CathedralOS/Omega/actions/runs/44238276226/job/134579604878) · [Console source](https://github.com/CathedralOS/Omega/blob/1b54028582cc66fe9bb9440f84ac4a603763fa26/samples/cli/basics/cli_mvp/main.omg#L16-L24) · [Exact transcript and compiler digests](../evidence/checkpoints/public-console.json) · [Replay](../evidence/README.md#replay-the-public-console-sample)
+
+A separate hosted job checks the Console sample and four selected-provider image digests at `c329436ed22`. The two-build comparison above records the local runs. [Hosted Console and native-image checks](https://github.com/CathedralOS/Omega/actions/runs/44242787970/job/134594429740)
+
+#### Implementation traces
+
+| Route | What the compiler hands forward |
+| --- | --- |
+| 01 · Lex one file → Parse that file | Each worker lexes one file, immediately parses those tokens into its syntax page, then recycles the token storage. Package assembly reuses a discovered file’s parse only if its bytes match. If a later file has a lexical error it still takes precedence over an earlier syntax error. [Package entry point][checkpoint-parse-caller] · [Per-file stream][checkpoint-stream] · [Reuse check][checkpoint-reuse] · [Error precedence][checkpoint-lexical] |
+| 01 · Finish source choices → 02 · Seal publication | Source target preparation identifies the actual entry, follows its chosen bodies, and associates the reached native bindings with their source declarations. For an unscoped request it records the actual root machines. Stage 02 verifies the issuing judgment and target before using those finished choices. [Normal target capture][checkpoint-capture] · [Source worklist][checkpoint-logical] · [Issuer check][checkpoint-issuer] · [Publication][checkpoint-demand] |
+| 02 · Seal publication → 03 · Join provider selections | The normal compiler publishes the reached requirements, chosen checked bodies and the calls that scalar evaluation of the entry can reach. The target planner receives these records, computes calling conventions and checks the native plans against the exact bodies. Substituting a body refuses the build. [Normal compiler caller][checkpoint-settle] · [Publication][checkpoint-demand] · [Target planning][checkpoint-target] · [Calling policies][checkpoint-policies] |
+| 03 · Finish the executable entry | When a target provider contributes to a folded constant, native planning records the selected plan in a target-specific copy of the program. The original source publication keeps its identity and source evidence. A received copy must reproduce the exact dependencies for that program and target. [Executable request][checkpoint-product] · [Entry binding][checkpoint-entry] · [Derived program][checkpoint-folded] · [Independent readback][checkpoint-receive] |
+| 04 · Measure handlers → 05 · Bind installations | Physical planning measures the handler body, its bridge and its CPU state. Installation binding matches the installer’s guard to the handler at that exact placement and checks the physical instructions and frame before issuing authority. [Physical measurement][checkpoint-measure] · [Binding][checkpoint-installation] |
+| 04 · Plan entries → 06 · Encode → 09 · Place | For supported hosted entries and physical firmware entries, the driver requests a physical plan, encodes it, and supplies that result to image placement. Stage 09 joins the entry to the actual placed bodies. [Hosted planning][checkpoint-hosted] · [Physical planning and encoding][checkpoint-entry-encoding] · [Entry placement][checkpoint-placement] |
+| 08 · Form objects → 09 · Place objects | Stage 08 publishes the object plan, text placement, native layouts, body evidence and an identity receipt. The driver finishes these objects for the root and all selected private bodies before stage 09 emits a fragment. A refusal on the last object stops image emission. The component driver also constructs all export objects before emitting their fragments. [Object publication][checkpoint-object] · [Root and private objects][checkpoint-object-roster] · [Export objects][checkpoint-exports] · [Late-refusal test][checkpoint-last-object] · [Image reader][checkpoint-image] |
+
+At `0e5d56643021` the following routes also have pinned implementation evidence.
+
+| Route | What the compiler or host checks |
+| --- | --- |
+| 00 · Admit permission requests | A supplied package lock keeps its accepted rows and the declarations for that product. Product completion validates those rows. Without a lock, a runtime product that uses an assumed binding refuses. The package test exercises both a locked request and an ordinary one. [Capture][verified-consent] · [Validation][verified-consent-read] · [Package test][verified-consent-test] |
+| 02 · Publish provider demand → Products · Receive selection | Stage 02 issues the completed provider facts with their original source owner. Native planning carries the same receipt through folding. Products compares both the source owner and original program when it receives the result, then checks the effective executable and target when preparing its entry. [Publisher][verified-issue] · [Native planning][verified-keep] · [Products][verified-receive] · [Entry][verified-entry] · [Receiver test][verified-receive-test] |
+| 09 · Finish image → Run published Terminal | The host checks a supplied native image against the Terminal manifest, program identity and target. The image reader verifies the linked entry address and code regions. Without a native image, Psi execution remains available and a program that asks for native layout reports that missing capability. The native provider host installs the adapter selected in the finished product. [Linked descriptors][verified-inspect] · [Code bounds][verified-ranges] · [Host checks][verified-host] · [Layout test][verified-host-test] · [Adapter installation][verified-sponsor] |
+
+At the same revision, the compiler’s contract ledger records the meaning, producer and consumers of 1,743 Rust declarations in 52 source files. The checker compares those files with the ledger and reports undocumented, changed or stale declarations. The declared file list sets the scope of that check. [Contract ledger][verified-ledger] · [Checker][verified-ledger-check]
+
+The earlier branch checkpoint at `2ff15fbb385` traced 03 closing the callback
+roster from retained target operations, 04 ordering handlers ahead of their
+installers, and 05 comparing complete handler demand with the installation.
+Its ordering tests include a shared handler, an unreachable cycle and a
+demanded cycle. [Body roster][checkpoint-roster] · [Handler order and tests][checkpoint-order] · [Installation checks][checkpoint-bind]
+
+#### Native execution on four matching hosts
+
+Both compilers built the selected-provider fixture with the official `f658f30ec966` library. Each target got a byte-identical pair of executables. Four GitHub-hosted machines ran the programs directly. All eight processes returned the fixture’s expected exit code of 0. The program calls a service and checks the constants returned by the provider chosen for that target. [Fixture source](https://github.com/CathedralOS/Omega/blob/f658f30ec9660b8d66c8b3c2fd704def734fab7c/tests/fixtures/run/providers/target_selected_implementation/main.omg) · [Host workflow](https://github.com/CathedralOS/Omega/actions/runs/44227027634)
+
+| Target | Host reported by the job | Native format | Official exit | Migration exit | Job log |
+| --- | --- | --- | ---: | ---: | --- |
+| Linux x86-64 | Ubuntu 24.04, x86-64 | ELF64 | 0 | 0 | [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580486) |
+| Linux arm64 | Ubuntu 24.04, AArch64 | ELF64 | 0 | 0 | [Linux arm64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580741) |
+| macOS arm64 | macOS 15, arm64 | Mach-O 64 | 0 | 0 | [macOS arm64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580862) |
+| Windows x86-64 | Windows Server 2022, AMD64 | PE32+ | 0 | 0 | [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580769) |
+
+The official compiler came from the `f658f30ec966` warm build. The migration build integrated that release at `683122d180a9` and includes the provider change `3d14fe87dff4`. Its binary SHA-256, beginning `bbd2ab8002de`, identifies the executable tested. The exact migration checkout is *unverified*. The host jobs checked out `edc830ed21a3`, which pins the test runner and the eight published images. Each job checked its actual OS, CPU, executable format and image digest before launching both programs. [Compiler, fixture, library and image identities](../evidence/checkpoints/native-host-execution-f658.json) · [Official warm build](https://github.com/CathedralOS/Omega/actions/runs/44219307162) · [Host checks](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/verify.py#L44-L69) · [Replay this checkpoint](../evidence/README.md#verify-the-four-matching-native-hosts)
+
+#### Measured public CLI checkpoint
+
+Official compiler `46502a522a16` and migration compiler `fcb284a45c40` compiled the same selected-provider fixture against the official toolchain library. The fixture selects an implementation separately for each target. Both compilers emitted byte-identical executables on all four targets. [Inputs and complete hashes](../evidence/checkpoints/target-execution-4650.json) · [Reproduction commands](../evidence/README.md#compare-the-two-published-compiler-builds)
+
+| Target | How the emitted program was checked | Both compiler builds |
+| --- | --- | --- |
+| Linux x86-64 | Run directly on Debian 13.6 x86-64 | Exit 0 |
+| Linux arm64 | Run under QEMU user 10.0.13 | Exit 0 |
+| Windows x86-64 | Run under Wine 10.0 | Exit 0 |
+| macOS arm64 | Inspect the Mach-O entry and ad-hoc signature on Linux | Signed bytes match. Changing the entry byte invalidates the signature. Darwin execution *unverified*. |
+
+The Psi interpreter exited 0 on the same fixture for each of the four target profiles. The separate factorial example returned 120 in both the native and Psi engines. The Console example exited 200 before either engine ran. Both compilers reported the same missing callback origin. These results belong to the two recorded compiler builds. [Commands, exit codes and output hashes](../evidence/checkpoints/target-execution-4650.json)
+
+**Independent components remain unverified end to end.** Changing only the fixture’s Linux provider selection to `CompositionMode::Independent` made both compilers refuse the missing canonical component evidence. Each left its output-owner marker and produced no executable or component index. The standalone scalar-lending example stops earlier during source checking. The execution matrix above uses the ordinary selected provider. [Measured control](../evidence/checkpoints/target-execution-4650.json) · [Component request][checkpoint-component-request] · [Native composition][checkpoint-component-native] · [Export emission][checkpoint-component-export]
+
+
+[checkpoint-parse-caller]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L1386-L1399
+[checkpoint-stream]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L91-L133
+[checkpoint-reuse]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L281-L304
+[checkpoint-lexical]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L53-L74
+[checkpoint-settle]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L145-L176
+[checkpoint-demand]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104
+[checkpoint-capture]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs#L15-L33
+[checkpoint-logical]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L61-L110
+[checkpoint-issuer]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L32-L46
+[checkpoint-measure]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/installed_handlers.rs#L55-L110
+[checkpoint-installation]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L54-L91
+[checkpoint-hosted]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L140-L178
+[checkpoint-entry-encoding]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L206-L255
+[checkpoint-placement]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132
+[checkpoint-object]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/08_object-construction/src/fragment_container.rs#L225-L251
+[checkpoint-object-caller]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L459-L476
+[checkpoint-image]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54
+[checkpoint-target]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/execution.rs#L30-L75
+[checkpoint-policies]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/provider_execution_inputs.rs#L288-L310
+[checkpoint-product]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L438-L456
+[checkpoint-entry]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs#L96-L124
+[checkpoint-folded]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/folded_entry.rs#L12-L53
+[checkpoint-receive]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_supply/realized_supply.rs#L450-L478
+[checkpoint-component-request]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L405-L426
+[checkpoint-component-native]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L349-L366
+[checkpoint-component-export]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/components.rs#L101-L141
 [checkpoint-roster]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153
 [checkpoint-order]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs
 [checkpoint-bind]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41
@@ -892,3 +970,23 @@ piecemeal migration.
 [linear-source]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L115-L185
 [linear-policy]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L1-L92
 [linear-product-spec]: https://github.com/CathedralOS/Omega/blob/b860bac0b1e324e4678aa3089d70adf91e6f2d98/wiki/spec/terminal-psi/product.md#L68-L99
+
+[checkpoint-object-roster]: https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L304-L321
+[checkpoint-exports]: https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/component_exports.rs#L292-L315
+[checkpoint-last-object]: https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L353-L386
+
+[verified-issue]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L106-L125
+[verified-keep]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/native-compiler/src/provider_selection.rs#L39-L73
+[verified-receive]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/products/src/checked_compilation.rs#L116-L147
+[verified-entry]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/products/src/program_entry.rs#L17-L42
+[verified-receive-test]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/compiler/tests/program_entry_product.rs#L366-L418
+[verified-consent]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs#L39-L68
+[verified-consent-read]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/compiler/src/product_execution.rs#L489-L515
+[verified-consent-test]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/compiler/tests/package_review.rs#L3020-L3059
+[verified-inspect]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L19-L58
+[verified-ranges]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L105-L141
+[verified-host]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/build-system/orchestration/src/published_terminal.rs#L45-L91
+[verified-host-test]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/interpreter/terminal-runtime/tests/retained_runtime.rs#L156-L196
+[verified-sponsor]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/host-support/native-provider-sponsor/src/lib.rs#L54-L100
+[verified-ledger]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/pipeline-contracts.json#L3-L19
+[verified-ledger-check]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/tools/xtask/src/boundary_contracts.rs#L331-L378

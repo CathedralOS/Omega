@@ -26,6 +26,7 @@
 mod alpha_forge;
 mod attached_machines;
 mod boundary;
+mod boundary_contracts;
 mod branch_cleanup;
 mod claims;
 mod doctor;
@@ -78,6 +79,7 @@ usage: cargo xtask <command> [options]
 verification and gates:
   check-rules               Verify commit lane, PR provenance, ratchets, and board hygiene
   check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
+  pipeline-contracts        Inventory or check reviewed pipeline fields and exports
   check-portable-services   Diff std's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
@@ -114,6 +116,7 @@ fn main() -> ExitCode {
     let result = match subcommand.as_str() {
         "fmt" => fmt::run(&args),
         "check-boundary" => boundary::run(&args),
+        "pipeline-contracts" => boundary_contracts::run(&args),
         "branch-cleanup" => branch_cleanup::run(&args),
         "check-rules" => rules::run(&args),
         "check-portable-services" => portable_services::run(&args),
@@ -156,6 +159,7 @@ mod tests {
         for cmd in [
             "fmt",
             "check-boundary",
+            "pipeline-contracts",
             "check-rules",
             "check-portable-services",
             "rust-producer-omission",

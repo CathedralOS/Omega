@@ -1,3 +1,4 @@
+use wire::invalid_error_display;
 /*
 We record the ordered revision history of an optimization run in
 `PsiTransformationLedger` alongside the immutable pass and commit evidence in
@@ -14,7 +15,6 @@ use optimization_core::{
     OptimizationIdentityBundle, OptimizationPassIdentity, OptimizationPassManifestRecord,
     OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, OptimizationWorkBudget, TransformationLedgerIdentity,
-    invalid_error_display,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, WorkScheduleIdentity};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -62,7 +62,7 @@ invalid_error_display!(
     "Psi transformation-ledger encoding"
 );
 
-optimization_core::take_error_from_adapter!(PsiTransformationLedgerDecodeError);
+::wire::take_error_from_adapter!(PsiTransformationLedgerDecodeError);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PrunedMachineCustody {

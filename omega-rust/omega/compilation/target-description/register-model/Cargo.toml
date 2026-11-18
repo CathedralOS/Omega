@@ -1,0 +1,20 @@
+[package]
+name = "register-model"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "register_model"
+path = "src/lib.rs"
+
+[features]
+# Assertion bodies the ISA register-model test modules share; never enabled in
+# a production build.
+test-support = []
+
+[dependencies]
+wire = { path = "../../../../psi/foundation/wire" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+target = { path = "../target" }
+sha2 = "0.10.9"

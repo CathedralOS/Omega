@@ -2,10 +2,11 @@
 //! input union from their lifetime binders, independently of the editable
 //! application groups and of the implementation's actual return.
 
-use language_semantics::type_identity::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
-    vocabulary::{TypeForm, Unadmitted},
-};
+use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+use application_identity::type_identity::TypeIdentityVisitError;
+use application_identity::type_identity::visit_type_identity_package_owners;
+use application_identity::type_identity::vocabulary::TypeForm;
+use application_identity::type_identity::vocabulary::Unadmitted;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     BoundaryLifetimeDependency, ClosedConformanceSchema, DeclaredResultLifetime, MachineContract,

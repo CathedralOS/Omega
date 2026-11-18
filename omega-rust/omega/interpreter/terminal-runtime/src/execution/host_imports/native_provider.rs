@@ -34,10 +34,10 @@ use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, ValueClass,
 };
-use native_artifact::TerminalRuntimeHostProvisions;
 use native_provider_runtime::{
     NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage,
 };
+use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as Path, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
@@ -243,9 +243,10 @@ impl<'host> NativeImport<'host> {
         if application.target != locator.target().native_target()
             || application.plan.plan() != &binding.boundary_entry_plan
             || application.commitment == [0; 32]
-            || *product.application() != application.commitment
-            || product.locator() != locator
-            || product.bridge().request().foreign != application.plan
+            || product.application != application.commitment
+            || &product.locator != locator
+            || product.bridge.target != application.target
+            || product.bridge.foreign != application.plan
             || !application.opaque_applications.is_empty()
             || !application
                 .plan
@@ -283,6 +284,13 @@ impl<'host> NativeImport<'host> {
         };
         let parameters = admit_parameters(program, declaration, application, layouts)
             .map_err(|error| missing(error.reason))?;
+        let scalar_transport = parameters.iter().map(|parameter| match parameter {
+            Parameter::Scalar { scalar, .. } => Some(*scalar),
+            Parameter::Structural { .. } | Parameter::ByteView { .. } => None,
+        });
+        if scalar_transport.ne(product.bridge.scalar_parameters.iter().copied()) {
+            return Err(missing("native adapter scalar transport differs from its admitted formal order or scalar kind".into()));
+        }
         let result = match &declaration.result {
             BoundaryMachineResult::Unit => {
                 if application.signature.result.is_some()
@@ -359,7 +367,7 @@ impl<'host> NativeImport<'host> {
         let adapter = native
             .sponsor
             .borrow_mut()
-            .with(|process| process.install(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
+            .with(|process| process.install_published(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
             .map_err(|error| missing(error.reason))?;
         let references = reference_outputs::ReferenceOutputs::admit(program, declaration, layouts);
         Ok(Some(Self {

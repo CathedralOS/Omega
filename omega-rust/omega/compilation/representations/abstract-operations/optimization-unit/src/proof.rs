@@ -438,7 +438,7 @@ pub enum AcceptedObligationFactIndexError {
     DuplicateOwner,
 }
 
-optimization_core::invalid_error_display!(
+wire::invalid_error_display!(
     AcceptedObligationFactIndexError,
     "accepted obligation fact index"
 );

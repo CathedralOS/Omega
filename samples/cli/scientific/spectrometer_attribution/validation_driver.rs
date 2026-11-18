@@ -119,7 +119,8 @@ fn main() {
         report.artifact().expect("retained Terminal artifact")
     } else {
         if let Some(artifact) = report.retained_native_artifact() {
-            image_emission::verify_retained_target_operations(artifact.object()).unwrap();
+            published_object_verification::verify_retained_target_operations(artifact.object())
+                .unwrap();
         }
         report
             .retained_native_program()
@@ -183,7 +184,6 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
-            native_image: None,
             entry: None,
             native_provider: None,
             native_services: Default::default(),

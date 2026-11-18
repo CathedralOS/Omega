@@ -1,30 +1,20 @@
 # Psi compilation
 
-This domain turns Omega source into Terminal Psi. It owns source meaning
-and its evidence; it does not acquire packages, set command policy or
-produce native code. The [Psi facade](source-compiler/src/lib.rs) runs the
-source stages in order. The [product coordinator](../../omega/compilation/compiler/src/target_batch.rs)
-shares requests and builds target products.
-The application runs Build.
+Stage 01 turns admitted source into a checked Terminal program. It owns the
+source verdict, the evidence for that verdict and the logical providers chosen
+for the requested roots. Stage 02 seals that result for later use. [Source
+compiler](pipeline/01_source-compilation/README.md) · [Portable publication](../../omega/compilation/pipeline/02_portable-publication/src/lib.rs)
 
 | Reader's question | Where to look |
 | --- | --- |
-| Which stage transforms this program? | [pipeline/](pipeline/README.md): numbered source-to-Terminal stages, each with its own entry function |
-| What program does a stage consume or produce? | [representations/](representations/README.md): one package per IR; the Terminal codec sits beside it |
-| Is this source declaration, call or value legal? | [06 lowered-form checking](pipeline/06_terminal-psi-to-terminal-psi/src/verdict.rs): the only checker |
-| Where is the checked program constructed? | [05 structural lowering](pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs) builds the Terminal input; stage 06 judges it |
-| Where are proof obligations produced and discharged? | [prove.rs](pipeline/06_terminal-psi-to-terminal-psi/src/prove.rs): the checker's prover; [admission](proof-admission/README.md) checks supplied mathematical evidence |
-| Where do evaluated values change the program? | [build-time-evaluation/src/lib.rs](build-time-evaluation/src/lib.rs): admits evaluations and writes results into source and typed trees, using the separately owned checked interpreter |
-| Where is a Terminal artifact independently checked? | [Terminal verification](representations/terminal-psi/verification/README.md): rebuilds obligations from the portable artifact without trusting its producer |
+| How does a file enter the compiler? | Each worker lexes and immediately parses one activated file, then reuses its token storage. [Source stream](pipeline/01_source-compilation/src/source_parsing.rs) |
+| What do the operations pass forward? | [Source operation map](pipeline/README.md) and [program representations](representations/README.md) |
+| Who decides whether the program is legal? | [Structural lowering](pipeline/01_source-compilation/src/operations/lowering/src/compilation.rs) constructs the checker input. The [lowered-form checker](pipeline/01_source-compilation/src/operations/checking/src/verdict.rs) issues the verdict. |
+| Who produces and checks mathematical evidence? | The checker calls its [prover](pipeline/01_source-compilation/src/operations/checking/src/prove.rs). [Proof admission](proof-admission/README.md) checks the supplied evidence. |
+| Who evaluates Build and source requests? | [Source evaluation](pipeline/01_source-compilation/src/evaluation/README.md) owns the requests, their accounting and the values returned to preparation. |
+| How does the program leave the source owner? | The [accepted-source factory](pipeline/01_source-compilation/src/operations/production/src/accepted.rs) binds the verdict to its source. The [Terminal codec](representations/terminal-psi/codec/README.md) encodes and reads the canonical program. |
 
-Sharing a directory does not permit a dependency. Representations and shared
-semantic libraries stay separate packages. Interpreters may use those
-libraries, but their production dependencies must not include a producing
-stage. Compile-time elaboration may call an interpreter but does not belong
-inside one because it evaluates a machine.
-
-The [Terminal production sequence](terminal-production/README.md) runs the
-lowered-form checker (stage 06), then the accepted-source factory publishes
-the checked module and binds it to its source records. The sequence decides
-no language rule and is not another Psi stage; see the
-[pipeline contract](../../pipeline.md).
+Interpreters consume published program representations. Source evaluation may
+invoke an interpreter while stage 01 owns the active source request. The
+[connected pipeline](../../pipeline.md#connected-program-route) follows the
+result through target planning and publication.
