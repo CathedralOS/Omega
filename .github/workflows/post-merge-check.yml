@@ -133,7 +133,7 @@ jobs:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -160,7 +160,7 @@ jobs:
           set -euo pipefail
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx build --locked -p omega --bin omega --message-format=json > "$RUNNER_TEMP/omega-artifacts.json"
-          jq -es '[.[] | select(.reason=="compiler-artifact" and .target.name=="omega" and .executable)] |
+          jq -es --arg compiler "$PWD/target/debug/omega" '[.[] | select(.reason=="compiler-artifact" and .target.name=="omega" and .executable==$compiler)] |
             length == 1 and (.[] | (.profile.opt_level=="1" or .profile.opt_level=="2" or .profile.opt_level=="3"))' \
             "$RUNNER_TEMP/omega-artifacts.json"
           sha256sum target/debug/omega
