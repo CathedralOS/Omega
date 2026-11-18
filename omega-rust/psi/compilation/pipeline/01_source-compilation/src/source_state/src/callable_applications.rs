@@ -7337,11 +7337,10 @@ pub(crate) mod signatures {
     }
 }
 pub(crate) mod table {
-    //! Repeated signature lookups should visit only the rows for that call.
-    //! Producers keep separate groups for machine selections and requirement
-    //! invocations, including each requirement's exact lexical owner. Inserts,
-    //! replacement and retirement maintain these links before returning. Handles
-    //! keep their generations, and row links preserve arena iteration order.
+    //! Lookups visit only this application's signatures. The table keeps
+    //! separate lists for selected machines, requirement calls with their
+    //! lexical owner, and callback contracts. Insertion, replacement and
+    //! retirement maintain the lists, handle generations and arena order.
 
     use super::{AppliedCallableOwner, AppliedCallableSignature};
     use crate::source_state::static_applications::StaticMachineApplicationHandle;
@@ -8752,10 +8751,10 @@ pub(crate) enum AppliedCallableOwner {
     },
     StaticCallback {
         parameter: SymbolHandle,
-        application: crate::static_applications::StaticMachineApplicationHandle,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         lexical_owner: SymbolHandle,
         source: signature::StateSignature,
-        bindings: arena::HandleSpan<crate::static_applications::StaticMachineBinding>,
+        bindings: arena::HandleSpan<crate::source_state::static_applications::StaticMachineBinding>,
         lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
     },
 }

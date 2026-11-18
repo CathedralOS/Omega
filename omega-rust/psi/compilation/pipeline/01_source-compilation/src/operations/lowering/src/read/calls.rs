@@ -2155,8 +2155,7 @@ impl<'t> Program<'t> {
             .static_callback_requirements(application)
             .map_err(unavailable)?;
         for contract in contracts {
-            let requirement =
-                self.binder_requirement(contract.parameter, contract.required, &[])?;
+            let signature = self.callback_requirement_signature(caller, contract.required)?;
             self.callback_conformance(
                 caller,
                 RequiredCallback {
