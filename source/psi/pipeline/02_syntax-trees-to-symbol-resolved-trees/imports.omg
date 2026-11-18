@@ -21,9 +21,9 @@
 // package's name grants nothing without an edge, and build edges never
 // authorize product imports (wiki/spec/build/declarations.md).
 //
-// Visibility is computed from the syntax tables and the source set on
-// demand rather than kept as resolver state: lookups test it only for a
-// declaration whose spelling already matched, and a unit has few `use` rows.
+// Name lookup tests a declaration's import route after its spelling matches.
+// Once a machine name is bound, overloads.omg publishes the visible members
+// for that use so typing can walk the family directly.
 
 // The package a `use` path selects, and how many of its leading members
 // select it; the members after them spell the module's path there. `found`

@@ -1408,8 +1408,7 @@ pub(crate) mod statement {
                     numerics::literals::IntegerLiteral::zero(),
                 ),
             );
-            let mut binding = lower_local(lowerer, state, types, local, Some(zero))?;
-            binding.role = language_core::LocalBindingRole::AtomicObservedResult;
+            let binding = lower_local(lowerer, state, types, local, Some(zero))?;
             let assignment = operation.assignment(lowerer, &binding)?;
             let binding = typed::statement::StatementNode::LocalData(binding);
             types.record(&binding)?;
@@ -1429,8 +1428,13 @@ pub(crate) mod statement {
         state: &resolved::state::State,
         types: &LocalTypes,
         local_data: &resolved::statement::TableLocalData,
-        initializer: Option<typed::expression::ExpressionHandle>,
+        observed_result_slot: Option<typed::expression::ExpressionHandle>,
     ) -> Result<TableLocalData, Diagnostic> {
+        let role = if observed_result_slot.is_some() {
+            language_core::LocalBindingRole::AtomicObservedResult
+        } else {
+            local_data.role
+        };
         let declared_is_unit = matches!(
             type_references(lowerer.source_trees).type_reference(local_data.type_reference),
             resolved::types::TypeReferenceNode::Unit
@@ -1438,7 +1442,7 @@ pub(crate) mod statement {
         let type_reference = if declared_is_unit
             && local_data.initial_value.is_valid()
             && local_data.type_is_inferred
-            && local_data.role.has_ordinary_initializer()
+            && role.has_ordinary_initializer()
         {
             infer_initializer_type(lowerer, state, types, local_data.initial_value)?
                 .unwrap_or_else(typed::types::TypeReferenceHandle::invalid)
@@ -1469,11 +1473,11 @@ pub(crate) mod statement {
         Ok(TableLocalData {
             pattern_fields,
             pattern_subject: symbols::SymbolHandle::invalid(),
-            role: local_data.role,
+            role,
             symbol: local_data.symbol,
             name: crate::lowerer::name::lower_name(&local_data.name),
             type_reference,
-            initial_value: match initializer {
+            initial_value: match observed_result_slot {
                 Some(value) => value,
                 None => local_data
                     .initial_value
@@ -1693,8 +1697,8 @@ mod scoped_field_tests {
 
     #[test]
     fn field_initializer_uses_the_explicit_receivers_package() {
-        let left = "data Packet { value: u32; } machine Packet::read_left(packet: &Packet) -> u32 { let from_left = packet.value; from_left }";
-        let right = "data Packet { value: u64; } machine Packet::read_right(packet: &Packet) -> u64 { let from_right = packet.value; from_right }";
+        let left = "data Packet { value: u32; } machine read_left(packet: &Packet) -> u32 { let from_left = packet.value; from_left }";
+        let right = "data Packet { value: u64; } machine read_right(packet: &Packet) -> u64 { let from_right = packet.value; from_right }";
         let program =
             packages(&[(1, "left.omg", left), (2, "right.omg", right)], &[], &[]).unwrap();
         let locals = program
