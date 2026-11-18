@@ -45,7 +45,6 @@ pub struct SourceAdmission<'request> {
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [crate::evaluation::FixedLayoutTargetScope],
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    pub asm_authority: Option<language_core::inline_assembly::AsmAuthorityAdmission>,
     pub wire_demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
     pub declarations: Option<
         &'request dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
@@ -195,11 +194,8 @@ impl SourcePreparationRequest<'_> {
                     ))]
                 },
             )?;
-            let mut preparation = crate::preparation::PreparationRequest::settled()
+            let preparation = crate::preparation::PreparationRequest::settled()
                 .with_wire_compatibility_demands(self.admission.wire_demands);
-            if let Some(authority) = self.admission.asm_authority {
-                preparation = preparation.with_asm_authority(authority);
-            }
             let (program, _) = crate::preparation::prepare_typed_trees(program, &preparation)?;
             let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
             let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();

@@ -5743,7 +5743,9 @@ pub(crate) mod engine {
                 let path = projection
                     .validate_captured_storage_address(|at| machine.flow.contains_key(&at))?;
                 if let Some(path) = path {
-                    let tip = crate::runtime_structural_path_tip(self.types.iter(), ty, &path);
+                    // A byte view's selected element has a stored address
+                    // without a separate structural declaration.
+                    let tip = crate::runtime_read_projection_tip(self.types.iter(), ty, &path);
                     if tip.is_none()
                         && crate::runtime_structural_field(self.types.iter(), ty, &path).is_none()
                     {

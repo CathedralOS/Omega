@@ -1628,6 +1628,9 @@ pub(crate) mod conversion {
         arena.insert(node)
     }
 
+    /// Checks both operands at `shared_type`, then decides typed conversion.
+    /// The context has the same well-formed signature and binding premises as
+    /// `infer_type` and `check_type`. Formation and comparison share `budget`.
     pub fn convertible(
         arena: &mut TermArena,
         context: &Context,
@@ -1639,6 +1642,8 @@ pub(crate) mod conversion {
         convertible_retaining(arena, context, left, right, shared_type, budget, &|_| false)
     }
 
+    /// Checks the operands before comparing with selected definitions opaque.
+    /// Retention restricts comparison; operand formation uses ordinary typing.
     pub fn convertible_retaining(
         arena: &mut TermArena,
         context: &Context,
@@ -5158,6 +5163,245 @@ pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};
 
 #[cfg(test)]
 mod tests {
+    mod conversion_judgments {
+        use super::{
+            apply, default_budget, empty, lambda, pi, squash, squash_intro, two, two_one, two_zero,
+            type_sort,
+        };
+        use crate::mathematical_core::{
+            Budget, Context, CoreError, Declaration, Level, Sort, Term, TermArena, check_signature,
+            convertible, convertible_retaining,
+        };
+
+        #[test]
+        fn public_conversion_forms_both_operands_before_reduction() {
+            let mut arena = TermArena::new();
+            let context = Context::empty();
+            let two = two(&mut arena);
+            let zero = two_zero(&mut arena);
+            let empty = empty(&mut arena);
+            let good_function = lambda(&mut arena, two, two);
+            let good = apply(&mut arena, good_function, zero);
+            let bad_function = lambda(&mut arena, empty, two);
+            let bad = apply(&mut arena, bad_function, zero);
+            let shared = type_sort(&mut arena, 0);
+
+            for (name, left, right, valid) in [
+                ("formed", good, two, true),
+                ("left argument", bad, two, false),
+                ("right argument", two, bad, false),
+                ("reflexive malformed term", bad, bad, false),
+            ] {
+                let observed = convertible(
+                    &mut arena,
+                    &context,
+                    left,
+                    right,
+                    shared,
+                    &mut default_budget(),
+                );
+                if valid {
+                    assert_eq!(observed, Ok(true), "{name}");
+                } else {
+                    assert!(
+                        matches!(observed, Err(CoreError::ArgumentTypeMismatch { .. })),
+                        "{name}: {observed:?}"
+                    );
+                }
+            }
+
+            assert!(matches!(
+                convertible(&mut arena, &context, bad, bad, zero, &mut default_budget()),
+                Err(CoreError::NotASort { term, .. }) if term == zero
+            ));
+        }
+
+        #[test]
+        fn public_conversion_forms_both_strict_proofs_before_irrelevance() {
+            let mut arena = TermArena::new();
+            let context = Context::empty();
+            let two = two(&mut arena);
+            let zero = two_zero(&mut arena);
+            let one = two_one(&mut arena);
+            let proposition = squash(&mut arena, two);
+            let left_proof = squash_intro(&mut arena, two, zero);
+            let right_proof = squash_intro(&mut arena, two, one);
+            for (name, left, right, valid) in [
+                ("formed proofs", left_proof, right_proof, true),
+                ("left is a value", zero, right_proof, false),
+                ("right is a value", left_proof, zero, false),
+                ("reflexive value", zero, zero, false),
+            ] {
+                let observed = convertible(
+                    &mut arena,
+                    &context,
+                    left,
+                    right,
+                    proposition,
+                    &mut default_budget(),
+                );
+                if valid {
+                    assert_eq!(observed, Ok(true), "{name}");
+                } else {
+                    assert!(
+                        matches!(observed, Err(CoreError::TypeMismatch { .. })),
+                        "{name}: {observed:?}"
+                    );
+                }
+            }
+            assert_eq!(
+                convertible(&mut arena, &context, zero, one, two, &mut default_budget()),
+                Ok(false)
+            );
+        }
+
+        #[test]
+        fn public_retaining_conversion_checks_operands_and_keeps_opaque_heads() {
+            for valid in [true, false] {
+                let mut arena = TermArena::new();
+                let mut budget = default_budget();
+                let two = two(&mut arena);
+                let zero = two_zero(&mut arena);
+                let domain = if valid { two } else { empty(&mut arena) };
+                let shared = type_sort(&mut arena, 0);
+                let function_type = pi(&mut arena, domain, shared);
+                let body = lambda(&mut arena, domain, two);
+                let signature = check_signature(
+                    &mut arena,
+                    &[Declaration::definition(0, function_type, body)],
+                    &mut budget,
+                )
+                .expect("the function declaration itself is well-typed");
+                let context = Context::empty().with_signature(signature);
+                let function = arena.insert(Term::Constant {
+                    declaration: 0,
+                    levels: Vec::new(),
+                });
+                let application = apply(&mut arena, function, zero);
+                for (name, left, right, opaque_equal) in [
+                    ("left application", application, two, false),
+                    ("right application", two, application, false),
+                    ("same application", application, application, true),
+                ] {
+                    let ordinary =
+                        convertible(&mut arena, &context, left, right, shared, &mut budget);
+                    let retained = convertible_retaining(
+                        &mut arena,
+                        &context,
+                        left,
+                        right,
+                        shared,
+                        &mut budget,
+                        &|declaration| declaration == 0,
+                    );
+                    if valid {
+                        assert_eq!(ordinary, Ok(true), "{name}");
+                        assert_eq!(retained, Ok(opaque_equal), "{name}");
+                    } else {
+                        assert!(
+                            matches!(ordinary, Err(CoreError::ArgumentTypeMismatch { .. })),
+                            "{name}: {ordinary:?}"
+                        );
+                        assert!(
+                            matches!(retained, Err(CoreError::ArgumentTypeMismatch { .. })),
+                            "{name}: {retained:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn public_conversion_checks_level_arity_before_reflexivity() {
+            let mut arena = TermArena::new();
+            let mut budget = default_budget();
+            let shared = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+            let signature = check_signature(
+                &mut arena,
+                &[Declaration::assumption(2, shared)],
+                &mut budget,
+            )
+            .unwrap();
+            let context = Context::with_level_arity(2).with_signature(signature);
+            let malformed = arena.insert(Term::Constant {
+                declaration: 0,
+                levels: vec![Level::Parameter(0)],
+            });
+            assert!(matches!(
+                convertible(
+                    &mut arena,
+                    &context,
+                    malformed,
+                    malformed,
+                    shared,
+                    &mut budget,
+                ),
+                Err(CoreError::DeclarationArityMismatch {
+                    declaration: 0,
+                    expected: 2,
+                    supplied: 1,
+                })
+            ));
+            assert!(matches!(
+                convertible_retaining(
+                    &mut arena,
+                    &context,
+                    malformed,
+                    malformed,
+                    shared,
+                    &mut budget,
+                    &|_| true,
+                ),
+                Err(CoreError::DeclarationArityMismatch {
+                    declaration: 0,
+                    expected: 2,
+                    supplied: 1,
+                })
+            ));
+        }
+
+        #[test]
+        fn public_conversion_reuses_the_shared_types_formed_sort() {
+            let mut arena = TermArena::new();
+            let two = two(&mut arena);
+            let zero = two_zero(&mut arena);
+            let universe = type_sort(&mut arena, 0);
+            let sort_function = lambda(&mut arena, two, universe);
+            let bound = arena.insert(Term::Variable(0));
+            let computed_sort = apply(&mut arena, sort_function, bound);
+            let function_type = pi(&mut arena, two, computed_sort);
+            let function = arena.insert(Term::Constant {
+                declaration: 0,
+                levels: Vec::new(),
+            });
+            let shared = apply(&mut arena, function, zero);
+            let signature = check_signature(
+                &mut arena,
+                &[
+                    Declaration::assumption(0, function_type),
+                    Declaration::assumption(0, shared),
+                ],
+                &mut default_budget(),
+            )
+            .unwrap();
+            let context = Context::empty().with_signature(signature);
+            let value = arena.insert(Term::Constant {
+                declaration: 1,
+                levels: Vec::new(),
+            });
+            // The shared type's inferred sort takes one beta step. Neither
+            // checking its two inhabitants nor comparison owes that step again.
+            for (allowance, expected) in [(1, Ok(true)), (0, Err(CoreError::StepCeiling))] {
+                let mut budget = Budget::new(allowance);
+                assert_eq!(
+                    convertible(&mut arena, &context, value, value, shared, &mut budget),
+                    expected,
+                );
+                assert_eq!(budget.remaining(), 0);
+            }
+        }
+    }
+
     mod assumption_closure {
         use super::{constant, default_budget, pi, two, type_sort};
         use crate::mathematical_core::{
@@ -5972,9 +6216,11 @@ mod tests {
             let carrier = variable(&mut arena, 7);
             let w_higher = w_type(&mut arena, carrier, higher_family);
             let higher_sort = type_sort(&mut arena, 1);
-            assert!(
-                !convertible(&mut arena, &context, w, w_higher, higher_sort, &mut budget).unwrap()
-            );
+            // The level-0 W is not an operand at the requested level-1 type.
+            assert!(matches!(
+                convertible(&mut arena, &context, w, w_higher, higher_sort, &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
 
             let carrier = variable(&mut arena, 7);
             let children = variable(&mut arena, 6);
@@ -6167,7 +6413,27 @@ mod tests {
 
             let inferred = infer_type(&mut arena, &context, expected, &mut budget).unwrap();
             let claimed_sort = sort_level(&mut arena, Level::Parameter(0).successor().unwrap());
-            let relevant = type_sort(&mut arena, 0);
+            let wrong_shared = type_sort(&mut arena, 0);
+            assert!(matches!(
+                convertible(
+                    &mut arena,
+                    &context,
+                    inferred,
+                    claimed_sort,
+                    wrong_shared,
+                    &mut budget,
+                ),
+                Err(CoreError::TypeMismatch { .. })
+            ));
+            // Both compared Type(u+1) universes inhabit Type(u+2).
+            let relevant = sort_level(
+                &mut arena,
+                Level::Parameter(0)
+                    .successor()
+                    .unwrap()
+                    .successor()
+                    .unwrap(),
+            );
             assert!(
                 convertible(
                     &mut arena,
@@ -6265,7 +6531,8 @@ mod tests {
             let mut arena = TermArena::new();
             let mut budget = default_budget();
             let type_u = sort_level(&mut arena, Level::Parameter(0));
-            let axiom = Declaration::assumption(2, type_u);
+            // One level argument combines the context's two independent levels.
+            let axiom = Declaration::assumption(1, type_u);
             let signature = check_signature(&mut arena, &[axiom], &mut budget).unwrap();
             let context = Context::with_level_arity(2).with_signature(signature);
             let u = Level::Parameter(0);
@@ -6280,10 +6547,10 @@ mod tests {
             );
 
             let other = constant(&mut arena, 0, vec![u.clone()]);
-            assert!(
-                !convertible(&mut arena, &context, left, other, shared, &mut budget).unwrap(),
-                "distinct level instantiations must not convert"
-            );
+            assert!(matches!(
+                convertible(&mut arena, &context, left, other, shared, &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
 
             let mut arena = TermArena::new();
             let mut budget = default_budget();
@@ -8520,7 +8787,10 @@ mod tests {
             let e = variable(&mut arena, 1);
             let other = empty_elim(&mut arena, other_target, e);
             let shared = variable(&mut arena, 3);
-            assert!(!convertible(&mut arena, &context, left, other, shared, &mut budget).unwrap());
+            assert!(matches!(
+                convertible(&mut arena, &context, left, other, shared, &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
         }
 
         #[test]
@@ -8982,19 +9252,19 @@ mod tests {
             let body = variable(&mut arena, 4);
             let scrutinee = variable(&mut arena, 0);
             let other_scrutinee = box_elim(&mut arena, motive, body, scrutinee);
-            assert!(
-                !conv!(&mut arena => &context => left => other_scrutinee => shared => &mut budget)
-                    .unwrap()
-            );
+            assert!(matches!(
+                conv!(&mut arena => &context => left => other_scrutinee => shared => &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
 
             let motive = variable(&mut arena, 5);
             let body = variable(&mut arena, 2);
             let scrutinee = variable(&mut arena, 1);
             let other_motive = box_elim(&mut arena, motive, body, scrutinee);
-            assert!(
-                !conv!(&mut arena => &context => left => other_motive => shared => &mut budget)
-                    .unwrap()
-            );
+            assert!(matches!(
+                conv!(&mut arena => &context => left => other_motive => shared => &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
         }
 
         #[test]
@@ -9453,13 +9723,15 @@ mod tests {
             let wrapped = lambda(&mut arena, lambda_domain, body);
             let f = variable(&mut arena, 0);
             let neutral_type = variable(&mut arena, 1);
-            assert!(
-                !convertible(&mut arena, &context, wrapped, f, neutral_type, &mut budget,).unwrap()
-            );
+            assert!(matches!(
+                convertible(&mut arena, &context, wrapped, f, neutral_type, &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
 
-            assert!(
-                !convertible(&mut arena, &context, f, wrapped, neutral_type, &mut budget,).unwrap()
-            );
+            assert!(matches!(
+                convertible(&mut arena, &context, f, wrapped, neutral_type, &mut budget),
+                Err(CoreError::TypeMismatch { .. })
+            ));
         }
 
         #[test]

@@ -3124,6 +3124,7 @@ impl<'a> Storage<'a> {
         );
         let watched = self.backing(references, &descriptor, block, position, concerns)?;
         let mut covered = false;
+        let mut boundary_preserves = None;
         for (parameter, argument) in operation.kind.structural_arguments().iter().enumerate() {
             if !matches!(
                 argument.access,
@@ -3147,10 +3148,23 @@ impl<'a> Storage<'a> {
             let Some(relative) = relative.descriptor_location() else {
                 return Ok(false);
             };
-            if !references
-                .call_preserves_descriptor_storage(self.machine, at, parameter, &relative.path)
-                .map_err(|detail| self.unsupported(concerns, detail))?
-            {
+            let preserves = if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
+                // The boundary contract preserves a whole descriptor's shape;
+                // its payload contents still receive the call's write row.
+                relative.path.is_empty()
+                    && *boundary_preserves.get_or_insert_with(|| {
+                        terminal_semantics::descriptor_results::boundary_call_preserves_descriptor_storage(
+                            self.module,
+                            self.lowered,
+                            operation,
+                        )
+                    })
+            } else {
+                references
+                    .call_preserves_descriptor_storage(self.machine, at, parameter, &relative.path)
+                    .map_err(|detail| self.unsupported(concerns, detail))?
+            };
+            if !preserves {
                 return Ok(false);
             }
             covered = true;

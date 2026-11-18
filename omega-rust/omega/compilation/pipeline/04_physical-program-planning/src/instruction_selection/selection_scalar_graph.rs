@@ -8088,13 +8088,10 @@ impl Builder<'_> {
                     )
                     .ok_or(SelectedInstructionError::custody())?,
                 )
-        } else if matches!(
-            kind.call_target(),
-            Some(
-                selected_instructions::SelectedCallTarget::Dynamic { .. }
-                    | selected_instructions::SelectedCallTarget::Callable { .. }
-            )
-        ) {
+        } else if kind
+            .call_target()
+            .is_some_and(|target| target.indirect_code_offset().is_some())
+        {
             std::borrow::Cow::Owned(
                 selected_instructions::calls::dynamic::instantiate_constraint(
                     row(self.catalog, key)?,

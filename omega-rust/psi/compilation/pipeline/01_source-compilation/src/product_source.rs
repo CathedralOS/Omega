@@ -18,7 +18,6 @@ pub struct ProductSourceInputs<'a> {
     pub native_bindings: &'a [provider_choices::NativeBuildSupply],
     pub representations: crate::ProductRepresentationInput<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    pub asm_authority: Option<language_core::inline_assembly::AsmAuthorityAdmission>,
     pub wire_demands: &'a [declaration_contracts::wire::WireCompatibilityDemand],
     pub optimizations: optimization::PsiOptimizationSelections,
 }
@@ -197,7 +196,6 @@ fn prepare_and_judge(
             executed: build.representations.executed,
             retained: build.representations.retained,
         },
-        asm_authority: build.asm_authority,
         wire_demands: build.wire_demands,
         declarations: None,
     };

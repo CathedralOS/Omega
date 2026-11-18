@@ -28,9 +28,9 @@ machine build(build: &mut Build) {
   `Console`, so an omitted `build.omg` or empty `build` machine yields the hosted
   console default. `Unspecified(value)` provides a platform escape hatch without
   requiring a compiler release.
-- The current `freestanding` field admits machine control for every target the
-  build binds. Its retirement is specified in
-  `wiki/spec/build/permissions.md#freestanding-machine-owner-authority`.
+- `freestanding` is a legacy Build setting awaiting field retirement. Each
+  output's hardware authority follows its selected target and provider contracts
+  under `wiki/spec/build/permissions.md#freestanding-machine-owner-authority`.
 - `optimizations` is an exact set of individually named transformations (empty by
   default; duplicate selections reject rather than acting like coarse `-O`
   levels).

@@ -1,0 +1,21 @@
+// Expected exit: 0
+machine read(item: &u8) -> u8 { item }
+
+public machine fetch(items: &[u8], index: u64) -> u8
+requires index < items.len
+{
+    read(&items[index])
+}
+
+machine main() crashes Trap {
+    let values: [u8; 3] = [17u8, 37u8, 91u8];
+    let observed: u8 = fetch(&values[..], 1u64);
+    transition observed == 37u8
+        && values[0u64] == 17u8 && values[2u64] == 91u8
+    {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
