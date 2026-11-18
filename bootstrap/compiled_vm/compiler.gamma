@@ -66,14 +66,13 @@
 (def s_local ((s Int) (slots Int)) Int
   (pair (pair (s_next_label s) slots) (second s)))
 
-; A positive width declares a literal field. An address reference reserves
-; eight bytes, and a label marks a position between fields. Zero ends the
-; list. Only the target assembler and compiler can construct these records.
+; A positive width declares a literal field. The assembler supplies the width
+; of a branch target. A label marks a position between fields. Zero ends the list.
 (def i_field ((s Int) (width Int) (value Int)) Int
   (pair (first s) (pair width (pair value (second s)))))
 (def i_address ((s Int) (label Int)) Int (i_field s -1 label))
 (def s_mark ((s Int) (label Int)) Int (i_field s -2 label))
-(def i_width ((width Int)) Int (if (eq width -1) 8 width))
+(def i_width ((width Int)) Int (if (eq width -1) (i_target_width) width))
 
 (def e_add ((s Int) (reg Int) (value Int)) Int
   (i_add (i_imm s 12 value) reg 12))
@@ -110,15 +109,17 @@
           (i_layout rest (+ size (i_width width)) (pair fields ordered) labels)))
       (i_publish ordered size labels))))
 
-; Publication follows validation and the capacity check. A label's absolute
-; address is the code end minus its saved distance. Literals pass through.
-(def i_output ((fields Int) (remaining Int) (labels Int) (end Int)) Int
+; Both positions count bytes from the same end. The assembler chooses the
+; target value once the branch field and destination have known positions.
+(def i_output ((fields Int) (remaining Int) (labels Int) (size Int)) Int
   (if remaining
     (let ((field Int (first fields)) (width Int (first field))
           (value Int (first (second field))) (bytes Int (i_width width))
-          (word Int (if (eq width -1) (- end (m_get labels value)) value))
+          (following Int (- remaining bytes))
+          (word Int (if (eq width -1)
+            (i_target_value size following (m_get labels value)) value))
           (emitted Int (i_word word bytes)))
-      (i_output (second fields) (- remaining bytes) labels end))
+      (i_output (second fields) following labels size))
     (pair 0 1)))
 (def i_word ((word Int) (remaining Int)) Int
   (if remaining

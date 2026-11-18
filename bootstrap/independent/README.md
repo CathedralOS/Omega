@@ -17,7 +17,7 @@ compiler source concatenates these three files in order.
 
 No source text is rewritten or recognized as a special customer. The same
 frontend and lowering serve the Alpha and native realizations. Each named
-operation appends its native fields, and labels resolve to actual code addresses.
+operation appends its native fields, and labels identify positions in the code.
 The compiler validates all functions and branches before buffered publication.
 The public [Gamma semantics](../interpreted/2_gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
@@ -88,14 +88,16 @@ addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
 
-To audit a conditional transfer, follow `i_jz` in
-[`native.gamma`](native.gamma). It tests the register, emits `75 0c` to skip
-the twelve-byte absolute jump when the register is nonzero, and reserves
-eight bytes for the destination in the jump's immediate. Publication fills
-that field with the code end minus the target label's distance from the end.
-The widths passed to the assembler determine both label offsets and emitted
-bytes. The x86 instructions, register convention and ELF layout still need
-their own review.
+The native assembler uses x86-64 direct branches and calls. For `i_jz`,
+`test rax,rax` sets the flags and `0f 84` jumps on zero. The next four
+bytes hold a signed displacement from the end of that instruction. To
+compute it, the assembler subtracts the target's distance from the code
+end from the number of bytes following the field. Zero selects the following
+instruction. Positive and negative displacements select later and earlier
+addresses. The distance between any two positions in a 128 MiB image fits
+within the signed 32-bit range. Calls and unconditional jumps use the same
+calculation.
+[Native assembler](native.gamma)
 
 ## Delivery continuation
 
