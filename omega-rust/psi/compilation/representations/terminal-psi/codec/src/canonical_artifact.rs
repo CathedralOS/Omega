@@ -307,6 +307,8 @@ pub(crate) mod execution_code {
         #[default]
         Portable,
         Invocation,
+        /// A selected fixed-layout policy may record private callback placements.
+        LayoutPolicyInvocation,
     }
 
     #[derive(Debug, Clone, Copy)]

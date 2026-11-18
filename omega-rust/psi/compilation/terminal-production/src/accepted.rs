@@ -97,6 +97,10 @@ impl AcceptedTerminalSource {
         })
     }
 
+    pub fn emitted_source_calls(&self) -> &[typed_trees::SourceCallCorrespondence] {
+        &self.correspondence().calls
+    }
+
     /// The advisory diagnostics of the accepted compilation: warnings and
     /// their notes, none of which is an error. They are data on the
     /// accepted judgment for whoever reports the compilation; nothing here
@@ -125,7 +129,8 @@ impl AcceptedTerminalSource {
                             )
                         })
                     }
-                    terminal_codec::TerminalPublication::Invocation => {
+                    terminal_codec::TerminalPublication::Invocation
+                    | terminal_codec::TerminalPublication::LayoutPolicyInvocation => {
                         self.closure.publish_invocation().map(|publication| {
                             (
                                 terminal_codec::TerminalProgramProduct::Invocation(
@@ -642,7 +647,7 @@ impl AcceptedTerminalSource {
     }
 
     pub fn is_invocation(&self) -> bool {
-        self.publication == terminal_codec::TerminalPublication::Invocation
+        self.publication != terminal_codec::TerminalPublication::Portable
     }
 }
 

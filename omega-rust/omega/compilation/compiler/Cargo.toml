@@ -216,6 +216,10 @@ path = "tests/program_entry_product.rs"
 name = "opaque_representation"
 path = "tests/opaque_representation.rs"
 
+[[test]]
+name = "private_callback_layout"
+path = "tests/private_callback_layout.rs"
+
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
 [[test]]
