@@ -1300,26 +1300,26 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 
-    // An unused subject machine still demands the exact library declaration
-    // it calls. The library's data-owned helper breaks the static machine rule.
+    // The checker must follow library calls even from an unused machine.
     let frontier = staged_unused(
         "dependency_call",
         "use omega::language::core::CompactBinary;\n\
          machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
     );
-    let violation = rule_violation(&frontier);
-    assert_eq!(
-        violation.statement,
-        "a data declaration cannot own a machine; declare an ordinary static machine \
-         while reading the body of `spare`"
-    );
-    assert_authored_site(
-        &frontier,
-        violation.site,
-        "source/library/core/wire.omg",
-        "public machine CompactBinary::signed_from_word(",
-        "CompactBinary::signed_from_word",
-    );
+    let (_, verdict) = route_verdict(&frontier);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the checker must accept the library call: {verdict:?}");
+    };
+    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+        names.machine == "signed_from_word"
+            && names
+                .declared
+                .and_then(|span| frontier.typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.path
+                        .ends_with("source/library/core/compact_binary.omg")
+                })
+    }));
 }
 
 /// A requirement that contradicts a crash route's guard rules the route out,
