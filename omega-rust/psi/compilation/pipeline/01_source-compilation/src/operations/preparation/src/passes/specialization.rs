@@ -562,6 +562,9 @@ fn specialize_application(
     if open_callback || operands.iter().any(|operand| operand.is_open(program)) {
         return Ok(None);
     }
+    program
+        .prepare_static_callback_requirements(application)
+        .map_err(unserved)?;
     let key = operands
         .iter()
         .map(|operand| operand.identity.clone())
@@ -2512,7 +2515,7 @@ fn generate(
                     .map(|(machine, _)| machine)
             })
             .ok_or(unserved("a static callable argument has no machine entry"))?;
-        callable_binder::satisfies_binder(
+        callable_binder::binder_shape(
             program,
             binder,
             machine,

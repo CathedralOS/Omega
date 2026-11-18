@@ -843,9 +843,9 @@ pub(crate) mod canonical_values {
     }
 }
 pub use callable_applications::{
-    AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
-    ClosedRequirementApplication, MachineInstantiation, NamedConformanceCaptureIndex,
-    RequirementLocalArgument,
+    AppliedMachineCallable, AppliedMachineCallableId, AppliedStaticCallbackRequirement,
+    CallableContractScope, CallableSubstitution, ClosedRequirementApplication,
+    MachineInstantiation, NamedConformanceCaptureIndex, RequirementLocalArgument,
 };
 pub(crate) mod frozen {
     use super::TypedTrees;
@@ -942,7 +942,11 @@ pub(crate) mod frozen {
         fn read<Context>(
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
-            <TypedTrees as compiler_storage::Record>::read(input).map(Self::from)
+            let recovered = <TypedTrees as compiler_storage::Record>::read(input)?;
+            recovered
+                .validate_recovered_callback_contracts()
+                .map_err(|reason| input.error(reason))?;
+            Ok(Self::from(recovered))
         }
     }
 
