@@ -414,19 +414,18 @@ fn the_polymorphic_family_declaration_checks_once_and_instantiates_at_each_level
         .unwrap()
     );
 
-    // The two instantiations are not interchangeable:
-    // `vecOf[0] Two n` never converts to the level-1 family.
-    assert!(
-        !convertible(
+    // The level-0 instantiation is not an operand at the level-1 shared type.
+    assert!(matches!(
+        convertible(
             &mut arena,
             &context,
             vec_two,
             direct_types,
             shared_one,
             &mut budget
-        )
-        .unwrap()
-    );
+        ),
+        Err(CoreError::TypeMismatch { .. })
+    ));
 }
 
 #[test]
