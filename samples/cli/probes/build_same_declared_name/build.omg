@@ -11,5 +11,4 @@ machine build(builder: &mut Build) {
     let mut k2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_two" });
     dependency::with_alias(&mut k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::dependency(builder, k2_dependency);
-    builder.freestanding = true;
 }
