@@ -2,9 +2,10 @@
 //
 // `EvaluatedBuildSettings` captures the authored presentation intent (`application_intent`),
 // optional `application_identifier`, PE `subsystem` word, root
-// `optimizations`, `x86_deployment_claim`, legacy `privileged_services` settings, and
-// per-target `elf_interpreters`. Optional facets (`identifier`, `privileged_services`,
-// `elf_interpreter`) default cleanly when omitted by builds that predate those surfaces.
+// `optimizations`, `x86_deployment_claim`, and per-target `elf_interpreters`.
+// Optional facets (`identifier`, `elf_interpreter`) default cleanly when omitted
+// by builds that predate those surfaces. Legacy `privileged_services` values
+// remain validated until their authored declaration is retired.
 // The `x86_deployment_claim` is a single Build value that each realized x86 profile
 // admits independently via `X86DeploymentClaim::admit_for`, allowing a single Build
 // to bind AArch64 targets alongside x86 targets without conflict.
@@ -21,7 +22,6 @@ pub struct EvaluatedBuildSettings {
     pub subsystem: u16, // PE optional-header Subsystem word (console 3 when unstated).
     pub optimizations: OptimizationSelections, // Exact root-build optimization selections.
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
-    pub privileged_services: PrivilegedServicesGrants, // Legacy privileged-service settings (`port_io`, `interrupt_table`).
     pub elf_interpreters: ElfInterpreterSelections, // Authored per-target ELF loader selections (`PT_INTERP`).
     pub tests_disabled: bool, // Authored `builder.tests.disabled`: registered groups stay checked but are reported disabled, never run or passed.
 }
@@ -71,12 +71,6 @@ impl ElfInterpreterSelections {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PrivilegedServicesGrants {
-    pub port_io: bool,         // Legacy port-I/O setting (`in`/`out`).
-    pub interrupt_table: bool, // Legacy interrupt-table setting (`lidt`).
-}
-
 impl Default for EvaluatedBuildSettings {
     fn default() -> Self {
         Self {
@@ -85,7 +79,6 @@ impl Default for EvaluatedBuildSettings {
             subsystem: 3,
             optimizations: OptimizationSelections::default(),
             x86_deployment_claim: X86DeploymentClaim::Baseline,
-            privileged_services: PrivilegedServicesGrants::default(),
             elf_interpreters: ElfInterpreterSelections::default(),
             tests_disabled: false,
         }
@@ -224,33 +217,32 @@ pub(crate) fn extract_build_settings(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     }
 
-    let privileged_services = match field("privileged_services") {
+    // Validate the optional legacy shape without retaining an output choice.
+    // Selected target/provider contracts supply hardware authority per output.
+    match field("privileged_services") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
-            let flag = |name: &str| -> Result<bool, String> {
+            let validate_flag = |name: &str| -> Result<(), String> {
                 match fields
                     .iter()
                     .find(|(field, _)| field == name)
                     .map(|(_, value)| value)
                 {
-                    Some(BuildTimeValue::Bool(value)) => Ok(*value),
+                    Some(BuildTimeValue::Bool(_)) | None => Ok(()),
                     Some(other) => Err(format!(
                         "Build.privileged_services.{name} is not a bool: {other:?}"
                     )),
-                    None => Ok(false),
                 }
             };
-            PrivilegedServicesGrants {
-                port_io: flag("port_io")?,
-                interrupt_table: flag("interrupt_table")?,
-            }
+            validate_flag("port_io")?;
+            validate_flag("interrupt_table")?;
         }
         Ok(other) => {
             return Err(format!(
                 "Build.privileged_services is not a PrivilegedServices struct: {other:?}"
             ));
         }
-        Err(_) => PrivilegedServicesGrants::default(),
-    };
+        Err(_) => {}
+    }
 
     let elf_interpreters = match field("elf_interpreter") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
@@ -289,7 +281,6 @@ pub(crate) fn extract_build_settings(
             subsystem,
             optimizations,
             x86_deployment_claim,
-            privileged_services,
             elf_interpreters,
             tests_disabled,
         },
@@ -439,5 +430,63 @@ mod tests {
             baseline,
             "the legacy Boolean must not distinguish normalized Build choices"
         );
+    }
+
+    #[test]
+    fn legacy_privileged_services_are_validated_without_becoming_choices() {
+        fn services(build: &mut BuildTimeValue) -> &mut BuildTimeValue {
+            &mut fields(build)
+                .iter_mut()
+                .find(|(name, _)| name == "privileged_services")
+                .expect("the admitted Build has its legacy service record")
+                .1
+        }
+
+        let (admission, original) = admitted_build();
+        let baseline = admission.extract(&original).expect("decode the real Build");
+
+        let mut omitted = original.clone();
+        fields(&mut omitted).retain(|(name, _)| name != "privileged_services");
+        assert_eq!(admission.extract(&omitted).unwrap(), baseline);
+
+        let mut malformed = original.clone();
+        set(&mut malformed, "privileged_services", BuildTimeValue::Unit);
+        set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
+        assert_eq!(
+            admission.extract(&malformed).unwrap_err(),
+            "Build.privileged_services is not a PrivilegedServices struct: Unit"
+        );
+
+        let mut malformed = original.clone();
+        let nested = services(&mut malformed);
+        set(nested, "port_io", BuildTimeValue::Int(1));
+        set(nested, "interrupt_table", BuildTimeValue::Unit);
+        fields(nested).reverse();
+        fields(nested).push(("port_io".into(), BuildTimeValue::Bool(true)));
+        assert_eq!(
+            admission.extract(&malformed).unwrap_err(),
+            "Build.privileged_services.port_io is not a bool: Int(1)"
+        );
+
+        let mut malformed = original.clone();
+        let nested = services(&mut malformed);
+        fields(nested).retain(|(name, _)| name != "port_io");
+        set(nested, "interrupt_table", BuildTimeValue::Unit);
+        assert_eq!(
+            admission.extract(&malformed).unwrap_err(),
+            "Build.privileged_services.interrupt_table is not a bool: Unit"
+        );
+
+        for flag in ["port_io", "interrupt_table"] {
+            let mut changed = original.clone();
+            set(services(&mut changed), flag, BuildTimeValue::Bool(true));
+            assert_eq!(
+                admission
+                    .extract(&changed)
+                    .expect("accept the legacy Boolean"),
+                baseline,
+                "legacy setting {flag} must not distinguish normalized Build choices"
+            );
+        }
     }
 }
