@@ -132,6 +132,7 @@ pub(crate) fn machine(
     contract: ContractId,
     bodies: &IdTable<MachineId, Body>,
     component: &[MachineId],
+    separate_entry: bool,
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
@@ -178,7 +179,7 @@ pub(crate) fn machine(
         lowering.begin_ranking(id)?;
         lowering.body(id, body)?;
     } else {
-        lowering.component(id, bodies, component, &formals)?;
+        lowering.component(id, bodies, component, &formals, separate_entry)?;
     }
     lowering.finish(entry, formals, result, contract, structural_types)
 }
@@ -1087,9 +1088,10 @@ impl<'a> Lowering<'a> {
     /// `wiki/spec/terminal-psi/control_flow.md`: "Constant-stack terminal
     /// cycles may become block backedges". Each member gets one head block
     /// whose parameters are its scalar formals, and its body is lowered once
-    /// beneath it; the entry jumps to `id`'s own head with the machine's
-    /// formals, and a terminal call of a member is a jump to that member's
-    /// head (`control`, `arrive`). The entry itself is not a head:
+    /// beneath it. The entry normally jumps to `id`'s own head; a separate
+    /// first body instead checks its incoming permissions before any cyclic
+    /// head joins them with local arrivals. Terminal member calls still jump
+    /// to those heads (`control`, `arrive`). The entry itself is not a head:
     /// "The machine entry cannot carry a row: invocation supplies the
     /// machine's declared preconditions rather than an explicit control-flow
     /// edge."
@@ -1107,6 +1109,7 @@ impl<'a> Lowering<'a> {
         bodies: &'a IdTable<MachineId, Body>,
         component: &[MachineId],
         formals: &Formals,
+        separate_entry: bool,
     ) -> Checked<()> {
         let entered_bindings = self.slots.clone();
         for member in component {
@@ -1161,28 +1164,37 @@ impl<'a> Lowering<'a> {
             });
         }
         self.slots = entered_bindings;
-        // The invocation forwards these values into its first head without
-        // a source-level read. Name their scalar leaves just as an ordinary
-        // call capture does, so inferred head requirements can observe the
-        // exact invocation input. These names supply no predicates.
-        for formal in &formals.records {
-            let actual = self.exact_root(formal.place)?;
-            self.name_contents(actual, ValueType::record(formal.structural_type))?;
+        if separate_entry {
+            // The actual invocation keeps its incoming permissions here.
+            // Cyclic arrivals still enter the complete ordinary head graph.
+            let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+            self.slot_types = &body.slots;
+            self.begin_ranking(id)?;
+            self.body(id, body)?;
+        } else {
+            // The invocation forwards these values into its first head without
+            // a source-level read. Name their scalar leaves just as an ordinary
+            // call capture does, so inferred head requirements can observe the
+            // exact invocation input. These names supply no predicates.
+            for formal in &formals.records {
+                let actual = self.exact_root(formal.place)?;
+                self.name_contents(actual, ValueType::record(formal.structural_type))?;
+            }
+            let entered = formals.scalars.iter().map(|formal| formal.id).collect();
+            let structural = formals
+                .records
+                .iter()
+                .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+                .collect();
+            self.arrive(
+                id,
+                entered,
+                structural,
+                Vec::new(),
+                SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
+                None,
+            )?;
         }
-        let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
-        let structural = formals
-            .records
-            .iter()
-            .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
-            .collect();
-        self.arrive(
-            id,
-            entered,
-            structural,
-            Vec::new(),
-            SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
-            None,
-        )?;
         for position in 0..self.heads.len() {
             let (member, block) = (self.heads[position].member, self.heads[position].block);
             let body = terminal_check_tables::row(bodies, member, id, Construct::Machine)?;
