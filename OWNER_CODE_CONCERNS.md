@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Focused compiler checks rebuild the implementation three times
+- Category: Verifying costs more than writing
+- Where: [source-compiler unit tests](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/source_selection_publication.rs#L1985), [integration-test feature](omega-rust/omega/compilation/compiler/Cargo.toml#L107), [source-compiler feature](omega-rust/psi/compilation/pipeline/01_source-compilation/Cargo.toml#L8)
+- Saw: One machine-type identity repair rebuilt `source-compiler` as its unit-test executable, as a library with `test-support` for a compiler integration test, and as the default library for the CLI. The three Rust builds took 13m39s, 10m29s and 11m06s; the four selected tests themselves took 21.098 seconds.
+- Cost: A narrow validation cycle spends over 35 minutes rebuilding before the original program can run. Let small test targets consume the same optimized implementation as the CLI. Measure a warm test-only edit and a production edit, retaining the tests' real compilation and publication paths.
+- Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
+
 ### Native failure reports discard the instruction context
 - Category: Verifying costs more than writing
 - Where: [operand errors](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/machine_effects.rs#L946), [compile and retention order](omega-rust/omega/application/src/execution/mod.rs#L201)

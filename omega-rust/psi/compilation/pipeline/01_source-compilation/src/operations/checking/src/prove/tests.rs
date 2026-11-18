@@ -1503,7 +1503,8 @@ fn irrelevant_subtraction_endpoints_do_not_start_sign_searches() {
     let difference = ScalarTerm::exact_integer_subtract(integer, subject.clone(), other).unwrap();
     let assumptions = [Proposition::LessOrEqual(sum, difference)];
     let mut activity = ProofSearchActivity::default();
-    let steps = Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject);
+    let steps =
+        Prover::new(&context, &assumptions, &[], &values, &mut activity).steps(&subject, &subject);
     assert!(
         steps.is_empty(),
         "an order step cannot return its starting value"
