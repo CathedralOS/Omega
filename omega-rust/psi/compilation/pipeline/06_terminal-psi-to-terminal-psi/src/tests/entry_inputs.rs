@@ -137,6 +137,33 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
 }
 
 #[test]
+fn a_complete_byte_check_does_not_become_a_helper_requirement() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/inferred_branch_inputs/main.omg"
+    ));
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(source),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::build_purpose::symbol(&typed, "main");
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(&[entry], &[None], source::DependencyScope::Product),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    let verdicts = crate::judge_compilation(prepared.program);
+    assert!(
+        !verdicts.is_empty()
+            && verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
 machine entry(bytes: &[u8], other: &[u8], index: u64) -> u8 {

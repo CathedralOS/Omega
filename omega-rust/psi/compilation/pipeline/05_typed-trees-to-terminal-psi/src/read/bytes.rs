@@ -26,68 +26,31 @@ use crate::{
 // `lexical_owner`, the rule `value_type` applies to `Inner<'a>` in a field.
 pub(super) fn source_byte_view(
     typed: &typed_trees::TypedTrees,
-    reference: TypeReferenceHandle,
+    view: &typed_trees::SourceSliceApplication,
     lexical_owner: SymbolHandle,
     machine: MachineId,
 ) -> Checked<Option<SourceByteView>> {
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-    if !typed
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
-        return Err(fail("byte view lost its retained type reference"));
-    }
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = typed.type_reference_table.type_reference(reference)
-    else {
+    let Some(access) = view.access else {
         return Ok(None);
     };
-    if !typed.type_reference_table.contains_type_reference(*referee) {
-        return Err(fail("byte view lost its slice reference"));
-    }
-    // Only slice references belong to the byte-view operation. A domain
-    // on an ordinary referent is judged by that referent's type owner.
-    if !matches!(
-        typed.type_reference_table.type_reference(
-            typed
-                .type_reference_table
-                .unconstrained_type_reference(*referee)
-        ),
-        TypeReferenceNode::Slice { .. }
-    ) {
-        return Ok(None);
-    }
-    // `&[u8] in Utf8`: the domains are displayed on the referent, and a
-    // reference's domains are its referent's (domains.md, "Mutable views").
-    // Read them before the slice beneath.
-    let (slice, domains) = byte_view_domains(typed, *referee, machine)?;
-    let TypeReferenceNode::Slice { element_type } =
-        typed.type_reference_table.type_reference(slice)
-    else {
-        if domains.is_empty() {
-            return Ok(None);
-        }
-        return Err(fail(
-            "domain on a reference to something other than a byte slice",
-        ));
-    };
-    if !typed
-        .type_reference_table
-        .contains_type_reference(*element_type)
-    {
-        return Err(fail("byte view lost its element type"));
-    }
+    let domains = byte_view_domains(typed, &view.referent, machine)?;
+    let element = view
+        .element
+        .scope
+        .supplied_type_reference(typed, view.element.reference)
+        .map_err(fail)?;
     let TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(*element_type)
+        typed.type_reference_table.type_reference(element.reference)
     else {
         return Ok(None);
     };
     let Some(atom) = typed.symbols.builtin_type_atom(*symbol) else {
         return Ok(None);
     };
-    let element = super::types::atom_type(atom, machine)?;
-    if !matches!(element, semantic_vocabulary::ScalarType::Integer(integer)
+    let element_type = element.reference;
+    let scalar = super::types::atom_type(atom, machine)?;
+    if !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
         if integer.bits() == Some(8) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
     {
         return Ok(None);
@@ -104,27 +67,31 @@ pub(super) fn source_byte_view(
     if access != StructuralAccess::SharedBorrow && !domains.is_empty() {
         return Err(fail("mutable byte view that carries a domain"));
     }
-    let owner = match typed.type_reference_table.operand_lifetime_owner(reference) {
+    let owner = match typed
+        .type_reference_table
+        .operand_lifetime_owner(view.reference.reference)
+    {
         retained if retained.is_valid() => retained,
         _ => lexical_owner,
     };
-    super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
+    super::places::reference_lifetime_declared(typed, machine, view.reference.reference, owner)?;
     // The carrier's identity: a view with domains stores the same
     // descriptor as the view without them, so both are one row and the
     // domains are the value's qualification (`view_type`).
-    let identity = typed_trees::type_identity::applied_carrier_identity_in_region_scope(
-        typed, reference, owner, owner,
-    )
-    .and_then(|identity| typed.type_identity_text(identity))
-    .filter(|identity| !identity.is_empty())
-    .ok_or_else(|| fail("byte view has no complete owned region identity"))?;
+    let identity = view
+        .reference
+        .scope
+        .carrier_identity_in_region_scope(typed, view.reference.reference, owner)
+        .and_then(|identity| typed.type_identity_text(identity))
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| fail("byte view has no complete owned region identity"))?;
     Ok(Some(SourceByteView {
         carrier: ByteSequenceCarrier::BorrowedView {
             access: Some(access),
         },
         identity,
         domains,
-        element_type: *element_type,
+        element_type,
     }))
 }
 
@@ -143,24 +110,28 @@ pub(super) struct SourceByteView {
 pub(super) fn byte_view_matches_carrier(
     typed: &typed_trees::TypedTrees,
     machine: MachineId,
-    reference: TypeReferenceHandle,
+    application: &typed_trees::SourceTypeApplication,
     owner: SymbolHandle,
     carrier: ByteSequenceCarrier,
     identity: &str,
 ) -> Checked<bool> {
-    let Some(view) = source_byte_view(typed, reference, owner, machine)? else {
+    let Some(view) = super::source_views::source_view(typed, application.clone(), owner, machine)?
+    else {
+        return Ok(false);
+    };
+    let super::source_views::SourceViewKind::Bytes(bytes) = &view.kind else {
         return Ok(false);
     };
     Ok(
         if matches!(carrier, ByteSequenceCarrier::BorrowedView { access: None }) {
             matches!(
-                view.carrier,
+                bytes.carrier,
                 ByteSequenceCarrier::BorrowedView {
                     access: Some(StructuralAccess::MutableBorrow)
                 }
-            ) && mutable_byte_formal_identity(typed, machine, reference)? == identity
+            ) && mutable_byte_formal_identity(typed, machine, &view.slice)? == identity
         } else {
-            view.carrier == carrier && view.identity == identity
+            bytes.carrier == carrier && bytes.identity == identity
         },
     )
 }
@@ -183,7 +154,7 @@ pub(super) fn byte_record_source_matches(
         Some(application) if application.substitutions.is_empty() => byte_view_matches_carrier(
             typed,
             machine,
-            application.reference,
+            application,
             source.region_owner,
             carrier,
             &declaration.identity,
@@ -198,9 +169,8 @@ pub(super) fn byte_record_source_matches(
 pub(super) fn mutable_byte_formal_identity(
     typed: &typed_trees::TypedTrees,
     machine: MachineId,
-    reference: TypeReferenceHandle,
+    view: &typed_trees::SourceSliceApplication,
 ) -> Checked<String> {
-    let types = &typed.type_reference_table;
     let malformed = || {
         refuse(
             machine,
@@ -208,26 +178,17 @@ pub(super) fn mutable_byte_formal_identity(
             Unserved::Type("byte view formal without its declared slice"),
         )
     };
-    let TypeReferenceNode::Reference {
-        referee,
-        access: ReferenceAccess::Mutable,
-        ..
-    } = types.type_reference(reference)
-    else {
-        return Err(malformed());
-    };
-    if !types.contains_type_reference(*referee)
-        || !matches!(
-            types.type_reference(*referee),
-            TypeReferenceNode::Slice { .. }
-        )
-    {
+    if view.access != Some(ReferenceAccess::Mutable) {
         return Err(malformed());
     }
-    let identity = typed.normalized_type_identity_text(*referee);
-    (!identity.is_empty())
-        .then_some(identity)
-        .ok_or_else(malformed)
+    if view.referent.reference != view.slice.reference {
+        return Err(malformed());
+    }
+    let identity = typed
+        .type_identity_text(view.slice.type_identity(typed))
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(malformed)?;
+    Ok(identity)
 }
 
 /// The type beneath the domains displayed on a view's referent, and those
@@ -248,19 +209,25 @@ pub(super) fn mutable_byte_formal_identity(
 /// be gated, which this slice does not judge.
 fn byte_view_domains(
     typed: &typed_trees::TypedTrees,
-    mut referee: TypeReferenceHandle,
+    referee: &typed_trees::SourceTypeApplication,
     machine: MachineId,
-) -> Checked<(TypeReferenceHandle, Vec<crate::body::DomainInstance>)> {
+) -> Checked<Vec<crate::body::DomainInstance>> {
     use typed_trees::byte_predicates::{ByteSequencePredicate, byte_slice_domain_predicate};
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
     let table = &typed.type_reference_table;
+    let mut referee = referee.clone();
     let mut domains = Vec::new();
+    let mut remaining = table.type_reference_count();
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
-    } = table.type_reference(referee)
+    } = table.type_reference(referee.reference)
     {
+        if remaining == 0 {
+            return Err(fail("byte view has a cyclic qualification tree"));
+        }
+        remaining -= 1;
         for constraint in table.constraints(*constraints) {
             let TypeConstraintNode::Domain(domain) = constraint else {
                 return Err(fail(
@@ -298,12 +265,16 @@ fn byte_view_domains(
             }
             domains.push(instance);
         }
-        referee = *base_type;
-        if !table.contains_type_reference(referee) {
-            return Err(fail("byte view lost its slice reference"));
+        let supplied = referee
+            .scope
+            .supplied_type_reference(typed, *base_type)
+            .map_err(fail)?;
+        if !std::sync::Arc::ptr_eq(&referee.scope, &supplied.scope) {
+            remaining = table.type_reference_count();
         }
+        referee = supplied;
     }
-    Ok((referee, domains))
+    Ok(domains)
 }
 
 impl Program<'_> {
@@ -814,9 +785,17 @@ impl Program<'_> {
             .application
             .as_ref()
             .ok_or_else(|| unavailable("byte view without its source element"))?;
-        source_byte_view(self.typed, physical.reference, source.region_owner, machine)?
-            .map(|source| source.element_type)
-            .ok_or_else(|| unavailable("byte view without its retained source type"))
+        let view = super::source_views::source_view(
+            self.typed,
+            physical.clone(),
+            source.region_owner,
+            machine,
+        )?
+        .ok_or_else(|| unavailable("byte view without its retained source type"))?;
+        match view.kind {
+            super::source_views::SourceViewKind::Bytes(bytes) => Ok(bytes.element_type),
+            _ => Err(unavailable("byte view changes its retained source carrier")),
+        }
     }
 
     pub(super) fn view_type(
@@ -834,29 +813,31 @@ impl Program<'_> {
         formal_access: bool,
     ) -> Checked<Option<ValueType>> {
         let lexical_owner = self.lifetime_owner;
-        let Some(SourceByteView {
+        let Some(view) = super::source_views::source_view(
+            self.typed,
+            self.storage_source_application(reference),
+            lexical_owner,
+            machine,
+        )?
+        else {
+            return Ok(None);
+        };
+        let super::source_views::SourceViewKind::Bytes(SourceByteView {
             carrier,
             identity,
             domains,
             ..
-        }) = source_byte_view(self.typed, reference, lexical_owner, machine)?
+        }) = &view.kind
         else {
-            return match super::arrays::source_sequence_view(
-                self.typed,
-                reference,
-                lexical_owner,
-                machine,
-            )? {
-                Some((element, _, _)) => self.sequence_type(machine, reference, element).map(Some),
-                None => Ok(None),
-            };
+            return self.sequence_type(machine, view).map(Some);
         };
+        let (carrier, identity) = (*carrier, identity.clone());
         // Keep the domains on the actual view type in every placement.
         // Signature clauses and checked establishments owe their predicates;
         // reading this type supplies no proof of those predicates.
         let mut qualification = Qualification::NONE;
         for domain in domains {
-            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+            qualification.domains = qualification.domains.with(*domain).ok_or_else(|| {
                 refuse(
                     machine,
                     Construct::Machine,
@@ -865,7 +846,12 @@ impl Program<'_> {
             })?;
         }
 
-        let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
+        let region = self.borrowed_view_region(
+            machine,
+            view.slice.reference.reference,
+            lexical_owner,
+            &identity,
+        )?;
         let regions = self.intern_regions(vec![region]);
         let typed_view = |row| Some(ValueType::Record(row, qualification, regions));
         let (carrier, identity) = if formal_access
@@ -877,7 +863,7 @@ impl Program<'_> {
             ) {
             (
                 ByteSequenceCarrier::BorrowedView { access: None },
-                mutable_byte_formal_identity(self.typed, machine, reference)?,
+                mutable_byte_formal_identity(self.typed, machine, &view.slice)?,
             )
         } else {
             (carrier, identity)
@@ -911,11 +897,7 @@ impl Program<'_> {
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),
             cleanup: None,
-            application: Some(typed_trees::SourceTypeApplication {
-                reference,
-                substitutions: Vec::new(),
-                scope: Default::default(),
-            }),
+            application: Some(self.storage_source_application(reference)),
             region_owner: lexical_owner,
             fields: Vec::new(),
             cases: Vec::new(),

@@ -204,7 +204,7 @@ impl Program<'_> {
             super::bytes::byte_view_matches_carrier(
                 self.typed,
                 machine,
-                reference,
+                &self.storage_source_application(reference),
                 self.lifetime_owner,
                 carrier,
                 &row.identity,

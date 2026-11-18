@@ -3515,19 +3515,19 @@ impl<'t> Program<'t> {
     /// (`source_byte_view`).
     pub(super) fn borrowed_formal_carrier(
         &self,
+        machine: MachineId,
         reference: TypeReferenceHandle,
         referee: TypeReferenceHandle,
-    ) -> (TypeReferenceHandle, BorrowedReferent) {
-        let types = &self.typed.type_reference_table;
-        if types.contains_type_reference(referee)
-            && matches!(
-                types.type_reference(types.unconstrained_type_reference(referee)),
-                TypeReferenceNode::Slice { .. }
-            )
+    ) -> Checked<(TypeReferenceHandle, BorrowedReferent)> {
+        if self
+            .source_scope
+            .slice_application(self.typed, reference)
+            .map_err(|reason| refuse(machine, Construct::Machine, Unserved::Type(reason)))?
+            .is_some()
         {
-            (reference, BorrowedReferent::Slice)
+            Ok((reference, BorrowedReferent::Slice))
         } else {
-            (referee, BorrowedReferent::Value)
+            Ok((referee, BorrowedReferent::Value))
         }
     }
 
@@ -3632,7 +3632,8 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        let (carrier, referent) = self.borrowed_formal_carrier(formal.type_reference, referee);
+        let (carrier, referent) =
+            self.borrowed_formal_carrier(id, formal.type_reference, referee)?;
         // Retain the outer loan itself, independently of nested views in
         // its referent. A returned reference cannot borrow only a pointer
         // word or substitute a referent's nested lifetime for this one.

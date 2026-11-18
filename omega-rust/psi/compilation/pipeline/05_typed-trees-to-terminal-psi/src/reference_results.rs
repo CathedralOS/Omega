@@ -28,10 +28,24 @@ pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
     selections: &[crate::Selected],
 ) -> Checked<()> {
-    publish_results(&mut elaboration.module, selections)?;
-    publish_retained_call_loans(elaboration)?;
-    let successor_loans = publish_successor_loans(elaboration)?;
-    publish_parents(elaboration, &successor_loans)
+    let published = (|| {
+        publish_results(&mut elaboration.module, selections)?;
+        publish_retained_call_loans(elaboration)?;
+        let successor_loans = publish_successor_loans(elaboration)?;
+        publish_parents(elaboration, &successor_loans)
+    })();
+    published.map_err(|mut refusal| {
+        if refusal.source_span.is_none()
+            && let Construct::Operation(operation) = refusal.concerns
+        {
+            refusal.source_span = elaboration
+                .sources
+                .get(refusal.machine)
+                .and_then(|source| source.operations.get(operation))
+                .and_then(|origin| origin.span());
+        }
+        refusal
+    })
 }
 
 /// A generic check form's requirement has no body whose returns could

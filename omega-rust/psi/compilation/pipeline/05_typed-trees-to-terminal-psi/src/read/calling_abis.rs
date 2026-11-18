@@ -476,7 +476,9 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
                     language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
                 };
-                let (carrier, referent) = self.borrowed_formal_carrier(reference, *referee);
+                let (carrier, referent) = self
+                    .borrowed_formal_carrier(entry, reference, *referee)
+                    .map_err(|error| error.detail)?;
                 (carrier, access, referent)
             }
             _ => (

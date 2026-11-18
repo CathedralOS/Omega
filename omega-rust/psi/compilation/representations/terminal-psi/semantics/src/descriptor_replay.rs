@@ -7407,8 +7407,10 @@ pub(crate) mod engine {
             depth: usize,
             case_storage: &super::case_flow::Storage,
             reads: &DescriptorReadDepth<'_>,
-        ) -> Option<()> {
-            let summary = self.invocation_summary(call, depth + 1)?;
+        ) -> Result<(), &'static str> {
+            let summary = self
+                .invocation_summary(call, depth + 1)
+                .ok_or("the callee's borrowed-storage summary is unavailable")?;
             after.contents_invalidated |= summary.invalidates_contents;
             if summary.invalidates_contents {
                 after.cases = Arc::default();
@@ -7440,8 +7442,13 @@ pub(crate) mod engine {
                 // Ordinary observed calls keep canonical definition/contract
                 // handling. This account has no normal observation to refill
                 // the retired result, including when a loop reuses its home.
-                let ty = *machine.place_types.get(&result.root)?;
-                self.slot_kind.owned_slots(self.types, result.root, ty)?;
+                let ty = *machine
+                    .place_types
+                    .get(&result.root)
+                    .ok_or("the call result has no declared storage type")?;
+                self.slot_kind
+                    .owned_slots(self.types, result.root, ty)
+                    .ok_or("the call result's borrowed fields cannot be identified")?;
                 after
                     .slots_mut()
                     .retain(|stored, _| !result.contains(stored));
@@ -7454,24 +7461,26 @@ pub(crate) mod engine {
             let mut replacements = match &summary.effects {
                 EffectObservations::Observed(_) => BTreeMap::new(),
                 EffectObservations::Unobserved(writes) => {
-                    let unknown = self.unobserved_effect_replacements(
-                        machine,
-                        before,
-                        call,
-                        writes,
-                        reads,
-                        |query| {
-                            super::case_flow::retire_query(
-                                self,
-                                machine,
-                                before,
-                                after,
-                                query,
-                                case_storage,
-                                reads,
-                            );
-                        },
-                    )?;
+                    let unknown = self
+                        .unobserved_effect_replacements(
+                            machine,
+                            before,
+                            call,
+                            writes,
+                            reads,
+                            |query| {
+                                super::case_flow::retire_query(
+                                    self,
+                                    machine,
+                                    before,
+                                    after,
+                                    query,
+                                    case_storage,
+                                    reads,
+                                );
+                            },
+                        )
+                        .ok_or("cannot locate a write through a borrowed call argument")?;
                     if unknown.keys().any(|target| {
                         matches!(
                             target,
@@ -7481,7 +7490,7 @@ pub(crate) mod engine {
                             }
                         )
                     }) {
-                        return None;
+                        return Err("a call write targets an earlier result");
                     }
                     unknown
                 }
@@ -7500,8 +7509,9 @@ pub(crate) mod engine {
                 {
                     continue;
                 }
-                let destination =
-                    self.actual_contents(machine, call, effect.parameter, &effect.steps)?;
+                let destination = self
+                    .actual_contents(machine, call, effect.parameter, &effect.steps)
+                    .ok_or("a callee write has no corresponding caller argument")?;
                 super::case_flow::retire_query(
                     self,
                     machine,
@@ -7511,8 +7521,9 @@ pub(crate) mod engine {
                     case_storage,
                     reads,
                 );
-                let targets =
-                    self.contents_targets_with_depth(machine, before, &destination, reads)?;
+                let targets = self
+                    .contents_targets_with_depth(machine, before, &destination, reads)
+                    .ok_or("cannot locate the storage a borrowed call argument writes")?;
                 if targets.iter().any(|target| {
                     matches!(
                         target,
@@ -7522,7 +7533,7 @@ pub(crate) mod engine {
                         }
                     )
                 }) {
-                    return None;
+                    return Err("a call write targets an earlier result");
                 }
                 let strong = targets.len() == 1
                     && matches!(
@@ -7544,7 +7555,7 @@ pub(crate) mod engine {
                                     && (location.contains(previous) || previous.contains(&location))
                             },
                         ) {
-                            return None;
+                            return Err("two call writes overlap in the caller");
                         }
                         destinations.push((location, strong));
                     }
@@ -7557,7 +7568,11 @@ pub(crate) mod engine {
                         None if effect.keeps_incoming_slot(origin) => {
                             dropped_retired_incoming = true;
                         }
-                        None => return None,
+                        None => {
+                            return Err(
+                                "a reference written by the callee has no source in this call",
+                            );
+                        }
                     }
                 }
                 if origins.is_empty() && dropped_retired_incoming {
@@ -7570,15 +7585,22 @@ pub(crate) mod engine {
                     Some(origins),
                     &mut replacements,
                     reads,
-                )?;
+                )
+                .ok_or("cannot record the references written by the callee")?;
             }
             if let Some(result) = &call.result {
-                let result_type = *machine.place_types.get(&result.root)?;
+                let result_type = *machine
+                    .place_types
+                    .get(&result.root)
+                    .ok_or("the call result has no declared storage type")?;
                 let empty = Vec::new();
                 let slots = if summary.result.is_unobserved() {
                     &empty
                 } else {
-                    summary.result.slots()?
+                    summary
+                        .result
+                        .slots()
+                        .ok_or("the callee has no account of its returned references")?
                 };
                 for slot in slots {
                     slot.visit(
@@ -7623,18 +7645,20 @@ pub(crate) mod engine {
                             Ok::<(), ()>(())
                         },
                     )
-                    .ok()?;
+                    .map_err(
+                        |()| "a returned reference does not match the result's declared type",
+                    )?;
                 }
                 for packet in summary.result.contents() {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&packet.path);
-                    self.unknown_contents_type(machine, &destination)?;
+                    self.unknown_contents_type(machine, &destination)
+                        .ok_or("borrowed contents do not match the result's declared type")?;
                     let mut origins = BTreeSet::new();
                     for origin in &packet.origins {
                         origins.extend(
-                            self.substitute_result_with_depth(
-                                machine, before, call, origin, reads,
-                            )?,
+                            self.substitute_result_with_depth(machine, before, call, origin, reads)
+                                .ok_or("returned borrowed contents have no source in this call")?,
                         );
                     }
                     if origins.is_empty() {
@@ -7642,7 +7666,9 @@ pub(crate) mod engine {
                             .result_cases
                             .excludes_payload(result_type, &packet.path)
                         {
-                            return None;
+                            return Err(
+                                "a reachable result contains borrowed storage with no source",
+                            );
                         }
                         // Absence supplies no contents or access. The result's
                         // case facts below keep this payload unreachable.
@@ -7654,7 +7680,8 @@ pub(crate) mod engine {
                 }
                 let unknown = if summary.result.is_unobserved() {
                     self.slot_kind
-                        .owned_slots(self.types, result.root, result_type)?
+                        .owned_slots(self.types, result.root, result_type)
+                        .ok_or("the call result's borrowed fields cannot be identified")?
                         .into_iter()
                         .map(|slot| slot.path)
                         .collect::<Vec<_>>()
@@ -7669,9 +7696,12 @@ pub(crate) mod engine {
             }
             Self::install_contents(after, replacements);
             if let Some(result) = &call.result {
-                summary.result_cases.install(self, machine, after, result)?;
+                summary
+                    .result_cases
+                    .install(self, machine, after, result)
+                    .ok_or("the callee's returned cases do not match the call result")?;
             }
-            Some(())
+            Ok(())
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -7726,7 +7756,8 @@ pub(crate) mod engine {
                     depth,
                     case_storage,
                     &reads,
-                )?;
+                )
+                .ok()?;
                 current = after;
             }
             Some(current)
@@ -7957,12 +7988,7 @@ pub(crate) mod engine {
                     }
                     if let Some(call) = machine.direct_call(position)
                         && call.argument_contents.iter().all(Option::is_some)
-                    {
-                        *failure = incomplete(
-                            Some(position),
-                            "descriptor invocation state cannot be reconstructed",
-                        );
-                        let applied = self.apply_invocation(
+                        && let Err(detail) = self.apply_invocation(
                             machine,
                             &before,
                             &mut after,
@@ -7970,11 +7996,12 @@ pub(crate) mod engine {
                             depth,
                             &case_storage,
                             &reads,
-                        );
-                        if applied.is_none() {
-                            *failure = self.failed_invocation_preparation(call).unwrap_or(*failure);
-                            return None;
-                        }
+                        )
+                    {
+                        *failure = self
+                            .failed_invocation_preparation(call)
+                            .unwrap_or_else(|| incomplete(Some(position), detail));
+                        return None;
                     }
                     after
                 };

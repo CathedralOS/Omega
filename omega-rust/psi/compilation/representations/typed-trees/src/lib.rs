@@ -2468,3 +2468,4 @@ mod continuation_storage_tests {
 }
 
 mod source_type_applications;
+pub use source_type_applications::SourceSliceApplication;

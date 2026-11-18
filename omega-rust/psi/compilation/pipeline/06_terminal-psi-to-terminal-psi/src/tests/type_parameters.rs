@@ -2026,3 +2026,68 @@ fn nested_helpers_keep_mixed_inherited_static_parameters() {
         }
     }
 }
+
+#[test]
+fn a_callback_retains_its_supplied_slice_type_and_access() {
+    let judge_source = |source: &str| {
+        let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            super::boundary_calls::typed(source),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let entry = super::build_purpose::symbol(&typed, "main");
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(&[entry], &[None], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        crate::judge_compilation(prepared.program)
+    };
+    let summarize = |verdicts: &[Result<RouteVerdict, crate::CompilationRefusal>]| {
+        verdicts
+            .iter()
+            .filter_map(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => None,
+                Ok(RouteVerdict::FallBack(refusal))
+                | Err(crate::CompilationRefusal::Elaboration(refusal)) => {
+                    Some(refusal.detail.clone())
+                }
+                Err(refusal) => Some(format!("{refusal:?}")),
+                Ok(_) => Some("a compilation form was rejected".to_owned()),
+            })
+            .collect::<Vec<_>>()
+    };
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/constructed_slice_callback/main.omg"
+    ));
+    let accepted = judge_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{:?}",
+        summarize(&accepted)
+    );
+    let invalid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/calls/constructed_slice_callback/main.omg"
+    ));
+    let rejected = judge_source(invalid);
+    assert!(
+        rejected.iter().any(|verdict| {
+            let refusal = match verdict {
+                Err(crate::CompilationRefusal::Elaboration(refusal))
+                | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+                _ => return false,
+            };
+            refusal.reason == RefusalReason::ForeignIdentity
+                && refusal.detail.contains(
+                    "refinement structural formal has another carrier, access or identity",
+                )
+        }),
+        "the callback cannot strengthen shared access to mutable access: {:?}",
+        summarize(&rejected)
+    );
+}

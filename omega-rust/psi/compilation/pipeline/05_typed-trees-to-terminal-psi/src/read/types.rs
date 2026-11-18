@@ -866,6 +866,21 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        // A type parameter in scope is what the scope says it stands for,
+        // found by the binder's symbol.
+        if handle.is_valid()
+            && let TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(handle)
+            && symbol.is_valid()
+            && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
+        {
+            return match *bound {
+                ValueType::Rigid(rigid) if !self.reading_schema => {
+                    self.parameter_storage(id, rigid, handle)
+                }
+                value => Ok(value),
+            };
+        }
         if let Some(atomic) = self.atomic_type(id, handle)? {
             return Ok(atomic);
         }
@@ -892,21 +907,6 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
         {
             return self.array_type(id, handle, *element_type, length);
-        }
-        // A type parameter in scope is what the scope says it stands for,
-        // found by the binder's symbol.
-        if handle.is_valid()
-            && let TypeReferenceNode::Named { symbol, .. } =
-                self.typed.type_reference_table.type_reference(handle)
-            && symbol.is_valid()
-            && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
-        {
-            return match *bound {
-                ValueType::Rigid(rigid) if !self.reading_schema => {
-                    self.parameter_storage(id, rigid, handle)
-                }
-                value => Ok(value),
-            };
         }
         if handle.is_valid()
             && let TypeReferenceNode::Named { symbol, .. } =

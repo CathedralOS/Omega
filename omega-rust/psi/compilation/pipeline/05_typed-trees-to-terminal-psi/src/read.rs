@@ -60,6 +60,7 @@ mod rejections;
 pub(crate) mod services;
 mod source_operators;
 mod source_records;
+mod source_views;
 mod statements;
 mod static_contexts;
 pub(crate) mod storage_metadata;

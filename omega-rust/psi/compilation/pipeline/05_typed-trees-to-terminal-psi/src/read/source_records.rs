@@ -915,19 +915,26 @@ impl Program<'_> {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(machine, "sequence storage has no retained source type")
                 })?;
-                let Some((element_type, source_access, identity)) =
-                    super::arrays::source_sequence_view(
-                        self.typed,
-                        application.reference,
-                        source.region_owner,
-                        machine,
-                    )?
+                let Some(view) = super::source_views::source_view(
+                    self.typed,
+                    application.clone(),
+                    source.region_owner,
+                    machine,
+                )?
                 else {
                     return Err(malformed(
                         machine,
                         "sequence storage has no exact source view declaration",
                     ));
                 };
+                let super::source_views::SourceViewKind::Elements(elements) = view.kind else {
+                    return Err(malformed(
+                        machine,
+                        "sequence storage changes its source view carrier",
+                    ));
+                };
+                let (source_access, identity) = (elements.access, elements.identity);
+                let element_type = view.slice.element.reference;
                 let element_storage = if qualification.is_none() {
                     element_type
                 } else {
@@ -941,19 +948,26 @@ impl Program<'_> {
                     || !source.fields.is_empty()
                     || !source.cases.is_empty()
                     || !application.substitutions.is_empty()
-                    || !self.records.get(element).is_some_and(|row| {
-                        self.typed
-                            .type_identity_text(
-                                self.typed.normalized_type_identity(element_storage),
-                            )
-                            .as_ref()
-                            == Some(&row.identity)
-                    })
                 {
                     return Err(malformed(
                         machine,
-                        "sequence storage lost its exact source/element correspondence",
+                        "sequence storage disagrees with its declared type or access",
                     ));
+                }
+                let expected = self.typed.type_identity_text(
+                    view.slice
+                        .element
+                        .scope
+                        .type_identity(self.typed, element_storage),
+                );
+                let actual = self.records.get(element).map(|row| row.identity.as_str());
+                if expected.as_deref() != actual || actual.is_none() {
+                    let mut refusal =
+                        malformed(machine, "sequence element has another source type");
+                    refusal
+                        .detail
+                        .push_str(&format!(" (expected {expected:?}, stored {actual:?})",));
+                    return Err(refusal);
                 }
                 continue;
             }
