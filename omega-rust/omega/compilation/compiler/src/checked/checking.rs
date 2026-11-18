@@ -432,7 +432,7 @@ impl SourceCompilation {
     pub(super) fn select(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-        inspection: Option<&str>,
+        product: Option<&crate::CompilationProduct>,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let spent = self.source.source_completion_accounting().clone();
@@ -444,7 +444,7 @@ impl SourceCompilation {
             self.target,
             self.inputs.as_ref(),
             &self.rollback,
-            inspection,
+            product,
             frontier,
         ))
     }
@@ -547,7 +547,7 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    inspection: Option<&str>,
+    product: Option<&crate::CompilationProduct>,
     frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
@@ -560,13 +560,18 @@ pub(super) fn select_completed_build(
             package_inputs,
             selected_target_profile.as_slice(),
             rollback,
-            inspection,
+            product.and_then(crate::CompilationProduct::inspection_name),
             frontier,
         )
     }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
-            crate::checked::PreparedProductTarget::capture(&source, selected_target_profile, None),
+            crate::checked::PreparedProductTarget::capture(
+                &source,
+                selected_target_profile,
+                None,
+                product.and_then(crate::CompilationProduct::report_kind),
+            ),
         ),
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(diagnostics),

@@ -184,6 +184,17 @@
     },
     {
       "consumers": [
+        "finished check or build-output report"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "PreparedProductTarget::field:advisories#1",
+      "kind": "carried_record",
+      "meaning": "The requested source warnings and notes with their file locations, gathered before this target publishes its program.",
+      "producer": "compiler product target preparation",
+      "signature": "fc6bc2bb6e970d682e61adc24c58c149a8756172538c57d57c5a9951ea3020e2"
+    },
+    {
+      "consumers": [
         "package target batch",
         "compiler target selection",
         "runtime product permission admission"
@@ -247,6 +258,17 @@
     },
     {
       "consumers": [
+        "finished check or build-output report"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
+      "item": "function:source_advisories#1",
+      "kind": "host_operation",
+      "meaning": "Request the accepted source warnings and attribute their exact spans while compiling the source for a report.",
+      "producer": "compiler product source preparation",
+      "signature": "608e356b1b884be89958da2e794225e696ddef5d40ae0bd2e66f70c3d0505480"
+    },
+    {
+      "consumers": [
         "package target batch",
         "compiler target selection",
         "runtime product permission admission"
@@ -256,20 +278,21 @@
       "kind": "definition",
       "meaning": "The compiler entrance that requests logical provider facts and the explicitly requested runtime policy before publishing the code.",
       "producer": "compiler product target preparation",
-      "signature": "dc9c88f7dde24a76485345a265bdbfa106c6d3ddb51433d7eef2405a915ec69f"
+      "signature": "7ae39bb7120a840cfd7e65b32a53a4a7ed1a93d40244815d74a5325778563523"
     },
     {
       "consumers": [
         "package target batch",
         "compiler target selection",
-        "runtime product permission admission"
+        "runtime product permission admission",
+        "finished check or build-output report"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
       "item": "impl:PreparedProductTarget::method:capture#1",
       "kind": "host_operation",
-      "meaning": "Authenticate frozen source, obtain provider demand, retain the original trust census only for declared grants, and capture runtime policy only for an application or test root with lock consent.",
+      "meaning": "Authenticate frozen source, close provider demand, capture declared grant and lock policy, and gather source diagnostics only for a requested check or build-output report.",
       "producer": "compiler product target preparation",
-      "signature": "3aeb8450c6f1897bb5c829858cb010dedcba5d421b494e33b441478555bddab4"
+      "signature": "8fc5b1e7cb57328acc6fa1c4fd8bd2883cf7dee1cf0da01d863061e07112ed1e"
     },
     {
       "consumers": [
@@ -301,14 +324,15 @@
       "consumers": [
         "package target batch",
         "compiler target selection",
-        "runtime product permission admission"
+        "runtime product permission admission",
+        "finished check or build-output report"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs",
       "item": "struct:PreparedProductTarget#1",
       "kind": "carried_record",
-      "meaning": "The requested deployment, the checked source demand, and any lock and runtime policy prepared for the same root before publication.",
+      "meaning": "The deployment, checked source demand, optional lock policy and requested source diagnostics, prepared for this root before publication.",
       "producer": "compiler product target preparation",
-      "signature": "c9d0d625b28d150313aae48ad0c71e8dd916d2622f36ce376ab7b63e7bb30e1e"
+      "signature": "bc93aead72625d02a7b012a9bdf3c07636a08112473dc963407809bddf812a20"
     },
     {
       "consumers": [
@@ -437,6 +461,17 @@
       "meaning": "Independently selected test roots and their exact target selection outcomes.",
       "producer": "compiler target settlement",
       "signature": "ae565b84355fbd920778b6a33d0ba27c55e30484b971a33582af963571f41a5d"
+    },
+    {
+      "consumers": [
+        "finished check or build-output report"
+      ],
+      "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
+      "item": "SelectedProductTarget::field:advisories#1",
+      "kind": "carried_record",
+      "meaning": "Carry the diagnostic values and source locations already requested for this exact root into its non-executing report.",
+      "producer": "compiler target settlement",
+      "signature": "fc6bc2bb6e970d682e61adc24c58c149a8756172538c57d57c5a9951ea3020e2"
     },
     {
       "consumers": [
@@ -666,7 +701,7 @@
       "kind": "definition",
       "meaning": "The product coordinator consumes the source demand and retains the checked selection, its prepared lock evidence and program custody.",
       "producer": "compiler target settlement",
-      "signature": "2b2ae412f325d415f108d46f7f71ee9ff14c90c0aab8bb749d6cd76bf05afbbd"
+      "signature": "f8720f2151b7efc6c701db8fca92d8c3e9870b4e276041a892c050bf68caa64e"
     },
     {
       "consumers": [
@@ -710,14 +745,15 @@
     {
       "consumers": [
         "checked compilation",
-        "runtime product permission admission"
+        "runtime product permission admission",
+        "finished check or build-output report"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
       "item": "impl:SelectedProductTarget::method:select#1",
       "kind": "host_operation",
-      "meaning": "Publish the already prepared provider demand, request native provider selection, and move the same root consent to the selected product without opening source policy.",
+      "meaning": "Settle the ordinary published provider request and keep the original source owner, requested runtime consent and source report values with their target.",
       "producer": "compiler target settlement",
-      "signature": "cea12b16975c5348c8b22a5b7d11def355605383ef66d5f04bfa8a0ff72b5cac"
+      "signature": "863ad6c91b5244e0b81c00493e17f42c2d575943546caf73c397ea7d3d911a7f"
     },
     {
       "consumers": [
@@ -735,14 +771,15 @@
     {
       "consumers": [
         "checked compilation",
-        "runtime product permission admission"
+        "runtime product permission admission",
+        "finished check or build-output report"
       ],
       "file": "omega-rust/omega/compilation/compiler/src/execution_settlement.rs",
       "item": "struct:SelectedProductTarget#1",
       "kind": "host_operation",
-      "meaning": "The selected target, its program and provider custody, and the optional source policy and saved lock bound to the same request.",
+      "meaning": "Join the selected target with original source ownership, the optional captured consent and the diagnostic values already prepared for its report.",
       "producer": "compiler target settlement",
-      "signature": "6d1430d31b1ea47b7ddf767f6dd70ec68db26944b23a27c31ca5f969ca98b487"
+      "signature": "f827cc227e2166ce46f3f86fb90ee00dc92e246bd65500ab72941f68ed9f3b10"
     },
     {
       "consumers": [

@@ -1754,7 +1754,7 @@ impl<'t> Program<'t> {
         let mut operand = operand.into_owned();
         let mut supplier = supplier;
         let static_record = if let Some((actual, actual_supplier, binding)) =
-            self.selected_record_operand(id, call, &operand)?
+            self.selected_record_operand(id, call, &operand, supplier)?
         {
             operand = actual;
             supplier = actual_supplier;

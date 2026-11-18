@@ -794,3 +794,55 @@ machine helper() -> u32 { 7u32 }
         vec![crate::checking::ceilings::Permission::MaySuspend]
     );
 }
+
+#[test]
+fn copied_loop_bodies_keep_the_original_callback_parameter() {
+    const SOURCE: &str = r#"
+data Counter { value: u64; }
+trait Operations { machine apply(counter: &mut Counter) reaches none; }
+machine entry<const Left: Operations, const Right: Operations>(counter: &mut Counter) reaches none {
+    first(counter, true)
+    machine first(counter: &mut Counter, again: bool) reaches none {
+        transition again { true -> second(counter, false) false -> done() }
+    }
+    machine second(counter: &mut Counter, again: bool) reaches none {
+        Left::apply(counter);
+        first(counter, again)
+    }
+    machine done() reaches none {}
+}
+"#;
+    for inferred in [false, true] {
+        let text = if inferred {
+            SOURCE.replace(" reaches none", "")
+        } else {
+            SOURCE.to_owned()
+        };
+        let source = typed(&text);
+        let form = crate::lowering::elaborate_generic(&source, entry(&source))
+            .expect("each copied call retains the original parameter declaration");
+        let verdict = judge(Ok(form.clone()));
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+
+        let mut crossed = form;
+        let call = crossed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| operation.static_reach_binding == Some(0))
+            .expect("the actual callback call carries Left's parameter position");
+        call.static_reach_binding = Some(1);
+        let verdict = judge(Ok(crossed));
+        assert!(
+            matches!(&verdict, Err(refusal)
+            if refusal.reason == RefusalReason::ForeignIdentity
+                && refusal.detail == "abstract callback call lost its exact originating parameter"),
+            "the equally shaped Right parameter cannot replace Left: {verdict:?}"
+        );
+    }
+}
