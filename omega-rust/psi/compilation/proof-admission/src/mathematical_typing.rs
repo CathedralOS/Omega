@@ -2032,6 +2032,16 @@ mod judgments {
             prefix: usize,
         },
         Conversion(comparison::Work<'a>),
+        ConversionType(comparison::Query<'a>),
+        ConversionLeft {
+            query: comparison::Query<'a>,
+            sort: Sort,
+            shared_sort: TermHandle,
+        },
+        ConversionRight {
+            query: comparison::Query<'a>,
+            shared_sort: TermHandle,
+        },
         IdentityProof {
             motive: TermHandle,
             base: TermHandle,
@@ -2249,6 +2259,7 @@ mod judgments {
 
     enum Operation<'a> {
         ReusedInference(TermHandle),
+        CheckConversion(comparison::Query<'a>),
         Convert(comparison::Query<'a>),
         Infer(TermHandle),
         Check {
@@ -2334,7 +2345,9 @@ mod judgments {
             shared_type,
             retained,
         };
-        drive(arena, context, Operation::Convert(query), budget)
+        // A public conversion question owns both operand judgments. Internal
+        // comparisons already have their premises from typing continuations.
+        drive(arena, context, Operation::CheckConversion(query), budget)
             .map(JudgmentValue::require_converted)
     }
 
@@ -2360,6 +2373,11 @@ mod judgments {
             }
             let mut value = match current {
                 Operation::ReusedInference(ty) => JudgmentValue::Inferred(ty),
+                Operation::CheckConversion(query) => {
+                    pending.push(Pending::ConversionType(query));
+                    current = Operation::Infer(query.shared_type);
+                    continue;
+                }
                 Operation::Convert(query) => {
                     pending.push(Pending::ConversionScope {
                         prefix: context.bindings.len(),
@@ -2631,6 +2649,52 @@ mod judgments {
                         let ty = value.require_inferred();
                         inferred_types.types.insert((scope, term), ty);
                         value = JudgmentValue::Inferred(ty);
+                    }
+                    Some(Pending::ConversionType(query)) => {
+                        let shared_sort = weak_head_normalize(
+                            arena,
+                            context.signature(),
+                            value.require_inferred(),
+                            budget,
+                        )?;
+                        let sort =
+                            inferred_sort(arena, &context, query.shared_type, shared_sort, budget)?;
+                        pending.push(Pending::ConversionLeft {
+                            query,
+                            sort: sort.clone(),
+                            shared_sort,
+                        });
+                        current = Operation::CheckFormed {
+                            term: query.terms.left,
+                            expected: query.shared_type,
+                            sort: Some(sort),
+                        };
+                        break;
+                    }
+                    Some(Pending::ConversionLeft {
+                        query,
+                        sort,
+                        shared_sort,
+                    }) => {
+                        value.require_checked();
+                        pending.push(Pending::ConversionRight { query, shared_sort });
+                        current = Operation::CheckFormed {
+                            term: query.terms.right,
+                            expected: query.shared_type,
+                            sort: Some(sort),
+                        };
+                        break;
+                    }
+                    Some(Pending::ConversionRight { query, shared_sort }) => {
+                        value.require_checked();
+                        pending.push(Pending::ConversionScope {
+                            prefix: context.bindings.len(),
+                        });
+                        pending.push(Pending::Conversion(comparison::Work::SharedSort(query)));
+                        // Formation already normalized the shared type's inferred
+                        // sort. Resume the existing comparison with that result,
+                        // rather than spending its reductions a second time.
+                        value = JudgmentValue::Inferred(shared_sort);
                     }
                     Some(Pending::ConversionScope { prefix }) => {
                         let equal = value.require_converted();
@@ -3736,6 +3800,9 @@ mod judgments {
                             }
                             Pending::RememberInference { .. }
                             | Pending::Compared(_)
+                            | Pending::ConversionType(_)
+                            | Pending::ConversionLeft { .. }
+                            | Pending::ConversionRight { .. }
                             | Pending::ConversionScope { .. }
                             | Pending::Conversion(_)
                             | Pending::CheckScope { .. }
