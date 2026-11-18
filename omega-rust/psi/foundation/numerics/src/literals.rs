@@ -555,6 +555,17 @@ impl IntegerLiteral {
         }
     }
 
+    /// Proof literals encode the sign separately from the magnitude.
+    pub fn magnitude_u128(&self) -> Option<u128> {
+        match &self.representation {
+            IntegerRepresentation::Small { magnitude, .. } => Some(u128::from(*magnitude)),
+            IntegerRepresentation::Large { text, .. } => {
+                let (radix, digits) = split_radix(text.strip_prefix('-').unwrap_or(text));
+                u128::from_str_radix(digits, radix).ok()
+            }
+        }
+    }
+
     pub fn value_bignum(&self) -> Option<crate::bignum::BigInt> {
         match &self.representation {
             IntegerRepresentation::Small {
