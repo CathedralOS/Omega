@@ -2619,7 +2619,6 @@ dependencies = [
  "source-parser",
  "source-syntax",
  "source-text",
- "storage-access",
  "symbols",
  "syntax-trees",
  "terminal-check-tables",
