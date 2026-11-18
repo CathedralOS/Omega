@@ -2270,3 +2270,72 @@ machine entry() -> u32 {
         observed[2]
     );
 }
+
+#[test]
+fn generic_fields_form_their_qualifications_without_assuming_the_predicate() {
+    let positive = r#"// Expected exit: 0
+// A generic record retains the predicate on its qualified field.
+domain u32::Small requires self <= 10;
+data Envelope<T> { payload: T; count: u32 in Small; }
+machine remaining(value: &Envelope<u32>) -> u32 requires true {
+    10u32 - (value.count as -Small)
+}
+machine main() crashes Trap {
+    let packet: Envelope<u32> = Envelope { payload: 41u32, count: 7u32 as +Small };
+    transition remaining(&packet) == 3u32 && packet.payload == 41u32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let negative = positive.replace("count: 7u32 as +Small", "count: 11u32 as +Small");
+    assert_ne!(positive, negative);
+    let unknown_domain = r#"
+        data Unused<T> { payload: T; count: u32 in Nowhere; }
+        machine entry() {}
+    "#;
+    let observed = [positive, negative.as_str(), unknown_domain].map(|text| {
+        let source = super::boundary_calls::typed(text);
+        let (source, _) = crate::preparation::prepare_typed_trees(
+            source,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the qualified field must retain its applied source type");
+        super::entryless::judged_typed_result(&source, false)
+    });
+    for (name, result) in [
+        "qualified field",
+        "false predicate",
+        "unused unknown domain",
+    ]
+    .into_iter()
+    .zip(&observed)
+    {
+        match result {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refused => eprintln!("{name}: {refused:?}"),
+        }
+    }
+    assert!(
+        matches!(&observed[0], Ok(RouteVerdict::Accepted(_))),
+        "the field predicate must justify subtraction after the explicit domain cast: {:?}",
+        observed[0]
+    );
+    assert!(
+        matches!(&observed[1], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. })
+                && row.statement.contains("the value of this cast is in the domain it adds"))),
+        "changing only the field value must fail its domain predicate: {:?}",
+        observed[1]
+    );
+    assert!(
+        matches!(&observed[2], Ok(RouteVerdict::Rejected { violations, .. })
+        if violations.iter().any(|violation| violation.statement.contains(
+            "this type names the domain `Nowhere`, but no domain of that name is visible here"
+        ))),
+        "an unused generic field must still resolve the domain it names: {:?}",
+        observed[2]
+    );
+}
