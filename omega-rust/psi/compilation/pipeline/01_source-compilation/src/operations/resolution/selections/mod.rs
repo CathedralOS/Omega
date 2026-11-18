@@ -21,6 +21,7 @@ pub(crate) mod domain_operator_homes;
 pub(crate) mod evidence_forwardings;
 
 pub(crate) mod machine_parameter_requirements;
+pub(crate) mod machine_token_bindings;
 pub(crate) mod service_reaches;
 pub(crate) mod signature_free_requirements;
 mod static_arguments;

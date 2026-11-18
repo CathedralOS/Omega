@@ -30,12 +30,13 @@ use diagnostics::Diagnostic;
 pub use generated_source::DeferredResolvedExtension;
 pub use generated_source::{ExtensionRequest, resolve_deferred_extension, resolve_extension};
 use lowering::lowerer::{ConstResolutionMode, Lowerer};
-use lowering::machine::reject_duplicate_direct_token_bindings;
-use lowering::machine::resolve_token_bound_domain_homes;
 use lowering::mathematical::lower_mathematical_definitions;
 use selections::body_calls::CallSelectionInput;
 use selections::conformance_blocks::route_conformance_requirement_calls;
 use selections::conformance_blocks::route_named_implementation_calls;
+use selections::machine_token_bindings::{
+    reject_duplicate_direct_token_bindings, resolve_token_bound_domain_homes,
+};
 use std::mem::take;
 use std::sync::Arc;
 use symbols::SymbolHandle;

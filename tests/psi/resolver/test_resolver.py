@@ -1389,6 +1389,18 @@ def main() -> None:
         b"g",
         occurrence=2,
     )
+    rejected_units(
+        program,
+        "local-and-imported-callees-remain-distinct-families",
+        ((1, b"ops", b"public machine pick(n: u8) {}"),
+         (0, b"extra", b"machine pick(flag: bool) {}"),
+         (0, b"", b"use kit::ops; use extra; machine f() { pick(true); }")),
+        AMBIGUOUS_NAME,
+        2,
+        b"pick",
+        packages=((b"app", False), (b"library", False)),
+        dependencies=((0, PRODUCT, b"kit", 1),),
+    )
     accepted_units(
         program,
         "overloads-of-one-module-are-one-family",

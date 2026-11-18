@@ -58,7 +58,9 @@ pub(crate) fn lower_item(
         Item::Machine(machine)
             if machine.target.is_none()
                 && !machine.target_family_interface
-                && crate::resolution::lowering::operator::is_bare_bodyless_signature(machine) =>
+                && crate::resolution::lowering::machine_supply::is_bare_bodyless_signature(
+                    machine,
+                ) =>
         {
             CallableScopeOwner::Operator(lowerer.symbol_resolved_trees.operators.len())
         }
@@ -311,41 +313,43 @@ fn lower_item_with_exposure(
                 syntax_trees,
                 definition,
             )?;
-            let evaluated_value =
-                if pending || definition.pending_target_observation || needs_destination {
-                    None
-                } else if definition.is_public
-                    && lowerer.const_resolution_mode == ConstResolutionMode::Complete
-                    && !crate::resolution::constants::requires_const_initializer_evaluation(
-                        syntax_trees,
-                        definition,
-                    )
-                {
-                    Some(
-                        crate::resolution::constants::evaluated_declaration_value(
-                            syntax_trees,
-                            definition,
-                            lowerer.constant_selection.as_ref(),
-                        )
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                                "public const `{}` has no canonical declaration identity: {reason}",
-                                crate::resolution::constants::semantic_const_name(
-                                    syntax_trees,
-                                    definition
-                                ),
-                            ))
-                            .with_source_span(definition.name.source_span())
-                        })?,
-                    )
-                } else {
+            let evaluated_value = if pending
+                || definition.preparation().pending_target_observation
+                || needs_destination
+            {
+                None
+            } else if definition.is_public
+                && lowerer.const_resolution_mode == ConstResolutionMode::Complete
+                && !crate::resolution::constants::requires_const_initializer_evaluation(
+                    syntax_trees,
+                    definition,
+                )
+            {
+                Some(
                     crate::resolution::constants::evaluated_declaration_value(
                         syntax_trees,
                         definition,
                         lowerer.constant_selection.as_ref(),
                     )
-                    .ok()
-                };
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "public const `{}` has no canonical declaration identity: {reason}",
+                            crate::resolution::constants::semantic_const_name(
+                                syntax_trees,
+                                definition
+                            ),
+                        ))
+                        .with_source_span(definition.name.source_span())
+                    })?,
+                )
+            } else {
+                crate::resolution::constants::evaluated_declaration_value(
+                    syntax_trees,
+                    definition,
+                    lowerer.constant_selection.as_ref(),
+                )
+                .ok()
+            };
             let declared_type =
                 lower_type_reference_handle(lowerer, syntax_trees, definition.type_reference)?;
             let ordinal = lowerer.symbol_resolved_trees.roots.const_declarations.len();
@@ -358,10 +362,12 @@ fn lower_item_with_exposure(
                     authored_initializer: lowerer
                         .pending_const_initializers
                         .last()
-                        .filter(|_| definition.normalization.is_some())
+                        .filter(|_| definition.preparation().normalization.is_some())
                         .map_or(initializer, |record| record.authored),
-                    initializer_source_span: syntax_trees.expressions.source_span(definition.value),
-                    pending_target_observation: definition.pending_target_observation,
+                    initializer_source_span: syntax_trees
+                        .expressions
+                        .source_span(definition.value()),
+                    pending_target_observation: definition.preparation().pending_target_observation,
                     evaluated_value,
                 },
             );

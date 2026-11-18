@@ -201,33 +201,38 @@ def decode(payload: bytes) -> Observation:
 CASE_SOURCES: set[bytes] = set()
 
 
-# The source set's packages, as (name, toolchain) rows. The typing cases
-# run one ordinary package that every unit belongs to, and no dependency
-# edges; the resolver gate owns package selection.
 GATE_PACKAGES = ((b"gate", False),)
+Unit = tuple[bytes, bytes] | tuple[int, bytes, bytes]
+Dependency = tuple[int, int, bytes, int]
 
 
-def frame(units: tuple[tuple[bytes, bytes], ...], packages: tuple[tuple[bytes, bool], ...] = GATE_PACKAGES) -> bytes:
-    """The harness input, framed like the request's subject tables: the
-    packages (a toolchain flag and a `u32`-framed name), no dependency
-    edges, then the units, each in package 0 with its framed module path and
-    source. A unit's position is its source id."""
+def frame(
+    units: tuple[Unit, ...],
+    packages: tuple[tuple[bytes, bool], ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
+) -> bytes:
+    """Encode source packages, their scoped dependency aliases, and each unit's owner, module and source."""
     payload = struct.pack("<I", len(packages))
     for name, toolchain in packages:
-        payload += struct.pack("<II", 1 if toolchain else 0, len(name)) + name
-    payload += struct.pack("<II", 0, len(units))
-    for module_path, source in units:
-        payload += struct.pack("<II", 0, len(module_path)) + module_path
+        payload += struct.pack("<II", int(toolchain), len(name)) + name
+    payload += struct.pack("<I", len(dependencies))
+    for requester, scope, alias, target in dependencies:
+        payload += struct.pack("<III", requester, scope, len(alias)) + alias + struct.pack("<I", target)
+    payload += struct.pack("<I", len(units))
+    for unit in units:
+        package, module_path, source = unit if len(unit) == 3 else (0, *unit)
+        payload += struct.pack("<II", package, len(module_path)) + module_path
         payload += struct.pack("<I", len(source)) + source
     return payload
 
 
 def run_units(
     program: str,
-    units: tuple[tuple[bytes, bytes], ...],
+    units: tuple[Unit, ...],
     packages: tuple[tuple[bytes, bool], ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
 ) -> tuple[int, bytes]:
-    payload = frame(units, packages)
+    payload = frame(units, packages, dependencies)
     CASE_SOURCES.add(payload)
     completed = subprocess.run([program], input=payload, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
@@ -341,6 +346,31 @@ def nested_machine_cases(program: str) -> None:
     rejected(program, "write-only-array-view-cannot-acquire-read-authority", source, "NoMatchingMachine", b"observe(bytes)")
     source = b'data Cell { value:u64; } machine read(cell:&mut Cell) { let descriptor:& &mut Cell=cell; }'
     rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
+
+
+def visible_overload_cases(program: str) -> None:
+    # The module's own call sees its private bool overload. A dependency sees
+    # only the public u8 overload, even after the local call uses the same family.
+    packages = ((b"app", False), (b"library", False))
+    deps = ((0, 1, b"kit", 1),)
+    library = (b"public machine pick(x: u8) -> u8 { x } "
+               b"machine pick(x: bool) -> bool { x } "
+               b"machine local() -> bool { pick(true) }")
+    consumer = b"use kit::ops; machine external(x: u8) -> u8 { pick(x) }"
+    units = ((1, b"ops", library), (0, b"", consumer))
+    status, payload = run_units(program, units, packages, deps)
+    assert status == 0, ("visible-overloads", status)
+    observation = decode(payload)
+    for unit, text, call, selected in [(0, library, b"pick(true)", 1), (1, consumer, b"pick(x)", 0)]:
+        start = text.index(call)
+        assert expression_at(observation, (unit, start, start + len(call))).selection == (1, selected)
+
+    consumer = b"use kit::ops; machine external() -> bool { pick(true) }"
+    status, payload = run_units(program, ((1, b"ops", library), (0, b"", consumer)), packages, deps)
+    assert status == 249, ("private-overload", status)
+    observation = decode(payload)
+    start = consumer.index(b"pick(true)")
+    assert (observation.diagnostic, observation.diagnostic_span) == ("NoMatchingMachine", (1, start, start + len(b"pick(true)")))
 
 
 def numeric_landing_cases(program: str) -> None:
@@ -2144,6 +2174,7 @@ def main() -> None:
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
 
     nested_machine_cases(program)
+    visible_overload_cases(program)
 
     determinism = b"data P { x: u8; }\nmachine f(p: &P) -> u16 { p.x as u16 + 1 }"
     first = run(program, determinism)

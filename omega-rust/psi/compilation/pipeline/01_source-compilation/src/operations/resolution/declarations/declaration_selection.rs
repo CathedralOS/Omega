@@ -1091,7 +1091,7 @@ impl<'base> ConstantSelection<'base> {
             let name = Identifier::new(candidate, origin.reference);
             let definition = self.select(syntax, &name)?.ok_or_else(reject)?;
             if definition.name.source_span() != origin.declaration
-                || syntax.expressions.source_span(definition.value) != origin.initializer
+                || syntax.expressions.source_span(definition.value()) != origin.initializer
             {
                 return Err(reject());
             }

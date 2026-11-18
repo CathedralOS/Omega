@@ -39,7 +39,6 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
             path_buffers[position]
         );
         assert_eq!(source.origin, Some(SourceOrigin::Toolchain));
-        assert!(Arc::ptr_eq(&source.source, &text));
         let backing = source.tokens.source_owner().unwrap();
         assert!(Arc::ptr_eq(backing, &text));
     }
@@ -48,12 +47,15 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
     let retained_tokens = batch[0].tokens.clone();
     drop(lexed);
     drop(text);
-    assert_eq!(retained_tokens.text(&retained_tokens[0]).as_str(), "alpha");
+    assert_eq!(retained_tokens.spelling(&retained_tokens[0]), "alpha");
     let literal = retained_tokens
         .iter()
         .find(|token| token.kind == TokenKind::StringLiteral)
         .unwrap();
-    assert_eq!(retained_tokens.text(literal).as_bytes(), &[0xff]);
+    assert_eq!(
+        retained_tokens.literal_bytes(literal).unwrap().as_ref(),
+        &[0xff]
+    );
 }
 
 #[test]

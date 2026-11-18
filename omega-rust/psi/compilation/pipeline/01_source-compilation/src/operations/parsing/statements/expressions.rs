@@ -1,58 +1,8 @@
 use crate::errors::parse_error::ParseError;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
-    TableMemberExpression,
-};
-use syntax_trees::identifier::Identifier;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::TableCall;
-
-pub(crate) fn copy_expression_as_place(
-    syntax_trees: &mut SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let node = syntax_trees.expressions.expression(expression).clone();
-    let copied = match node {
-        ExpressionNode::Member(m) => {
-            let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
-            ExpressionNode::Member(TableMemberExpression {
-                receiver: recv,
-                access_source_span: m.access_source_span,
-                member: m.member,
-                case_variant: m.case_variant.clone(),
-            })
-        }
-        ExpressionNode::Name {
-            members: path,
-            application: path_application,
-        } if path_application.is_none() => {
-            let new_path = syntax_trees
-                .expressions
-                .copy_identifier_path_prefix(path.to_owned(), path.to_owned().len());
-            ExpressionNode::Name {
-                members: new_path,
-                application: None,
-            }
-        }
-        ExpressionNode::Indexed(idx) => {
-            let coll = copy_expression_as_place(syntax_trees, idx.collection)?;
-            ExpressionNode::Indexed(TableIndexedExpression {
-                collection: coll,
-                index: idx.index,
-            })
-        }
-        ExpressionNode::Borrow(inner) => {
-            let inner_copy = copy_expression_as_place(syntax_trees, inner.target)?;
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
-                target: inner_copy,
-                access: inner.access,
-            })
-        }
-        _ => return None,
-    };
-    Some(syntax_trees.expressions.insert(copied))
-}
 
 pub(crate) fn root_binding_declaration(
     syntax_trees: &SyntaxTrees,
@@ -170,29 +120,24 @@ pub(crate) fn expression_handle_to_statement_call(
         return None;
     };
 
-    let (receiver, target) = split_expression_call_handle(syntax_trees, &call)?;
+    // The whole callee carries indexed and computed receivers. A name path is
+    // available separately for calls that resolution can bind by spelling.
+    let receiver = if call.receiver.is_valid() {
+        syntax_trees
+            .copy_expression_to_statement_identifier_path(call.receiver)
+            .unwrap_or_default()
+    } else {
+        HandleSpan::empty()
+    };
     Some(TableCall {
         callee: call.callee,
         target_is_static: call.target_is_static,
         receiver,
-        target,
+        target: call.target,
         machine_arguments: call.machine_arguments,
         arguments: syntax_trees.copy_expression_handles_to_statement_table(call.arguments),
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
     })
-}
-
-fn split_expression_call_handle(
-    syntax_trees: &mut SyntaxTrees,
-    call: &TableCallExpression,
-) -> Option<(HandleSpan<Identifier>, Identifier)> {
-    let receiver = if call.receiver.is_valid() {
-        syntax_trees.copy_expression_to_statement_identifier_path(call.receiver)?
-    } else {
-        HandleSpan::empty()
-    };
-
-    Some((receiver, call.target.clone()))
 }

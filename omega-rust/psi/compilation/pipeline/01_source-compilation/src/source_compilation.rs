@@ -164,10 +164,6 @@ mod activation {
             let source_id = syntax.source_id;
             let selected = std::mem::replace(syntax, SyntaxTrees::new(source_id));
             syntax.extend_from(&selected);
-            for (expression, public) in &selected.roots.constant_extent_probes {
-                let copied = syntax.copy_expression_from(&selected, *expression);
-                syntax.roots.constant_extent_probes.push((copied, *public));
-            }
         }
     }
 

@@ -15,10 +15,12 @@
 
 pub(in crate::resolution::declarations) mod callable_signatures;
 
+pub(crate) mod assembly;
 mod builtin_type_names;
 mod callable_types;
 pub(crate) mod declaration_selection;
 pub(crate) mod declared_types;
+mod dispatches;
 pub(crate) mod generic_data;
 pub(crate) mod integer_widths;
 pub(crate) mod machine_equations;
@@ -34,6 +36,13 @@ use module_normalization::validate_with_const_resolution_mode;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use trait_defaults::synthesize_trait_defaults_after_module_validation;
+
+/// Expand source statements before any path can resolve machine bodies.
+pub(crate) fn prepare_statement_bodies(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    assembly::prepare(syntax)?;
+    dispatches::prepare(syntax);
+    Ok(())
+}
 
 /*
     A forest ready to lower, with the constant selector its declarations
@@ -62,6 +71,7 @@ pub(crate) fn prepare(
     base: Option<Arc<crate::source_resolved::SymbolResolvedTrees>>,
     base_declarations: Option<&SyntaxTrees>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
+    prepare_statement_bodies(&mut syntax)?;
     builtin_type_names::validate(&syntax)?;
     target_families::normalize(&mut syntax, sources.as_deref())?;
     let mut constant_selection = declaration_selection::ConstantSelection::with_shared_base(

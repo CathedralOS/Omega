@@ -22,9 +22,6 @@ macro_rules! define_keywords {
                     Self::Unknown => "<unknown>",
                 }
             }
-            pub fn is_strict_identifier_keyword(self) -> bool {
-                matches!(self, Self::SelfValue)
-            }
         }
     };
 }

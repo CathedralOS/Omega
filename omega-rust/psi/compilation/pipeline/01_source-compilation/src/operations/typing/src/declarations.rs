@@ -1216,7 +1216,7 @@ pub(crate) mod machine {
             } else {
                 lower_state_declaration(lowerer, source)?
             };
-            complete_state_body(lowerer, machine.attached_data.as_ref(), source, &mut state)?;
+            complete_state_body(lowerer, source, &mut state)?;
             if ordinal < retained_count {
                 lowerer
                     .typed_trees
@@ -1867,7 +1867,7 @@ pub(crate) mod state {
     use crate::source_state as typed;
     use crate::typing::expressions::statement::{LocalTypes, lower_statement};
     use crate::typing::lowerer::Lowerer;
-    use crate::typing::tables::{expression_table, resolved_statements, statement_table_mut};
+    use crate::typing::tables::{expression_table, statement_table_mut};
     use declaration_contracts::CallOperationalAcknowledgementOrigin;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
@@ -1915,7 +1915,6 @@ pub(crate) mod state {
 
     pub(crate) fn complete_state_body(
         lowerer: &mut Lowerer,
-        attached_data: Option<&resolved::name::DiagnosticName>,
         state: &resolved::state::State,
         typed_state: &mut typed::state::State,
     ) -> Result<(), Diagnostic> {
@@ -1924,8 +1923,7 @@ pub(crate) mod state {
                 "state body completion does not match its retained declaration",
             ));
         }
-        let statements =
-            resolved_statements(lowerer.source_trees).statements(state.statement_nodes);
+        let statements = lowerer.source_trees.state_body(state);
         let mut local_types = LocalTypes::new(
             &lowerer.typed_trees,
             typed_state,
@@ -1995,7 +1993,6 @@ pub(crate) mod state {
             }
             pending.extend(lower_statement(
                 lowerer,
-                attached_data,
                 state,
                 &mut local_types,
                 statement,

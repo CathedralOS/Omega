@@ -153,7 +153,7 @@ pub(crate) fn module_literal_constant(
     selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
-    if !scalar_literal_tree(syntax, constant.value) {
+    if !scalar_literal_tree(syntax, constant.value()) {
         return false;
     }
     let mut type_reference = constant.type_reference;
@@ -163,7 +163,7 @@ pub(crate) fn module_literal_constant(
     );
     if !is_array
         && matches!(
-            syntax.expressions.expression(constant.value),
+            syntax.expressions.expression(constant.value()),
             ExpressionNode::ArrayLiteral(_)
         )
     {

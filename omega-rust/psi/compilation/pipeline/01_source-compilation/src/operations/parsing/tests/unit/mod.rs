@@ -24,6 +24,18 @@ fn parse_source_unwrap(source: &str) -> SyntaxTrees {
     crate::parse_syntax_trees(&tokens).unwrap()
 }
 
+fn dispatch(
+    parsed: &SyntaxTrees,
+    statement: syntax_trees::statement::StatementHandle,
+) -> &syntax_trees::statement::TableDispatch {
+    let syntax_trees::statement::StatementNode::Dispatch(handle) =
+        parsed.statements.statement(statement)
+    else {
+        panic!("expected one grouped source dispatch")
+    };
+    parsed.statements.dispatch(*handle)
+}
+
 fn argument_path<'p>(parsed: &'p SyntaxTrees, path: &'p [Identifier]) -> Vec<&'p str> {
     path.iter().map(|member| member.as_str(parsed)).collect()
 }

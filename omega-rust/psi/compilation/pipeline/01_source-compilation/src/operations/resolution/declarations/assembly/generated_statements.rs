@@ -118,7 +118,7 @@ pub(crate) fn zero_flag(trees: &mut SyntaxTrees, destination: ExpressionHandle) 
 
 pub(crate) fn bind(
     trees: &mut SyntaxTrees,
-    first: usize,
+    scope: usize,
 ) -> (
     [ExpressionHandle; ASM_SCRATCH_SLOT_COUNT],
     Vec<StatementHandle>,
@@ -128,7 +128,6 @@ pub(crate) fn bind(
     let names: Vec<_> = trees
         .expressions
         .iter_expressions()
-        .skip(first)
         .filter_map(|(handle, node)| {
             let ExpressionNode::Name {
                 members: path,
@@ -148,7 +147,7 @@ pub(crate) fn bind(
         })
         .collect();
     for (handle, index) in names {
-        let hidden = format!("asm#scratch#{first}#{}", NAMES[index]);
+        let hidden = format!("asm#scratch#{scope}#{}", NAMES[index]);
         if !registers[index].is_valid() {
             registers[index] = name(trees, &hidden);
             let type_reference = if [15, 16, 19, 20].contains(&index) {

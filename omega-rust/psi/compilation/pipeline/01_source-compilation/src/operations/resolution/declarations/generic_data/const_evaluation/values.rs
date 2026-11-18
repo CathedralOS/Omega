@@ -235,7 +235,7 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_selected_c
         &GenericApplicationSubstitution::new(),
         parameter_type,
         substitution,
-        definition.value,
+        definition.value(),
         selection,
     )
 }
@@ -918,7 +918,7 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_selected_d
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    if definition.pending_qualification.is_some() {
+    if definition.preparation().pending_qualification.is_some() {
         return Err("constant destination qualification remains pending".to_owned());
     }
     canonicalize_selected_declaration_value_with_admission(
@@ -947,7 +947,7 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_selected_d
     let node = canonicalize_const_expression_with_admission(
         syntax,
         definition.type_reference,
-        definition.value,
+        definition.value(),
         selection,
         &substitution,
         admission,
@@ -1020,7 +1020,7 @@ fn declared_fixed_array_length(
                 return Err("array extent constant must have an integer carrier".to_owned());
             }
             if !matches!(
-                syntax.expressions.expression(definition.value),
+                syntax.expressions.expression(definition.value()),
                 ExpressionNode::Integer(_)
             ) {
                 return Err("array extent constant is not a completed integer literal".to_owned());

@@ -1190,6 +1190,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildParameterDescription,
     BuildFieldDescription,
     CoreIntegerOperator(declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature),
+    AtomicCellOperation(language_core::atomic::AtomicCellMember),
 }
 
 pub use product::{CapturedNativeIntent, NativeBindingFormation, NativeBindingSource};

@@ -69,6 +69,7 @@ mod declaration_values;
 pub(crate) mod initializer_dependencies;
 mod initializer_leaves;
 pub(crate) mod initializer_normalization;
+pub(crate) use initializer_normalization::constant_initializer_owns_selection;
 mod normalized_expressions;
 mod scalar_carriers;
 mod selections;
@@ -109,10 +110,10 @@ pub fn requires_const_initializer_evaluation(
     definition: &ConstDefinition,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
-    if definition.pending_target_observation {
+    if definition.preparation().pending_target_observation {
         return false;
     }
-    let mut pending = vec![definition.value];
+    let mut pending = vec![definition.value()];
     while let Some(expression) = pending.pop() {
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(_)

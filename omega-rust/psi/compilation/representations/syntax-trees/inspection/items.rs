@@ -468,7 +468,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             name: snapshot_identifier(syntax_trees, &value.name),
             is_public: value.is_public,
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
-            value: Box::new(snapshot_expression_handle(syntax_trees, value.value)),
+            value: Box::new(snapshot_expression_handle(syntax_trees, value.initializer)),
         },
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(syntax_trees, &value.name),

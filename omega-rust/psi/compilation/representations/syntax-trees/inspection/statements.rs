@@ -72,6 +72,12 @@ pub struct StateParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    AuthoredAssembly {
+        clobbers: Option<Vec<String>>,
+        requires: Vec<ExpressionSnapshot>,
+        ensures: Vec<ExpressionSnapshot>,
+        blocks: Vec<AuthoredAssemblyBlockSnapshot>,
+    },
     Assembly {
         primitives: Vec<ExpressionSnapshot>,
         scratch: Vec<ExpressionSnapshot>,
@@ -122,6 +128,10 @@ pub enum StatementSnapshot {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         pattern_fields: Vec<crate::snapshot::expression_and_type_snapshots::MatchFieldSnapshot>,
     },
+    Dispatch {
+        subjects: Vec<ExpressionSnapshot>,
+        arms: Vec<DispatchArmSnapshot>,
+    },
     Transition {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         patterns: Vec<(
@@ -135,6 +145,36 @@ pub enum StatementSnapshot {
         #[serde(skip_serializing_if = "Option::is_none")]
         crash_cause: Option<&'static str>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DispatchArmSnapshot {
+    pub patterns: Vec<crate::snapshot::expression_and_type_snapshots::MatchPatternSnapshot>,
+    pub guard: TransitionGuardSnapshot,
+    pub target: TransitionTargetSnapshot,
+    pub arrow_offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredAssemblyBlockSnapshot {
+    pub label: Option<String>,
+    pub requires: Vec<ExpressionSnapshot>,
+    pub ensures: Vec<ExpressionSnapshot>,
+    pub instructions: Vec<AuthoredInstructionSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredInstructionSnapshot {
+    pub mnemonic: String,
+    pub operands: AuthoredOperandsSnapshot,
+    pub source_range: [usize; 2],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthoredOperandsSnapshot {
+    Expressions(Vec<ExpressionSnapshot>),
+    Transition(TransitionTargetSnapshot),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -285,6 +325,61 @@ pub(crate) fn snapshot_state_parameters(
 
 fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
     match statement {
+        StatementNode::AuthoredAssembly(handle) => {
+            let graph = syntax_trees.statements.authored_assembly(*handle);
+            let expressions = |values: &[crate::expression::ExpressionHandle]| {
+                values
+                    .iter()
+                    .map(|expr| snapshot_expression_handle(syntax_trees, *expr))
+                    .collect()
+            };
+            StatementSnapshot::AuthoredAssembly {
+                clobbers: graph.clobbers.as_ref().map(|names| {
+                    names
+                        .iter()
+                        .map(|name| name.as_str(syntax_trees).to_owned())
+                        .collect()
+                }),
+                requires: expressions(&graph.requires),
+                ensures: expressions(&graph.ensures),
+                blocks: graph
+                    .blocks
+                    .iter()
+                    .map(|block| AuthoredAssemblyBlockSnapshot {
+                        label: block
+                            .label
+                            .as_ref()
+                            .map(|name| name.as_str(syntax_trees).to_owned()),
+                        requires: expressions(&block.requires),
+                        ensures: expressions(&block.ensures),
+                        instructions: block
+                            .instructions
+                            .iter()
+                            .map(|instruction| AuthoredInstructionSnapshot {
+                                mnemonic: instruction.mnemonic.as_str(syntax_trees).to_owned(),
+                                operands: match &instruction.operands {
+                                    crate::statement::AssemblyOperands::Expressions(values) => {
+                                        AuthoredOperandsSnapshot::Expressions(expressions(values))
+                                    }
+                                    crate::statement::AssemblyOperands::Transition(target) => {
+                                        AuthoredOperandsSnapshot::Transition(
+                                            snapshot_transition_target(
+                                                syntax_trees,
+                                                syntax_trees.statements.transition_target(*target),
+                                            ),
+                                        )
+                                    }
+                                },
+                                source_range: [
+                                    instruction.source_span.span.start,
+                                    instruction.source_span.span.end,
+                                ],
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            }
+        }
         StatementNode::Assembly(handle) => {
             let graph = syntax_trees.statements.assembly(*handle);
             StatementSnapshot::Assembly {
@@ -437,6 +532,22 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 value.pattern_fields,
             ),
         },
+        StatementNode::Dispatch(handle) => {
+            let dispatch = syntax_trees.statements.dispatch(*handle);
+            StatementSnapshot::Dispatch {
+                subjects: syntax_trees
+                    .statements
+                    .expression_handles(dispatch.subjects)
+                    .iter()
+                    .map(|&subject| snapshot_expression_handle(syntax_trees, subject))
+                    .collect(),
+                arms: dispatch
+                    .arms
+                    .iter()
+                    .map(|arm| snapshot_dispatch_arm(syntax_trees, arm))
+                    .collect(),
+            }
+        }
         StatementNode::Transition(value) => StatementSnapshot::Transition {
             patterns: syntax_trees
                 .statements
@@ -477,6 +588,28 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 TransitionExit::Crash(CrashCause::Abort) => Some("Abort"),
             },
         },
+    }
+}
+
+fn snapshot_dispatch_arm(
+    trees: &SyntaxTrees,
+    arm: &crate::statement::DispatchArm,
+) -> DispatchArmSnapshot {
+    use crate::snapshot::expression_and_type_snapshots::snapshot_match_pattern;
+    DispatchArmSnapshot {
+        patterns: arm
+            .patterns
+            .iter()
+            .map(|slot| snapshot_match_pattern(trees, slot.pattern))
+            .collect(),
+        guard: match arm.guard {
+            TransitionGuardNode::Always => TransitionGuardSnapshot::Always,
+            TransitionGuardNode::When(value) => TransitionGuardSnapshot::When {
+                expression: snapshot_expression_handle(trees, value),
+            },
+        },
+        target: snapshot_transition_target(trees, trees.statements.transition_target(arm.target)),
+        arrow_offset: arm.source_span.span.start,
     }
 }
 

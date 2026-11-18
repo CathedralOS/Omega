@@ -811,7 +811,7 @@ pub fn borrowed_address_liveness(
     types: &[StructuralTypeDeclaration],
 ) -> Result<BorrowedAddressLiveness, Error> {
     let mut headers = IdSet::new();
-    let mut has_headers = false;
+    let mut header_places = Vec::new();
     for block in &machine.blocks {
         for parameter in &block.structural_parameters {
             if parameter.access == StructuralAccess::Owned {
@@ -840,8 +840,9 @@ pub fn borrowed_address_liveness(
                     .owned_slots(types, parameter.place, parameter.structural_type)
                     .is_some_and(|slots| slots.is_empty())
             {
-                headers.insert(parameter.place);
-                has_headers = true;
+                if headers.insert(parameter.place) {
+                    header_places.push(parameter.place);
+                }
             }
         }
     }
@@ -849,7 +850,7 @@ pub fn borrowed_address_liveness(
         headers,
         blocks: (0..machine.blocks.len()).map(|_| None).collect(),
     };
-    if !has_headers {
+    if header_places.is_empty() {
         return Ok(result);
     }
     let backing = Default::default();
@@ -864,12 +865,13 @@ pub fn borrowed_address_liveness(
             }
         };
         for target in block.terminator.successor_targets() {
-            for place in live
+            let target_live = live
                 .get(index(target.get())?)
-                .ok_or(Error::malformed("edge target is outside the machine"))?
-                .iter()
-            {
-                retain(place, end);
+                .ok_or(Error::malformed("edge target is outside the machine"))?;
+            for &place in &header_places {
+                if target_live.contains(place) {
+                    retain(place, end);
+                }
             }
         }
         for place in terminator_roots(&block.terminator) {

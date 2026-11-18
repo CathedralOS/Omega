@@ -69,14 +69,10 @@ fn parse_pages(
     tokens: &tokens::TokenStream<'_>,
     first_page_identity: u32,
 ) -> Result<syntax_trees::ParsedSyntaxPages, parsing::ParseError> {
-    let source = tokens
-        .source_owner()
-        .cloned()
-        .unwrap_or_else(|| Arc::from(tokens.source_text()));
+    let source = tokens.shared_source();
     let mut lexed = tokens::LexedSources::default();
     lexed.batch = lexed.sources.insert_many([tokens::LexedSource {
         source_id,
-        source: source.clone(),
         tokens: tokens.clone().retain_source(source),
         ..Default::default()
     }]);

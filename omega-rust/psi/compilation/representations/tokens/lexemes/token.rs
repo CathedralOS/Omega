@@ -56,7 +56,7 @@ impl Token {
         }
     }
 
-    pub fn is_non_semantic(&self) -> bool {
+    pub fn is_trivia(&self) -> bool {
         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment(_))
     }
 }

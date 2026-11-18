@@ -874,29 +874,32 @@ pub(crate) fn retain(
     definition: &ConstDefinition,
     materialized: ExpressionHandle,
 ) -> Result<(), Diagnostic> {
-    let Some(receipt) = &definition.normalization else {
+    let Some(receipt) = &definition.preparation().normalization else {
         return Ok(());
     };
-    let reference = syntax.expressions.source_span(definition.value);
-    if !syntax_expressions(syntax).contains_expression(receipt.authored_expression)
-        || receipt.authored_expression == definition.value
+    let reference = syntax.expressions.source_span(definition.value());
+    if receipt.authored_expression != definition.initializer
+        || !syntax_expressions(syntax).contains_expression(receipt.authored_expression)
+        || receipt.authored_expression == definition.value()
         || syntax.expressions.source_span(receipt.authored_expression) != reference
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
     if definition
+        .preparation()
         .pending_qualification
         .as_ref()
         .is_some_and(|obligation| {
             obligation.declaration != definition.name.source_span()
-                || obligation.initializer != definition.value
+                || obligation.initializer != definition.value()
         })
         || definition
+            .preparation()
             .qualification
             .as_ref()
             .is_some_and(|qualification| {
                 qualification.destination != definition.type_reference
-                    || qualification.initializer != definition.value
+                    || qualification.initializer != definition.value()
             })
     {
         return Err(error(
@@ -1699,4 +1702,30 @@ pub(crate) fn finalize(
         )?);
     }
     Ok(roots)
+}
+
+pub(crate) fn constant_initializer_owns_selection(
+    syntax: &SyntaxTrees,
+    reference: source_text::SourceSpan,
+) -> bool {
+    syntax.root_items().any(|item| {
+        let syntax_trees::item::Item::Const(definition) = item else {
+            return false;
+        };
+        definition
+            .preparation()
+            .normalization
+            .as_ref()
+            .is_some_and(|normalization| {
+                normalization
+                    .selections
+                    .iter()
+                    .any(|origin| origin.reference == reference)
+                    || normalization.builtin_operators.contains(&reference)
+                    || normalization
+                        .call_selections
+                        .iter()
+                        .any(|selection| selection.0 == reference)
+            })
+    })
 }
