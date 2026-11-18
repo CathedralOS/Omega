@@ -1106,26 +1106,20 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     );
 }
 
-/// A generic body that calls another generic machine at its own type
-/// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
-/// contract with no body; `forward`'s own check form, judged in the same
-/// compilation, is what proves that contract for every `T`, so `relay`'s
-/// form is accepted on its own proofs. A bound the callee does not give
-/// still rejects the caller. A machine that applies itself is refused by
-/// name, with or without an `ensures`: its form would take its own contract
-/// as given, and nothing in a form judges the cycle. The one with no
-/// `ensures` and a `terminates` promise is the case that was once accepted:
-/// it has no contract row to leave undecided, and it never returns.
+/// The checker includes a generic helper's body when checking its caller.
+/// The call supports the caller's result bound. A tighter bound still fails.
+/// Recursive applications follow the ordinary rules for calls and termination.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
+    // Borrow the unused item so the test can check the call's numeric contract.
+    let forward = "machine forward<T>(item: &T, limit: u32) -> u32 \
                    requires limit <= 10 ensures result <= 10 { limit }";
     let relay = |bound: u32| {
         format!(
-            "{forward}\nmachine relay<T>(item: T, limit: u32) -> u32 \
+            "{forward}\nmachine relay<T>(item: &T, limit: u32) -> u32 \
              requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
         )
     };
@@ -1147,39 +1141,37 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
             Verdict::Rejected
         ]
     );
+    // These calls test a cycle in static applications. The type parameter
+    // is passed at compile time and needs no runtime storage.
     assert_eq!(
         judged_parts(
             "generic_application_of_itself",
-            "machine again<T>(item: T, limit: u32) -> u32 \
-             ensures result <= 10 { again<T>(item, limit) }"
+            "machine again<T>(limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(limit) }"
         ),
-        [
-            Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `again` on a call cycle".to_owned())
-        ]
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
     );
     assert_eq!(
         judged_parts(
             "generic_application_of_itself_with_no_guarantee",
-            "machine forever<T>(item: T, limit: u32) -> u32              terminates { forever<T>(item, limit) }"
+            "machine forever<T>(limit: u32) -> u32              terminates { forever<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `forever` on a call cycle".to_owned())
+            Verdict::FallsBack("contract termination promise over a call cycle".to_owned())
         ]
     );
-    // Two generic machines that reach each other are one cycle; each is
-    // refused.
+    // Both check forms include the bodies of the two machines in the cycle.
     assert_eq!(
         judged_parts(
             "generic_application_cycle_of_two",
-            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
-             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }"
+            "machine ping<T>(limit: u32) -> u32 { pong<T>(limit) }
+             machine pong<T>(limit: u32) -> u32 { ping<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `ping` on a call cycle".to_owned()),
-            Verdict::FallsBack("generic machine `pong` on a call cycle".to_owned())
+            Verdict::Accepted(2),
+            Verdict::Accepted(2)
         ]
     );
 }
