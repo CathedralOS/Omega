@@ -9,31 +9,21 @@ compiler publishes, not these intermediate trees.
 
 ## Program forms along the pipeline
 
-These packages define the program forms; the linked stages transform them.
-Source data and checker evidence live in different packages.
+Stage 01 holds resolved and typed source until judgment. The following table
+shows which records its operations produce and what the next operation reads.
 
-| Program form | Produced by | Next pipeline consumer |
+| Program form | Producer | Next consumer |
 | --- | --- | --- |
-| [Tokens](tokens/token_stream.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/lexer.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/parser.rs) |
-| [Syntax trees](syntax-trees/syntax_trees.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [02: syntax → symbol-resolved trees](../pipeline/01_source-compilation/src/operations/resolution/resolver.rs) |
-| [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/01_source-compilation/src/operations/resolution/resolver.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed preparation](../pipeline/04_typed-trees-to-typed-trees/README.md), then [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
-| [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs), [judgment](../pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) and [accepted-source publication](../terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| [Tokens](tokens/token_stream.rs) | [Lexer](../pipeline/01_source-compilation/src/operations/lexing/lexer.rs) | [Parser](../pipeline/01_source-compilation/src/operations/parsing/parser.rs) |
+| [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_source-compilation/src/operations/parsing/parser.rs) | [Name resolution](../pipeline/01_source-compilation/src/operations/resolution/resolver.rs) |
+| [Resolved source](../pipeline/01_source-compilation/src/source_resolved/src/lib.rs) | Name resolution | [Typing](../pipeline/01_source-compilation/src/operations/typing/src/lowerer.rs) |
+| [Typed source](../pipeline/01_source-compilation/src/source_state/src/lib.rs) | Typing | [Source preparation](../pipeline/01_source-compilation/src/operations/preparation/README.md) and [structural lowering](../pipeline/01_source-compilation/src/operations/lowering/src/lib.rs) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../pipeline/01_source-compilation/src/operations/checking/src/verdict.rs) | The [accepted-source factory](../pipeline/01_source-compilation/src/operations/production/src/accepted.rs) passes its judgment to [stage 02 publication](../../../omega/compilation/pipeline/02_portable-publication/src/lib.rs). |
 
-Stage 04 runs one ordered pass list and freezes the typed trees, refusing
-requests it does not serve; the result is prepared, not proved. Terminal Psi
-needs structural lowering, checking and publication; default Build and native
-compilation still wait on [TASKS.md](../../../../TASKS.md).
-
-The separate [Terminal interpreter](../../interpreter/README.md) runs
-Terminal Psi directly and adds no pipeline representation.
-
-The old facts package is gone; checking facts live in the lowered-form
-checker's tables. Other semantic records have their own packages:
-[flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,
-invocation, capability and reach summaries, and
-[optimization selections](../../foundation/optimization/src/lib.rs) holds
-pass names, canonical selections and their identities. Neither is a program stage.
+The [Terminal interpreter](../../interpreter/README.md) runs the published
+program. Operational, invocation, capability and reach summaries live in
+[source effects](source-effects/src/lib.rs). [Optimization policy](optimization-policy/src/lib.rs)
+defines pass selections and their identities.
 
 Terminal Psi also has separate companion packages: `codec/` for canonical
 artifacts, `semantics/` for operation judgments, `work/` for logical costs and
@@ -53,14 +43,13 @@ the dependency boundary between the representation and the checker.
 | [Carry](../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread and address demands, combined separately, each with the origin that explains it. |
 | [Effects](../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes and positive progress, separate even when inference computes them in one graph walk. |
 
-The [resolved domain](symbol-resolved-trees/src/declarations_and_machines.rs)
-and [typed domain](typed-trees/src/declarations.rs) keep
+The [resolved domain](../pipeline/01_source-compilation/src/source_resolved/src/declarations_and_machines.rs)
+and [typed domain](../pipeline/01_source-compilation/src/source_state/src/declarations.rs) keep
 predicate, role, route, alias, classification and semantic-identity records.
-The [typed machine](typed-trees/src/calls_and_control_flow.rs) carries
+The [typed machine](../pipeline/01_source-compilation/src/source_state/src/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row and separate operational
 clauses. Shared vocabulary belongs in
-[language-semantics](../../foundation/language-semantics/src/lib.rs), not in a
-later native stage. Having these records does not mean every later proof,
+[semantic vocabulary](semantic-vocabulary/src/lib.rs). Having these records does not mean every later proof,
 normalization or use is implemented.
 
 Flow-proven membership and a binding's qualification are different inputs.
@@ -89,8 +78,7 @@ states how both are published and replayed. A missing action or mapping means
 lowering is incomplete; it does not permit abandoning the resource.
 
 Target calling and layout, provider plans, executable trusted-base
-manifests, installed entries and task activation plans belong to Omega's build
-and realization side. They meet exact normalized semantic demands through the
+manifests, installed entries and task activation plans belong to Omega's target planning and installation stages. They meet exact normalized semantic demands through the
 bound companion; they must not become per-target Psi semantic fields. A static
 demand or decoded report never replaces installation or single-use invocation
 custody.

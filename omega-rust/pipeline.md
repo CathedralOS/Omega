@@ -206,7 +206,7 @@ named second-check refusal. [Source checking](psi/compilation/pipeline/01_source
 The product coordinator supplies the requested roots and each target's
 declarations to the checked source owner at 01. That owner follows the
 reachable calls and selects their logical providers. Stage 02 publishes
-those choices with the portable program. At 03 the native planner joins them
+those choices with the portable program. At 03 the native planner joins those
 choices to target-specific calling policies and verifies the selected bodies.
 Later native stages carry that decision through allocation, installation,
 encoding, layout and image construction. Product publication issues its

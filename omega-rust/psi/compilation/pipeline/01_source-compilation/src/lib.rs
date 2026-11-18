@@ -1,25 +1,12 @@
-/*
-    Target-neutral source parsing, resolution, typing, and preparation. This
-    facade supplies frozen typed input to the lowered-form checker; it produces
-    no source-checker judgment or selected product cache.
-*/
-
-/*
-    Separating target-neutral Psi stage sequencing from Omega package discovery,
-    Build host execution, and native code generation ensures every compile-time
-    and product consumer traverses the exact same lexical, typing, checking, and
-    portable Terminal production rules without circular coordinator dependencies.
-*/
-
-/*
-    Start at `source_parsing` (below) for admitted source frontiers and snippet
-    parsing, `source_compilation` (`SourceCompilationRequest`,
-    `SourceContinuation`, and `CompletedSource`) for the resolver/typing
-    continuation and Product policy admission, `source_checking`
-    (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
-    checking. Accepted source publication and artifact retention belong to
-    `terminal-production`.
-*/
+//! Stage 01 owns the active source request. Each source page streams through
+//! lexing and parsing in `source_parsing`. Resolution and typing share a
+//! continuation in `source_compilation` so Build can activate further source.
+//!
+//! `SourcePreparationRequest::judge` evaluates the requested work, prepares
+//! the typed program and runs the lowered-form checker. The accepted-source
+//! factory in `operations/production` binds that judgment to its source.
+//! `provider_supply` closes the logical choices that portable publication
+//! carries to target planning.
 
 #![forbid(unsafe_code)]
 

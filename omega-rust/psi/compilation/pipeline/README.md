@@ -1,46 +1,26 @@
 # Source-to-Terminal pipeline
 
-These stages take source text to checked, published Terminal Psi; the
-[pipeline map](../../../pipeline.md) shows how they connect. Each stage resolves
-more of the source's meaning. Loading sources and closing the package graph
-belong to the compiler and package system. These stages do not choose
-providers, physical storage, native ABI plans or installed authority.
-
-Fixtures named below as `pass/...` or `fail/...` without a `tests/fixtures/`
-path belong to [the former corpus](../../../../tests/README.md#the-former-corpus)
-and must be recovered from history.
+Stage 01 compiles the activated source for a request. Files stream through
+lexing and parsing. Resolution, typing and evaluation use those syntax pages,
+and structural lowering constructs the input to the lowered-form checker.
+Stage 02 seals the accepted portable program. [Connected program route](../../../pipeline.md#connected-program-route)
 
 ## Follow the compilation route
 
-| Stage | Operation entrance | Output owner |
-| --- | --- | --- |
-| 00 — source loading and lexing | [lexer.rs](00_source-files-to-tokens/lexer.rs) | [tokens](../representations/tokens/) |
-| 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/parser.rs) | [syntax trees](../representations/syntax-trees/) |
-| 02 — resolution | [resolver.rs](01_source-compilation/src/operations/resolution/resolver.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
-| 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
-| 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
-| 05 — structural lowering | [prepare_compilation](05_typed-trees-to-terminal-psi/src/compilation.rs) | [complete Terminal checking input](../representations/terminal-psi/check-tables/src/compilation.rs) |
-| 06 — lowered-form checking | [judge_compilation](06_terminal-psi-to-terminal-psi/src/verdict.rs) | accepted closure and evidence |
-| Publication | [accepted source factory](../terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
+| Operation | Input and output |
+| --- | --- |
+| [Lex and parse one file](01_source-compilation/src/source_parsing.rs) | The [lexer](01_source-compilation/src/operations/lexing/lexer.rs) produces tokens. The [parser](01_source-compilation/src/operations/parsing/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
+| [Resolve names](01_source-compilation/src/operations/resolution/resolver.rs) | Syntax pages become source-owned [resolved trees](01_source-compilation/src/source_resolved/src/lib.rs). |
+| [Type declarations and bodies](01_source-compilation/src/operations/typing/src/lowerer.rs) | The resolved program becomes [typed source](01_source-compilation/src/source_state/src/lib.rs). |
+| [Prepare typed source](01_source-compilation/src/operations/preparation/src/driver.rs) | Preparation and [evaluation](01_source-compilation/src/evaluation/README.md) complete the requested work and freeze its input to lowering. |
+| [Lower to Terminal](01_source-compilation/src/operations/lowering/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/terminal-psi/check-tables/src/compilation.rs), including demanded generic bodies and witnesses. |
+| [Check the program](01_source-compilation/src/operations/checking/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](01_source-compilation/src/operations/production/src/accepted.rs) binds that judgment to its source. |
+| [Close logical provider demand](01_source-compilation/src/provider_supply.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [Portable publication](../../../omega/compilation/pipeline/02_portable-publication/src/lib.rs) carries those choices to native planning. |
 
-Every program passes through 04, which runs one ordered pass list over the
-typed trees and freezes the result. That result is prepared source, not an
-accepted program. A program that requests layout, representation-selection or
-wire work, or uses Product operands, is refused with `no product route yet`.
-This table and the notes below do not mean default source, Build or native
-compilation works; unfinished stages remain on [TASKS.md](../../../../TASKS.md).
-
-Stage 05 reads the typed trees, without any checker facts, and builds the root
-module, every generic form the program uses, the conformance witnesses and the
-exact mapping between them. Stage 06 checks that complete Terminal input
-without importing an earlier stage or reading typed source; it refuses
-constructs it does not support. The driver keeps the mapping from source
-records and Build operands separately for publication, tied to the same frozen
-source. The checker does not read it. The accepted-source factory publishes the
-checked module with its evidence. The old checked-to-Lowered-Psi and
-optimization/publication wrappers are gone.
-[Compile-time elaboration](../build-time-evaluation/README.md) runs evaluation
-around source preparation; the product driver decides the order of stages.
+Some operation notes and trace labels use the older Psi phase numbers. For
+example, “Psi 03” identifies typing within source stage 01. The following
+notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a
+`tests/fixtures/` path refer to the [former corpus](../../../../tests/README.md#the-former-corpus).
 
 ## Lexing and parsing
 
@@ -182,7 +162,7 @@ from the former corpus. A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
-The [lexer](00_source-files-to-tokens/lexer.rs) reads loaded source records
+The [lexer](01_source-compilation/src/operations/lexing/lexer.rs) reads loaded source records
 and keeps each token's source identity and byte span. Numeric metadata and
 decoded literal bytes describe spelling only; they are not typed values or
 proof facts. The lexer accepts a fixed set of characters: explicit whitespace,
@@ -192,15 +172,15 @@ escapes; it does not pick a Unicode encoding from the host.
 The Rust lexer has its own behavior tests; the product lexer does not need a
 mirrored serialization format for tokens.
 
-The [parser](01_tokens-to-syntax-trees/parser.rs) builds syntax roots and
-arena tables. Its source loop calls [declarations/items.rs](01_tokens-to-syntax-trees/declarations/items.rs),
+The [parser](01_source-compilation/src/operations/parsing/parser.rs) builds syntax roots and
+arena tables. Its source loop calls [declarations/items.rs](01_source-compilation/src/operations/parsing/declarations/items.rs),
 which dispatches to the grammar domains. It preserves spelling, spans and literal
 structure; later stages choose symbols, types, effects and proof evidence.
 
-Follow [the parser map](01_tokens-to-syntax-trees/README.md) from that entry into
+Follow [the parser map](01_source-compilation/src/operations/parsing/README.md) from that entry into
 declarations, expressions, types, parameters, contracts, machine bodies,
 transitions and statements. The expression entry contains its actual frame loop;
-[operators](01_tokens-to-syntax-trees/expressions/operators.rs) owns precedence
+[operators](01_source-compilation/src/operations/parsing/expressions/operators.rs) owns precedence
 and operator policy. Nested expressions, groups, arguments and aggregates use
 explicit frames. Type references and some grammar crossings still call back
 into parsing, so the whole parser is not stackless.
@@ -318,7 +298,7 @@ evidence are complete.
 and [runtime callable rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 The legacy implementation pending [machine values and some migration](../../../../wiki/drafts/designs/machine_values_some.md)
 lowers runtime selection through instantiated selector slots
-(`04_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
+(`01_source-compilation/src/operations/preparation/src/monomorphization/dynamic_slots.rs`), but a
 finite-family selector call keeps its requirement target and declines, so tuple
 expansion, runtime family selection, and indexed result custody are all
 unimplemented. Explicit source disjunctions, not
@@ -513,7 +493,7 @@ membership with a consuming dispatch is not that acceptance.
 Later source extensions reuse the selected declaration's detached resolved
 initializer. This keeps constructor selection in the declaring source and
 deep-copies aggregate children at each use without re-reading the base source;
-the [generated-source continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
+the [generated-source continuation](01_source-compilation/src/operations/typing/README.md)
 retains its exercising compiler command.
 Closed ordinary record and sum applications select their exact module-owned template
 and complete argument tuple. Nominal arguments retain declaration identity,
@@ -614,7 +594,7 @@ Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
 scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
 and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
-[initializer admission owner](../build-time-evaluation/README.md#semantic-admission-boundary)
+[initializer admission owner](01_source-compilation/src/evaluation/README.md#admission-and-implementation-limits)
 checks concrete crash discharge before execution and repeats it during receiving
 replay. Closed type- and const-generic helper applications use ordinary checked
 specialization, including nested calls with integer, Boolean and floating results.
@@ -703,7 +683,7 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The former two-file
 `pass/modules/rational_boolean_indices` fixture covered fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
-[typed evaluation owner](../build-time-evaluation/README.md), including
+[typed evaluation owner](01_source-compilation/src/evaluation/README.md), including
 coverage and unselected-arm admission. The former
 `pass/modules/match_constant_indices` fixture was their source check.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
@@ -749,7 +729,7 @@ Each rewritten application retains its original base/arguments at the exact use.
 Copies remap these origins; they are not new authored declarations or roots.
 Cloned attached methods retain the exact authored template and closed owner.
 Missing or ambiguous templates cannot acquire derivation custody.
-[Build-time evaluation](../build-time-evaluation/README.md) owns the
+[Build-time evaluation](01_source-compilation/src/evaluation/README.md) owns the
 single-use pre/post-typing continuation and its ordered const/layout/wire work;
 orchestration cannot recombine its retained rows or exchange its authority.
 
@@ -782,7 +762,7 @@ bodylessness, reach or catalog membership cannot synthesize that declaration.
 
 ## Typing and source custody
 
-[Typing](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) decides type
+[Typing](01_source-compilation/src/operations/typing/src/lowerer.rs) decides type
 identity and compatibility and builds typed signatures and contracts. Its roots
 and tables keep enough information that checking never has to reconstruct
 syntax. A typed reference is not an active loan, and the cleanup a type
@@ -790,12 +770,12 @@ requires is not a drop schedule. Proof discharge, flow invalidation and ABI
 placement happen later.
 
 The typing coordinator orders declaration lowering and finalization.
-[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
+[Conformances](01_source-compilation/src/operations/typing/src/declarations.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
 applications remain expressions. Shared
-[type parameters](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
-and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+[type parameters](01_source-compilation/src/operations/typing/src/contracts_and_signatures.rs)
+and [callable signatures](01_source-compilation/src/operations/typing/src/contracts_and_signatures.rs)
 are independent of data and state declaration lowering. Contract facts,
 invocations and parameter-domain obligations have shared owners; type-reference
 normalization owns domain-alias expansion and domain constraints. Both full
@@ -806,7 +786,7 @@ Missing measure-body field selectors bind through the exact measure parameter's
 declared nominal type. Existing nonzero selectors remain unchanged for checking;
 typing does not replace conflicting identities with a same-spelled field.
 
-[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs)
+[Call-result typing](01_source-compilation/src/operations/typing/src/call_and_product_selections.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
 Preserve already-resolved pattern-bound call targets and root/member identity.
@@ -823,7 +803,7 @@ Source-authored selections must preserve original lexical owners and exact
 conformance applications through any future copying or specialization. Generated
 fields and signatures cannot invent public exposure, visibility or supply. The
 old capture/finalization and checking owners are removed;
-[typed preparation](04_typed-trees-to-typed-trees/README.md) has no
+[typed preparation](01_source-compilation/src/operations/preparation/README.md) has no
 specialization pass yet, so those obligations are refused where a program
 demands them. Original template
 contracts and body selections remain obligations; package identity alone cannot
@@ -833,7 +813,7 @@ Resolution and typing keep the selections the source made. The lowered-form
 route must settle late calls, operators and evidence before it accepts a program. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
-See [typing](03_symbol-resolved-trees-to-typed-trees/README.md) for the source
-frontier and [lowered-form checking](06_terminal-psi-to-terminal-psi/README.md) for the served
+See [typing](01_source-compilation/src/operations/typing/README.md) for the source
+frontier and [lowered-form checking](01_source-compilation/src/operations/checking/README.md) for the served
 proof, flow and ownership boundary. Source execution and late obligations it does not
 handle are refused explicitly.
