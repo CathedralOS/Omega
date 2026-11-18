@@ -88,6 +88,48 @@ impl Memberships {
     }
 }
 
+/// Recognize boundary requirements already expressed by the input types.
+/// This establishes no actual membership: the structural-call judgment must
+/// still require each actual to deliver its formal's exact domains. Normalize
+/// each formal once, then compare complete domain identities at exact paths.
+pub fn formal_domains_cover_requirements(
+    formals: &[terminal_psi::StructuralParameterDeclaration],
+    requirements: &[terminal_psi::StructuralDomainRequirement],
+) -> bool {
+    if requirements.is_empty() {
+        return true;
+    }
+    let memberships = formals
+        .iter()
+        .map(|formal| Memberships::of(&formal.qualifications, &formal.projected_qualifications))
+        .collect::<Vec<_>>();
+    requirements.iter().all(|requirement| {
+        let Ok(position) = usize::try_from(requirement.argument_index) else {
+            return false;
+        };
+        let Some(formal) = formals.get(position) else {
+            return false;
+        };
+        if formal.position != requirement.argument_index {
+            return false;
+        }
+        let declared = &memberships[position];
+        if requirement.path.is_empty() {
+            declared.whole.binary_search(&requirement.domain).is_ok()
+        } else {
+            declared
+                .projected
+                .binary_search_by(|membership| {
+                    membership
+                        .path
+                        .cmp(&requirement.path)
+                        .then_with(|| membership.domain.cmp(&requirement.domain))
+                })
+                .is_ok()
+        }
+    })
+}
+
 struct Declared<'a> {
     machine: &'a TerminalMachine,
     /// Every root place that declares memberships, by place identity.
