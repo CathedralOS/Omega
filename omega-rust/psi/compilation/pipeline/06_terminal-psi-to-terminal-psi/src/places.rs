@@ -655,6 +655,9 @@ pub(super) struct Reaching {
     observations: Observations,
     remaining: usize,
     crossed_entries: Vec<bool>,
+    // Entries whose current selector evaluations justify a reaching store.
+    // A later-discovered backedge retires this correspondence too.
+    selector_entries: Vec<BlockId>,
     used: Option<ProgramPoint>,
     #[cfg(test)]
     scanned_rows: usize,
@@ -2748,10 +2751,17 @@ impl<'a> Storage<'a> {
             }
             // Only a store into the place or above it replaces it whole; one
             // beneath it or beside it leaves contents this route cannot name.
-            let Some(beneath) = row
+            let beneath = if let Some(suffix) = row
                 .backing
                 .relative_suffix(watched, &budget.crossed_entries)
-            else {
+            {
+                Some(suffix)
+            } else if matches!(asked, Asked::Contents(_)) {
+                self.stored_scalar_suffix(tables, row, watched, budget, concerns)?
+            } else {
+                None
+            };
+            let Some(beneath) = beneath else {
                 if matches!(row.stored, Stored::Vacated) {
                     return Ok(Supply::Direct(Reached::Unestablished));
                 }
@@ -3232,6 +3242,17 @@ impl<'a> Storage<'a> {
             solved = trace.solve(source);
         }
         trace.boundary = trace.equations[source].boundary.within(depth);
+        // A branch may discover a selector's re-entry after another branch
+        // already used its store. Retire that query's identity after the
+        // complete walk, rather than depending on predecessor visit order.
+        if trace
+            .selector_entries
+            .iter()
+            .any(|owner| trace.crossed_entries.get(index(owner.get())) != Some(&false))
+        {
+            solved = solved.without_identity();
+            trace.boundary = BoundaryDepth::Local;
+        }
         Ok(match solved.within(depth) {
             Reached::Cycle if matches!(asked, Asked::Window { .. }) => Reached::Unknown,
             Reached::Cycle => Reached::Unestablished,
@@ -3636,6 +3657,7 @@ impl<'a> Storage<'a> {
             observations: Observations::None,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
+            selector_entries: Vec::new(),
             used: None,
             #[cfg(test)]
             scanned_rows: 0,
@@ -7429,6 +7451,206 @@ mod observation_tests {
         assert_eq!(
             formal_observation_path(&[(&disjoint, 0), (&foreign, 1)], &recorded),
             None
+        );
+    }
+
+    #[test]
+    fn indexed_store_correspondence_expires_with_its_selector_entry() {
+        let source = r#"
+data Placement requires count <= 16 { count: u64; }
+data Plan { placements: [Placement; 2]; }
+machine entry(plan: &mut Plan, index: u64) -> u64 requires index < 2 {
+    let selected: u64 = index + 0;
+    plan.placements[selected].count = 1;
+    plan.placements[selected].count
+}
+"#;
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
+        let root = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[root],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("the indexed storage program must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("{}", refusal.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    operation
+                        .kind
+                        .structural_projections()
+                        .iter()
+                        .any(|projection| {
+                            projection
+                                .path
+                                .iter()
+                                .any(|step| step.runtime_index().is_some())
+                        })
+                })
+            })
+            .expect("an actual indexed machine");
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let descriptor_graph = reference_graph(module, machine.id).unwrap();
+        let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &descriptor_graph,
+        );
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &mut references,
+        )
+        .unwrap();
+        let (operation, leaf) = machine
+            .operations()
+            .find_map(|operation| {
+                let leaf = storage.read_leaf(operation).unwrap()?;
+                leaf.segments
+                    .iter()
+                    .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
+                    .then_some((operation, leaf))
+            })
+            .expect("the source reads the selected count");
+        let selector = leaf
+            .segments
+            .iter()
+            .find_map(|step| {
+                if let Segment::RuntimeIndex { selector } = step {
+                    Some(*selector)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let ValueOrigin::Operation(definition) = tables.values.get(selector).unwrap().origin else {
+            panic!("the selected index must retain its evaluated operation");
+        };
+        let owner = graph
+            .locate(ProgramPoint::AfterOperation(definition))
+            .unwrap()
+            .0;
+        let (block, after) = graph
+            .locate(ProgramPoint::AfterOperation(operation.id))
+            .unwrap();
+        let row = storage
+            .log
+            .iter()
+            .find(|row| row.destination == leaf && matches!(row.stored, Stored::Value(_)))
+            .unwrap();
+        let Stored::Value(written) = row.stored else {
+            unreachable!()
+        };
+        let backing = storage
+            .backing(
+                &mut references,
+                &leaf,
+                block,
+                after - 1,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert!(
+            !row.backing.definitely_contains(&backing),
+            "physical containment must still require a captured selector"
+        );
+        let mut trace = storage.snapshot_budget();
+        trace.used = Some(ProgramPoint::AfterOperation(operation.id));
+        let current = storage
+            .reaching(
+                &mut references,
+                tables,
+                Asked::Contents(&leaf),
+                (block, after - 1),
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(current, Reached::Value(written));
+        assert!(trace.selector_entries.contains(&owner));
+
+        // Retire the entry after discovery as a different equation branch can
+        // do. Reusing the completed query must not preserve the earlier seed.
+        trace.crossed_entries[index(owner.get())] = true;
+        let stale = storage
+            .reaching(
+                &mut references,
+                tables,
+                Asked::Contents(&leaf),
+                (block, after - 1),
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_ne!(
+            stale,
+            Reached::Value(written),
+            "re-entry cannot reuse the old selector evaluation"
+        );
+
+        let mut before_definition = storage.snapshot_budget();
+        before_definition.used = Some(ProgramPoint::BlockEntry(owner));
+        assert!(
+            storage
+                .stored_scalar_suffix(
+                    tables,
+                    row,
+                    &backing,
+                    &mut before_definition,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap()
+                .is_none(),
+            "a selector cannot justify a use before its definition"
+        );
+
+        let mut missing = tables.clone();
+        missing.values.get_mut(selector).unwrap().origin = ValueOrigin::MachineResult;
+        let mut unknown = storage.snapshot_budget();
+        unknown.used = Some(ProgramPoint::AfterOperation(operation.id));
+        assert!(
+            storage
+                .stored_scalar_suffix(
+                    &missing,
+                    row,
+                    &backing,
+                    &mut unknown,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap()
+                .is_none(),
+            "an executable selector must retain its real definition"
         );
     }
 

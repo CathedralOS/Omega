@@ -1862,6 +1862,7 @@ pub(crate) mod execution {
     }
 
     pub struct TerminalExecution<'artifact> {
+        pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
         pub(crate) scalar_applications: Option<terminal_installation::ScalarApplicationValues>,
         pub(crate) scalar_entry_checks: Option<terminal_installation::ScalarEntryChecks>,
         pub(crate) entry_results: Option<crate::boundary::entry_results::EntryResults>,
@@ -2405,6 +2406,7 @@ pub(crate) mod execution {
                 process_domain: None,
                 established_erased_fields: inputs.established_erased_fields.to_vec(),
                 effects: Vec::new(),
+                call_observations: None,
                 failed_call_result: None,
                 failed_return: None,
                 _frame_storage: frame_storage,
@@ -2802,6 +2804,11 @@ pub(crate) mod execution {
                         &selected
                     };
                     self.validate_case_projections(operation)?;
+                    if self.call_observations.is_some()
+                        && let Some(call) = terminal_psi::direct_call_parts(&operation.kind)
+                    {
+                        self.observe_direct_call(operation.id, call)?;
+                    }
                     self.trace_scalar_state(format_args!("before operation {:?}", operation.kind));
                     let flow = dispatch_operations!(self, operation, operation.kind;
                                         literal {
