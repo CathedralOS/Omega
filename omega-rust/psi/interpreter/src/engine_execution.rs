@@ -283,10 +283,18 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
-        let callable_values = terminal_semantics::callable_values::terminal_callable_values(
-            program.catalogs.as_ref().as_ref(),
-        )
-        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+        let module = program.catalogs.as_ref().as_ref();
+        let callable_values =
+            terminal_semantics::callable_values::terminal_callable_values_with_error_context(
+                module,
+            )
+            .map_err(|error| {
+                if let Some(boundary) = error.missing_boundary(module) {
+                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
+                } else {
+                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
+                }
+            })?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -1265,6 +1273,10 @@ pub(crate) mod capabilities {
             let mut root = machine(0, vec![read(1), unit_call(MachineId::new(2).unwrap())]);
             let mut disconnected = machine(0, vec![read(4)]).blocks.remove(0);
             disconnected.id = BlockId::new(2).unwrap();
+            disconnected.terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(2).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
             root.blocks.push(disconnected);
             set_machine(&mut program, MachineId::new(1).unwrap(), root);
             set_machine(
@@ -1305,6 +1317,8 @@ pub(crate) mod capabilities {
         fn dynamic_program() -> AdmittedTerminalProgram<'static> {
             let mut program = program();
             let catalogs = program.fixture_module_mut();
+            let declaration = boundary_declaration(catalogs, BoundaryMachineId::new(2).unwrap());
+            catalogs.boundary_machines.push(declaration);
             let slot = |catalogs: &mut terminal_psi::TerminalModule, slot| TerminalDynamicSlot {
                 slot,
                 declaring_trait_identity: intern_identity(catalogs, "graph interface"),
@@ -1371,9 +1385,6 @@ pub(crate) mod capabilities {
             );
             let provider = MachineId::new(4).unwrap();
             let provider_import = BoundaryMachineId::new(2).unwrap();
-            let catalogs = program.fixture_module_mut();
-            let declaration = boundary_declaration(catalogs, provider_import);
-            catalogs.boundary_machines.push(declaration);
             set!(&mut program => provider => machine(0, vec![boundary_call(provider_import)]));
             let installation = TerminalRuntimeSupplies {
                 provider_selections: None,
@@ -1476,27 +1487,95 @@ pub(crate) mod capabilities {
         ) {
             let mut program = program();
             let cleanup_machine = MachineId::new(2).unwrap();
-            set_machine(
-                &mut program,
-                cleanup_machine,
-                machine(
-                    0,
-                    vec![OperationKind::BoundaryCall {
-                        boundary: BoundaryMachineId::new(1).unwrap(),
-                        arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        completion_receipts: Vec::new(),
-                        requirement_obligations: Vec::new(),
-                    }],
-                ),
+            let structural_type = StructuralTypeId::new(3).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let subject = StructuralArgument::whole(place, StructuralAccess::Owned);
+            let catalogs = program.fixture_module_mut();
+            let identity = intern_identity(catalogs, "graph cleanup carrier");
+            catalogs
+                .structural_types
+                .push(terminal_psi::StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: structural_type,
+                    identity,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: Some(terminal_psi::NominalCleanupSelection {
+                        declaration: NominalDeclarationIdentity::new(identity),
+                        cleanup_machine,
+                    }),
+                    shape: terminal_psi::StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
+                    },
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+
+            // Each test keeps construction on the same block as the cleanup.
+            // The unreachable control must not create debt on its live path.
+            let mut entry = machine(0, Vec::new());
+            let producer = OperationId::new(1).unwrap();
+            entry
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: place,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                });
+            entry.blocks[0].operations.push(Operation::unsuspended(
+                producer,
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                OperationKind::EstablishRecord { fields: Vec::new() },
+            ));
+            set_machine(&mut program, MachineId::new(1).unwrap(), entry);
+
+            let mut consumer = machine(
+                0,
+                vec![
+                    OperationKind::DecomposeStructuralValue {
+                        subject: subject.clone(),
+                    },
+                    boundary_call(BoundaryMachineId::new(1).unwrap()),
+                ],
             );
+            consumer.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+            consumer.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
+                place,
+                position: 0,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            }];
+            consumer.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+                id: place,
+                kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+            }];
+            consumer.blocks[0].terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: vec![TerminalAffineCleanupAction::RetireHome(place)],
+            };
+            set_machine(&mut program, cleanup_machine, consumer);
             let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
-                subject: terminal_psi::StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::Owned,
-                },
-                structural_type: StructuralTypeId::new(1).unwrap(),
+                subject,
+                structural_type,
                 cleanup_machine,
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -1511,6 +1590,11 @@ pub(crate) mod capabilities {
             let successor = BlockId::new(2).unwrap();
             let mut destination = entry.blocks[0].clone();
             destination.id = successor;
+            destination.operations.clear();
+            destination.terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(2).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
             entry.blocks.push(destination);
             entry.blocks.first_mut().unwrap().terminator = Terminator::Jump {
                 edge: EdgeId::new(1).unwrap(),
@@ -1537,6 +1621,7 @@ pub(crate) mod capabilities {
                 edge: EdgeId::new(2).unwrap(),
                 cleanup_actions: vec![action],
             };
+            entry.blocks.first_mut().unwrap().operations.clear();
             entry.blocks.push(unreachable);
             assert!(check(&program, None).unwrap().imports.is_empty());
         }
