@@ -408,6 +408,122 @@ impl<'a> Storage<'a> {
         Ok(original.segments.len())
     }
 
+    /// A whole same-typed sum replacement can only hit this fixed-array
+    /// payload's cell or miss it. Different selectors need no equality proof
+    /// here: this relation supplies neither an address nor a scalar identity.
+    pub(super) fn selected_payload_cell_family(
+        &self,
+        write: &Backing,
+        selected: &Backing,
+        case: StructuralCaseId,
+        concerns: Construct,
+    ) -> Checked<Option<StructuralTypeId>> {
+        let ([parent], [child]) = (write.regions.as_slice(), selected.regions.as_slice()) else {
+            return Ok(None);
+        };
+        let Some((Segment::Field(field), payload)) = child.place.segments.split_last() else {
+            return Ok(None);
+        };
+        let Some((Segment::Case(selected_case), cell)) = payload.split_last() else {
+            return Ok(None);
+        };
+        if *selected_case != case
+            || parent.place.root != child.place.root
+            || parent.place.segments.len() != cell.len()
+        {
+            return Ok(None);
+        }
+        match (&parent.origin, &child.origin) {
+            (None, None) => {}
+            (
+                Some(DescriptorCallOrigin::Argument {
+                    source: a,
+                    projection: left,
+                }),
+                Some(DescriptorCallOrigin::Argument {
+                    source: b,
+                    projection: right,
+                }),
+            ) if a == b
+                && *a == parent.place.root
+                && !left.indirect
+                && !right.indirect
+                && left.window.is_none()
+                && right.window.is_none() =>
+            {
+                let (Ok(left), Ok(right)) =
+                    (left.captured_address_path(), right.captured_address_path())
+                else {
+                    return Ok(None);
+                };
+                if left != right
+                    || !left.iter().all(|step| {
+                        matches!(
+                            step,
+                            StructuralPathSegment::Field(_)
+                                | StructuralPathSegment::Case(_)
+                                | StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                {
+                    return Ok(None);
+                }
+            }
+            _ => return Ok(None),
+        }
+        let mut indexed = false;
+        for (written, observed) in parent.place.segments.iter().zip(cell) {
+            match (written, observed) {
+                (Segment::Field(left), Segment::Field(right)) if left == right => {}
+                (Segment::Case(left), Segment::Case(right)) if left == right => {}
+                (
+                    Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                    Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                ) => indexed = true,
+                _ => return Ok(None),
+            }
+        }
+        if !indexed {
+            return Ok(None);
+        }
+        let shape_at = |root, path: &[Segment]| {
+            self.shape_with(root, path, concerns, |shape, segment| match segment {
+                Segment::Field(_) | Segment::Case(_) => Ok(true),
+                Segment::FixedIndex(_) | Segment::RuntimeIndex { .. } => {
+                    let Shape::Typed(ty) = shape else {
+                        return Ok(false);
+                    };
+                    Ok(matches!(
+                        self.declaration(*ty, concerns)?.shape,
+                        StructuralTypeShape::FixedArray { .. }
+                    ))
+                }
+                _ => Ok(false),
+            })
+        };
+        let (Some(Shape::Typed(sum)), Some(Shape::Typed(other))) = (
+            shape_at(parent.place.root, &parent.place.segments)?,
+            shape_at(child.place.root, cell)?,
+        ) else {
+            return Ok(None);
+        };
+        if sum != other {
+            return Ok(None);
+        }
+        let StructuralTypeShape::Sum { cases } = &self.declaration(sum, concerns)?.shape else {
+            return Ok(None);
+        };
+        Ok(cases
+            .iter()
+            .any(|selected| {
+                selected.id == case
+                    && selected.fields.iter().any(|member| {
+                        member.id == *field && member.field_type.as_scalar().is_some()
+                    })
+            })
+            .then_some(sum))
+    }
+
     /// A store and read with the same current index value reach the same
     /// scalar. This supplies its value without proving physical containment,
     /// case membership, establishment or loan authority.

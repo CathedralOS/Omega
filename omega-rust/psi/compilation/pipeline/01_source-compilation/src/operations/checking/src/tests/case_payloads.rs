@@ -211,6 +211,123 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
     }
 }
 
+/// A vacated slot from an earlier iteration cannot supply the selected
+/// payload of the frame copied before this iteration's slot replacement.
+#[test]
+fn a_copied_case_payload_keeps_its_domain_across_recursive_vacation() {
+    const SOURCE: &str = r#"
+domain i64::FileHandle requires self != -1;
+data Frame [copy] {
+    case Empty;
+    case Directory(handle: i64 in FileHandle);
+}
+machine entry(frames: &mut [Frame; 2], count: u64, original: u32) -> u32
+requires count <= 2 {
+    transition { _ -> block next(frames, count, original) }
+    machine next(frames: &mut [Frame; 2], count: u64, original: u32) -> u32
+    requires count <= 2 {
+        transition count > 0 {
+            true -> block pop(frames, count, original)
+            false -> (original)
+        }
+    }
+    machine pop(frames: &mut [Frame; 2], count: u64, original: u32) -> u32
+    requires count > 0 && count <= 2 {
+        let frame: Frame = frames[count - 1];
+        frames[count - 1] = Frame::Empty;
+        transition frame {
+            Frame::Empty -> block next(frames, count - 1, original)
+            Frame::Directory { handle } -> block close(frames, count - 1, original, handle)
+        }
+    }
+    machine close(frames: &mut [Frame; 2], count: u64, original: u32,
+        handle: i64 in FileHandle) -> u32
+    requires count < 2 {
+        transition (handle as -FileHandle) != 0 {
+            true -> block release(frames, count, original, handle)
+            false -> block next(frames, count, original)
+        }
+    }
+    machine release(frames: &mut [Frame; 2], count: u64, original: u32,
+        handle: i64 in FileHandle) -> u32
+    requires count < 2 && (handle as -FileHandle) != 0 {
+        transition { _ -> block next(frames, count, original) }
+    }
+}
+"#;
+    let negative = SOURCE.replacen(
+        "    requires count < 2 {\n",
+        "    requires count < 1 {\n",
+        1,
+    );
+    assert_ne!(negative, SOURCE);
+    for (source, accepts) in [(negative.as_str(), false), (SOURCE, true)] {
+        let typed = boundary_calls::typed(source);
+        let entry = boundary_calls::entry(&typed);
+        let elaboration = crate::lowering::elaborate_for(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect("the copied frame cycle lowers");
+        let callee_start = source.find("block close(").unwrap() + "block ".len();
+        let mut arrivals = Vec::new();
+        for (machine, sources) in elaboration.sources.iter() {
+            let tables = elaboration.tables.machines.get(machine).unwrap();
+            for (edge, origin) in sources.edges.iter() {
+                if origin
+                    .span()
+                    .is_none_or(|span| span.span.start != callee_start)
+                {
+                    continue;
+                }
+                let (obligation, row) = tables
+                    .obligations
+                    .iter()
+                    .find(|(_, row)| row.kind == (ObligationKind::ArrivalInvariant { edge }))
+                    .expect("the actual close edge owes its arrival invariant");
+                assert_eq!(row.created_at, ProgramPoint::Edge(edge));
+                assert_eq!(sources.obligations.get(obligation), Some(origin));
+                arrivals.push((machine, obligation, edge, *origin));
+            }
+        }
+        assert!(
+            !arrivals.is_empty(),
+            "the authored close arrival must survive lowering"
+        );
+        let verdict = judge(Ok(elaboration)).unwrap();
+        if accepts {
+            match verdict {
+                RouteVerdict::Accepted(accepted) => {
+                    accepted.publish_invocation().unwrap();
+                }
+                other => panic!("the selected copied payload must retain its domain: {other:?}"),
+            }
+        } else {
+            assert!(
+                matches!(&verdict, RouteVerdict::Rejected {
+                    formations, violations, unproved, unestablished, conflicts, exceeded
+                } if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
+                    && conflicts.is_empty() && exceeded.is_empty() && !unproved.is_empty()
+                    && unproved.iter().all(|row| {
+                        row.cause == UnprovedCause::NoDerivation
+                            && row.statement.contains("call close from pop")
+                            && arrivals.iter().any(|&(machine, obligation, edge, origin)| {
+                                row.machine == machine && row.obligation == obligation
+                                    && row.kind == (ObligationKind::ArrivalInvariant { edge })
+                                    && row.site == origin
+                            })
+                    })),
+                "the stricter count must refuse its exact authored close arrival: {verdict:?}"
+            );
+        }
+    }
+}
+
 /// Build's Source dispatch forwards a shared builder and the selected payload.
 /// Its Git case contains another sum, passed to the helper that selects it.
 #[test]

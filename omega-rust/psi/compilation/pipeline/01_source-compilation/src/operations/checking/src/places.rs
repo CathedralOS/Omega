@@ -668,6 +668,9 @@ pub(super) struct Reaching {
     boundary: BoundaryDepth,
     initialization_only: bool,
     observations: Observations,
+    /// Only an actual selected dispatch payload may condition type provenance.
+    /// Ordinary reads, value equations and initialization leave this absent.
+    selected_payload_case: Option<StructuralCaseId>,
     remaining: usize,
     crossed_entries: Vec<bool>,
     // Entries whose current selector evaluations justify a reaching store.
@@ -1009,6 +1012,7 @@ struct Touch<'a> {
 /// One payload parameter a dispatch binds (`Storage::bound_payloads`).
 struct BoundPayload<'a> {
     edge: EdgeId,
+    case: StructuralCaseId,
     /// The arm's block, which declares the parameter.
     target: BlockId,
     /// The payload leaf of the subject it is bound from.
@@ -2852,6 +2856,85 @@ impl<'a> Storage<'a> {
             }
             // Only a store into the place or above it replaces it whole; one
             // beneath it or beside it leaves contents this route cannot name.
+            // A whole replacement by another case either misses this fixed
+            // array cell or cannot supply its selected payload. Retain earlier
+            // suppliers without granting a value or type boundary here.
+            if !weakened
+                && matches!(asked, Asked::Contents(_))
+                && budget.observations == Observations::Boundary
+                && matches!(row.stored, Stored::Case(_) | Stored::Moved(_))
+                && let Some(selected) = budget.selected_payload_case
+                && let Some(sum) =
+                    self.selected_payload_cell_family(&row.backing, watched, selected, concerns)?
+                && matches!(self.shape(&row.destination, concerns)?,
+                    Shape::Typed(destination) if destination == sum)
+            {
+                let before = row.position - 1;
+                let stored = match &row.stored {
+                    Stored::Case(case) => Some(*case),
+                    Stored::Moved(source)
+                        if source.segments.is_empty()
+                            && matches!(self.shape(source, concerns)?,
+                            Shape::Typed(source_type) if source_type == sum) =>
+                    {
+                        match self.root_kind(source.root, concerns)? {
+                            StructuralPlaceKind::OperationResult { producer, .. } => {
+                                let produced =
+                                    self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+                                let declared_case = match &self.operation(producer, concerns)?.kind
+                                {
+                                    OperationKind::EstablishScalarCase { result_case, .. }
+                                    | OperationKind::EstablishStructuralCase {
+                                        result_case, ..
+                                    } if produced.0 == row.block && produced.1 <= before => {
+                                        Some(*result_case)
+                                    }
+                                    _ => None,
+                                };
+                                if produced == (row.block, before) {
+                                    declared_case
+                                } else if declared_case.is_some() {
+                                    // A fresh constructor may have been overwritten
+                                    // before transfer; ask the existing prestate walk.
+                                    let mut cases = self.budget();
+                                    cases.remaining = budget.remaining;
+                                    match self.reaching(
+                                        references,
+                                        tables,
+                                        Asked::Case(source, None),
+                                        (row.block, before),
+                                        &mut cases,
+                                        concerns,
+                                    )? {
+                                        Reached::Case(case) => Some(case),
+                                        _ => None,
+                                    }
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(stored) = stored
+                    && stored != selected
+                    && matches!(&self.declaration(sum, concerns)?.shape,
+                        StructuralTypeShape::Sum { cases } if cases.iter().any(|case| case.id == stored))
+                {
+                    return self.reaching_backing_supply(
+                        references,
+                        tables,
+                        asked,
+                        watched,
+                        (row.block, before),
+                        0,
+                        budget,
+                        concerns,
+                    );
+                }
+            }
             let beneath = if let Some(suffix) = row
                 .backing
                 .relative_suffix(watched, &budget.crossed_entries)
@@ -3979,6 +4062,7 @@ impl<'a> Storage<'a> {
             boundary: BoundaryDepth::Cycle,
             initialization_only: false,
             observations: Observations::None,
+            selected_payload_case: None,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             selector_entries: Vec::new(),
@@ -4110,7 +4194,7 @@ impl<'a> Storage<'a> {
             references,
             tables,
             &leaf,
-            (result.id, result.scalar_type),
+            (result.id, result.scalar_type, None),
             (block, before),
             concerns,
         )?);
@@ -4158,17 +4242,18 @@ impl<'a> Storage<'a> {
         references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         leaf: &Lineage,
-        observed: (ValueId, ScalarType),
+        observed: (ValueId, ScalarType, Option<StructuralCaseId>),
         at: (BlockId, usize),
         concerns: Construct,
     ) -> Checked<Vec<Proposition>> {
         let (block, before) = at;
-        let (observed, scalar_type) = observed;
+        let (observed, scalar_type, selected_case) = observed;
         // Follow the storage to the value that was established. Named
         // contents retain their original path. With no single name, the
         // trace retains only the part of the current path established on
         // every arrival, inside the value supplied by another machine.
         let mut budget = self.provenance_budget();
+        budget.selected_payload_case = selected_case;
         let reached = self.reaching(
             references,
             tables,
@@ -4317,6 +4402,7 @@ impl<'a> Storage<'a> {
                 leaf.segments.push(Segment::Field(*field));
                 bound.push(BoundPayload {
                     edge: edge.edge,
+                    case: edge.case,
                     target: edge.target,
                     leaf,
                     parameter,
@@ -4394,7 +4480,11 @@ impl<'a> Storage<'a> {
                 references,
                 tables,
                 &bound.leaf,
-                (bound.parameter.id, bound.parameter.scalar_type),
+                (
+                    bound.parameter.id,
+                    bound.parameter.scalar_type,
+                    Some(bound.case),
+                ),
                 (bound.target, 0),
                 Construct::Edge(bound.edge),
             )? {
