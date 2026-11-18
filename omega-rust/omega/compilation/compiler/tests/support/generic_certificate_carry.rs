@@ -10,7 +10,7 @@ use std::path::Path;
 
 use semantic_vocabulary::MachineId;
 use source_compiler::checking::{
-    ProofSearchActivity, Selection, discharge, reverify_specialization,
+    Discharged, ProofSearchActivity, Selection, discharge, reverify_specialization,
 };
 use source_compiler::lowering::Elaboration;
 use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
@@ -45,7 +45,8 @@ fn kind(
     }
 }
 
-/// One line per obligation of `machine` that takes a certificate.
+/// Report proof results and any refusal. A valid loan is checked by the
+/// ownership checker and has no certificate to reuse.
 fn report(
     label: &str,
     main: &Path,
@@ -61,7 +62,7 @@ fn report(
     };
     for (obligation, verdict) in result.verdicts.iter() {
         let kind = kind(elaboration, machine, obligation);
-        if kind == "published" {
+        if kind == "published" || matches!(verdict, Ok(Discharged::Lent)) {
             continue;
         }
         let (outcome, detail) = match verdict {
