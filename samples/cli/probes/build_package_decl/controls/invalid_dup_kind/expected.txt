@@ -1,1 +1,1 @@
-project source discovery failed: Build declared the application role more than once (`invalid_dup_kind` and `invalid_dup_kind2`)
+project source discovery failed: Build declared the application project role more than once (`invalid_dup_kind` and `invalid_dup_kind2`)

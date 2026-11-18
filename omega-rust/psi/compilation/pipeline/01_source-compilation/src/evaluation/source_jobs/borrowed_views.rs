@@ -526,9 +526,10 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
         .map(|machine| source.machine_states(machine)[0].symbol)
         .unwrap();
     assert!(source.access_borrow_factory(relay_entry).is_none());
-    let exact_sources =
-        source_admission::source_identity::toolchain_source_identities(source.symbols.source_files())
-            .expect("the existing frozen borrow sources have exact identities");
+    let exact_sources = source_admission::source_identity::toolchain_source_identities(
+        source.symbols.source_files(),
+    )
+    .expect("the existing frozen borrow sources have exact identities");
     let signature = source
         .bodyless_callable_signature(application, target, &exact_sources)
         .unwrap()

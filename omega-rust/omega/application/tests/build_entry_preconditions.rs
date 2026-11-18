@@ -75,7 +75,7 @@ fn a_build_entry_requirement_false_of_the_evaluator_stops_the_build() {
 
 #[test]
 fn a_build_entry_requirement_over_the_build_is_refused_by_name() {
-    let (compiled, stderr) = check("argument", "builder.freestanding == false");
+    let (compiled, stderr) = check("argument", "builder.tests.disabled == false");
     assert!(!compiled);
     assert!(
         stderr.contains("a build entry `requires` clause over its arguments"),
