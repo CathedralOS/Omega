@@ -21,18 +21,30 @@ its bytes in `program.gamma` before constructing the compilers, then runs
 `program` executable. An invalid program leaves the rebuilt Gamma compiler
 available and returns the producer's failure status.
 
-The Delta compiler is one such input. Its constructor consumes the existing
-ordered Gamma source stream comprising the canonical entry and all manifested
-implementation members. Supply that materialized file as the third argument.
+A checkout carries the complete readable Delta compiler source as `delta.gamma`.
+It comprises the canonical entry followed by every implementation member in
+the existing manifest order. To construct the native Delta compiler, run
 
 ```sh
-bootstrap/linux_x86_64/bootstrap . /tmp/omega-delta /path/to/delta.gamma
+bootstrap/linux_x86_64/bootstrap . /tmp/omega-delta bootstrap/linux_x86_64/delta.gamma
 ```
 
-Source membership, byte checks and order for that file belong to the existing
-Delta source materializer. A build from separate repository members still
-needs that packing step before this invocation. With a previously constructed
-Gamma compiler, `gamma-compiler < delta.gamma > delta` emits the same bytes.
+The executable is `/tmp/omega-delta/program`. With a previously constructed
+Gamma compiler, `gamma-compiler < bootstrap/linux_x86_64/delta.gamma > delta`
+emits the same bytes. The cold command reads the distributed file directly.
+
+Edit the canonical Delta entry and members in `bootstrap/interpreted/3_delta/`. When
+those sources change, refresh the distribution from the repository root.
+
+```sh
+mbx xtask source-closure bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources \
+    bootstrap/linux_x86_64/delta.gamma --prefix bootstrap/interpreted/3_delta/delta_compiler.gamma
+```
+
+The Delta identity test reruns the existing materializer and compares its
+output with the distributed file byte for byte. This adds one readable copy of
+the compiler source to the checkout and keeps manifest parsing, inventory
+checks and hashing in distribution maintenance.
 [Delta source ownership](../interpreted/3_delta/README.md#selected-staged-delta-compiler)
 
 ## Follow the construction
