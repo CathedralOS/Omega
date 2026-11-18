@@ -3795,19 +3795,47 @@ impl<'t> Program<'t> {
         let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
-            let Some(slot) = slot else {
+            if let Some(slot) = slot {
+                let lender = &slots[slot];
+                if !explicit && lender.borrowed.is_none() {
+                    return unserved("argument for a borrowed formal that is not a borrow");
+                }
+                if !names_storage(&place) {
+                    return unserved("borrow of a value that is not a place");
+                }
+                if access == ReferenceAccess::Mutable
+                    && lender.borrowed.is_none()
+                    && !lender.assignable
+                {
+                    return unserved("exclusive loan of an immutable binding");
+                }
+            } else if explicit && self.typed.expression_const_declaration(operand).is_some() {
+                if access != ReferenceAccess::Shared {
+                    return Err(crate::lowering::reject(
+                        id,
+                        source,
+                        "a constant has no writable storage to borrow",
+                    ));
+                }
+                // The constant names a value. Give this use its own
+                // storage before forming the shared loan.
+                let scalar_home = place
+                    .result
+                    .and_then(ValueType::scalar)
+                    .map(|scalar| self.plain_scalar_storage(id, scalar))
+                    .transpose()?;
+                place = Expression {
+                    call_context: None,
+                    result: place.result,
+                    source: place.source,
+                    kind: ExpressionKind::OwnedTemporary {
+                        occurrence: argument,
+                        value: Box::new(place),
+                        scalar_home,
+                    },
+                };
+            } else {
                 return unserved("borrow of a value that is not a place");
-            };
-            let lender = &slots[slot];
-            if !explicit && lender.borrowed.is_none() {
-                return unserved("argument for a borrowed formal that is not a borrow");
-            }
-            if !names_storage(&place) {
-                return unserved("borrow of a value that is not a place");
-            }
-            if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable
-            {
-                return unserved("exclusive loan of an immutable binding");
             }
         }
         let lender_text = self.typed.expression_table.display_name(argument);
@@ -4208,7 +4236,8 @@ impl Touches<'_> {
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Zero
             | ExpressionKind::Boolean(_) => Ok(false),
-            ExpressionKind::Not(operand)
+            ExpressionKind::OwnedTemporary { value: operand, .. }
+            | ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)

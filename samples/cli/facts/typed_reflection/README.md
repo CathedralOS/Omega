@@ -9,10 +9,11 @@ ordinary noncopyable forty-field subject. The callback's exact
 static type application chooses a scalar conversion, accumulates an ordered
 checksum, counts invocations, and checks each description's position. These
 observations distinguish omission, duplication, wrong field projection, lost
-field type, and reordered calls. The unsigned branch passes its exact type
-world to a captured helper with a narrower four-type requirement. Impossible
-branches retain source formation without demanding excluded helper bodies. A callback excluding one included field type
-is the sensitive rejection obligation.
+field type, and reordered calls. The unsigned branch calls a nested helper
+whose type requirement excludes `bool`. Specialization preserves the enclosing
+type parameter so the compiler can check the helper's requirement. The
+const-name example visits a shared borrow of a fresh copy of the constant.
+The reject controls exclude one field type the visitor must handle.
 
 The row covers all nine standard transport places. The positive oracle requires
 native/Terminal agreement at exit zero; the reject excludes an included field
