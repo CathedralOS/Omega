@@ -609,7 +609,7 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
                 }}
                 machine fetch(input: &mut Input) -> u32 {contract} {{
                     {write}
-                    let found: u32 = input.values[input.index];
+                    let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
                     transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
                 }}
