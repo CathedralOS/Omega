@@ -1,0 +1,454 @@
+# Task activation and lifecycle
+
+A selected `TaskRuntime` boundary provider executes an ordinary named machine
+as a distinct activation.
+`TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(runtime_authority, job)`
+and the matching `TaskRuntime::try_start` are boundary
+requirements invoked by path like any other; there is no receiver value, and
+the provider behind them is a build selection. The machine argument is a
+compile-time machine symbol, not capture inference or a runtime function
+value. The final static argument is the compile-time
+[storage plan](#storage-plans) selected for the new activation. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
+transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
+describe only what the start/control operation may do to its caller.
+
+Runtime machine values are a separate facility. Their acceptance does not change
+these static entry APIs or grant task authority: use a statically selected
+trampoline with explicitly passed callable/context data when required, under
+all ordinary entry, lifetime, effect and custody contracts.
+
+Root profiles may select default providers and owners may override their slots,
+but starting/controlling a task still requires a held runtime capability.
+Selection does not grant ambient authority.
+
+## Runtime providers and call authority
+
+Named decision: `sealed-runtime-providers`, settled 2026-11-12. Task runtimes
+are ordinary selected packages over the existing owned-activation boundary.
+The compiler is responsible for activation lowering, preservation, plan checking
+and checked control transfer; allocation, queues, scheduling, capacity management
+and lifecycle bookkeeping are runtime-package responsibilities. Exact core
+recognition of `TaskRuntime::start`/`try_start` and a generated activation plan
+do not establish that an executor exists or that these responsibilities have
+been implemented. A provider must not depend on private compiler frame layouts
+or arbitrary continuation addresses to use the admitted activation operations.
+
+`start` and `try_start` take an explicit runtime-authority value or borrow before
+the job arguments. Its checked qualification and retained provenance authorize
+use of the particular runtime instance and applicable execution context before
+the call. The parameter is ordinary explicit data, not another provider selector
+or a receiver. Public visibility, core import, `reaches` and provider selection
+cannot supply the missing input obligation. Apply the same protection to every
+lower-level activation/control-transfer entry, or make it inaccessible except
+through a genuinely checked restricted route under
+[initial-call authority](../resources/authority.md#initial-call-authority).
+
+Restricted issuance controls who can establish the runtime qualification;
+its call preconditions and access policy control authorized use. An unrestricted
+domain merely named Authorized is insufficient. An admitted entry may establish
+initial authority under its exact contract, and checked code may delegate or
+forward it without an endless chain of new tokens. Selection chooses the code;
+it does not mint runtime authority. Ordinary native/boundary admission preserves
+its assumptions and physical-authority obligations; an assumed binding is not
+a routine repair for a missing proof, capability contract or realization.
+
+Authority to start work is independent of available capacity. `start` must
+establish the required reservation/backing and custody before execution;
+`try_start` may decline and returns the arguments and resources it did not
+retain. A qualification does not manufacture storage. Startup and lifecycle
+operations must agree on runtime instance, activation identity, backing custody
+and settlement. Fabricated provider/activation fields do not establish a real
+task claim, and owning `Task<T>` alone grants no execution custody.
+
+The selected runtime also supplies its
+[synchronization contract](../language/concurrency.md#completion-and-finite-capacity):
+which worker slots, execution leases and other capacity it retains or releases
+during a wait, and how completion becomes enabled. Suspension alone establishes
+no release of those resources. Closed composition checks self/circular completion
+and exhaustion by parents awaiting work that needs their retained capacity;
+helping, release or independent reservations need their actual checked/admitted
+protocol, not a provider name or nominal worker count.
+
+A root profile may select a shipped ordinary reference provider as a default;
+there need not be one universal runtime. A configuration that cannot realize
+the demanded task behavior rejects explicitly rather than substituting a no-op.
+Ordinary authored providers need checked bodies or legitimate admitted native
+bindings; only exact compiler primitives use sealed custody. Refusing false
+compiler-backing claims is independent of implementing the missing providers:
+neither keeps the other pending, and refusal-only or plan-only tests do not
+complete executable task delivery. See the
+[runtime/provider acceptance](../../drafts/designs/runtime_provider_authority.md#acceptance).
+
+## Three owners
+
+| Relationship | Responsibility |
+| --- | --- |
+| Execution custody | The unique right to run and resume the activation: a runtime under its pinned provider contract, or source holding the linear execution claim. |
+| Physical storage | Accountable backing and lifetime for activation state. |
+| `Task<T>` ownership | Linear right and obligation to observe, cancel-request, transfer, or settle that activation. |
+
+`Task<T>` need not contain or borrow the stack; its provider/activation identity
+and lifecycle authority are distinct. Arena pools, hosted providers, remote
+executors, and inline execution can satisfy the same task contract without
+sharing one storage representation. Inline completion may shorten storage
+lifetime or embed an outcome, but does not settle the returned linear claim.
+
+## Activation description and stack
+
+The compiler monomorphizes the machine argument and derives an activation
+description retaining exact machine contract/entry, argument/outcome layouts,
+target calling plan, the selected storage plan with its whole-call-graph WCSU
+`StackPlan<M>`, canonical suspension
+crossings with live carry demands, activation-wide CPU/thread preservation,
+and cancellation/operational behavior required by the selected start operation.
+Planning is a generated artifact, not an implicit representation-identical cast.
+
+### Storage plans
+
+Named decision: `activation-storage-plans`, settled 2026-11-10. An activation
+is an unfinished machine invocation with unique execution custody. Suspension
+preserves its incomplete calls, control state, live values, claims, loans,
+pending operations and cleanup obligations without establishing a result or
+committing a return edge. How that state is stored is a checked storage plan,
+not part of what suspension means.
+
+A plan provides three things and proves they suffice:
+
+| Part | Holds | Lifetime |
+| --- | --- | --- |
+| Retained backing | Everything that must survive a park | The whole activation, including while parked |
+| Execution backing | Call frames and temporaries of a running segment that do not survive a park | One execution lease |
+| Transition storage | Entry, saving, restoring and switching overlap | The transition |
+
+The plan also establishes every address, CPU, thread and lifetime preservation
+the activation requires. Its capacity is covered by provisioned resources
+before execution can need it, so ordinary calls and suspension acquire no
+storage-exhaustion outcome under any plan. An object whose address must survive
+a park is given its retained home before that address is exposed; relocating it
+at the park is too late.
+
+The plan is selected where the activation is created, by a compile-time
+`ActivationStorage` argument:
+
+```omega
+machine serve(request: Request) -> Reply suspends { ... }
+
+let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(runtime_authority, move first);
+let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(runtime_authority, move second);
+```
+
+- The machine being run does not choose. No machine declaration, `suspends`
+  clause, package or component carries a storage mode, and one entry machine
+  may be started under either plan.
+- The selection is a static argument, and the compiler lowers the activation's
+  code for it. A provider cannot change the plan of code that was not lowered
+  for it, and nothing reselects it at run time.
+- It holds for the activation's whole life. Ordinary calls run within the
+  current activation's plan. Moving or resuming the activation keeps its plan,
+  and a receiving executor must support it.
+- It is not inherited. An activation started from inside another names its own
+  plan at its own start.
+- A machine that starts activations on behalf of its caller takes the plan as
+  an ordinary static parameter, `<const Storage: ActivationStorage>`, and
+  passes it on, so the caller keeps the choice.
+- A selection the toolchain, provider or supplied backing cannot realize
+  rejects at build or admission. One plan is never substituted for another.
+- Capacity is whole-program. The build sums the retained demand of every
+  admitted activation and sizes shared execution backing for the deepest
+  activation that may borrow it. It accounts; it does not choose.
+
+#### `Fixed`
+
+The activation receives one fixed nonmoving stack and retains it while parked.
+Retained backing is that whole stack, and execution uses the same stack, so
+there is no separate execution lease. Direct suspension allocates no separate
+continuation buffer. Final frame
+and spill demand, alignment, entry overhead, and live call chains feed WCSU;
+a numeric fit alone supplies no `StackLease`. Before execution the provider
+must establish backing satisfying the exact plan. Remote execution provisions
+the equivalent in its
+execution domain; inline execution still has an accountable stack provision.
+Nonmoving frames preserve addresses relied on by live loans and outstanding
+operations across suspension. The cost is the full worst-case stack for every
+live activation, including every parked one.
+
+#### `Split`
+
+Retained backing holds every frame and place that can be live across a park
+and every object whose address must survive one. Execution backing is borrowed
+from the execution owner for call chains that complete without parking, and
+may serve another activation once the lease ends. The lease ends only when the
+running segment has returned control and every surviving dependency has a
+retained home or has ended.
+
+A realization may be conservative. Retaining the whole frame of every machine
+that can park is valid; placing only the state live at a park in retained
+backing is a refinement within the same plan. Reported retained demand is the
+demand of the realization actually chosen, with its return information,
+alignment, descriptor and transition overhead, never an estimate of live
+values.
+
+Shared execution backing is counted by resident execution, not by worker.
+Synchronous reentry, stepping a child activation, a nested interrupt or
+external-entry adapter and a blocking native call each keep an execution
+segment live, and the plan covers the complete permitted nesting under the
+[entry-stack](../resources/entry_stacks.md#domains-and-epochs) composition
+rules. A ready activation waiting for execution backing is a scheduling state,
+not an allocation failure inside a call.
+
+Native code with no published resumption interface keeps its actual call state
+valid. Such a boundary keeps a fixed segment for that call, uses an accounted
+adapter, or rejects the selection; `suspends` alone does not make an opaque
+native frame reconstructible. Checked Psi can be lowered under either plan, and
+a separately compiled component publishes its retained and execution demand
+with its calling and resumption contract.
+
+#### Stopped states
+
+Only source suspension may release execution backing:
+
+| Event | Storage consequence |
+| --- | --- |
+| Source suspension | The plan preserves the incomplete call and its frontier. Execution backing is released when nothing surviving depends on it. |
+| Interpreter budget pause | The paused interpreter state is preserved as it stands, including temporaries that exist at no source suspension point. |
+| Architectural preemption | The native execution state stays resident unless a separate valid mechanism preserves it elsewhere. |
+
+A realization maps every stopped state it supports to enough retained control
+and data to resume the same computation exactly once: which call is incomplete,
+where each caller continues, pending request and reply identity, whether an
+external effect has happened, and the cleanup position. An internal parked
+indication from a lowered call is not a source return. It establishes no
+result, runs no return cleanup and settles no argument.
+
+### Backing guarantee
+
+The provider must guarantee usable backing for the plan's retained part
+throughout the activation, including while parked, and for its execution part
+whenever the activation runs. Under `Fixed` that is the full stack plan
+throughout. Its contract states the reservation and
+physical-commitment policy; deferred commitment must preserve that guarantee.
+Reserving an address range alone does not establish sufficient backing.
+Guaranteed backing whose pages become resident on first touch is a permitted
+hosted policy: it changes residency, never the plan or the bound, and a serviced
+fault inside the plan is an implementation event, not an outcome. A
+persistently inaccessible region beyond the plan defends against a false
+foreign premise; it is not a growth mechanism, and reaching it is governed by
+the provider's declared containment policy.
+
+Target/provider selection and physical plans remain in the
+[build-owned companion](../terminal-psi/product.md#build-owned-companion), not
+Psi checked semantics. `05_task_activations.json` reports activation/stack plans,
+canonical crossing identities, and preservation obligations.
+`05_carry_manifest.json` reports the checked typed live-value/storage frontier;
+tools consume it rather than re-reading source. Report emission does not establish
+provider custody, a complete WCSU producer theorem, or executable task support.
+
+Static binding retains the exact selected runtime plan and authored start or
+try-start requirement. Reject missing/duplicate selection, requirement drift,
+or narrowing of the published static-machine contract. The domain-separated
+specialization commitment binds operation, exact checked requirement,
+package-qualified ownership and target/entry signature with parameter modes,
+and machine-contract commitment. Compact specialization coordinates are reports.
+
+The runtime invocation receipt must join that static description, exact provider
+plan/operation, activation plan, runtime instance, and required preservation
+evidence. Invocation and receipt identities are single-use within that instance.
+Static plans are not invocation receipts or routed source establishment.
+
+## Transactional start
+
+`start<M>` returns `Task<T>` when capacity/admission obligations are discharged.
+`try_start<M>` handles genuine dynamic capacity/environmental uncertainty with
+`StartOutcome<T, Arguments>`: `Started(task)` or
+`Rejected(arguments, reason)`. Known static plan/provider incompatibility rejects
+validation or admission rather than becoming avoidable runtime failure.
+
+Rejection returns every moved argument and caller-supplied reservation/lease,
+or proves transfer to another named authorized owner. No linear value disappears
+in a failed provider call. A pending task is returned only after provider custody
+and compatible storage exist. Reservation remains real authority under
+interference: an `available >= 1` fact suffices only with permission preventing
+another starter from spending that capacity.
+
+## Linear task claim
+
+`Task<T>` is linear. `TaskLifecycle::request_cancel(&task)` retains the claim; it
+requests a transition, not proof that execution stopped.
+`TaskLifecycle::finish(move task)` terminally
+consumes it and returns ordinary `TaskOutcome<T>` cases `Cancelled`, `Returned(value)`,
+or `Failed(receipt)`. Application-level recoverable errors remain inside `T`;
+the outer sum describes lifecycle outcomes. Trap/abort remain declared crash
+routes, not fabricated returned cases. Generic result containers retain each
+active payload's substituted linear debt.
+
+These operations declare ordinary explicit parameters: `task: &Task<T>` for
+cancellation and `task: Task<T>` for completion. Carrier qualification supplies
+no implicit argument or storage, and consuming completion retains its declared
+suspension and blocking contract.
+
+The task can move into a record, selected case, or ordinary supervisor, thereby
+transferring its obligation. Copying, overwriting, branch loss, scope drop, or
+implicit fire-and-forget cannot discharge it. Automatic cleanup cannot join,
+park, fail, or settle the task. A combined terminal stop operation exposes its
+own cancellation/wait/failure contract.
+
+Provider provenance is permission state, not an extra nominal result parameter.
+A task backed by borrowed/partitioned storage cannot outlive it. Closing a local
+runtime/pool or reclaiming storage requires reconciliation of every child claim
+and lease. An owned child lease, pinning provenance edge, or transferred
+reservation may implement this invariant; none is a second source task type.
+
+One ledger belongs to one admitted runtime instance. Each accepted child records
+exact activation admission and either storage owner/lease era or admitted inline
+completion. Cancel requests retain that record. Settlement removes only the
+matching claim and storage relationship; cross-instance failure returns the
+claim. Reuse requires a fresh activation/lease era, not replay of old evidence.
+
+## Suspension and cancellation
+
+[Terminal suspension](../terminal-psi/calls_and_outcomes.md#suspension) owns the
+incomplete call and its exact live frontier. Parking establishes no result or
+cleanup edge; resumption continues that same invocation. The parked frames are
+compiler-owned and never an addressable field of `Task<T>`; the right to resume
+them is the [execution claim](#owned-activations-and-typed-replies).
+
+Cancellation is cooperative and arrives through ordinary outcomes at declared
+wait/safe points. Requesting it cannot dispose a parked continuation or unwind
+arbitrary frames. Source follows the resulting normal control flow and cleans
+up as frames retire; only the terminal task operation settles the external
+claim. A never-suspending task may be finishable without being cancellable.
+
+Architectural preemption may preserve opaque state at any instruction without
+becoming semantic suspension or granting migration/replacement/cancellation.
+Semantic safe points require explicit may-suspend calls or authored scheduling
+operations such as a poll. State transitions, backedges, ordinary calls,
+allocation, and optimizer locations are not implicit safe points. Optimizations
+cannot insert may-suspend polls into a non-suspending kernel.
+
+Blocking creates no semantic safe point. Without a finite wait ceiling, it
+leaves cancellation finalization/quiescence/structured response unbounded;
+reports retain the responsible call/path and bounded surrounding computation.
+Restricted [logical-work analysis](../resources/logical_work.md) may certify a
+segment ending at the next safe point, but WCSU proves space, not response or
+wall time. Bounded-response/termination profiles need accepted finite-wait
+evidence for any otherwise unbounded wait.
+
+## Carry and loans
+
+Starting with a retained exclusive reference excludes conflicting parent access.
+Move independent work, split provably disjoint places, or use synchronized
+capabilities. A live reference carrier alone does not authorize a loan across
+park: its exact crossing needs storage lifetime/pinning, aliasing, cancellation-
+outcome, and address-stability evidence. Implementation may conservatively reject
+unsupported loans, but blanket loan death is not the language rule.
+
+[Carry](../resources/carry.md) remains demand-driven. Local possible-suspension
+checks cannot be weakened by runtime selection. A runtime establishes each
+required CPU/thread preservation axis by checked construction or exact admitted
+receipt; portable activations demand neither. A host able to migrate outside
+semantic points must establish activation-wide preservation when possible live
+values need it. Address stability follows from the selected plan's retained
+homes, which under `Fixed` is the nonmoving lease, not a freely
+asserted runtime property. Provider identity and evidence travel with the task.
+
+Cancellation conformance, inline completion, and stack reservation are separate
+operation/resource facts, not fields of a universal runtime behavior lattice.
+The runtime must implement the cancellation request contract exposed by `Task`;
+that does not promise every task eventually observes the request.
+
+## Owned activations and typed replies
+
+Named decision: `owned-activations`, settled 2026-11-09;
+[the design draft](../../drafts/designs/owned_activations.md) records the
+stages. Source may hold unique execution custody over an activation as a linear
+claim. Generators, schedulers and tasks are libraries over it.
+[Storage plans](#storage-plans), `suspends`, `blocks` and their call-site
+markers keep their meanings;
+there is no `yield` keyword, yielding contract clause or generator-colored
+machine.
+
+An activation is prepared from an exact entry machine and its arguments, its
+checked storage plan, which carries the `ActivationStorage` selection, and
+explicitly supplied compatible retained backing. Preparation runs
+nothing, and a failed preparation returns every argument and resource it did not
+take into custody. Retained backing stays fixed while the activation is live,
+including while suspended; moving the claim moves no storage. Stepping requires
+the plan's execution backing through the step operation's resource contract:
+under `Fixed` the retained stack is all of it, and under `Split` the caller
+supplies it or invokes a runtime that holds it. The compiler supplies plan
+checking and control transfer; allocation, pooling and capacity are library
+policy.
+
+Stepping a ready activation runs it until it returns or actually parks. It
+yields either the result with the backing obligations settled, or custody of the
+suspended activation with its pending protocol. There is no compiler-known
+yielded outcome, and the running state and a usable claim never coexist. Stepping
+does not park the caller. Its reach includes the child operations that may run,
+blocking and crash routes are preserved, storage and loans stay accounted while
+parked, and termination needs evidence that the resumption reaches an actual
+stop. The lowest-level park always hands control to the execution owner; a
+higher-level wait that completes immediately does not invoke it. This is a
+compiler-recognized activation boundary, not an ordinary wrapper.
+
+A park point retains its exact suspension occurrence, the live activation with
+its ownership and loan state, the published request, and the contract a reply
+must satisfy. Resuming requires the suspended activation together with the
+matching admissible reply; the pairing is checked, and a mismatched or stale
+reply returns both unchanged. No operation turns an arbitrary value into
+readiness. A reply means what its park contract says: a notification to recheck
+authorizes re-inspection, and only a completed outcome with its custody evidence
+establishes completion. An early reply cannot start concurrent execution, and a
+wait protocol subscribes before concluding it is pending or rechecks after
+subscribing.
+
+Payloads travel through typed endpoints the protocol owns. Receiving produces
+the item and a one-shot capability to answer that exact publication, so no type
+is recovered from an opaque pause; a scheduler handles pending packages through
+their checked callable fields under [`some`](../language/some_packages.md). A
+generator is a rendezvous library: its `emit` is an ordinary suspending operation
+on a typed endpoint, and its consumer answers continue or stop. Stop is handled
+by the producer's normal control flow and cleanup. A suspended activation is
+never discarded; a protocol without a stop reply is drained or its obligation
+transferred, and closing may itself suspend. `Task<T>` remains the separate
+observation and settlement claim and grants no execution custody.
+
+The foundation above preserves existing loans, borrowed inputs and carry demands
+across suspension and supports owned or copied items. Two extensions follow
+independently. A suspension lease hands a reference into paused local storage to
+the consumer, exposing only the published payload and blocking acknowledgment
+while reborrows live. A pause-protocol contract names the protocol and scoped
+endpoint through which a machine may park; it is published and may be inferred,
+because parking is bounded by the endpoints a machine holds, and it supports
+per-step progress, where each requested step reaches a stop. Until it exists, a
+manual generator interface keeps an other-pending-work outcome and a general
+`next` may suspend. Compiler-backed activation declarations and the basic
+rendezvous and generator library live in core; executors, pools and host wait
+adapters are packages.
+
+## Library and foreign providers
+
+An Arena-backed task pool is a bounded reference package, not a language
+primitive. Provisioning fixes maximum capacity; starts/settlements still account
+dynamically. Supervisors own claims, event endpoints, and policy without
+necessarily owning frames. Completion can reach provider-held outcomes directly;
+it needs no mailbox. Mailbox storage and send/receive endpoints may have separate
+owners; closure/task death must preserve a surviving owner for every undelivered
+linear payload.
+
+The shared wait-substrate direction is a small word/value wait plus wake-one/
+wake-many boundary. Libraries may build completion, locks, barriers, queues,
+and I/O waits where the target supports that contract. It is an engineering
+direction, not permission to merge distinct host mechanisms under false
+guarantees. Wake need not park; wait's suspension/blocking and
+[positive progress](../language/termination.md#opaque-progress-profiles) remain
+independent explicit premises.
+
+Foreign execution either contributes admitted same-stack demand, declared on
+the foreign requirement as `stack N bytes`, or uses a separately provisioned
+provider stack while the caller accounts for its stub.
+[Stack demand](../resources/storage.md) and [entry stacks](../resources/entry_stacks.md)
+own composition. Callback plans/registration own inbound execution and its
+restricted synchronous graph; an ordinary hosted blocking executor is a package,
+not a task-runtime mode. Pooling guarded native stacks can spare no-block workers
+but cannot prove completion, cancellation, or shutdown. Post-return storage
+moves into a linear protocol claim; pre-return storage may be borrowed.
