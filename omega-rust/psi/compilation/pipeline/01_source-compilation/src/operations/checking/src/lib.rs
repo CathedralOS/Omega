@@ -1174,7 +1174,7 @@ fn fill_knowledge<'a>(
     }
     for block in &lowered.blocks {
         for operation in &block.operations {
-            if let Some(equation) = result_equation(id, operation, types)? {
+            if let Some(equation) = result_equation(module, id, operation, types)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1642,10 +1642,24 @@ fn semantics_refusal(
 /// Terminal semantics states it, or `None` for an operation with none (a
 /// call).
 fn result_equation(
+    module: &TerminalModule,
     machine: MachineId,
     operation: &terminal_psi::Operation,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Option<Proposition>> {
+    if let Some(equation) =
+        terminal_semantics::scalar_application_read_equation(&module.scalar_applications, operation)
+            .map_err(|reason| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Operation(operation.id),
+                    reason,
+                )
+            })?
+    {
+        return Ok(Some(equation));
+    }
     let refuse = semantics_refusal(machine, operation.id);
     if let Some(semantics) =
         terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
