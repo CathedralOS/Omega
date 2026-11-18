@@ -214,14 +214,20 @@ impl ProducedTerminalProgram {
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
+        let artifact = self.program.into_portable()?;
+        let entry_metadata = super::published_entry::issue(
+            &artifact,
+            self.source_selections.as_deref(),
+            self.provenance,
+        );
         Ok(PortableTerminalProgram {
-            artifact: Arc::new(self.program.into_portable()?),
+            artifact: Arc::new(artifact),
             evidence: self.evidence,
             build_bindings: self.build_bindings,
             build_requests: self.build_requests,
             build_filesystem: self.build_filesystem,
             applications: self.applications,
-            provenance: self.provenance,
+            entry_metadata: Arc::new(entry_metadata),
             source_records: self.source_records,
             source_selections: self.source_selections,
         })
@@ -274,14 +280,18 @@ pub struct PortableTerminalProgram {
     build_requests: TerminalBuildRequests,
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-    provenance: terminal_psi::TerminalMachineProvenance,
+    entry_metadata: Arc<terminal_psi::PublishedEntryMetadata>,
     source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
     source_selections: Option<Arc<crate::production::TerminalSourceSelections>>,
 }
 
 impl PortableTerminalProgram {
+    pub fn entry_metadata(&self) -> &Arc<terminal_psi::PublishedEntryMetadata> {
+        &self.entry_metadata
+    }
+
     pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {
-        &self.provenance
+        self.entry_metadata.machine_provenance()
     }
 
     pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
@@ -301,7 +311,7 @@ impl PortableTerminalProgram {
         application.attach(
             self.artifact.view().into(),
             Ok(&self.artifact),
-            &self.provenance,
+            self.machine_provenance(),
             &mut crate::production::ApplicationReceiptObserver(observer),
         )
     }

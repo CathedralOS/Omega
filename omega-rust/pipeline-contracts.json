@@ -4079,32 +4079,6 @@
         "executable publication"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "PublishedEntryMetadata::field:entry_custody#1",
-      "kind": "carried_record",
-      "meaning": "For each entry schema, its authenticated source declaration owner or the original refusal.",
-      "producer": "02 portable publication",
-      "signature": "c8a17a1bd404f96a104bf1ab34ea1b50d4452a6bfb18f2770cb61b4ac8314f7f"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "PublishedEntryMetadata::field:provenance#1",
-      "kind": "carried_record",
-      "meaning": "Source-attested machine provenance used to attach entry roots to emitted code.",
-      "producer": "02 portable publication",
-      "signature": "cae44430378640526cf88ca6a38e8ae1b9d551c64e65d6c5f69cbc94f33b3306"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
       "item": "PublishedProgram::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Canonical artifact bytes and their validated semantic identity.",
@@ -4248,50 +4222,11 @@
         "executable publication"
       ],
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "impl:PublishedEntryMetadata::implementation#1",
-      "kind": "definition",
-      "meaning": "Group the checked operations and read-only accessors declared for PublishedEntryMetadata.",
-      "producer": "02 portable publication",
-      "signature": "82ba927f78244fa4ec7a00c2f17fbf0a285b297eaa52c55334ac36b0abc51224"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "impl:PublishedEntryMetadata::method:entry_schema_custody#1",
-      "kind": "checker",
-      "meaning": "Read the authenticated custody or original refusal for this exact target entry schema.",
-      "producer": "02 portable publication",
-      "signature": "0b2b231a3ea2593c8dc6d8fcdfea9f1936c473f4358cef3e0b6e6467d56e309a"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "impl:PublishedEntryMetadata::method:machine_provenance#1",
-      "kind": "carried_record",
-      "meaning": "Read the original machine provenance for attaching target entry receipts.",
-      "producer": "02 portable publication",
-      "signature": "65cbae6e666c625a7fdb4a2fcad13871a57df943f2f4adbd38f173b7be4d44ef"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
       "item": "impl:PublishedProgram::implementation#1",
       "kind": "definition",
       "meaning": "Group the checked operations and read-only accessors declared for PublishedProgram.",
       "producer": "02 portable publication",
-      "signature": "7d374a9e4e25f96fe5773e823fe55f25697e254dd0f8e65679f8a4200fb3094e"
+      "signature": "ff9f3c88aa5a4e11d3ff51951e5f36454e65f45485f8b99bf9bc7b5452eb2dae"
     },
     {
       "consumers": [
@@ -4367,9 +4302,9 @@
       "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
       "item": "impl:PublishedProgram::method:from_source#1",
       "kind": "producer",
-      "meaning": "Capture the original canonical code, accepted seals, weak source owner, application state, provenance and schema custody before planning a native target.",
+      "meaning": "Retain canonical code, accepted seals, weak source owner, application state and the unchanged entry metadata issued by Psi.",
       "producer": "02 portable publication",
-      "signature": "b5ca7509c3e069ab054158aa134203a091c1087727754ded31f7d3278cb8977d"
+      "signature": "ad50a0cabe88edcadbfb65b04e17b3cbe8997b492981818f2158f0dca53a3d97"
     },
     {
       "consumers": [
@@ -4435,19 +4370,6 @@
       "meaning": "The accepted publication and package source custody used to issue the portable product.",
       "producer": "02 portable publication",
       "signature": "948d7266d4d3d8afbea5bffba0e2baf8719596eebb98b64d080ab163bcbb08a5"
-    },
-    {
-      "consumers": [
-        "compiler target selection",
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
-      "item": "struct:PublishedEntryMetadata#1",
-      "kind": "carried_record",
-      "meaning": "Machine provenance and authenticated entry declaration owners retained independently of target-specific code.",
-      "producer": "02 portable publication",
-      "signature": "8d28d6c1a28a9cb4bc6521e630fe6d26ad086ff74d156d57303676bc6ca04785"
     },
     {
       "consumers": [
@@ -4551,6 +4473,17 @@
       "meaning": "Name the std::sync::Arc interface used by this ownership boundary.",
       "producer": "02 portable publication",
       "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
+    },
+    {
+      "consumers": [
+        "published executable program"
+      ],
+      "file": "omega-rust/omega/compilation/pipeline/02_portable-publication/src/lib.rs",
+      "item": "use:terminal_psi :: PublishedEntryMetadata#1",
+      "kind": "definition",
+      "meaning": "Preserve the portable-publication API for the read-only entry metadata shared with native preparation.",
+      "producer": "Psi portable program publication",
+      "signature": "65bf45838e6e2994a081a04338cce34a920719f47124e6ab64caf6744e92cf3e"
     },
     {
       "consumers": [
@@ -19733,6 +19666,18 @@
     },
     {
       "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/published_entry.rs",
+      "item": "function:issue#1",
+      "kind": "producer",
+      "meaning": "Project each entry declaration from source selections authenticated against the exact portable artifact and retain refusals per declaration.",
+      "producer": "Psi portable program publication",
+      "signature": "a86a9051319e765e869340996adf5d7308fbf1da5e39391a026e3fe9da5576e5"
+    },
+    {
+      "consumers": [
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
@@ -21761,6 +21706,102 @@
       "meaning": "Bring the existing std::sync::{ Arc , OnceLock } declarations into the 01 source compilation module.",
       "producer": "01 source compilation",
       "signature": "20dc458c7e7775a6f2cb70859e0345a0407318e56caba151c4576441d8c9cf4a"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "PublishedEntryMetadata::field:entry_custody#1",
+      "kind": "carried_record",
+      "meaning": "For each entry schema, its authenticated source declaration owner or the original refusal.",
+      "producer": "Psi portable program publication",
+      "signature": "277d21643ea38399b256fee8a93b1404330dda6331894e7efb6bdf18400192b1"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "PublishedEntryMetadata::field:provenance#1",
+      "kind": "carried_record",
+      "meaning": "Source-attested machine provenance used to attach entry roots to emitted code.",
+      "producer": "Psi portable program publication",
+      "signature": "6f0741e9a64a2e4ceab6723f64bca0469b41ef91b715a3cad16afbf4009957cb"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "impl:PublishedEntryMetadata::implementation#1",
+      "kind": "definition",
+      "meaning": "Group the checked operations and read-only accessors declared for PublishedEntryMetadata.",
+      "producer": "Psi portable program publication",
+      "signature": "3dea4ac93ce5036238c7b8c3679a0a7fca1b84d5044ffe3340f54079cf03c9cb"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "impl:PublishedEntryMetadata::method:entry_schema_custody#1",
+      "kind": "checker",
+      "meaning": "Read the authenticated custody or original refusal for this exact target entry schema.",
+      "producer": "Psi portable program publication",
+      "signature": "9abaf616c0e97e4c32f7754f5997f33f95db838551a850af8c790531efd0bae5"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "impl:PublishedEntryMetadata::method:machine_provenance#1",
+      "kind": "carried_record",
+      "meaning": "Read the original machine provenance for attaching target entry receipts.",
+      "producer": "Psi portable program publication",
+      "signature": "7b72adcc88d05b6cf4d61e897c26a31287ce7995e611d776c1f0f705d2200343"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "impl:PublishedEntryMetadata::method:new#1",
+      "kind": "definition",
+      "meaning": "Group already projected declaration results and machine provenance as immutable data. This record alone grants no executable admission.",
+      "producer": "Psi portable program publication",
+      "signature": "2bb1e4f76bfd78849c02f0779728a0d5bb4aa3a5fe247526b5bc750231f5f57f"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "struct:PublishedEntryMetadata#1",
+      "kind": "carried_record",
+      "meaning": "Machine provenance and authenticated entry declaration owners retained independently of target-specific code.",
+      "producer": "Psi portable program publication",
+      "signature": "ac3c72b4101e924cd08810de45074f3811010358268a836b17553c7810e5d50a"
+    },
+    {
+      "consumers": [
+        "portable publication",
+        "executable entry preparation"
+      ],
+      "file": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs",
+      "item": "use:semantic_vocabulary :: compiler_evaluation :: DeclarationCustody#1",
+      "kind": "definition",
+      "meaning": "The nominal declaring authority carried for each entry schema.",
+      "producer": "Psi portable program publication",
+      "signature": "17675badaf00f11df4b4a7f602b05821323cae9bc0cf491ef1a19b823d43936a"
     }
   ],
   "roots": [
@@ -22167,6 +22208,12 @@
     },
     {
       "allowed_kinds": [
+        "producer"
+      ],
+      "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/published_entry.rs"
+    },
+    {
+      "allowed_kinds": [
         "carried_record",
         "checker",
         "definition",
@@ -22211,6 +22258,14 @@
         "test_support"
       ],
       "path": "omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_publication.rs"
+    },
+    {
+      "allowed_kinds": [
+        "carried_record",
+        "checker",
+        "definition"
+      ],
+      "path": "omega-rust/psi/compilation/representations/terminal-psi/src/published_entry.rs"
     }
   ],
   "version": 1

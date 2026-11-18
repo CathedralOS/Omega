@@ -26,6 +26,9 @@ encoded and decoded as canonical `PSITERM\0` artifacts by `terminal-codec`, vali
 target-neutral abstract operations by `00_terminal-psi-to-abstract-operations`.
 */
 
+mod published_entry;
+pub use published_entry::PublishedEntryMetadata;
+
 pub mod artifacts;
 pub mod boundary;
 mod call_contexts;
