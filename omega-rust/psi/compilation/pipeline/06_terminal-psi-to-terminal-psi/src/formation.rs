@@ -32,19 +32,31 @@ pub fn prepare_replay<'source>(
     elaboration: &'source mut terminal_check_tables::program::Elaboration,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<ReplayScope<'source>> {
-    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
-        crate::refusal(
-            RefusalReason::ForeignIdentity,
-            elaboration
-                .module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
-            Construct::Machine,
-            &format!("invalid declared scalar qualifications: {error:?}"),
-        )
-    })?;
+    let requirements = elaboration
+        .requirements
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let bodies = elaboration
+        .module
+        .machines
+        .iter()
+        .filter(|machine| !requirements.contains(&machine.id))
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    terminal_semantics::scalar_qualifications::validate_for_bodies(&elaboration.module, &bodies)
+        .map_err(|error| {
+            let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+            let (machine, detail) = match error {
+                terminal_semantics::scalar_qualifications::ScalarQualificationError::NormalResultMembership { machine, detail } => (
+                    machine.unwrap_or_else(fallback),
+                    format!("domain guarantee for the returned value: {detail}"),
+                ),
+                other => (fallback(), format!("invalid declared scalar qualifications: {other:?}")),
+            };
+            crate::refusal(RefusalReason::ForeignIdentity, machine, Construct::Machine, &detail)
+        })?;
     // Declared linear leaves owe their claims even when the producer omitted
     // every claim row. Check that premise before following the supplied rows.
     terminal_semantics::owned_structure::validate_intrinsic_claim_roots(
@@ -65,28 +77,30 @@ pub fn prepare_replay<'source>(
     })?;
     // A record formal, result or field in a domain is a contract of the
     // lowered form, judged here before anything is inferred from it.
-    terminal_semantics::structural_qualifications::validate_shape(&elaboration.module).map_err(
-        |error| {
-            crate::refusal(
-                RefusalReason::ForeignIdentity,
-                error
-                    .machine
-                    .or_else(|| {
-                        elaboration
-                            .module
-                            .machines
-                            .first()
-                            .map(|machine| machine.id)
-                    })
-                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
-                Construct::Machine,
-                &format!(
-                    "invalid declared structural qualifications: {}",
-                    error.detail
-                ),
-            )
-        },
-    )?;
+    terminal_semantics::structural_qualifications::validate_shape_for_bodies(
+        &elaboration.module,
+        &bodies,
+    )
+    .map_err(|error| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            error
+                .machine
+                .or_else(|| {
+                    elaboration
+                        .module
+                        .machines
+                        .first()
+                        .map(|machine| machine.id)
+                })
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!(
+                "invalid declared structural qualifications: {}",
+                error.detail
+            ),
+        )
+    })?;
     module(
         &elaboration.module,
         &elaboration.predicate_sources,

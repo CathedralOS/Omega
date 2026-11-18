@@ -519,9 +519,9 @@ impl Program<'_> {
         })
     }
 
-    /// Add one selected domain to an existing value. Both explicit casts and
-    /// zero construction use its issuance check and prove the actual predicates
-    /// before publishing the qualified result.
+    /// Add a domain after checking its predicates. Canonical checking decides
+    /// whether the value already proves membership or its author may issue it.
+    /// Fresh zero construction separately requires issuance authority.
     pub(super) fn add_domain(
         &mut self,
         id: MachineId,
@@ -531,7 +531,10 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        self.issue(id, domain, source)?;
+        // Calls and writes determine whether this cast forwards a proven
+        // domain or needs an authorized issuer. Canonical qualification
+        // checking judges that distinction on the actual lowered value.
+        self.domain_theory(id, domain)?;
         // "Has predicates | Prove them for this value."
         let (clauses, stated) = match (result, crate::body::DomainSet::EMPTY.with(domain)) {
             (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
@@ -667,7 +670,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let definition = self.domain_theory(id, domain)?;
-        if definition.access_policy.is_some() {
+        if definition.requires_access_retention() {
             return Err(unavailable(
                 "removal of a domain governed by an access policy",
             ));
@@ -711,30 +714,9 @@ impl Program<'_> {
         Ok(())
     }
 
-    /// Whether the machine being read may write `as +D` for the declared
-    /// domain `domain`, by who the declaration says may issue it
-    /// (`DomainDefinition::issuance`). This is the one place that judgment
-    /// is made. domains.md, "Domain-only casts":
-    ///
-    /// | Domain | Obligation of `+D` |
-    /// | Has predicates | Prove them for this value. |
-    /// | Has neither predicates nor establishment routes | None beyond carrier validity |
-    /// | Has establishment routes | Retain exact existing or authorized evidence; a cast cannot mint it. |
-    ///
-    /// A route names "an exact trait requirement or concrete machine as an
-    /// alternative authorized origin", and "An exact machine is authorized
-    /// during its invocation": the machine whose body holds the cast is one
-    /// of the routes, or the cast is rejected. A requirement route
-    /// authorizes "the invocation through that requirement and its selected
-    /// implementation": the machine that declares that requirement's edge.
-    /// A policy states its issuers in its plan. Build-time evaluation runs
-    /// the plan of each demanded domain and records its routes, which this
-    /// reads as `DomainIssuance::Only`; a plan nobody has run
-    /// (`DomainIssuance::Planned`) shows nobody to be an issuer.
-    ///
-    /// Authorization proves no predicate ("Policy authorization cannot
-    /// prove those predicates"): the cast owes the domain's predicates of
-    /// its operand whoever issues it (`domain_entry`, `predicates`).
+    /// Fresh values and mutable borrow restoration need the author's permission
+    /// to establish a domain. Forwarding existing membership is judged separately
+    /// on the lowered value, after calls and storage writes are known.
     pub(super) fn issue(
         &self,
         id: MachineId,

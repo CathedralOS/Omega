@@ -810,6 +810,13 @@ pub mod descriptor_lifetimes {
         /// reference the parameter held.
         pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// Exact value copies, including whole records with no descriptor
+        /// slots. Backing-preserving projections and content transformations
+        /// remain ordinary derivations and cannot transport membership facts.
+        pub value_transfers: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// Exact scalar inputs stored by this operation. Expanded numeric terms
+        /// can prove equalities but cannot stand in for the copied value.
+        pub scalar_value_stores: Vec<(DescriptorLocation, semantic_vocabulary::ValueId)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub inputs: Vec<DescriptorFlowInput>,
         pub may_escape: bool,
@@ -817,6 +824,16 @@ pub mod descriptor_lifetimes {
     }
 
     impl DescriptorFlowStep {
+        pub(crate) fn copy_value(
+            &mut self,
+            source: DescriptorLocation,
+            destination: DescriptorLocation,
+        ) {
+            self.value_transfers
+                .push((source.clone(), destination.clone()));
+            self.derivations.push((source, destination));
+        }
+
         pub fn transport_authority(
             &self,
             before: &BTreeSet<DescriptorLocation>,
@@ -16094,6 +16111,7 @@ pub mod descriptor_results {
                             .payload_scalar_definitions
                             .insert(position, vec![result.id]);
                     }
+                    let mut step = DescriptorFlowStep::default();
                     let scalar_store = match &operation.kind {
                         OperationKind::WriteOnlyPrimitiveStore {
                             destination,
@@ -16110,15 +16128,17 @@ pub mod descriptor_results {
                         } => Some((*destination, path.as_slice(), Some(*field), *value)),
                         _ => None,
                     };
-                    if let Some((destination, path, field, value)) = scalar_store
-                        && let Some(value) = scalar_expressions.expression(value)
+                    if let Some((destination, path, field, source)) = scalar_store
                         && let Some(destination) = location(destination, path, field)
                     {
-                        graph
-                            .scalar_payload_writes
-                            .entry(position)
-                            .or_default()
-                            .push((destination, value));
+                        step.scalar_value_stores.push((destination.clone(), source));
+                        if let Some(value) = scalar_expressions.expression(source) {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((destination, value));
+                        }
                     }
                     if let OperationKind::ScalarStructuralField {
                         source,
@@ -16161,7 +16181,6 @@ pub mod descriptor_results {
                             .or_default()
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
-                    let mut step = DescriptorFlowStep::default();
                     let is_invocation = matches!(
                         &operation.kind,
                         terminal_psi::call_structural_argument_variants!(_arguments)
@@ -16857,7 +16876,12 @@ pub mod descriptor_results {
                             };
                             if let Some(source) = source {
                                 step.replace_value_inputs([source.clone()]);
-                                step.derivations.push((source, destination.clone()));
+                                if matches!(operation.kind, OperationKind::TransformContent { .. })
+                                {
+                                    step.derivations.push((source, destination.clone()));
+                                } else {
+                                    step.copy_value(source, destination.clone());
+                                }
                             } else {
                                 step.may_escape = true;
                             }
@@ -16921,7 +16945,7 @@ pub mod descriptor_results {
                                 let destination = DescriptorLocation::whole(result.place);
                                 step.replace_value_inputs([source.clone()]);
                                 step.definitions.push(source.clone());
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             } else {
                                 step.may_escape = true;
                             }
@@ -16965,7 +16989,7 @@ pub mod descriptor_results {
                                 location(value.place, &value.path, None),
                             ) {
                                 step.definitions.push(destination.clone());
-                                step.derivations.push((source, destination.clone()));
+                                step.copy_value(source, destination.clone());
                                 if destination.path.is_empty()
                                     && !is_descriptor(
                                         module.structural_types.iter(),
@@ -17023,6 +17047,8 @@ pub mod descriptor_results {
                             )?;
                         }
                         OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                            step.scalar_value_stores
+                                .push((location(result?.place, &[], None)?, *value));
                             if let Some(value) = scalar_expressions.expression(*value) {
                                 graph
                                     .scalar_payload_writes
@@ -17039,6 +17065,8 @@ pub mod descriptor_results {
                                     result.structural_type,
                                     u64::try_from(ordinal).ok()?,
                                 )?;
+                                step.scalar_value_stores
+                                    .push((location(result.place, &path, None)?, *value));
                                 if let Some(value) = scalar_expressions.expression(*value) {
                                     graph
                                         .scalar_payload_writes
@@ -17102,7 +17130,7 @@ pub mod descriptor_results {
                                     )?
                                 };
                                 let source = location(source.place, &source.path, None)?;
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             }
                         }
                         OperationKind::ElementViewRead {
@@ -17163,19 +17191,20 @@ pub mod descriptor_results {
                                     }
                                     _ => location(result?.place, &[], Some(field.field))?,
                                 };
-                                if let RecordFieldValue::Scalar { value, .. } = &field.value
-                                    && let Some(value) = scalar_expressions.expression(*value)
-                                {
-                                    graph
-                                        .scalar_payload_writes
-                                        .entry(position)
-                                        .or_default()
-                                        .push((destination.clone(), value));
+                                if let RecordFieldValue::Scalar { value, .. } = &field.value {
+                                    step.scalar_value_stores.push((destination.clone(), *value));
+                                    if let Some(value) = scalar_expressions.expression(*value) {
+                                        graph
+                                            .scalar_payload_writes
+                                            .entry(position)
+                                            .or_default()
+                                            .push((destination.clone(), value));
+                                    }
                                 }
                                 if let Some(source) = field.value.as_structural() {
                                     if let Some(source) = location(source.place, &source.path, None)
                                     {
-                                        step.derivations.push((source, destination));
+                                        step.copy_value(source, destination);
                                     } else {
                                         step.may_escape = true;
                                     }

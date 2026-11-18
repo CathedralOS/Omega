@@ -179,6 +179,22 @@ pub(crate) mod contracts {
         StructuralCaseId, StructuralFieldId, StructuralTypeId,
     };
 
+    /// A logical membership of an exact runtime value. These facts do not
+    /// change its declared type or participate in result overload selection.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum RuntimeDomainMembership {
+        Scalar {
+            subject: semantic_vocabulary::ScalarTerm,
+            domain: semantic_vocabulary::ScalarDomainId,
+        },
+        Structural {
+            root: PlaceId,
+            path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+            version: semantic_vocabulary::ContentPlaceVersion,
+            domain: semantic_vocabulary::StructuralDomainId,
+        },
+    }
+
     /// A structural-formal ordinal followed by zero or more field identities.
     /// `None` retains the ownership ceiling; `Some([])` is a complete empty
     /// frame. The owning contract supplies every parameter's exact type.
@@ -233,6 +249,7 @@ pub(crate) mod contracts {
         pub crash_routes: Vec<CrashRouteBucket>,
         pub erased_scalar_formals: Vec<crate::ValueDeclaration>,
         pub erased_proof_formals: Vec<crate::ErasedProofFormal>,
+        pub membership_ensures: Vec<RuntimeDomainMembership>,
         pub requires: Vec<Proposition>,
         pub source_checked_requires: Vec<Proposition>,
         pub ensures: Vec<ContractClause>,
@@ -300,6 +317,7 @@ pub(crate) mod contracts {
                 erased_scalar_formals: Vec::new(),
                 erased_proof_formals: Vec::new(),
                 requires: Vec::new(),
+                membership_ensures: Vec::new(),
                 source_checked_requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
@@ -911,7 +929,7 @@ pub use contracts::{
     OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard, PublishedWriteFrame,
+    OutcomeSpecificGuard, PublishedWriteFrame, RuntimeDomainMembership,
 };
 pub use declarations::{
     EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane, EvidenceContractLaneKind,

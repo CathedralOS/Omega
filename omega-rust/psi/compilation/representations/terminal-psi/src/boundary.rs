@@ -663,7 +663,7 @@ pub(crate) mod declarations {
             &self,
             result: &crate::TerminalMachineResult,
             requirement: TerminalIdentityIndex,
-            declaration: Option<TerminalIdentityIndex>,
+            declaration: Option<&crate::NominalDeclarationIdentity>,
             domains: &[crate::StructuralDomainDeclaration],
         ) -> bool {
             match (self, result) {
@@ -827,6 +827,7 @@ pub(crate) mod declarations {
         pub requires: Vec<StructuralDomainRequirement>,
         pub normal_qualifications: Vec<StructuralDomainRequirement>,
         pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
+        pub membership_ensures: Vec<crate::RuntimeDomainMembership>,
         pub scalar_requires: Vec<Proposition>,
         pub scalar_ensures: Vec<Proposition>,
         pub reference_outputs: Vec<BoundaryReferenceOutput>,
@@ -1094,10 +1095,50 @@ pub(crate) mod declarations {
         pub fn requires_checked_result(
             &self,
             domains: &[crate::StructuralDomainDeclaration],
+            scalar_domains: &[crate::ScalarDomainDeclaration],
         ) -> bool {
-            let BoundaryMachineResult::Structural(result) = &self.result else {
-                return false;
-            };
+            // A promise can forward an owned input claim or require a checked
+            // realization. An opaque native call may only issue its own claims.
+            if self.membership_ensures.iter().any(|row| {
+                let crate::RuntimeDomainMembership::Scalar { domain, .. } = row else {
+                    return false;
+                };
+                scalar_domains
+                    .iter()
+                    .find(|row| row.id == *domain)
+                    .is_none_or(|domain| {
+                        domain
+                            .required_domain_closure(scalar_domains)
+                            .is_none_or(|closure| {
+                                closure.into_iter().any(|node| {
+                                    node.establishment_routes.is_some()
+                                        && !node.authorizes_boundary_requirement(
+                                            self.identity,
+                                            self.declaration.as_ref().map(|row| &row.source.state),
+                                        )
+                                })
+                            })
+                    })
+            }) {
+                return true;
+            }
+            let result_domains = (match &self.result {
+                BoundaryMachineResult::Structural(result) => Some(result),
+                _ => None,
+            })
+            .into_iter()
+            .flat_map(|result| {
+                result.qualifications.iter().chain(
+                    result
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| &row.domain),
+                )
+            })
+            .chain(self.membership_ensures.iter().filter_map(|row| match row {
+                crate::RuntimeDomainMembership::Structural { domain, .. } => Some(domain),
+                _ => None,
+            }));
             let consumes_qualification = |required: StructuralDomainId| {
                 self.structural_parameters
                     .iter()
@@ -1142,39 +1183,29 @@ pub(crate) mod declarations {
                                 })
                     })
             };
-            result
-                .qualifications
-                .iter()
-                .chain(
-                    result
-                        .projected_qualifications
-                        .iter()
-                        .map(|row| &row.domain),
-                )
-                .any(|domain| {
-                    domains
-                        .iter()
-                        .find(|declaration| declaration.id == *domain)
-                        .is_none_or(|declaration| {
-                            declaration
-                                .required_domain_closure(domains)
-                                .is_none_or(|required| {
-                                    required.into_iter().any(|node| {
-                                        (node.id != declaration.id
-                                            && node.content_projection.is_some())
-                                            || ((node.content_projection.is_none()
-                                                || !consumes_qualification(node.id))
-                                                && node.establishment_routes.is_some()
-                                                && !node.authorizes_boundary_requirement(
-                                                    self.identity,
-                                                    self.declaration.as_ref().map(|callable| {
-                                                        callable.source.semantic_declaration
-                                                    }),
-                                                ))
-                                    })
+            result_domains.into_iter().any(|domain| {
+                domains
+                    .iter()
+                    .find(|declaration| declaration.id == *domain)
+                    .is_none_or(|declaration| {
+                        declaration
+                            .required_domain_closure(domains)
+                            .is_none_or(|required| {
+                                required.into_iter().any(|node| {
+                                    (node.id != declaration.id && node.content_projection.is_some())
+                                        || ((node.content_projection.is_none()
+                                            || !consumes_qualification(node.id))
+                                            && node.establishment_routes.is_some()
+                                            && !node.authorizes_boundary_requirement(
+                                                self.identity,
+                                                self.declaration
+                                                    .as_ref()
+                                                    .map(|callable| &callable.source.state),
+                                            ))
                                 })
-                        })
-                })
+                            })
+                    })
+            })
         }
 
         pub fn has_valid_parameter_order(&self) -> bool {

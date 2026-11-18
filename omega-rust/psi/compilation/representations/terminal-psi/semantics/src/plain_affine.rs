@@ -555,7 +555,7 @@ fn reference_backing_uses(
     references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     candidates: Option<&crate::reference_ends::Candidates>,
 ) -> Result<
-    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, IdSet<PlaceId>>,
+    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, Vec<PlaceId>>,
     Error,
 > {
     use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
@@ -602,9 +602,7 @@ fn reference_backing_uses(
                     // An unknown packet has no address we can resolve. Keep
                     // its entire carrier live; this supplies no access to its
                     // hidden referents and does not authorize their release.
-                    uses.entry(*at)
-                        .or_insert_with(IdSet::new)
-                        .insert(input.root);
+                    uses.entry(*at).or_insert_with(Vec::new).push(input.root);
                 }
             }
             'slots: for mut slot in inventory.slots {
@@ -639,11 +637,13 @@ fn reference_backing_uses(
                 if !graph.place_types.contains_key(&source.root) {
                     return Err(Error::malformed("reference backing is outside its machine"));
                 }
-                uses.entry(*at)
-                    .or_insert_with(IdSet::new)
-                    .insert(source.root);
+                uses.entry(*at).or_insert_with(Vec::new).push(source.root);
             }
         }
+    }
+    for roots in uses.values_mut() {
+        roots.sort_unstable();
+        roots.dedup();
     }
     Ok(uses)
 }
@@ -654,21 +654,105 @@ fn live_entries(
     reference_candidates: Option<&crate::reference_ends::Candidates>,
     reference_backing: &std::collections::BTreeMap<
         crate::descriptor_lifetimes::DescriptorPosition,
-        IdSet<PlaceId>,
+        Vec<PlaceId>,
     >,
 ) -> Result<Vec<IdSet<PlaceId>>, Error> {
+    let valid = |place: PlaceId| -> Result<PlaceId, Error> {
+        if index(place.get())? < machine.structural_places.len() {
+            Ok(place)
+        } else {
+            Err(Error::malformed("live place is outside the machine"))
+        }
+    };
+    let mut header_backing = std::collections::BTreeMap::new();
+    for block in &machine.blocks {
+        for parameter in &block.structural_parameters {
+            if parameter.access == StructuralAccess::Owned
+                || crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
+            {
+                continue;
+            }
+            header_backing.insert(parameter.place, (block.id, None));
+        }
+    }
+    // A borrowed header observes its captured backing in any block that
+    // uses it. Add those dependencies at each use, so preceding definitions
+    // still stop the backward walk at their establishment points.
+    let mut observe = |before: &mut IdSet<PlaceId>, place| -> Result<(), Error> {
+        before.insert(valid(place)?);
+        if let Some((block, backing)) = header_backing.get_mut(&place) {
+            let roots = backing.get_or_insert_with(|| {
+                let names = crate::storage_names(machine, *block, place);
+                let mut roots: Vec<_> = names.captured_roots().collect();
+                roots.sort_unstable();
+                roots.dedup();
+                roots
+            });
+            for &root in roots.iter() {
+                before.insert(valid(root)?);
+            }
+        }
+        Ok(())
+    };
     let mut live = vec![IdSet::new(); machine.blocks.len()];
     loop {
         let mut changed = false;
         for block in machine.blocks.iter().rev() {
-            let before = block_live_places(
-                machine,
-                types,
-                block,
-                &live,
-                reference_candidates,
-                reference_backing,
-            )?;
+            let mut before = IdSet::new();
+            for target in block.terminator.successor_targets() {
+                before.union_with(
+                    live.get(index(target.get())?)
+                        .ok_or(Error::malformed("edge target is outside the machine"))?,
+                );
+            }
+            for root in terminator_roots(&block.terminator) {
+                observe(&mut before, root)?;
+            }
+            let end = u32::try_from(block.operations.len())
+                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            for &root in reference_backing
+                .get(&(block.id, end))
+                .into_iter()
+                .flatten()
+            {
+                observe(&mut before, root)?;
+            }
+            for (position, operation) in block.operations.iter().enumerate().rev() {
+                if let Some(result) = operation.result.as_structural() {
+                    before.remove(valid(result.place)?);
+                }
+                for used in operation
+                    .kind
+                    .storage_uses()
+                    .into_iter()
+                    .filter_map(|(storage, _)| storage_root(storage))
+                {
+                    observe(&mut before, used)?;
+                }
+                // A planned release is a real future use of its owned
+                // descriptor home. Keep that home until the planner can emit
+                // it; otherwise edge cleanup could close a parent while its
+                // child still runs. The final verifier reads emitted uses.
+                let position = u32::try_from(position)
+                    .map_err(|_| Error::malformed("reference end position overflows"))?;
+                for &root in reference_backing
+                    .get(&(block.id, position))
+                    .into_iter()
+                    .flatten()
+                {
+                    observe(&mut before, root)?;
+                }
+                for candidate in reference_candidates
+                    .and_then(|candidates| candidates.get(&(block.id, position)))
+                    .into_iter()
+                    .flatten()
+                {
+                    observe(&mut before, candidate.argument.place)?;
+                }
+            }
+            for parameter in &block.structural_parameters {
+                before.remove(valid(parameter.place)?);
+            }
             let old = live
                 .get_mut(index(block.id.get())?)
                 .ok_or(Error::malformed("block is outside the machine"))?;
@@ -681,85 +765,6 @@ fn live_entries(
             return Ok(live);
         }
     }
-}
-
-fn block_live_places(
-    machine: &TerminalMachine,
-    types: &[StructuralTypeDeclaration],
-    block: &terminal_psi::Block,
-    live: &[IdSet<PlaceId>],
-    reference_candidates: Option<&crate::reference_ends::Candidates>,
-    reference_backing: &std::collections::BTreeMap<
-        crate::descriptor_lifetimes::DescriptorPosition,
-        IdSet<PlaceId>,
-    >,
-) -> Result<IdSet<PlaceId>, Error> {
-    let mut before = IdSet::new();
-    for target in block.terminator.successor_targets() {
-        before.union_with(
-            live.get(index(target.get())?)
-                .ok_or(Error::malformed("edge target is outside the machine"))?,
-        );
-    }
-    let valid = |place: PlaceId| -> Result<PlaceId, Error> {
-        if index(place.get())? < machine.structural_places.len() {
-            Ok(place)
-        } else {
-            Err(Error::malformed("live place is outside the machine"))
-        }
-    };
-    for root in terminator_roots(&block.terminator) {
-        before.insert(valid(root)?);
-    }
-    let end = u32::try_from(block.operations.len())
-        .map_err(|_| Error::malformed("reference observation position overflows"))?;
-    if let Some(backing) = reference_backing.get(&(block.id, end)) {
-        before.union_with(backing);
-    }
-    for (position, operation) in block.operations.iter().enumerate().rev() {
-        if let Some(result) = operation.result.as_structural() {
-            before.remove(valid(result.place)?);
-        }
-        for used in operation
-            .kind
-            .storage_uses()
-            .into_iter()
-            .filter_map(|(storage, _)| storage_root(storage))
-        {
-            before.insert(valid(used)?);
-        }
-        // A planned release is a real future use of its owned
-        // descriptor home. Keep that home until the planner can emit
-        // it; otherwise edge cleanup could close a parent while its
-        // child still runs. The final verifier reads emitted uses.
-        let position = u32::try_from(position)
-            .map_err(|_| Error::malformed("reference end position overflows"))?;
-        if let Some(backing) = reference_backing.get(&(block.id, position)) {
-            before.union_with(backing);
-        }
-        for candidate in reference_candidates
-            .and_then(|candidates| candidates.get(&(block.id, position)))
-            .into_iter()
-            .flatten()
-        {
-            before.insert(valid(candidate.argument.place)?);
-        }
-    }
-    for parameter in &block.structural_parameters {
-        if parameter.access != StructuralAccess::Owned
-            && before.contains(parameter.place)
-            && !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
-        {
-            // The new name still borrows the captured home. Keep its
-            // original owners until the last use of that name.
-            let captures = crate::storage_names(machine, block.id, parameter.place);
-            for root in captures.captured_roots() {
-                before.insert(valid(root)?);
-            }
-        }
-        before.remove(valid(parameter.place)?);
-    }
-    Ok(before)
 }
 
 /// Future uses of non-owning headers with no contained permission cells.
@@ -4948,7 +4953,9 @@ mod tests {
 
     #[test]
     fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
-        use terminal_psi::{Operation, OperationKind, OperationResult, StructuralMultiplicity};
+        use terminal_psi::{
+            Block, Operation, OperationKind, OperationResult, StructuralMultiplicity, Terminator,
+        };
         let types = reconvergence_types();
         let mut machine = transferring(
             &[id(3)],
@@ -4961,7 +4968,7 @@ mod tests {
         let target = &mut machine.blocks[1];
         target.structural_parameters[0].access = StructuralAccess::SharedBorrow;
         target.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
-        target.operations.push(Operation::unsuspended(
+        let observation = Operation::unsuspended(
             id(1),
             OperationResult::Unit,
             OperationKind::CallUnit {
@@ -4977,8 +4984,28 @@ mod tests {
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
             },
-        ));
+        );
+        let finish = std::mem::replace(
+            &mut target.terminator,
+            Terminator::Jump {
+                edge: id(3),
+                target: id(3),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        let mut later = Block::plain(id(3), Vec::new(), finish);
+        later.operations.push(observation);
+        machine.blocks.push(later);
         let checked = plan(&machine, &types).unwrap();
+        assert!(
+            !checked.cleanup.iter().any(|(edge, actions)| *edge == id(3)
+                && actions.iter().any(|action| action.place() == id(1))),
+            "the borrowed name keeps its backing in the later observation block"
+        );
         assert!(checked.unavailable.is_empty());
         assert!(
             !checked.cleanup.iter().any(|(edge, actions)| *edge == id(1)

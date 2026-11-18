@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI39`) for retained native
+  Compiler-private binary persistence (`OMGNTI40`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1489,7 +1489,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 // Structural type rows now retain their declared three-way multiplicity.
 // Schema 39 retains optional operation evidence beside the immutable Psi bytes.
 // Older native records cannot carry this field and reject before decoding.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI39";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI40";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1516,6 +1516,34 @@ mod tests {
             encoded.push(bytes);
         }
         assert_ne!(encoded[0], encoded[1]);
+    }
+
+    #[test]
+    fn retained_service_normal_membership_keeps_path_and_domain() {
+        use language_semantics::service_surface::{
+            ServiceNormalResultMembership, ServiceResultProjection,
+        };
+        let membership = ServiceNormalResultMembership {
+            path: vec![
+                ServiceResultProjection::Case("numbered-case-1".into()),
+                ServiceResultProjection::Field("named-field".into()),
+                ServiceResultProjection::FixedIndex(3),
+            ],
+            domain: "exact-domain-application<actual-index>".into(),
+        };
+        let method = effects::provider_plan::ServiceMethod {
+            normal_result_memberships: vec![membership],
+            ..Default::default()
+        };
+        let mut output = RecordWriter::new(RecordLimits::default());
+        method.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+        assert_eq!(
+            effects::provider_plan::ServiceMethod::read(&mut input).unwrap(),
+            method
+        );
+        input.finish().unwrap();
     }
 
     #[test]
@@ -1659,6 +1687,7 @@ mod tests {
             b"OMGNTI36",
             b"OMGNTI37",
             b"OMGNTI38",
+            b"OMGNTI39",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");

@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 287`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 288`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3143,6 +3143,7 @@ mod numeric_intrinsic_tests {
                 scalar_type: result,
                 qualifications: ScalarQualificationSetId::ZERO,
             }),
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             crash_routes: Vec::new(),
@@ -3878,6 +3879,7 @@ mod routed_scalar_tests {
         let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
         module.boundary_machines.push(BoundaryMachineDeclaration {
             numeric_intrinsic: None,
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,
@@ -5086,10 +5088,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 287 retains the owning machine of callback registrar and interrupt
-// installation operations. Earlier payloads lack that scope and reject before
-// decoding; machine-local operation numbers are not renumbered.
-pub(crate) const FORMAT_MARKER: u16 = 287;
+// Marker 288 retains normal-result membership facts independently of declared
+// result types, including their complete service-contract meaning. Earlier
+// payloads lack these guarantees and reject before decoding.
+pub(crate) const FORMAT_MARKER: u16 = 288;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5402,6 +5404,7 @@ mod normal_qualification_tests {
                 path: vec![field(8)],
                 domain,
             }],
+            membership_ensures: Vec::new(),
             normal_qualifications: [
                 (0, Vec::new()),
                 (1, vec![field(8)]),

@@ -22,7 +22,16 @@ impl PackagePolicyServiceMethod {
                 .result_type_identity
                 .as_ref()
                 .is_some_and(String::is_empty)
-            || (!self.has_result && !self.result_claims.is_empty())
+            || (!self.has_result
+                && (!self.result_claims.is_empty() || !self.normal_result_memberships.is_empty()))
+            || self
+                .normal_result_memberships
+                .iter()
+                .any(|row| !row.has_exact_identity())
+            || self
+                .normal_result_memberships
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
             || self.entry_claims.iter().any(|claim| {
                 claim.parameter_index >= self.parameter_count
                     || !claim.carrier_identity.is_valid()

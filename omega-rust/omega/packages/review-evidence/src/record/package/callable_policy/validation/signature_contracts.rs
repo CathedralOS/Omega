@@ -38,8 +38,13 @@ pub(in crate::record) fn fact(
         PackageReviewContractFact::CarryMembership { value, .. } => {
             expression(value, scope, nesting)?
         }
-        PackageReviewContractFact::Membership { value, domain } => {
+        PackageReviewContractFact::Membership {
+            value,
+            domain,
+            application,
+        } => {
             domain.validate_resolved()?;
+            text(application)?;
             expression(value, scope, nesting)?;
         }
         PackageReviewContractFact::PropositionParameter(application) => {

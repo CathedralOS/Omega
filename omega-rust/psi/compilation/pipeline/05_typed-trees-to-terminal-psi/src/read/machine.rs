@@ -1893,6 +1893,7 @@ impl<'t> Program<'t> {
             // reach additionally needs the selected installation below.
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
+            signature.membership_ensures = routed.membership_ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
             // An abstract requirement bounds the selected installation's
@@ -2177,6 +2178,9 @@ impl<'t> Program<'t> {
                 .collect();
         }
         if ensures {
+            signature
+                .membership_ensures
+                .extend(inherited.membership_ensures);
             for (position, clause) in inherited.ensures.into_iter().enumerate() {
                 if !signature.ensures.contains(&clause) {
                     signature.ensures.push(clause);
@@ -2531,6 +2535,7 @@ impl<'t> Program<'t> {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result,
+            membership_ensures: Vec::new(),
             requires: terminal_semantics::numeric_primitives::requires(meaning)
                 .map_err(unavailable)?,
             ensures,
@@ -3087,6 +3092,7 @@ impl<'t> Program<'t> {
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut membership_ensures = Vec::new();
         let mut requires_text = Vec::new();
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
@@ -3128,6 +3134,18 @@ impl<'t> Program<'t> {
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
+                        if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                            let (membership, clause) =
+                                self.runtime_membership(id, &exit, membership)?;
+                            if let Some(membership) = membership {
+                                membership_ensures.push(membership);
+                            }
+                            if let Some((clause, text)) = clause {
+                                ensures.push(clause);
+                                ensures_text.push(text);
+                            }
+                            continue;
+                        }
                         if let Some((clause, text)) =
                             self.contract_clause(id, &exit, fact, false)?
                         {
@@ -3299,6 +3317,7 @@ impl<'t> Program<'t> {
                 erased,
                 borrowed,
                 result,
+                membership_ensures,
                 requires,
                 ensures,
                 reaches,
