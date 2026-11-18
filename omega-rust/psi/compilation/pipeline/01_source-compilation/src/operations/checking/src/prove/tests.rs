@@ -1539,6 +1539,23 @@ fn numeric_conclusions_use_checked_implications_and_keep_their_premises() {
     let accepted =
         proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
     assert_eq!(accepted.assumptions.len(), 2);
+    let observed = ScalarTerm::value(read, ScalarType::Integer(byte));
+    let literal = ScalarTerm::integer(byte, IntegerValue::Unsigned(7)).unwrap();
+    let equality = Proposition::Equal(observed.clone(), literal.clone());
+    let reversed = [
+        premise.clone(),
+        Proposition::Implication {
+            premise: Box::new(premise.clone()),
+            conclusion: Box::new(Proposition::Equal(literal, observed)),
+        },
+    ];
+    let proof = Prover::new(&context, &reversed, &[], &values, &mut activity)
+        .prove(&equality)
+        .unwrap();
+    let accepted =
+        proof_admission::accept_certificate(&context, &equality, &reversed, &[], &proof).unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+
     for missing in [
         vec![premise],
         vec![implication],

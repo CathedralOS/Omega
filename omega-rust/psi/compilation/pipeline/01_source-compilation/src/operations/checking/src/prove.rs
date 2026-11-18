@@ -430,6 +430,63 @@ fn exact_fact_hash_eligible(proposition: &Proposition) -> bool {
     }
 }
 
+/// Match an implication by its conclusion before attempting to prove its
+/// premise. Simple comparisons get their own keys. Other conclusions share
+/// a bucket with predicates of the same kind. Exact matching still decides
+/// which rows to try, in the order the premises supplied them.
+struct ImplicationConclusions {
+    hash_builder: RandomState,
+    positions: Vec<(u64, usize)>,
+}
+
+impl ImplicationConclusions {
+    fn new(facts: &[Fact]) -> Self {
+        let mut index = Self {
+            hash_builder: RandomState::new(),
+            positions: Vec::new(),
+        };
+        for (ordinal, fact) in facts.iter().enumerate() {
+            if let Proposition::Implication { conclusion, .. } = &fact.proposition {
+                index.positions.push((index.key(conclusion), ordinal));
+            }
+        }
+        index.positions.sort_unstable();
+        index
+    }
+
+    fn key(&self, proposition: &Proposition) -> u64 {
+        let endpoints = if exact_fact_hash_eligible(proposition) {
+            match proposition {
+                Proposition::Equal(left, right) => {
+                    // Equality matches in either order. Only the matching
+                    // rule below can decide whether the terms are equal.
+                    let mut keys = [
+                        self.hash_builder.hash_one(left),
+                        self.hash_builder.hash_one(right),
+                    ];
+                    keys.sort_unstable();
+                    Some(keys)
+                }
+                _ => Some([self.hash_builder.hash_one(proposition), 0]),
+            }
+        } else {
+            None
+        };
+        self.hash_builder
+            .hash_one((std::mem::discriminant(proposition), endpoints))
+    }
+
+    fn candidates(&self, goal: &Proposition) -> std::ops::Range<usize> {
+        if self.positions.is_empty() {
+            return 0..0;
+        }
+        let key = self.key(goal);
+        let start = self.positions.partition_point(|&(stored, _)| stored < key);
+        let end = self.positions.partition_point(|&(stored, _)| stored <= key);
+        start..end
+    }
+}
+
 /// Find an equal fact without scanning unrelated predicates for every goal.
 /// Facts are immutable after Known finishes; each prover owns its own index.
 /// Hashes only choose candidates: existing equality decides them, in original
@@ -715,7 +772,7 @@ pub(crate) struct Prover<'a> {
     facts: Vec<Fact>,
     exact_facts: ExactFacts,
     /// Actual implication facts, prepared once for goal-directed elimination.
-    implications: Vec<usize>,
+    implications: ImplicationConclusions,
     float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -966,13 +1023,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::checking::known::Known::new(context, assumptions, axioms, values);
-        let implications = facts
-            .iter()
-            .enumerate()
-            .filter_map(|(index, fact)| {
-                matches!(fact.proposition, Proposition::Implication { .. }).then_some(index)
-            })
-            .collect();
+        let implications = ImplicationConclusions::new(&facts);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::checking::known::TransportInputs::new(equations.len());
         let exact_facts = ExactFacts::new(&facts);
@@ -1919,8 +1970,8 @@ impl<'a> Prover<'a> {
     }
 
     fn by_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        for position in 0..self.implications.len() {
-            let index = self.implications[position];
+        for position in self.implications.candidates(goal) {
+            let index = self.implications.positions[position].1;
             let Proposition::Implication {
                 premise,
                 conclusion,
