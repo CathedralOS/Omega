@@ -3011,7 +3011,6 @@ dependencies = [
  "schema-reflection",
  "semantic-vocabulary",
  "source-text",
- "storage-access",
  "terminal-psi",
  "wire",
 ]
