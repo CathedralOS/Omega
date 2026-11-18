@@ -2040,7 +2040,7 @@ fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
     ] {
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
-            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index] }}\n\
+            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
             public machine spare(input: &mut Input) -> u32 requires true {{\n\
                 transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
             }}"
@@ -2092,7 +2092,7 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
                 }}
                 machine fetch(input: &mut Input) -> u32 {contract} {{
                     {write}
-                    let found: u32 = input.values[input.index];
+                    let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
                     transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
                 }}
