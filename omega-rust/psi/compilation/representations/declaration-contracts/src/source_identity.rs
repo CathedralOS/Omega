@@ -186,10 +186,16 @@ pub fn toolchain_owned_identity_digest(
     source: &[u8],
 ) -> Result<[u8; 32], &'static str> {
     let canonical_component = |component: &str| {
-        !component.is_empty() && !matches!(component, "." | "..") && !component.contains(['/', '\\'])
+        !component.is_empty()
+            && !matches!(component, "." | "..")
+            && !component.contains(['/', '\\'])
     };
-    if !canonical_component(namespace) || relative_path.is_empty()
-        || relative_path.iter().any(|component| !canonical_component(component)) {
+    if !canonical_component(namespace)
+        || relative_path.is_empty()
+        || relative_path
+            .iter()
+            .any(|component| !canonical_component(component))
+    {
         return Err("toolchain-owned source has a noncanonical namespace or relative path");
     }
     let unit = ConsumedSourceUnit::from_retained(

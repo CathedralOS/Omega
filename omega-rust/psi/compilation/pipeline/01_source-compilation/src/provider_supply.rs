@@ -37,16 +37,24 @@ pub struct ClosedLogicalProviderReach {
 }
 
 impl ClosedLogicalProviderReach {
-    pub fn into_parts(self) -> (
+    pub fn into_parts(
+        self,
+    ) -> (
         terminal_semantics::logical_providers::ClosedLogicalProviders,
         Vec<crate::CallableBoundaryImplementation>,
     ) {
         (self.selection, self.bindings)
     }
 
-    pub fn requirements(&self) -> &[BoundaryMachineId] { self.selection.requirements() }
-    pub fn selection(&self) -> &terminal_semantics::logical_providers::ClosedLogicalProviders { &self.selection }
-    pub fn bindings(&self) -> &[crate::CallableBoundaryImplementation] { &self.bindings }
+    pub fn requirements(&self) -> &[BoundaryMachineId] {
+        self.selection.requirements()
+    }
+    pub fn selection(&self) -> &terminal_semantics::logical_providers::ClosedLogicalProviders {
+        &self.selection
+    }
+    pub fn bindings(&self) -> &[crate::CallableBoundaryImplementation] {
+        &self.bindings
+    }
 }
 
 impl crate::AcceptedTerminalSource {
@@ -58,31 +66,44 @@ impl crate::AcceptedTerminalSource {
         entry: Option<MachineId>,
         selected_requirements: &[BoundaryMachineId],
     ) -> Result<ClosedLogicalProviderReach, Vec<Diagnostic>> {
-        let program = terminal_codec::terminal_psi_identity(self.module())
-            .map_err(|error| vec![Diagnostic::error(format!("provider closure lost its canonical identity: {error:?}"))])?;
+        let program = terminal_codec::terminal_psi_identity(self.module()).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "provider closure lost its canonical identity: {error:?}"
+            ))]
+        })?;
         let mut bindings = Vec::new();
         loop {
             let (mut reached, invoked_machines) = match entry {
                 Some(entry) => {
-                    let reach = self.boundary_call_reach(entry, &bindings, Some(target))
+                    let reach = self
+                        .boundary_call_reach(entry, &bindings, Some(target))
                         .map_err(|error| vec![error])?;
                     (reach.boundaries, reach.reached_machines)
                 }
                 None => (Vec::new(), Vec::new()),
             };
             for binding in &bindings {
-                if selected_requirements.binary_search(&binding.boundary).is_ok()
-                    && invoked_machines.binary_search(&binding.machine).is_err() {
-                    reached.extend(self.boundary_calls_reached(binding.machine, &bindings, Some(target))
-                        .map_err(|error| vec![error])?);
+                if selected_requirements
+                    .binary_search(&binding.boundary)
+                    .is_ok()
+                    && invoked_machines.binary_search(&binding.machine).is_err()
+                {
+                    reached.extend(
+                        self.boundary_calls_reached(binding.machine, &bindings, Some(target))
+                            .map_err(|error| vec![error])?,
+                    );
                 }
             }
             reached.extend(selected_requirements.iter().copied());
             reached.sort_unstable();
             reached.dedup();
             let selected = terminal_semantics::logical_providers::ClosedLogicalProviders::select(
-                self.module(), program, target, &reached,
-            ).map_err(|error| vec![Diagnostic::error(error.diagnostic(self.module()))])?;
+                self.module(),
+                program,
+                target,
+                &reached,
+            )
+            .map_err(|error| vec![Diagnostic::error(error.diagnostic(self.module()))])?;
             let mut next = Vec::new();
             for provider in selected.providers() {
                 for row in &provider.rows {
@@ -97,14 +118,27 @@ impl crate::AcceptedTerminalSource {
             }
             next.sort_unstable();
             next.dedup();
-            if next.windows(2).any(|pair| pair[0].boundary == pair[1].boundary) {
-                return Err(vec![Diagnostic::error("chosen provider has competing exact bodies for one boundary application")]);
+            if next
+                .windows(2)
+                .any(|pair| pair[0].boundary == pair[1].boundary)
+            {
+                return Err(vec![Diagnostic::error(
+                    "chosen provider has competing exact bodies for one boundary application",
+                )]);
             }
             if next == bindings {
-                return Ok(ClosedLogicalProviderReach { selection: selected, bindings });
+                return Ok(ClosedLogicalProviderReach {
+                    selection: selected,
+                    bindings,
+                });
             }
-            if bindings.iter().any(|previous| next.binary_search(previous).is_err()) {
-                return Err(vec![Diagnostic::error("provider demand changed an already selected exact boundary body")]);
+            if bindings
+                .iter()
+                .any(|previous| next.binary_search(previous).is_err())
+            {
+                return Err(vec![Diagnostic::error(
+                    "provider demand changed an already selected exact boundary body",
+                )]);
             }
             bindings = next;
         }
@@ -681,8 +715,12 @@ fn is_direct_compiler_primitive(boundary: &terminal_psi::BoundaryMachineDeclarat
 }
 
 impl SettledTargetSupply {
-    pub fn target(&self) -> Option<&str> { self.target.as_deref() }
-    pub fn requirements(&self) -> &[SettledRequirement] { &self.requirements }
+    pub fn target(&self) -> Option<&str> {
+        self.target.as_deref()
+    }
+    pub fn requirements(&self) -> &[SettledRequirement] {
+        &self.requirements
+    }
 }
 
 // Source closure observes the target's declared support only. It never obtains
@@ -697,12 +735,16 @@ fn require_numeric_support(
     if boundary.numeric_intrinsic.is_none() {
         return Err(fail("numeric primitive lost its semantic meaning"));
     }
-    let support = support.filter(|support| support.target == target)
+    let support = support
+        .filter(|support| support.target == target)
         .ok_or_else(|| fail("numeric primitive has no recognized target"))?;
-    let requirement = module.identities.text(boundary.identity)
+    let requirement = module
+        .identities
+        .text(boundary.identity)
         .filter(|identity| !identity.is_empty())
         .ok_or_else(|| fail("numeric primitive lost its exact declaration identity"))?;
-    let support = support.support_for(requirement)
+    let support = support
+        .support_for(requirement)
         .ok_or_else(|| fail("numeric primitive has no canonical target realization entry"))?;
     support.map_err(|constraint| vec![Diagnostic::error(format!(
         "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"

@@ -454,7 +454,8 @@ pub(crate) mod callable_identity {
             // it does not describe the result's reference or lifetime. Keep
             // the declaration's complete types here before that distinction
             // is erased, so a receiver can check the derived loan groups.
-            let scope = crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let scope =
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
             let types = self.requirement_definition_types(&scope, requirement);
             bytes.push(u8::from(types.is_some()));
             if let Some((parameters, result, elided)) = types {
@@ -700,7 +701,9 @@ pub(crate) mod callable_identity {
                 result_type,
                 parameters,
                 result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
-                text: crate::source_state::operator::boundary_operator_requirement_identity(self, operator),
+                text: crate::source_state::operator::boundary_operator_requirement_identity(
+                    self, operator,
+                ),
             })
         }
 
@@ -806,8 +809,8 @@ pub(crate) mod callable_identity {
         use crate::source_state::signature::StateSignature;
         use crate::source_state::state::State;
         use crate::source_state::trait_definition::TraitDefinition;
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn callable_identity_reads_the_supplied_machine_not_its_address() {
@@ -915,8 +918,10 @@ pub(crate) mod constraint_identity {
         DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
         TypeReferenceHandle, TypeReferenceNode,
     };
+    use application_identity::type_identity::vocabulary::{
+        ArrayLengthForm, ConstraintForm, DomainFamily, Label, Spelled,
+    };
     use arena::HandleSpan;
-    use application_identity::type_identity::vocabulary::{ArrayLengthForm, ConstraintForm, DomainFamily, Label, Spelled};
 
     pub(crate) fn normalize_constrained_base(
         program: &TypedTrees,
@@ -1032,7 +1037,9 @@ pub(crate) mod constraint_identity {
                     atom(
                         Label::Permission,
                         match permission {
-                            declaration_contracts::CarryPermission::AcrossSuspend => "across-suspend",
+                            declaration_contracts::CarryPermission::AcrossSuspend => {
+                                "across-suspend"
+                            }
                             declaration_contracts::CarryPermission::AnyCpu => "any-cpu",
                             declaration_contracts::CarryPermission::AnyThread => "any-thread",
                             declaration_contracts::CarryPermission::MovableAddress => {
@@ -1150,15 +1157,15 @@ pub(crate) mod constraint_identity {
     }
 
     pub(crate) use application_identity::type_identity::encoding::atom;
-pub(crate) use application_identity::type_identity::encoding::bare;
-pub(crate) use application_identity::type_identity::encoding::byte_atom;
-pub(crate) use application_identity::type_identity::encoding::compound;
+    pub(crate) use application_identity::type_identity::encoding::bare;
+    pub(crate) use application_identity::type_identity::encoding::byte_atom;
+    pub(crate) use application_identity::type_identity::encoding::compound;
 
     #[cfg(test)]
     pub(crate) mod byte_atom_tests {
         use super::byte_atom;
         use application_identity::type_identity::vocabulary::OwnerForm;
-use application_identity::type_identity::vocabulary::Spelled;
+        use application_identity::type_identity::vocabulary::Spelled;
 
         fn original_byte_atom(tag: &str, value: &[u8]) -> String {
             let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
@@ -1210,7 +1217,7 @@ pub(crate) mod derived_declarations {
     use crate::source_state::TypedTrees;
     use crate::source_state::types::TypeReferenceNode;
     use application_identity::type_identity::vocabulary::Label;
-use application_identity::type_identity::vocabulary::NameForm;
+    use application_identity::type_identity::vocabulary::NameForm;
     use symbols::SymbolHandle;
 
     pub(crate) fn nominal_name(
@@ -1320,15 +1327,15 @@ pub(crate) mod identity_context {
     };
     use crate::source_state::type_system::type_identity::open_index_identity::index_binary_operator_name;
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-    use application_identity::type_identity::vocabulary::IndexForm;
-use application_identity::type_identity::vocabulary::Label;
-use application_identity::type_identity::vocabulary::NameForm;
-use application_identity::type_identity::vocabulary::OwnerForm;
-use application_identity::type_identity::vocabulary::RegionForm;
-use application_identity::type_identity::vocabulary::Spelled;
-use application_identity::type_identity::vocabulary::TypeForm;
-    use std::cell::Cell;
     use crate::source_symbols::JoinedPath;
+    use application_identity::type_identity::vocabulary::IndexForm;
+    use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::NameForm;
+    use application_identity::type_identity::vocabulary::OwnerForm;
+    use application_identity::type_identity::vocabulary::RegionForm;
+    use application_identity::type_identity::vocabulary::Spelled;
+    use application_identity::type_identity::vocabulary::TypeForm;
+    use std::cell::Cell;
     use symbols::SymbolHandle;
 
     use super::normalized_identities::{IdentityPart, TypeIdentityId};
@@ -1377,9 +1384,9 @@ use application_identity::type_identity::vocabulary::TypeForm;
             TableSavedSubject,
         };
         use application_identity::type_identity::vocabulary::FieldActionForm;
-use application_identity::type_identity::vocabulary::IndexForm;
-use application_identity::type_identity::vocabulary::Label;
-use application_identity::type_identity::vocabulary::PatternForm;
+        use application_identity::type_identity::vocabulary::IndexForm;
+        use application_identity::type_identity::vocabulary::Label;
+        use application_identity::type_identity::vocabulary::PatternForm;
 
         fn unavailable(context: &TypeIdentityContext<'_>) -> String {
             if let Some(invalid) = context.invalid_index_argument {
@@ -1559,10 +1566,10 @@ use application_identity::type_identity::vocabulary::PatternForm;
         use crate::source_state::trait_definition::Conformance;
         use crate::source_state::type_identity::TypeIdentityRequest;
         use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-        use numerics::arithmetic::ArithmeticDomain;
+        use crate::source_symbols::SymbolTableBuilder;
         use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         fn named(
             program: &mut TypedTrees,
@@ -1849,7 +1856,9 @@ use application_identity::type_identity::vocabulary::PatternForm;
             retained.type_reference = authored_policy;
             let value = crate::source_state::type_identity::applied_index_identity(
                 &program,
-                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(&explicit),
+                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                    &explicit,
+                ),
                 caller,
                 &[],
             )
@@ -1857,7 +1866,9 @@ use application_identity::type_identity::vocabulary::PatternForm;
             assert_eq!(
                 crate::source_state::type_identity::applied_index_identity(
                     &program,
-                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(&retained),
+                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                        &retained
+                    ),
                     caller,
                     &[],
                 ),
@@ -1867,7 +1878,9 @@ use application_identity::type_identity::vocabulary::PatternForm;
             assert_ne!(
                 crate::source_state::type_identity::applied_index_identity(
                     &program,
-                    crate::source_state::type_identity::IndexIdentityArgument::TypeArgument(authored_policy),
+                    crate::source_state::type_identity::IndexIdentityArgument::TypeArgument(
+                        authored_policy
+                    ),
                     caller,
                     &[],
                 ),
@@ -3354,8 +3367,12 @@ use application_identity::type_identity::vocabulary::PatternForm;
             ExpressionNode::Integer(value) => substitution::index_integer(value, context),
             ExpressionNode::Unary(unary) => compound(
                 match unary.operator {
-                    crate::source_state::expression::UnaryOperator::BitwiseNot => IndexForm::BitwiseNot,
-                    crate::source_state::expression::UnaryOperator::LogicalNot => IndexForm::LogicalNot,
+                    crate::source_state::expression::UnaryOperator::BitwiseNot => {
+                        IndexForm::BitwiseNot
+                    }
+                    crate::source_state::expression::UnaryOperator::LogicalNot => {
+                        IndexForm::LogicalNot
+                    }
                 },
                 [normalize_index_expression(program, unary.operand, context)],
             ),
@@ -3417,15 +3434,19 @@ use application_identity::type_identity::vocabulary::PatternForm;
                     structural_callable_identity: true,
                     ..*context
                 };
-                let Ok(contract) = crate::source_state::runtime_callable_identity::normalize_contract(
-                    program,
-                    binding.contract,
-                    &nested,
-                ) else {
+                let Ok(contract) =
+                    crate::source_state::runtime_callable_identity::normalize_contract(
+                        program,
+                        binding.contract,
+                        &nested,
+                    )
+                else {
                     return substitution::rejected(context);
                 };
-                let arguments = crate::source_state::references::StaticArgumentCall::Expression(expression, call)
-                    .arguments(program);
+                let arguments = crate::source_state::references::StaticArgumentCall::Expression(
+                    expression, call,
+                )
+                .arguments(program);
                 compound(
                     IndexForm::RuntimeCall,
                     [
@@ -3464,8 +3485,10 @@ use application_identity::type_identity::vocabulary::PatternForm;
                 ))
                 .chain({
                     let arguments =
-                        crate::source_state::references::StaticArgumentCall::Expression(expression, call)
-                            .arguments(program);
+                        crate::source_state::references::StaticArgumentCall::Expression(
+                            expression, call,
+                        )
+                        .arguments(program);
                     (!arguments.is_empty()).then(|| {
                         compound(
                             Label::StaticArguments,
@@ -3595,8 +3618,10 @@ use application_identity::type_identity::vocabulary::PatternForm;
                 [normalize_type_reference(program, *type_reference, context)],
             ),
             ExpressionNode::MachineValue(value) => {
-                crate::source_state::runtime_callable_identity::normalize_machine_value(program, value, context)
-                    .unwrap_or_else(|_| substitution::rejected(context))
+                crate::source_state::runtime_callable_identity::normalize_machine_value(
+                    program, value, context,
+                )
+                .unwrap_or_else(|_| substitution::rejected(context))
             }
         }
     }
@@ -3631,7 +3656,7 @@ pub(crate) mod lifetime_parameters {
     use super::constraint_identity::{atom, compound};
     use crate::source_state::TypedTrees;
     use application_identity::type_identity::vocabulary::Label;
-use application_identity::type_identity::vocabulary::RegionForm;
+    use application_identity::type_identity::vocabulary::RegionForm;
     use symbols::SymbolHandle;
 
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -4435,6 +4460,7 @@ pub(crate) mod open_index_identity {
 #[cfg(test)]
 pub(crate) mod package_policy_reading_tests {
     pub(crate) mod fixture {
+        use crate::source_inputs::SourceMap;
         use crate::source_state::TypedTrees;
         use crate::source_state::data::{DataDefinition, TypeParameter, TypeParameterKind};
         use crate::source_state::expression::{
@@ -4447,21 +4473,20 @@ pub(crate) mod package_policy_reading_tests {
             FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use crate::source_state::{AccessFieldPlan, AccessViewPlan, AccessorTarget};
+        use crate::source_symbols::SymbolTableBuilder;
         use access_admission::AccessFields;
-use access_vocabulary::BoundaryReach;
-use access_vocabulary::FieldAccess;
-use access_admission::validate_placement;
+        use access_admission::validate_placement;
+        use access_vocabulary::BoundaryReach;
+        use access_vocabulary::FieldAccess;
         use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-        use numerics::arithmetic::ArithmeticDomain;
         use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
         use semantic_vocabulary::PackageKeyIdentity;
-        use crate::source_inputs::{SourceMap};
         use source_admission::SourceOrigin;
         use source_text::{SourceId, SourceSpan, Span};
         use std::path::PathBuf;
         use std::sync::Arc;
         use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         const DECLARATIONS: &[(u8, SymbolKind, &str)] = &[
             (1, SymbolKind::Data, "Payload"),
@@ -4562,11 +4587,13 @@ use access_admission::validate_placement;
                 let mut children = SymbolTableBuilder::child_handles(
                     builder.insert_children(
                         root,
-                        crate::source_symbols::builtin_type_symbols().into_iter().chain(
-                            DECLARATIONS
-                                .iter()
-                                .map(|(package, kind, name)| (*kind, span_of(name, *package))),
-                        ),
+                        crate::source_symbols::builtin_type_symbols()
+                            .into_iter()
+                            .chain(
+                                DECLARATIONS
+                                    .iter()
+                                    .map(|(package, kind, name)| (*kind, span_of(name, *package))),
+                            ),
                     ),
                 )
                 .collect::<Vec<_>>();
@@ -4691,7 +4718,9 @@ use access_admission::validate_placement;
                     SignatureContract, SignatureContractKind, StateParameter, StateSignature,
                 };
                 use crate::source_state::state::State;
-                use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
+                use crate::source_state::statement::{
+                    StatementNode, TableTransition, TransitionTargetNode,
+                };
 
                 // Allocate the closed reaches-none row before signatures
                 // retain its actual handle.
@@ -5018,13 +5047,13 @@ use access_admission::validate_placement;
 
             pub(crate) fn name(&mut self, name: &str) -> ExpressionHandle {
                 let symbol = self.symbol(name);
-                self.program
-                    .expression_table
-                    .insert_tree(&crate::source_state::expression::Expression::Name(NamePath::resolved(
+                self.program.expression_table.insert_tree(
+                    &crate::source_state::expression::Expression::Name(NamePath::resolved(
                         vec![Identifier::generated(name)],
                         symbol,
                         symbol,
-                    )))
+                    )),
+                )
             }
 
             pub(crate) fn binary(
@@ -5129,7 +5158,9 @@ use access_admission::validate_placement;
         }
     }
     pub(crate) mod kinds {
-        use crate::source_state::expression::{BinaryOperator, ExpressionNode, MatchFieldAction, MatchPattern};
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionNode, MatchFieldAction, MatchPattern,
+        };
         use crate::source_state::types::{
             DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceNode,
         };
@@ -5261,14 +5292,14 @@ use access_admission::validate_placement;
             DomainConstraint, DomainConstraintSubject, FixedArrayLength, OmegaLayoutGrammar,
             TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
+        use application_identity::const_value::CanonicalConstValue;
+        use declaration_contracts::CarryPermission;
+        use declaration_contracts::value_domain::ValueDomain;
         use language_core::atomic::{
             AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
         };
-        use declaration_contracts::CarryPermission;
-        use application_identity::const_value::CanonicalConstValue;
-        use declaration_contracts::value_domain::ValueDomain;
-        use numerics::arithmetic::ArithmeticDomain;
         use numeric_literals::{FloatFormat, FloatLiteral, IntegerLiteral};
+        use numerics::arithmetic::ArithmeticDomain;
         use source_text::SourceSpan;
         use symbols::SymbolHandle;
 
@@ -5548,13 +5579,11 @@ use access_admission::validate_placement;
             add(fixture, "declared name", name, &[2]);
             let value = fixture.integer(7);
             add(fixture, "integer", value, &[]);
-            let spelled =
-                fixture
-                    .program
-                    .expression_table
-                    .insert_tree(&crate::source_state::expression::Expression::Name(NamePath::unresolved(
-                        vec![Identifier::generated("true")],
-                    )));
+            let spelled = fixture.program.expression_table.insert_tree(
+                &crate::source_state::expression::Expression::Name(NamePath::unresolved(vec![
+                    Identifier::generated("true"),
+                ])),
+            );
             add(fixture, "spelled Boolean name", spelled, &[]);
             let boolean = fixture.expression(ExpressionNode::Boolean(true));
             add(fixture, "Boolean", boolean, &[]);
@@ -5562,9 +5591,9 @@ use access_admission::validate_placement;
             add(fixture, "float", float, &[]);
             let nan = fixture.expression(ExpressionNode::UndeterminedNaN(FloatFormat::F64));
             add(fixture, "undetermined NaN", nan, &[]);
-            let string = fixture.expression(ExpressionNode::String(source_text::SourceBytes::from(
-                &b"bytes"[..],
-            )));
+            let string = fixture.expression(ExpressionNode::String(
+                source_text::SourceBytes::from(&b"bytes"[..]),
+            ));
             add(fixture, "string", string, &[]);
             for operator in [UnaryOperator::BitwiseNot, UnaryOperator::LogicalNot] {
                 let operand = fixture.name("WIDTH");
@@ -5602,11 +5631,11 @@ use access_admission::validate_placement;
 
             let target = fixture.named("Count");
             let cast = {
-                let value = crate::source_state::expression::Expression::Integer(IntegerLiteral::from_value(3));
-                fixture
-                    .program
-                    .expression_table
-                    .insert_tree(&crate::source_state::expression::Expression::Cast(Box::new(
+                let value = crate::source_state::expression::Expression::Integer(
+                    IntegerLiteral::from_value(3),
+                );
+                fixture.program.expression_table.insert_tree(
+                    &crate::source_state::expression::Expression::Cast(Box::new(
                         crate::source_state::expression::CastExpression {
                             value,
                             target_type: target,
@@ -5614,7 +5643,8 @@ use access_admission::validate_placement;
                             domain: ArithmeticDomain::Wrapping,
                             form: language_core::cast_form::CastForm::Value,
                         },
-                    )))
+                    )),
+                )
             };
             add(fixture, "cast", cast, &[2]);
 
@@ -5865,8 +5895,8 @@ use access_admission::validate_placement;
     use crate::source_state::expression::{ExpressionNode, MatchPattern};
     use crate::source_state::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
     use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
-use application_identity::type_identity::TypeIdentityVisitError;
-use application_identity::type_identity::visit_type_identity_package_owners;
+    use application_identity::type_identity::TypeIdentityVisitError;
+    use application_identity::type_identity::visit_type_identity_package_owners;
     use std::collections::BTreeSet;
 
     #[derive(Default)]
@@ -6744,7 +6774,7 @@ pub(crate) mod portable_machine_applications {
     use crate::source_state::data::TypeParameterKind;
     use crate::source_state::static_applications::StaticMachineBindingValue;
     use application_identity::type_identity::vocabulary::Label;
-use application_identity::type_identity::vocabulary::NameForm;
+    use application_identity::type_identity::vocabulary::NameForm;
     use std::cell::{Cell, RefCell};
     use symbols::SymbolHandle;
 
@@ -7657,7 +7687,8 @@ pub(crate) mod result_dispatch_terms {
             }
             if definition.predicate_presence.is_present()
                 && definition.semantic_roles.is_empty()
-                && definition.issuance() == crate::source_state::domain::DomainIssuance::Unrestricted
+                && definition.issuance()
+                    == crate::source_state::domain::DomainIssuance::Unrestricted
             {
                 return;
             }
@@ -7919,10 +7950,12 @@ pub(crate) mod static_operand_identity {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::source_state::{expression::ExpressionNode, name::Identifier, types::TypeReferenceNode};
+        use crate::source_state::{
+            expression::ExpressionNode, name::Identifier, types::TypeReferenceNode,
+        };
+        use crate::source_symbols::SymbolTableBuilder;
         use numeric_literals::{IntegerLiteral, IntegerRadix};
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn receiving_static_indices_do_not_resubstitute_sibling_bindings() {
@@ -8071,10 +8104,10 @@ pub(crate) mod substitution {
         types::{TypeReferenceHandle, TypeReferenceNode},
     };
     use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+    use application_identity::const_value::DecodedCanonicalConstValue;
     use application_identity::type_identity::vocabulary::ArrayLengthForm;
-use application_identity::type_identity::vocabulary::IndexForm;
-use application_identity::type_identity::vocabulary::Label;
+    use application_identity::type_identity::vocabulary::IndexForm;
+    use application_identity::type_identity::vocabulary::Label;
     use symbols::SymbolHandle;
 
     pub(crate) fn index_argument(
@@ -8164,7 +8197,8 @@ use application_identity::type_identity::vocabulary::Label;
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
                     ) || selected.as_ref().is_some_and(|selected| {
-                        crate::source_state::static_const_argument_value(program, selected).is_some()
+                        crate::source_state::static_const_argument_value(program, selected)
+                            .is_some()
                             || (selected.symbol.is_valid()
                                 && program.conformance_by_symbol(selected.symbol).is_some())
                     }) {
@@ -8464,10 +8498,12 @@ use application_identity::type_identity::vocabulary::Label;
                     Err(_) => return false,
                 }
             }
-            IndexIdentityArgument::Subject(symbol) => crate::source_state::expression::StaticMachineArgument {
-                symbol,
-                ..Default::default()
-            },
+            IndexIdentityArgument::Subject(symbol) => {
+                crate::source_state::expression::StaticMachineArgument {
+                    symbol,
+                    ..Default::default()
+                }
+            }
             IndexIdentityArgument::StaticArgument(argument) => argument.clone(),
             _ => return false,
         };
@@ -8597,9 +8633,10 @@ use application_identity::type_identity::vocabulary::Label;
                 |value| literal_array_length(value, context),
             );
         }
-        if let Some(value) =
-            crate::source_state::const_integer::closed_literal(&program.expression_table, expression)
-        {
+        if let Some(value) = crate::source_state::const_integer::closed_literal(
+            &program.expression_table,
+            expression,
+        ) {
             return value.value_bignum().map_or_else(
                 || rejected(context),
                 |value| literal_array_length(value, context),
@@ -8717,7 +8754,8 @@ use application_identity::type_identity::vocabulary::Label;
             let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
             CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()?
         } else {
-            if let Some(value) = application_identity::const_value::boolean_literal_spelling(spelling)
+            if let Some(value) =
+                application_identity::const_value::boolean_literal_spelling(spelling)
             {
                 return Some(value);
             }
@@ -8753,13 +8791,13 @@ use application_identity::type_identity::vocabulary::Label;
     }
 }
 
+pub use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
+pub use application_identity::type_identity::TypeIdentityVisitError;
+pub use application_identity::type_identity::visit_type_identity_package_owners;
 pub use callable_identity::{
     CallableIdentityId, CallableIdentityTable, CallableParametersId, CallablePathId,
     CallableResultDispatchId,
 };
-pub use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
-pub use application_identity::type_identity::TypeIdentityVisitError;
-pub use application_identity::type_identity::visit_type_identity_package_owners;
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity,
     applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
@@ -9329,7 +9367,9 @@ impl TypedTrees {
                 return None;
             }
             match self.type_reference_table.type_reference(reference) {
-                crate::source_state::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                crate::source_state::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                } => {
                     reference = *base_type;
                 }
                 crate::source_state::types::TypeReferenceNode::Generic { .. } => {
@@ -10508,7 +10548,9 @@ mod closed_requirement_declaration_tests {
     use crate::source_state::expression::StaticMachineArgument;
     use crate::source_state::name::Identifier;
     use crate::source_state::signature::StateSignature;
-    use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    use crate::source_state::static_applications::{
+        StaticMachineBinding, StaticMachineBindingValue,
+    };
     use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
     use symbols::{SymbolHandle, SymbolKind};
 
@@ -10523,11 +10565,13 @@ mod closed_requirement_declaration_tests {
                 .unwrap_err()
                 .contains("no retained declaration")
         );
-        fixture.program.push_machine(crate::source_state::machine::Machine {
-            symbol,
-            name: Identifier::generated("size"),
-            ..Default::default()
-        });
+        fixture
+            .program
+            .push_machine(crate::source_state::machine::Machine {
+                symbol,
+                name: Identifier::generated("size"),
+                ..Default::default()
+            });
         assert!(
             fixture
                 .program
@@ -10598,7 +10642,8 @@ mod closed_requirement_declaration_tests {
         );
         let environment = AppliedTraitScope::abstract_scope(&declaration).environment();
         program.push_trait_definition(declaration);
-        let close = |program: &mut crate::source_state::TypedTrees, values: [StaticMachineBindingValue; 3]| {
+        let close = |program: &mut crate::source_state::TypedTrees,
+                     values: [StaticMachineBindingValue; 3]| {
             let actuals = values.each_ref().map(|value| StaticMachineArgument {
                 type_reference: match value {
                     StaticMachineBindingValue::Type(reference)
@@ -10723,6 +10768,7 @@ mod closed_requirement_declaration_tests {
 
 #[cfg(test)]
 mod nested_callback_region_tests {
+    use crate::source_inputs::SourceMap;
     use crate::source_state::TypedTrees;
     use crate::source_state::callable_signature_shapes::CallableShapeMismatch;
     use crate::source_state::callable_values::RuntimeCallableContract;
@@ -10731,14 +10777,13 @@ mod nested_callback_region_tests {
     use crate::source_state::signature::{StateParameter, StateSignature};
     use crate::source_state::state::State;
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
     use semantic_vocabulary::PackageKeyIdentity;
-    use crate::source_inputs::{SourceMap};
     use source_admission::SourceOrigin;
     use source_text::{SourceSpan, Span};
     use std::path::PathBuf;
     use std::sync::Arc;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     fn reference(
         program: &mut TypedTrees,
@@ -11153,9 +11198,11 @@ mod declared_array_extent_tests {
 
     #[test]
     fn array_extent_folding_preserves_carriers_and_refuses_unrepresented_policies() {
-        use crate::source_state::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
-        use numerics::arithmetic::ArithmeticDomain;
+        use crate::source_state::expression::{
+            BinaryOperator, ExpressionNode, TableBinaryExpression,
+        };
         use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
         let mut fixture = Fixture::new();
         let typed = |value, carrier| {
             IntegerLiteral::from_value(value).with_landing(IntegerLanding {

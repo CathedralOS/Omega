@@ -9,17 +9,17 @@ standalone native foreign-call adapter images.
 
 pub(crate) mod callable_entry_transport {
     mod body_footprint {
-        use installation_admission::cpu::{Footprint, callable_cpu_targets, is_call};
         #[cfg(test)]
-        use installation_admission::cpu::{Error as CpuError, check_mask_operation, authenticated_callable_cpu_targets};
+        use installation_admission::cpu::{
+            Error as CpuError, authenticated_callable_cpu_targets, check_mask_operation,
+        };
+        use installation_admission::cpu::{Footprint, callable_cpu_targets, is_call};
 
         use calling_conventions::{
-            MachineState, MachineStateSet, Preemption, RegisterSet,
-            StateEffectsEvidence,
+            MachineState, MachineStateSet, Preemption, RegisterSet, StateEffectsEvidence,
         };
         use machine_code::{
-            ResolvedBranchEvidence, SelectedFormEncodingRow,
-            SelectedFormInternalMachineFixupKind,
+            ResolvedBranchEvidence, SelectedFormEncodingRow, SelectedFormInternalMachineFixupKind,
         };
         use register_model::RegisterUnitKind;
         use selected_instructions::{MachineAlternativeFamily, SelectedInstructionId};
@@ -35,16 +35,22 @@ pub(crate) mod callable_entry_transport {
                 &self.0
             }
 
-            pub fn effects(&self) -> &StateEffectsEvidence { self.0.effects() }
-            pub fn generated_effects(&self) -> &StateEffectsEvidence { self.0.generated_effects() }
-            pub fn floating_control(&self) -> bool { self.0.floating_control() }
+            pub fn effects(&self) -> &StateEffectsEvidence {
+                self.0.effects()
+            }
+            pub fn generated_effects(&self) -> &StateEffectsEvidence {
+                self.0.generated_effects()
+            }
+            pub fn floating_control(&self) -> bool {
+                self.0.floating_control()
+            }
             pub fn require_without_floating_state(&self) -> Result<(), Error> {
                 self.0.require_without_floating_state().map_err(Into::into)
             }
-            pub(super) fn into_effects(self) -> StateEffectsEvidence { self.0.into_effects() }
+            pub(super) fn into_effects(self) -> StateEffectsEvidence {
+                self.0.into_effects()
+            }
         }
-
-
 
         pub(super) fn collect(
             body: &ObjectArtifact,
@@ -328,22 +334,27 @@ pub(crate) mod callable_entry_transport {
                                 .as_ref()
                                 .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?
                                 .and_then(|value| u32::try_from(value).ok());
-                            let architectural = target_x86_64::x86_64_model_specific_register_state(
-                                expected, selector,
-                            )
-                            .map_err(Error::Unsupported)?;
-                            footprint.add_states(architectural.machine_state(), architectural.clobbered_state());
+                            let architectural =
+                                target_x86_64::x86_64_model_specific_register_state(
+                                    expected, selector,
+                                )
+                                .map_err(Error::Unsupported)?;
+                            footprint.add_states(
+                                architectural.machine_state(),
+                                architectural.clobbered_state(),
+                            );
                         }
                         _ => {}
                     }
                 }
             }
-            let effects = footprint.finish(model)?.with_generated_effects(generated_effects, frame_floating_control, opaque_control);
+            let effects = footprint.finish(model)?.with_generated_effects(
+                generated_effects,
+                frame_floating_control,
+                opaque_control,
+            );
             Ok(NativeBodyCpuState(effects))
         }
-
-
-
 
         fn index_encoded_rows(
             owners: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
@@ -390,9 +401,6 @@ pub(crate) mod callable_entry_transport {
             .map(|position| rows[position].1)
         }
 
-
-
-
         fn direct_call_effects(
             architecture: target::Architecture,
         ) -> Result<StateEffectsEvidence, Error> {
@@ -416,16 +424,13 @@ pub(crate) mod callable_entry_transport {
             Ok(decoded.effects)
         }
 
-
-
-
         #[cfg(test)]
         mod tests {
+            use super::*;
             use calling_conventions::MachineRegister;
             use machine_code::SelectedFormDecodedFootprint;
             use register_model::RegisterUnitId;
             use selected_instructions::MachineEncodedEffects;
-            use super::*;
 
             #[test]
             fn callable_cpu_targets_need_the_exact_source_occurrence_and_resolved_context() {
@@ -763,7 +768,6 @@ pub(crate) mod callable_entry_transport {
         InstalledInterruptEntryPlan, NativeEntryBridgeRequest,
     };
 
-
     pub fn observe_native_body_cpu_state(
         body: &ObjectArtifact,
         preemption: calling_conventions::Preemption,
@@ -880,7 +884,8 @@ pub(crate) mod callable_entry_transport {
                     && bridge.installed_interrupt() == installed.map(|(_, plan)| plan)
                     && bridge.complete_effects() == effects =>
             {
-                bridge.validate_published_code(bridge.bytes())
+                bridge
+                    .validate_published_code(bridge.bytes())
                     .map_err(Error::NativeEntryBridge)
             }
             None if !needs_bridge
@@ -943,13 +948,13 @@ pub(crate) mod callable_entry_transport {
 }
 
 pub(crate) mod foreign_adapter {
+    use crate::NativeForeignBridge;
     use crate::object::component_shared_image::emit_shared_function_container;
     use diagnostics::Diagnostic;
     use image::{
         FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
         FinalImageSection, FinalImageSymbol,
     };
-    use crate::NativeForeignBridge;
     use object_file::SymbolKind;
     use sha2::{Digest, Sha256};
 
@@ -3698,9 +3703,9 @@ pub(crate) mod physical_entry {
     mod stack_switch {
         #[cfg(test)]
         pub(super) use native_encoding::physical_stack_switch::encode;
-        pub(super) use physical_recipes::physical_stack_switch::{Destination, StackSwitch};
         #[cfg(test)]
         pub(super) use physical_planning::physical_stack_switch::plan;
+        pub(super) use physical_recipes::physical_stack_switch::{Destination, StackSwitch};
     }
 
     use stack_switch::{Destination, StackSwitch};
@@ -4040,7 +4045,9 @@ pub(crate) mod physical_entry {
                 "physical plan differs from the retained body transport",
             ));
         }
-        binding.bridge.validate_published_code(binding.bridge.bytes())
+        binding
+            .bridge
+            .validate_published_code(binding.bridge.bytes())
             .map_err(|error| invalid(&error.to_string()))?;
         let demand = derive_body_stack_demand(artifact, artifact.entry)
             .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
@@ -4071,7 +4078,9 @@ pub(crate) mod physical_entry {
             return Err(invalid("private stack differs from its exact invocation"));
         }
         binding.stack_switch.validate_bridge(&binding.bridge)?;
-        binding.stack_switch.validate_published_code(&binding.stack_switch.bytes)
+        binding
+            .stack_switch
+            .validate_published_code(&binding.stack_switch.bytes)
     }
 
     pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagnostic> {

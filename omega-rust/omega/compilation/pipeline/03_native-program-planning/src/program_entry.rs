@@ -4,10 +4,10 @@
 use diagnostics::Diagnostic;
 mod calling_plans;
 mod published;
-pub use published::{PublishedEntryNomination, plan_published_entry_calling_conventions};
 pub use calling_plans::{ProgramEntryCallingPlanRequest, entry_calling_policy};
 pub use effects::semantic_bindings::program_entry_semantic_binding_role;
 pub use program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest;
+pub use published::{PublishedEntryNomination, plan_published_entry_calling_conventions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {

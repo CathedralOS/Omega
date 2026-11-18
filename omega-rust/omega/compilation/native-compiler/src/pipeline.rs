@@ -88,7 +88,8 @@ pub(crate) fn plan_installations(
 
 pub(crate) type PreparedPhysicalBody =
     PhysicalBody<physical_planning::installation_resources::PlannedInstallationResources>;
-pub(crate) type BoundPhysicalBody = PhysicalBody<installation_admission::BoundInstallationAuthority>;
+pub(crate) type BoundPhysicalBody =
+    PhysicalBody<installation_admission::BoundInstallationAuthority>;
 
 pub(crate) struct PhysicalBody<Resources> {
     pub frame: physical_planning::PhysicalFrameProgram,
@@ -117,13 +118,8 @@ impl PreparedPhysicalBody {
             original_target,
             originals,
         } = self;
-        let authority = installation_binding::bind(
-            &frame,
-            installations,
-            handlers,
-            root,
-        )
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        let authority = installation_binding::bind(&frame, installations, handlers, root)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         Ok(PhysicalBody {
             frame,
             private_references,
@@ -158,7 +154,9 @@ pub(crate) fn prepare_physical_body(
     let original_target = original_for_audit
         .map(|original| original.into_target_replay(&mut facts))
         .transpose()
-        .map_err(|reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]))?;
+        .map_err(|reason| {
+            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+        })?;
     let physical_planning::PlannedPhysicalProgram { frame, originals } =
         physical_planning::plan_physical_program(
             input,
@@ -227,7 +225,10 @@ pub(crate) fn prepare_physical_body(
         frame.frame.plan(),
         &facts.program,
     );
-    let origins = physical_planning::installed_handlers::capture_execution_origins(&frame.instructions, &installations);
+    let origins = physical_planning::installed_handlers::capture_execution_origins(
+        &frame.instructions,
+        &installations,
+    );
     let facts = physical_program::EmissionFacts {
         termination: origins.termination,
         faults: origins.faults,
@@ -466,9 +467,11 @@ pub(crate) fn construct_body_object(
         original_target,
     } = body.object;
     let container = object_file::stage_optimized_relocation_free_object_container(body.text)
-        .map_err(|error| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
-            "native artifact fragment object placement failed: {error}"
-        ))]))?;
+        .map_err(|error| {
+            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+                "native artifact fragment object placement failed: {error}"
+            ))])
+        })?;
     let publication = container.publication();
     let retain_originals = original_target.is_some() || container.retains_originals();
     let replay = retain_originals.then(|| std::sync::Arc::new(container));

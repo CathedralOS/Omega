@@ -29,7 +29,9 @@ pub(crate) fn project(
         retained_operands(facts, machine, operation, rows)
     };
     let fact = |obligation| {
-        crate::preparation::legalization::obligations::retained_fact(facts, machine, operation, obligation)
+        crate::preparation::legalization::obligations::retained_fact(
+            facts, machine, operation, obligation,
+        )
     };
     let kind = match row {
         Operation::StructuralByteSequenceFieldLength { .. } => {
@@ -649,7 +651,9 @@ pub(crate) fn project(
             return Err(Error::custody());
         }
     };
-    crate::preparation::legalization_source::scalar_graph::instruction::with_metadata(source, kind, types)
+    crate::preparation::legalization_source::scalar_graph::instruction::with_metadata(
+        source, kind, types,
+    )
 }
 
 fn result(
@@ -704,7 +708,9 @@ fn scalar(
     row: &Operation,
 ) -> Result<Kind, Error> {
     let fact = |obligation| {
-        crate::preparation::legalization::obligations::retained_fact(facts, machine, operation, obligation)
+        crate::preparation::legalization::obligations::retained_fact(
+            facts, machine, operation, obligation,
+        )
     };
     Ok(match expression {
         Scalar::Integer {
@@ -922,7 +928,9 @@ fn arithmetic_instruction(
         let obligation = arithmetic.obligation().ok_or_else(Error::custody)?;
         Ok::<_, Error>((
             obligation,
-            crate::preparation::legalization::obligations::retained_fact(facts, machine, operation, obligation)?,
+            crate::preparation::legalization::obligations::retained_fact(
+                facts, machine, operation, obligation,
+            )?,
         ))
     };
     let carrier = || {
@@ -941,7 +949,9 @@ fn arithmetic_instruction(
             let ScalarType::Integer(integer) = scalar_type else {
                 return Err(Error::custody());
             };
-            if !crate::preparation::legalization::scalar_graph_input::supports_wrapping_division(integer) {
+            if !crate::preparation::legalization::scalar_graph_input::supports_wrapping_division(
+                integer,
+            ) {
                 return Err(Error::custody());
             }
             if operator == Operator::Divide {

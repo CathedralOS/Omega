@@ -52,7 +52,8 @@ pub(crate) fn prepare(
                     .statement_table
                     .iter_statements(state.statement_nodes)
                     .filter_map(|(statement, node)| {
-                        let crate::source_state::statement::StatementNode::LocalData(local) = node else {
+                        let crate::source_state::statement::StatementNode::LocalData(local) = node
+                        else {
                             return None;
                         };
                         (local.type_is_inferred
@@ -106,9 +107,9 @@ pub(crate) fn prepare(
             Meaning::Member(member) => {
                 prepare_member(program, &owners, &mut types, handle, &member)?;
             }
-            Meaning::Operator(binary) => {
-                crate::typing::operator_calls::prepare_site(program, &owners, &mut types, handle, binary)?
-            }
+            Meaning::Operator(binary) => crate::typing::operator_calls::prepare_site(
+                program, &owners, &mut types, handle, binary,
+            )?,
             Meaning::Local(statement, owner) => {
                 // A cast or selected operator can acquire its result only here.
                 // Publish that result on an inferred local before later operands
@@ -138,7 +139,9 @@ pub(crate) fn prepare(
                 .set_constructed_value_type_reference(expression, carrier);
         }
     }
-    crate::typing::contracts::proof_facts::normalize_membership_selections(source, program, &owners)?;
+    crate::typing::contracts::proof_facts::normalize_membership_selections(
+        source, program, &owners,
+    )?;
     crate::typing::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
     Ok(())
 }

@@ -4,9 +4,16 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
+use crate::lowering::selection_questions::{
+    RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
+    RawSelectionRole, RawSelectionTarget,
+};
+use crate::source_state::TypedTrees;
+use crate::source_state::callable_values::RuntimeCallableContractHandle;
+use crate::source_state::references::StaticArgumentRole;
 use compiler_storage::Record;
-use diagnostics::Diagnostic;
 use declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature;
+use diagnostics::Diagnostic;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
@@ -19,13 +26,6 @@ use semantic_vocabulary::{
 };
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
-use crate::source_state::TypedTrees;
-use crate::source_state::callable_values::RuntimeCallableContractHandle;
-use crate::source_state::references::StaticArgumentRole;
-use crate::lowering::selection_questions::{
-    RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
-    RawSelectionRole, RawSelectionTarget,
-};
 
 use crate::production::AcceptedTerminalSource;
 
@@ -144,10 +144,14 @@ struct Questions<'source> {
     source: &'source AcceptedTerminalSource,
     module: &'source TerminalModule,
     declarations: Declarations<'source>,
-    exact_toolchain_sources: std::cell::OnceCell<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
+    exact_toolchain_sources:
+        std::cell::OnceCell<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
     output: SelectionQuestions,
     build_sites: HashMap<
-        (SymbolHandle, crate::source_state::expression::ExpressionHandle),
+        (
+            SymbolHandle,
+            crate::source_state::expression::ExpressionHandle,
+        ),
         BuildCallSite,
         symbols::BuildSymbolHasher,
     >,
@@ -482,8 +486,8 @@ impl<'source> Questions<'source> {
         required: ContractId,
         target: semantic_vocabulary::source_selections::SelectionCallTarget,
     ) -> Result<SelectionReference, Diagnostic> {
-        use semantic_vocabulary::source_selections::SelectionCallTarget;
         use crate::source_state::references::StaticArgumentCall;
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let SelectionCallTarget::Declared(TargetMachineCallable::Machine(body)) = target else {
             return Err(refused(
@@ -571,9 +575,10 @@ impl<'source> Questions<'source> {
         let identity = typed
             .declared_static_operand_identity(
                 crate::source_state::type_identity::DeclaredStaticOperandIdentityRequest {
-                    operand: crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
-                        &operand,
-                    ),
+                    operand:
+                        crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                            &operand,
+                        ),
                     lexical_owner: supplier,
                     binders: &[],
                     lifetime_binders: &[],
@@ -1441,7 +1446,10 @@ impl<'source> Declarations<'source> {
                     .symbol_provenance_source_span(*symbol)
             })
             .and_then(|span| source.source().symbols.source_file(span))
-            .filter(|file| file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build);
+            .filter(|file| {
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build
+            });
         Ok(Self {
             typed: source.source(),
             build_entry_source,
@@ -1507,8 +1515,12 @@ impl<'source> Declarations<'source> {
             .and_then(|span| self.typed.symbols.source_file(span))
             .ok_or_else(|| refused("source declaration has no retained source purpose"))?;
         let purpose = match source.dependency_scope {
-            declaration_contracts::source_identity::DependencyScope::Build => SelectionPurpose::Build,
-            declaration_contracts::source_identity::DependencyScope::Product => SelectionPurpose::Product,
+            declaration_contracts::source_identity::DependencyScope::Build => {
+                SelectionPurpose::Build
+            }
+            declaration_contracts::source_identity::DependencyScope::Product => {
+                SelectionPurpose::Product
+            }
         };
         Ok(match (self.build_entry_source, source.package_identity) {
             (Some(entry), Some(owner)) => {
@@ -1615,10 +1627,8 @@ impl<'source> Declarations<'source> {
         }
         let identity = self.identity(symbol)?;
         let callable_identity = self.callable_identity(symbol)?;
-        let custody = crate::lowering::selection_questions::declaration_custody(
-            self.typed, symbol,
-        )
-        .map_err(refused)?;
+        let custody = crate::lowering::selection_questions::declaration_custody(self.typed, symbol)
+            .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
         let span = self
             .typed
@@ -1829,8 +1839,8 @@ mod symbol_rows_tests {
 
     #[test]
     fn fixed_kernel_references_keep_their_slots_without_authored_provenance() {
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{FixedCoreDeclaration, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
         let mut builder = SymbolTableBuilder::default();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -2011,7 +2021,8 @@ machine entry() -> u64 crashes none {
         let tokens = crate::production::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let mut syntax = crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut syntax =
+            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../../source/library/core");
         let mut bindings = Vec::new();
@@ -2030,24 +2041,23 @@ machine entry() -> u64 crashes none {
                 .tokenize()
                 .unwrap();
             crate::production::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
-            bindings.push(crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                id,
-                source,
-                &format!("omega::language::core::{declaration}"),
-                3,
-            ));
+            bindings.push(
+                crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    id,
+                    source,
+                    &format!("omega::language::core::{declaration}"),
+                    3,
+                ),
+            );
         }
-        let resolved = crate::resolution::resolve(
-            crate::resolution::ResolutionRequest {
-                syntax,
-                sources: Some(Arc::new(sources)),
-                top_level_bindings: bindings,
-                retained_base: None,
-            },
-        )
+        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: bindings,
+            retained_base: None,
+        })
         .unwrap();
-        let typed =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let entry = typed
             .machines()
             .iter()
@@ -2105,7 +2115,9 @@ machine entry() -> u64 crashes none {
         crate::source_state::static_applications::StaticMachineApplicationHandle,
     ) {
         use crate::declaration_selection::ProductDeclarationOperand;
-        use crate::declaration_selection::product_operands::{ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph};
+        use crate::declaration_selection::product_operands::{
+            ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+        };
         const BUILD: &str = "public machine build() { let four: u64 = 4; }";
         let product = format!(
             r#"
@@ -2127,7 +2139,11 @@ machine entry() -> u32 crashes none {{
         let mut syntax = None;
         let mut build_source = None;
         for (path, text, scope) in [
-            ("scope/build.omg", BUILD, declaration_contracts::source_identity::DependencyScope::Build),
+            (
+                "scope/build.omg",
+                BUILD,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             (
                 "scope/main.omg",
                 product.as_str(),
@@ -2154,7 +2170,10 @@ machine entry() -> u32 crashes none {{
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::production::frontend_fixture::parse_syntax_trees_with_id(
+                            id, &tokens,
+                        )
+                        .unwrap(),
                     )
                 }
                 Some(syntax) => {
@@ -2162,12 +2181,10 @@ machine entry() -> u32 crashes none {{
                 }
             }
         }
-        let mut request =
-            crate::resolution::ResolutionRequest::new(syntax.unwrap());
+        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
         let resolved = crate::resolution::resolve(request).unwrap();
-        let mut program =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let author = program.realized_machine_named("build").unwrap().symbol;
         let (literal, span) = program
             .expression_table
@@ -2571,9 +2588,10 @@ machine entry() {
             })
             .collect::<Vec<_>>();
         assert_ne!(identities[0], identities[1]);
-        let exact_sources =
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .unwrap();
+        let exact_sources = source_admission::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        )
+        .unwrap();
         let nominal = domains
             .iter()
             .map(|domain| {

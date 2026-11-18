@@ -10780,8 +10780,10 @@ pub mod descriptor_results {
 
         use std::collections::BTreeMap;
 
-        use semantic_vocabulary::{PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
         use arena::{IdTable, IdTableBuildError};
+        use semantic_vocabulary::{
+            PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+        };
         use terminal_psi::{
             Operation, OperationKind, RecordFieldValue, TerminalMachine, TerminalModule, Terminator,
         };
@@ -14002,8 +14004,8 @@ pub mod descriptor_results {
         use crate::descriptors::descriptor_lifetimes::{
             DescriptorFlowSource, descriptor_location, descriptor_location_type, value_locations,
         };
+        use arena::IdTable;
         use semantic_vocabulary::{InvocationSite, OperationId};
-        use arena::{IdTable};
 
         pub(crate) mod flow {
             use super::*;

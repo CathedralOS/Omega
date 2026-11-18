@@ -1676,7 +1676,10 @@ pub mod domain {
     pub struct AppliedDomainApplications {
         rows: arena::RetainedRows<AppliedDomainApplication>,
         by_application: std::sync::Arc<
-            std::collections::HashMap<(SymbolHandle, declaration_contracts::SemanticDomainId), usize>,
+            std::collections::HashMap<
+                (SymbolHandle, declaration_contracts::SemanticDomainId),
+                usize,
+            >,
         >,
     }
 
@@ -1838,7 +1841,10 @@ pub mod domain {
                 }
                 let matches = |(_, (formal, _)): &(
                     usize,
-                    &(symbols::SymbolHandle, crate::source_state::types::TypeReferenceHandle),
+                    &(
+                        symbols::SymbolHandle,
+                        crate::source_state::types::TypeReferenceHandle,
+                    ),
                 )| *formal == symbol;
                 // The original unscoped query substitutes one simultaneous
                 // tuple. An applied scope reads an actual before its own
@@ -1945,7 +1951,10 @@ pub mod domain {
     pub fn index_argument_is_in_scope(
         program: &TypedTrees,
         reference: crate::source_state::types::TypeReferenceHandle,
-        substitutions: &[(symbols::SymbolHandle, crate::source_state::types::TypeReferenceHandle)],
+        substitutions: &[(
+            symbols::SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )],
         scope_starts: &[usize],
         rigid_parameters: &[symbols::SymbolHandle],
     ) -> bool {
@@ -2063,7 +2072,8 @@ pub mod intrinsic_requirements {
             typed: &'typed TypedTrees,
             requirement: &'typed crate::source_state::machine::Machine,
         ) -> Option<Self> {
-            if requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            if requirement.supply_mode
+                != declaration_contracts::MachineSupplyMode::TopLevelRequirement
                 || requirement.body_is_present
                 || !typed.machine_type_parameters(requirement).is_empty()
             {
@@ -2351,7 +2361,8 @@ pub mod layout_storage {
                 && self
                     .data_definition_by_symbol(symbol)
                     .is_some_and(|definition| {
-                        definition.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque
+                        definition.supply_mode
+                            == declaration_contracts::DataSupplyMode::BoundaryOpaque
                     })
         }
 
@@ -2539,11 +2550,11 @@ pub mod numeric_intrinsics {
     use crate::source_state::types::PrimitiveType;
     use crate::source_state::types::TypeReferenceHandle;
     use declaration_contracts::numeric_intrinsics::NamedNumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericResult;
-use declaration_contracts::numeric_intrinsics::NumericType;
-use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation;
-use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
+    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use declaration_contracts::numeric_intrinsics::NumericResult;
+    use declaration_contracts::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation;
+    use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
 
     pub const fn primitive_numeric_type(primitive: PrimitiveType) -> Option<NumericType> {
         Some(match primitive {
@@ -2571,7 +2582,8 @@ use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperati
                     .map(|(machine, _)| machine)
             });
             if let Some(machine) = machine {
-                if machine.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                if machine.supply_mode
+                    != declaration_contracts::MachineSupplyMode::TopLevelRequirement
                     || machine.body_is_present
                     || !self.machine_type_parameters(machine).is_empty()
                 {

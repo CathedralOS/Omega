@@ -28,9 +28,8 @@ impl NativeBuildEvaluation {
     }
 
     pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = ::wire::digest_encoder::DomainDigestEncoder::new(
-            b"omega.native-build-evaluation.v1\0",
-        );
+        let mut digest =
+            ::wire::digest_encoder::DomainDigestEncoder::new(b"omega.native-build-evaluation.v1\0");
         digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.terminal_code.program_fingerprint.as_bytes());
         let usage = &self.usage;

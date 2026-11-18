@@ -5,8 +5,8 @@
 // pass/report disabled, `1` enables it, and `> 1` or `< 0` rejects so duplicate
 // or malformed enablement in `build.omg` fails closed.
 
-use source_compiler::evaluation::BuildTimeValue;
 use optimization_core::{Optimization, OptimizationSelections};
+use source_compiler::evaluation::BuildTimeValue;
 
 use super::vocabulary::OptimizationBuildVocabulary;
 

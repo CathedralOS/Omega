@@ -616,7 +616,8 @@ impl OptimizationSelections {
 
     pub fn identity(&self) -> OptimizationSelectionIdentity {
         let encoded = self.encode();
-        let mut digest = ::wire::digest_encoder::DomainDigestEncoder::new(SELECTION_IDENTITY_DOMAIN);
+        let mut digest =
+            ::wire::digest_encoder::DomainDigestEncoder::new(SELECTION_IDENTITY_DOMAIN);
         digest.bytes(&encoded);
         OptimizationSelectionIdentity(digest.finish())
     }

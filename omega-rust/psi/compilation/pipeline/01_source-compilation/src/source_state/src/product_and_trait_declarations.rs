@@ -188,11 +188,11 @@ pub mod product_operand {
     };
 
     pub(crate) mod applications {
+        use crate::declaration_selection::ProductDeclarationOperand;
+        use crate::declaration_selection::ProductOperandRole;
+        use crate::declaration_selection::product_operands::ProductStaticEnvironment;
         use crate::source_state::{TypedTrees, expression::StaticMachineArgument};
         use arena::Handle;
-        use crate::declaration_selection::ProductDeclarationOperand;
-use crate::declaration_selection::ProductOperandRole;
-use crate::declaration_selection::product_operands::ProductStaticEnvironment;
         use std::sync::Arc;
         use symbols::SymbolHandle;
 
@@ -225,9 +225,7 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
             pub fn product_operand_application_identity(
                 &self,
                 handle: Handle<ProductOperandApplication>,
-            ) -> Result<
-                Option<String>,
-                &'static str, > {
+            ) -> Result<Option<String>, &'static str> {
                 if !self.product_operand_applications.is_valid(handle) {
                     return Err("Product application has no live prepared row");
                 }
@@ -337,7 +335,8 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
             pub fn product_requirement_application(
                 &self,
                 handle: Handle<ProductOperandApplication>,
-            ) -> Result<crate::source_state::ClosedRequirementApplication<'_>, &'static str> {
+            ) -> Result<crate::source_state::ClosedRequirementApplication<'_>, &'static str>
+            {
                 if !self.product_operand_applications.is_valid(handle) {
                     return Err("Product requirement application has no live prepared row");
                 }
@@ -426,12 +425,12 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
     pub use applications::{ProductApplicationDemand, ProductOperandApplication};
 
     pub(crate) mod occurrences {
+        use crate::declaration_selection::ProductDeclarationRequest;
         use crate::source_state::{
             TypedTrees,
             expression::{BuildSelectionRequest, ExpressionHandle},
             references::{StaticArgumentCall, TypedReferences},
         };
-        use crate::declaration_selection::ProductDeclarationRequest;
         use std::sync::Arc;
         use symbols::SymbolHandle;
 
@@ -516,9 +515,9 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
     pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
 
     pub(crate) mod static_environment {
+        use crate::declaration_selection::product_operands::*;
         use crate::source_state::{TypedTrees, expression as expr, types};
         use arena::{Handle, HandleSpan};
-        use crate::declaration_selection::product_operands::*;
         use source_text::SourceSpan;
         use std::sync::Arc;
         use symbols::SymbolHandle;
@@ -1638,7 +1637,8 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
                     .symbol_source_span(definition.symbol)
                     .and_then(|span| program.symbols.source_file(span))
                     .is_some_and(|file| {
-                        file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+                        file.dependency_scope
+                            == declaration_contracts::source_identity::DependencyScope::Product
                     })
         });
         let definition = declarations.next().ok_or_else(|| {
@@ -1809,9 +1809,7 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
         typed: &TypedTrees,
         author: SymbolHandle,
         root: Option<SymbolHandle>,
-        request: std::sync::Arc<
-            crate::declaration_selection::ProductDeclarationRequest,
-        >,
+        request: std::sync::Arc<crate::declaration_selection::ProductDeclarationRequest>,
     ) -> Result<crate::declaration_selection::NativeBindingFormation, String> {
         use sha2::{Digest, Sha256};
         let machine = typed
@@ -1852,18 +1850,16 @@ use crate::declaration_selection::product_operands::ProductStaticEnvironment;
         let root_scope = root
             .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
             .is_some_and(|root| typed.symbols.same_source_package(span, root));
-        Ok(
-            crate::declaration_selection::NativeBindingFormation {
-                request,
-                author: span,
-                author_package: typed.symbols.symbol_package_identity(author),
-                root_scope,
-                declaration_path: typed.symbols.display_path(author, "::"),
-                callable_identity,
-                source_occurrence_digest: digest.finalize().into(),
-                resolution_stratum: source.resolution_stratum,
-            },
-        )
+        Ok(crate::declaration_selection::NativeBindingFormation {
+            request,
+            author: span,
+            author_package: typed.symbols.symbol_package_identity(author),
+            root_scope,
+            declaration_path: typed.symbols.display_path(author, "::"),
+            callable_identity,
+            source_occurrence_digest: digest.finalize().into(),
+            resolution_stratum: source.resolution_stratum,
+        })
     }
 
     impl TypedTrees {

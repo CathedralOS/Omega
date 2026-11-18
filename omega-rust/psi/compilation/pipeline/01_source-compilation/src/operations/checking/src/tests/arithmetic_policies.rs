@@ -15,8 +15,8 @@
 use super::mutable_formals::unsafe_operations;
 use super::references::{Lending, accepted, lower_lending, named, unit};
 use super::*;
-use terminal_psi::OperationKind;
 use crate::lowering::Policy;
+use terminal_psi::OperationKind;
 
 fn qualified(policy: Policy) -> ValueType {
     ValueType::Scalar(

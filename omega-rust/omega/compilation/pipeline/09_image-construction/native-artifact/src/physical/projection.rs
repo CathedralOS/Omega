@@ -4,7 +4,6 @@ operator and boundary occurrence roster from an optimized abstract operation
 plan and Terminal boundary-application coverage.
 */
 
-use verified_optimization_input::publication::EmissionProgramFacts;
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
@@ -13,6 +12,7 @@ use optimization_core::{
 };
 use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalPsiIdentity;
+use verified_optimization_input::publication::EmissionProgramFacts;
 
 use super::{
     ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize, native_optimization_projection,
@@ -262,14 +262,14 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        D29ReferenceCoordinate, ValidatedProjectionCoordinates, derive_optimized_scope,
-    };
-    use verified_optimization_input::publication::{EmissionProgramFacts, EmissionFunctionFacts, EmissionOperationProvenance};
+    use super::{D29ReferenceCoordinate, ValidatedProjectionCoordinates, derive_optimized_scope};
     use abstract_operations::AbstractFunctionResult;
     use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
-    use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, InvocationSite};
+    use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId, OperationId};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use verified_optimization_input::publication::{
+        EmissionFunctionFacts, EmissionOperationProvenance, EmissionProgramFacts,
+    };
 
     fn terminal(marker: u8) -> TerminalPsiIdentity {
         TerminalPsiIdentity {
@@ -298,15 +298,34 @@ mod tests {
             psi: terminal,
             entry: machine,
             functions: vec![EmissionFunctionFacts {
-                machine, attachment: None, parameters: Vec::new(), structural_parameters: Vec::new(),
-                result: AbstractFunctionResult::Unit, entry_claims: Vec::new(),
+                machine,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: AbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
                 source_occurrences: vec![
-                    EmissionOperationProvenance { operation: Some(operation(10)), boundary: None },
-                    EmissionOperationProvenance { operation: Some(operation(11)), boundary: Some((BoundaryMachineId::new(30).unwrap(), InvocationSite::Operation(operation(11)))) },
-                    EmissionOperationProvenance { operation: None, boundary: None },
+                    EmissionOperationProvenance {
+                        operation: Some(operation(10)),
+                        boundary: None,
+                    },
+                    EmissionOperationProvenance {
+                        operation: Some(operation(11)),
+                        boundary: Some((
+                            BoundaryMachineId::new(30).unwrap(),
+                            InvocationSite::Operation(operation(11)),
+                        )),
+                    },
+                    EmissionOperationProvenance {
+                        operation: None,
+                        boundary: None,
+                    },
                 ],
-                requires_graph_storage_replay: false, descriptors: Vec::new(), primitive_locals: Vec::new(),
-                scalar_call_results: Vec::new(), ram_obligations: Vec::new(),
+                requires_graph_storage_replay: false,
+                descriptors: Vec::new(),
+                primitive_locals: Vec::new(),
+                scalar_call_results: Vec::new(),
+                ram_obligations: Vec::new(),
             }],
         }
     }

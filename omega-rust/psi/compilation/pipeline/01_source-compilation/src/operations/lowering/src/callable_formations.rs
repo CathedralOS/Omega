@@ -3,7 +3,6 @@
 //! even when the body contains a construct the lowering route does not serve.
 //! These checks introduce no storage, facts, effect permission or evidence.
 
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::callable_signature_shapes::{
     BoundCallableShape, CallableShapeMismatch, CallableSignatureShape,
@@ -13,6 +12,7 @@ use crate::source_state::product_operand::ProductEntryDeclaration;
 use crate::source_state::references::{TypedReferences, visit_type_reference};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use symbols::SymbolHandle;
 
 use terminal_check_tables::compilation::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
@@ -28,11 +28,12 @@ pub fn check_bound_callable_shapes(
             slot: binding.slot.clone(),
             detail: detail.to_owned(),
         };
-        let schema = crate::source_symbols::rejoin_declaration(&binding
-            .semantic_schema, &typed.symbols,
-                typed.traits().iter().map(|owner| owner.symbol),
-            )
-            .map_err(defect)?;
+        let schema = crate::source_symbols::rejoin_declaration(
+            &binding.semantic_schema,
+            &typed.symbols,
+            typed.traits().iter().map(|owner| owner.symbol),
+        )
+        .map_err(defect)?;
         if !typed
             .trait_definition_by_symbol(schema)
             .is_some_and(|schema| schema.is_boundary)
@@ -41,16 +42,17 @@ pub fn check_bound_callable_shapes(
                 "bound continuation schema is not a boundary declaration",
             ));
         }
-        let requirement = crate::source_symbols::rejoin_declaration(&binding
-            .requirement, &typed.symbols,
-                typed.traits().iter().flat_map(|owner| {
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|signature| signature.symbol)
-                }),
-            )
-            .map_err(defect)?;
+        let requirement = crate::source_symbols::rejoin_declaration(
+            &binding.requirement,
+            &typed.symbols,
+            typed.traits().iter().flat_map(|owner| {
+                typed
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .map(|signature| signature.symbol)
+            }),
+        )
+        .map_err(defect)?;
         let required = typed
             .trait_definition_by_symbol(schema)
             .and_then(|owner| typed.trait_machine_signature_by_symbol(owner, requirement))
@@ -317,9 +319,9 @@ impl TypedReferences for TypeResolution<'_> {
                     crate::source_state::types::FixedArrayLength::Expression(reference) => {
                         self.child(*reference)
                     }
-                    crate::source_state::types::FixedArrayLength::ConstParameter { symbol, .. } => {
-                        self.extend([*symbol])
-                    }
+                    crate::source_state::types::FixedArrayLength::ConstParameter {
+                        symbol, ..
+                    } => self.extend([*symbol]),
                     crate::source_state::types::FixedArrayLength::ConstCall { machine, .. } => {
                         self.extend([*machine])
                     }

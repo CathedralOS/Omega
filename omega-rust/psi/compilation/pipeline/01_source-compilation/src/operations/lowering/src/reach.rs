@@ -4,15 +4,15 @@
 //! closure is known. Only ServiceMap converts them to hermetically ordered
 //! Terminal identities. The receiving checker independently judges every call.
 
+use crate::source_state::TypedTrees;
+use arena::IdTable;
 use declaration_contracts::ServiceReachId;
 use semantic_vocabulary::{MachineId, ServiceId};
-use arena::{IdTable};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
     TerminalCallableTermination, TerminalModule,
 };
-use crate::source_state::TypedTrees;
 
 use crate::lowering::{Elaboration, Unserved, refuse};
 
@@ -121,7 +121,9 @@ impl ServiceMap {
             .collect::<Vec<_>>();
         let schemas = catalog
             .retain_service_applications(&applications)
-            .map_err(|error| crate::lowering::read::services::unavailable(context, error.message))?;
+            .map_err(|error| {
+                crate::lowering::read::services::unavailable(context, error.message)
+            })?;
         let declarations = registry
             .iter()
             .zip(identities)
@@ -219,10 +221,9 @@ impl ServiceMap {
         let mut schemas = Vec::with_capacity(self.declarations.len());
         let prepared = (|| {
             for source in &self.declarations {
-                let schema = source
-                    .schema
-                    .surface()
-                    .map_err(|error| crate::lowering::read::services::unavailable(context, error.message))?;
+                let schema = source.schema.surface().map_err(|error| {
+                    crate::lowering::read::services::unavailable(context, error.message)
+                })?;
                 if schema.declaration.root_application_identity() != Some(source.identity.as_str())
                 {
                     return Err(unavailable(
@@ -365,7 +366,8 @@ pub(crate) fn written_ceiling(
     if !written {
         return Ok(None);
     }
-    crate::lowering::read::services::finite_reach(typed, context, machine.service_reach_row).map(Some)
+    crate::lowering::read::services::finite_reach(typed, context, machine.service_reach_row)
+        .map(Some)
 }
 
 /// State canonical rows from actual lowered direct, callable and boundary calls.
@@ -516,9 +518,9 @@ fn union<T: Ord + Clone>(to: &mut Vec<T>, from: &[T]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
     use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
     fn ordinary_contract_traits_cannot_enter_the_service_namespace() {
@@ -547,7 +549,10 @@ mod tests {
             declaration_contracts::source_identity::DependencyScope::Product,
         );
         let catalog = std::sync::Arc::new(
-            crate::source_state::service_declarations::PreparedServiceCatalog::prepare(context, &[]),
+            crate::source_state::service_declarations::PreparedServiceCatalog::prepare(
+                context,
+                &[],
+            ),
         );
         let refusal = ServiceMap::prepare(
             &typed,

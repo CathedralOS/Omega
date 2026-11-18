@@ -2009,8 +2009,8 @@ pub(crate) mod arrival_storage {
 }
 pub mod borrowed_storage {
     use crate::scalars::scalar_ordering::ScalarOrdering;
+    use arena::IdTable;
     use semantic_vocabulary::{BlockId, MachineId, PlaceId, ValueId};
-    use arena::{IdTable};
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::StructuralPathSegment;
 

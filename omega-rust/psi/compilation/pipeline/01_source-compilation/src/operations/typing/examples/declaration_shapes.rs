@@ -1,9 +1,9 @@
 //! Inspect actual typed payload sizes before selecting lookup benchmark shapes.
 //! Takes standalone source paths; imports still need their ordinary resolver input.
 
-use std::sync::Arc;
 use source_compiler::source_state::expression::ExpressionNode;
 use source_compiler::source_state::statement::StatementNode;
+use std::sync::Arc;
 
 fn summarize(path: &str) {
     let text = std::fs::read_to_string(path).unwrap();
@@ -64,8 +64,7 @@ fn main() {
         let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
         let resolved = source_compiler::resolution::resolve(request).unwrap();
-        let typed =
-            source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         println!("source={path}");
         for machine in typed.machines() {
             for state in typed.machine_states(machine) {

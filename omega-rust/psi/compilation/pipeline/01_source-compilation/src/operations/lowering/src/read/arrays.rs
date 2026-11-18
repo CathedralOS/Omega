@@ -3,13 +3,13 @@
 //! field declarations or a nominal schema.
 
 use crate::lowering::body::Qualification;
+use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};
+use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::ArrayExtent;
 use terminal_semantics::CollectionExtent;
-use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};
-use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 
 use super::authority::Access;
 use super::{Program, Slot, places::RecordSource};
@@ -983,8 +983,9 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let multiplicity =
-            crate::lowering::body::source_multiplicity(self.typed.stored_value_multiplicity(reference));
+        let multiplicity = crate::lowering::body::source_multiplicity(
+            self.typed.stored_value_multiplicity(reference),
+        );
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
             multiplicity,
@@ -1116,9 +1117,9 @@ pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
 #[cfg(test)]
 mod sequence_source_tests {
     use super::*;
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
     use crate::source_state::{TypedTrees, name::Identifier, types::TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
     fn a_sequence_cannot_rebind_its_source_or_element_to_equal_width_storage() {

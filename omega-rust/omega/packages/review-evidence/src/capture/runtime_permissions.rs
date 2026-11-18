@@ -6,8 +6,8 @@ complete supported policy inventory supplies the consent comparison rows.
 
 use diagnostics::Diagnostic;
 use products::CheckedProductSource;
-use std::sync::Arc;
 use source_compiler::source_state::ProductSourceIdentity;
+use std::sync::Arc;
 
 pub struct PreparedRuntimePolicy {
     owner: Result<ProductSourceIdentity, Diagnostic>,

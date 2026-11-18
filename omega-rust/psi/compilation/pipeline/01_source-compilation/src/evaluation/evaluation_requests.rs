@@ -1,8 +1,8 @@
 //! Real invocation configuration and value data, without an earlier program input.
+use crate::source_state::TypedTrees;
 use build_time_values::BuildTimeValue;
 use std::fmt;
 use symbols::SymbolHandle;
-use crate::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationSemanticsIdentity(u32);

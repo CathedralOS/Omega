@@ -856,7 +856,9 @@ mod tests {
         let tokens = crate::production::frontend_fixture::Lexer::new(TEXT)
             .tokenize()
             .unwrap();
-        let syntax = crate::production::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let syntax =
+            crate::production::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap();
         let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),

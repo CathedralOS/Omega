@@ -1400,13 +1400,13 @@ pub mod control_flow {
                 StatementTable, TableCall, Transition, TransitionGuard, TransitionTarget,
                 TransitionTargetNode,
             };
+            use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+            use crate::declaration_selection::AuthoredDeclarationSelectionKind;
             use crate::source_resolved::expression::{ExpressionNode, ExpressionTable};
             use crate::source_resolved::name::DiagnosticName;
             use crate::source_resolved::types::TypeReferenceTable;
             use crate::source_selections::AuthoredDeclarationSelections;
             use arena::{Arena, Handle};
-            use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind;
             use source_text::{SourceId, SourceSpan, Span};
             use symbols::SymbolHandle;
 

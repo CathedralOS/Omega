@@ -754,27 +754,55 @@ pub fn selected_provider_candidate_rows<'plan>(
     plan: &'plan effects::provider_plan::ProviderPlan,
     module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<SelectedProviderCandidateRow<'plan>>, String> {
-    use terminal_semantics::provider_candidates::{CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions};
-    let owner = plan.provider_declaration.as_deref().filter(|owner| !owner.is_empty())
+    use terminal_semantics::provider_candidates::{
+        CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions,
+    };
+    let owner = plan
+        .provider_declaration
+        .as_deref()
+        .filter(|owner| !owner.is_empty())
         .ok_or("checked provider plan has no exact selecting declaration")?;
-    let rows = plan.rows.iter().filter_map(|row| {
-        let effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, machine_package_identity } = row.binding else { return None; };
-        Some((row, CheckedProviderRow {
-            requirement: plan.identity_text(row.requirement_identity),
-            declared_requirement: plan.identity_text(row.declared_requirement_identity),
-            machine: plan.identity_text(machine_identity),
-            machine_package: machine_package_identity,
-        }))
-    }).collect::<Vec<_>>();
+    let rows = plan
+        .rows
+        .iter()
+        .filter_map(|row| {
+            let effects::provider_plan::ProviderBinding::CheckedAdapter {
+                machine_identity,
+                machine_package_identity,
+            } = row.binding
+            else {
+                return None;
+            };
+            Some((
+                row,
+                CheckedProviderRow {
+                    requirement: plan.identity_text(row.requirement_identity),
+                    declared_requirement: plan.identity_text(row.declared_requirement_identity),
+                    machine: plan.identity_text(machine_identity),
+                    machine_package: machine_package_identity,
+                },
+            ))
+        })
+        .collect::<Vec<_>>();
     let (rows, query_rows): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
-    let positions = selected_candidate_positions(CheckedProviderQuery {
-        name: &plan.name,
-        declaration: owner,
-        provider: &plan.provider_type,
-        surface: &plan.schema.declaration,
-        rows: &query_rows,
-    }, module)?;
-    Ok(rows.into_iter().zip(positions).map(|(row, candidate_positions)| SelectedProviderCandidateRow { row, candidate_positions }).collect())
+    let positions = selected_candidate_positions(
+        CheckedProviderQuery {
+            name: &plan.name,
+            declaration: owner,
+            provider: &plan.provider_type,
+            surface: &plan.schema.declaration,
+            rows: &query_rows,
+        },
+        module,
+    )?;
+    Ok(rows
+        .into_iter()
+        .zip(positions)
+        .map(|(row, candidate_positions)| SelectedProviderCandidateRow {
+            row,
+            candidate_positions,
+        })
+        .collect())
 }
 
 #[cfg(test)]

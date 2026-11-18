@@ -521,7 +521,8 @@ mod program_image {
         {
             return Err(mismatch);
         }
-        let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(scalar).ok_or(mismatch)?;
+        let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(scalar)
+            .ok_or(mismatch)?;
         let result_home = TargetUnitScalarHomeRequirement {
             defining_operation: *psi_operation,
             source_value: result.value,
@@ -615,8 +616,10 @@ mod row {
             &mut self,
             psi_operation: semantic_vocabulary::OperationId,
             result: &terminal_psi::StructuralOperationResult,
-        ) -> Result<target_operations::TargetStructuralHomeRequirement, crate::target_lowering::LoweringError>
-        {
+        ) -> Result<
+            target_operations::TargetStructuralHomeRequirement,
+            crate::target_lowering::LoweringError,
+        > {
             super::aggregate_results::established_home(
                 self.live,
                 psi_operation,
@@ -973,8 +976,10 @@ mod structural_case {
         LoweringError,
     > {
         let invalid = || LoweringError::UnknownStructuralType(identity);
-        let regions = crate::target_lowering::structural_layout::reference_projection_regions(identity, path, types)
-            .ok_or_else(invalid)?;
+        let regions = crate::target_lowering::structural_layout::reference_projection_regions(
+            identity, path, types,
+        )
+        .ok_or_else(invalid)?;
         if !regions.readable
             || regions
                 .pointer_slots
@@ -985,7 +990,11 @@ mod structural_case {
         }
         let pointer_slots = prepared_pointer_slots(&regions.pointer_slots).ok_or_else(invalid)?;
         let (identity, _, tag_byte_offset, leaf_runs) =
-            crate::target_lowering::structural_layout::runtime_projection(regions.root, regions.path, types)?;
+            crate::target_lowering::structural_layout::runtime_projection(
+                regions.root,
+                regions.path,
+                types,
+            )?;
         let runs = regions.selector_runs(leaf_runs);
         let declaration = types.get(identity).ok_or_else(invalid)?;
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
@@ -1076,8 +1085,10 @@ mod structural_case {
         else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         };
-        let layout =
-            crate::target_lowering::structural_layout::structural_sum_layout(selected_type, structural_types)?;
+        let layout = crate::target_lowering::structural_layout::structural_sum_layout(
+            selected_type,
+            structural_types,
+        )?;
         // The chase addresses `regions.root`. That is the sum itself only
         // when the path never leaves the sum's own storage. A pointer chase
         // or a sum stored in a larger record addresses the outer region,
@@ -1086,7 +1097,11 @@ mod structural_case {
         let region_byte_size = if pointer_slots.is_empty() && region_root == selected_type {
             layout.shape.byte_size
         } else {
-            crate::target_lowering::structural_layout::structural_shape(region_root, structural_types)?.byte_size
+            crate::target_lowering::structural_layout::structural_shape(
+                region_root,
+                structural_types,
+            )?
+            .byte_size
         };
         if byte_offset
             .checked_add(layout.shape.byte_size)
@@ -1146,8 +1161,10 @@ mod structural_case {
                     .position(|field| field.id == payload.field)
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let field = fields[field_ordinal];
-                let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(payload.scalar_type)
-                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(
+                    payload.scalar_type,
+                )
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let field_layout = layout.cases[case_ordinal].fields[field_ordinal];
                 if field.field_type.scalar_type() != Some(payload.scalar_type)
                     || field_layout.shape != shape
@@ -1580,14 +1597,13 @@ mod terminator {
                     .scalar_parameters
                     .iter()
                     .map(|scalar_type| {
-                        crate::target_lowering::scalar_abi::fixed_native_scalar_shape(*scalar_type).ok_or_else(
-                            || {
+                        crate::target_lowering::scalar_abi::fixed_native_scalar_shape(*scalar_type)
+                            .ok_or_else(|| {
                                 LoweringError::boundary_realization(
                                     *boundary,
                                     "a scalar parameter has no fixed native representation",
                                 )
-                            },
-                        )
+                            })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let signature = calling_conventions::CallSignature {

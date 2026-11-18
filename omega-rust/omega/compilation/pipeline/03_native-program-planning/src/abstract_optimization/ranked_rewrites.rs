@@ -1014,7 +1014,10 @@ pub(crate) mod loop_invariant_scalar_motion {
                 .iter()
                 .find(|component| &component.id == candidate.component())
                 .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
-            let effects = crate::abstract_optimization::validation::invariant_calls::unit_effect_summaries(session.unit())
+            let effects =
+                crate::abstract_optimization::validation::invariant_calls::unit_effect_summaries(
+                    session.unit(),
+                )
                 .map_err(LoopInvariantScalarMotionError::CallableProvenance)?;
             let Some(plan) = propose::component_plan(session, component, &effects)? else {
                 return Err(LoopInvariantScalarMotionError::AlreadyRelocated);

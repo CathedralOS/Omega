@@ -3,8 +3,8 @@
 pub(crate) mod provider_rows;
 
 pub use effects::{
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType,
-    CompilerPrimitiveFloatBinaryOperation, CompilerPrimitiveIntegerComparisonOperation,
+    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerPrimitiveIntegerComparisonOperation,
 };
 
 pub(crate) fn trait_name_text(schema: &effects::provider_plan::ServiceSchema) -> &str {

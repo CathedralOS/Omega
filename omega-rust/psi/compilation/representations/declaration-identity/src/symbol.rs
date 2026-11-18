@@ -80,7 +80,7 @@ pub(crate) mod name {
     use std::borrow::Cow;
     use std::sync::Arc;
 
-    use source_text::{SourceSpan};
+    use source_text::SourceSpan;
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SymbolName {
@@ -188,7 +188,12 @@ pub(crate) mod name {
                 && let Some(source) = source
                 && source.get(source_span.span.start..source_span.span.end) == Some(value)
             {
-                return Self { storage: SymbolNameStorage::SourceSlice { source: source.clone(), source_span } };
+                return Self {
+                    storage: SymbolNameStorage::SourceSlice {
+                        source: source.clone(),
+                        source_span,
+                    },
+                };
             }
             Self::from_ref(name)
         }
@@ -198,7 +203,10 @@ pub(crate) mod name {
             Some(match &self.storage {
                 SymbolNameStorage::Missing => "",
                 SymbolNameStorage::Source(_) => return None,
-                SymbolNameStorage::SourceSlice { source, source_span } => &source[source_span.span.start..source_span.span.end],
+                SymbolNameStorage::SourceSlice {
+                    source,
+                    source_span,
+                } => &source[source_span.span.start..source_span.span.end],
                 SymbolNameStorage::OwnedSource { value, .. } => value.as_ref(),
                 SymbolNameStorage::Static(value) => value,
                 SymbolNameStorage::Owned(value) => value.as_ref(),
@@ -243,8 +251,8 @@ pub(crate) mod name {
     #[cfg(test)]
     mod tests {
         use super::{SourceSpan, SymbolName, SymbolNameRef};
-        use std::sync::Arc;
         use source_text::{SourceId, Span};
+        use std::sync::Arc;
 
         #[test]
         fn retained_names_compare_and_format_only_the_selected_spelling() {

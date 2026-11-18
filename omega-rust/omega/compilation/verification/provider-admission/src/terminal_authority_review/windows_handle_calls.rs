@@ -7,9 +7,9 @@
 
 use std::collections::BTreeMap;
 
+use arena::IdTable;
 use effects::TerminalMechanismIdentity;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, InvocationSite, MachineId, ValueId};
-use arena::{IdTable};
 use terminal_psi::control_flow::BoundaryInvocationCompletion;
 use terminal_psi::{
     ModuleInvocationInputs, OperationKind, StructuralArgument, TerminalAffineCleanupAction,

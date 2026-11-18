@@ -2,15 +2,17 @@
 //! package trust settlement decide whether that subject can be admitted.
 
 use super::authored_requests::{AuthoredRequests, refusal};
-use diagnostics::Diagnostic;
 use crate::declaration_selection::product_operands::ProductStaticEnvironment;
-use declaration_contracts::selection::AuthoredRootGrant;
-use declaration_contracts::selection::RootGrantSubject;
-use crate::declaration_selection::{BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole};
-use std::sync::Arc;
-use symbols::SymbolHandle;
+use crate::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
+};
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::ProductDeclarationLookup;
+use declaration_contracts::selection::AuthoredRootGrant;
+use declaration_contracts::selection::RootGrantSubject;
+use diagnostics::Diagnostic;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 #[derive(Clone)]
 struct FormedSubject {

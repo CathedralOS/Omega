@@ -63,7 +63,9 @@ pub(crate) mod expressions {
         build_selections, call_results, capture_product_operands, construction_destinations,
         installed_interrupts, product_queries, product_selections, qualification_casts,
     };
-    pub(crate) use crate::typing::equality_and_exhaustiveness::{equality, exhaustiveness, proposition};
+    pub(crate) use crate::typing::equality_and_exhaustiveness::{
+        equality, exhaustiveness, proposition,
+    };
     pub(crate) use crate::typing::expression_lowering::expression;
     pub(crate) use crate::typing::statement_lowering::statement;
 }
@@ -71,7 +73,6 @@ pub(crate) mod expressions {
 mod access_borrow_factory;
 
 pub(crate) mod tables {
-    use arena::Arena;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_resolved::expression::ExpressionTable as ResolvedExpressions;
     use crate::source_resolved::statement::StatementTable as ResolvedStatements;
@@ -79,6 +80,7 @@ pub(crate) mod tables {
     use crate::source_state::TypedTreeTables;
     use crate::source_state::expression::ExpressionTable;
     use crate::source_state::statement::StatementTable;
+    use arena::Arena;
 
     pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
         &tables.expression_table
@@ -120,8 +122,7 @@ pub use lowerer::seeded_continuation::{
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use lowerer::seeded_continuation::{
-    SeededTypingBase,
-    lower_symbol_resolved_trees_to_seeded_base,
+    SeededTypingBase, lower_symbol_resolved_trees_to_seeded_base,
 };
 
 #[cfg(test)]

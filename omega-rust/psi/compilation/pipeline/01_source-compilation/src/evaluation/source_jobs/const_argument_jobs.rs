@@ -22,8 +22,6 @@
 
 use std::collections::VecDeque;
 
-use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::constant_recipes::{
     ConstantExpressionContext, RetainedConstantPosition, RetainedConstantRecipe,
@@ -36,6 +34,8 @@ use crate::source_state::machine::Machine;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use super::constant_jobs::{decoded, insert, key};
 use crate::evaluation::{InvocationTarget, SourceCompletionAccounting};
@@ -319,7 +319,8 @@ pub fn evaluate(
     }
     // A job waits for every job held by a declaration its expression
     // reaches: `Outer<outer()>` waits for the `Buffer<leaf()>` in `outer`.
-    let mut rows = crate::source_state::references::collect_computation_symbol_dependencies(program);
+    let mut rows =
+        crate::source_state::references::collect_computation_symbol_dependencies(program);
     rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
     let mut successors = vec![Vec::new(); jobs.len()];
     let mut remaining = vec![0usize; jobs.len()];

@@ -95,7 +95,11 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     // machine countdown(remaining: u32) -> u32 terminates by remaining
     //   { remaining > 0 -> countdown(remaining - 1); 0 }
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
-    let result = discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let result = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let rows = verdicts(&elaboration, &result, 1, ranked);
     // One shared well-foundedness question and one comparison on each of
     // the cycle's two edges: the edge beneath the head and the jump back.
@@ -183,8 +187,7 @@ fn lower_ranked(
         },
         ranking,
     });
-    crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-        .unwrap()
+    crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
 }
 
 /// The one unproved obligation of a loop whose measure is not shown to go
@@ -547,7 +550,11 @@ fn tampered(change: impl FnOnce(&mut terminal_psi::TerminalNaturalCycle)) -> Ref
         panic!("the loop is ranked");
     };
     change(&mut cycles[0]);
-    discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err()
+    discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err()
 }
 
 #[test]
@@ -602,8 +609,11 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     let mut elaboration = lower_ranked(less_one(), None);
     elaboration.module.machines[0].contract.termination =
         semantic_vocabulary::Termination::Terminates;
-    let refusal =
-        discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+    let refusal = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,

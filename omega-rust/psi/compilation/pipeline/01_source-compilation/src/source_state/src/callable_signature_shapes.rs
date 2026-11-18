@@ -4,8 +4,8 @@
 
 use crate::source_state::signature::StateParameter;
 use crate::source_state::types::TypeReferenceHandle;
-use symbols::{SymbolHandle};
 use source_admission::RetainedDeclaration;
+use symbols::SymbolHandle;
 
 /// Declaration matching ignores whether expression syntax also names this
 /// callable. Exact static binders, parameter modes and full result types choose
@@ -33,25 +33,35 @@ pub(crate) fn realizes_signature(
             .all(|(actual, required)| {
                 actual.is_const == required.is_const
                     && actual.is_mutable == required.is_mutable
-                    && program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                        binders: &machine_binders,
-                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(actual.type_reference)
-                    }) == program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                        binders: &required_binders,
-                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
-                            required.type_reference,
-                        )
-                    })
+                    && program.type_identity(
+                        crate::source_state::type_identity::TypeIdentityRequest {
+                            binders: &machine_binders,
+                            ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                                actual.type_reference,
+                            )
+                        },
+                    ) == program.type_identity(
+                        crate::source_state::type_identity::TypeIdentityRequest {
+                            binders: &required_binders,
+                            ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                                required.type_reference,
+                            )
+                        },
+                    )
             })
         && state.return_type.is_valid() == result.is_valid()
         && (!result.is_valid()
             || program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
                 binders: &machine_binders,
-                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(state.return_type)
-            }) == program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                binders: &required_binders,
-                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(result)
-            }))
+                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                    state.return_type,
+                )
+            }) == program.type_identity(
+                crate::source_state::type_identity::TypeIdentityRequest {
+                    binders: &required_binders,
+                    ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(result)
+                },
+            ))
 }
 fn realization_static_binders(
     program: &crate::source_state::TypedTrees,
@@ -76,11 +86,13 @@ fn realization_static_binders(
         machine_parameters.iter().zip(required_parameters)
     {
         match (&machine_parameter.kind, &required_parameter.kind) {
-            (crate::source_state::data::TypeParameterKind::Type, crate::source_state::data::TypeParameterKind::Type)
-                if !crate::source_state::data::type_parameter_demands_stronger_properties(
-                    required_parameter,
-                    machine_parameter,
-                ) => {}
+            (
+                crate::source_state::data::TypeParameterKind::Type,
+                crate::source_state::data::TypeParameterKind::Type,
+            ) if !crate::source_state::data::type_parameter_demands_stronger_properties(
+                required_parameter,
+                machine_parameter,
+            ) => {}
             (
                 crate::source_state::data::TypeParameterKind::Const {
                     type_reference: machine_carrier,
@@ -89,13 +101,21 @@ fn realization_static_binders(
                     type_reference: required_carrier,
                 },
             ) if machine_parameter.bounds == required_parameter.bounds
-                && program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                    binders: &machine_binders,
-                    ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(*machine_carrier)
-                }) == program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                    binders: &required_binders,
-                    ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(*required_carrier)
-                }) => {}
+                && program.type_identity(
+                    crate::source_state::type_identity::TypeIdentityRequest {
+                        binders: &machine_binders,
+                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                            *machine_carrier,
+                        )
+                    },
+                ) == program.type_identity(
+                    crate::source_state::type_identity::TypeIdentityRequest {
+                        binders: &required_binders,
+                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                            *required_carrier,
+                        )
+                    },
+                ) => {}
             _ => return None,
         }
     }
@@ -179,7 +199,8 @@ impl<'source> CallableDeclaration<'source> {
     pub fn static_parameters(
         self,
         program: &'source crate::source_state::TypedTrees,
-    ) -> Result<arena::RootRows<'source, crate::source_state::data::TypeParameter>, &'static str> {
+    ) -> Result<arena::RootRows<'source, crate::source_state::data::TypeParameter>, &'static str>
+    {
         match self {
             Self::Signature(signature) => Ok(program.state_signature_type_parameters(signature)),
             Self::Machine(symbol) => program
@@ -211,7 +232,13 @@ impl crate::source_state::TypedTrees {
         &self,
         instance: SymbolHandle,
         parameter: SymbolHandle,
-    ) -> Result<(&crate::source_state::expression::StaticMachineArgument, SymbolHandle), &'static str> {
+    ) -> Result<
+        (
+            &crate::source_state::expression::StaticMachineArgument,
+            SymbolHandle,
+        ),
+        &'static str,
+    > {
         self.selected_implementation_receipt(instance, parameter)
             .map(|(_, operand, owner)| (operand, owner))
     }
@@ -581,7 +608,8 @@ impl CallbackSignatureIdentity<'_> {
         projection: Option<
             &dyn Fn(
                 crate::source_state::type_identity::identity_context::SignatureRegion,
-            ) -> crate::source_state::type_identity::identity_context::SignatureRegion,
+            )
+                -> crate::source_state::type_identity::identity_context::SignatureRegion,
         >,
     ) -> Result<(Vec<String>, String), &'static str> {
         program
@@ -668,8 +696,11 @@ impl crate::source_state::TypedTrees {
         };
         let supplied_owner = self.lifetime_declaration_owner(supplied.symbol);
         let supplied_lifetimes =
-            crate::source_state::type_identity::declaration_lifetime_parameters(self, supplied_owner)
-                .ok_or("the callback lost its lifetime declaration")?;
+            crate::source_state::type_identity::declaration_lifetime_parameters(
+                self,
+                supplied_owner,
+            )
+            .ok_or("the callback lost its lifetime declaration")?;
         let required_identity = CallbackSignatureIdentity {
             signature: (required.symbol, required.symbol),
             lifetime_owner: (
@@ -764,9 +795,11 @@ impl crate::source_state::TypedTrees {
 mod invocation_lifetime_tests {
     use super::CallableDeclaration;
     use crate::source_state::type_identity::LifetimeParameterIdentity as Region;
-    use crate::source_state::{TypedTrees, machine::Machine, name::Identifier, types::TypeReferenceNode};
+    use crate::source_state::{
+        TypedTrees, machine::Machine, name::Identifier, types::TypeReferenceNode,
+    };
+    use crate::source_symbols::SymbolTableBuilder;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     #[test]
     fn invocation_inputs_rebind_exact_nested_regions_and_preserve_foreign_owners() {
@@ -1105,8 +1138,8 @@ mod callback_signature_tests {
     use crate::source_state::types::{
         FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
     };
+    use crate::source_symbols::SymbolTableBuilder;
     use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     struct Fixture {
         program: TypedTrees,

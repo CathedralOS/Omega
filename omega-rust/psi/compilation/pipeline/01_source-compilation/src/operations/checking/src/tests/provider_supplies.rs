@@ -123,10 +123,26 @@ fn supplied_with_subjects(
                 let messages = formations
                     .iter()
                     .map(|entry| entry.reject_diagnostic().message)
-                    .chain(violations.iter().map(crate::checking::RuleViolation::message))
-                    .chain(unproved.iter().map(crate::checking::UnprovedObligation::message))
-                    .chain(unestablished.iter().map(crate::checking::UnestablishedUse::message))
-                    .chain(conflicts.iter().map(crate::checking::ConflictingUse::message))
+                    .chain(
+                        violations
+                            .iter()
+                            .map(crate::checking::RuleViolation::message),
+                    )
+                    .chain(
+                        unproved
+                            .iter()
+                            .map(crate::checking::UnprovedObligation::message),
+                    )
+                    .chain(
+                        unestablished
+                            .iter()
+                            .map(crate::checking::UnestablishedUse::message),
+                    )
+                    .chain(
+                        conflicts
+                            .iter()
+                            .map(crate::checking::ConflictingUse::message),
+                    )
                     .chain(exceeded.iter().map(crate::checking::ExceededReach::message))
                     .collect::<Vec<_>>();
                 assert!(

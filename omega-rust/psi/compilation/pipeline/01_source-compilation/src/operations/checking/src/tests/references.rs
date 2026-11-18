@@ -11,9 +11,9 @@
 
 use super::*;
 use crate::checking::LoanConflict;
+use crate::lowering::{Borrowed, RecordField, RecordType};
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
-use crate::lowering::{Borrowed, RecordField, RecordType};
 
 /// One machine with formals that may be borrowed. `borrowed` lists each
 /// borrowed formal's position and access; its `parameters` entry is the
@@ -53,18 +53,13 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Pair"),
-        shape: crate::lowering::StorageShape::Record(vec![
-            field(1, "a"),
-            field(2, "b"),
-        ]),
+        shape: crate::lowering::StorageShape::Record(vec![field(1, "a"), field(2, "b")]),
         requires: Vec::new(),
     });
     records
 }
 
-pub(super) fn lower_lending(
-    machines: Vec<Lending>,
-) -> Checked<crate::lowering::Elaboration> {
+pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<crate::lowering::Elaboration> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
@@ -101,8 +96,7 @@ pub(super) fn lower_lending(
             ranking: None,
         });
     }
-    let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records())?;
+    let mut elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records())?;
     declare_body_models(&mut elaboration, &signatures);
     Ok(elaboration)
 }
@@ -748,7 +742,9 @@ machine entry() crashes none {
     };
     // The product closure is accepted and runs. Its generic check form is
     // `a_rigid_requirement_call_borrows_its_declared_input_region`.
-    let RouteVerdict::Accepted(accepted) = crate::checking::judge_compilation(prepare()).remove(0).unwrap()
+    let RouteVerdict::Accepted(accepted) = crate::checking::judge_compilation(prepare())
+        .remove(0)
+        .unwrap()
     else {
         panic!("the selected call must read its public requirement contract");
     };
@@ -1016,7 +1012,8 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
-    let negative = crate::checking::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
+    let negative =
+        crate::checking::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
     let RouteVerdict::Rejected {
         formations,
         violations,
@@ -1603,8 +1600,8 @@ fn rigid_relay_with(
     let mut form = crate::lowering::elaborate_generic(&typed, symbol).unwrap();
     edit(&mut form);
     let mut activity = crate::checking::ProofSearchActivity::default();
-    let discharged =
-        crate::checking::discharge(&mut form, &mut activity).map_err(|refusal| format!("{refusal:?}"));
+    let discharged = crate::checking::discharge(&mut form, &mut activity)
+        .map_err(|refusal| format!("{refusal:?}"));
     (form, discharged)
 }
 
@@ -1749,7 +1746,9 @@ fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
         terminal_codec::TerminalPublication::Invocation,
     )
     .program;
-    crate::checking::judge_compilation(prepared).remove(0).unwrap()
+    crate::checking::judge_compilation(prepared)
+        .remove(0)
+        .unwrap()
 }
 
 #[test]

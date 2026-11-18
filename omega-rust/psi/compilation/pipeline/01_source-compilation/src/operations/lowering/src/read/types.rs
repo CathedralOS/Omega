@@ -5,13 +5,13 @@ The type family of the reader: which typed-tree type is a scalar, by the
 */
 
 use crate::lowering::body::Qualification;
+use crate::source_state::closed_numeric;
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use numerics::integer_carrier::FixedInteger;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::closed_numeric;
-use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
 use super::carriers::{Bound, Scope, Written};
@@ -1007,8 +1007,8 @@ impl Program<'_> {
         carrier: ValueType,
         constraints: arena::HandleSpan<crate::source_state::types::TypeConstraintNode>,
     ) -> Checked<Qualification> {
-        use numerics::arithmetic::ArithmeticDomain;
         use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode};
+        use numerics::arithmetic::ArithmeticDomain;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let mut qualification = carrier.qualification();
         let typed = self.typed;
@@ -1188,10 +1188,12 @@ impl Program<'_> {
         if definition.cleanup_selection.is_some() {
             return unserved("constrained by a domain that selects a cleanup machine");
         }
-        if crate::source_state::domain::subject_membership_facts(typed, definition).any(|membership| {
-            membership.domain_symbol != domain.declaration
-                || membership.semantic_domain != domain.identity
-        }) {
+        if crate::source_state::domain::subject_membership_facts(typed, definition).any(
+            |membership| {
+                membership.domain_symbol != domain.declaration
+                    || membership.semantic_domain != domain.identity
+            },
+        ) {
             return unserved("constrained by a domain that refines another domain");
         }
         let Some(plain) = carrier.qualified(crate::lowering::body::Qualification::NONE) else {
@@ -1211,7 +1213,8 @@ impl Program<'_> {
             if self.value_type(id, laid.semantic_type)? != subject {
                 return unserved("constrained by a domain declared on another carrier");
             }
-            if definition.predicate_presence != declaration_contracts::DomainPredicatePresence::Absent
+            if definition.predicate_presence
+                != declaration_contracts::DomainPredicatePresence::Absent
                 || !definition.facts.is_empty()
             {
                 return unserved("a predicate domain on laid layout storage");
@@ -1221,7 +1224,8 @@ impl Program<'_> {
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
-        if crate::source_state::byte_predicates::byte_slice_domain_predicate(typed, definition).is_none()
+        if crate::source_state::byte_predicates::byte_slice_domain_predicate(typed, definition)
+            .is_none()
             && !self
                 .declared_domains
                 .iter()
@@ -1258,7 +1262,9 @@ impl Program<'_> {
                 _ => None,
             })
             .map_or(
-                crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                crate::lowering::SourceOrigin::Unpositioned(
+                    crate::lowering::Unpositioned::SpanAbsent,
+                ),
                 |written| crate::lowering::SourceOrigin::of(written.source_span),
             )
     }
@@ -1287,7 +1293,8 @@ impl Program<'_> {
             if parameter.bounds == crate::source_state::data::DataProperties::default() {
                 continue;
             }
-            let names_carrier = parameter.kind == crate::source_state::data::TypeParameterKind::Type
+            let names_carrier = parameter.kind
+                == crate::source_state::data::TypeParameterKind::Type
                 && matches!(
                     typed.type_reference_table.type_reference(declaration.target_type),
                     TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol
@@ -1487,8 +1494,8 @@ impl Program<'_> {
         literal: &numeric_literals::FloatLiteral,
         expected: Option<ScalarType>,
     ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
-        use numerics::float_semantics::{FloatFormat, FloatSemantics};
         use numeric_literals::FloatFormat as Landing;
+        use numerics::float_semantics::{FloatFormat, FloatSemantics};
         use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
         let format = literal
             .landing()

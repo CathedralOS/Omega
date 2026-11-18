@@ -2,10 +2,12 @@
 // mechanisms before any provider selection or admission.
 
 use super::*;
-use evaluation_receipts::{NativeBuildEvaluation, NativeBindingMaterialization};
-use evaluation_accounting::{BuildEvaluationSponsor};
-use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
 use declaration_contracts::selection::ProductTarget;
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::{
+    BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
+};
+use evaluation_receipts::{NativeBindingMaterialization, NativeBuildEvaluation};
 use semantic_vocabulary::WorkScheduleIdentity;
 use std::sync::Arc;
 

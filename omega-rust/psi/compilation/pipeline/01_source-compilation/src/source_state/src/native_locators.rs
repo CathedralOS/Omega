@@ -2,7 +2,9 @@
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataMember, TypeParameterKind};
-use crate::source_state::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 

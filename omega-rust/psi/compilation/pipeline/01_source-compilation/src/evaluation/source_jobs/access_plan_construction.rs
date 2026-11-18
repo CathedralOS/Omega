@@ -787,7 +787,8 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
 fn last_receipt(
     accounting: &SourceCompletionAccounting,
 ) -> std::sync::Arc<crate::evaluation::PureTerminalEvaluationReceipt> {
-    let Some(crate::evaluation::PureEvaluationRecord::Invocation(receipt)) = accounting.receipts().last()
+    let Some(crate::evaluation::PureEvaluationRecord::Invocation(receipt)) =
+        accounting.receipts().last()
     else {
         panic!("the actual checked invocation has its own receipt")
     };
@@ -994,8 +995,11 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
             .unwrap()
             .invoke_recorded(target(&facts), &mut accounting)
             .unwrap();
-        let error = crate::evaluation::source_jobs::access_plan_values::normalize(query, &last_receipt(&accounting))
-            .unwrap_err();
+        let error = crate::evaluation::source_jobs::access_plan_values::normalize(
+            query,
+            &last_receipt(&accounting),
+        )
+        .unwrap_err();
         assert!(error.contains(reason), "{error}");
     }
     let mut altered = produced.value().clone();
@@ -1014,8 +1018,11 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .unwrap()
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error =
-        crate::evaluation::source_jobs::access_plan_values::normalize(query, &last_receipt(&accounting)).unwrap_err();
+    let error = crate::evaluation::source_jobs::access_plan_values::normalize(
+        query,
+        &last_receipt(&accounting),
+    )
+    .unwrap_err();
     assert!(
         error.contains("callable description is not bound to the actual source"),
         "{error}"
@@ -1030,8 +1037,11 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .unwrap()
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error =
-        crate::evaluation::source_jobs::access_plan_values::normalize(query, &last_receipt(&accounting)).unwrap_err();
+    let error = crate::evaluation::source_jobs::access_plan_values::normalize(
+        query,
+        &last_receipt(&accounting),
+    )
+    .unwrap_err();
     assert!(
         error.contains("not the genuine core AccessPlan declaration"),
         "{error}"

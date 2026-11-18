@@ -10,14 +10,19 @@ pub mod digest_encoder;
 
 #[cfg(test)]
 mod tests {
-    use super::{cursor::Cursor, digest_encoder::{DomainDigestEncoder, hex}};
+    use super::{
+        cursor::Cursor,
+        digest_encoder::{DomainDigestEncoder, hex},
+    };
 
     #[test]
     fn digest_preserves_the_standard_sha256_byte_protocol() {
         let mut digest = DomainDigestEncoder::new(b"");
         digest.raw(b"abc");
-        assert_eq!(hex(&digest.finish()),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            hex(&digest.finish()),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]

@@ -19,8 +19,8 @@ filesystem observations and build logs, and assembles `ComputedBuildConfig`.
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
 use build_declarations::BuildRequest;
 use diagnostics::Diagnostic;
-use evaluation_accounting::{BuildEvaluationSponsor};
-use evaluation_contracts::{BuildEvaluationSponsorLimits};
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {

@@ -1,9 +1,9 @@
-use source_text::{SourceId, SourceSpan, Span};
 use source_compiler::source_resolved::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionRecordError,
     AuthoredDeclarationSelections, SymbolResolvedTrees,
 };
+use source_text::{SourceId, SourceSpan, Span};
 use symbols::SymbolHandle;
 
 #[test]

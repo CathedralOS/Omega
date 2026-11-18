@@ -5265,7 +5265,8 @@ pub(crate) mod declared_types {
                 .add("alias/main.omg".into(), text.to_owned())
                 .source_id;
             let mut syntax =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                    .unwrap();
             let selection =
                 ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
             normalize(&mut syntax, &selection, &[])?;
@@ -5342,9 +5343,11 @@ pub(crate) mod declared_types {
             let tokens = crate::resolution::frontend_fixture::Lexer::new(new_source)
                 .tokenize()
                 .unwrap();
-            let later =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_text::SourceId(77), &tokens)
-                    .unwrap();
+            let later = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(
+                source_text::SourceId(77),
+                &tokens,
+            )
+            .unwrap();
             repeated.extend_from(&later);
             let selection = ConstantSelection::new(&repeated, None, Vec::new()).unwrap();
             normalize(&mut repeated, &selection, &[]).unwrap();
@@ -5375,12 +5378,16 @@ pub(crate) mod declared_types {
             );
 
             let mut global = normalized("data Real { value: u8; } data Global<X> = Real; data Outer<Real> = Global<u8>; data View { value: Outer<bool>; }").unwrap();
-            let tokens = crate::resolution::frontend_fixture::Lexer::new("data Later { value: Outer<bool>; }")
-                .tokenize()
-                .unwrap();
-            let later =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_text::SourceId(78), &tokens)
-                    .unwrap();
+            let tokens = crate::resolution::frontend_fixture::Lexer::new(
+                "data Later { value: Outer<bool>; }",
+            )
+            .tokenize()
+            .unwrap();
+            let later = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(
+                source_text::SourceId(78),
+                &tokens,
+            )
+            .unwrap();
             global.extend_from(&later);
             let selection = ConstantSelection::new(&global, None, Vec::new()).unwrap();
             normalize(&mut global, &selection, &[]).unwrap();

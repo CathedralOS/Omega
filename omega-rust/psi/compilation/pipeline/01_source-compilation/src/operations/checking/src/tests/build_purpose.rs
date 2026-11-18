@@ -70,8 +70,10 @@ pub(super) fn frontier_with_core(
             .unwrap();
         match &mut syntax {
             None => {
-                syntax =
-                    Some(crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
+                syntax = Some(
+                    crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                        .unwrap(),
+                );
             }
             Some(syntax) => {
                 crate::checking::frontend_fixture::parse(syntax, id, &tokens).unwrap();
@@ -102,12 +104,14 @@ pub(super) fn frontier_with_core(
             .tokenize()
             .unwrap();
         crate::checking::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
-        bindings.push(crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-            importing_source,
-            id,
-            &format!("omega::language::core::{declaration}"),
-            3,
-        ));
+        bindings.push(
+            crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                importing_source,
+                id,
+                &format!("omega::language::core::{declaration}"),
+                3,
+            ),
+        );
     }
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
@@ -182,7 +186,11 @@ pub(super) fn roster<'a>(
 }
 
 /// The names of the machines one roster claims, in elaboration order.
-fn claimed(typed: &crate::source_state::TypedTrees, entry: &str, purpose: DependencyScope) -> Vec<String> {
+fn claimed(
+    typed: &crate::source_state::TypedTrees,
+    entry: &str,
+    purpose: DependencyScope,
+) -> Vec<String> {
     let elaboration = crate::lowering::elaborate_for(
         typed,
         roster(&[symbol(typed, entry)], &[Some(package())], purpose),
@@ -221,7 +229,9 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 /// The checker's verdict on the Build program `build`, rooted at its
 /// `build_entry`, beside an empty Product. Acceptance covers every subject
 /// declaration; only then is its closure returned for table inspection.
-pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+pub(super) fn judge_build(
+    build: &str,
+) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
     judge_build_with_core(build, &[])
 }
 
@@ -275,7 +285,9 @@ fn a_build_subject_cannot_hide_a_generic_guarantee_rejection() {
 
 /// Every verdict of the Build program `build`: its closure, then each
 /// generic check form and refinement witness it declares.
-pub(super) fn judge_build_all(build: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+pub(super) fn judge_build_all(
+    build: &str,
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = frontier_of("machine product_entry() { }", build);
     let entry = symbol(&typed, "build_entry");
     crate::checking::judge_compilation(

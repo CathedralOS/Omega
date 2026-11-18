@@ -11,6 +11,8 @@ use super::{CachedCompiledReview, CachedOccurrenceFacts, DEFAULT_MAX_RECORD_BYTE
 use crate::codec_bytes::{push_count_u64, push_encoded};
 use crate::digest_encoder::content_identity;
 use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
+use declaration_contracts::CarryPolicy;
+use declaration_contracts::DomainPredicatePresence;
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderIdentityTable,
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
@@ -21,8 +23,6 @@ use effects::provider_plan::{
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use declaration_contracts::CarryPolicy;
-use declaration_contracts::DomainPredicatePresence;
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::native_output_codec::{decode, encode};
 use package_compilation::provider_selection_codec::decode_package_provider_selections;
@@ -959,13 +959,17 @@ mod tests {
                 vec![0],
             ),
             (
-                ConsumedSourceUnitKind::PackageGenerated(declaration_contracts::source_identity::DependencyScope::Product),
+                ConsumedSourceUnitKind::PackageGenerated(
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                ),
                 Some(package),
                 None,
                 vec![1, 0],
             ),
             (
-                ConsumedSourceUnitKind::PackageGenerated(declaration_contracts::source_identity::DependencyScope::Build),
+                ConsumedSourceUnitKind::PackageGenerated(
+                    declaration_contracts::source_identity::DependencyScope::Build,
+                ),
                 Some(package),
                 None,
                 vec![1, 1],

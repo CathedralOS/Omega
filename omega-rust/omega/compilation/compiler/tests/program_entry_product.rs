@@ -278,11 +278,18 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             let mut identities = other.identities.into_builder();
             identities.intern("test::distinct-publication");
             other.identities = identities.build();
-            let other = std::sync::Arc::new(terminal_codec::CanonicalTerminalArtifact::from_parts(
-                other, program.artifact().optimization().clone(), None,
-            ).unwrap());
-            let refusal = native_compiler::PublishedNativeEntry::for_program(&other, checked.execution())
-                .err().expect("a different program cannot borrow this target selection");
+            let other = std::sync::Arc::new(
+                terminal_codec::CanonicalTerminalArtifact::from_parts(
+                    other,
+                    program.artifact().optimization().clone(),
+                    None,
+                )
+                .unwrap(),
+            );
+            let refusal =
+                native_compiler::PublishedNativeEntry::for_program(&other, checked.execution())
+                    .err()
+                    .expect("a different program cannot borrow this target selection");
             assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
 
             // A portable body with the same entry ID is insufficient when its
@@ -369,20 +376,23 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             .map(|(expected_owner, expected_source)| {
                 let path = repository.join(expected_source);
                 let mut rows = catalog.abi_signatures().iter().filter(|row| {
-                    row.projections_in_context(typed, declaration_contracts::source_identity::DependencyScope::Product)
-                        .any(|projection| {
-                            typed
-                                .trait_machine_signature(projection.source)
-                                .is_some_and(|(owner, signature)| {
-                                    owner.name.as_str() == expected_owner
-                                        && signature.name.as_str() == "enter"
-                                })
-                                && typed
-                                    .symbols
-                                    .symbol_provenance_source_span(projection.source)
-                                    .and_then(|span| typed.symbols.source_file(span))
-                                    .is_some_and(|source| source.path == path)
-                        })
+                    row.projections_in_context(
+                        typed,
+                        declaration_contracts::source_identity::DependencyScope::Product,
+                    )
+                    .any(|projection| {
+                        typed
+                            .trait_machine_signature(projection.source)
+                            .is_some_and(|(owner, signature)| {
+                                owner.name.as_str() == expected_owner
+                                    && signature.name.as_str() == "enter"
+                            })
+                            && typed
+                                .symbols
+                                .symbol_provenance_source_span(projection.source)
+                                .and_then(|span| typed.symbols.source_file(span))
+                                .is_some_and(|source| source.path == path)
+                    })
                 });
                 let row = rows
                     .next()

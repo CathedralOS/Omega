@@ -8,12 +8,6 @@ declared keys.
 */
 
 #[cfg(test)]
-use target_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
-use target_aarch64::{aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog};
-#[cfg(test)]
-use target_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
-use target_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
-#[cfg(test)]
 use register_model::RegisterConstraintKey;
 use register_model::{
     PhysicalRegisterModel, PreparedRegisterConstraintCatalog, RegisterReservationProfile,
@@ -21,6 +15,14 @@ use register_model::{
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
+#[cfg(test)]
+use target_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
+use target_aarch64::{
+    aarch64_physical_register_model, prepare_aarch64_register_constraint_catalog,
+};
+#[cfg(test)]
+use target_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
+use target_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
 
 pub(super) fn target_physical_register_model(target: NativeTarget) -> PhysicalRegisterModel {
     match target.architecture {

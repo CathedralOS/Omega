@@ -614,9 +614,7 @@ impl IntegerLiteral {
                 ..
             } => self.value_bignum(),
             IntegerRepresentation::Small { .. } => None,
-            IntegerRepresentation::Large { text, .. } => {
-                bignum::BigInt::from_decimal_str(text)
-            }
+            IntegerRepresentation::Large { text, .. } => bignum::BigInt::from_decimal_str(text),
         }
     }
 

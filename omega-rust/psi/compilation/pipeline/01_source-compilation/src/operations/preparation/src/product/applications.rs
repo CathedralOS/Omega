@@ -24,18 +24,25 @@
 //! literal extent; value arguments that are an integer literal or a Boolean.
 //! Every other form is refused by name and forms nothing.
 
-use arena::Handle;
-use crate::declaration_selection::product_operands::{ProductArrayLength, ProductOperandName, ProductOperandType, ProductStaticEnvironment, ProductStaticOperand, ProductStaticOperandGraph};
+use crate::declaration_selection::product_operands::{
+    ProductArrayLength, ProductOperandName, ProductOperandType, ProductStaticEnvironment,
+    ProductStaticOperand, ProductStaticOperandGraph,
+};
 use crate::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
-use std::borrow::Cow;
-use symbols::{SymbolHandle, SymbolKind};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::TypeParameterKind;
-use crate::source_state::expression::{ExpressionNode, StaticMachineArgument, StaticSymbolApplication};
+use crate::source_state::expression::{
+    ExpressionNode, StaticMachineArgument, StaticSymbolApplication,
+};
 use crate::source_state::name::Identifier;
 use crate::source_state::product_operand::{ProductApplicationDemand, ProductOperandApplication};
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
-use crate::source_state::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
+use arena::Handle;
+use std::borrow::Cow;
+use symbols::{SymbolHandle, SymbolKind};
 
 /// Why an operand formed no application.
 pub(super) enum Stop {
@@ -869,8 +876,12 @@ fn prepare_boundary_requirements(
                 &[],
             )
             .map_err(|stop| match stop {
-                crate::preparation::passes::specialization::Stop::Unserved(reason) => Stop::Unserved(reason),
-                crate::preparation::passes::specialization::Stop::Rejected(reason) => Stop::Rejected(reason),
+                crate::preparation::passes::specialization::Stop::Unserved(reason) => {
+                    Stop::Unserved(reason)
+                }
+                crate::preparation::passes::specialization::Stop::Rejected(reason) => {
+                    Stop::Rejected(reason)
+                }
                 crate::preparation::passes::specialization::Stop::Defect(reason) => {
                     Stop::Rejected(reason.into())
                 }

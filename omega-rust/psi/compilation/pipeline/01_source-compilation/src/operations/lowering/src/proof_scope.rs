@@ -2,6 +2,7 @@
 // module after source is released. Retain that correspondence here, before
 // judgment; publishing it does not establish an input premise or a provider.
 
+use crate::source_state::TypedTrees;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::compiler_evaluation::{
     CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
@@ -15,7 +16,6 @@ use terminal_psi::{
     ProofDeclarationId, ProofScopeDeclaration, TargetMachineCallable, TerminalAffineCleanupAction,
     Terminator,
 };
-use crate::source_state::TypedTrees;
 
 use crate::lowering::{Elaboration, Unserved, refuse};
 
@@ -399,15 +399,13 @@ pub(crate) fn declare(
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody =
-            crate::lowering::selection_questions::declaration_custody(typed, symbol).map_err(|reason| {
-                terminal_check_tables::Refusal {
-                    source_span: None,
-                    reason: terminal_check_tables::RefusalReason::Unsupported,
-                    machine: machine.id,
-                    concerns: Construct::Machine,
-                    detail: reason.to_string(),
-                }
+        let custody = crate::lowering::selection_questions::declaration_custody(typed, symbol)
+            .map_err(|reason| terminal_check_tables::Refusal {
+                source_span: None,
+                reason: terminal_check_tables::RefusalReason::Unsupported,
+                machine: machine.id,
+                concerns: Construct::Machine,
+                detail: reason.to_string(),
             })?;
         let evaluation = (|| {
             if let Some(reason) = unavailable {
@@ -699,7 +697,9 @@ fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> Dec
     ) {
         (Some(package), _) => DeclarationCustody::Package(package),
         (_, Some(source_admission::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-        (_, Some(source_admission::SourceOrigin::ToolchainContract)) => DeclarationCustody::ToolchainContract,
+        (_, Some(source_admission::SourceOrigin::ToolchainContract)) => {
+            DeclarationCustody::ToolchainContract
+        }
         (_, Some(source_admission::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
         _ if typed.symbols.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
         _ => DeclarationCustody::Missing,
@@ -743,7 +743,11 @@ fn selection_requests(
             // The caller supplied this operand. The implementation declaration,
             // separately, selected its trait and that trait's explicit arguments.
             // Its source scope cannot replace the original caller's package edge.
-            crate::source_state::references::visit_static_argument(typed, &mut references, &operand);
+            crate::source_state::references::visit_static_argument(
+                typed,
+                &mut references,
+                &operand,
+            );
             references.finish()?;
             let implementation = *elaboration
                 .machines
@@ -755,14 +759,22 @@ fn selection_requests(
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)
             {
-                crate::source_state::references::visit_type_reference(typed, &mut declared, *argument);
+                crate::source_state::references::visit_type_reference(
+                    typed,
+                    &mut declared,
+                    *argument,
+                );
             }
             let mut method = SelectionReferences::new(typed, {
                 let actual = selected.call.lexical_owner(typed);
                 if actual.is_valid() { actual } else { owner }
             });
             for argument in selected.call.arguments(typed) {
-                crate::source_state::references::visit_static_argument(typed, &mut method, argument);
+                crate::source_state::references::visit_static_argument(
+                    typed,
+                    &mut method,
+                    argument,
+                );
             }
             let mut all = references.requests;
             declared.finish()?;
@@ -848,7 +860,10 @@ impl Extend<symbols::SymbolHandle> for SelectionReferences<'_> {
 }
 
 impl crate::source_state::references::TypedReferences for SelectionReferences<'_> {
-    fn type_reference(&mut self, reference: crate::source_state::types::TypeReferenceHandle) -> bool {
+    fn type_reference(
+        &mut self,
+        reference: crate::source_state::types::TypeReferenceHandle,
+    ) -> bool {
         if self.failed.is_some() {
             return false;
         }
@@ -886,14 +901,19 @@ impl crate::source_state::references::TypedReferences for SelectionReferences<'_
                     .type_reference_table
                     .type_reference_handles(alias.arguments)
                 {
-                    crate::source_state::references::visit_type_reference(self.typed, self, *argument);
+                    crate::source_state::references::visit_type_reference(
+                        self.typed, self, *argument,
+                    );
                 }
             }
             return false;
         }
         true
     }
-    fn expression(&mut self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+    fn expression(
+        &mut self,
+        expression: crate::source_state::expression::ExpressionHandle,
+    ) -> bool {
         if self.typed.expression_table.expression_is_valid(expression) {
             return self.failed.is_none();
         }

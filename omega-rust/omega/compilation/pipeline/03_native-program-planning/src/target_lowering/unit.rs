@@ -936,7 +936,10 @@ pub(crate) mod boundary_call {
                             &structural_arguments,
                             &target_result,
                             |buffer| {
-                                crate::target_lowering::borrowed_storage::capture_type(buffer, structural_types)
+                                crate::target_lowering::borrowed_storage::capture_type(
+                                    buffer,
+                                    structural_types,
+                                )
                             },
                             |scalar| structural_types.closed_scalar(scalar),
                         )
@@ -2293,7 +2296,9 @@ mod structural_scalar {
         structural_types: &StructuralTypeLookup<'_>,
         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
         structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-        reference_destination: Option<crate::target_lowering::control_flow::references::ReferentProjection>,
+        reference_destination: Option<
+            crate::target_lowering::control_flow::references::ReferentProjection,
+        >,
         scalar_sources: &crate::target_lowering::control_flow::scalar_sources::ScalarSources<'_>,
 
         operations: &mut Vec<TargetUnitOperation>,

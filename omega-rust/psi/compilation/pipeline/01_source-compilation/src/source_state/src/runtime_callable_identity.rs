@@ -12,8 +12,12 @@ use crate::source_state::contract_structure::{
 use crate::source_state::data::{MachineParameterContract, TypeParameterKind};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::StaticMachineArgument;
-use crate::source_state::proposition::{PropositionApplication, PropositionBody, PropositionFormula};
-use crate::source_state::signature::{AuthoredInvocationTarget, SignatureContractKind, StateSignature};
+use crate::source_state::proposition::{
+    PropositionApplication, PropositionBody, PropositionFormula,
+};
+use crate::source_state::signature::{
+    AuthoredInvocationTarget, SignatureContractKind, StateSignature,
+};
 use crate::source_state::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, LifetimeParameterIdentity, TypeIdentityRequest,
 };
@@ -601,8 +605,12 @@ fn clauses(
             context.name(program, selected, "")
         },
         crash_cause: |cause| match cause {
-            crate::source_state::signature::CrashCause::Trap => semantic_vocabulary::CrashCause::Trap,
-            crate::source_state::signature::CrashCause::Abort => semantic_vocabulary::CrashCause::Abort,
+            crate::source_state::signature::CrashCause::Trap => {
+                semantic_vocabulary::CrashCause::Trap
+            }
+            crate::source_state::signature::CrashCause::Abort => {
+                semantic_vocabulary::CrashCause::Abort
+            }
         },
     };
     let projected = contract_structure::declared_callable_with(
@@ -881,11 +889,12 @@ fn nominal_proposition_endpoint(
                             .iter()
                             .map(|argument| type_text(program, *argument, scope))
                             .collect::<IdentityResult<Vec<_>>>()?;
-                        let requirements = crate::source_state::proposition::normalized_evidence_requirements(
-                            program,
-                            trait_symbol,
-                            &root_arguments,
-                        )?;
+                        let requirements =
+                            crate::source_state::proposition::normalized_evidence_requirements(
+                                program,
+                                trait_symbol,
+                                &root_arguments,
+                            )?;
                         Some(NormalizedEvidenceInterfaceIdentity {
                             trait_symbol,
                             arguments: root_arguments
@@ -1363,7 +1372,8 @@ impl TypedTrees {
         contract: RuntimeCallableContractHandle,
         application: &PropositionApplication,
         binders: &[(SymbolHandle, String)],
-    ) -> IdentityResult<crate::source_state::proposition::NormalizedPropositionApplicationIdentity> {
+    ) -> IdentityResult<crate::source_state::proposition::NormalizedPropositionApplicationIdentity>
+    {
         with_contract_scope(
             self,
             contract,
@@ -1438,8 +1448,12 @@ impl TypedTrees {
                 .iter()
                 .enumerate()
                 .any(|(position, (formal, actual))| {
-                    crate::source_state::type_identity::lifetime_parameter_name(self, *formal).is_none()
-                        || crate::source_state::type_identity::lifetime_parameter_name(self, *actual).is_none()
+                    crate::source_state::type_identity::lifetime_parameter_name(self, *formal)
+                        .is_none()
+                        || crate::source_state::type_identity::lifetime_parameter_name(
+                            self, *actual,
+                        )
+                        .is_none()
                         || resolved_lifetimes[..position]
                             .iter()
                             .any(|(prior, prior_actual)| prior == formal && prior_actual != actual)
@@ -1533,12 +1547,14 @@ mod tests {
     use crate::source_state::callable_values::RuntimeCallableContract;
     use crate::source_state::expression::{Expression, ExpressionHandle, NamePath};
     use crate::source_state::name::Identifier;
-    use crate::source_state::proposition::{PropositionDefinition, PropositionEvidenceClassification};
+    use crate::source_state::proposition::{
+        PropositionDefinition, PropositionEvidenceClassification,
+    };
     use crate::source_state::signature::StateParameter;
     use crate::source_state::trait_definition::{TraitDefinition, TraitRequirement};
     use crate::source_state::types::TypeReferenceNode;
+    use crate::source_symbols::SymbolTableBuilder;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     fn name_expression(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
         program

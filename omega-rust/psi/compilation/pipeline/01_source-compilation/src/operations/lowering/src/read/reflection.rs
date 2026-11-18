@@ -2,12 +2,12 @@
 //! The selected declaration and its source stay explicit; no callable body is
 //! instantiated, and these byte values grant no permission.
 
-use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
-use semantic_vocabulary::{MachineId, StructuralTypeId};
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use crate::source_state::expression::{ExpressionHandle, TableCallExpression};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::types::TypeReferenceHandle;
+use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
+use semantic_vocabulary::{MachineId, StructuralTypeId};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::{Program, places::literal_value_type, regions::Substitution};
 use crate::lowering::{Expression, ExpressionKind, SourceOrigin, ValueType};
@@ -59,12 +59,13 @@ impl Program<'_> {
         }
         let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
             .lexical_owner(self.typed);
-        let description = crate::source_state::reflection::construction::parameter_description_identity(
-            self.typed,
-            selected.symbol,
-            author,
-        )
-        .map_err(|reason| invalid(machine, reason))?;
+        let description =
+            crate::source_state::reflection::construction::parameter_description_identity(
+                self.typed,
+                selected.symbol,
+                author,
+            )
+            .map_err(|reason| invalid(machine, reason))?;
         let (_, entry) = self.declaration(machine, query)?;
         let result_type = entry.return_type;
         let data = self
@@ -201,10 +202,11 @@ impl Program<'_> {
             .map_err(|reason| invalid(machine, reason))?;
         let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
             .lexical_owner(self.typed);
-        let description = crate::source_state::reflection::construction::field_description_identity(
-            self.typed, &operand, author,
-        )
-        .map_err(|reason| invalid(machine, reason))?;
+        let description =
+            crate::source_state::reflection::construction::field_description_identity(
+                self.typed, &operand, author,
+            )
+            .map_err(|reason| invalid(machine, reason))?;
         let bytes = [
             ("member_identity", description.member_identity),
             ("case_identity", description.case_identity),
@@ -293,7 +295,10 @@ impl Program<'_> {
                 }
                 ExpressionKind::Boolean(_) => {
                     field.value_type
-                        == ValueType::Scalar(ScalarType::Boolean, crate::lowering::body::Qualification::NONE)
+                        == ValueType::Scalar(
+                            ScalarType::Boolean,
+                            crate::lowering::body::Qualification::NONE,
+                        )
                 }
                 _ => false,
             };

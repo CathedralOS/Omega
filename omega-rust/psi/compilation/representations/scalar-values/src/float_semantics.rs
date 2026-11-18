@@ -14,8 +14,8 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 use crate::integer_carrier::FixedInteger;
+use bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FloatSpecialValues {

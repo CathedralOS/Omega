@@ -46,7 +46,11 @@ impl PreparedCallbackDeclarations {
             SymbolHandle,
             CallbackRequirementId,
         )>,
-        occurrences: Vec<(CallbackUseId, Option<String>, Option<source_text::SourceSpan>)>,
+        occurrences: Vec<(
+            CallbackUseId,
+            Option<String>,
+            Option<source_text::SourceSpan>,
+        )>,
         installed_uses: Vec<CallbackUseId>,
     ) -> Self {
         Self {

@@ -47,8 +47,11 @@ A disagreement is a defect of the route, not of the program, so it is a
 accepted on it.
 */
 
-use semantic_vocabulary::{BlockId, CrashCause, EdgeId, InvocationSite, MachineId, ObligationId, Proposition, ScalarType, StructuralTypeId, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, CrashCause, EdgeId, InvocationSite, MachineId, ObligationId, Proposition, ScalarType,
+    StructuralTypeId, ValueId,
+};
 use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
@@ -741,14 +744,16 @@ pub(crate) fn follow_the_lowered_form(
         machine: id,
         module,
         lowered,
-        cleanup_catalog: crate::checking::owned_cleanup::Catalog::new(module).map_err(|detail| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                detail,
-            )
-        })?,
+        cleanup_catalog: crate::checking::owned_cleanup::Catalog::new(module).map_err(
+            |detail| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Machine,
+                    detail,
+                )
+            },
+        )?,
         claims: terminal_semantics::plain_affine::verify_claims_in(module, id).map_err(
             |error| {
                 use terminal_semantics::plain_affine::{Error, Site};
@@ -1003,7 +1008,9 @@ pub(crate) fn follow_the_lowered_form(
                             edge,
                             action_ordinal,
                         },
-                        call_contracts::Inputs::declared(crate::checking::owned_cleanup::inputs(cleanup)),
+                        call_contracts::Inputs::declared(crate::checking::owned_cleanup::inputs(
+                            cleanup,
+                        )),
                         ProgramPoint::BeforeCleanup {
                             edge,
                             action_ordinal,

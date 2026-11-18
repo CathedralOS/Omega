@@ -5,24 +5,24 @@
 // digest uses package identities and relative source paths so relocating a
 // checkout does not alter the semantic digest.
 
-use source_compiler::evaluation::provider_declarations::{
-    RetainedProductApplication, RetainedProviderSelection,
-};
-use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
-use source_compiler::declaration_selection::BuildSelectionOrigin;
 use declaration_contracts::selection::CompositionMode;
 use declaration_contracts::selection::ProductTarget;
-use semantic_vocabulary::PackageKeyIdentity;
 use declaration_contracts::source_identity::DependencyScope;
+use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use semantic_vocabulary::PackageKeyIdentity;
+use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
+use source_compiler::declaration_selection::BuildSelectionOrigin;
+use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
+use source_compiler::evaluation::provider_declarations::{
+    RetainedProductApplication, RetainedProviderSelection,
+};
 use source_text::{SourceId, Span};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use symbols::{SymbolKind};
-use source_admission::RetainedDeclaration;
+use symbols::SymbolKind;
 
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const MAXIMUM_ROWS: u64 = 1 << 20;

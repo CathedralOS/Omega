@@ -263,5 +263,4 @@ impl RetainedDynamicElfArtifact {
     pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
         self.physical_evidence_gap.as_ref()
     }
-
 }

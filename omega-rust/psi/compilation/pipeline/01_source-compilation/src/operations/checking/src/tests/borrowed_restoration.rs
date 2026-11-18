@@ -165,7 +165,8 @@ fn claim_verification_preserves_the_exact_unavailable_storage() {
 
     // Direct proof preparation must refuse too, rather than pass the debt
     // onward as if it were a completed claim-transport check.
-    let refused = crate::checking::discharge(&mut elaboration, &mut Default::default()).unwrap_err();
+    let refused =
+        crate::checking::discharge(&mut elaboration, &mut Default::default()).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unestablished);
     assert_eq!(refused.detail, actual.message());
     assert_eq!(refused.concerns, concerns);

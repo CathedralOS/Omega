@@ -3,14 +3,16 @@
 //! Address interpretation follows the ordinary program carrier or the binding's
 //! retained mathematical model, including through nested definitions.
 
-use semantic_vocabulary::{IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType};
-use symbols::{BuiltinFunction, BuiltinTypeMember, SymbolHandle};
-use terminal_check_tables::{Checked, Construct};
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
 };
-use crate::source_state::mathematical::{MathematicalBody, MathematicalDefinition, MathematicalType};
+use crate::source_state::mathematical::{
+    MathematicalBody, MathematicalDefinition, MathematicalType,
+};
 use crate::source_state::types::TypeReferenceNode;
+use semantic_vocabulary::{IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType};
+use symbols::{BuiltinFunction, BuiltinTypeMember, SymbolHandle};
+use terminal_check_tables::{Checked, Construct};
 
 use super::{
     Program,
@@ -34,7 +36,8 @@ pub(super) fn integer_embedding(
             Unserved::Contract("non-integer mathematical embedding"),
         )
     };
-    let crate::lowering::body::ValueType::Scalar(ScalarType::Integer(carrier), _) = value_type else {
+    let crate::lowering::body::ValueType::Scalar(ScalarType::Integer(carrier), _) = value_type
+    else {
         return Err(unavailable());
     };
     if term.scalar_type() != ScalarType::Integer(carrier) {
@@ -178,7 +181,12 @@ impl<'t> Program<'t> {
                 MathematicalAddressContext::of(scope),
             )?;
             let (term, actual) = self.term(id, scope, *argument, Some(scalar))?;
-            if actual != crate::lowering::body::ValueType::Scalar(scalar, crate::lowering::body::Qualification::NONE) {
+            if actual
+                != crate::lowering::body::ValueType::Scalar(
+                    scalar,
+                    crate::lowering::body::Qualification::NONE,
+                )
+            {
                 return Err(unserved("mathematical premise input carrier differs"));
             }
             bound.push((parameter.symbol, term));
@@ -450,13 +458,18 @@ mod address_context_tests {
     use super::*;
     use crate::lowering::body::ValueType;
     use crate::lowering::read::Slot;
-    use numeric_literals::IntegerLiteral;
-    use semantic_vocabulary::{ClosedIntegerType, IntegerSign, ScalarAddressModel, ValueId};
-    use symbols::{BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_function_symbols, builtin_type_member_symbols, builtin_type_symbols, fixed_core_declaration_symbols};
     use crate::source_state::TypedTrees;
     use crate::source_state::expression::{TableBinaryExpression, TableNamePath};
     use crate::source_state::mathematical::{MathematicalParameter, MathematicalType};
+    use crate::source_symbols::{
+        SymbolTableBuilder, builtin_function_symbols, builtin_type_member_symbols,
+        builtin_type_symbols, fixed_core_declaration_symbols,
+    };
+    use numeric_literals::IntegerLiteral;
+    use semantic_vocabulary::{ClosedIntegerType, IntegerSign, ScalarAddressModel, ValueId};
+    use symbols::{
+        BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind, SymbolNameRef,
+    };
 
     fn fixture() -> (
         TypedTrees,

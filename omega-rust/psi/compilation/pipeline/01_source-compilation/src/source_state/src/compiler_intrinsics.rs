@@ -13,9 +13,9 @@ use crate::source_state::type_identity::identity_context::{
     normalize_type_reference,
 };
 use crate::source_state::type_identity::{LifetimeParameterIdentity, NormalizedTypeIdentity};
+use application_identity::type_identity::vocabulary::Spelled;
 use diagnostics::Diagnostic;
 use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
-use application_identity::type_identity::vocabulary::Spelled;
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
@@ -34,7 +34,8 @@ impl TypedTrees {
             .symbols
             .sealed_declaration(symbol, machine.name.as_str());
         let Some(SealedIntrinsic::CompilerPrimitive(operation)) = custody else {
-            return if machine.supply_mode == declaration_contracts::MachineSupplyMode::CompilerProvided
+            return if machine.supply_mode
+                == declaration_contracts::MachineSupplyMode::CompilerProvided
             {
                 Err(Diagnostic::error(
                     "compiler primitive has no exact sealed declaration custody",
@@ -72,8 +73,8 @@ impl TypedTrees {
 // returns bool, and always completes without effects. Check the complete typed
 // declaration as well as its file.
 fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
-    use crate::source_state::types::TypeReferenceNode;
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::source_state::types::TypeReferenceNode;
     if !program.symbols.symbols().nodes().is_valid(machine.symbol)
         || program.symbols.name(machine.symbol) != machine.name.as_str()
         || !machine.is_public
@@ -148,8 +149,11 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
     } else {
         machine.symbol
     };
-    let resolved =
-        crate::source_state::type_identity::lifetime_parameter_identity(program, owner, lifetime.as_str());
+    let resolved = crate::source_state::type_identity::lifetime_parameter_identity(
+        program,
+        owner,
+        lifetime.as_str(),
+    );
     let supplied = table.operand_lifetimes(formal.type_reference);
     if lifetime.as_str() != machine.lifetime_parameters[0].as_str()
         || resolved != Some(expected_region)
@@ -301,7 +305,8 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         || *service_reach_is_installation_bound
         || !symbol.is_valid()
         || termination_plan.implementation_witness.is_some()
-        || termination_plan.checked_summary != declaration_contracts::TerminationGuarantee::NoGuarantee
+        || termination_plan.checked_summary
+            != declaration_contracts::TerminationGuarantee::NoGuarantee
     {
         return None;
     }
@@ -796,7 +801,9 @@ mod tests {
 
     #[test]
     fn published_termination_keeps_its_complete_conditional_subjects() {
-        use declaration_contracts::{ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface};
+        use declaration_contracts::{
+            ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
+        };
         let original = Fixture::ordinary().text().unwrap();
         let mut unconditional = Fixture::ordinary();
         unconditional

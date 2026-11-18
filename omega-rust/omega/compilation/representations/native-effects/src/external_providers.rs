@@ -256,7 +256,8 @@ pub fn selected_sealed_native_provider<'a>(
     };
     let mut rows = providers.iter().filter(|candidate| {
         candidate.sealed_intrinsic.is_some()
-            && candidate.binding == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+            && candidate.binding
+                == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
             && identities.text(candidate.realization.callable) == Some(machine.as_str())
             && (identities.text(candidate.requirement.identity())
                 == Some(required_or_realized_declaration)

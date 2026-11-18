@@ -243,7 +243,9 @@ struct SuccessorLoan {
     parameter: semantic_vocabulary::PlaceId,
 }
 
-fn publish_successor_loans(elaboration: &mut crate::lowering::Elaboration) -> Checked<Vec<SuccessorLoan>> {
+fn publish_successor_loans(
+    elaboration: &mut crate::lowering::Elaboration,
+) -> Checked<Vec<SuccessorLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     use terminal_psi::StructuralAccess;
@@ -395,7 +397,10 @@ fn capture_argument(
     Ok(captured)
 }
 
-fn publish_results(module: &mut TerminalModule, selections: &[crate::lowering::Selected]) -> Checked<()> {
+fn publish_results(
+    module: &mut TerminalModule,
+    selections: &[crate::lowering::Selected],
+) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
         .iter()

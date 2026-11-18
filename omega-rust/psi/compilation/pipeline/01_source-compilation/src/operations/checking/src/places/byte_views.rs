@@ -3,9 +3,10 @@
 //! check slice bounds against the descriptor measured immediately before use.
 
 use super::{Shape, Storage, overlap};
-use semantic_vocabulary::{OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
-    ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+};
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -38,8 +39,10 @@ impl<'a> Storage<'a> {
             return Ok(None);
         };
         let concerns = Construct::Operation(operation.id);
-        let Some(observation) = terminal_semantics::structural_effect_leaf_observation(operation)
-            .map_err(crate::checking::semantics_refusal(self.machine, operation.id))?
+        let Some(observation) =
+            terminal_semantics::structural_effect_leaf_observation(operation).map_err(
+                crate::checking::semantics_refusal(self.machine, operation.id),
+            )?
         else {
             return Ok(None);
         };
@@ -57,7 +60,9 @@ impl<'a> Storage<'a> {
         let subject = match self.byte_source(predicate, &actual, concerns) {
             Ok(subject) => subject,
             Err(crate::checking::Unbound::Refused(refusal)) => return Err(refusal),
-            Err(crate::checking::Unbound::Unsupported(_) | crate::checking::Unbound::Unproved(_)) => return Ok(None),
+            Err(
+                crate::checking::Unbound::Unsupported(_) | crate::checking::Unbound::Unproved(_),
+            ) => return Ok(None),
         };
         let stable = match &subject {
             ScalarTerm::Boolean(_) => true,
@@ -1181,7 +1186,10 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a subslice endpoint or length is not a u64"));
         }
         terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::checking::semantics_refusal(self.machine, operation.id))?
+            .map_err(crate::checking::semantics_refusal(
+                self.machine,
+                operation.id,
+            ))?
             .map(|(_, goal)| goal)
             .ok_or_else(|| self.foreign(concerns, "a subslice has no canonical bounds goal"))
     }

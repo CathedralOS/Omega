@@ -45,14 +45,15 @@ fn admit(
             let machine = super::accepted_machine_grants::accepted_machine(&machine_rows, symbol)
                 .map_err(|error| error.message)?;
             Ok(declaration_contracts::selection::AuthoredRootGrant {
-            selector: (*grant).to_owned(),
-            subject: declaration_contracts::selection::RootGrantSubject::AcceptedMachine {
-                declaration: machine.declaration_identity.clone(), machine: symbol,
-            },
-            subject_package: machine.package_identity,
-            selecting_machine: symbols::SymbolHandle::from_arena_index(0),
-            source_span: Default::default(),
-        })
+                selector: (*grant).to_owned(),
+                subject: declaration_contracts::selection::RootGrantSubject::AcceptedMachine {
+                    declaration: machine.declaration_identity.clone(),
+                    machine: symbol,
+                },
+                subject_package: machine.package_identity,
+                selecting_machine: symbols::SymbolHandle::from_arena_index(0),
+                source_span: Default::default(),
+            })
         })
         .collect::<Result<Vec<_>, String>>()?;
     reconstruct_trust_obligations(

@@ -164,13 +164,13 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
             }
             None => {
                 syntax = Some(
-                    crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                    crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                        .unwrap(),
                 )
             }
         }
     }
-    let mut request =
-        crate::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(std::sync::Arc::new(sources));
     request
         .top_level_bindings
@@ -180,8 +180,7 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
             "stop",
         ));
     let resolved = crate::resolution::resolve(request).unwrap();
-    let typed =
-        crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = super::build_purpose::symbol(&typed, "entry");
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

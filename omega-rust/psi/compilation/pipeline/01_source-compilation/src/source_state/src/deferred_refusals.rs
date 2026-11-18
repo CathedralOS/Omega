@@ -322,8 +322,8 @@ impl TypedTrees {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use symbols::{SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::SymbolNameRef;
 
     fn program() -> (TypedTrees, [SymbolHandle; 4]) {
         let mut symbols = SymbolTableBuilder::default();

@@ -12,11 +12,11 @@ Collection recasts retain their written reference type and use collection-view
 formation. Other storage recasts require an explicit reference formation.
 */
 
+use crate::source_state::expression::{ExpressionHandle, TableCastExpression};
+use crate::source_state::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::expression::{ExpressionHandle, TableCastExpression};
-use crate::source_state::types::TypeReferenceNode;
 
 use super::{Program, Slot};
 use crate::lowering::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
@@ -152,7 +152,7 @@ impl Program<'_> {
             (source_type.scalar(), target.scalar())
         {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             let numeric = |format| match format {
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
@@ -205,7 +205,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
             (source_type.scalar(), target.scalar())
         {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(to)
                 .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
@@ -244,7 +244,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
             (source_type.scalar(), target.scalar())
         {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(from)
                 .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
@@ -536,7 +536,8 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         self.issue(id, domain, source)?;
         // "Has predicates | Prove them for this value."
-        let (clauses, stated) = match (result, crate::lowering::body::DomainSet::EMPTY.with(domain)) {
+        let (clauses, stated) = match (result, crate::lowering::body::DomainSet::EMPTY.with(domain))
+        {
             (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
                 id,
                 Qualification {
@@ -616,10 +617,12 @@ impl Program<'_> {
                 .typed
                 .domain_definition(cast.semantic_domain_symbol)
                 .is_some()
-                && !before.domains.contains(crate::lowering::body::DomainInstance {
-                    declaration: cast.semantic_domain_symbol,
-                    identity: cast.semantic_domain_id,
-                })
+                && !before
+                    .domains
+                    .contains(crate::lowering::body::DomainInstance {
+                        declaration: cast.semantic_domain_symbol,
+                        identity: cast.semantic_domain_id,
+                    })
             {
                 return Err(mistyped("kept domain that the operand does not carry"));
             }
@@ -744,8 +747,8 @@ impl Program<'_> {
         domain: crate::lowering::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<()> {
-        use declaration_contracts::DomainEstablishmentRoute;
         use crate::source_state::domain::DomainIssuance;
+        use declaration_contracts::DomainEstablishmentRoute;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let definition = self.domain_theory(id, domain)?;
         match definition.issuance() {
@@ -827,7 +830,10 @@ impl Program<'_> {
 impl Program<'_> {
     /// Whether `expression` is a quoted byte literal, by the node typing
     /// recorded for it.
-    fn byte_literal_operand(&self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+    fn byte_literal_operand(
+        &self,
+        expression: crate::source_state::expression::ExpressionHandle,
+    ) -> bool {
         expression.is_valid()
             && matches!(
                 self.typed.expression_table.expression(expression),
@@ -835,7 +841,10 @@ impl Program<'_> {
             )
     }
 
-    fn array_literal_operand(&self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+    fn array_literal_operand(
+        &self,
+        expression: crate::source_state::expression::ExpressionHandle,
+    ) -> bool {
         expression.is_valid()
             && matches!(
                 self.typed.expression_table.expression(expression),
@@ -847,12 +856,12 @@ impl Program<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use language_core::{CastForm, ReferenceAccess};
-    use numerics::arithmetic::ArithmeticDomain;
-    use symbols::SymbolHandle;
     use crate::source_state::TypedTrees;
     use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
     use crate::source_state::types::TypeReferenceHandle;
+    use language_core::{CastForm, ReferenceAccess};
+    use numerics::arithmetic::ArithmeticDomain;
+    use symbols::SymbolHandle;
 
     fn plain() -> TableCastExpression {
         TableCastExpression {

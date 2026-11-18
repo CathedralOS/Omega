@@ -168,7 +168,9 @@ fn intrinsic_enum_equality_retains_payload_and_type_refusals() {
 
 #[test]
 fn a_lost_selected_enum_comparison_cannot_become_intrinsic() {
-    use source_compiler::source_state::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+    use source_compiler::source_state::expression::{
+        BinaryOperator, ExpressionNode, TableBinaryExpression,
+    };
 
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
@@ -246,7 +248,8 @@ fn enum_comparison_observes_each_operand_once_in_native_and_psi() {
         retain_native_stage_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

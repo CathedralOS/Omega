@@ -6,8 +6,8 @@
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use physical_planning::native_foreign_bridge::{NativeForeignBridgeRequest};
-use image_fixtures::{emit_native_foreign_bridge_object};
+use image_fixtures::emit_native_foreign_bridge_object;
+use physical_planning::native_foreign_bridge::NativeForeignBridgeRequest;
 use std::{path::PathBuf, process::Command};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 

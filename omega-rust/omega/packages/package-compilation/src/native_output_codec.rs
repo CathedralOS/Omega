@@ -5,13 +5,13 @@
 
 use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
-use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
-use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use source_compiler::declaration_selection::CapturedNativeIntent;
 use declaration_contracts::selection::NativeBindingProducer;
-use source_compiler::declaration_selection::NativeBindingSource;
 use declaration_contracts::selection::ProductTarget;
+use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
+use source_compiler::declaration_selection::CapturedNativeIntent;
+use source_compiler::declaration_selection::NativeBindingSource;
+use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
 use std::sync::Arc;
 
 fn number(output: &mut Vec<u8>, value: u64) {

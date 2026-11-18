@@ -263,7 +263,9 @@ impl PackageReviewInput<'_> {
             .terminal_publication()
             .published()
             .ok_or_else(|| unavailable("the checked program for native calling policy"))?;
-        let effective = checked.execution().effective_artifact(program.artifact())
+        let effective = checked
+            .execution()
+            .effective_artifact(program.artifact())
             .map_err(|reason| unavailable(&reason))?;
         realization
             .require_program(effective.view().identity())

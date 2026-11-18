@@ -101,8 +101,8 @@ pub(super) struct DependencyRow {
 pub(super) fn discover_build_layout(
     source: &str,
 ) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
-    let source_syntax::ParsedText { tokens, syntax } = source_syntax::parse_text(source)
-        .map_err(|error| {
+    let source_syntax::ParsedText { tokens, syntax } =
+        source_syntax::parse_text(source).map_err(|error| {
             BuildDependencyEditError::InvalidBuild(match error {
                 source_syntax::SourceParseError::Lex { message } => {
                     DependencyProjectionError::Lex { message }

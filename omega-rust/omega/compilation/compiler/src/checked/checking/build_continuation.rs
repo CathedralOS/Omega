@@ -596,7 +596,9 @@ pub(super) fn lower_typed_frontier(
         ))]);
     }
     let build_source = syntax.build_source;
-    let selected_build_stage = build_stage.zip(build_source).map(|(stage, source)| (source.source_id(), stage));
+    let selected_build_stage = build_stage
+        .zip(build_source)
+        .map(|(stage, source)| (source.source_id(), stage));
     let request = source_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
         root_sources: syntax.root_sources,
@@ -612,7 +614,8 @@ pub(super) fn lower_typed_frontier(
                 as Arc<dyn source_compiler::evaluation::BuildTimeSelectionAuthority>
         }),
     };
-    let (source, build_stage) = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
+    let (source, build_stage) =
+        request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         preparation,
         build_stage,

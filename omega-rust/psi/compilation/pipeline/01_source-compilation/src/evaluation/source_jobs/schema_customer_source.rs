@@ -3,12 +3,12 @@
 //! This supplies no package-lock admission or private policy-selection authority,
 //! and inserts no closed application, checked tree or catalogue row.
 
+use crate::source_state::TypedTrees;
+use crate::source_symbols::SourceScopedTopLevelBinding;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use crate::source_symbols::SourceScopedTopLevelBinding;
-use crate::source_state::TypedTrees;
 
 // The constructor control uses the same real library loader, but it does not
 // demand a policy body merely to obtain typed source. Package and source

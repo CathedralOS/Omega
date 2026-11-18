@@ -1,9 +1,9 @@
 //! Plan every reachable private native body before physical resource planning begins.
-use std::sync::Arc;
+use crate::{NativeBodyPlanningError, admit_prepared_native_realization};
 use backend_plan::NativeCallbackThunkSettlement;
 use diagnostics::Diagnostic;
 use provider_admission::provider_admission::{AdmittedInstalledInterruptCohort, realization_error};
-use crate::{NativeBodyPlanningError, admit_prepared_native_realization};
+use std::sync::Arc;
 
 pub struct NativeCallbackPlanningRequest<'request, 'contract> {
     pub proposal: &'contract crate::TerminalNativeRealizationProposal,
@@ -52,10 +52,12 @@ pub fn plan_callable(
             .providers
             .settlements
             .iter()
-            .map(|settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
-                boundary: settlement.boundary,
-                realization: settlement.realization.clone(),
-            })
+            .map(
+                |settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
+                    boundary: settlement.boundary,
+                    realization: settlement.realization.clone(),
+                },
+            )
             .collect(),
         admitted.input.optimization_input().runtime_input(),
         admission.providers.selected_provider_plans,
@@ -155,7 +157,12 @@ pub struct ClosedCallbackRoster<'contract> {
     bodies: Vec<(PrivateEntryContract<'contract>, CallableTargetProduct)>,
 }
 impl<'contract> ClosedCallbackRoster<'contract> {
-    pub fn into_parts(self) -> (usize, Vec<(PrivateEntryContract<'contract>, CallableTargetProduct)>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        usize,
+        Vec<(PrivateEntryContract<'contract>, CallableTargetProduct)>,
+    ) {
         (self.placement_count, self.bodies)
     }
 
@@ -243,7 +250,10 @@ impl<'contract> ClosedCallbackRoster<'contract> {
             bodies.push((PrivateEntryContract::from(&settlement), target));
             next_callback += 1;
         }
-        Ok(Self { placement_count, bodies })
+        Ok(Self {
+            placement_count,
+            bodies,
+        })
     }
 }
 
@@ -268,7 +278,9 @@ fn plan_callback_target(
         settlement.artifact,
         request.proposal,
         admission.entry,
-        request.scalar_applications.map(|completed| crate::NativeScalarApplications { completed }),
+        request
+            .scalar_applications
+            .map(|completed| crate::NativeScalarApplications { completed }),
     )?;
     let admission = crate::NativeAdmissionRequest {
         boundary_application_coverage: Some(&boundary_coverage),

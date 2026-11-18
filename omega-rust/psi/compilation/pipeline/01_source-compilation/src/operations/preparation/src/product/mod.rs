@@ -10,14 +10,14 @@
 //! the same canonical argument binding and closed-header instantiation as
 //! an ordinary source call; its selected declaration survives package capture.
 
-use arena::Handle;
-use diagnostics::Diagnostic;
-use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::declaration_selection::ProductDeclarationOperand;
 use crate::declaration_selection::ProductOperandRole;
-use symbols::SymbolHandle;
+use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductApplicationDemand, ProductOperandApplication};
+use arena::Handle;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 mod applications;
 
@@ -176,7 +176,8 @@ mod tests {
     fn a_malformed_applied_product_operand_is_refused_and_never_becomes_an_empty_result() {
         let mut program = TypedTrees::default();
         let source_program = program.clone();
-        let source = crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
+        let source =
+            crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
         let operand = ProductDeclarationOperand {
             application: Some(Default::default()),
             ..Default::default()
@@ -212,7 +213,8 @@ mod tests {
     fn a_plain_operand_has_no_application_and_a_requirement_must_resolve() {
         let mut program = TypedTrees::default();
         let source_program = program.clone();
-        let source = crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
+        let source =
+            crate::source_state::product_operand::ProductSourceLookups::new(&source_program);
         let operand = ProductDeclarationOperand::default();
         assert_eq!(
             prepare_product_operand_application(

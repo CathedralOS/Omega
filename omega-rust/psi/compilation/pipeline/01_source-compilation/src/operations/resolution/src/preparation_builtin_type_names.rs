@@ -14,8 +14,8 @@
     a type. The language has no import alias yet, so no import is checked.
 */
 
-use diagnostics::Diagnostic;
 use crate::source_symbols::is_builtin_type_spelling;
+use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, TypeParameterKind};

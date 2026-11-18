@@ -18,10 +18,6 @@
 //! call with the literal `3` is served (`counted_at`).
 
 use super::prepare;
-use arena::HandleSpan;
-use numerics::integer_carrier::FixedInteger;
-use symbols::{BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{TypeParameter, TypeParameterKind};
 use crate::source_state::deferred_refusals::DeferredRequest;
@@ -38,6 +34,10 @@ use crate::source_state::statement::{
 };
 use crate::source_state::static_applications::StaticMachineBindingValue;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+use arena::HandleSpan;
+use numerics::integer_carrier::FixedInteger;
+use symbols::{BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef};
 
 struct Generic {
     machine: SymbolHandle,
@@ -1693,14 +1693,14 @@ fn copied_headers_retain_written_empty_and_nonempty_reach_rows() {
             }],
         ),
     ] {
-        program
-            .authored_service_reach_rows
-            .push(crate::source_state::signature::AuthoredServiceReachRow {
+        program.authored_service_reach_rows.push(
+            crate::source_state::signature::AuthoredServiceReachRow {
                 owner,
                 keyword_source_spans: vec![Default::default()],
                 targets,
                 installation_bound: false,
-            });
+            },
+        );
     }
     prepare(&mut program).unwrap();
     for template in [relay.machine, forward.machine] {
@@ -1735,14 +1735,14 @@ fn an_installation_bound_reach_row_remains_unserved_before_copying() {
         main,
         ..
     } = source();
-    program
-        .authored_service_reach_rows
-        .push(crate::source_state::signature::AuthoredServiceReachRow {
+    program.authored_service_reach_rows.push(
+        crate::source_state::signature::AuthoredServiceReachRow {
             owner: relay.machine,
             keyword_source_spans: vec![Default::default()],
             targets: Vec::new(),
             installation_bound: true,
-        });
+        },
+    );
     let count = program.machines().len();
     prepare(&mut program).unwrap();
     assert_eq!(program.machines().len(), count);
@@ -1752,12 +1752,12 @@ fn an_installation_bound_reach_row_remains_unserved_before_copying() {
 #[test]
 fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
     use declaration_contracts::ProgressPremise;
-use declaration_contracts::ProgressSubject;
-use declaration_contracts::RankingViewId;
-use declaration_contracts::RankingWitness;
-use declaration_contracts::SemanticDomainId;
-use declaration_contracts::TerminationGuarantee;
-use declaration_contracts::TerminationInterface;
+    use declaration_contracts::ProgressSubject;
+    use declaration_contracts::RankingViewId;
+    use declaration_contracts::RankingWitness;
+    use declaration_contracts::SemanticDomainId;
+    use declaration_contracts::TerminationGuarantee;
+    use declaration_contracts::TerminationInterface;
 
     for missing_custody in [false, true] {
         let Source {
@@ -2579,8 +2579,8 @@ fn copied_invocation_rows_rebind_only_owned_targets() {
 #[test]
 fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
     use super::{Operand, copy_declarations};
-    use language_core::data_layout_queries::DataLayoutQueryKind;
     use crate::source_state::expression::DataLayoutQueryRequest;
+    use language_core::data_layout_queries::DataLayoutQueryKind;
 
     for kind in [DataLayoutQueryKind::Size, DataLayoutQueryKind::Alignment] {
         let mut source = source();

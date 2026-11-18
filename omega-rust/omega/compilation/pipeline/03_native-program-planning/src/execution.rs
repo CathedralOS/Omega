@@ -40,8 +40,12 @@ pub fn plan_published_target_execution(
     let artifact = std::sync::Arc::clone(&origins.artifact);
     let module = artifact.semantic_module();
     let (inputs, review) = crate::provider_execution_inputs::plan_inputs_and_review(
-        origins, target, logical.requirements(), review,
-    ).map_err(NativeProgramPlanningError::Admission)?;
+        origins,
+        target,
+        logical.requirements(),
+        review,
+    )
+    .map_err(NativeProgramPlanningError::Admission)?;
     let selected = plan_target_execution(module, target, logical, bindings, inputs)?
         .with_folded_entry_reach(folded_entry);
     Ok(match review {

@@ -31,10 +31,7 @@ fn parameter_form(text: &str) -> crate::lowering::Elaboration {
 #[test]
 fn an_unused_owned_parameter_keeps_its_possible_linear_debt() {
     let source = super::boundary_calls::typed("machine entry<T>(value: T) {}");
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
@@ -618,13 +615,7 @@ fn rigid_result_transport(
             ranking: None,
         });
     }
-    crate::lowering::lower_generic(
-        id(1),
-        &bodies,
-        &signatures,
-        &IdTable::default(),
-        &[],
-    )
+    crate::lowering::lower_generic(id(1), &bodies, &signatures, &IdTable::default(), &[])
 }
 
 #[test]
@@ -642,7 +633,11 @@ fn a_call_result_keeps_its_rigid_identity_without_placeholder_facts() {
         .unwrap()
         .1;
     assert_eq!(result.rigid, Some(RigidType(0)));
-    let found = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let found = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
     assert_eq!(
         verdict.as_ref().unwrap_err().reason,
@@ -665,11 +660,8 @@ fn a_call_cannot_relabel_one_rigid_result_as_another() {
 fn a_const_only_generic_form_cannot_publish_its_extra_formal() {
     let source =
         super::boundary_calls::typed("machine entry<const N: u64>() -> u64 crashes none { N }");
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    )
-    .unwrap();
+    let form =
+        crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source)).unwrap();
     assert_eq!(form.value_parameters.get(id(1)), Some(&1));
     let RouteVerdict::Accepted(accepted) = judge(Ok(form)).unwrap() else {
         panic!("the actual const form must be judged before publication")
@@ -726,8 +718,7 @@ fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
         .iter()
         .find(|declared| source.symbols.name(declared.symbol) == "Empty")
         .unwrap();
-    let mut forms =
-        crate::lowering::elaborate_generic_forms(&source, &[declared.symbol]).unwrap();
+    let mut forms = crate::lowering::elaborate_generic_forms(&source, &[declared.symbol]).unwrap();
     let form = forms.remove(0);
     assert!(form.module.entry.is_none());
     assert!(form.module.machines.is_empty());
@@ -768,11 +759,8 @@ fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
         }
     "#,
     );
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    )
-    .unwrap();
+    let form =
+        crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source)).unwrap();
     for applied in &form.applications {
         assert!(!form.requirements.contains(applied));
         assert!(
@@ -799,11 +787,8 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
         }
     "#;
     let source = super::boundary_calls::typed(program);
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    )
-    .unwrap();
+    let form =
+        crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source)).unwrap();
     assert_eq!(
         form.module.machines.len(),
         1,
@@ -814,11 +799,9 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
 
     let changing = program.replace("entry<T>(remaining - 1u64)", "entry<u32>(remaining - 1u64)");
     let source = super::boundary_calls::typed(&changing);
-    let refused = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    )
-    .unwrap_err();
+    let refused =
+        crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+            .unwrap_err();
     assert!(
         refused
             .detail
@@ -874,14 +857,9 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             ranking: None,
         });
     }
-    let refused = crate::lowering::lower_generic(
-        id(1),
-        &bodies,
-        &signatures,
-        &IdTable::default(),
-        &[id(3)],
-    )
-    .unwrap_err();
+    let refused =
+        crate::lowering::lower_generic(id(1), &bodies, &signatures, &IdTable::default(), &[id(3)])
+            .unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
@@ -901,11 +879,9 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
                 ensures value == {promised}u32 {{ update<T>(value); }}
         "#
         ));
-        let mut form = crate::lowering::elaborate_generic(
-            &source,
-            super::boundary_calls::entry(&source),
-        )
-        .unwrap();
+        let mut form =
+            crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+                .unwrap();
         // The callee's guarantee is proved with its own implementation, not
         // as the caller's obligation. Inspect this body's proofs independently.
         let mut activity = crate::checking::ProofSearchActivity::default();
@@ -1049,10 +1025,7 @@ fn an_open_record_cannot_silently_discard_its_unknown_field() {
         machine entry<T>(value: Envelope<T>) {}
     "#,
     );
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
@@ -1070,10 +1043,7 @@ fn forwarded_open_records_cannot_change_their_argument() {
         machine entry<T, U>(left: &Envelope<T>, right: &Envelope<U>) { keep<T>(right); }
     "#,
     );
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
@@ -1385,10 +1355,7 @@ fn an_empty_result_case_does_not_retire_an_unknown_argument() {
         machine entry<T>(value: T) -> Outcome<T> { Outcome::Missing }
     "#,
     );
-    let form = crate::lowering::elaborate_generic(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::FallBack(ref refusal)
@@ -1434,10 +1401,7 @@ fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
         &crate::preparation::PreparationRequest::settled(),
     )
     .unwrap();
-    let form = crate::lowering::elaborate_closure(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_closure(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
@@ -1463,10 +1427,7 @@ fn a_known_empty_case_keeps_its_cleanup_membership() {
         &crate::preparation::PreparationRequest::settled(),
     )
     .unwrap();
-    let form = crate::lowering::elaborate_closure(
-        &source,
-        super::boundary_calls::entry(&source),
-    );
+    let form = crate::lowering::elaborate_closure(&source, super::boundary_calls::entry(&source));
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }

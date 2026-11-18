@@ -134,7 +134,6 @@ pub(crate) mod custody {
 pub(crate) mod input {
     use legalized_operations::{LegalizedOperationPlan, PreparationReceipt, PreparedExecutionPlan};
 
-
     #[derive(Debug)]
     pub struct SelectionInput {
         pub program: legalized_operations::PreparedInstructionSelection,

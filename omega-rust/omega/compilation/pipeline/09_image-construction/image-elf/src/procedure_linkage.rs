@@ -3194,7 +3194,8 @@ pub(crate) mod dynamic_linkage_templates {
                     [(0, imported)],
                 );
                 let plan = crate::test_support::resolved_linkage(image.clone(), target);
-                let _complete = plan_elf_procedure_linkage_templates(plan).expect("complete encoded program");
+                let _complete =
+                    plan_elf_procedure_linkage_templates(plan).expect("complete encoded program");
                 for change in 0..4 {
                     let mut invalid = image.clone();
                     match change {

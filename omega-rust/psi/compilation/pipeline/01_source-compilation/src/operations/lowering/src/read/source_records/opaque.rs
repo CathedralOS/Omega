@@ -5,6 +5,7 @@
 use super::{Program, malformed};
 use crate::lowering::body::ValueType;
 use crate::lowering::read::services::unavailable;
+use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use semantic_vocabulary::{MachineId, StructuralCaseId, StructuralFieldId, StructuralTypeId};
 use terminal_check_tables::Checked;
 use terminal_psi::{
@@ -13,7 +14,6 @@ use terminal_psi::{
     StructuralRecordStorage, StructuralTypeShape, TerminalMachineResult, TerminalModule,
     TerminalOpaqueRepresentation,
 };
-use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 
 #[cfg(test)]
 mod tests;

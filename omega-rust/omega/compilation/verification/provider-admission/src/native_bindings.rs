@@ -751,11 +751,12 @@ mod tests {
             parameter_type_identities: vec![i32_surface],
             has_result: true,
             result_type_identity: i32_surface,
-            declared_type_signature: declaration_contracts::service_surface::declared_type_signature(
-                ["compiler-type(atom(i32))"].into_iter(),
-                "compiler-type(atom(i32))",
-            )
-            .unwrap(),
+            declared_type_signature:
+                declaration_contracts::service_surface::declared_type_signature(
+                    ["compiler-type(atom(i32))"].into_iter(),
+                    "compiler-type(atom(i32))",
+                )
+                .unwrap(),
             ..Default::default()
         };
         let result = terminal_psi::BoundaryMachineResult::Scalar(
@@ -802,11 +803,12 @@ mod tests {
         let method = ServiceMethod {
             parameter_count: 2,
             parameter_type_identities: vec![left_surface, right_surface],
-            declared_type_signature: declaration_contracts::service_surface::declared_type_signature(
-                [left, right].into_iter(),
-                "unit",
-            )
-            .unwrap(),
+            declared_type_signature:
+                declaration_contracts::service_surface::declared_type_signature(
+                    [left, right].into_iter(),
+                    "unit",
+                )
+                .unwrap(),
             ..Default::default()
         };
         let result = terminal_psi::BoundaryMachineResult::Unit;
@@ -837,11 +839,12 @@ mod tests {
         let unit = identities.intern("unit");
         let scalar = identities.intern("compiler-type(atom(i32))");
         let method = ServiceMethod {
-            declared_type_signature: declaration_contracts::service_surface::declared_type_signature(
-                std::iter::empty::<&str>(),
-                "unit",
-            )
-            .unwrap(),
+            declared_type_signature:
+                declaration_contracts::service_surface::declared_type_signature(
+                    std::iter::empty::<&str>(),
+                    "unit",
+                )
+                .unwrap(),
             ..Default::default()
         };
         validate_native_declared_types(

@@ -4064,16 +4064,27 @@ mod production {
             original_target,
         } = request;
         if original_target.is_some() && replay.is_none() {
-            return Err(Error::Mismatch("retained target operations require a retained object"));
+            return Err(Error::Mismatch(
+                "retained target operations require a retained object",
+            ));
         }
-        if replay.as_ref().is_some_and(|original| original.publication() != publication) {
-            return Err(Error::Mismatch("retained object belongs to another publication"));
+        if replay
+            .as_ref()
+            .is_some_and(|original| original.publication() != publication)
+        {
+            return Err(Error::Mismatch(
+                "retained object belongs to another publication",
+            ));
         }
-        let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(publication)?);
+        let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(
+            publication,
+        )?);
         let source = emission_input.as_ref();
         if let Some(original) = &original_target
             && (!original.belongs_to(source.emission_facts())
-                || !replay.as_ref().is_some_and(|retained| original.belongs_to(retained.emission_facts())))
+                || !replay
+                    .as_ref()
+                    .is_some_and(|retained| original.belongs_to(retained.emission_facts())))
         {
             return Err(Error::Mismatch(
                 "retained target operations belong to another optimized program",
@@ -4134,7 +4145,8 @@ mod production {
             fragments.function(placed.machine).ok_or(Error::Mismatch(
                 "missing current fragment for temporary stack replay",
             ))?;
-            let stack_index = source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?;
+            let stack_index =
+                source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?;
             let function_temporary_stack = temporary_stack_bytes[stack_index].byte_count;
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
@@ -4333,7 +4345,8 @@ mod production {
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: replay.map(|object| super::replay::FragmentReplay(object, original_target)),
+            fragment_replay: replay
+                .map(|object| super::replay::FragmentReplay(object, original_target)),
             composition_source: None,
             psi: text.psi,
             target: text.target,
@@ -4379,8 +4392,6 @@ pub(crate) mod replay {
         pub fn target_source(&self) -> Option<&RetainedTargetOperations> {
             self.1.as_ref()
         }
-
-
     }
 
     impl crate::ObjectArtifact {
@@ -4451,12 +4462,12 @@ pub(crate) mod reporting {
             Ok(Self {
                 function_count: host(stats.functions)?,
                 instruction_count: host(stats.instruction_spans)?,
-                zero_width_instruction_count: host(
-                    stats.zero_byte_instruction_spans,
-                )?,
+                zero_width_instruction_count: host(stats.zero_byte_instruction_spans)?,
                 frame_prologue_byte_count: prologue_bytes,
                 frame_epilogue_byte_count: epilogue_bytes,
-                fragment_manifest_report_fingerprint: compact(frame.source_fragment_manifest.bytes()),
+                fragment_manifest_report_fingerprint: compact(
+                    frame.source_fragment_manifest.bytes(),
+                ),
                 frame_application_report_fingerprint: compact(frame.identity.bytes()),
             })
         }
@@ -5364,6 +5375,7 @@ mod source {
 
     mod installed_interrupts {
         use super::Error;
+        use installation_admission::selected::control;
         use installation_evidence::InstalledInterruptStackRequirement;
         use provider_admission::AdmittedInstalledInterruptCohort;
         use selected_instructions::{
@@ -5373,8 +5385,6 @@ mod source {
         use target_operations::{
             CallSiteOwner, InstallationCallRole, TargetFunction, TargetUnitOperation,
         };
-        use installation_admission::selected::control;
-
 
         use installation_admission::selected::expressions;
 
@@ -6436,7 +6446,10 @@ mod source {
                             next,
                             refusal,
                         )?;
-                        count.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
+                        count.visit_loads(&mut |address,
+                                                 bytes,
+                                                 instruction|
+                         -> Result<(), Error> {
                             if bytes == 8 && *address == contract.home.clone().offset(88) {
                                 graph.require_loop_exit(
                                     header,
@@ -8149,22 +8162,25 @@ mod source {
                 "installation has no acknowledgement root scan",
             ))?;
             for store in &stores.rows {
-                store
-                    .address
-                    .visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
-                        if *address == contract.home.clone().offset(96) && bytes == 8 {
-                            graph.require_loop_exit(
-                                header,
-                                instruction.ok_or(Error::Mismatch(
-                                    "installation root observation lacks an instruction",
-                                ))?,
-                                expressions,
-                            )?;
-                        }
-                        Ok(())
-                    })?;
+                store.address.visit_loads(&mut |address,
+                                                 bytes,
+                                                 instruction|
+                 -> Result<(), Error> {
+                    if *address == contract.home.clone().offset(96) && bytes == 8 {
+                        graph.require_loop_exit(
+                            header,
+                            instruction.ok_or(Error::Mismatch(
+                                "installation root observation lacks an instruction",
+                            ))?,
+                            expressions,
+                        )?;
+                    }
+                    Ok(())
+                })?;
             }
-            graph.bounded_region(validate, work, refusal, &backedges).map_err(Into::into)
+            graph
+                .bounded_region(validate, work, refusal, &backedges)
+                .map_err(Into::into)
         }
 
         fn iteration_observations(
@@ -8227,7 +8243,6 @@ mod source {
             Ok(())
         }
     }
-
 
     mod static_interrupts {
         pub(super) struct PreparedHelperReplay<'a> {
@@ -8513,7 +8528,6 @@ mod source {
         }
     }
 
-
     pub(crate) fn selected_constant_operand(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         machine: semantic_vocabulary::MachineId,
@@ -8533,7 +8547,8 @@ mod source {
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
             ))?;
-        installed_interrupts::selected_constant_operand(function, instruction, operand).map_err(Into::into)
+        installed_interrupts::selected_constant_operand(function, instruction, operand)
+            .map_err(Into::into)
     }
 
     use super::Error;
@@ -19861,10 +19876,14 @@ mod structural {
             }
             match target.architecture {
                 Architecture::X86_64 => {
-                    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(target, bytes)
+                    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(
+                        target, bytes,
+                    )
                 }
                 Architecture::Aarch64 => {
-                    target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(target, bytes)
+                    target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(
+                        target, bytes,
+                    )
                 }
             }
         }
@@ -22590,9 +22609,33 @@ impl From<installation_admission::selected::Error> for FunctionFragmentObjectArt
         use installation_admission::selected::Error as Source;
         match error {
             Source::Mismatch(reason) => Self::Mismatch(reason),
-            Source::InstallationInterval { machine, operation, detail } => Self::InstallationInterval { machine, operation, detail },
-            Source::InstallationGuard { machine, operation, detail } => Self::InstallationGuard { machine, operation, detail },
-            Source::InstallationPairCapture { machine, operation, detail } => Self::InstallationPairCapture { machine, operation, detail },
+            Source::InstallationInterval {
+                machine,
+                operation,
+                detail,
+            } => Self::InstallationInterval {
+                machine,
+                operation,
+                detail,
+            },
+            Source::InstallationGuard {
+                machine,
+                operation,
+                detail,
+            } => Self::InstallationGuard {
+                machine,
+                operation,
+                detail,
+            },
+            Source::InstallationPairCapture {
+                machine,
+                operation,
+                detail,
+            } => Self::InstallationPairCapture {
+                machine,
+                operation,
+                detail,
+            },
         }
     }
 }
@@ -22617,12 +22660,19 @@ pub(crate) fn refuse_symbol_collision(
 
 pub(crate) use validation::validate_available as validate_available_object;
 
-
 impl From<installation_admission::ram::Error> for FunctionFragmentObjectArtifactError {
     fn from(error: installation_admission::ram::Error) -> Self {
         match error {
             installation_admission::ram::Error::Mismatch(reason) => Self::Mismatch(reason),
-            installation_admission::ram::Error::InstalledMemorySource { machine, operation, reason } => Self::InstalledMemorySource { machine, operation, reason },
+            installation_admission::ram::Error::InstalledMemorySource {
+                machine,
+                operation,
+                reason,
+            } => Self::InstalledMemorySource {
+                machine,
+                operation,
+                reason,
+            },
         }
     }
 }

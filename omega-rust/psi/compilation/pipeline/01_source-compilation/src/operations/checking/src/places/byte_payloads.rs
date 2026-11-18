@@ -269,8 +269,13 @@ impl<'a> Storage<'a> {
                     invocations.binary_search_by_key(&operation.id, |(id, _, _)| *id)
             {
                 let (_, id, row) = invocations[position];
-                let call =
-                    crate::checking::call_contracts::invocation(self.module, self.lowered, tables, id, row)?;
+                let call = crate::checking::call_contracts::invocation(
+                    self.module,
+                    self.lowered,
+                    tables,
+                    id,
+                    row,
+                )?;
                 // Borrowing inline storage exposes its address. Passing an
                 // owned descriptor exposes its captured backing instead; it
                 // does not hand out the address of the descriptor's home.

@@ -9,8 +9,8 @@ mod anonymous {
     use super::fact_values::ConstFactValue;
     use crate::resolution::tables::syntax_items;
     use crate::resolution::tables::syntax_type_references;
-    use diagnostics::Diagnostic;
     use bignum::BigRational;
+    use diagnostics::Diagnostic;
     use numeric_literals::LandedIntegerType;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::BinaryOperator;
@@ -318,7 +318,9 @@ mod anonymous {
         operator: BinaryOperator,
         left: &ConstFactValue,
         right: &ConstFactValue,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> bool {
         let Some(spelling) = binary_operator_spelling(operator) else {
             return false;
@@ -343,7 +345,9 @@ mod anonymous {
         syntax: &SyntaxTrees,
         parameter_type: Option<syntax_trees::types::TypeReferenceHandle>,
         operand: &ConstFactValue,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> bool {
         let Some(parameter_type) = parameter_type else {
             return true;
@@ -473,7 +477,9 @@ mod arguments {
     pub(in crate::resolution::preparation::generic_data) fn prepare_closed_application(
         syntax: &mut SyntaxTrees,
         generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         type_reference: TypeReferenceHandle,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ClosedApplication>, Diagnostic> {
@@ -749,7 +755,9 @@ mod arguments {
         syntax: &SyntaxTrees,
         base_info: &GenericData,
         arguments: &[TypeReferenceHandle],
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> bool {
         base_info
             .const_parameter_types
@@ -798,7 +806,9 @@ mod arguments {
     pub(in crate::resolution::preparation::generic_data) fn evaluate_const_argument_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         parameter_values: &HashMap<String, BigInt>,
         symbolic_parameters: &HashSet<String>,
         integer_type: Option<LandedIntegerType>,
@@ -1041,7 +1051,9 @@ mod arguments {
     pub(in crate::resolution::preparation::generic_data) fn const_integer_type(
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> Option<LandedIntegerType> {
         let name = syntax_type_references(syntax)
             .type_reference(type_reference)
@@ -1073,7 +1085,9 @@ mod arguments {
     pub(in crate::resolution::preparation::generic_data) fn generic_const_integer_types(
         syntax: &SyntaxTrees,
         generic_name: &Identifier,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> Vec<Option<LandedIntegerType>> {
         selection
             .and_then(|selection| selection.data(syntax, generic_name).ok())
@@ -1175,7 +1189,9 @@ mod arguments {
     }
 
     impl EvaluatedConst {
-        pub(in crate::resolution::preparation::generic_data) fn into_concrete(self) -> Result<BigInt, String> {
+        pub(in crate::resolution::preparation::generic_data) fn into_concrete(
+            self,
+        ) -> Result<BigInt, String> {
             match self {
                 Self::Concrete(value) => Ok(value),
                 Self::Symbolic(name) => Err(format!(
@@ -1281,7 +1297,9 @@ mod domains {
     */
     pub(in crate::resolution::preparation::generic_data) fn canonicalize_closed_domain_indices(
         syntax: &mut SyntaxTrees,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
         work: &super::super::work_domain::SynthesisWork<'_>,
     ) -> Result<(), Diagnostic> {
@@ -1518,7 +1536,9 @@ mod domains {
         family_name: &str,
         family: &ClosedDomainFamily,
         arguments: Vec<TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         concrete_data_positions: &[TypeReferenceHandle],
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<(), Diagnostic> {
@@ -2018,7 +2038,9 @@ mod facts {
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
         parameter_values: &HashMap<String, impl Clone + Into<ConstScalarValue>>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstFactValue>, String> {
         evaluate_const_fact_expression_at(
@@ -2039,7 +2061,9 @@ mod facts {
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
         parameter_values: &HashMap<String, impl Clone + Into<ConstScalarValue>>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         subject: Option<ConstFactSubject<'_>>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstFactValue>, String> {
@@ -2229,7 +2253,9 @@ mod facts {
         membership: &syntax_trees::item::ProofMembershipFact,
         parameter_values: &HashMap<String, BigInt>,
         parameter_types: &HashMap<String, LandedIntegerType>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<bool>, String> {
         if !membership.domain_arguments.is_empty() {
@@ -2484,7 +2510,9 @@ mod facts {
         definition: &syntax_trees::item::DataDefinition,
         value: &CanonicalConstNode,
         substitution: &crate::resolution::preparation::declaration_selection::GenericApplicationSubstitution,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> Result<(), String> {
         use super::values::CanonicalConstNode;
         let (fields, case_name) = match value {
@@ -2611,7 +2639,9 @@ mod facts {
         subject: Option<ConstFactSubject<'_>>,
         carrier: &str,
         visiting: &mut Vec<(source_text::SourceSpan, String)>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstFactValue>, String> {
         let membership = match fact {
@@ -2711,7 +2741,9 @@ mod facts {
         domain: &syntax_trees::types::DomainConstraint,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<DomainFactProof>, String> {
         if domain.arguments.is_empty() {
@@ -2749,7 +2781,9 @@ mod facts {
         subject_binding: ConstSubjectBinding<'_>,
         visiting: &mut Vec<(source_text::SourceSpan, String)>,
         reference: source_text::SourceSpan,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<DomainFactProof>, String> {
         let domain = match selection {
@@ -2877,7 +2911,9 @@ mod facts {
         subject_binding: ConstSubjectBinding<'_>,
         parameter_values: &HashMap<String, ConstScalarValue>,
         visiting: &mut Vec<(source_text::SourceSpan, String)>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<DomainFactProof>, String> {
         if visiting
@@ -3049,7 +3085,9 @@ mod facts {
         argument_parameters: &[syntax_trees::item::TypeParameter],
         visiting: &mut Vec<(source_text::SourceSpan, String)>,
         reference: source_text::SourceSpan,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<DomainFactProof>, String> {
         let domain = match selection {
@@ -3129,11 +3167,13 @@ mod facts {
                             parameter.name.as_str(syntax),
                         ));
                     }
-                    let Some(integer_type) = crate::resolution::preparation::generic_data::const_integer_type(
-                        syntax,
-                        parameter_type,
-                        selection,
-                    ) else {
+                    let Some(integer_type) =
+                        crate::resolution::preparation::generic_data::const_integer_type(
+                            syntax,
+                            parameter_type,
+                            selection,
+                        )
+                    else {
                         return Ok(None);
                     };
                     validate_declared_integer(integer_type, &bound)?;
@@ -3206,11 +3246,16 @@ mod facts {
         argument: TypeReferenceHandle,
         argument_values: &HashMap<String, ConstScalarValue>,
         argument_parameters: &[syntax_trees::item::TypeParameter],
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstScalarValue>, String> {
-        let integer_type =
-            crate::resolution::preparation::generic_data::const_integer_type(syntax, parameter_type, selection);
+        let integer_type = crate::resolution::preparation::generic_data::const_integer_type(
+            syntax,
+            parameter_type,
+            selection,
+        );
         let boolean_type = matches!(
             syntax.type_references.type_reference(parameter_type),
             TypeReferenceNode::Named(name) if name.as_str(syntax) == "bool"
@@ -3334,7 +3379,9 @@ mod facts {
         constraint: &TypeConstraintNode,
         carrier: &str,
         subject_binding: ConstSubjectBinding<'_>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
         subject_label: &str,
     ) -> Result<(), String> {
@@ -3375,7 +3422,9 @@ mod facts {
         syntax: &SyntaxTrees,
         constraints: &[TypeConstraintNode],
         value: &CanonicalConstNode,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> Result<(), String> {
         use super::values::CanonicalConstNode;
         if !constraints
@@ -3474,7 +3523,9 @@ mod facts {
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
         visiting: &mut Vec<source_text::SourceSpan>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
     ) -> bool {
         use syntax_trees::item::DataMember;
         let origin = syntax_type_references(syntax).generic_application_origin(type_reference);
@@ -3485,7 +3536,9 @@ mod facts {
             syntax: &SyntaxTrees,
             name: &Identifier,
             visiting: &mut Vec<source_text::SourceSpan>,
-            selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+            selection: Option<
+                &crate::resolution::preparation::declaration_selection::ConstantSelection,
+            >,
         ) -> bool {
             let Ok(data) = super::values::selected_data(syntax, name, selection) else {
                 return false;
@@ -3576,7 +3629,9 @@ mod facts {
         subject: Option<ConstFactSubject<'_>>,
         carrier: &str,
         visiting: &mut Vec<(source_text::SourceSpan, String)>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstFactValue>, String> {
         if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
@@ -4062,10 +4117,11 @@ mod templates {
                     }
                 }
                 TypeReferenceNode::Callable { signature } => {
-                    let signature = crate::resolution::preparation::callable_signatures::SignatureInputs::of(
-                        syntax,
-                        syntax.items.state_signature(*signature),
-                    );
+                    let signature =
+                        crate::resolution::preparation::callable_signatures::SignatureInputs::of(
+                            syntax,
+                            syntax.items.state_signature(*signature),
+                        );
                     for &(scope, reference) in &signature.types {
                         let mut nested = TypeExpressionInputs::default();
                         self.reference(reference, &mut nested);
@@ -4155,7 +4211,9 @@ mod templates {
     */
     pub(in crate::resolution::preparation::generic_data) fn normalize_generic_template_const_expressions(
         syntax: &mut SyntaxTrees,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
         declarations: &[syntax_trees::item::ItemHandle],
     ) -> Result<(), Diagnostic> {
@@ -4212,7 +4270,9 @@ mod templates {
     pub(in crate::resolution::preparation::generic_data) fn normalize_template_type_reference(
         syntax: &mut SyntaxTrees,
         type_reference: TypeReferenceHandle,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         symbolic_parameters: &HashSet<String>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<(), String> {
@@ -4221,10 +4281,11 @@ mod templates {
             .clone();
         match node {
             TypeReferenceNode::Callable { signature } => {
-                let inputs = crate::resolution::preparation::callable_signatures::SignatureInputs::of(
-                    syntax,
-                    syntax.items.state_signature(signature),
-                );
+                let inputs =
+                    crate::resolution::preparation::callable_signatures::SignatureInputs::of(
+                        syntax,
+                        syntax.items.state_signature(signature),
+                    );
                 let scopes = (0..inputs.scope_count())
                     .map(|scope| {
                         let mut symbolic = symbolic_parameters
@@ -4453,10 +4514,11 @@ mod templates {
                 if traversal == TypePositionTraversal::Storage {
                     return;
                 }
-                let inputs = crate::resolution::preparation::callable_signatures::SignatureInputs::of(
-                    syntax,
-                    syntax.items.state_signature(*signature),
-                );
+                let inputs =
+                    crate::resolution::preparation::callable_signatures::SignatureInputs::of(
+                        syntax,
+                        syntax.items.state_signature(*signature),
+                    );
                 for &(_, reference) in &inputs.types {
                     visit_child!(reference);
                 }
@@ -5481,7 +5543,8 @@ mod values {
                 let right_atom =
                     selection.and_then(|selection| selection.builtin_type(syntax, right));
                 if left_atom.is_some_and(crate::resolution::constant::is_builtin_scalar_carrier)
-                    || right_atom.is_some_and(crate::resolution::constant::is_builtin_scalar_carrier)
+                    || right_atom
+                        .is_some_and(crate::resolution::constant::is_builtin_scalar_carrier)
                 {
                     return Ok(left_atom.is_some() && left_atom == right_atom);
                 }

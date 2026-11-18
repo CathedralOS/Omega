@@ -1552,7 +1552,9 @@ pub(crate) mod structural_signature_wire {
     }
 
     struct NumericIntrinsic;
-    impl Field<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>> for NumericIntrinsic {
+    impl Field<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>>
+        for NumericIntrinsic
+    {
         fn write(
             writer: &mut Writer,
             value: &Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
@@ -1578,11 +1580,13 @@ pub(crate) mod structural_signature_wire {
             for byte in &mut bytes {
                 *byte = reader.u8()?;
             }
-            declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
-                .map(Some)
-                .ok_or({
-                    CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")
-                })
+            declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                bytes,
+            )
+            .map(Some)
+            .ok_or({
+                CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")
+            })
         }
     }
 

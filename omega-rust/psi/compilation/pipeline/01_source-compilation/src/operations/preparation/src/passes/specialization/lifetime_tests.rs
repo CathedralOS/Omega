@@ -2,11 +2,11 @@
 //! its own lifetime binders and every call keeps its actual receiving regions.
 
 use super::*;
-use symbols::{BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
 use crate::source_state::signature::StateParameter;
 use crate::source_state::static_applications::StaticMachineLifetimeBinding;
 use crate::source_state::type_identity::LifetimeParameterIdentity as Region;
+use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+use symbols::{BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolNameRef};
 
 struct Source {
     program: TypedTrees,
@@ -59,9 +59,9 @@ fn name(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
 
 fn returned(program: &mut TypedTrees, symbol: SymbolHandle) -> HandleSpan<StatementNode> {
     let value = name(program, symbol);
-    let target = program
-        .statement_table
-        .insert_transition_target(crate::source_state::statement::TransitionTargetNode::Value(value));
+    let target = program.statement_table.insert_transition_target(
+        crate::source_state::statement::TransitionTargetNode::Value(value),
+    );
     program
         .statement_table
         .insert_statements([StatementNode::Transition(
@@ -150,14 +150,15 @@ fn source() -> Source {
     let root_type = reference(&mut program, parameter_type, root, "captured");
     let captured_type = reference(&mut program, parameter_type, root, "captured");
     let own_type = reference(&mut program, parameter_type, child, "input");
-    let parameters = program
-        .data_type_parameters
-        .insert_many([crate::source_state::data::TypeParameter {
-            symbol: parameter,
-            name: Identifier::from("T"),
-            kind: TypeParameterKind::Type,
-            ..Default::default()
-        }]);
+    let parameters =
+        program
+            .data_type_parameters
+            .insert_many([crate::source_state::data::TypeParameter {
+                symbol: parameter,
+                name: Identifier::from("T"),
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            }]);
     for (symbol, entry, label, lifetime, formals, result, returned_symbol) in [
         (
             root,
@@ -252,15 +253,17 @@ fn source() -> Source {
             );
         let value = name(&mut program, symbol);
         let arguments = program.statement_table.insert_expression_handles([value]);
-        statements.push(StatementNode::Call(crate::source_state::statement::TableCall {
-            authored_machine_application: application,
-            target_symbol: root_entry,
-            target: Identifier::from("borrowed"),
-            machine_arguments: Box::new([argument]),
-            arguments,
-            discards_result: true,
-            ..Default::default()
-        }));
+        statements.push(StatementNode::Call(
+            crate::source_state::statement::TableCall {
+                authored_machine_application: application,
+                target_symbol: root_entry,
+                target: Identifier::from("borrowed"),
+                machine_arguments: Box::new([argument]),
+                arguments,
+                discards_result: true,
+                ..Default::default()
+            },
+        ));
         applications.push(application);
     }
     let parameters = program.state_parameters.insert_many(formals);

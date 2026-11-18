@@ -11,10 +11,10 @@ use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::engine::execution::TerminalExecution;
 use crate::storage::record::owned_value::StagedOwnedValue;
 use crate::storage::runtime_rows::RuntimeRows;
-use storage_access::{AdmittedResourceProfile};
 use access_admission::InitializationResourceCompatibility;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use extents::Extent;
+use storage_access::AdmittedResourceProfile;
 use terminal_psi::TerminalAccessLifecyclePlan;
 
 pub(crate) mod backing {
@@ -201,9 +201,9 @@ pub(crate) mod entry {
     };
     use crate::engine::custody::project_structural_value;
     use crate::engine::execution::TerminalExecution;
-    use storage_access::AdmittedResourceProfile;
     use extents::Extent;
     use std::iter::once;
+    use storage_access::AdmittedResourceProfile;
     use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
     #[derive(Debug)]
@@ -643,9 +643,9 @@ pub(crate) mod supply {
     use crate::boundary::values::StructuralRuntimePlace;
     use crate::engine::execution::TerminalExecution;
     use crate::{TerminalEffectRejection, TerminalInterpretError};
-    use storage_access::AdmittedResourceProfile;
     use extents::Extent;
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
+    use storage_access::AdmittedResourceProfile;
 
     pub struct TerminalProviderStorageRequest {
         pub(crate) base: u64,
@@ -977,7 +977,7 @@ pub(crate) mod extraction {
     use crate::engine::execution::{TerminalExecution, operation_kind};
     use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
     use access_vocabulary::AccessPlanDiagnostic;
-use access_vocabulary::StableCapability;
+    use access_vocabulary::StableCapability;
     use std::collections::BTreeSet;
     use terminal_psi::{
         BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
@@ -1296,18 +1296,20 @@ use access_vocabulary::StableCapability;
     }
 }
 pub(crate) mod field_access {
-    use storage_access::AccessAuthorization;
     use super::{ProviderStorageBinding, ProviderStorageSlot};
     use crate::boundary::effects::results::TerminalEffectResult;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalScalarValue};
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+    use access_admission::EffectiveSupplyKind;
     use access_vocabulary::AccessOperation;
-use access_vocabulary::BorrowPolarity;
-use access_admission::EffectiveSupplyKind;
-use access_vocabulary::ObservationModel;
-    use layout_plans::{AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue};
+    use access_vocabulary::BorrowPolarity;
+    use access_vocabulary::ObservationModel;
+    use layout_plans::{
+        AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
+    };
+    use storage_access::AccessAuthorization;
     use terminal_psi::{
         StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalAccessFieldPlan,
         TerminalAccessViewPlan, TerminalAccessorKind,
@@ -1684,9 +1686,9 @@ pub(crate) mod initialization {
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
     use crate::storage::record::storage::ConstructorStorage;
     use access_admission::InitializationResourceCompatibility;
-use access_admission::ValidatedPlacement;
-use access_admission::ValidatedResourceProfile;
-use access_admission::validate_initialization_resources;
+    use access_admission::ValidatedPlacement;
+    use access_admission::ValidatedResourceProfile;
+    use access_admission::validate_initialization_resources;
     use semantic_vocabulary::IntegerValue;
     use terminal_psi::{
         StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralPathSegment,
@@ -2330,17 +2332,17 @@ pub(crate) mod profile_values {
     use crate::engine::custody::project_structural_value;
     use crate::engine::execution::TerminalExecution;
     use access_vocabulary::AtomicCapability;
-use access_vocabulary::AtomicPermissions;
-use access_vocabulary::AtomicTransferRule;
-use access_vocabulary::BoundaryReach;
-use access_vocabulary::BoundaryServiceReachId;
-use access_vocabulary::ExternalCapability;
-use access_vocabulary::ExternalReadBehavior;
-use access_vocabulary::PeerWritability;
-use access_vocabulary::ResourceProfile;
-use access_vocabulary::ResourceRegion;
-use access_vocabulary::StableCapability;
-use access_vocabulary::TransferRule;
+    use access_vocabulary::AtomicPermissions;
+    use access_vocabulary::AtomicTransferRule;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::BoundaryServiceReachId;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::ExternalReadBehavior;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
+    use access_vocabulary::TransferRule;
     use semantic_vocabulary::{IntegerValue, StructuralCaseId};
     use terminal_psi::{StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeShape};
 
@@ -3301,7 +3303,10 @@ pub(crate) mod value_image {
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use evaluation_accounting::EvaluationInvocationAccount;
-    use layout_plans::{AggregateFieldSchema, AggregateFieldValue, ByteOrder, IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+    use layout_plans::{
+        AggregateFieldSchema, AggregateFieldValue, ByteOrder, IntegerInterpretation,
+        LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    };
     use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, ScalarType, StructuralTypeId};
     use terminal_psi::{
         StructuralArgument, StructuralFieldDeclaration, StructuralPathSegment,
@@ -4184,8 +4189,8 @@ pub(crate) mod view {
     use super::{ProviderStorageBinding, RuntimeProviderStorage};
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use access_admission::AccessResourceCompatibility;
-use access_admission::ValidatedPlacement;
-use access_admission::ValidatedResourceProfile;
+    use access_admission::ValidatedPlacement;
+    use access_admission::ValidatedResourceProfile;
 
     impl RuntimeProviderStorage {
         pub(crate) fn prepare_view(
@@ -4219,7 +4224,8 @@ use access_admission::ValidatedResourceProfile;
                 .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
             let mut actual = None;
             for profile in [supplied, &admitted] {
-                let Ok(compatibility) = access_admission::validate_access_resources(placement, profile)
+                let Ok(compatibility) =
+                    access_admission::validate_access_resources(placement, profile)
                 else {
                     return Ok(Err(InitializationRejection::IncompatibleSupply));
                 };

@@ -24,7 +24,12 @@ fragment geometry; provider invocation retains its separate custody obligations.
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
-use layout_plans::{ByteOrder, MaterializationAction, MaterializationDiagnostic, MaterializationWrite, PlacementConstraints, PlacementSite, RelocationTarget, StoredIntegerFit, SymbolicMaterializationPlan, validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape, validate_write, validate_write_source_value};
+use layout_plans::{
+    ByteOrder, MaterializationAction, MaterializationDiagnostic, MaterializationWrite,
+    PlacementConstraints, PlacementSite, RelocationTarget, StoredIntegerFit,
+    SymbolicMaterializationPlan, validate_fragment, validate_stored_integer_fit,
+    validate_stored_integer_fit_shape, validate_write, validate_write_source_value,
+};
 
 #[cfg(test)]
 mod tests;
@@ -540,7 +545,9 @@ pub fn validate_step(
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     use crate::{PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep};
-    use layout_plans::{ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
+    use layout_plans::{
+        ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
+    };
 
     pub fn single_address_writer(
         target: RelocationTarget,

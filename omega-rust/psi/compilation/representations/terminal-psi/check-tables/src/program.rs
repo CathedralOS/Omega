@@ -3,8 +3,10 @@
 
 use crate::CheckTables;
 use crate::names::MachineNames;
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId,
+};
 use symbols::SymbolHandle;
 use terminal_psi::TerminalModule;
 

@@ -16,8 +16,8 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };
 
-pub mod hosted_receiver;
 mod emission_admission;
+pub mod hosted_receiver;
 pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
 pub mod publication;
 

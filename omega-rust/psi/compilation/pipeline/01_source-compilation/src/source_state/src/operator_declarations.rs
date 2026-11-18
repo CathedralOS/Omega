@@ -10,7 +10,9 @@ pub mod operator {
         use symbols::{SymbolHandle, SymbolKind};
 
         use crate::source_state::TypedTrees;
-        use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+        use crate::source_state::types::{
+            FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+        };
 
         use super::{OperatorConstBinding, OperatorDefinition};
         use crate::source_state::declarations::operator::operand_signatures::normalized_operand_parameters;
@@ -191,18 +193,20 @@ pub mod operator {
                             ClosedOperatorApplicationArgument::Const { .. } => false,
                         }),
                     crate::source_state::data::TypeParameterKind::Const { type_reference }
-                    | crate::source_state::data::TypeParameterKind::Value { type_reference } => const_bindings
-                        .iter()
-                        .find_map(|OperatorConstBinding { symbol, value }| {
-                            (*symbol == parameter.symbol).then_some(
-                                ClosedOperatorApplicationArgument::Const {
-                                    binder_symbol: parameter.symbol,
-                                    declared_carrier: type_reference,
-                                    value: value.clone(),
-                                },
-                            )
-                        })
-                        .filter(|_| closed_boundary_application_type(program, type_reference)),
+                    | crate::source_state::data::TypeParameterKind::Value { type_reference } => {
+                        const_bindings
+                            .iter()
+                            .find_map(|OperatorConstBinding { symbol, value }| {
+                                (*symbol == parameter.symbol).then_some(
+                                    ClosedOperatorApplicationArgument::Const {
+                                        binder_symbol: parameter.symbol,
+                                        declared_carrier: type_reference,
+                                        value: value.clone(),
+                                    },
+                                )
+                            })
+                            .filter(|_| closed_boundary_application_type(program, type_reference))
+                    }
                     crate::source_state::data::TypeParameterKind::Machine { .. }
                     | crate::source_state::data::TypeParameterKind::Implementation
                     | crate::source_state::data::TypeParameterKind::Proposition { .. } => None,
@@ -223,7 +227,10 @@ pub mod operator {
             let operator_parameters = program.operator_type_parameters(operator);
             if operator_parameters.is_empty()
                 || operator_parameters.iter().any(|parameter| {
-                    !matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type)
+                    !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                    )
                 })
             {
                 return None;
@@ -276,7 +283,10 @@ pub mod operator {
                         .iter()
                         .enumerate()
                         .find(|(_, parameter)| parameter.symbol == symbol)?;
-                    if !matches!(machine_parameter.kind, crate::source_state::data::TypeParameterKind::Type) {
+                    if !matches!(
+                        machine_parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                    ) {
                         return None;
                     }
                     Some(SymbolicOperatorTypeApplicationArgument {
@@ -1223,7 +1233,9 @@ pub mod operator {
             target: crate::source_state::statement::TransitionTargetHandle,
         ) -> Option<(&str, source_text::SourceSpan)> {
             let crate::source_state::statement::TransitionTargetNode::Named {
-                path, source_span, ..
+                path,
+                source_span,
+                ..
             } = program.statement_table.transition_target(target)
             else {
                 return None;
@@ -1261,8 +1273,10 @@ pub mod operator {
         pub fn operator_operand_signature(
             program: &TypedTrees,
             operator: &OperatorDefinition,
-        ) -> Result<String, crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError>
-        {
+        ) -> Result<
+            String,
+            crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError,
+        > {
             operand_signature(
                 program,
                 program
@@ -1277,8 +1291,10 @@ pub mod operator {
             program: &TypedTrees,
             declared: impl Iterator<Item = SymbolHandle>,
             parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
-        ) -> Result<String, crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError>
-        {
+        ) -> Result<
+            String,
+            crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError,
+        > {
             let mut normalizer = TypeParameterNormalizer::new(declared.collect());
             let callable_operands = normalized_operand_parameters(parameters)
                 .map(|parameter| {
@@ -1370,7 +1386,9 @@ pub mod operator {
                     } => {
                         self.reference(*base_type);
                         for constraint in program.type_reference_table.constraints(*constraints) {
-                            if let crate::source_state::types::TypeConstraintNode::Domain(domain) = constraint {
+                            if let crate::source_state::types::TypeConstraintNode::Domain(domain) =
+                                constraint
+                            {
                                 self.normalizer.canonical_index(domain.symbol);
                                 for argument in &domain.arguments {
                                     self.reference(*argument);
@@ -1385,10 +1403,16 @@ pub mod operator {
                         self.reference(*element_type);
                         match length {
                             crate::source_state::types::FixedArrayLength::Literal(_) => {}
-                            crate::source_state::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+                            crate::source_state::types::FixedArrayLength::ConstParameter {
+                                symbol,
+                                ..
+                            } => {
                                 self.normalizer.canonical_index(*symbol);
                             }
-                            crate::source_state::types::FixedArrayLength::ConstCall { machine, .. } => {
+                            crate::source_state::types::FixedArrayLength::ConstCall {
+                                machine,
+                                ..
+                            } => {
                                 self.normalizer.canonical_index(*machine);
                             }
                             crate::source_state::types::FixedArrayLength::Expression(value) => {
@@ -1411,7 +1435,11 @@ pub mod operator {
                         self.normalizer.canonical_index(*symbol);
                     }
                     TypeReferenceNode::ConstExpression(expression) => {
-                        crate::source_state::references::visit_expression(program, self, *expression);
+                        crate::source_state::references::visit_expression(
+                            program,
+                            self,
+                            *expression,
+                        );
                     }
                     TypeReferenceNode::Unit => {}
                 }
@@ -1432,7 +1460,10 @@ pub mod operator {
                 self.active_types.pop();
             }
 
-            fn signature(&mut self, signature: &'program crate::source_state::signature::StateSignature) {
+            fn signature(
+                &mut self,
+                signature: &'program crate::source_state::signature::StateSignature,
+            ) {
                 let program = self.program;
                 if self
                     .active_signatures
@@ -1527,7 +1558,10 @@ pub mod operator {
                 self.reference(reference);
                 false
             }
-            fn expression(&mut self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+            fn expression(
+                &mut self,
+                expression: crate::source_state::expression::ExpressionHandle,
+            ) -> bool {
                 if self.active_expressions.contains(&expression) {
                     return false;
                 }
@@ -1637,8 +1671,12 @@ pub mod operator {
                 return None;
             }
             let format = match primitive {
-                crate::source_state::types::PrimitiveType::F32 => numeric_literals::FloatFormat::F32,
-                crate::source_state::types::PrimitiveType::F64 => numeric_literals::FloatFormat::F64,
+                crate::source_state::types::PrimitiveType::F32 => {
+                    numeric_literals::FloatFormat::F32
+                }
+                crate::source_state::types::PrimitiveType::F64 => {
+                    numeric_literals::FloatFormat::F64
+                }
                 _ => return None,
             };
             let expected_result = if operation_returns_boolean(operation) {
@@ -1676,15 +1714,15 @@ pub mod operator {
         #[cfg(test)]
         #[test]
         fn default_float_spelling_uses_exact_catalog_custody_not_a_bare_nominal_path() {
+            use crate::source_inputs::SourceMap;
             use crate::source_state::types::TypeReferenceNode;
             use crate::source_state::{machine::Machine, signature::StateParameter, state::State};
+            use crate::source_symbols::SymbolTableBuilder;
             use language_core::operator_spelling::OperatorSpelling;
-            use crate::source_inputs::{SourceMap};
             use source_admission::SourceOrigin;
             use source_text::{SourceSpan, Span};
             use std::{path::PathBuf, sync::Arc};
             use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-            use crate::source_symbols::{SymbolTableBuilder};
 
             let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
             let original = std::str::from_utf8(bytes).unwrap();
@@ -1713,13 +1751,15 @@ pub mod operator {
                 let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
                 let children = builder.insert_children(
                     root,
-                    crate::source_symbols::builtin_type_symbols().into_iter().chain([(
-                        SymbolKind::Machine,
-                        SymbolNameRef::Source(SourceSpan::new(
-                            id,
-                            Span::new(start, start + "Float::divide".len()),
-                        )),
-                    )]),
+                    crate::source_symbols::builtin_type_symbols()
+                        .into_iter()
+                        .chain([(
+                            SymbolKind::Machine,
+                            SymbolNameRef::Source(SourceSpan::new(
+                                id,
+                                Span::new(start, start + "Float::divide".len()),
+                            )),
+                        )]),
                 );
                 let symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
                 let float_symbol = children.handle_at(BuiltinTypeAtom::F32.ordinal() as u32);
@@ -2250,11 +2290,13 @@ pub mod operator {
                     .expression_table
                     .binary_node(expression)
                     .is_some_and(|binary| {
-                        crate::source_state::closed_numeric::has_anonymous_numeric_results(program, binary.left)
-                            && crate::source_state::closed_numeric::has_anonymous_numeric_results(
-                                program,
-                                binary.right,
-                            )
+                        crate::source_state::closed_numeric::has_anonymous_numeric_results(
+                            program,
+                            binary.left,
+                        ) && crate::source_state::closed_numeric::has_anonymous_numeric_results(
+                            program,
+                            binary.right,
+                        )
                     });
             (anonymous_operands
                 || !spelling_for_operands_exists(
@@ -2422,8 +2464,9 @@ pub mod operator {
             if !qualification_identity(program, expected, bindings)?.is_empty() {
                 return None;
             }
-            let projected =
-                crate::source_state::static_applications::project_type_operand(program, expected, bindings);
+            let projected = crate::source_state::static_applications::project_type_operand(
+                program, expected, bindings,
+            );
             Some(projected)
         }
 
@@ -2462,8 +2505,9 @@ pub mod operator {
             if !program.contains_type_reference(reference) {
                 return None;
             }
-            let projected =
-                crate::source_state::static_applications::project_type_operand(program, reference, bindings);
+            let projected = crate::source_state::static_applications::project_type_operand(
+                program, reference, bindings,
+            );
             // Supplied arguments already belong to their own telescope.
             if projected != reference {
                 return qualification_identity(program, projected, &[]);
@@ -2480,7 +2524,9 @@ pub mod operator {
                     let nodes = program.type_reference_table.constraint_span(*constraints)?;
                     for node in nodes {
                         match node {
-                            crate::source_state::types::TypeConstraintNode::Named(_) => return None,
+                            crate::source_state::types::TypeConstraintNode::Named(_) => {
+                                return None;
+                            }
                             crate::source_state::types::TypeConstraintNode::Domain(domain)
                                 if domain.subject
                                     == crate::source_state::types::DomainConstraintSubject::Declared
@@ -2549,8 +2595,10 @@ pub mod operator {
             bindings: &[(SymbolHandle, TypeReferenceHandle)],
         ) -> bool {
             parameters.iter().all(|parameter| {
-                if !matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type)
-                    || !parameter.symbol.is_valid()
+                if !matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Type
+                ) || !parameter.symbol.is_valid()
                     || parameter.bounds.multiplicity == declaration_contracts::Multiplicity::Affine
                 {
                     return true;
@@ -2578,7 +2626,9 @@ pub mod operator {
             match program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Callable { .. } => program
                     .runtime_callable_type_identity(
-                        crate::source_state::type_identity::TypeIdentityRequest::ordinary(reference),
+                        crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                            reference,
+                        ),
                     )
                     .is_ok(),
                 TypeReferenceNode::Unit => true,
@@ -2746,7 +2796,9 @@ pub mod operator {
                             .constraints(*constraints)
                             .iter()
                             .filter_map(|constraint| match constraint {
-                                crate::source_state::types::TypeConstraintNode::Domain(domain) => Some(domain),
+                                crate::source_state::types::TypeConstraintNode::Domain(domain) => {
+                                    Some(domain)
+                                }
                                 _ => None,
                             }),
                     );
@@ -2786,10 +2838,10 @@ pub mod operator {
             use crate::source_state::domain::DomainDefinition;
             use crate::source_state::name::Identifier;
             use crate::source_state::signature::StateParameter;
+            use crate::source_symbols::SymbolTableBuilder;
             use arena::{Arena, Handle, HandleSpan};
             use std::sync::Arc;
             use symbols::{SymbolKind, SymbolNameRef};
-            use crate::source_symbols::{SymbolTableBuilder};
 
             fn rows<T: Default>(values: Vec<T>, generation: u32) -> Arena<T> {
                 Arena::from_storage(T::default(), values, None, generation, true).unwrap()
@@ -2940,7 +2992,12 @@ pub mod operator {
                         domain: operator
                             .home_domain
                             .is_valid()
-                            .then(|| crate::source_state::domain::domain_by_symbol(program, operator.home_domain))
+                            .then(|| {
+                                crate::source_state::domain::domain_by_symbol(
+                                    program,
+                                    operator.home_domain,
+                                )
+                            })
                             .flatten(),
                     });
                 let domains = program.domain_definitions().iter().flat_map(|domain| {
@@ -2979,10 +3036,12 @@ pub mod operator {
                 let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
                 let children = builder.insert_children(
                     root,
-                    crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                        (SymbolKind::Domain, SymbolNameRef::Static("First")),
-                        (SymbolKind::Domain, SymbolNameRef::Static("Second")),
-                    ]),
+                    crate::source_symbols::builtin_type_symbols()
+                        .into_iter()
+                        .chain([
+                            (SymbolKind::Domain, SymbolNameRef::Static("First")),
+                            (SymbolKind::Domain, SymbolNameRef::Static("Second")),
+                        ]),
                 );
                 let first = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
                 let second = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
@@ -3012,12 +3071,14 @@ pub mod operator {
                 }
                 let qualify = |program: &mut TypedTrees, symbol, label, identity| {
                     let constraints = program.type_reference_table.insert_constraints([
-                        crate::source_state::types::TypeConstraintNode::Domain(crate::source_state::types::DomainConstraint {
-                            symbol,
-                            semantic_id: identity,
-                            name: Identifier::generated(label),
-                            ..Default::default()
-                        }),
+                        crate::source_state::types::TypeConstraintNode::Domain(
+                            crate::source_state::types::DomainConstraint {
+                                symbol,
+                                semantic_id: identity,
+                                name: Identifier::generated(label),
+                                ..Default::default()
+                            },
+                        ),
                     ]);
                     program
                         .type_reference_table
@@ -3326,7 +3387,8 @@ pub mod operator {
                 ));
                 let machine = program.tables.operators.get(Handle::from_parts(4, 1));
                 assert!(
-                    crate::source_state::domain::domain_by_symbol(&program, machine.home_domain).is_none(),
+                    crate::source_state::domain::domain_by_symbol(&program, machine.home_domain)
+                        .is_none(),
                     "another row at the old position cannot become that owner"
                 );
 
@@ -3667,7 +3729,9 @@ pub mod operator {
             ),
         ) {
             let mut scope =
-                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(trait_definition);
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(
+                    trait_definition,
+                );
             scope.substitutions = substitutions.to_vec();
             scope.argument_owner = SymbolHandle::invalid();
             scope.visit(program, &mut |scope| {
@@ -3715,8 +3779,9 @@ pub mod operator {
                                     return false;
                                 };
                                 if let Some(binding) = constant {
-                                    let crate::source_state::data::TypeParameterKind::Const { type_reference } =
-                                        parameter.kind
+                                    let crate::source_state::data::TypeParameterKind::Const {
+                                        type_reference,
+                                    } = parameter.kind
                                     else {
                                         return false;
                                     };
@@ -3844,8 +3909,10 @@ pub mod operator {
             program: &TypedTrees,
             trait_definition: &crate::source_state::trait_definition::TraitDefinition,
             requirement: &crate::source_state::signature::StateSignature,
-        ) -> Result<String, crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError>
-        {
+        ) -> Result<
+            String,
+            crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError,
+        > {
             super::operand_signatures::operand_signature(
                 program,
                 program
@@ -3920,10 +3987,12 @@ pub mod operator {
         use crate::source_state::TypedTrees;
         use crate::source_state::data::TypeParameter;
         use crate::source_state::declarations::operator::OperatorConstBinding;
-        use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-        use arena::HandleSpan;
+        use crate::source_state::types::{
+            FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
+        };
         use application_identity::const_value::CanonicalConstIdentity;
-use application_identity::const_value::CanonicalConstValue;
+        use application_identity::const_value::CanonicalConstValue;
+        use arena::HandleSpan;
         use symbols::SymbolHandle;
 
         pub(crate) fn type_reference_matches(
@@ -4025,7 +4094,8 @@ use application_identity::const_value::CanonicalConstValue;
             }
             if let Some(parameter) =
                 expected_type_parameter(program, expected, type_parameters, allow_name_fallback)
-                && let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                && let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                    parameter.kind
             {
                 if let Some(value) =
                     closed_const_identity_from_type_reference(program, actual, type_reference)
@@ -4239,7 +4309,9 @@ use application_identity::const_value::CanonicalConstValue;
             else {
                 return actual == expected;
             };
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind else {
+            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                parameter.kind
+            else {
                 return false;
             };
             let FixedArrayLength::Literal(value) = actual else {
@@ -4397,9 +4469,9 @@ use application_identity::const_value::CanonicalConstValue;
         trait_scope_operator_meaning_exists, trait_scope_operator_meanings,
     };
 
+    use application_identity::const_value::CanonicalConstIdentity;
     use arena::HandleSpan;
     use language_core::operator_spelling::OperatorSpelling;
-    use application_identity::const_value::CanonicalConstIdentity;
     use symbols::SymbolHandle;
 
     use crate::source_state::TypedTrees;

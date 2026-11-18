@@ -25,7 +25,9 @@ const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
     )),
 )];
 
-pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+pub(super) fn judge_build(
+    build: &str,
+) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
     let source = format!("use omega::language::core::byte_observation;\n{build}");
     super::build_purpose::judge_build_with_core(&source, BYTE_OBSERVATION_SOURCE)
 }
@@ -79,7 +81,9 @@ machine build_entry() {{
     )
 }
 
-fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+fn judge_portable_byte_build(
+    source: &str,
+) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
     use super::build_purpose::{frontier_with_core, package, roster, symbol};
     let source = format!("use omega::language::core::byte_observation;\n{source}");
     let typed = frontier_with_core(
@@ -92,7 +96,11 @@ fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::checki
     let subjects = [Some(package())];
     let prepared = crate::lowering::prepare_compilation(
         &typed,
-        roster(&entries, &subjects, declaration_contracts::source_identity::DependencyScope::Build),
+        roster(
+            &entries,
+            &subjects,
+            declaration_contracts::source_identity::DependencyScope::Build,
+        ),
         terminal_codec::TerminalPublication::Portable,
     );
     let mut verdicts = crate::checking::judge_compilation(prepared.program);

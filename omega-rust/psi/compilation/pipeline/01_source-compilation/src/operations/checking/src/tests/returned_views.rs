@@ -93,7 +93,8 @@ machine entry() reaches Fs invokes Fs {
     assert!(
         conflicts.iter().any(|conflict| matches!(
             conflict.conflict,
-            crate::checking::LoanConflict::ExclusiveAndShared | crate::checking::LoanConflict::ChangeWhileBorrowed
+            crate::checking::LoanConflict::ExclusiveAndShared
+                | crate::checking::LoanConflict::ChangeWhileBorrowed
         )),
         "changing the retained Token input must conflict: {conflicts:?}"
     );
@@ -346,7 +347,10 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
             "corruption {corruption}"
         );
         assert!(
-            !matches!(crate::checking::judge(Ok(malformed)), Ok(RouteVerdict::Accepted(_))),
+            !matches!(
+                crate::checking::judge(Ok(malformed)),
+                Ok(RouteVerdict::Accepted(_))
+            ),
             "the sole checker accepted corruption {corruption}"
         );
     }

@@ -100,11 +100,15 @@ pub(crate) mod source_occurrences {
         TypedReferences, visit_alias, visit_const, visit_data, visit_declarations, visit_machine,
         visit_program, visit_trait,
     };
-    use crate::source_state::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
+    use crate::source_state::{
+        TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle,
+    };
     use symbols::{SymbolHandle, SymbolKind};
 
     pub(crate) mod call_applications {
-        use crate::source_state::{TypedTrees, expression::ExpressionNode, expression::StaticMachineArgument};
+        use crate::source_state::{
+            TypedTrees, expression::ExpressionNode, expression::StaticMachineArgument,
+        };
         use symbols::SymbolHandle;
 
         impl TypedTrees {
@@ -275,7 +279,9 @@ pub(crate) mod source_occurrences {
                 };
                 if crate::source_state::reflection::construction::declaration_query_argument_role(
                     self,
-                    crate::source_state::references::StaticArgumentCall::Expression(expression, &call),
+                    crate::source_state::references::StaticArgumentCall::Expression(
+                        expression, &call,
+                    ),
                 ) == crate::source_state::references::StaticArgumentRole::DeclarationDescription
                 {
                     let arguments = self
@@ -397,14 +403,17 @@ pub(crate) mod source_occurrences {
                         && self.trait_machine_signature(selected.symbol).is_none()
                     {
                         if selected.path.is_empty() {
-                            selected.path = Box::from([crate::source_state::name::Identifier::generated(
-                                self.symbols.name(selected.symbol),
-                            )]);
+                            selected.path =
+                                Box::from([crate::source_state::name::Identifier::generated(
+                                    self.symbols.name(selected.symbol),
+                                )]);
                         }
                         selected.type_reference = self
                             .prepare_callable_operand_application(&selected, owner)
                             .map(|(reference, _)| reference)
-                            .unwrap_or_else(|_| crate::source_state::types::TypeReferenceHandle::invalid());
+                            .unwrap_or_else(|_| {
+                                crate::source_state::types::TypeReferenceHandle::invalid()
+                            });
                         if selected.type_reference.is_valid()
                             && matches!(
                                 self.expression_table.expression(*expression),
@@ -585,7 +594,8 @@ pub(crate) mod source_occurrences {
                             self.static_operand_type_reference_in_scope(argument, owner)?;
                     } else if !argument.symbol.is_valid()
                         && argument.const_literal.is_none()
-                        && crate::source_state::static_const_argument_spelling(self, argument).is_none()
+                        && crate::source_state::static_const_argument_spelling(self, argument)
+                            .is_none()
                     {
                         complete = false;
                     }
@@ -625,15 +635,17 @@ pub(crate) mod source_occurrences {
                             .static_machine_application(application)
                             .target
                             .clone()]),
-                        application: Some(Box::new(crate::source_state::expression::StaticSymbolApplication {
-                            member: arena::Handle::invalid(),
-                            lifetime_arguments: self
-                                .static_machine_application_lifetimes(application)
-                                .iter()
-                                .map(|binding| binding.argument.clone())
-                                .collect(),
-                            arguments: arguments.clone().into_boxed_slice(),
-                        })),
+                        application: Some(Box::new(
+                            crate::source_state::expression::StaticSymbolApplication {
+                                member: arena::Handle::invalid(),
+                                lifetime_arguments: self
+                                    .static_machine_application_lifetimes(application)
+                                    .iter()
+                                    .map(|binding| binding.argument.clone())
+                                    .collect(),
+                                arguments: arguments.clone().into_boxed_slice(),
+                            },
+                        )),
                         ..StaticMachineArgument::default()
                     };
                     // Formation is shared with declaration operands. Unsupported
@@ -1101,34 +1113,33 @@ pub(crate) mod source_occurrences {
                     ..Default::default()
                 },
             );
-            machine.type_parameters =
-                program
-                    .data_type_parameters
-                    .insert_many([crate::source_state::data::TypeParameter {
-                        kind: crate::source_state::data::TypeParameterKind::Machine {
-                            contract: crate::source_state::data::MachineParameterContract::Structural(
-                                crate::source_state::signature::StateSignature {
-                                    symbol: signature,
-                                    return_type: reference,
-                                    ..Default::default()
-                                },
-                            ),
-                        },
-                        ..Default::default()
-                    }]);
+            machine.type_parameters = program.data_type_parameters.insert_many([
+                crate::source_state::data::TypeParameter {
+                    kind: crate::source_state::data::TypeParameterKind::Machine {
+                        contract: crate::source_state::data::MachineParameterContract::Structural(
+                            crate::source_state::signature::StateSignature {
+                                symbol: signature,
+                                return_type: reference,
+                                ..Default::default()
+                            },
+                        ),
+                    },
+                    ..Default::default()
+                },
+            ]);
             program.push_machine(machine.clone());
             program.push_const_declaration(crate::source_state::constant::ConstDeclaration {
                 symbol: constant,
                 declared_type: reference,
                 ..Default::default()
             });
-            program
-                .data_implementation_applications
-                .insert(crate::source_state::DataImplementationApplication {
+            program.data_implementation_applications.insert(
+                crate::source_state::DataImplementationApplication {
                     lexical_owner: owner,
                     source_application: forged,
                     ..Default::default()
-                });
+                },
+            );
             assert!(contains(&program, owner, reference));
             assert!(contains(&program, signature, reference));
             assert!(contains(&program, constant, reference));
@@ -1303,7 +1314,10 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     }
     fn callable_signature(&mut self, _: &crate::source_state::signature::StateSignature) {}
     /// Whether to visit this exact source view, before reporting or walking it.
-    fn callable_signature_contents(&mut self, _: &crate::source_state::signature::StateSignature) -> bool {
+    fn callable_signature_contents(
+        &mut self,
+        _: &crate::source_state::signature::StateSignature,
+    ) -> bool {
         true
     }
     fn callable_contract(
@@ -1314,7 +1328,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     }
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
-    fn authored_selection(&mut self, _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId) {}
+    fn authored_selection(
+        &mut self,
+        _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
+    ) {
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1427,7 +1445,10 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     fn leave_lexical_scope(&mut self) {
         self.0.leave_lexical_scope();
     }
-    fn authored_selection(&mut self, occurrence: crate::source_state::AuthoredDeclarationSelectionOccurrenceId) {
+    fn authored_selection(
+        &mut self,
+        occurrence: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
+    ) {
         self.0.authored_selection(occurrence);
     }
     fn static_application(
@@ -1509,7 +1530,8 @@ pub struct ProgramReferences {
     pub statements: HashSet<StatementHandle>,
     pub type_references: Vec<TypeReferenceHandle>,
     pub proof_facts: Vec<arena::Handle<ProofFact>>,
-    pub authored_selection_occurrences: HashSet<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
+    pub authored_selection_occurrences:
+        HashSet<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
 }
 #[derive(Default)]
 struct ReferenceCollector {
@@ -1530,7 +1552,8 @@ struct ReferenceCollector {
     alias_argument_expressions: HashSet<ExpressionHandle>,
     facts: HashSet<arena::Handle<ProofFact>>,
     mathematical_types: HashSet<MathematicalTypeHandle>,
-    authored_selection_occurrences: HashSet<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
+    authored_selection_occurrences:
+        HashSet<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
 }
 impl Extend<SymbolHandle> for ReferenceCollector {
     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
@@ -1598,7 +1621,10 @@ impl TypedReferences for ReferenceCollector {
             .extend(description.authored_selection_occurrences);
         false
     }
-    fn authored_selection(&mut self, occurrence: crate::source_state::AuthoredDeclarationSelectionOccurrenceId) {
+    fn authored_selection(
+        &mut self,
+        occurrence: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
+    ) {
         self.authored_selection_occurrences.insert(occurrence);
     }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
@@ -2431,7 +2457,8 @@ fn visit_authored_selection(
 ) {
     retained.authored_selection(occurrence);
     if let Some(selection) = program.authored_declaration_selections().get(occurrence)
-        && let crate::source_state::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target()
+        && let crate::source_state::AuthoredDeclarationSelectionTarget::Resolved(target) =
+            selection.target()
         && program.symbols.get(target.selected_symbol()).kind == symbols::SymbolKind::Const
     {
         visit_symbol(retained, target.selected_symbol());
@@ -2739,7 +2766,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_symbol(retained, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             visit_symbol(retained, binder.symbol);
-            if let crate::source_state::proposition::PropositionBinderKind::Const { type_reference } = binder.kind
+            if let crate::source_state::proposition::PropositionBinderKind::Const {
+                type_reference,
+            } = binder.kind
             {
                 visit_type_reference(program, retained, type_reference);
             }
@@ -2768,7 +2797,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_mathematical_type(program, retained, parameter.ty);
         }
         visit_mathematical_type(program, retained, definition.result);
-        if let crate::source_state::mathematical::MathematicalBody::Definition(expression) = definition.body {
+        if let crate::source_state::mathematical::MathematicalBody::Definition(expression) =
+            definition.body
+        {
             visit_expression(program, retained, expression);
         }
     }
@@ -3347,8 +3378,11 @@ pub fn visit_type_reference(
                 && (program
                     .static_const_literal_from_type_reference(type_reference)
                     .is_some()
-                    || crate::source_state::canonical_const_argument_value(program, type_reference)
-                        .is_some()) => {}
+                    || crate::source_state::canonical_const_argument_value(
+                        program,
+                        type_reference,
+                    )
+                    .is_some()) => {}
         TypeReferenceNode::Named { symbol, .. } => {
             visit_symbol(retained, *symbol);
         }
@@ -3462,7 +3496,9 @@ pub fn visit_expression(
         ExpressionNode::Member(member) => {
             visit_expression(program, retained, member.receiver);
             match member.selection {
-                crate::source_state::expression::MemberSelection::Field(symbol) => visit_symbol(retained, symbol),
+                crate::source_state::expression::MemberSelection::Field(symbol) => {
+                    visit_symbol(retained, symbol)
+                }
                 crate::source_state::expression::MemberSelection::Unresolved => {
                     visit_symbol(retained, SymbolHandle::invalid())
                 }
@@ -3602,12 +3638,13 @@ fn completed_byte_predicate_call(
     expression: ExpressionHandle,
     call: &TableCallExpression,
 ) -> bool {
+    use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
     use crate::source_state::{
         AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
     };
-    use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
-    let Some((predicate, _)) = crate::source_state::byte_predicates::byte_predicate_call(program, expression)
+    let Some((predicate, _)) =
+        crate::source_state::byte_predicates::byte_predicate_call(program, expression)
     else {
         return false;
     };
@@ -3674,9 +3711,13 @@ fn visit_call_expression(
     }
     // Overload selection runs after the walk, so the walk keeps every member
     // of a named machine family the call may select.
-    if let Some(path) = crate::source_state::operator::named_expression_call_family_path(program, call) {
+    if let Some(path) =
+        crate::source_state::operator::named_expression_call_family_path(program, call)
+    {
         let reference = program.expression_table.source_span(expression);
-        for member in crate::source_state::operator::named_call_family_members(program, &path, reference) {
+        for member in
+            crate::source_state::operator::named_call_family_members(program, &path, reference)
+        {
             visit_symbol(retained, member);
         }
     }
@@ -3788,13 +3829,19 @@ fn visit_statement(
             if call.runtime_call.is_none() || call.target_symbol.is_valid() {
                 visit_callable_symbol(program, retained, call.target_symbol);
             }
-            for operator in crate::source_state::operator::named_statement_call_candidates(program, call) {
+            for operator in
+                crate::source_state::operator::named_statement_call_candidates(program, call)
+            {
                 visit_symbol(retained, operator.symbol);
             }
-            if let Some(path) = crate::source_state::operator::named_statement_call_family_path(program, call) {
-                for member in
-                    crate::source_state::operator::named_call_family_members(program, &path, call.source_span)
-                {
+            if let Some(path) =
+                crate::source_state::operator::named_statement_call_family_path(program, call)
+            {
+                for member in crate::source_state::operator::named_call_family_members(
+                    program,
+                    &path,
+                    call.source_span,
+                ) {
                     visit_symbol(retained, member);
                 }
             }
@@ -3877,9 +3924,9 @@ fn visit_statement(
                 if let Some((name, reference)) =
                     crate::source_state::operator::named_transition_family_path(program, target)
                 {
-                    for member in
-                        crate::source_state::operator::named_call_family_members(program, name, reference)
-                    {
+                    for member in crate::source_state::operator::named_call_family_members(
+                        program, name, reference,
+                    ) {
                         visit_symbol(retained, member);
                     }
                 }
@@ -3908,7 +3955,9 @@ fn visit_type_parameters(
             }
             TypeParameterKind::Machine { contract } => {
                 let signature = match contract {
-                    crate::source_state::data::MachineParameterContract::Structural(signature) => Some(signature),
+                    crate::source_state::data::MachineParameterContract::Structural(signature) => {
+                        Some(signature)
+                    }
                     crate::source_state::data::MachineParameterContract::Nominal {
                         receiving_trait,
                         receiving_arguments,
@@ -3924,7 +3973,9 @@ fn visit_type_parameters(
                         }
                         instantiated.as_deref()
                     }
-                    crate::source_state::data::MachineParameterContract::RequirementIdentity => None,
+                    crate::source_state::data::MachineParameterContract::RequirementIdentity => {
+                        None
+                    }
                 };
                 if let Some(signature) = signature {
                     visit_signature(program, retained, signature);
@@ -3996,14 +4047,19 @@ fn visit_machine_with_sidecars(
                 visit_closed_conformance(program, retained, &capture.conformance_application);
             }
         }
-        let mut visit_specialization = |specialization: &crate::source_state::MachineSpecialization| {
-            visit_symbol(retained, specialization.template);
-            visit_type_parameters(program, retained, specialization.template_parameters);
-            visit_static_machine_bindings(program, retained, specialization.binding_application);
-            for application in &specialization.conformance_applications {
-                visit_closed_conformance(program, retained, application);
-            }
-        };
+        let mut visit_specialization =
+            |specialization: &crate::source_state::MachineSpecialization| {
+                visit_symbol(retained, specialization.template);
+                visit_type_parameters(program, retained, specialization.template_parameters);
+                visit_static_machine_bindings(
+                    program,
+                    retained,
+                    specialization.binding_application,
+                );
+                for application in &specialization.conformance_applications {
+                    visit_closed_conformance(program, retained, application);
+                }
+            };
         for specialization in program.machine_specializations.for_instance(machine.symbol) {
             visit_specialization(specialization);
         }
@@ -4306,13 +4362,14 @@ mod conformance_occurrence_tests {
             }),
             StatementNode::Expression(expression),
         ]);
-        let states = program
-            .tables
-            .machine_states
-            .insert_many([crate::source_state::state::State {
-                statement_nodes: statements,
-                ..Default::default()
-            }]);
+        let states =
+            program
+                .tables
+                .machine_states
+                .insert_many([crate::source_state::state::State {
+                    statement_nodes: statements,
+                    ..Default::default()
+                }]);
         program.push_machine(Machine {
             symbol: owner,
             states,
@@ -4524,10 +4581,12 @@ mod conformance_occurrence_tests {
                 .static_machine_application_mut(handle)
                 .conformance_selection = Some(Box::new(StaticConformanceSelection {
                 operand_ordinal: 0,
-                application: Some(Box::new(crate::source_state::ClosedConformanceApplication {
-                    callable_application: next,
-                    ..Default::default()
-                })),
+                application: Some(Box::new(
+                    crate::source_state::ClosedConformanceApplication {
+                        callable_application: next,
+                        ..Default::default()
+                    },
+                )),
             }));
         }
         let mut sink = Sink::default();
@@ -4549,8 +4608,8 @@ mod declaration_description_tests {
     use crate::source_state::expression::StaticSymbolApplication;
     use crate::source_state::name::Identifier;
     use crate::source_state::types::TypeReferenceNode;
+    use crate::source_symbols::SymbolTableBuilder;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     #[derive(Default)]
     struct ReferenceEvents {
@@ -4681,13 +4740,14 @@ mod declaration_description_tests {
             symbols: symbols.clone(),
             ..Default::default()
         };
-        let expression =
-            authored
-                .expression_table
-                .insert_tree(&crate::source_state::expression::Expression::Name(
-                    crate::source_state::expression::NamePath::unresolved(vec![Identifier::generated("result")])
-                        .denoting_reserved_result_of(owner),
-                ));
+        let expression = authored.expression_table.insert_tree(
+            &crate::source_state::expression::Expression::Name(
+                crate::source_state::expression::NamePath::unresolved(vec![Identifier::generated(
+                    "result",
+                )])
+                .denoting_reserved_result_of(owner),
+            ),
+        );
         let copy = authored.expression_table.insert_copy(expression);
         let mut retained = ReferenceCollector::default();
         visit_expression(&authored, &mut retained, copy);
@@ -4715,7 +4775,9 @@ mod declaration_description_tests {
 
     #[test]
     fn named_transitions_keep_required_and_present_receiver_coordinates() {
-        use crate::source_state::statement::{TableNamePath, TableTransition, TransitionTargetNode};
+        use crate::source_state::statement::{
+            TableNamePath, TableTransition, TransitionTargetNode,
+        };
 
         let mut symbols = SymbolTableBuilder::default();
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -4941,10 +5003,12 @@ mod cast_dependency_tests {
         );
         let roots = builder.insert_children(
             root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([(
-                symbols::SymbolKind::Domain,
-                symbols::SymbolNameRef::Static("Tagged"),
-            )]),
+            crate::source_symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(
+                    symbols::SymbolKind::Domain,
+                    symbols::SymbolNameRef::Static("Tagged"),
+                )]),
         );
         let scalar = roots.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
         let nominal = roots.handle_at(symbols::BuiltinTypeAtom::ALL.len() as u32);
@@ -5002,9 +5066,11 @@ mod formation_owner_tests {
     use super::*;
     use crate::source_state::data::{TypeParameter, TypeParameterKind};
     use crate::source_state::name::Identifier;
-    use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments, TraitDefinition};
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
+    use crate::source_state::trait_definition::{
+        AppliedTraitScope, TraitApplicationArguments, TraitDefinition,
+    };
     use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     #[test]
     fn a_trait_scope_retains_its_supplier_without_selecting_its_code() {
@@ -5012,10 +5078,12 @@ mod formation_owner_tests {
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = builder.insert_children(
             root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                (SymbolKind::Trait, SymbolNameRef::Static("Service")),
-                (SymbolKind::Machine, SymbolNameRef::Static("build")),
-            ]),
+            crate::source_symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([
+                    (SymbolKind::Trait, SymbolNameRef::Static("Service")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("build")),
+                ]),
         );
         let service = declarations.handle_at(u32::try_from(symbols::BUILTIN_TYPE_COUNT).unwrap());
         let supplier =

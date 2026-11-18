@@ -2,13 +2,13 @@
 //! evaluation requests. A declaration is not itself an execution request;
 //! unresolved work needs a real lowered-form producer and is never erased.
 
+use crate::source_state::TypedTrees;
+use crate::source_state::declaration_authority::RecordedDeclarationAuthority;
+use crate::source_state::deferred_refusals::DeferredRequest;
 use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
 use diagnostics::Diagnostic;
 pub use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority as BuildTimeSelectionAuthority;
 use std::sync::Arc;
-use crate::source_state::TypedTrees;
-use crate::source_state::declaration_authority::RecordedDeclarationAuthority;
-use crate::source_state::deferred_refusals::DeferredRequest;
 
 pub use crate::source_inputs::InvocationSourceConsent;
 
@@ -298,7 +298,8 @@ pub struct BuildTimeSources<'a> {
     pub declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub retained_declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub sources: Option<Arc<crate::source_inputs::SourceMap>>,
-    pub source_scoped_top_level_bindings: &'a [crate::source_symbols::SourceScopedTopLevelBinding],
+    pub source_scoped_top_level_bindings:
+        &'a [crate::source_symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub predecessor: Option<crate::typing::SeededTypingBase>,
 }

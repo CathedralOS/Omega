@@ -3,10 +3,10 @@
 
 use super::Program;
 use crate::lowering::body::ValueType;
+use crate::source_state::trait_definition::AppliedTraitScope;
 use semantic_vocabulary::{MachineId, ScalarTerm};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use crate::source_state::trait_definition::AppliedTraitScope;
 
 #[derive(Debug)]
 pub(super) struct ApplicationArguments<'source> {
@@ -161,7 +161,9 @@ impl<'source> Program<'source> {
         let mut values = Vec::new();
         let mut callables = Vec::new();
         for parameter in parameters {
-            if let crate::source_state::data::TypeParameterKind::Machine { contract } = &parameter.kind {
+            if let crate::source_state::data::TypeParameterKind::Machine { contract } =
+                &parameter.kind
+            {
                 if typed.machine_parameter_contract_view(contract).is_none() {
                     return Err(unavailable(
                         "generic callable lost its complete declared contract",
@@ -209,7 +211,8 @@ impl<'source> Program<'source> {
                 types.push(value);
                 continue;
             }
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                parameter.kind
             else {
                 return Err(unavailable(
                     "generic application changed its declared binder kind",
@@ -221,8 +224,9 @@ impl<'source> Program<'source> {
                 let binding = retained
                     .get(&parameter.symbol)
                     .ok_or_else(|| unavailable("Const parameter has no unique retained actual"))?;
-                let crate::source_state::static_applications::StaticMachineBindingValue::Const(reference) =
-                    binding.value
+                let crate::source_state::static_applications::StaticMachineBindingValue::Const(
+                    reference,
+                ) = binding.value
                 else {
                     return Err(unavailable(
                         "Const parameter was supplied with another binding kind",

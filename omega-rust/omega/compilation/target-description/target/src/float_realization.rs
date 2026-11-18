@@ -75,15 +75,28 @@ pub use language_core::float_operations::canonical_float_operation_name;
 
 impl TargetProfile {
     /// An immutable capability observation for source closure, without ABI data.
-    pub fn numeric_source_capabilities(self) -> language_core::float_operations::NumericTargetCapabilities {
+    pub fn numeric_source_capabilities(
+        self,
+    ) -> language_core::float_operations::NumericTargetCapabilities {
         language_core::float_operations::NumericTargetCapabilities {
             target: self.target_name(),
-            operations: CANONICAL_FLOAT_OPERATIONS.iter().filter_map(|operation| {
-                self.canonical_float_realization(operation).map(|realization| (*operation, match realization {
-                    CanonicalFloatRealization::CatalogIntrinsic { .. } => Ok(()),
-                    CanonicalFloatRealization::Unsupported { constraint } => Err(constraint),
-                }))
-            }).collect(),
+            operations: CANONICAL_FLOAT_OPERATIONS
+                .iter()
+                .filter_map(|operation| {
+                    self.canonical_float_realization(operation)
+                        .map(|realization| {
+                            (
+                                *operation,
+                                match realization {
+                                    CanonicalFloatRealization::CatalogIntrinsic { .. } => Ok(()),
+                                    CanonicalFloatRealization::Unsupported { constraint } => {
+                                        Err(constraint)
+                                    }
+                                },
+                            )
+                        })
+                })
+                .collect(),
         }
     }
 

@@ -515,13 +515,16 @@ mod evidence_seal_tests {
     // evidence, reaches this stage with its seals in memory: the accepted
     // fact carries the seal's fingerprint, a module without seals keeps the
     // zero fingerprint, and a seal that does not match is refused.
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition, ScalarTerm, ScalarType};
-    use arena::{IdTable};
-    use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
+    use arena::IdTable;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition, ScalarTerm,
+        ScalarType,
+    };
     use source_compiler::lowering::{
         Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
         Target, Termination, Unpositioned,
     };
+    use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
     use super::{VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit};
     use crate::artifact_lowering::lower_artifact;

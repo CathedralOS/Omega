@@ -8,10 +8,10 @@
 
 use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
-use target::ExecutableImageEmissionRequest;
 use installation_evidence::InstallationEnvironmentAssumption;
-use terminal_installation::admit_target_layouts;
 use native_program_planning::{PreparedNativeExecution, RetainedTerminalArtifact};
+use target::ExecutableImageEmissionRequest;
+use terminal_installation::admit_target_layouts;
 
 pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,

@@ -12,11 +12,11 @@ use super::{
     AdmittedCallbackEntry, AdmittedNativeCallbackArgument, NativeRealizationInput,
     ProviderAdmissionRequest,
 };
+use arena::IdTable;
 use backend_plan::TerminalCallbackOccurrenceProposal;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use arena::{IdTable};
 use std::collections::BTreeMap;
 use terminal_psi::{TerminalCallbackApplication, TerminalMachine};
 

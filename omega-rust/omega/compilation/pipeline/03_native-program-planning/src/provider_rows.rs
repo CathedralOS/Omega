@@ -322,8 +322,8 @@ pub(crate) fn canonical_numeric_realization(
 
 #[cfg(test)]
 mod tests {
-    use effects::provider_plan::ProviderPlanRow;
     use super::*;
+    use effects::provider_plan::ProviderPlanRow;
     use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSurface};
     use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
 

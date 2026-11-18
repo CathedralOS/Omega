@@ -38,8 +38,8 @@ its symbol was declared in, never from a path or a name:
 - A declaration with no source file cannot be placed, so it is refused.
 */
 
-use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
@@ -62,8 +62,10 @@ impl Program<'_> {
         subjects: &[Option<PackageKeyIdentity>],
         purpose: DependencyScope,
     ) -> Checked<Owner> {
-        let subject = crate::source_state::source_subjects::contains(self.typed, symbol, subjects, purpose)
-            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?;
+        let subject = crate::source_state::source_subjects::contains(
+            self.typed, symbol, subjects, purpose,
+        )
+        .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?;
         Ok(if subject {
             Owner::Subject
         } else {
@@ -225,7 +227,11 @@ impl Program<'_> {
     /// rows are. A supply the route cannot read this way is refused by name,
     /// so a provider is never accepted without having been judged against
     /// what it provides.
-    pub fn supplied_slots(&mut self, entry: MachineId, supplies: &[crate::lowering::Supply]) -> Checked<()> {
+    pub fn supplied_slots(
+        &mut self,
+        entry: MachineId,
+        supplies: &[crate::lowering::Supply],
+    ) -> Checked<()> {
         let typed = self.typed;
         let unserved = |what| {
             Err(refuse(
@@ -639,7 +645,10 @@ impl Program<'_> {
                 && match parameter.kind {
                     TypeParameterKind::Type => true,
                     TypeParameterKind::Const { type_reference } => {
-                        crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
+                        crate::source_state::canonical_const_carrier_is_supported(
+                            typed,
+                            type_reference,
+                        )
                     }
                     _ => false,
                 };
@@ -855,8 +864,9 @@ pub(super) fn served_trait_header(
     if declared.refines.is_some() || !declared.refinement_clauses.is_empty() {
         return Err("trait with a transparent refinement");
     }
-    let parents = crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(declared)
-        .parent_scopes(typed)?;
+    let parents =
+        crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(declared)
+            .parent_scopes(typed)?;
     for parent in &parents {
         served_parent(typed, declared, parent)?;
     }

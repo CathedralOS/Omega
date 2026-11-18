@@ -183,15 +183,13 @@ use crate::abstract_optimization::validation::{
     project_pre_physical_optimization_manifest, seal_optimized_abstract_plan_projection,
 };
 
+use crate::abstract_optimization::OptimizationRunUsage;
 use crate::abstract_optimization::validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,
 };
-use crate::abstract_optimization::OptimizationRunUsage;
 use abstract_operations::AbstractOperationPlan;
 pub(crate) use error::OptimizedAbstractProjectionError;
-use optimization_unit::{
-    AbstractOptimizationEvidence, PsiOptimizationUnit,
-};
+use optimization_unit::{AbstractOptimizationEvidence, PsiOptimizationUnit};
 use std::sync::Arc;
 use verified_optimization_input::VerifiedPsiOptimizationInput;
 

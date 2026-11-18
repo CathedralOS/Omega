@@ -40,8 +40,8 @@ was written.
 
 use std::collections::BTreeSet;
 
+use arena::IdTable;
 use semantic_vocabulary::{CrashCause, MachineId, ServiceId};
-use arena::{IdTable};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
@@ -836,12 +836,12 @@ impl<'b> Walk<'b> {
                 let signature =
                     self.signatures
                         .invocation((*callee).into(), *required_contract, machine)?;
-                let completes =
-                    !crate::lowering::inhabitation::excludes_result(self.inhabitation, signature.result)
-                        && !terminal_semantics::inhabitation::predicates_are_false(
-                            &signature.ensures,
-                        )
-                        && (required_contract.is_some() || reached.completes_normally);
+                let completes = !crate::lowering::inhabitation::excludes_result(
+                    self.inhabitation,
+                    signature.result,
+                ) && !terminal_semantics::inhabitation::predicates_are_false(
+                    &signature.ensures,
+                ) && (required_contract.is_some() || reached.completes_normally);
                 let published = signature.operational.published(reached.operational);
                 for (contributes, published) in self.operational.iter_mut().zip(published) {
                     *contributes |= published;

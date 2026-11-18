@@ -61,7 +61,6 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError>
     })
 }
 
-
 /// Scans one admitted source using the current page's token buffers.
 pub fn lex_unit_reusing<'source>(
     source: &'source str,

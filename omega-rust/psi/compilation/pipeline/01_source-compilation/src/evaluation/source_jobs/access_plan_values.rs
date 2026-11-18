@@ -2,9 +2,12 @@
 //! Receipts retain the original query, arguments and returned value. Matching
 //! those descriptions grants no permission to call functions or access storage.
 
+#[cfg(test)]
+use crate::source_state::references::StaticArgumentCall;
+use crate::source_state::types::TypeReferenceHandle;
+use access_admission::AccessPlan;
 use access_vocabulary::AccessExposure;
 use access_vocabulary::AccessPermissions;
-use access_admission::AccessPlan;
 use access_vocabulary::AtomicPermissions;
 use access_vocabulary::BoundaryReach;
 use access_vocabulary::BoundaryServiceReachId;
@@ -14,14 +17,13 @@ use schema_reflection::CallableDescription;
 use schema_reflection::FieldDescription;
 use schema_reflection::SchemaNode;
 use schema_reflection::SchemaNodeHandle;
-use schema_reflection::SemanticSchemaGraph;
 #[cfg(test)]
 use schema_reflection::SchemaQueryAuthority;
-#[cfg(test)]
-use crate::source_state::references::StaticArgumentCall;
-use crate::source_state::types::TypeReferenceHandle;
+use schema_reflection::SemanticSchemaGraph;
 
-use crate::evaluation::{BuildTimeValue, PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt};
+use crate::evaluation::{
+    BuildTimeValue, PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt,
+};
 
 type Fields = [(String, BuildTimeValue)];
 
@@ -102,7 +104,10 @@ fn materialized(receipt: &PureTerminalEvaluationReceipt) -> Result<&BuildTimeVal
     }
 }
 
-fn is_type_schema(source: &crate::source_state::TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn is_type_schema(
+    source: &crate::source_state::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
     source
         .closed_data_definition(reference)
         .is_some_and(|data| {
@@ -142,8 +147,10 @@ fn query_schema(
     {
         return Err("schema query lost its retained application generation".into());
     }
-    let request =
-        StaticArgumentCall::Expression(crate::source_state::expression::ExpressionHandle::invalid(), call);
+    let request = StaticArgumentCall::Expression(
+        crate::source_state::expression::ExpressionHandle::invalid(),
+        call,
+    );
     let [operand] = request.arguments(source) else {
         return Err("schema query lost its exact type operand".into());
     };
@@ -444,8 +451,10 @@ pub(crate) fn normalize(
         return Err("semantic plan and query belong to different invocation targets".into());
     }
     let (graph, owner) = query_schema(query)?;
-    let revision =
-        crate::source_state::reflection::construction::declaration_source_revision(query.source(), owner)?;
+    let revision = crate::source_state::reflection::construction::declaration_source_revision(
+        query.source(),
+        owner,
+    )?;
     normalize_for_schema(plan, graph, materialized(query)?, &revision)
 }
 
@@ -598,7 +607,9 @@ pub(super) fn normalize_for_schema(
             .flat_map(|(_, values)| values)
             .cloned(),
     );
-    crate::source_state::reflection::construction::authenticate_callable_descriptions(source, &described)?;
+    crate::source_state::reflection::construction::authenticate_callable_descriptions(
+        source, &described,
+    )?;
     access_admission::normalize_access_plan(AccessPlan {
         schema: graph,
         issuance,

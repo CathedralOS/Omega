@@ -8,8 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use arena::IdTable;
 use semantic_vocabulary::{MachineId, PlaceId, ScalarType, ValueId};
-use arena::{IdTable};
 
 use super::windows_handle_lifetimes::HandleInstance;
 use super::windows_handle_scalar_table::HandleScalarTable;

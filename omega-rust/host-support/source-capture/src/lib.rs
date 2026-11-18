@@ -1,9 +1,11 @@
 //! Captured filesystem views and read accounting shared by acquisition and execution.
 #![forbid(unsafe_code)]
 mod capture;
-pub use capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem, SourceSnapshot,
-    SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata, SourceSnapshotStorage,
-    source_snapshot_path_is_canonical};
+pub use capture::{
+    CapturedSourceNode, CapturedSourceTree, SourceFileSystem, SourceSnapshot, SourceSnapshotEntry,
+    SourceSnapshotError, SourceSnapshotMetadata, SourceSnapshotStorage,
+    source_snapshot_path_is_canonical,
+};
 
 pub mod read_accounting {
     use std::path::Path;

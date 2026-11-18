@@ -18,22 +18,22 @@ use crate::record::{
     PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
-use source_compiler::evaluation::provider_declarations::{
-    ProviderSelectionIdentity, ProviderSelectionSubject,
-};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
+use source_compiler::evaluation::provider_declarations::{
+    ProviderSelectionIdentity, ProviderSelectionSubject,
+};
+use source_compiler::source_state::signature::StateSignature;
+use source_compiler::source_state::trait_definition::TraitDefinition;
 use symbols::SymbolHandle;
 use target::TargetProfile;
 use terminal_psi::{
     BoundaryDeclarationRole, BoundaryMachineDeclaration, CheckedBoundaryExecution, TerminalMachine,
     UnoptimizedMachineBehavior,
 };
-use source_compiler::source_state::signature::StateSignature;
-use source_compiler::source_state::trait_definition::TraitDefinition;
 
 pub(super) struct ReviewedProviders {
     pub slots: Vec<SymbolHandle>,
@@ -242,7 +242,9 @@ impl PackageReviewInput<'_> {
         // independently of the Build's authored provider selections.
         let mut numeric_applications = Vec::new();
         let provider_bodies = provider_rows.iter().flat_map(|row| {
-            row.candidates.iter().map(|candidate| candidate.conformance.candidate)
+            row.candidates
+                .iter()
+                .map(|candidate| candidate.conformance.candidate)
         });
         for numeric in super::numeric::project(self, accepted, target, provider_bodies)? {
             review.boundaries.push(numeric.boundary);
@@ -1148,7 +1150,10 @@ impl PackageReviewInput<'_> {
     }
 }
 
-fn closed_service(source: &source_compiler::source_state::TypedTrees, service: &TraitDefinition) -> bool {
+fn closed_service(
+    source: &source_compiler::source_state::TypedTrees,
+    service: &TraitDefinition,
+) -> bool {
     service.is_boundary
         && service.lifetime_parameters.is_empty()
         && service.conformance_bounds.is_empty()

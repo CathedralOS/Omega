@@ -50,11 +50,6 @@
 //! implementation selected for `apply`, and records which requirement it was
 //! written against ([`Selection`]).
 
-use arena::HandleSpan;
-use diagnostics::Diagnostic;
-use source_text::SourceSpan;
-use std::borrow::Cow;
-use symbols::{SymbolHandle, SymbolKind};
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::domain::ProofFact;
@@ -69,6 +64,11 @@ use crate::source_state::statement::{StatementHandle, StatementNode};
 use crate::source_state::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use source_text::SourceSpan;
+use std::borrow::Cow;
+use symbols::{SymbolHandle, SymbolKind};
 
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use crate::source_state::{
@@ -462,8 +462,9 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     // does not execute this generic declaration's placeholder body. Check
     // that ownership only for requests that would otherwise specialize.
     if let Some(call) = site.call(program)
-        && crate::source_state::reflection::construction::declaration_query_argument_role(program, call)
-            == StaticArgumentRole::DeclarationDescription
+        && crate::source_state::reflection::construction::declaration_query_argument_role(
+            program, call,
+        ) == StaticArgumentRole::DeclarationDescription
     {
         return Ok(());
     }
@@ -1051,7 +1052,8 @@ pub(crate) fn prepare_requirement_application(
         ));
     }
     let environment =
-        crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
+        crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner)
+            .environment();
     prepare_requirement_in_scope(program, &environment, target, application, arguments)
 }
 
@@ -1578,7 +1580,8 @@ fn named_static_record(
         let declaration = program
             .data_type_parameter_by_symbol(symbol)
             .ok_or(unserved("a forwarded static record has no declared binder"))?;
-        let crate::source_state::data::TypeParameterKind::Const { type_reference } = declaration.kind
+        let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            declaration.kind
         else {
             return Err(unserved("a forwarded static record is not a const value"));
         };
@@ -1604,11 +1607,12 @@ fn named_static_record(
             "a static record operand needs its complete closed application",
         ));
     }
-    let actual =
-        crate::source_state::trait_definition::AppliedTraitScope::from_conformance(program, selected)
-            .ok_or(unserved(
-                "a static record operand lost its complete schema application",
-            ))?;
+    let actual = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+        program, selected,
+    )
+    .ok_or(unserved(
+        "a static record operand lost its complete schema application",
+    ))?;
     if !required.same_application(program, &actual) {
         return Err(Stop::Rejected(
             "a static record operand has another declared schema".into(),
@@ -2038,7 +2042,8 @@ fn copied_parts(
     types.extend(fact_types);
     for root in roots.into_iter().filter(|root| root.is_valid()) {
         types.extend(
-            crate::source_state::references::collect_expression_references(program, root).type_references,
+            crate::source_state::references::collect_expression_references(program, root)
+                .type_references,
         );
         program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
             copied &= match node {

@@ -9,8 +9,8 @@ use crate::descriptor_lifetimes::{
     descriptor_path,
 };
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+use arena::IdTable;
 use semantic_vocabulary::{MachineId, OperationId};
-use arena::{IdTable};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, TerminalModule};
 

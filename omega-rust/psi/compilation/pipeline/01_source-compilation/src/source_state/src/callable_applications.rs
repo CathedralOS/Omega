@@ -16,7 +16,7 @@ impl crate::source_state::TypedTrees {
         use crate::source_state::expression::ExpressionNode;
         use crate::source_state::types::PrimitiveType;
         use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
         use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
 
         if argument.application.is_some() || argument.evidence_projection.is_some() {
@@ -77,7 +77,9 @@ use application_identity::const_value::DecodedCanonicalConstValue;
             crate::source_state::canonical_const_declaration_value(self, argument.symbol)
         } else if argument.type_reference.is_valid() {
             match self.type_reference_node(argument.type_reference) {
-                crate::source_state::types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                crate::source_state::types::TypeReferenceNode::Named { symbol, name }
+                    if !symbol.is_valid() =>
+                {
                     CanonicalConstValue::from_atom(name.as_str())
                 }
                 crate::source_state::types::TypeReferenceNode::ConstExpression(value) => {
@@ -143,7 +145,9 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         {
             return None;
         }
-        crate::source_state::trait_definition::AppliedTraitScope::from_type_reference(self, reference, owner)
+        crate::source_state::trait_definition::AppliedTraitScope::from_type_reference(
+            self, reference, owner,
+        )
     }
 
     /// The one canonical callable atom producer. Both named operation-record
@@ -271,8 +275,9 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         {
             return Err("a static aggregate has another declared carrier");
         }
-        let value = crate::source_state::canonical_const_declaration_value(self, declaration.symbol)
-            .ok_or("a static aggregate lost its evaluated value")?;
+        let value =
+            crate::source_state::canonical_const_declaration_value(self, declaration.symbol)
+                .ok_or("a static aggregate lost its evaluated value")?;
         if !value.is_canonical_static_value() {
             return Err("a static aggregate has no canonical static value");
         }
@@ -312,7 +317,7 @@ use application_identity::const_value::DecodedCanonicalConstValue;
     ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
         use crate::source_state::trait_definition::AppliedTraitScope;
         use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
 
         let selected = self
             .conformance_by_symbol(symbol)
@@ -325,8 +330,10 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         let root = AppliedTraitScope::from_conformance(self, selected)
             .ok_or("a canonical operation record lost its schema application")?;
         let schema =
-            crate::source_state::type_identity::portable_record_schema_identity_in_context(self, &root, context)
-                .map_err(|_| "a canonical operation record lost its applied schema identity")?;
+            crate::source_state::type_identity::portable_record_schema_identity_in_context(
+                self, &root, context,
+            )
+            .map_err(|_| "a canonical operation record lost its applied schema identity")?;
         let mut scopes = Vec::<AppliedTraitScope<'_>>::new();
         root.try_visit(self, &mut |scope| {
             if let Some(previous) = scopes
@@ -404,7 +411,9 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         &'static str,
     > {
         use crate::source_state::data::TypeParameterKind;
-        use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::source_state::static_applications::{
+            StaticMachineBinding, StaticMachineBindingValue,
+        };
         use crate::source_state::types::TypeReferenceNode;
         let owner = self.static_operand_region_supplier(selected, owner)?;
         let machine = self
@@ -419,9 +428,9 @@ use application_identity::const_value::DecodedCanonicalConstValue;
             || application.map_or(0, |application| application.arguments.len()) != parameters.len()
             || application.map_or(0, |application| application.lifetime_arguments.len())
                 != machine.lifetime_parameters.len()
-            || parameters
-                .iter()
-                .any(|parameter| parameter.bounds != crate::source_state::data::DataProperties::default())
+            || parameters.iter().any(|parameter| {
+                parameter.bounds != crate::source_state::data::DataProperties::default()
+            })
             || (application.is_some()
                 && (!machine.conformance_bounds.is_empty()
                     || !machine.declared_type_equations.is_empty()))
@@ -981,7 +990,11 @@ pub(crate) mod closed_operands {
                     .and_then(|scope| scope.parameter_argument(self.program, symbol))
                 {
                     let previous = self.scope.replace(actual);
-                    crate::source_state::references::visit_type_reference(self.program, self, actual.reference);
+                    crate::source_state::references::visit_type_reference(
+                        self.program,
+                        self,
+                        actual.reference,
+                    );
                     self.scope = previous;
                 } else {
                     self.operands.symbols.push(symbol);
@@ -1001,7 +1014,11 @@ pub(crate) mod closed_operands {
                 && applied.reference != reference
             {
                 let previous = self.scope.replace(applied);
-                crate::source_state::references::visit_type_reference(self.program, self, applied.reference);
+                crate::source_state::references::visit_type_reference(
+                    self.program,
+                    self,
+                    applied.reference,
+                );
                 self.scope = previous;
                 return false;
             }
@@ -1020,7 +1037,10 @@ pub(crate) mod closed_operands {
             }
             true
         }
-        fn expression(&mut self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+        fn expression(
+            &mut self,
+            expression: crate::source_state::expression::ExpressionHandle,
+        ) -> bool {
             let key = (expression, self.scope);
             if self.visited_expressions.contains(&key) {
                 return false;
@@ -1078,7 +1098,10 @@ pub(crate) mod closed_operands {
             arguments: &[types::TypeReferenceHandle],
             lexical_owner: SymbolHandle,
             allow_declared_binders: bool,
-            scope: Option<(&crate::source_state::trait_definition::AppliedTraitScope<'_>, usize)>,
+            scope: Option<(
+                &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+                usize,
+            )>,
         ) -> Result<(), &'static str> {
             let mut closure = OperandClosure {
                 program: self,
@@ -1161,8 +1184,13 @@ pub(crate) mod closed_operands {
                         })
                         .is_some()
                 } else if lexical_owner.is_valid() {
-                    crate::source_state::type_identity::applied_type_identity(self, argument, lexical_owner, &[])
-                        .is_some()
+                    crate::source_state::type_identity::applied_type_identity(
+                        self,
+                        argument,
+                        lexical_owner,
+                        &[],
+                    )
+                    .is_some()
                 } else {
                     false
                 };
@@ -1215,20 +1243,24 @@ pub(crate) mod conformance_scopes {
             };
             let selected = crate::source_state::expression::StaticMachineArgument {
                 symbol: application.declaration,
-                application: Some(Box::new(crate::source_state::expression::StaticSymbolApplication {
-                    member: Default::default(),
-                    lifetime_arguments: application
-                        .lifetime_arguments
-                        .iter()
-                        .map(Identifier::generated)
-                        .collect(),
-                    arguments: application.arguments.clone(),
-                })),
+                application: Some(Box::new(
+                    crate::source_state::expression::StaticSymbolApplication {
+                        member: Default::default(),
+                        lifetime_arguments: application
+                            .lifetime_arguments
+                            .iter()
+                            .map(Identifier::generated)
+                            .collect(),
+                        arguments: application.arguments.clone(),
+                    },
+                )),
                 ..Default::default()
             };
             crate::source_state::type_identity::portable_applied_index_identity(
                 self,
-                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(&selected),
+                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                    &selected,
+                ),
                 lexical_owner,
                 &[],
             )
@@ -1500,8 +1532,8 @@ pub(crate) mod domain_scopes {
         use crate::source_state::data::{TypeParameter, TypeParameterKind};
         use crate::source_state::name::Identifier;
         use crate::source_state::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn domain_application_lookup_is_exact_and_rebuilt_from_stored_rows() {
@@ -1751,9 +1783,8 @@ pub(crate) mod domain_scopes {
 }
 pub(crate) mod machine_instances {
     use crate::source_state::{
-        TypedTrees,
+        CapturedMachineApplication, MachineSpecialization, TypedTrees,
         static_applications::{StaticMachineBinding, StaticMachineLifetimeBinding},
-        CapturedMachineApplication, MachineSpecialization,
     };
     use symbols::SymbolHandle;
 
@@ -2115,7 +2146,9 @@ pub(crate) mod machine_instances {
                             .zip(&selected.lifetime_arguments)
                             .map(|(parameter, argument)| StaticMachineLifetimeBinding {
                                 parameter: parameter.clone(),
-                                argument: crate::source_state::name::Identifier::generated(argument),
+                                argument: crate::source_state::name::Identifier::generated(
+                                    argument,
+                                ),
                             })
                             .collect();
                         (
@@ -2247,8 +2280,10 @@ pub(crate) mod machine_instances {
             mut owner: SymbolHandle,
             binder: SymbolHandle,
             target: SymbolHandle,
-        ) -> Result<Option<(u32, &crate::source_state::expression::StaticMachineArgument)>, &'static str>
-        {
+        ) -> Result<
+            Option<(u32, &crate::source_state::expression::StaticMachineArgument)>,
+            &'static str,
+        > {
             let valid = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
             if !valid(binder)
                 || !valid(target)
@@ -2281,9 +2316,11 @@ pub(crate) mod machine_instances {
                 if instances.next().is_some() {
                     return Err("static call has ambiguous invocation ownership");
                 }
-                if let Some(crate::source_state::static_applications::StaticMachineBindingValue::Machine(
-                    argument,
-                )) = self.specialization_binding(instance, binder)
+                if let Some(
+                    crate::source_state::static_applications::StaticMachineBindingValue::Machine(
+                        argument,
+                    ),
+                ) = self.specialization_binding(instance, binder)
                 {
                     if argument.application.is_some()
                         || entry(argument.symbol)
@@ -2518,14 +2555,18 @@ pub(crate) mod machine_selections {
 
     #[cfg(test)]
     pub(crate) mod record_tests {
-        use crate::source_state::callable_applications::{AppliedCallableOwner, AppliedCallableSignature};
+        use crate::source_state::callable_applications::{
+            AppliedCallableOwner, AppliedCallableSignature,
+        };
         use crate::source_state::expression::{StaticMachineArgument, StaticSymbolApplication};
         use crate::source_state::name::Identifier;
-        use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::source_state::static_applications::{
+            StaticMachineBinding, StaticMachineBindingValue,
+        };
         use crate::source_state::{TypedTrees, signature};
+        use crate::source_symbols::SymbolTableBuilder;
         use arena::HandleSpan;
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn selected_contract_records_keep_caller_bindings_and_completion_state() {
@@ -2714,7 +2755,8 @@ pub(crate) mod namespaces {
             &self,
             program: &'program TypedTrees,
             call: &TableCallExpression,
-        ) -> Result<Option<&'program crate::source_state::CapturedMachineApplication>, &'static str> {
+        ) -> Result<Option<&'program crate::source_state::CapturedMachineApplication>, &'static str>
+        {
             let Some((_, row, _)) = program.named_conformance_call_member(call)? else {
                 return Ok(None);
             };
@@ -2784,7 +2826,9 @@ pub(crate) mod namespaces {
                 };
                 crate::source_state::type_identity::applied_index_identity(
                     program,
-                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(&selected),
+                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                        &selected,
+                    ),
                     source.lexical_owner,
                     &[],
                 )
@@ -3063,7 +3107,9 @@ pub(crate) mod namespaces {
                     !self.type_reference_table.contains_type_reference(*argument)
                         || self
                             .region_free_scoped_type_identity(
-                                crate::source_state::type_identity::TypeIdentityRequest::ordinary(*argument),
+                                crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                                    *argument,
+                                ),
                                 &[],
                             )
                             .is_none()
@@ -3104,7 +3150,10 @@ pub(crate) mod namespaces {
             &self,
             call: &TableCallExpression,
         ) -> Result<
-            Option<(SymbolHandle, crate::source_state::type_identity::NormalizedTypeIdentity)>,
+            Option<(
+                SymbolHandle,
+                crate::source_state::type_identity::NormalizedTypeIdentity,
+            )>,
             &'static str,
         > {
             if self.named_conformance_call_member(call)?.is_none()
@@ -3131,8 +3180,11 @@ pub(crate) mod namespaces {
         pub fn prepare_named_conformance_application(
             &mut self,
             call: &TableCallExpression,
-        ) -> Result<Option<crate::source_state::ClosedConformanceApplication>, &'static str> {
-            use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        ) -> Result<Option<crate::source_state::ClosedConformanceApplication>, &'static str>
+        {
+            use crate::source_state::static_applications::{
+                StaticMachineBinding, StaticMachineBindingValue,
+            };
             use sha2::{Digest, Sha256};
             let Some((owner, identity)) = self.named_conformance_capture_key(call)? else {
                 return Ok(None);
@@ -3203,7 +3255,8 @@ pub(crate) mod namespaces {
                 })
                 .collect::<Vec<_>>();
             let scope = environment.retain(self)?;
-            let name = crate::source_state::name::Identifier::generated(self.symbols.name(declaration));
+            let name =
+                crate::source_state::name::Identifier::generated(self.symbols.name(declaration));
             let application = self.expression_table.retain_static_machine_application(
                 declaration,
                 name,
@@ -3235,9 +3288,10 @@ pub(crate) mod namespaces {
                 trait_arguments,
                 rows,
                 report_fingerprint: fingerprint.finish(),
-                commitment: crate::source_state::ClosedConformanceApplicationCommitment::from_digest(
-                    digest.finalize().into(),
-                ),
+                commitment:
+                    crate::source_state::ClosedConformanceApplicationCommitment::from_digest(
+                        digest.finalize().into(),
+                    ),
                 identity_encoding: std::sync::Arc::from(encoding.into_bytes()),
             }))
         }
@@ -3979,10 +4033,12 @@ pub(crate) mod payloads {
                             let carrier = program
                                 .data_type_parameter_by_symbol(path.head_symbol)
                                 .and_then(|parameter| match parameter.kind {
-                                    crate::source_state::data::TypeParameterKind::Const { type_reference }
-                                    | crate::source_state::data::TypeParameterKind::Value { type_reference } => {
-                                        Some(type_reference)
+                                    crate::source_state::data::TypeParameterKind::Const {
+                                        type_reference,
                                     }
+                                    | crate::source_state::data::TypeParameterKind::Value {
+                                        type_reference,
+                                    } => Some(type_reference),
                                     _ => None,
                                 });
                             let carrier = match carrier {
@@ -4061,8 +4117,10 @@ pub(crate) mod payloads {
                             self.static_arguments(program, std::slice::from_mut(argument))?;
                         }
                         for application in
-                            crate::source_state::references::StaticArgumentCall::Expression(handle, &call)
-                                .applications()
+                            crate::source_state::references::StaticArgumentCall::Expression(
+                                handle, &call,
+                            )
+                            .applications()
                         {
                             self.apply_static_machine_application(program, application)?;
                         }
@@ -4445,7 +4503,9 @@ mod declaration_invocations {
             dispatch: &crate::source_state::StaticRequirementDispatch,
             original: SymbolHandle,
         ) -> Result<(), &'static str> {
-            use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            use crate::source_state::static_applications::{
+                StaticMachineBinding, StaticMachineBindingValue,
+            };
             if !self
                 .expression_table
                 .static_machine_application_is_valid(application)
@@ -5598,8 +5658,8 @@ pub(crate) mod requirement_instances {
     mod tests {
         use super::*;
         use crate::source_state::{expression, machine::Machine, name::Identifier, state::State};
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn runtime_binding_carriers_keep_each_applications_lifetime_scope() {
@@ -5864,8 +5924,10 @@ pub(crate) mod requirement_instances {
                 },
             );
             let environment =
-                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(&declaration)
-                    .environment();
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(
+                    &declaration,
+                )
+                .environment();
             program.push_trait_definition(declaration);
             let mut close = |symbol| {
                 let actual = expression::StaticMachineArgument {
@@ -6039,7 +6101,9 @@ pub(crate) mod selected_operands {
             selected: &expression::StaticMachineArgument,
             lexical_owner: symbols::SymbolHandle,
         ) -> Result<symbols::SymbolHandle, &'static str> {
-            use crate::source_state::type_identity::{IndexIdentityArgument, applied_index_identity};
+            use crate::source_state::type_identity::{
+                IndexIdentityArgument, applied_index_identity,
+            };
 
             let reference = selected.type_reference;
             if !reference.is_valid() {
@@ -6199,7 +6263,10 @@ pub(crate) mod selected_operands {
                         expression::ExpressionNode::Integer(literal) => Some(literal.clone()),
                         // A calculation over literals is the literal of its
                         // value (`const_integer::closed_literal`).
-                        _ => crate::source_state::const_integer::closed_literal(&self.expression_table, *value),
+                        _ => crate::source_state::const_integer::closed_literal(
+                            &self.expression_table,
+                            *value,
+                        ),
                     }
                 }
                 types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
@@ -6389,7 +6456,8 @@ pub(crate) mod selected_operands {
                     .type_reference_table
                     .insert(types::TypeReferenceNode::ConstExpression(expression)));
             }
-            if let Some(spelling) = crate::source_state::static_const_argument_spelling(program, selected)
+            if let Some(spelling) =
+                crate::source_state::static_const_argument_spelling(program, selected)
                 && let Some(value) =
                     application_identity::const_value::CanonicalConstValue::from_atom(&spelling)
             {
@@ -6397,7 +6465,9 @@ pub(crate) mod selected_operands {
                     .decode_encoding()
                     .ok_or("applied callable canonical value is malformed")?
                 {
-                    application_identity::const_value::DecodedCanonicalConstValue::Boolean(value) => {
+                    application_identity::const_value::DecodedCanonicalConstValue::Boolean(
+                        value,
+                    ) => {
                         let value = program
                             .expression_table
                             .insert(expression::ExpressionNode::Boolean(value));
@@ -6453,8 +6523,8 @@ pub(crate) mod selected_operands {
                 name::Identifier,
                 trait_definition::{Conformance, TraitDefinition},
             };
+            use crate::source_symbols::SymbolTableBuilder;
             use symbols::{SymbolKind, SymbolNameRef};
-            use crate::source_symbols::{SymbolTableBuilder};
 
             let mut symbols = SymbolTableBuilder::default();
             let schema = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Schema"));
@@ -6593,7 +6663,9 @@ pub(crate) mod selected_operands {
                     .insert(types::TypeReferenceNode::Reference {
                         referee: unit,
                         access: declaration_contracts::ReferenceAccess::Shared,
-                        lifetime: Some(crate::source_state::name::Identifier::generated("incoming")),
+                        lifetime: Some(crate::source_state::name::Identifier::generated(
+                            "incoming",
+                        )),
                     });
             let unrelated =
                 program
@@ -6601,7 +6673,9 @@ pub(crate) mod selected_operands {
                     .insert(types::TypeReferenceNode::Reference {
                         referee: unit,
                         access: declaration_contracts::ReferenceAccess::Shared,
-                        lifetime: Some(crate::source_state::name::Identifier::generated("unrelated")),
+                        lifetime: Some(crate::source_state::name::Identifier::generated(
+                            "unrelated",
+                        )),
                     });
             let owner = symbols::SymbolHandle::from_parts(1, 1);
             let selected = expression::StaticMachineArgument {
@@ -6758,10 +6832,11 @@ pub(crate) mod signatures {
                             |(ordinal, parameter)| CallableLifetimeBinding {
                                 parameter: parameter.clone(),
                                 argument: parameter.clone(),
-                                region: crate::source_state::type_identity::LifetimeParameterIdentity {
-                                    declaration: declared.symbol,
-                                    ordinal,
-                                },
+                                region:
+                                    crate::source_state::type_identity::LifetimeParameterIdentity {
+                                        declaration: declared.symbol,
+                                        ordinal,
+                                    },
                                 origin: CallableLifetimeOrigin::Rigid,
                             },
                         ));
@@ -7077,8 +7152,10 @@ pub(crate) mod signatures {
                             .rev()
                             .find(|(symbol, _)| *symbol == application.proposition)
                         {
-                            let crate::source_state::types::TypeReferenceNode::Named { symbol, name } =
-                                program.type_reference_table.type_reference(*replacement)
+                            let crate::source_state::types::TypeReferenceNode::Named {
+                                symbol,
+                                name,
+                            } = program.type_reference_table.type_reference(*replacement)
                             else {
                                 return Err(
                                     "applied callable proposition head needs a named proposition operand",
@@ -7157,8 +7234,8 @@ pub(crate) mod signatures {
     mod tests {
         use super::*;
         use crate::source_state::{name::Identifier, types::TypeReferenceNode};
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn applied_signature_binders_keep_their_owner_and_independent_substitutions() {
@@ -8188,11 +8265,16 @@ pub(crate) mod trait_scopes {
 
         fn refinement_invocation_scopes(
             &mut self,
-        ) -> Result<Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>, &'static str>
-        {
+        ) -> Result<
+            Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
+            &'static str,
+        > {
             use crate::source_state::static_applications::StaticMachineBindingValue;
-            use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
-            let occurrences = crate::source_state::references::collect_program_application_occurrences(self);
+            use crate::source_state::trait_definition::{
+                AppliedTraitScope, TraitApplicationArguments,
+            };
+            let occurrences =
+                crate::source_state::references::collect_program_application_occurrences(self);
             let mut scopes = Vec::new();
             for invocation in occurrences.invocation_applications {
                 let record = self.static_machine_application(invocation).clone();
@@ -8580,8 +8662,10 @@ pub(crate) enum AppliedCallableOwner {
         declaration: SymbolHandle,
         template: SymbolHandle,
         trait_application_identity: crate::source_state::type_identity::NormalizedTypeIdentity,
-        portable_trait_application_identity: crate::source_state::type_identity::NormalizedTypeIdentity,
-        portable_local_arguments: arena::HandleSpan<crate::source_state::type_identity::NormalizedTypeIdentity>,
+        portable_trait_application_identity:
+            crate::source_state::type_identity::NormalizedTypeIdentity,
+        portable_local_arguments:
+            arena::HandleSpan<crate::source_state::type_identity::NormalizedTypeIdentity>,
         trait_scope: crate::source_state::trait_definition::RetainedTraitScope,
         trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         local_arguments: arena::HandleSpan<RequirementLocalArgument>,
@@ -8597,7 +8681,8 @@ pub(crate) enum AppliedCallableOwner {
         required: Option<signature::StateSignature>,
         source_required: signature::StateSignature,
         caller_operands: arena::HandleSpan<CallableSubstitution>,
-        caller_bindings: arena::HandleSpan<crate::source_state::static_applications::StaticMachineBinding>,
+        caller_bindings:
+            arena::HandleSpan<crate::source_state::static_applications::StaticMachineBinding>,
         caller_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
         caller_lifetime_declaration: SymbolHandle,
         caller_lifetime_owner: SymbolHandle,
@@ -8642,7 +8727,10 @@ pub(crate) struct CallableApplication {
     owned_signature: SymbolHandle,
     runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
-    trait_region_application: Option<(crate::source_state::trait_definition::TraitApplicationEnvironment, usize)>,
+    trait_region_application: Option<(
+        crate::source_state::trait_definition::TraitApplicationEnvironment,
+        usize,
+    )>,
     lifetime_declaration: SymbolHandle,
     lifetimes: Vec<CallableLifetimeBinding>,
     elided_lifetimes: Vec<crate::source_state::name::Identifier>,
@@ -8652,7 +8740,10 @@ pub(crate) struct CallableApplication {
         crate::source_state::type_identity::identity_context::SignatureElision,
     )>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
-    static_arguments: Vec<(SymbolHandle, crate::source_state::expression::StaticMachineArgument)>,
+    static_arguments: Vec<(
+        SymbolHandle,
+        crate::source_state::expression::StaticMachineArgument,
+    )>,
     static_argument_owner: SymbolHandle,
     selected_providers: Vec<(
         SymbolHandle,
@@ -8693,7 +8784,8 @@ impl CallableApplication {
         &mut self,
         program: &mut TypedTrees,
         source: crate::source_state::callable_values::RuntimeCallableContractHandle,
-    ) -> Result<crate::source_state::callable_values::RuntimeCallableContractHandle, &'static str> {
+    ) -> Result<crate::source_state::callable_values::RuntimeCallableContractHandle, &'static str>
+    {
         if let Some((_, destination)) = self
             .active_runtime_contracts
             .iter()
@@ -8799,7 +8891,9 @@ impl CallableApplication {
         }
         if program.machines().at(*position).lifetime_parameters.len() == ordinal {
             program.machine_mut(*position).lifetime_parameters.push(
-                crate::source_state::name::Identifier::generated(format!("@invocation-region-{ordinal}")),
+                crate::source_state::name::Identifier::generated(format!(
+                    "@invocation-region-{ordinal}"
+                )),
             );
         }
         let name = program
@@ -8906,7 +9000,10 @@ impl CallableApplication {
         })
     }
 
-    fn lifetime(&self, original: &crate::source_state::name::Identifier) -> crate::source_state::name::Identifier {
+    fn lifetime(
+        &self,
+        original: &crate::source_state::name::Identifier,
+    ) -> crate::source_state::name::Identifier {
         self.lifetimes
             .iter()
             .rev()
@@ -9121,7 +9218,10 @@ impl TypedTrees {
     pub fn apply_callable_result_type(
         &mut self,
         original: types::TypeReferenceHandle,
-        lifetimes: &[(crate::source_state::name::Identifier, Option<crate::source_state::name::Identifier>)],
+        lifetimes: &[(
+            crate::source_state::name::Identifier,
+            Option<crate::source_state::name::Identifier>,
+        )],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
         let mut application = CallableApplication {
@@ -9147,7 +9247,10 @@ impl TypedTrees {
         &mut self,
         original: types::TypeReferenceHandle,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
-        lifetimes: &[(crate::source_state::name::Identifier, crate::source_state::name::Identifier)],
+        lifetimes: &[(
+            crate::source_state::name::Identifier,
+            crate::source_state::name::Identifier,
+        )],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
         self.apply_callable_type_in_scope(
@@ -9166,7 +9269,10 @@ impl TypedTrees {
         &mut self,
         original: types::TypeReferenceHandle,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
-        lifetimes: &[(crate::source_state::name::Identifier, crate::source_state::name::Identifier)],
+        lifetimes: &[(
+            crate::source_state::name::Identifier,
+            crate::source_state::name::Identifier,
+        )],
         declaration: SymbolHandle,
         supplier: SymbolHandle,
         supplied_regions: &[crate::source_state::type_identity::LifetimeParameterIdentity],
@@ -9238,7 +9344,9 @@ impl TypedTrees {
             invocation_elision: Some((
                 caller.symbol,
                 *position as usize,
-                crate::source_state::type_identity::identity_context::SignatureElision::inputs(declared.len()),
+                crate::source_state::type_identity::identity_context::SignatureElision::inputs(
+                    declared.len(),
+                ),
             )),
             ..Default::default()
         };
@@ -9415,7 +9523,8 @@ impl TypedTrees {
                         }
                         application.static_arguments(self, &mut call.machine_arguments)?;
                         for invocation in
-                            crate::source_state::references::StaticArgumentCall::Statement(&call).applications()
+                            crate::source_state::references::StaticArgumentCall::Statement(&call)
+                                .applications()
                         {
                             application.apply_static_machine_application(self, invocation)?;
                         }
@@ -9482,7 +9591,7 @@ mod canonical_record_argument_tests {
     use crate::source_state::type_identity::package_policy_reading_tests::fixture::Fixture;
     use crate::source_state::types::TypeReferenceNode;
     use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+    use application_identity::const_value::DecodedCanonicalConstValue;
     use symbols::SymbolKind;
 
     #[test]
@@ -9599,15 +9708,15 @@ use application_identity::const_value::DecodedCanonicalConstValue;
                         fields: initializers,
                         ..Default::default()
                     }));
-            fixture
-                .program
-                .push_const_declaration(crate::source_state::constant::ConstDeclaration {
+            fixture.program.push_const_declaration(
+                crate::source_state::constant::ConstDeclaration {
                     symbol,
                     declared_type: carrier,
                     materialized_initializer: initializer,
                     evaluated_value: Some(value.encoding.into()),
                     ..Default::default()
-                });
+                },
+            );
             arguments.push(StaticMachineArgument {
                 symbol,
                 ..Default::default()

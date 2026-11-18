@@ -5,9 +5,9 @@
 // CallbackProviderDeclarations owns foreign-versus-checked forwarding and exact
 // checked-body identity. Registration errors precede calling-plan errors.
 
+use application_identity::callback_declarations::CallbackRegistrationDeclaration;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use application_identity::callback_declarations::CallbackRegistrationDeclaration;
 
 pub struct SelectedCallbackRow<'plan> {
     pub plan: &'plan ProviderPlan,

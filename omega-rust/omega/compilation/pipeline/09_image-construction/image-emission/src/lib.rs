@@ -136,9 +136,7 @@ pub use object::object_artifact::installed_stack::{
     installed_interrupt_stack_requirement, require_installed_root_provision,
 };
 
-
 mod object_input;
-
 
 /// Executable image bindings retain the exact origin of physical planning.
 pub use object_file::NativeEntryBridge;

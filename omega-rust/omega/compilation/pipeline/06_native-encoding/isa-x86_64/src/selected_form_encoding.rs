@@ -17,9 +17,7 @@ pub(crate) mod atomic {
 
     use crate::selected_form_encoding::instruction_bytes::{append_boolean, modrm, rex};
     use register_model::RegisterViewId;
-    use selected_instructions::{
-        AtomicForm, AtomicOperation, AtomicWidth,
-    };
+    use selected_instructions::{AtomicForm, AtomicOperation, AtomicWidth};
 
     pub(crate) fn footprint(
         form: AtomicForm,
@@ -1864,7 +1862,8 @@ pub(crate) mod decoding {
         let mut decoded = Vec::new();
         let mut offset = 0;
         while offset < bytes.len() {
-            let (instruction, length) = decode_one(&bytes[offset..]).map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
+            let (instruction, length) = decode_one(&bytes[offset..])
+                .map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
             decoded.push(instruction);
             offset = offset
                 .checked_add(length)
@@ -3822,9 +3821,7 @@ pub(crate) mod float_result_policy {
         X86_64SelectedFormFootprint,
     };
 
-    use register_model::{
-        RegisterViewId, ValidatedPhysicalRegisterModel,
-    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
         FloatResultPolicyForm, MachineAlternativeKey, SelectedInstructionKind,
     };
@@ -4601,14 +4598,25 @@ pub(crate) mod float_result_policy {
                 let registers = [register; 4];
                 {
                     let mut bytes = Vec::new();
-                    for instruction in program(form, &registers) { encode_instruction(instruction, &mut bytes); }
+                    for instruction in program(form, &registers) {
+                        encode_instruction(instruction, &mut bytes);
+                    }
                     bytes.len() as u16
                 }
             });
             match target_x86_64::float_sizes::float_result_policy_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
-                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
-                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                MachineSizeKnowledge::ExactBytes(bytes) => {
+                    assert_eq!(lengths, [bytes; 2], "{form:?}")
+                }
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes,
+                    maximum_bytes,
+                } => {
+                    assert_eq!(
+                        (lengths[0], Some(lengths[1])),
+                        (minimum_bytes, maximum_bytes),
+                        "{form:?}"
+                    );
                 }
             }
         }
@@ -4623,8 +4631,7 @@ pub(crate) mod floating_control {
     };
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeKey,
-        MachineSemanticKind, SelectedInstructionKind,
+        LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
     };
 
     fn request(
@@ -4846,7 +4853,9 @@ pub(crate) mod floating_control {
     }
 }
 pub(crate) mod ieee_float_arithmetic {
-    pub(crate) use target_x86_64::form_effects::ieee_float_arithmetic::{conversion_control, effects};
+    pub(crate) use target_x86_64::form_effects::ieee_float_arithmetic::{
+        conversion_control, effects,
+    };
 
     use super::{
         MachineAlternativeFamily, MachineAlternativeKey, RegisterViewId,
@@ -7280,9 +7289,18 @@ pub(crate) mod ieee_float_arithmetic {
                 canonical(form, &registers).unwrap().len() as u16
             });
             match target_x86_64::float_sizes::ieee_float_arithmetic_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
-                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
-                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                MachineSizeKnowledge::ExactBytes(bytes) => {
+                    assert_eq!(lengths, [bytes; 2], "{form:?}")
+                }
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes,
+                    maximum_bytes,
+                } => {
+                    assert_eq!(
+                        (lengths[0], Some(lengths[1])),
+                        (minimum_bytes, maximum_bytes),
+                        "{form:?}"
+                    );
                 }
             }
         }
@@ -7423,9 +7441,7 @@ pub(crate) mod port_write {
     use super::{ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError};
 
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        MachineAlternativeKey, SelectedInstructionKind,
-    };
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
 
     pub(super) fn validate(
         physical: &ValidatedPhysicalRegisterModel,
@@ -7524,7 +7540,8 @@ pub(crate) mod register_access {
     pub(crate) use target_x86_64::form_effects::register_access::effects;
 
     pub(crate) fn family(operation: Operation) -> Result<Family, Error> {
-        target_x86_64::form_effects::register_access::family(operation).ok_or(Error::AlternativeMismatch)
+        target_x86_64::form_effects::register_access::family(operation)
+            .ok_or(Error::AlternativeMismatch)
     }
 
     mod descriptor_registers {
@@ -8821,11 +8838,12 @@ pub(crate) mod register_access {
     };
 
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::ControlRegister;
     use selected_instructions::GlobalDescriptorTableOperation as DescriptorOperation;
     use selected_instructions::SystemRegister;
-    use selected_instructions::ControlRegister;
     use selected_instructions::{
-        InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey, RegisterOperation as Operation, SelectedInstructionKind,
+        InterruptControlKind, MachineAlternativeFamily as Family, MachineAlternativeKey,
+        RegisterOperation as Operation, SelectedInstructionKind,
     };
 
     fn move_register(bytes: &mut Vec<u8>, source: u8, destination: u8, wide: bool) {
@@ -10726,14 +10744,16 @@ pub(crate) mod hosted_exit_process {
     };
     use crate::selected_form_encoding::request_validation::resolve_registers;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+        SelectedInstructionKind,
     };
     use target::NativeTarget;
 
     pub(crate) fn effects(
         _target: NativeTarget,
     ) -> Result<MachineEncodedEffects, X86_64SelectedFormEncodingError> {
-        target_x86_64::form_effects::hosted_exit_process::effects(_target).map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)
+        target_x86_64::form_effects::hosted_exit_process::effects(_target)
+            .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)
     }
 
     fn request(
@@ -11003,8 +11023,6 @@ pub(crate) mod hosted_read_byte {
     }
 
     pub use target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte;
-
-
 
     #[cfg(test)]
     mod tests {
@@ -11408,9 +11426,7 @@ pub(crate) mod installed_interrupt {
     };
 
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        MachineAlternativeKey, SelectedInstructionKind,
-    };
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
 
     impl From<crate::X86InstalledTableEncodingError> for Error {
         fn from(error: crate::X86InstalledTableEncodingError) -> Self {
@@ -15247,7 +15263,7 @@ mod memory {
     }
 }
 mod normalized_foreign_call {
-    pub(crate) use target_x86_64::form_effects::normalized_foreign_call::{x86_64_machine_register_encoding};
+    pub(crate) use target_x86_64::form_effects::normalized_foreign_call::x86_64_machine_register_encoding;
 
     use normalized_foreign_call_plan::{Fixup, Template};
     use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
@@ -15445,23 +15461,40 @@ mod normalized_foreign_call {
 
     #[test]
     fn field_sizes_match_encoded_callbacks_and_refusals() {
-        use layout_plans::LayoutPlacementReport::{At, Bits};
         use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
+        use layout_plans::LayoutPlacementReport::{At, Bits};
         for root in [R::X86Rdi, R::X86R12, R::X86Rsp, R::X86R11, R::Aarch64X(1)] {
             for offset in [0, 1, 255, 4095, 4096, 32760, u64::MAX] {
-                let mut groups = vec![vec![], vec![At { offset }], vec![At {offset}, At {offset: 16}]];
+                let mut groups = vec![
+                    vec![],
+                    vec![At { offset }],
+                    vec![At { offset }, At { offset: 16 }],
+                ];
                 for container_width in [8, 16, 24, 32, 40, 48, 56, 64] {
-                    for (destination_lsb, source_lsb, width) in [(0, 0, container_width), (1, 3, 4), (2, 2, 63)] {
-                        groups.push(vec![Bits { container: offset, container_width, destination_lsb, source_lsb, width }]);
+                    for (destination_lsb, source_lsb, width) in
+                        [(0, 0, container_width), (1, 3, 4), (2, 2, 63)]
+                    {
+                        groups.push(vec![Bits {
+                            container: offset,
+                            container_width,
+                            destination_lsb,
+                            source_lsb,
+                            width,
+                        }]);
                     }
                 }
                 for placements in groups {
                     let destination = X86_64CallbackMaterializationDestination::RecordField {
-                        root_register: root, placements: PrivateCallbackPlacements::new(&placements),
+                        root_register: root,
+                        placements: PrivateCallbackPlacements::new(&placements),
                     };
-                    let actual = callback_group_bytes(destination).map(|bytes| u16::try_from(bytes.len()).unwrap());
-                    assert_eq!(target_x86_64::callback_geometry::callback_field_bytes(root, &placements), actual,
-                               "{root:?} {placements:?}");
+                    let actual = callback_group_bytes(destination)
+                        .map(|bytes| u16::try_from(bytes.len()).unwrap());
+                    assert_eq!(
+                        target_x86_64::callback_geometry::callback_field_bytes(root, &placements),
+                        actual,
+                        "{root:?} {placements:?}"
+                    );
                 }
             }
         }
@@ -16269,7 +16302,7 @@ mod request_validation {
     }
 }
 pub(crate) mod saturating_forms {
-    pub(crate) use target_x86_64::form_effects::saturating_forms::{SaturatingForm};
+    pub(crate) use target_x86_64::form_effects::saturating_forms::SaturatingForm;
 
     use selected_instructions::{SaturatingCarrier, SaturatingOperation, SelectedInstructionKind};
 
@@ -16383,10 +16416,7 @@ mod scalar_call {
         FixupMismatch,
     }
 
-    wire::invalid_error_display!(
-        X86_64ScalarCallTemplateError,
-        "x86-64 scalar-call template"
-    );
+    wire::invalid_error_display!(X86_64ScalarCallTemplateError, "x86-64 scalar-call template");
 
     pub fn encode_x86_64_selected_scalar_call_template(
         target: NativeTarget,
@@ -17704,9 +17734,7 @@ pub(crate) mod system_call {
     use register_model::{
         RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
     };
-    use selected_instructions::{
-        MachineAlternativeKey, SelectedInstructionKind,
-    };
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
     use target::NativeTarget;
 
     pub fn encode_x86_64_selected_system_call_form(
@@ -17745,8 +17773,16 @@ pub(crate) mod system_call {
         bytes: &[u8],
     ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
         let effects = target_x86_64::inspection::selected_system_call_effects(
-            target, physical, kind, alternative, operand_views, operand_accesses, number, bytes,
-        ).ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            target,
+            physical,
+            kind,
+            alternative,
+            operand_views,
+            operand_accesses,
+            number,
+            bytes,
+        )
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
         let views_for = |access| views_with_access(operand_views, operand_accesses, access);
         Ok(ValidatedX86_64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -17832,7 +17868,7 @@ pub(crate) mod system_call {
     }
 }
 pub(crate) mod table_call {
-    pub(crate) use target_x86_64::form_effects::table_call::{table_address};
+    pub(crate) use target_x86_64::form_effects::table_call::table_address;
 
     use super::{
         ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
@@ -17863,8 +17899,13 @@ pub(crate) mod table_call {
         bytes: &[u8],
     ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
         let effects = target_x86_64::inspection::selected_table_call_effects(
-            record, alternative, views, accesses, bytes,
-        ).ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            record,
+            alternative,
+            views,
+            accesses,
+            bytes,
+        )
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
         let registers = |access| views_with_access(views, accesses, access);
         Ok(ValidatedX86_64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -17876,7 +17917,6 @@ pub(crate) mod table_call {
             },
         })
     }
-
 }
 pub use table_call::{
     encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
@@ -21578,11 +21618,11 @@ pub(crate) mod trapping_forms {
     #[cfg(test)]
     pub(crate) use target_x86_64::form_effects::trapping_forms::TrappingRow;
 
-    pub(crate) use target_x86_64::form_effects::trapping_forms::{DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape};
-
-    use selected_instructions::{
-        SelectedInstructionKind, TrappingForm,
+    pub(crate) use target_x86_64::form_effects::trapping_forms::{
+        DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape,
     };
+
+    use selected_instructions::{SelectedInstructionKind, TrappingForm};
 
     pub(crate) const fn trapping_form(kind: SelectedInstructionKind) -> Option<TrappingForm> {
         match kind {

@@ -105,7 +105,11 @@ pub(crate) fn select_test_roots(
                 .machine_trait_conformances(machine)
                 .iter()
                 .filter_map(|conformance| {
-                    source_compiler::source_state::machine::resolve_satisfied_declaration(typed, machine, conformance)
+                    source_compiler::source_state::machine::resolve_satisfied_declaration(
+                        typed,
+                        machine,
+                        conformance,
+                    )
                 })
                 .any(|declaration| declaration.symbol() == group.requirement);
             if !satisfies {

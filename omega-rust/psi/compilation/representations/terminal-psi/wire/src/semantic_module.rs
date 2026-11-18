@@ -2963,7 +2963,7 @@ mod external_provider_tests {
     use super::{entry_tests::identity_table, module_wire::encode_raw, numeric_intrinsic_tests};
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use declaration_contracts::ExternalBindingIdentity;
-use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
     use semantic_vocabulary::PackageKeyIdentity;
     use terminal_psi::*;
 
@@ -3107,8 +3107,8 @@ mod numeric_intrinsic_tests {
     use super::module_wire::encode_raw;
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericResult;
-use declaration_contracts::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericResult;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, QualifiedScalarType, ScalarQualificationSetId, ScalarType,
     };
@@ -3529,10 +3529,10 @@ mod reference_transport_tests {
     #[test]
     fn opaque_storage_roles_round_trip_and_reject_redirected_carriers() {
         use application_identity::opaque_representations::OpaqueRepresentationApplicationOrigin;
-use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
-use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
-use application_identity::opaque_representations::SelectedOpaqueApplication;
-use application_identity::opaque_representations::selected_application_commitment;
+        use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
+        use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
+        use application_identity::opaque_representations::SelectedOpaqueApplication;
+        use application_identity::opaque_representations::selected_application_commitment;
         let mut module = inline_carrier_module(false);
         module.identities = identity_table(5);
         let mut carrier = module.structural_types[2].clone();
@@ -4413,7 +4413,7 @@ mod routed_scalar_tests {
     fn const_telescope_wire_round_trips_static_callable_records_and_refuses_bad_profiles() {
         use application_identity::conformance_identity::MachineApplicationCommitment;
         use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
         use terminal_psi::ClosedReachParameter;
 
         let mut module = module();
@@ -4669,8 +4669,8 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         );
         {
             use declaration_contracts::ScopedPermissionClaimIdentity;
-use declaration_contracts::ScopedPermissionEventSource;
-use declaration_contracts::SuspensionValueOrigin;
+            use declaration_contracts::ScopedPermissionEventSource;
+            use declaration_contracts::SuspensionValueOrigin;
             let application = module.machines[0]
                 .closed_reach_application
                 .as_mut()

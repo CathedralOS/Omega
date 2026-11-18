@@ -3,8 +3,8 @@
 //! handles the complement. Both are planned by the same owned-region walk.
 
 use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
+use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
-use arena::{IdTable};
 use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
 use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{

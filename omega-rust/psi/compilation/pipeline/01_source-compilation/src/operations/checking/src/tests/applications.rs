@@ -2,14 +2,17 @@
 //! manually supplied closed-row marker does not establish this producer path.
 
 use super::*;
-use std::sync::Arc;
 use crate::source_state::data::DataMember;
+use std::sync::Arc;
 
 fn source_program(payload: &str) -> crate::source_state::TypedTrees {
     source_program_in_scope(payload, true)
 }
 
-fn source_program_in_scope(payload: &str, bundled_optional: bool) -> crate::source_state::TypedTrees {
+fn source_program_in_scope(
+    payload: &str,
+    bundled_optional: bool,
+) -> crate::source_state::TypedTrees {
     // Schema uses the actual bundled Optional, not a new local generic
     // declaration. Keep the full file, including its open generic proof.
     let optional = include_str!(concat!(
@@ -58,31 +61,30 @@ machine entry() -> Applied {{
     let tokens = crate::checking::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
-    let mut syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let mut syntax =
+        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     if let Some(core) = core {
         let tokens = crate::checking::frontend_fixture::Lexer::new(optional)
             .tokenize()
             .unwrap();
         crate::checking::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
     }
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: core
-                .map(|core| {
-                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                        source,
-                        core,
-                        "omega::language::core::Optional",
-                        3,
-                    )
-                })
-                .into_iter()
-                .collect(),
-            retained_base: None,
-        },
-    )
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: core
+            .map(|core| {
+                crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    source,
+                    core,
+                    "omega::language::core::Optional",
+                    3,
+                )
+            })
+            .into_iter()
+            .collect(),
+        retained_base: None,
+    })
     .unwrap();
     crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
@@ -111,7 +113,8 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let mut open_applications = 0;
     let mut open_reference = None;
     for (reference, node) in typed.type_reference_table.type_reference_rows_from(0) {
-        let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } = node else {
+        let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, .. } = node
+        else {
             continue;
         };
         if *base_symbol != optional.symbol

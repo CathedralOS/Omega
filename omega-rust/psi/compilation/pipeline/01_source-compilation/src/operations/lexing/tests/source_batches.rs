@@ -1,7 +1,7 @@
 use declaration_contracts::source_identity::DependencyScope;
 use source_admission::{LoadedSource, LoadedSources, SourceOrigin};
-use source_text::SourceId;
 use source_compiler::lexing::lex as lex_sources;
+use source_text::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokens::TokenKind;

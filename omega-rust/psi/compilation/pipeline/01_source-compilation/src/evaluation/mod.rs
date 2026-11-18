@@ -11,6 +11,7 @@ mod source_frontier;
 mod source_jobs;
 
 pub use build_time_values::BuildTimeValue;
+pub use declaration_contracts::wire::WireCompatibilityDemand;
 pub use evaluation_accounting::{
     CanonicalScalarEvaluationReceipt, MeasuredEvaluation, PureEvaluationRecord,
     PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,
@@ -21,10 +22,9 @@ pub use evaluation_requests::{
     EvaluationSemanticsIdentity, PrivateLayoutPlacementReceipt, SelectedBuildTimeMachineBody,
     UnavailableStaticInput,
 };
-pub use declaration_contracts::wire::WireCompatibilityDemand;
 pub use product::{
-    assumed_bindings, build_requests_any, native_bindings, opaque_representations, product_declarations, product_policy,
-    provider_declarations, test_groups,
+    assumed_bindings, build_requests_any, native_bindings, opaque_representations,
+    product_declarations, product_policy, provider_declarations, test_groups,
 };
 pub use scalar_applications::{
     AdmittedImportRealizations, InvocationTarget, ScalarApplicationCompletion,

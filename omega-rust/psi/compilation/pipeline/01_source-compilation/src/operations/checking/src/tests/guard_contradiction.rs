@@ -170,8 +170,7 @@ fn calls_with(argument: u128) -> (crate::lowering::Elaboration, Discharge) {
         }],
     ));
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
@@ -227,8 +226,14 @@ fn a_closed_arithmetic_disequality_has_a_kernel_checked_contradiction() {
             Proposition::LessThan(literal(endpoint), sum.clone()),
         ])];
         let goal = Proposition::Falsehood;
-        let proof = crate::checking::prove::Prover::new(&context, &assumptions, &[], &values, &mut activity)
-            .prove(&goal);
+        let proof = crate::checking::prove::Prover::new(
+            &context,
+            &assumptions,
+            &[],
+            &values,
+            &mut activity,
+        )
+        .prove(&goal);
         if endpoint == 15 {
             proof_admission::check_certificate(&context, &goal, &assumptions, &[], &proof.unwrap())
                 .unwrap();

@@ -48,10 +48,10 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+use encoding_admission::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 use frame_admission::frame_layout::{
     FunctionTargetFrameLayout, ReturnAddressFrameCustody, ValidatedTargetFrameLayout,
 };
-use encoding_admission::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedWholeFunctionExitContract {

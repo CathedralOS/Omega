@@ -4,12 +4,12 @@
 // and attaches target provider proposals without consulting checked source.
 
 use diagnostics::Diagnostic;
-use std::sync::Arc;
-use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use native_program_planning::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest,
     project_terminal_native_realization_proposal,
 };
+use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
+use std::sync::Arc;
 
 pub struct TerminalApplication {
     pub artifact: terminal_installation::AuthorizedTerminalArtifact,

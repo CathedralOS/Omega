@@ -34,12 +34,12 @@ pub(crate) mod expression {
     operators for it.
     */
 
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
     use crate::typing::lowerer::Lowerer;
     use crate::typing::tables::resolved_expressions;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
 
     pub(crate) mod domain_membership {
         use super::lower_expression_handle_from_table_with_symbol_substitution;
@@ -436,10 +436,10 @@ pub(crate) mod expression {
         }
     }
     pub(crate) mod native_code_layout {
+        use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
         use diagnostics::Diagnostic;
-        use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
         use symbols::SymbolKind;
 
         pub(crate) fn lower_request(
@@ -571,6 +571,7 @@ pub(crate) mod expression {
     pub(crate) mod table {
         pub(crate) mod lowerer {
 
+            use crate::declaration_selection::CollectionMeasure;
             use crate::source_resolved as resolved;
             use crate::source_state as typed;
             use crate::typing::expressions::expression::domain_membership::{
@@ -588,7 +589,6 @@ pub(crate) mod expression {
             use crate::typing::lowerer::name::lower_name;
             use crate::typing::type_reference::lower_type_reference_into_trees_with_exposure;
             use diagnostics::Diagnostic;
-            use crate::declaration_selection::CollectionMeasure;
             use resolved::expression::display_name_path;
             use resolved::types::TypeReference;
 
@@ -967,18 +967,18 @@ pub(crate) mod expression {
                     selected_target: symbols::SymbolHandle,
                 ) -> Result<(), Diagnostic> {
                     let occurrences = self
-            .source
-            .authored_selection_occurrences(expression)
-            .filter(|occurrence| {
-                self.target_trees
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.kind()
+                        .source
+                        .authored_selection_occurrences(expression)
+                        .filter(|occurrence| {
+                            self.target_trees
+                                .authored_declaration_selections()
+                                .get(*occurrence)
+                                .is_some_and(|selection| {
+                                    selection.kind()
                             == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
-                    })
-            })
-            .collect::<Vec<_>>();
+                                })
+                        })
+                        .collect::<Vec<_>>();
                     let [occurrence] = occurrences.as_slice() else {
                         return Err(Diagnostic::error(format!(
                             "rewritten call retains {} call selections; expected one",
@@ -2586,8 +2586,8 @@ pub(crate) mod expression {
                 expression: crate::source_state::expression::ExpressionHandle,
             ) -> Result<(), diagnostics::Diagnostic> {
                 use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+                use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
+                use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                 if !program.expression_table.expression_is_valid(expression) {
                     return Err(diagnostics::Diagnostic::error(format!(
                         "authored member selection has a missing or stale expression {expression:?}"
@@ -2721,8 +2721,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                     crate::source_state::expression::MemberSelection,
                     Option<resolved::name::DiagnosticName>,
                 ) {
-                    use crate::source_state::expression::MemberSelection;
                     use crate::declaration_selection::CollectionMeasure;
+                    use crate::source_state::expression::MemberSelection;
                     let (field, case) = self.declared_member(member);
                     if field.is_valid() {
                         return (MemberSelection::Field(field), case);
@@ -2866,7 +2866,10 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                     if selection.source_span() != expressions.source_span(expression) {
                         continue;
                     }
-                    let crate::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+                    let crate::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
+                        selected,
+                    ) = selection.target()
+                    else {
                         continue;
                     };
                     let Some(constant) = program.const_declaration(selected.selected_symbol())
@@ -3225,6 +3228,10 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
             #[cfg(test)]
             mod member_selection_tests {
                 use super::finalize_authored_member_selection;
+                use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+                use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+                use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
+                use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                 use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId as Occurrence;
                 use crate::source_state::{
                     TypedTrees,
@@ -3233,10 +3240,6 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                     types::TypeReferenceNode,
                 };
                 use crate::source_symbols::SymbolTableBuilder;
-                use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
                 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
                 fn members() -> (
@@ -3886,11 +3889,11 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
     #[cfg(test)]
     mod static_selection_tests {
         use super::*;
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
         use crate::source_selections::{
             AuthoredDeclarationSelections, CompilerDerivedSelectionPartition,
         };
         use crate::source_symbols::SymbolTableBuilder;
-        use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
         use symbols::{SymbolKind, SymbolNameRef};
 
         #[test]

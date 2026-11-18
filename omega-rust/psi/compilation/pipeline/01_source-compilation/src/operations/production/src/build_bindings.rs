@@ -51,12 +51,12 @@ pub use native_locator::{
     TerminalBuildValueShape,
 };
 
-use crate::production::TerminalBuildQueryCall;
-use declaration_contracts::build_requests::BuildCallSite;
-use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
+use crate::declaration_selection::product_operands::ProductStaticEnvironment;
+use crate::production::TerminalBuildQueryCall;
+use declaration_contracts::build_requests::BuildCallSite;
 use semantic_vocabulary::BoundaryMachineId;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
@@ -327,9 +327,8 @@ pub(crate) mod build_queries {
         pub site: declaration_contracts::build_requests::BuildCallSite,
         pub action: TerminalBuildQueryOperation,
         pub occurrence: source_text::SourceSpan,
-        pub request: Option<
-            std::sync::Arc<crate::declaration_selection::ProductDeclarationRequest>,
-        >,
+        pub request:
+            Option<std::sync::Arc<crate::declaration_selection::ProductDeclarationRequest>>,
         pub selecting_machine: Option<source_text::SourceSpan>,
         pub result_shape: Option<std::sync::Arc<super::TerminalBuildValueShape>>,
     }
@@ -338,8 +337,8 @@ pub(crate) mod build_queries {
 pub(crate) mod build_requests {
 
     pub use declaration_contracts::build_requests::BuildCallSite;
-pub use declaration_contracts::build_requests::TerminalBuildRequestCall;
-pub use declaration_contracts::build_requests::TerminalBuildRequestOperation;
+    pub use declaration_contracts::build_requests::TerminalBuildRequestCall;
+    pub use declaration_contracts::build_requests::TerminalBuildRequestOperation;
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildRequests {

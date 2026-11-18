@@ -231,7 +231,8 @@ mod tests {
             register_environment::baseline_target_register_environment(target).unwrap();
         let physical = environment.physical().clone();
         let catalog =
-            target_x86_64::x86_64_machine_effect_catalog(target, environment.constraints()).unwrap();
+            target_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
+                .unwrap();
         let declaration = catalog
             .declaration_by_semantic(MachineSemanticKind::ReturnUnit)
             .unwrap();

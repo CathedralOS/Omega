@@ -6,12 +6,12 @@ separate authority; an old checked result cannot replace any of them.
 */
 
 use build_declarations::DependencyPurpose;
-use source_compiler::evaluation::BuildEvaluationSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
 use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+use source_compiler::evaluation::BuildEvaluationSponsor;
 use symbols::SymbolHandle;
 use terminal_installation::selection_questions::SelectionAuthorities;
 
@@ -69,8 +69,9 @@ pub(crate) fn admit_build_program(
     // different invocation rather than replay this admission.
     let produced = prepared.produce(
         source_compiler::TerminalProductionCustody {
-            invocation_sources: anonymous_source
-                .map(|capture| capture as &dyn source_compiler::source_inputs::InvocationSourceConsent),
+            invocation_sources: anonymous_source.map(|capture| {
+                capture as &dyn source_compiler::source_inputs::InvocationSourceConsent
+            }),
             ..Default::default()
         },
         &mut source_compiler::UnmeasuredProduction,

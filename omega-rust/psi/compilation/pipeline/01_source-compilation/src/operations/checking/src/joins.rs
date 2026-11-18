@@ -495,7 +495,10 @@ pub(crate) fn infer<'a>(
                             ScalarTerm::value(value, scalar_type),
                             actual,
                         )),
-                        Err(crate::checking::Unbound::Unproved(_) | crate::checking::Unbound::Unsupported(_)) => {}
+                        Err(
+                            crate::checking::Unbound::Unproved(_)
+                            | crate::checking::Unbound::Unsupported(_),
+                        ) => {}
                         Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
                     }
                 }
@@ -935,8 +938,8 @@ pub(crate) fn arrival_goal<'a>(
         .iter()
         .find(|row| row.machine == id && row.header == target);
     if let Some(original) = original {
-        let original =
-            crate::checking::sufficient_goal(&original.predicate, &mut bindings).map_err(explain)?;
+        let original = crate::checking::sufficient_goal(&original.predicate, &mut bindings)
+            .map_err(explain)?;
         Ok(connective(vec![stated, original], true))
     } else {
         Ok(stated)
@@ -1106,13 +1109,12 @@ mod tests {
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             let resolved = crate::resolution::resolve(request).unwrap();
-            let typed =
-                crate::typing::lower_symbol_resolved_trees(&resolved)
-                    .unwrap();
+            let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
             let prepared = crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {

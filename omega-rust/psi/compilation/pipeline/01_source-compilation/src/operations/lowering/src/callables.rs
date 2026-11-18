@@ -2,15 +2,17 @@
 //! The reader registers only contracts and selections the program actually names;
 //! lowering copies these rows into the module without rediscovering declarations.
 
-use semantic_vocabulary::{CallableContractId, ContractId, MachineDescriptorId, MachineId, ObligationId};
-use arena::{IdTable};
+use crate::source_state::callable_values::RuntimeCallableContractHandle;
+use arena::IdTable;
+use semantic_vocabulary::{
+    CallableContractId, ContractId, MachineDescriptorId, MachineId, ObligationId,
+};
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, TerminalCallableCatalog,
     TerminalCallableContract, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
     TerminalMachineEnvelope, TerminalMachineResult, TerminalModule,
 };
-use crate::source_state::callable_values::RuntimeCallableContractHandle;
 
 use crate::lowering::Signature;
 

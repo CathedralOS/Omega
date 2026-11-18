@@ -60,7 +60,6 @@ impl SourcePosition {
     }
 }
 
-
 #[derive(Clone, compiler_storage::Record)]
 pub struct SourceBytes {
     storage: Arc<Vec<u8>>,
@@ -161,7 +160,6 @@ pub fn display_literal_bytes(bytes: &[u8]) -> String {
     output
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +172,4 @@ mod tests {
         assert_ne!(view, SourceBytes::from_shared(storage, 0..2));
         assert_eq!(format!("{view:?}"), "[0, 255]");
     }
-
 }

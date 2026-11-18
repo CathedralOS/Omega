@@ -8,10 +8,15 @@ decoding reconstructs and re-verifies the complete report without external table
 
 use std::fmt::Write;
 
-use optimization_core::{BaselineDecisionLog, OptimizationCandidateVerdict, OptimizationFactReference, OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity};
-use wire::digest_encoder::hex;
+use optimization_core::{
+    BaselineDecisionLog, OptimizationCandidateVerdict, OptimizationFactReference,
+    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+};
 use semantic_vocabulary::WorkScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
+use wire::digest_encoder::hex;
 
 use crate::{
     Cursor, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,

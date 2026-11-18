@@ -174,10 +174,9 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         return Err("native vector control must remove exactly vector permission".into());
     }
     if !generated_vector_control {
-        let scalar = image_fixtures::emit_native_entry_bridge(missing)
-            .map_err(|error| {
-                format!("scalar entry unexpectedly needs vector permission: {error:?}")
-            })?;
+        let scalar = image_fixtures::emit_native_entry_bridge(missing).map_err(|error| {
+            format!("scalar entry unexpectedly needs vector permission: {error:?}")
+        })?;
         if scalar.bytes() != bridge.bytes()
             || scalar.complete_effects() != bridge.complete_effects()
         {
@@ -548,8 +547,8 @@ fn inspect_instruction_sources(
 fn inspect_relative_branches(
     framed: &function_layout::StagedFunctionFragmentFrameApplication,
 ) -> Result<(), String> {
-    use machine_code::FunctionFragmentBranchEvidence as Branch;
     use function_layout::FunctionFragmentFrameApplicationError as Error;
+    use machine_code::FunctionFragmentBranchEvidence as Branch;
     let mut observed = [false; 2];
     for function in &framed.fragments().functions {
         let rows: Vec<_> = function

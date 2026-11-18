@@ -21,16 +21,7 @@ and its entries stay without a result type. Bundled libraries are typed with
 every program, so such a run must not stop a program that never reaches it.
 */
 
-use crate::typing::tables::expression_table;
-use crate::typing::type_reference::domain_constraints::{
-    normalize_domain_constraints_for_type, select_domain_candidates, select_domain_candidates_where,
-};
-use crate::typing::typing_queries::declared_expression_type as declared_type;
-use diagnostics::Diagnostic;
-use language_core::cast_form::{CastEntry, CastEntryKind};
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use numerics::arithmetic::ArithmeticDomain;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
@@ -38,6 +29,15 @@ use crate::source_state::types::{
     DomainConstraint, DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::typing::tables::expression_table;
+use crate::typing::type_reference::domain_constraints::{
+    normalize_domain_constraints_for_type, select_domain_candidates, select_domain_candidates_where,
+};
+use crate::typing::typing_queries::declared_expression_type as declared_type;
+use diagnostics::Diagnostic;
+use language_core::cast_form::{CastEntry, CastEntryKind};
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::SymbolHandle;
 
 #[cfg(test)]
 #[path = "domain_cast_accounting_tests.rs"]
@@ -396,7 +396,10 @@ fn is_anonymous_literal(program: &TypedTrees, expression: ExpressionHandle) -> b
     crate::source_state::closed_numeric::has_anonymous_numeric_results(program, expression)
 }
 
-fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<source_text::SourceSpan> {
+fn authored_span(
+    program: &TypedTrees,
+    handle: ExpressionHandle,
+) -> Option<source_text::SourceSpan> {
     expression_table(program)
         .authored_selection_occurrences(handle)
         .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))

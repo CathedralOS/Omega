@@ -17,13 +17,13 @@ custody receipt.
 */
 
 use crate::code_layout::requested_native_code_layouts;
-use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use crate::fragment_emission::FunctionFragmentEmissionError;
 use crate::frame_application::{
     FunctionFragmentFrameApplicationError, StagedFunctionFragmentFrameApplication,
     validate_function_fragment_frame_application,
 };
 pub use machine_code::FunctionFragmentTextSectionManifestDecodeError;
+use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use machine_code::{
     FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionPlan, FunctionFragmentFrameApplicationIdentity,
@@ -55,7 +55,8 @@ pub fn stage_optimized_fixed_frame_text_section(
     source: StagedFunctionFragmentFrameApplication,
 ) -> Result<StagedOptimizedFixedFrameTextSection, RelocationFreeTextSectionPlacementError> {
     let (text_section, manifest) = compute_fixed_frame(&source)?;
-    let native_layouts = requested_native_code_layouts(&text_section, &source.application().functions);
+    let native_layouts =
+        requested_native_code_layouts(&text_section, &source.application().functions);
     let custody = fixed_frame_receipt(&source, &manifest, &text_section);
     Ok(StagedOptimizedFixedFrameTextSection {
         source,
@@ -84,7 +85,10 @@ pub fn validate_optimized_fixed_frame_text_section(
         staged.manifest.record(),
     )?;
     if staged.native_layouts
-        != requested_native_code_layouts(&staged.text_section, &staged.source.application().functions)
+        != requested_native_code_layouts(
+            &staged.text_section,
+            &staged.source.application().functions,
+        )
     {
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
@@ -140,7 +144,9 @@ impl StagedOptimizedFixedFrameTextSection {
 
     /// Attributions in first-request order. A missing realization is reported when
     /// the image requests its layout, just as it is for an individual layout query.
-    pub fn shared_native_code_layouts(&self) -> Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError> {
+    pub fn shared_native_code_layouts(
+        &self,
+    ) -> Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError> {
         self.native_layouts.clone()
     }
 

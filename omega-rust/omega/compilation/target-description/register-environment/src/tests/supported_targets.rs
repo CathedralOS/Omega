@@ -6,6 +6,7 @@ primitives.
 */
 
 use super::super::baseline_target_register_environment;
+use target::{Architecture, NativeTarget, ObjectFormat};
 use target_aarch64::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
 };
@@ -13,7 +14,6 @@ use target_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COPY_I64, X86_64_FRAME_ADDRESS, X86_64_LOAD64,
     X86_64_MICROSOFT_CALL_UNIT, X86_64_STORE64, X86_64_SUBTRACT_I64,
 };
-use target::{Architecture, NativeTarget, ObjectFormat};
 
 #[test]
 fn selected_keys_match_machine_effect_catalog_on_every_supported_target() {

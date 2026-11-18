@@ -194,6 +194,9 @@ pub(crate) mod terminal_production {
     impl std::error::Error for TerminalArtifactProductionError {}
 }
 
+pub use self::terminal_production::{
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError,
+};
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
     TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
@@ -215,7 +218,6 @@ pub use terminal_installation::application::{
     ProducedTerminalApplication, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalCompositionRoots,
 };
-pub use self::terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 pub use terminal_psi::PreparedTerminalRoots;
 
 // Source publication records the same entry-receipt span while the independent

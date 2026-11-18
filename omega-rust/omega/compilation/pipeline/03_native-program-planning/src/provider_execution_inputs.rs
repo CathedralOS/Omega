@@ -3,12 +3,10 @@
 //! input associated with the canonical program; the evaluator cannot load source.
 use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::TargetSupplyExecutionInputs;
-use diagnostics::Diagnostic;
 use backend_plan::ProviderExecutionOrigins;
+use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
-use semantic_vocabulary::compiler_evaluation::{
-    DeclarationSelectionAuthority,
-};
+use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
 use std::sync::Arc;
 
 // A request with unavailable ownership is still a selected policy request.
@@ -60,7 +58,6 @@ fn require_unselected_calling_policy(
     Ok(())
 }
 
-
 pub fn plan_provider_execution_inputs(
     origins: ProviderExecutionOrigins,
     profile: target::TargetProfile,
@@ -74,7 +71,13 @@ pub(crate) fn plan_inputs_and_review(
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
     review: Option<backend_plan::package_review::PackageReviewRequirements>,
-) -> Result<(TargetSupplyExecutionInputs, Option<crate::package_review::PreparedReview>), Vec<Diagnostic>> {
+) -> Result<
+    (
+        TargetSupplyExecutionInputs,
+        Option<crate::package_review::PreparedReview>,
+    ),
+    Vec<Diagnostic>,
+> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let ProviderExecutionOrigins {
         artifact,
@@ -156,11 +159,12 @@ pub(crate) fn plan_inputs_and_review(
             &mut binding_identities,
         )
         .map_err(refuse)?;
-        if native_bindings.iter().any(
-            |previous: &crate::target_supply::NormalizedNativeSupply| {
+        if native_bindings
+            .iter()
+            .any(|previous: &crate::target_supply::NormalizedNativeSupply| {
                 previous.boundary == boundary
-            },
-        ) {
+            })
+        {
             return Err(refuse(
                 "native requirement has competing completed Build supplies".into(),
             ));
@@ -224,7 +228,9 @@ pub(crate) fn plan_inputs_and_review(
             if instance.declaring_application != schema_application {
                 continue;
             }
-            let requester = custody.requester(artifact.view().into(), declaration).map_err(refuse)?;
+            let requester = custody
+                .requester(artifact.view().into(), declaration)
+                .map_err(refuse)?;
             for &signature in instance
                 .signatures
                 .as_ref()
@@ -240,12 +246,9 @@ pub(crate) fn plan_inputs_and_review(
                 if requirements.binary_search(&requirement).is_err() {
                     continue;
                 }
-                let providers = terminal_installation::admit_provider_installation(
-                    artifact.view(),
-                    &[],
-                    &[],
-                )
-                .map_err(|error| refuse(format!("{error:?}")))?;
+                let providers =
+                    terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
+                        .map_err(|error| refuse(format!("{error:?}")))?;
                 let admission = terminal_installation::admit_compiler_evaluation(
                     artifact.view(),
                     profile.target_name(),
@@ -302,7 +305,10 @@ pub(crate) fn plan_inputs_and_review(
         default_bindings.push(supply.clone());
     }
     let defaults = crate::calling_policy_plans::native_calling_results(
-        profile, &calling, &default_bindings, None,
+        profile,
+        &calling,
+        &default_bindings,
+        None,
     )?;
     let review = review.map(|requirements| {
         crate::package_review::prepare(&calling, profile, requirements, &defaults)
@@ -400,14 +406,17 @@ pub(crate) fn plan_inputs_and_review(
             }
         }
     }
-    Ok((TargetSupplyExecutionInputs {
-        calling_applications,
-        external_bindings,
-        evaluated_native_bindings,
-        evaluated_binding_identities: binding_identities.build(),
-        terminal_authority_permissions: permissions,
-        terminal_authority_permission_identities: identities.build(),
-    }, review))
+    Ok((
+        TargetSupplyExecutionInputs {
+            calling_applications,
+            external_bindings,
+            evaluated_native_bindings,
+            evaluated_binding_identities: binding_identities.build(),
+            terminal_authority_permissions: permissions,
+            terminal_authority_permission_identities: identities.build(),
+        },
+        review,
+    ))
 }
 
 #[cfg(test)]

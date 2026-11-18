@@ -8,12 +8,12 @@
 use super::provider_defaults::CompletedProviderDefaults;
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
-use source_compiler::evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
+use source_admission::RetainedDeclaration;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
+use source_compiler::evaluation::provider_declarations::ProviderSelection;
 use std::path::PathBuf;
-use source_admission::RetainedDeclaration;
 
 impl PackageCompilationInputs {
     pub(crate) fn product_selection_source_seeds(
@@ -173,7 +173,8 @@ impl PackageCompilationInputs {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        admitted.sources = std::sync::Arc::new(source_compiler::source_inputs::SourceMap::from_files(files));
+        admitted.sources =
+            std::sync::Arc::new(source_compiler::source_inputs::SourceMap::from_files(files));
         Ok(admitted)
     }
 

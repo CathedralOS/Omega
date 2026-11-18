@@ -2,13 +2,9 @@
 //! choice, then retain only the ones the authoritative Build actually executed.
 
 use super::authored_requests::{AuthoredRequests, refusal};
-use diagnostics::Diagnostic;
-use language_core::core_vocabulary::CoreVocabulary;
-use application_identity::conformance_identity::{ConformanceIdentityDescription, source_identity_commitments};
-use crate::declaration_selection::{BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole};
-use declaration_contracts::{DataSupplyMode, Multiplicity};
-use std::sync::Arc;
-use symbols::SymbolHandle;
+use crate::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
+};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::opaque_representations::{
@@ -21,6 +17,14 @@ use crate::source_state::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
 };
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use application_identity::conformance_identity::{
+    ConformanceIdentityDescription, source_identity_commitments,
+};
+use declaration_contracts::{DataSupplyMode, Multiplicity};
+use diagnostics::Diagnostic;
+use language_core::core_vocabulary::CoreVocabulary;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 struct CarrierChoice {
     opaque: SymbolHandle,
@@ -273,9 +277,10 @@ pub fn collect(
         typed,
         &[ProductOperandRole::Data, ProductOperandRole::Representation],
     );
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let formations = authored
         .rows
         .iter()

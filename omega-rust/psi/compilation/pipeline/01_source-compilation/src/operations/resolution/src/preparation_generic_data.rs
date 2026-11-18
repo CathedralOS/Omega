@@ -10,9 +10,9 @@
 
 use crate::resolution::preparation::declaration_selection;
 use crate::resolution::tables::syntax_type_references;
+use application_identity::const_value::CanonicalConstValue;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use application_identity::const_value::CanonicalConstValue;
 use numeric_literals::IntegerLiteral;
 use std::collections::{HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
@@ -39,7 +39,9 @@ mod arguments {
     use crate::resolution::preparation::generic_data::ClosedConstraintIdentity;
     use crate::resolution::preparation::generic_data::GenericData;
     use crate::resolution::preparation::generic_data::selected_data_item;
-    use crate::resolution::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
+    use crate::resolution::preparation::type_equations::{
+        EquationTemplate, complete_equation_arguments,
+    };
     use crate::resolution::symbols::builtin_type_atom_by_symbol_name;
     use crate::resolution::tables::syntax_type_references;
     use arena::HandleSpan;
@@ -391,7 +393,9 @@ mod arguments {
     */
     fn closed_argument_identities(
         syntax: &SyntaxTrees,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         parameters: &[TypeParameter],
         arguments: &[TypeReferenceHandle],
     ) -> Option<Vec<ClosedArgumentIdentity>> {
@@ -1871,7 +1875,9 @@ mod substitution {
         member: DataMember,
         substitution: &HashMap<String, TypeReferenceHandle>,
         impossible_variants: &HashSet<String>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<DataMember, Diagnostic> {
         let member = match member {
@@ -2274,7 +2280,9 @@ mod substitution {
         selection: Option<&declaration_selection::ConstantSelection>,
         name: &Identifier,
     ) -> Option<ClosedArgumentIdentity> {
-        if let Some(atom) = crate::resolution::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax)) {
+        if let Some(atom) =
+            crate::resolution::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax))
+        {
             return Some(ClosedArgumentIdentity::Builtin(atom));
         }
         if let Some(declaration) = selected_data_item(syntax, selection, name) {
@@ -2291,7 +2299,9 @@ mod substitution {
         snapshot: &SyntaxTrees,
         mut field: syntax_trees::item::DataField,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> syntax_trees::item::DataField {
         field.type_reference = substitute_type_reference(
@@ -2310,7 +2320,9 @@ mod substitution {
         snapshot: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         let node = syntax_type_references(syntax)
@@ -2501,7 +2513,9 @@ mod substitution {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         let substituted_base = substitute_type_reference(
@@ -2585,7 +2599,9 @@ mod substitution {
         snapshot: &SyntaxTrees,
         argument: TypeReferenceHandle,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> TypeReferenceHandle {
         match syntax_type_references(syntax)
@@ -2708,7 +2724,9 @@ mod substitution {
         snapshot: &SyntaxTrees,
         mut cleanup: syntax_trees::expression::StaticMachineArgument,
         substitution: &HashMap<String, TypeReferenceHandle>,
-        selection: Option<&crate::resolution::preparation::declaration_selection::ConstantSelection>,
+        selection: Option<
+            &crate::resolution::preparation::declaration_selection::ConstantSelection,
+        >,
         warnings: &mut Vec<Diagnostic>,
     ) -> syntax_trees::expression::StaticMachineArgument {
         if cleanup.type_reference.is_valid() {
@@ -2810,7 +2828,8 @@ mod synthesis {
         let work = SynthesisWork::new(syntax, domain);
         let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> =
             HashMap::new();
-        let roots = crate::resolution::preparation::declaration_selection::RootDeclarations::of(syntax);
+        let roots =
+            crate::resolution::preparation::declaration_selection::RootDeclarations::of(syntax);
         for (item_index, item) in syntax.root_items().enumerate() {
             if let Some(machine) = item.as_machine()
                 && let Some(attached) = &machine.attached_data
@@ -3620,13 +3639,13 @@ mod work_domain {
         }
     }
 }
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use uses::statement_call_inputs;
+pub(crate) use uses::statement_type_inputs;
 pub(super) use uses::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
     visit_static_argument_type_inputs,
 };
-pub(crate) use uses::statement_type_inputs;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use uses::statement_call_inputs;
 
 pub(crate) use arguments::{
     DomainCarrier, DomainHead, closed_argument_identity, closed_parameter_argument_identity,

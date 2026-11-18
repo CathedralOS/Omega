@@ -11,9 +11,7 @@ impl OptimizationRollback {
     ) -> Result<Self, OptimizationRollbackInputError> {
         OptimizationSelections::new(requested_disabled)
             .map(|requested_disabled| Self { requested_disabled })
-            .map_err(|error| {
-                OptimizationRollbackInputError::DuplicateRule(error.0)
-            })
+            .map_err(|error| OptimizationRollbackInputError::DuplicateRule(error.0))
     }
 
     pub fn from_exact_names<'name>(

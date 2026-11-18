@@ -1,7 +1,7 @@
 //! Select and allocate the operations of a native foreign-call adapter.
 use calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, MachineRegister,
-    ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, EntryControl, MachineRegister, ValueLocation, ValueShape,
+    evaluate_call_plan,
 };
 use post_allocation_machine::adapters::{AdapterInstructions, AdapterOperation};
 use register_model::validate_physical_register_model;

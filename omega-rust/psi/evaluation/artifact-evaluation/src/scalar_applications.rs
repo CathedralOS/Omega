@@ -2,8 +2,14 @@
 //! Source completion owns preparation and charging records; this engine has no
 //! source, declaration-selection or compilation callback.
 use semantic_vocabulary::ScalarApplicationId;
-use terminal_installation::{ScalarApplicationClosure, TerminalScalarValue, ScalarApplicationObservations, ScalarConditionSelection};
-use terminal_interpreter::{TerminalEntryResultRequest, TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest};
+use terminal_installation::{
+    ScalarApplicationClosure, ScalarApplicationObservations, ScalarConditionSelection,
+    TerminalScalarValue,
+};
+use terminal_interpreter::{
+    TerminalEntryResultRequest, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest,
+};
 use terminal_work::WorkMeter;
 
 mod unique {
@@ -538,12 +544,14 @@ fn execute_entry(
     Ok(EntryObservation { value, captured })
 }
 
-
 /// Actual execution data for one demanded application, including failures.
 pub struct ScalarExecutionReceipt {
     pub application: ScalarApplicationId,
     pub values: Vec<(ScalarApplicationId, TerminalScalarValue)>,
-    pub captures: Vec<(semantic_vocabulary::ValueId, semantic_vocabulary::ScalarType)>,
+    pub captures: Vec<(
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ScalarType,
+    )>,
     pub outcome: Result<TerminalScalarValue, String>,
     pub usage: terminal_work::WorkUsage,
 }
@@ -556,24 +564,37 @@ pub fn evaluate_accounted_scope<'artifact>(
     import_realizations: Option<&dyn TargetImportRealizations>,
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ceiling: u64,
-) -> (Result<ScalarConditionSelection<'artifact>, String>, Vec<ScalarExecutionReceipt>) {
+) -> (
+    Result<ScalarConditionSelection<'artifact>, String>,
+    Vec<ScalarExecutionReceipt>,
+) {
     let mut records = Vec::new();
-    let result = evaluate_scope(observations, value_scope, requested, address_model, import_realizations, |job, admission| {
-        let mut meter = match sponsor {
-            Some(account) => WorkMeter::with_invocation(account.clone(), Some(ceiling))
-                .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?,
-            None => WorkMeter::with_budget(ceiling),
-        };
-        let values = admission.observations().values().observed().collect();
-        let result = execute_entry(job, admission, &mut meter);
-        records.push(ScalarExecutionReceipt {
-            application: job.application,
-            values,
-            captures: job.results.clone(),
-            outcome: result.as_ref().map(|observed| observed.value).map_err(Clone::clone),
-            usage: meter.into_usage(),
-        });
-        result
-    });
+    let result = evaluate_scope(
+        observations,
+        value_scope,
+        requested,
+        address_model,
+        import_realizations,
+        |job, admission| {
+            let mut meter = match sponsor {
+                Some(account) => WorkMeter::with_invocation(account.clone(), Some(ceiling))
+                    .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?,
+                None => WorkMeter::with_budget(ceiling),
+            };
+            let values = admission.observations().values().observed().collect();
+            let result = execute_entry(job, admission, &mut meter);
+            records.push(ScalarExecutionReceipt {
+                application: job.application,
+                values,
+                captures: job.results.clone(),
+                outcome: result
+                    .as_ref()
+                    .map(|observed| observed.value)
+                    .map_err(Clone::clone),
+                usage: meter.into_usage(),
+            });
+            result
+        },
+    );
     (result, records)
 }

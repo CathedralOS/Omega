@@ -115,10 +115,10 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
         let arguments = typed
             .type_reference_table
             .type_reference_handles(*arguments);
-        if !arguments
-            .iter()
-            .all(|argument| source_compiler::source_state::canonical_const_argument_value(typed, *argument).is_some())
-        {
+        if !arguments.iter().all(|argument| {
+            source_compiler::source_state::canonical_const_argument_value(typed, *argument)
+                .is_some()
+        }) {
             panic!(
                 "closed receiving application {reference:?} lost its canonical arguments: {arguments:?}"
             );
@@ -266,10 +266,10 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
 /// must refuse that witness even if a public caller's arithmetic is provable.
 #[test]
 fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
+    use source_compiler::checking::RouteVerdict;
     use terminal_check_tables::UnprovedCause;
     use terminal_check_tables::compilation::TerminalCompilation;
     use terminal_check_tables::obligations::ObligationKind;
-    use source_compiler::checking::RouteVerdict;
 
     let _guard = lock_fixture_compilation();
     let original = std::fs::read_to_string(repository(
@@ -601,10 +601,15 @@ fn native_and_psi_execute_the_finite_family_contract() {
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("generic fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
-        installation_assumptions: Vec::new(), retain_native_inputs: false,
-        retain_native_stage_inputs: false, image: Default::default(), private_entry_ram: Vec::new(),
-        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,
@@ -655,12 +660,8 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
             let closure =
                 source_compiler::lowering::elaborate_closure(typed, specialization.instance);
             match source_compiler::checking::judge(closure) {
-                Ok(source_compiler::checking::RouteVerdict::Accepted { .. }) => {
-                    "accepted".into()
-                }
-                Ok(source_compiler::checking::RouteVerdict::Rejected { .. }) => {
-                    "rejected".into()
-                }
+                Ok(source_compiler::checking::RouteVerdict::Accepted { .. }) => "accepted".into(),
+                Ok(source_compiler::checking::RouteVerdict::Rejected { .. }) => "rejected".into(),
                 Ok(source_compiler::checking::RouteVerdict::Incomplete { .. }) => {
                     "incomplete".into()
                 }
@@ -806,7 +807,9 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
                 declarations[0].specialization.as_ref().unwrap().commitment,
                 declarations[1].specialization.as_ref().unwrap().commitment
             );
-            let (_, application) = compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt
@@ -1194,7 +1197,9 @@ fn the_default_product_publishes_generic_named_map_captures() {
                     )
                 );
             }
-            let (_, application) = compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt
@@ -1242,7 +1247,9 @@ fn the_default_product_publishes_width_parameter_identity() {
             assert!(accepted.closure().elaboration.generic_binders.is_empty());
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
-            let (_, application) = compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .unwrap();
             assert_eq!(
                 application
                     .receipt

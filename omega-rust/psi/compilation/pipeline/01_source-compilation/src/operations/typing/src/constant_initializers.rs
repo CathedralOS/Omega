@@ -3,11 +3,11 @@
 //! allow running it. The written expression stays separate from the value
 //! evaluation later produces.
 
+use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
+use crate::source_state::{TypedTrees, constant::ConstDeclaration, machine::Machine, state::State};
 use arena::Handle;
 use diagnostics::Diagnostic;
 use symbols::SymbolKind;
-use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
-use crate::source_state::{TypedTrees, constant::ConstDeclaration, machine::Machine, state::State};
 
 pub(crate) fn retain_entry(
     program: &mut TypedTrees,

@@ -16,11 +16,11 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
+use ::provider_admission::provider_admission;
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use std::fs;
 use std::path::PathBuf;
-use ::provider_admission::provider_admission;
 
 /// The fixture realizes a checked `boundary requirement` whose provider is an
 /// in-module machine, so the realization runs the whole native admission:
@@ -206,7 +206,10 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
-        provisions: product.runtime_provisions.as_ref().map(|runtime| runtime.execution()),
+        provisions: product
+            .runtime_provisions
+            .as_ref()
+            .map(|runtime| runtime.execution()),
         work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::default(),
         standard_input: None,
@@ -233,7 +236,10 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
-        provisions: product.runtime_provisions.as_ref().map(|runtime| runtime.execution()),
+        provisions: product
+            .runtime_provisions
+            .as_ref()
+            .map(|runtime| runtime.execution()),
         work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,

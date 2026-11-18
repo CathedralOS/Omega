@@ -2,12 +2,12 @@
 
 use super::scope::{DeclarationTypeScopes, declaration_type_scope, evidence_type_parameters};
 use super::top_level::{SignatureSymbolTables, assign_callable_signature_symbols};
-use diagnostics::Diagnostic;
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::callable_values::RuntimeCallableContractHandle;
 use crate::source_resolved::data::{TypeParameter, TypeParameterKind};
+use crate::source_symbols::SymbolTable;
+use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
-use crate::source_symbols::{SymbolTable};
 
 pub(super) fn assign_signatures(
     program: &mut SymbolResolvedTrees,

@@ -393,7 +393,9 @@ pub(crate) mod imports {
                         && ldr & 0xffc0_03ff == 0xf940_0210
                         && br == 0xd61f_0200
                 }
-                MachoIsa::X86_64 => target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).is_some(),
+                MachoIsa::X86_64 => {
+                    target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).is_some()
+                }
             };
             if !canonical {
                 return Err(thunk_diagnostic(
@@ -632,13 +634,13 @@ pub(crate) mod imports {
                 })
             }
             MachoIsa::X86_64 => {
-                let displacement =
-                    target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).ok_or_else(|| {
-                        thunk_diagnostic(
-                            &region.symbol,
-                            "does not match JMP qword ptr [rip + disp32]",
-                        )
-                    })?;
+                let displacement = target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes)
+                    .ok_or_else(|| {
+                    thunk_diagnostic(
+                        &region.symbol,
+                        "does not match JMP qword ptr [rip + disp32]",
+                    )
+                })?;
                 (region.address + 6)
                     .checked_add_signed(i64::from(displacement))
                     .ok_or_else(|| {

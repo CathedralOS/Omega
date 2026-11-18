@@ -6,8 +6,10 @@
 
 use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
-use evaluation_accounting::{BuildEvaluationSponsor};
-use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::{
+    BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
+};
 use semantic_vocabulary::MachineId;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -76,8 +78,11 @@ impl CallingProgram {
                 policy,
             )
             .map_err(|error| format!("calling policy canonical selection: {error}"))?;
-        admission.require_invocation(self.artifact.view(), target.target_name(),
-            terminal_psi::TargetMachineCallable::Machine(selected_entry))?;
+        admission.require_invocation(
+            self.artifact.view(),
+            target.target_name(),
+            terminal_psi::TargetMachineCallable::Machine(selected_entry),
+        )?;
         let abi = self
             .artifact
             .semantic_module()
@@ -94,14 +99,15 @@ impl CallingProgram {
             },
             providers,
         )?;
-        let (plan, _) = super::execution::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
-            artifact: &self.artifact,
-            entry: policy,
-            target,
-            signature: &canonical.policy,
-            account,
-            admission,
-        })?;
+        let (plan, _) =
+            super::execution::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+                artifact: &self.artifact,
+                entry: policy,
+                target,
+                signature: &canonical.policy,
+                account,
+                admission,
+            })?;
         Ok((canonical, plan))
     }
 

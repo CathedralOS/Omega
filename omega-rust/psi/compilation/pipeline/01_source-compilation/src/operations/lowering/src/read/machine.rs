@@ -5,17 +5,17 @@ the driver that reads one body statement by statement.
 */
 
 use crate::lowering::body::Qualification;
+use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
+use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
+use crate::source_state::state::State;
+use crate::source_state::statement::StatementNode;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use declaration_contracts::TerminationGuarantee;
 use declaration_contracts::TerminationInterface;
 use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
-use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
-use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
-use crate::source_state::state::State;
-use crate::source_state::statement::StatementNode;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
@@ -129,7 +129,9 @@ impl<'t> Program<'t> {
             .generic_parameters(id, machine)?
             .iter()
             .enumerate()
-            .filter(|(_, parameter)| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+            .filter(|(_, parameter)| {
+                parameter.kind == crate::source_state::data::TypeParameterKind::Type
+            })
             .map(|(position, parameter)| {
                 (
                     parameter.symbol,
@@ -734,7 +736,9 @@ impl<'t> Program<'t> {
             let parameters = self.typed.machine_type_parameters(machine);
             let parameters = parameters
                 .iter()
-                .filter(|parameter| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+                .filter(|parameter| {
+                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                })
                 .collect::<Vec<_>>();
             if parameters.len() != references.len() {
                 return Err(refuse(
@@ -1046,7 +1050,9 @@ impl<'t> Program<'t> {
     ) -> bool {
         use crate::source_state::domain::ProofFact;
         use crate::source_state::expression::ExpressionNode;
-        use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+        use crate::source_state::types::{
+            DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode,
+        };
         let typed = self.typed;
         let ProofFact::Membership(membership) = fact else {
             return false;
@@ -1474,7 +1480,8 @@ impl<'t> Program<'t> {
             let Some(crate::source_state::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement,
-            }) = crate::source_state::machine::resolve_satisfied_declaration(typed, machine, clause)
+            }) =
+                crate::source_state::machine::resolve_satisfied_declaration(typed, machine, clause)
             else {
                 return unserved("`satisfies` clause that names no requirement of a trait");
             };
@@ -1602,7 +1609,10 @@ impl<'t> Program<'t> {
         id: MachineId,
         formals: arena::RootRows<'_, StateParameter>,
         return_type: crate::source_state::types::TypeReferenceHandle,
-        binders: &[(SymbolHandle, crate::source_state::types::TypeReferenceHandle)],
+        binders: &[(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )],
     ) -> Checked<(PreparedFormalValues, Vec<super::ConstBinding>)> {
         use crate::lowering::body::FormalValueShape;
 
@@ -1688,7 +1698,8 @@ impl<'t> Program<'t> {
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.typed.machine_type_parameters(machine) {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                parameter.kind
             else {
                 continue;
             };
@@ -1742,7 +1753,9 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_type_parameters(machine)
                 .iter()
-                .filter(|parameter| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+                .filter(|parameter| {
+                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                })
                 .map(|parameter| parameter.symbol)
                 .zip(arguments.iter().copied())
                 .collect(),
@@ -1784,7 +1797,8 @@ impl<'t> Program<'t> {
                         id,
                         "fact span",
                     )? {
-                        if let crate::source_state::domain::ProofFact::Expression(expression) = fact {
+                        if let crate::source_state::domain::ProofFact::Expression(expression) = fact
+                        {
                             requirements.push(*expression);
                         }
                     }
@@ -2019,8 +2033,10 @@ impl<'t> Program<'t> {
         )?
         .iter()
         .any(|parameter| {
-            !matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type)
-                || parameter.bounds != crate::source_state::data::DataProperties::default()
+            !matches!(
+                parameter.kind,
+                crate::source_state::data::TypeParameterKind::Type
+            ) || parameter.bounds != crate::source_state::data::DataProperties::default()
         }) {
             return Err(unserved("applied trait parameter eligibility"));
         }
@@ -2253,7 +2269,8 @@ impl<'t> Program<'t> {
         }
         let mut binders = Vec::with_capacity(required.len());
         for (parameter, &(_, expected)) in parameters.iter().zip(required) {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                parameter.kind
             else {
                 return Err(unserved(
                     "member invocation parameter is not a static value",
@@ -2288,7 +2305,8 @@ impl<'t> Program<'t> {
             if parameter.bounds != crate::source_state::data::DataProperties::default() {
                 return unserved("requirement value parameter eligibility");
             }
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+                parameter.kind
             else {
                 return Err(refuse_parameters(
                     id,
@@ -2508,11 +2526,11 @@ impl<'t> Program<'t> {
             .map_err(unavailable)?
         {
             None => Qualification::NONE,
-            Some(domain) => {
-                Qualification::of_policy(crate::lowering::body::Policy::of_domain(domain).ok_or_else(
-                    || unavailable("numeric primitive has an unsupported result policy"),
-                )?)
-            }
+            Some(domain) => Qualification::of_policy(
+                crate::lowering::body::Policy::of_domain(domain).ok_or_else(|| {
+                    unavailable("numeric primitive has an unsupported result policy")
+                })?,
+            ),
         };
         if parameters.len() != expected.operand_count
             || parameters
@@ -2986,7 +3004,9 @@ impl<'t> Program<'t> {
             let access = reference.as_ref().map(|reference| reference.access);
             let borrowed_regions = reference
                 .as_ref()
-                .map_or(crate::lowering::body::Regions::NONE, |reference| reference.regions);
+                .map_or(crate::lowering::body::Regions::NONE, |reference| {
+                    reference.regions
+                });
             if let Some(reference) = reference {
                 borrowed.push(crate::lowering::body::Borrowed {
                     position,
@@ -3794,7 +3814,9 @@ impl<'t> Program<'t> {
                     borrowed,
                     borrowed_regions: signature
                         .borrowed(position)
-                        .map_or(crate::lowering::body::Regions::NONE, |reference| reference.regions),
+                        .map_or(crate::lowering::body::Regions::NONE, |reference| {
+                            reference.regions
+                        }),
                 }
             })
             .collect();

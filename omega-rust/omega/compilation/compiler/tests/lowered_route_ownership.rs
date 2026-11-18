@@ -8,12 +8,12 @@ mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
+use source_compiler::checking::RouteVerdict;
+use source_compiler::lowering::Compilation;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionStatus, TerminalStructuralInputs,
 };
-use source_compiler::checking::RouteVerdict;
-use source_compiler::lowering::Compilation;
 use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -557,13 +557,12 @@ fn execute_ownership_oracle(
     .expect("Omega 00 carries checked ownership operations")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) =
-        native_program_planning::test_support::build_verified_psi_optimization_unit(
-            input,
-            terminal_work::WorkSchedule::CURRENT.identity(),
-        )
-        .expect("Omega 01 verifies checked ownership storage")
-        .into_parts();
+    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input,
+        terminal_work::WorkSchedule::CURRENT.identity(),
+    )
+    .expect("Omega 01 verifies checked ownership storage")
+    .into_parts();
     let frontiers = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
         .expect("the independent walk reconstructs current ownership");
     let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
@@ -1055,8 +1054,8 @@ machine main() crashes Trap {
 /// factory result enters a named home, moves to a call argument, and is consumed.
 #[test]
 fn whole_owned_transfers_consume_their_homes_once() {
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
     use arena::{IdTable, NumericId};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
     use source_compiler::lowering::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
@@ -1163,9 +1162,12 @@ fn whole_owned_transfers_consume_their_homes_once() {
             ranking: None,
         });
     }
-    let closure = match source_compiler::checking::judge(
-        source_compiler::lowering::lower_bodies(id(1), &bodies, &signatures, &records),
-    ) {
+    let closure = match source_compiler::checking::judge(source_compiler::lowering::lower_bodies(
+        id(1),
+        &bodies,
+        &signatures,
+        &records,
+    )) {
         Ok(RouteVerdict::Accepted(closure)) => closure,
         other => panic!("whole transfers must check: {other:?}"),
     };
@@ -1249,8 +1251,8 @@ fn whole_owned_transfers_consume_their_homes_once() {
 /// frontier.
 mod transferred_on_one_path {
     use crate::artifact_trust;
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
     use arena::{IdTable, NumericId};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
     use source_compiler::lowering::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,

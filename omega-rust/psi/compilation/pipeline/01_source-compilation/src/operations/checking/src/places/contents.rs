@@ -440,7 +440,10 @@ impl<'a> Storage<'a> {
                     // A name with no entry value, or a form this binding
                     // does not serve, leaves the clause unstated: no
                     // premise, and nothing assumed in its place.
-                    Err(crate::checking::Unbound::Unproved(_) | crate::checking::Unbound::Unsupported(_)) => {}
+                    Err(
+                        crate::checking::Unbound::Unproved(_)
+                        | crate::checking::Unbound::Unsupported(_),
+                    ) => {}
                     Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
                 }
             }

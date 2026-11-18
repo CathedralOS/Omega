@@ -592,7 +592,9 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
         let [argument] = arguments else {
             panic!("one inferred type argument")
         };
-        let source_compiler::source_state::types::TypeReferenceNode::Named { symbol: actual, .. } = typed
+        let source_compiler::source_state::types::TypeReferenceNode::Named {
+            symbol: actual, ..
+        } = typed
             .type_reference_table
             .type_reference(argument.type_reference)
         else {
@@ -632,7 +634,10 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
                     typed.proof_fact_source_span(source),
                     typed.proof_fact_source_span(applied)
                 );
-                if !matches!(retained, source_compiler::source_state::domain::ProofFact::Expression(_)) {
+                if !matches!(
+                    retained,
+                    source_compiler::source_state::domain::ProofFact::Expression(_)
+                ) {
                     non_expression_facts += 1;
                 }
                 for root in typed.tables.proof_fact_expression_roots(applied) {
@@ -640,7 +645,10 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
                         root,
                         source_compiler::source_state::SubtreeEdges::default(),
                         |_, node| {
-                            if let source_compiler::source_state::expression::ExpressionNode::Call(call) = node {
+                            if let source_compiler::source_state::expression::ExpressionNode::Call(
+                                call,
+                            ) = node
+                            {
                                 for argument in
                                     typed.expression_table.static_machine_application_arguments(
                                         call.authored_machine_application,
@@ -1243,8 +1251,7 @@ fn judged_with_dependencies(
     directory: &str,
     entry: &str,
     dependencies: &[(&str, &str)],
-) -> Result<Vec<Result<RouteVerdict, source_compiler::checking::CompilationRefusal>>, Vec<String>>
-{
+) -> Result<Vec<Result<RouteVerdict, source_compiler::checking::CompilationRefusal>>, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

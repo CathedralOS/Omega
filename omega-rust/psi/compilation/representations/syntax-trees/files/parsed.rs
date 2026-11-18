@@ -1,8 +1,8 @@
 use crate::item::ItemHandle;
 use arena::{Arena, HandleSpan};
 use declaration_contracts::source_identity::DependencyScope;
-use source_text::SourceId;
 use source_admission::SourceOrigin;
+use source_text::SourceId;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -6,8 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
 use terminal_psi::BoundaryParameterKind;
 use terminal_semantics::descriptor_results::{
     DescriptorMachine, ResidentValueCaptures, TerminalScalarCaptures,

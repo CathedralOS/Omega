@@ -11,9 +11,9 @@ use crate::record::{
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
-use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
 use std::path::Path;
 use target::TargetProfile;
 
@@ -34,7 +34,10 @@ pub(super) fn project(
     let declarations = input;
     let accepted = checked.terminal_publication().accepted()?;
     let source = accepted.source();
-    let origins = super::callables::service_origins(accepted, declaration_contracts::source_identity::DependencyScope::Product)?;
+    let origins = super::callables::service_origins(
+        accepted,
+        declaration_contracts::source_identity::DependencyScope::Product,
+    )?;
     let services = super::callables::service_identities(
         source,
         checked.sources().exact_toolchain_sources(),
@@ -214,10 +217,12 @@ fn service_audits(
             let coordinate = declaration_coordinate(declaration.source(), declaration.span());
             let first = boundaries.partition_point(|&(candidate, _)| candidate < coordinate);
             let end = boundaries.partition_point(|&(candidate, _)| candidate <= coordinate);
-            let symbol = source_compiler::source_symbols::rejoin_declaration(declaration, &typed.symbols,
-                    boundaries[first..end].iter().map(|&(_, symbol)| symbol),
-                )
-                .map_err(unavailable)?;
+            let symbol = source_compiler::source_symbols::rejoin_declaration(
+                declaration,
+                &typed.symbols,
+                boundaries[first..end].iter().map(|&(_, symbol)| symbol),
+            )
+            .map_err(unavailable)?;
             declarations.nominal(symbol)
         })
         .collect()
@@ -226,7 +231,13 @@ fn service_audits(
 fn declaration_coordinate(
     source: &source_admission::SourceFile,
     span: source_text::Span,
-) -> (&Path, &Path, declaration_contracts::source_identity::DependencyScope, usize, usize) {
+) -> (
+    &Path,
+    &Path,
+    declaration_contracts::source_identity::DependencyScope,
+    usize,
+    usize,
+) {
     (
         &source.path,
         &source.package_root,
@@ -247,8 +258,13 @@ fn require_supported_inventory(
             declaration_contracts::source_identity::DependencyScope::Product,
             declaration_contracts::source_identity::DependencyScope::Build,
         ] {
-            if source_compiler::source_state::source_subjects::contains(typed, symbol, &[Some(package)], purpose)
-                .map_err(unavailable)?
+            if source_compiler::source_state::source_subjects::contains(
+                typed,
+                symbol,
+                &[Some(package)],
+                purpose,
+            )
+            .map_err(unavailable)?
             {
                 return Ok(true);
             }

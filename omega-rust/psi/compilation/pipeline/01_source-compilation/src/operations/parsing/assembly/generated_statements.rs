@@ -1,6 +1,6 @@
 use arena::HandleSpan;
-use numerics::arithmetic::ArithmeticDomain;
 use numeric_literals::IntegerLiteral;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, TableBinaryExpression, TableCastExpression};
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};

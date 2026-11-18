@@ -14,8 +14,8 @@
 
 use crate::BuildMachineFilesystemScope;
 use crate::PackageCompilationInputs;
-use source_compiler::evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
+use source_compiler::evaluation::BuildMachineFilesystemSponsor;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -155,7 +155,8 @@ pub fn prepare_filesystem_scope(
                     let mut required_members = Vec::new();
                     let authored_members = required_sources.selected_files().filter(|file| {
                         file.origin == source_admission::SourceOrigin::User
-                            && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
+                            && file.resolution_stratum
+                                == source_admission::SourceResolutionStratum::Base
                             && file.package_root == source_root
                     });
                     for path in std::iter::once(root_path)

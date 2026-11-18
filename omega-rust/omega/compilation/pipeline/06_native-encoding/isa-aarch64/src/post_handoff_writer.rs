@@ -28,8 +28,13 @@ mod fragment {
         {
             return None;
         }
-        let layout_plans::ScalarFragment {container_byte_offset: offset, container_width_bits: container_width, destination_lsb, source_lsb, width} =
-            layout_plans::private_address_fragment(placement, usize::MAX)?;
+        let layout_plans::ScalarFragment {
+            container_byte_offset: offset,
+            container_width_bits: container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } = layout_plans::private_address_fragment(placement, usize::MAX)?;
         let offset = usize::try_from(offset).ok()?;
         let count = usize::try_from(container_width / 8).ok()?;
         let whole = destination_lsb == 0 && width == container_width;
@@ -261,7 +266,10 @@ mod generated_writer {
             generated_post_handoff_writer_additional_machine_state,
             generated_post_handoff_writer_clobbers, generated_post_handoff_writer_width,
         };
-        use layout_plans::{DataSymbolId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
+        use layout_plans::{
+            DataSymbolId, MaterializationWrite, PlacementConstraints, PlacementPhase,
+            RelocationTarget,
+        };
         use post_handoff_writer_plan::{
             PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
         };

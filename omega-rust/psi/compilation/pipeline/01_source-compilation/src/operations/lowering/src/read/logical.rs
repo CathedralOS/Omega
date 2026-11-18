@@ -5,11 +5,6 @@
 //! Unread theory refuses the witness before proof search, so failure under an
 //! approximation cannot reject source.
 
-use arena::{Arena, HandleSpan};
-use semantic_vocabulary::{ContentPlaceVersion, MachineId, Proposition, PropositionId, ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
-use symbols::{SymbolHandle, SymbolPath};
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use crate::source_state::data::DataMember;
 use crate::source_state::domain::{ProofFact, ProofMembershipFact};
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
@@ -21,6 +16,13 @@ use crate::source_state::{
     TypedTrees,
     callable_signature_shapes::{CallableAddressModel, ParameterOccurrence},
 };
+use arena::IdTable;
+use arena::{Arena, HandleSpan};
+use semantic_vocabulary::{
+    ContentPlaceVersion, MachineId, Proposition, PropositionId, ScalarTerm, ScalarType, ValueId,
+};
+use symbols::{SymbolHandle, SymbolPath};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::{
     Program,
@@ -846,7 +848,9 @@ impl Inputs {
                             Unserved::Type("logical constraint theory"),
                         ));
                     };
-                    if domain.subject != crate::source_state::types::DomainConstraintSubject::Declared {
+                    if domain.subject
+                        != crate::source_state::types::DomainConstraintSubject::Declared
+                    {
                         return Err(refuse(
                             machine,
                             Construct::Machine,
@@ -1005,7 +1009,8 @@ impl Inputs {
                     || !declaration.type_parameters.is_empty()
                     || !declaration.lifetime_parameters.is_empty()
                     || !declaration.conformance_bounds.is_empty()
-                    || declaration.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+                    || declaration.supply_mode
+                        != declaration_contracts::DataSupplyMode::CheckedShape
                 {
                     return Err(refuse(
                         machine,
@@ -1388,8 +1393,8 @@ pub(crate) fn projected_arrival(
                 Unserved::Contract("logical nominal subject outside the source projection"),
             )
         })?;
-        let domain =
-            crate::source_symbols::retain_declaration(&typed.symbols, key.domain).map_err(|detail| {
+        let domain = crate::source_symbols::retain_declaration(&typed.symbols, key.domain)
+            .map_err(|detail| {
                 identity(
                     entry,
                     &format!("logical nominal domain without source custody: {detail}"),
@@ -1496,8 +1501,13 @@ pub(crate) fn projected_arrival(
         slots: callee_signature.parameters,
         statements: Vec::new(),
     });
-    let mut elaboration =
-        crate::lowering::lower_generic(entry, &bodies, &signatures, &IdTable::default(), &[callee])?;
+    let mut elaboration = crate::lowering::lower_generic(
+        entry,
+        &bodies,
+        &signatures,
+        &IdTable::default(),
+        &[callee],
+    )?;
     elaboration.names.push(entry_names);
     elaboration.names.push(callee_names);
     elaboration.machines.push(required.symbol);

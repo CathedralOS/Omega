@@ -3,11 +3,11 @@
 // template-row agreement, and complete closed-requirement coverage while keeping
 // failures deferred until the same row or application asks for them.
 
+use declaration_contracts::provider_declarations::ClosedProviderInstance;
+use declaration_contracts::provider_declarations::ProviderInstanceApplication;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{ProviderBinding, ProviderIdentityId, ProviderPlan, ProviderPlanRow};
-use declaration_contracts::provider_declarations::ClosedProviderInstance;
-use declaration_contracts::provider_declarations::ProviderInstanceApplication;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInstanceRowDeclarations {

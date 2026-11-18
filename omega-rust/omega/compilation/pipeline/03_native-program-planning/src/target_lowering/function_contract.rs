@@ -111,11 +111,11 @@ pub(crate) fn retain(
 mod tests {
     use super::instructions;
     use abstract_operations::AbstractOperation;
+    use arena::NumericId;
     use optimization_unit::{
         EffectLink, OptimizationBlock, OptimizationNode, PsiProvenance, WorkSettlement,
     };
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType};
-    use arena::{NumericId};
     use target_operations::TargetUnitOperation;
     use terminal_psi::{StructuralAccess, StructuralArgument};
 

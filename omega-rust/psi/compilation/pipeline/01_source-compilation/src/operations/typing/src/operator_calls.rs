@@ -2,13 +2,13 @@
 //! qualifications have settled. The selected machine retains its full contract;
 //! this pass supplies no checking evidence and changes no argument evaluation.
 
-use diagnostics::Diagnostic;
 use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
 use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Late;
 use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 use crate::source_state::TypedTrees;
 use crate::source_state::expression::{ExpressionNode, TableCallExpression};
 use crate::source_state::operator::ClosedOperatorApplicationArgument;
+use diagnostics::Diagnostic;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SelectedOperator {
@@ -30,7 +30,8 @@ pub(crate) fn selection(
     if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
         return Ok(None);
     }
-    let Some(spelling) = crate::source_state::operator::binary_operator_spelling(binary.operator) else {
+    let Some(spelling) = crate::source_state::operator::binary_operator_spelling(binary.operator)
+    else {
         return Ok(None);
     };
     let mut operands = Vec::with_capacity(2);
@@ -59,8 +60,9 @@ pub(crate) fn selection_for_operands(
     if operands.iter().all(Option::is_none) {
         return Ok(None);
     }
-    let candidates =
-        crate::source_state::operator::resolve_spelling_for_operands(program, spelling, operands, span);
+    let candidates = crate::source_state::operator::resolve_spelling_for_operands(
+        program, spelling, operands, span,
+    );
     let selected = match candidates.as_slice() {
         [] => return Ok(None),
         [selected] => selected,
@@ -186,8 +188,10 @@ fn qualified_builtin_operand(
     }
     let (operand, (carrier, domains)) = qualified?;
     let span = program.expression_table.source_span(handle);
-    if !crate::source_state::operator::resolve_spelling_for_operands(program, spelling, &operands, span)
-        .is_empty()
+    if !crate::source_state::operator::resolve_spelling_for_operands(
+        program, spelling, &operands, span,
+    )
+    .is_empty()
     {
         return None;
     }
@@ -222,7 +226,9 @@ fn declared_domains(
     program: &TypedTrees,
     reference: crate::source_state::types::TypeReferenceHandle,
 ) -> Option<(String, Vec<String>)> {
-    use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+    use crate::source_state::types::{
+        DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode,
+    };
     let table = &program.type_reference_table;
     let TypeReferenceNode::Constrained {
         base_type,
@@ -259,7 +265,9 @@ fn core_application(
     owner: symbols::SymbolHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
 ) -> Option<declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature> {
-    use declaration_contracts::numeric_intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature};
+    use declaration_contracts::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature,
+    };
     use numerics::arithmetic::ArithmeticDomain;
     if binary.policy != ArithmeticDomain::Exact {
         return None;
@@ -278,7 +286,10 @@ fn core_application(
             };
             Some(Some(CoreIntegerOperand { carrier, policy }))
         }
-        None if crate::source_state::closed_numeric::has_anonymous_numeric_results(program, expression) => {
+        None if crate::source_state::closed_numeric::has_anonymous_numeric_results(
+            program, expression,
+        ) =>
+        {
             Some(None)
         }
         None => None,
@@ -295,8 +306,13 @@ fn core_application(
         [left.unwrap_or(plain), right.unwrap_or(plain)],
     )?;
     let spelling = crate::source_state::operator::binary_operator_spelling(binary.operator)?;
-    (!crate::source_state::operator::has_scoped_operator_meaning(program, owner, spelling, &references))
-        .then_some(application)
+    (!crate::source_state::operator::has_scoped_operator_meaning(
+        program,
+        owner,
+        spelling,
+        &references,
+    ))
+    .then_some(application)
 }
 
 fn retain_core_application(
@@ -501,7 +517,9 @@ fn retain_application(
     Diagnostic,
 > {
     use crate::source_state::expression::StaticMachineArgument;
-    use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    use crate::source_state::static_applications::{
+        StaticMachineBinding, StaticMachineBindingValue,
+    };
     if selected.arguments.is_empty() {
         return Ok((Vec::new(), Default::default(), None));
     }

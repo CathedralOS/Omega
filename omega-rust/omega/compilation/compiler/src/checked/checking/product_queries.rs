@@ -103,9 +103,9 @@ impl ProductQueries {
             .as_ref()
             .ok_or_else(|| refuse("Product query has no prepared declaration frontier"))?
             .1;
-        let (occurrence, selecting) = source.rejoin_product_query_origin(
-            &self.initial, query.occurrence, query.selecting_machine,
-        ).map_err(refuse)?;
+        let (occurrence, selecting) = source
+            .rejoin_product_query_origin(&self.initial, query.occurrence, query.selecting_machine)
+            .map_err(refuse)?;
         match query.operation {
             source_compiler::TerminalBuildQueryOperation::Parameter => source
                 .describe_parameter(

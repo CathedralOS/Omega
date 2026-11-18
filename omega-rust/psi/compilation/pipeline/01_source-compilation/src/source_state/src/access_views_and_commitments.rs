@@ -33,8 +33,8 @@ pub(crate) mod access_views {
         use super::AccessLifecycleOperation;
         use crate::source_state::TypedTrees;
 
-        use diagnostics::Diagnostic;
         use declaration_contracts::MachineSupplyMode;
+        use diagnostics::Diagnostic;
 
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum AccessContentShape {
@@ -201,9 +201,9 @@ pub(crate) mod access_views {
         }
     }
     pub(crate) mod primitive_selection {
+        use declaration_contracts::MachineSupplyMode;
         use diagnostics::Diagnostic;
         use language_core::ReferenceAccess;
-        use declaration_contracts::MachineSupplyMode;
         use symbols::SymbolHandle;
 
         use crate::source_state::data::TypeParameterKind;
@@ -739,7 +739,8 @@ pub(crate) mod access_views {
         pub fn storage_definitions<'program>(
             &self,
             program: &'program crate::source_state::TypedTrees,
-        ) -> Result<Vec<&'program crate::source_state::data::DataDefinition>, &'static str> {
+        ) -> Result<Vec<&'program crate::source_state::data::DataDefinition>, &'static str>
+        {
             let Self::Evaluated {
                 operation,
                 policy,
@@ -1109,7 +1110,8 @@ pub(crate) mod commitments {
     pub struct MachineSpecialization {
         pub template: symbols::SymbolHandle,
         pub template_parameters: HandleSpan<data::TypeParameter>,
-        pub binding_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub binding_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub instance: symbols::SymbolHandle,
         pub states: HandleSpan<CapturedMachineState>,
         pub conformance_arguments: Vec<symbols::SymbolHandle>,
@@ -1120,7 +1122,8 @@ pub(crate) mod commitments {
     pub struct ClosedConformanceApplication {
         pub declaration: symbols::SymbolHandle,
         pub trait_scope: crate::source_state::trait_definition::RetainedTraitScope,
-        pub callable_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub callable_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub arguments: Box<[crate::source_state::expression::StaticMachineArgument]>,
         pub lifetime_arguments: Vec<String>,
         pub type_arguments: Vec<String>,
@@ -1199,7 +1202,9 @@ pub(crate) mod commitments {
         },
         Occurrence(crate::source_state::static_applications::StaticMachineApplicationHandle),
         TraitArgument(arena::Handle<TraitImplementationApplication>),
-        ProductOperand(arena::Handle<crate::source_state::product_operand::ProductOperandApplication>),
+        ProductOperand(
+            arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+        ),
         DataArgument(arena::Handle<DataImplementationApplication>),
     }
 
@@ -1208,7 +1213,8 @@ pub(crate) mod commitments {
         pub source_scope: crate::source_state::trait_definition::RetainedTraitScope,
         pub parameter: symbols::SymbolHandle,
         pub argument: types::TypeReferenceHandle,
-        pub supplying_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub supplying_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub application: ClosedConformanceApplication,
     }
 
@@ -1218,7 +1224,8 @@ pub(crate) mod commitments {
         pub lexical_owner: symbols::SymbolHandle,
         pub parameter: symbols::SymbolHandle,
         pub argument: types::TypeReferenceHandle,
-        pub supplying_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub supplying_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub application: ClosedConformanceApplication,
     }
 
@@ -1226,8 +1233,10 @@ pub(crate) mod commitments {
     pub struct CapturedMachineApplication {
         pub template: symbols::SymbolHandle,
         pub instance: symbols::SymbolHandle,
-        pub binding_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
-        pub supplying_application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub binding_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub supplying_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub conformance_application: ClosedConformanceApplication,
         pub normalized_template_identity: String,
         pub accepted_template_commitment: Option<String>,
@@ -1265,7 +1274,9 @@ pub mod constant_recipes {
         use crate::source_state::machine::Machine;
         use crate::source_state::name::Identifier;
         use crate::source_state::state::State;
-        use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
+        use crate::source_state::statement::{
+            StatementNode, TableTransition, TransitionTargetNode,
+        };
         use crate::source_state::types::TypeReferenceHandle;
         use symbols::{SymbolHandle, SymbolKind};
 

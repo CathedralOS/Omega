@@ -9,9 +9,9 @@ receiver permissions.
 */
 
 use crate::TerminalAuthorityClass;
-use diagnostics::Diagnostic;
 pub use declaration_contracts::selection::AuthoredBehaviorExclusion;
 pub use declaration_contracts::selection::AuthoredBehaviorExclusionKind;
+use diagnostics::Diagnostic;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, InvocationSite, MachineId, OperationId, ServiceId,
 };

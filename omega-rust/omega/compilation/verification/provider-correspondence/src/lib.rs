@@ -6,11 +6,11 @@ mod bodies;
 mod boundary;
 mod declarations;
 
+pub use declaration_contracts::selection::CompositionMode;
 pub use declarations::{
     ProviderDeclaration, ProviderFamily, ProviderFamilyCoordinate, ProviderIdentity,
     ProviderSubject, SelectionProvenance,
 };
-pub use declaration_contracts::selection::CompositionMode;
 
 pub use binding::{
     GenericProviderInstanceDeclarations, InstallationReachRow, ProviderInstanceDeclarations,

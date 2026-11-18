@@ -355,8 +355,11 @@ fn logical_callable_witnesses_capture_headers_without_reading_indexed_bodies() {
             }
             let witness = witness
                 .expect("logical refinement reads the complete header, not its uninvoked body");
-            crate::checking::prove_callable_refinement(witness, &mut crate::checking::ProofSearchActivity::default())
-                .expect("the public callable contract refines the requirement");
+            crate::checking::prove_callable_refinement(
+                witness,
+                &mut crate::checking::ProofSearchActivity::default(),
+            )
+            .expect("the public callable contract refines the requirement");
         }
     }
 }
@@ -454,7 +457,9 @@ machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; la
 
 #[test]
 fn stored_byte_view_reads_keep_the_declarations_lifetime() {
-    let source = super::boundary_calls::typed(include_str!("../../../../../../../../../../tests/fixtures/run/borrowed_view_lifetime_owner/main.omg"));
+    let source = super::boundary_calls::typed(include_str!(
+        "../../../../../../../../../../tests/fixtures/run/borrowed_view_lifetime_owner/main.omg"
+    ));
     let verdict = operator_program(&source).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}");
@@ -502,7 +507,9 @@ fn stored_byte_view_reads_keep_the_declarations_lifetime() {
 
 #[test]
 fn core_policy_comparisons_keep_the_selected_mixed_operand_signature() {
-    let source = include_str!("../../../../../../../../../../tests/fixtures/run/core_policy_operator_selection/main.omg");
+    let source = include_str!(
+        "../../../../../../../../../../tests/fixtures/run/core_policy_operator_selection/main.omg"
+    );
     let mut typed = super::boundary_calls::typed(source);
     assert_operator_value(operator_program(&typed), true);
     let comparison = typed
@@ -695,7 +702,10 @@ fn static_false_pattern_reads_guard_and_copy_without_its_target() {
 
 #[test]
 fn static_false_pattern_cannot_hide_missing_or_conflicting_occurrences() {
-    use crate::declaration_selection::{AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Binding};
+    use crate::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+    };
     for conflict in [false, true] {
         let (typed, _, condition) = copied_static_pattern();
         let mut typed = typed.into_inner();

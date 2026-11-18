@@ -122,12 +122,13 @@ pub(crate) mod scalar_graph {
                     .collect::<Vec<_>>();
                 for argument in arguments {
                     lowered.push(LegalizedScalarArgument::Structural {
-                        indices: crate::preparation::legalization::runtime_indices::retained_operands(
-                            facts,
-                            machine,
-                            *psi_operation,
-                            &argument.indices,
-                        )?,
+                        indices:
+                            crate::preparation::legalization::runtime_indices::retained_operands(
+                                facts,
+                                machine,
+                                *psi_operation,
+                                &argument.indices,
+                            )?,
                         semantic: terminal_psi::StructuralArgument {
                             place: argument.place,
                             path: argument.path.clone(),
@@ -1062,7 +1063,9 @@ pub(crate) mod scalar_graph {
             }
 
             fn view_indices(
-                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
+                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<
+                    '_,
+                >,
                 unit: &crate::preparation::native_geometry::NativeUnit<'_>,
                 psi_operation: semantic_vocabulary::OperationId,
                 view: &terminal_psi::StructuralArgument,
@@ -1223,12 +1226,14 @@ pub(crate) mod scalar_graph {
                     terminal_psi::ElementViewRegion::WholeCollection => None,
                     terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. }
                     | terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
-                        Some(crate::preparation::legalization::obligations::retained_fact(
-                            facts,
-                            machine,
-                            *psi_operation,
-                            obligation,
-                        )?)
+                        Some(
+                            crate::preparation::legalization::obligations::retained_fact(
+                                facts,
+                                machine,
+                                *psi_operation,
+                                obligation,
+                            )?,
+                        )
                     }
                 };
                 Ok(LegalizedScalarInstructionKind::EstablishElementView {
@@ -1269,12 +1274,13 @@ pub(crate) mod scalar_graph {
                         destination: destination.clone(),
                         field: *field,
                         source: *source,
-                        indices: crate::preparation::legalization::runtime_indices::retained_operands(
-                            facts,
-                            machine,
-                            *psi_operation,
-                            indices,
-                        )?,
+                        indices:
+                            crate::preparation::legalization::runtime_indices::retained_operands(
+                                facts,
+                                machine,
+                                *psi_operation,
+                                indices,
+                            )?,
                     },
                 )
             }
@@ -1339,21 +1345,23 @@ pub(crate) mod scalar_graph {
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
                         source: source.clone(),
                         field: *field,
-                        indices: crate::preparation::legalization::runtime_indices::retained_operands(
-                            facts,
-                            machine,
-                            *psi_operation,
-                            indices,
-                        )?,
+                        indices:
+                            crate::preparation::legalization::runtime_indices::retained_operands(
+                                facts,
+                                machine,
+                                *psi_operation,
+                                indices,
+                            )?,
                         index: index.source_value(),
                         length: *length,
                         obligation: *obligation,
-                        accepted_fact: crate::preparation::legalization::obligations::retained_fact(
-                            facts,
-                            machine,
-                            *psi_operation,
-                            *obligation,
-                        )?,
+                        accepted_fact:
+                            crate::preparation::legalization::obligations::retained_fact(
+                                facts,
+                                machine,
+                                *psi_operation,
+                                *obligation,
+                            )?,
                     },
                 )
             }
@@ -1468,7 +1476,9 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_element_view_write(
                 node: &optimization_unit::OptimizationNode,
-                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
+                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<
+                    '_,
+                >,
                 unit: &crate::preparation::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let optimized = function_inputs.function();
@@ -1662,7 +1672,9 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_storage_address(
                 node: &optimization_unit::OptimizationNode,
-                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
+                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<
+                    '_,
+                >,
                 unit: &crate::preparation::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let optimized = function_inputs.function();
@@ -1694,7 +1706,9 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_global_descriptor_table(
                 node: &optimization_unit::OptimizationNode,
-                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
+                function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<
+                    '_,
+                >,
                 unit: &crate::preparation::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let optimized = function_inputs.function();
@@ -3469,7 +3483,8 @@ pub(crate) mod scalar_graph {
         unit: &'a crate::preparation::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
     ) -> Result<LegalizedScalarFunction, LegalizationError> {
-        let function_inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
+        let function_inputs =
+            crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
         let call_plan = target.graph.call_plan.clone();
         let parameters = parameters(target, unit.closed_types())?;
         if optimized.blocks.len() != target.graph.blocks.len() {
@@ -3575,22 +3590,28 @@ pub(crate) fn derive_source_function_rosters(
     unit: &PsiOptimizationUnit,
     closed_types: &crate::preparation::native_geometry::ModuleTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    let plan_geometry = crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-        &abstract_plan.structural_types,
-        abstract_plan.structural_types.owned_sequence_bounds(),
-    )
-    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-    let unit_geometry = crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-        &unit.structural_types,
-        unit.structural_types.owned_sequence_bounds(),
-    )
-    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+    let plan_geometry =
+        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+            &abstract_plan.structural_types,
+            abstract_plan.structural_types.owned_sequence_bounds(),
+        )
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+    let unit_geometry =
+        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+            &unit.structural_types,
+            unit.structural_types.owned_sequence_bounds(),
+        )
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let abstract_plan = &crate::preparation::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,
         closed_types,
     );
-    let unit = &crate::preparation::native_geometry::NativeInput::with_types(unit, &unit_geometry, closed_types);
+    let unit = &crate::preparation::native_geometry::NativeInput::with_types(
+        unit,
+        &unit_geometry,
+        closed_types,
+    );
     validate_source_custody(target, abstract_plan, unit)?;
     crate::preparation::legalization::scalar_graph_input::normalized_foreign::validate_native_callback_roster(
         target,
@@ -3611,14 +3632,15 @@ pub(crate) fn derive_target_function_rosters(
     evidence: crate::preparation::PreparationEvidence<'_>,
     types: &crate::preparation::native_geometry::ModuleTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    let geometries =
-        crate::preparation::native_geometry::NativeGeometries::new(target.functions.iter().map(|function| {
+    let geometries = crate::preparation::native_geometry::NativeGeometries::new(
+        target.functions.iter().map(|function| {
             (
                 function.graph.structural_types.as_ref(),
                 function.graph.structural_types.owned_sequence_bounds(),
             )
-        }))
-        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+        }),
+    )
+    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let mut scalar_functions = Vec::with_capacity(target.functions.len());
     for function in &target.functions {
         let geometry = geometries
@@ -3696,7 +3718,9 @@ pub(crate) fn derive_target_function_rosters(
             provenance: function.provenance.clone(),
             call_plan: function.graph.call_plan.clone(),
             parameters: scalar_graph::parameters(function, types)?,
-            structural: crate::preparation::legalization::scalar_graph_input::structural_contract(function)?,
+            structural: crate::preparation::legalization::scalar_graph_input::structural_contract(
+                function,
+            )?,
             entry_block: function.graph.entry,
             blocks,
             ownership_frontier_facts: evidence

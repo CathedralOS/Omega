@@ -29,6 +29,9 @@ pub struct PlannedRequirements {
     pub stack_bytes: u64,
     pub alignment: u64,
     pub minimum_stack_bytes: u64,
-    pub installed_scopes: Vec<(semantic_vocabulary::MachineId, semantic_vocabulary::OperationId)>,
+    pub installed_scopes: Vec<(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    )>,
     pub installed_cpu: Option<physical_recipes::physical_entry::InstalledPhysicalCpuRequirement>,
 }

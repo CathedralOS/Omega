@@ -112,8 +112,9 @@ impl RealizedTargetSupply {
                 .map_err(|error| error.to_string())?;
         }
         Ok(Self(SelectedProviderRealization {
-            program: terminal_codec::terminal_psi_identity(module)
-                .map_err(|error| format!("provider realization lost its canonical program: {error:?}"))?,
+            program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
+                format!("provider realization lost its canonical program: {error:?}")
+            })?,
             target: target.map(str::to_owned),
             plans: Arc::new(effects::SelectedProviderPlanFacts::from_selected_plans(
                 Vec::new(),
@@ -408,8 +409,9 @@ impl RealizedTargetSupply {
         }
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(plans)?;
         Ok(Self(SelectedProviderRealization {
-            program: terminal_codec::terminal_psi_identity(module)
-                .map_err(|error| format!("provider realization lost its canonical program: {error:?}"))?,
+            program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
+                format!("provider realization lost its canonical program: {error:?}")
+            })?,
             target: Some(input.target),
             plans: Arc::new(plans),
             realizations,
@@ -429,8 +431,11 @@ impl RealizedTargetSupply {
         module: &TerminalModule,
         installation_requirements: &[semantic_vocabulary::BoundaryMachineId],
     ) -> Result<Self, String> {
-        self.require_program(terminal_codec::terminal_psi_identity(module)
-            .map_err(|error| format!("installation input lost its canonical program: {error:?}"))?)?;
+        self.require_program(
+            terminal_codec::terminal_psi_identity(module).map_err(|error| {
+                format!("installation input lost its canonical program: {error:?}")
+            })?,
+        )?;
         let plans = super::installation_reach::resolve_installation_reach(
             module,
             installation_requirements,
@@ -461,17 +466,25 @@ impl RealizedTargetSupply {
         realization: &SelectedProviderRealization,
         artifact: terminal_codec::TerminalArtifactView<'_>,
     ) -> Result<SelectedProviderRealization, String> {
-        let target = realization.target().ok_or("folded constants require an explicit target")?;
+        let target = realization
+            .target()
+            .ok_or("folded constants require an explicit target")?;
         let mut original = artifact.module().clone();
         let folded = std::mem::take(&mut original.folded_constants);
-        realization.require_program(terminal_codec::terminal_psi_identity(&original)
-            .map_err(|error| error.to_string())?)?;
+        realization.require_program(
+            terminal_codec::terminal_psi_identity(&original).map_err(|error| error.to_string())?,
+        )?;
         let root = original.program_entry_contract(target)?.entry;
         let expected = backend_plan::folded_constant_dependencies(
-            &original, target, realization.plans().plans(), &[root],
+            &original,
+            target,
+            realization.plans().plans(),
+            &[root],
         )?;
         if folded != expected || folded.dependencies.is_empty() {
-            return Err("folded constant closure differs from this exact provider realization".into());
+            return Err(
+                "folded constant closure differs from this exact provider realization".into(),
+            );
         }
         let mut derived = realization.clone();
         derived.program = artifact.identity();
@@ -500,9 +513,14 @@ impl RealizedTargetSupply {
 }
 
 impl SelectedProviderRealization {
-    pub fn program(&self) -> terminal_psi::TerminalPsiIdentity { self.program }
+    pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.program
+    }
 
-    pub fn require_program(&self, program: terminal_psi::TerminalPsiIdentity) -> Result<(), String> {
+    pub fn require_program(
+        &self,
+        program: terminal_psi::TerminalPsiIdentity,
+    ) -> Result<(), String> {
         if self.program != program {
             return Err("provider realization belongs to a different accepted program".into());
         }
@@ -523,8 +541,7 @@ impl SelectedProviderRealization {
     }
     pub fn composition_modes(
         &self,
-    ) -> impl ExactSizeIterator<Item = declaration_contracts::selection::CompositionMode> + '_
-    {
+    ) -> impl ExactSizeIterator<Item = declaration_contracts::selection::CompositionMode> + '_ {
         self.realizations.iter().map(|row| row.composition_mode)
     }
     pub fn row_executions(

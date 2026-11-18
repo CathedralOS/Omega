@@ -2,13 +2,13 @@
 //! backing. They have no nominal data declaration or layout authority.
 
 use crate::lowering::body::Qualification;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::ReferenceAccess;
 use semantic_vocabulary::ByteSequencePredicateSet;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, places::RecordSource};
 use crate::lowering::{
@@ -250,8 +250,13 @@ fn byte_view_domains(
     typed: &crate::source_state::TypedTrees,
     mut referee: TypeReferenceHandle,
     machine: MachineId,
-) -> Checked<(TypeReferenceHandle, Vec<crate::lowering::body::DomainInstance>)> {
-    use crate::source_state::byte_predicates::{ByteSequencePredicate, byte_slice_domain_predicate};
+) -> Checked<(
+    TypeReferenceHandle,
+    Vec<crate::lowering::body::DomainInstance>,
+)> {
+    use crate::source_state::byte_predicates::{
+        ByteSequencePredicate, byte_slice_domain_predicate,
+    };
     use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode};
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
     let table = &typed.type_reference_table;
@@ -1009,7 +1014,10 @@ impl Program<'_> {
                     Unserved::Type("literal requires an immutable byte view"),
                 ));
             }
-            None => (self.literal_byte_type(carrier), crate::lowering::body::Regions::NONE),
+            None => (
+                self.literal_byte_type(carrier),
+                crate::lowering::body::Regions::NONE,
+            ),
         };
         Ok(Expression {
             call_context: None,
@@ -1094,17 +1102,17 @@ impl Program<'_> {
                     Unserved::Type("byte predicate conversion needs governed domain evidence"),
                 ));
             }
-            let predicate =
-                crate::source_state::byte_predicates::domain_byte_predicate(self.typed, domain.declaration)
-                    .ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type(
-                                "byte view in a domain that is not a primitive byte predicate",
-                            ),
-                        )
-                    })?;
+            let predicate = crate::source_state::byte_predicates::domain_byte_predicate(
+                self.typed,
+                domain.declaration,
+            )
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte view in a domain that is not a primitive byte predicate"),
+                )
+            })?;
             predicates.insert(predicate);
         }
         Ok(predicates)
@@ -1114,9 +1122,9 @@ impl Program<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
     use crate::source_state::{TypedTrees, machine::Machine, name::Identifier};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
     fn byte_views_keep_region_owners_and_export_the_exact_reference() {
@@ -1126,10 +1134,12 @@ mod tests {
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = symbols.insert_children(
             root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                (SymbolKind::Machine, SymbolNameRef::Static("first")),
-                (SymbolKind::Machine, SymbolNameRef::Static("second")),
-            ]),
+            crate::source_symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([
+                    (SymbolKind::Machine, SymbolNameRef::Static("first")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("second")),
+                ]),
         );
         let byte = children
             .handles()

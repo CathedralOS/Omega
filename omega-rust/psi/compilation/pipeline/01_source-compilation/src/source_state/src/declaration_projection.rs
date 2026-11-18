@@ -84,7 +84,10 @@ impl SymbolMembership {
 /// owns the only copy (a selected-source continuation after its bodies were
 /// typed) therefore pays for no second copy of the typed storage; a caller
 /// that must keep the unnarrowed program clones it first.
-pub fn project_source_declarations(program: TypedTrees, sources: &crate::source_inputs::SourceMap) -> TypedTrees {
+pub fn project_source_declarations(
+    program: TypedTrees,
+    sources: &crate::source_inputs::SourceMap,
+) -> TypedTrees {
     let mut instances = SymbolMembership::from_symbols(
         program
             .data_definitions()

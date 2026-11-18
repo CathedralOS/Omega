@@ -127,7 +127,11 @@ ensures result.first == 0
         let elaborate = || {
             crate::lowering::elaborate_for(
                 &typed,
-                roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+                roster(
+                    &[entry],
+                    &[Some(package())],
+                    declaration_contracts::source_identity::DependencyScope::Build,
+                ),
                 terminal_codec::TerminalPublication::Invocation,
             )
             .unwrap()

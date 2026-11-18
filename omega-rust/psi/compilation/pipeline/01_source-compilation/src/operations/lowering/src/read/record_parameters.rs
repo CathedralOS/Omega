@@ -4,15 +4,15 @@
 use super::Program;
 use crate::lowering::static_contracts::SourceRecordBinding;
 use crate::lowering::{Unserved, refuse};
+use crate::source_state::data::TypeParameter;
+use crate::source_state::signature::StateSignature;
+use crate::source_state::trait_definition::AppliedTraitScope;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::contracts::{
     StaticRecordBinding, StaticRecordMember, StaticRecordRequirementInstance,
 };
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::data::TypeParameter;
-use crate::source_state::signature::StateSignature;
-use crate::source_state::trait_definition::AppliedTraitScope;
 
 impl Program<'_> {
     pub(super) fn record_parameter(&self, parameter: SymbolHandle) -> Option<&SourceRecordBinding> {
@@ -270,8 +270,9 @@ impl Program<'_> {
                     "selected record has repeated source operand bindings",
                 ));
             }
-            let crate::source_state::static_applications::StaticMachineBindingValue::Const(reference) =
-                binding.value
+            let crate::source_state::static_applications::StaticMachineBindingValue::Const(
+                reference,
+            ) = binding.value
             else {
                 return Err(super::services::unavailable(
                     id,
@@ -292,7 +293,8 @@ impl Program<'_> {
                 .typed
                 .static_operand_from_type_reference(reference)
                 .map_err(|reason| super::services::unavailable(id, reason))?;
-            let identity = |operand: &crate::source_state::expression::StaticMachineArgument, supplier| {
+            let identity = |operand: &crate::source_state::expression::StaticMachineArgument,
+                            supplier| {
                 self.typed
                     .declared_static_operand_identity(
                         crate::source_state::type_identity::DeclaredStaticOperandIdentityRequest {
@@ -381,12 +383,11 @@ impl Program<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
     use crate::source_state::TypedTrees;
     use crate::source_state::data::{TypeParameter, TypeParameterKind};
-    use crate::source_state::expression::{ExpressionHandle, StaticMachineArgument, TableCallExpression};
+    use crate::source_state::expression::{
+        ExpressionHandle, StaticMachineArgument, TableCallExpression,
+    };
     use crate::source_state::machine::{Machine, MachineBodyStatus};
     use crate::source_state::name::Identifier;
     use crate::source_state::state::State;
@@ -398,6 +399,9 @@ mod tests {
         TraitDefinition,
     };
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef};
 
     struct Fixture {
         typed: TypedTrees,
@@ -451,7 +455,10 @@ mod tests {
         let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
         let root = builder.insert_root(
             SymbolKind::Root,
-            SymbolNameRef::Source(source_text::SourceSpan::new(source, source_text::Span::new(0, 4))),
+            SymbolNameRef::Source(source_text::SourceSpan::new(
+                source,
+                source_text::Span::new(0, 4),
+            )),
         );
         let top = builder.insert_children(
             root,
@@ -517,7 +524,10 @@ mod tests {
                     keyword_source_spans: Vec::new(),
                     targets: vec![crate::source_state::signature::AuthoredServiceReachTarget {
                         service: other,
-                        source_span: source_text::SourceSpan::new(source, source_text::Span::new(0, 4)),
+                        source_span: source_text::SourceSpan::new(
+                            source,
+                            source_text::Span::new(0, 4),
+                        ),
                     }],
                     installation_bound: false,
                 },
@@ -651,13 +661,12 @@ mod tests {
             .static_machine_application_mut(application);
         retained.lexical_owner = supplier;
         retained.binding_declaration = caller;
-        let states =
-            typed
-                .captured_machine_states
-                .insert_many([crate::source_state::CapturedMachineState {
-                    template: caller_state,
-                    instance: entry,
-                }]);
+        let states = typed.captured_machine_states.insert_many([
+            crate::source_state::CapturedMachineState {
+                template: caller_state,
+                instance: entry,
+            },
+        ]);
         let template_parameters = typed.machine_by_symbol(caller).unwrap().type_parameters;
         typed
             .machine_specializations
@@ -881,7 +890,9 @@ mod tests {
                 .record_requirement(fixture.parameters[0], position, &signature, &[])
                 .unwrap();
             assert_ne!(ordinary, record);
-            let source = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+            let source = crate::lowering::SourceOrigin::Unpositioned(
+                crate::lowering::Unpositioned::SpanAbsent,
+            );
             let call = |callee: MachineId| {
                 Statement::discard(Expression {
                     call_context: None,
@@ -946,7 +957,8 @@ mod tests {
                 );
             }
             let prepared =
-                crate::lowering::finish_reading(program, Some(caller), bodies, None, None, None).unwrap();
+                crate::lowering::finish_reading(program, Some(caller), bodies, None, None, None)
+                    .unwrap();
             let entry = prepared
                 .program
                 .module

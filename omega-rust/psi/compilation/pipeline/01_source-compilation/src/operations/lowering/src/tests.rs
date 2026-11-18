@@ -2,8 +2,11 @@
 // scalar program it lowers; the reader's refusals are tested in `read.rs`.
 
 use crate::lowering::body::Qualification;
-use semantic_vocabulary::{BlockId, CrashCause, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId};
 use arena::{IdTable, NumericId};
+use semantic_vocabulary::{
+    BlockId, CrashCause, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    Proposition, ScalarTerm, ScalarType, ValueId,
+};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -24,11 +27,11 @@ use crate::lowering::{SourceOrigin, StorageShape, Unpositioned};
 mod provider_source_identities {
     use std::sync::Arc;
 
-    use crate::source_inputs::{SourceMap};
+    use crate::source_inputs::SourceMap;
+    use crate::source_symbols::SymbolTableBuilder;
     use declaration_contracts::source_identity::DependencyScope;
-use source_admission::SourceOrigin;
+    use source_admission::SourceOrigin;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
 
     fn typed_sources(bytes: &str, outside_root: bool) -> crate::source_state::TypedTrees {
         let mut sources = SourceMap::default();
@@ -95,8 +98,10 @@ use source_admission::SourceOrigin;
         assert_eq!(sources[1].0, source_text::SourceId(1));
         assert_eq!(
             sources,
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .unwrap(),
+            source_admission::source_identity::toolchain_source_identities(
+                typed.symbols.source_files()
+            )
+            .unwrap(),
         );
         for reading in [&product, &witness, &build] {
             assert!(std::ptr::eq(
@@ -121,14 +126,20 @@ use source_admission::SourceOrigin;
             DependencyScope::Product,
             shared.clone(),
         );
-        let second =
-            crate::lowering::read::Program::with_captures(&typed, true, DependencyScope::Product, shared);
+        let second = crate::lowering::read::Program::with_captures(
+            &typed,
+            true,
+            DependencyScope::Product,
+            shared,
+        );
         let refusal = first.exact_toolchain_sources().unwrap_err();
         assert!(refusal.contains("outside its canonical root"), "{refusal}");
         assert_eq!(
             refusal,
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .unwrap_err(),
+            source_admission::source_identity::toolchain_source_identities(
+                typed.symbols.source_files()
+            )
+            .unwrap_err(),
         );
         assert!(std::ptr::eq(
             refusal,
@@ -3017,7 +3028,8 @@ fn a_module_with_records_declares_them_and_encodes() {
     });
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(vec![u32_type().into()], Some(line())));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration =
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.structural_types.len(), 2);
     assert_eq!(module.native_layouts.records().count(), 2);
@@ -3423,7 +3435,8 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     bodies.push(body());
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration =
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let operations = &block(machine, 1).operations;
@@ -3520,7 +3533,8 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
         statements: vec![declare(0, None), returns(integer(1))],
         ..body()
     });
-    let refusal = crate::lowering::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
+    let refusal =
+        crate::lowering::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
     assert_eq!(
         refusal.reason,
         terminal_check_tables::RefusalReason::Unsupported
@@ -3568,7 +3582,10 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
-        shape: crate::lowering::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
+        shape: crate::lowering::StorageShape::Record(vec![
+            field(1, "x", scalar),
+            field(2, "y", scalar),
+        ]),
         requires: Vec::new(),
         authored_layout: false,
     });
@@ -4140,7 +4157,8 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     bodies.push(body);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
+    let elaboration =
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
     // Each type's declaration in the module states its clauses, and the
     // checker's table beside the module restates them by the type's
     // identity.
@@ -4254,7 +4272,8 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
         requires: vec![clause.clone()],
         ..shaped(vec![point()], Some(u32_type().into()))
     });
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration =
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     assert_eq!(machine.contract.requires, [clause]);
     assert_eq!(machine.structural_parameters[0].place, id::<PlaceId>(1));

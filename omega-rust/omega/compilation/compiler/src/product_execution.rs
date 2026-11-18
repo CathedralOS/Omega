@@ -355,12 +355,19 @@ impl TargetCompilation {
                             &self.selections,
                             Some(&request),
                         )?;
-                    if published.execution().realization().composition_modes().any(|mode| {
-                        mode == declaration_contracts::selection::CompositionMode::Independent
-                    }) {
-                        return Err(CompilationProductError::Production(vec![Diagnostic::error(
-                            "native composition needs the selected independent components' verified products",
-                        )]));
+                    if published
+                        .execution()
+                        .realization()
+                        .composition_modes()
+                        .any(|mode| {
+                            mode == declaration_contracts::selection::CompositionMode::Independent
+                        })
+                    {
+                        return Err(CompilationProductError::Production(vec![
+                            Diagnostic::error(
+                                "native composition needs the selected independent components' verified products",
+                            ),
+                        ]));
                     }
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     Ok(CompilationOutput::Native(Box::new(

@@ -7,7 +7,6 @@ pub trait NumericId: Copy + Eq + Ord + std::hash::Hash {
     fn get(self) -> u64;
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdTable<Id, T> {
     first: u64,
@@ -30,9 +29,7 @@ pub enum IdTableBuildError {
 }
 
 impl<Id: NumericId, T> IdTable<Id, T> {
-    pub fn from_rows(
-        rows: impl IntoIterator<Item = (Id, T)>,
-    ) -> Result<Self, NonDenseIdentities> {
+    pub fn from_rows(rows: impl IntoIterator<Item = (Id, T)>) -> Result<Self, NonDenseIdentities> {
         let mut rows = rows.into_iter();
         let Some((first, value)) = rows.next() else {
             return Ok(Self::default());
@@ -127,8 +124,8 @@ impl<Id: NumericId, T> IdTable<Id, T> {
         if self.values.is_empty() {
             self.first = 1;
         }
-        let identity = Id::new(self.first + self.values.len() as u64)
-            .expect("a pushed identity is nonzero");
+        let identity =
+            Id::new(self.first + self.values.len() as u64).expect("a pushed identity is nonzero");
         self.values.push(value);
         identity
     }
@@ -283,8 +280,12 @@ mod tests {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     struct TestId(std::num::NonZeroU64);
     impl NumericId for TestId {
-        fn new(raw: u64) -> Option<Self> { std::num::NonZeroU64::new(raw).map(Self) }
-        fn get(self) -> u64 { self.0.get() }
+        fn new(raw: u64) -> Option<Self> {
+            std::num::NonZeroU64::new(raw).map(Self)
+        }
+        fn get(self) -> u64 {
+            self.0.get()
+        }
     }
 
     fn id(raw: u64) -> TestId {
@@ -317,10 +318,7 @@ mod tests {
         assert_eq!(table.identity_at(2), Some(id(6)));
         assert_eq!(table.identity_at(3), None);
         assert_eq!(table.identity_at(usize::MAX), None);
-        assert_eq!(
-            IdTable::<TestId, ()>::default().identity_at(0),
-            None
-        );
+        assert_eq!(IdTable::<TestId, ()>::default().identity_at(0), None);
         let high = IdTable::from_rows([(id(u64::MAX), ())]).unwrap();
         assert_eq!(high.identity_at(0), Some(id(u64::MAX)));
         assert_eq!(high.identity_at(1), None);
@@ -373,12 +371,8 @@ mod tests {
             })
         ));
         assert!(IdTable::from_rows([(id(4), ()), (id(7), ())]).is_err());
-        assert!(
-            IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(7), Some('c'))], 4).is_err()
-        );
-        assert!(
-            IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(4), Some('c'))], 4).is_err()
-        );
+        assert!(IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(7), Some('c'))], 4).is_err());
+        assert!(IdTable::from_rows_with_gaps([(id(7), Some('b')), (id(4), Some('c'))], 4).is_err());
         assert!(matches!(
             IdTable::from_rows_with_gaps([(id(1), Some('a')), (id(u64::MAX), Some('b'))], 16),
             Err(IdTableBuildError::SpanLimit { .. }) | Err(IdTableBuildError::SpanOverflow)

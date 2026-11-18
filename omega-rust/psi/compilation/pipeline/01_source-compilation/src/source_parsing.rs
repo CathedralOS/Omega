@@ -99,8 +99,7 @@ mod batches {
         // we still scan later units to preserve lexical-error precedence.
         let mut scratch = tokens::TokenScratch::default();
         for source in sources {
-            let tokens = match crate::lexing::lex_unit_reusing(&source.source, &mut scratch)
-            {
+            let tokens = match crate::lexing::lex_unit_reusing(&source.source, &mut scratch) {
                 Ok(tokens) => tokens.retain_source(source.source.clone()),
                 Err(error) => {
                     page.lexical_error =
@@ -170,7 +169,11 @@ mod batches {
                 vec!["machine", "data Good {}", "\"unterminated"],
             ] {
                 let input = loaded(&texts);
-                let expected = vec![crate::lexing::lex(input.clone()).unwrap_err().into_diagnostic()];
+                let expected = vec![
+                    crate::lexing::lex(input.clone())
+                        .unwrap_err()
+                        .into_diagnostic(),
+                ];
                 let actual = parse(input, 1, false).unwrap_err();
                 assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
             }
@@ -184,7 +187,12 @@ mod batches {
             assert!(page.parse_error.is_some());
             let input = loaded(&["machine", "data"]);
             let lexed = crate::lexing::lex(input.clone()).unwrap();
-            let expected = vec![crate::parsing::parse(&lexed, Default::default()).err().unwrap().into_diagnostic()];
+            let expected = vec![
+                crate::parsing::parse(&lexed, Default::default())
+                    .err()
+                    .unwrap()
+                    .into_diagnostic(),
+            ];
             let actual = parse(input, 1, false).unwrap_err();
             assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
         }
@@ -196,10 +204,15 @@ mod batches {
                 .collect::<Vec<_>>();
             let input = loaded(&texts.iter().map(String::as_str).collect::<Vec<_>>());
             let lexed = crate::lexing::lex(input.clone()).unwrap();
-            let (expected_pages, expected_sources) =
-                crate::parsing::parse(&lexed, crate::parsing::ParseOptions { first_page_identity: 5, ..Default::default() })
-                    .unwrap()
-                    .into_parts();
+            let (expected_pages, expected_sources) = crate::parsing::parse(
+                &lexed,
+                crate::parsing::ParseOptions {
+                    first_page_identity: 5,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .into_parts();
             let (actual_pages, actual_sources) = parse(input, 5, false).unwrap();
             assert_eq!(
                 format!("{actual_sources:?}"),
@@ -340,8 +353,8 @@ impl SourceInput {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/reused_sources.rs"]
-mod reuse_tests;
-#[cfg(test)]
 #[path = "../tests/unit/source_parsing.rs"]
 mod batch_tests;
+#[cfg(test)]
+#[path = "../tests/unit/reused_sources.rs"]
+mod reuse_tests;

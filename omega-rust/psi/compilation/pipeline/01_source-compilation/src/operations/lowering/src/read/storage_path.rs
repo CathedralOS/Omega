@@ -138,9 +138,9 @@ mod tests {
 
     fn capture_pair() -> (Capture, Capture) {
         let mut typed = crate::source_state::TypedTrees::default();
-        let marker = typed
-            .expression_table
-            .insert(crate::source_state::expression::ExpressionNode::Boolean(true));
+        let marker = typed.expression_table.insert(
+            crate::source_state::expression::ExpressionNode::Boolean(true),
+        );
         (
             typed.expression_table.insert_match_subject(marker),
             typed.expression_table.insert_match_subject(marker),

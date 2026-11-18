@@ -31,8 +31,12 @@ pub mod reflection {
         ) -> crate::source_state::references::StaticArgumentRole {
             use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
             let target = match call {
-                crate::source_state::references::StaticArgumentCall::Expression(_, call) => call.target_symbol,
-                crate::source_state::references::StaticArgumentCall::Statement(call) => call.target_symbol,
+                crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                    call.target_symbol
+                }
+                crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                    call.target_symbol
+                }
             };
             let declaration = typed
                 .machine_by_symbol(target)
@@ -227,7 +231,9 @@ pub mod reflection {
             let author = scope.machine;
             use crate::source_state::expression::StaticMachineArgument;
             use crate::source_state::reflection::SchemaNode;
-            use crate::source_state::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
+            use crate::source_state::type_identity::{
+                IndexIdentityArgument, portable_applied_index_identity,
+            };
             let symbols = typed.symbols.symbols().nodes();
             if !symbols.is_valid(author) {
                 return Err(String::from("a field query lost its lexical owner"));
@@ -343,7 +349,9 @@ pub mod reflection {
                     {
                         occurrences += 1
                     }
-                    crate::source_state::data::DataMember::Variant(case) if case.symbol == parent => {
+                    crate::source_state::data::DataMember::Variant(case)
+                        if case.symbol == parent =>
+                    {
                         occurrences += typed
                             .data_payload_fields(case)
                             .iter()
@@ -486,20 +494,21 @@ pub mod reflection {
                 },
                 owner.is_public,
             )?;
-            let qualified_type = crate::source_state::type_identity::descriptive_type_identity_in_region_scope(
-                typed,
-                crate::source_state::type_identity::TypeIdentityRequest::package_qualified(
-                    parameter.type_reference,
-                ),
-                requirement,
-                requirement,
-                &[],
-                &[],
-            )
-            .and_then(|identity| typed.type_identity_text(identity))
-            .ok_or(
-                "a parameter query lost its complete declared type and lifetime relationships",
-            )?;
+            let qualified_type =
+                crate::source_state::type_identity::descriptive_type_identity_in_region_scope(
+                    typed,
+                    crate::source_state::type_identity::TypeIdentityRequest::package_qualified(
+                        parameter.type_reference,
+                    ),
+                    requirement,
+                    requirement,
+                    &[],
+                    &[],
+                )
+                .and_then(|identity| typed.type_identity_text(identity))
+                .ok_or(
+                    "a parameter query lost its complete declared type and lifetime relationships",
+                )?;
             let declaration = typed
                 .closed_requirement_application(requirement)
                 .map_or(requirement, |application| application.template);
@@ -604,7 +613,9 @@ pub mod reflection {
                 }
                 let identity = crate::source_state::type_identity::portable_applied_index_identity(
                     typed,
-                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(selected),
+                    crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                        selected,
+                    ),
                     supplier,
                     &[],
                 )
@@ -830,7 +841,9 @@ pub mod reflection {
             };
             crate::source_state::type_identity::descriptive_type_identity_in_region_scope(
                 typed,
-                crate::source_state::type_identity::TypeIdentityRequest::package_qualified(reference),
+                crate::source_state::type_identity::TypeIdentityRequest::package_qualified(
+                    reference,
+                ),
                 owner,
                 owner,
                 &[],
@@ -870,7 +883,10 @@ pub mod reflection {
             roots: Vec<(TypeReferenceHandle, Vec<SymbolHandle>)>,
             scopes: Vec<Vec<SymbolHandle>>,
             pending_binders: Vec<SymbolHandle>,
-            expressions: Vec<(crate::source_state::expression::ExpressionHandle, Vec<SymbolHandle>)>,
+            expressions: Vec<(
+                crate::source_state::expression::ExpressionHandle,
+                Vec<SymbolHandle>,
+            )>,
         }
 
         impl Extend<SymbolHandle> for SignatureSchemaTypes<'_> {
@@ -882,7 +898,10 @@ pub mod reflection {
                 false
             }
 
-            fn callable_signature(&mut self, signature: &crate::source_state::signature::StateSignature) {
+            fn callable_signature(
+                &mut self,
+                signature: &crate::source_state::signature::StateSignature,
+            ) {
                 self.pending_binders = self
                     .typed
                     .state_signature_type_parameters(signature)
@@ -915,7 +934,10 @@ pub mod reflection {
                 false
             }
 
-            fn expression(&mut self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+            fn expression(
+                &mut self,
+                expression: crate::source_state::expression::ExpressionHandle,
+            ) -> bool {
                 let context = self.scopes.iter().flatten().copied().collect();
                 let occurrence = (expression, context);
                 if self.expressions.contains(&occurrence) {
@@ -933,7 +955,9 @@ pub mod reflection {
             root_owner_identity: &str,
             root_application_identity: Option<&str>,
             bound: &[SymbolHandle],
-            active_contracts: &mut Vec<crate::source_state::callable_values::RuntimeCallableContractHandle>,
+            active_contracts: &mut Vec<
+                crate::source_state::callable_values::RuntimeCallableContractHandle,
+            >,
             found: &mut Vec<NominalExpectation>,
         ) -> Result<(), String> {
             let mut intern = |symbol: SymbolHandle,
@@ -1003,7 +1027,11 @@ pub mod reflection {
                         pending_binders: Vec::new(),
                         expressions: Vec::new(),
                     };
-                    crate::source_state::references::visit_signature(typed, &mut inputs, &row.signature);
+                    crate::source_state::references::visit_signature(
+                        typed,
+                        &mut inputs,
+                        &row.signature,
+                    );
                     for (reference, own_bound) in inputs.roots {
                         // Own signature binders are masked separately; free
                         // applications keep the enclosing operand's owner.
@@ -1211,8 +1239,9 @@ pub mod reflection {
             }
             let (owner_identity, identity_is_hermetic) = exact_symbol_identity(typed, subject)?;
             if let SchemaQueryAuthority::ForeignScope { .. } = &authority {
-                let visible = crate::source_state::visibility::declaration_visibility(typed, subject)
-                    .is_some_and(|visibility| visibility.is_public());
+                let visible =
+                    crate::source_state::visibility::declaration_visibility(typed, subject)
+                        .is_some_and(|visibility| visibility.is_public());
                 if !visible {
                     return Err(format!(
                         "schema subject `{}` is not public to a foreign package; a query may not hide inaccessible members while claiming complete coverage",
@@ -1384,8 +1413,8 @@ pub mod reflection {
         use crate::source_state::data::{DataDefinition, DataField, DataMember, TypeParameter};
         use crate::source_state::name::Identifier;
         use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         fn named(
             program: &mut TypedTrees,

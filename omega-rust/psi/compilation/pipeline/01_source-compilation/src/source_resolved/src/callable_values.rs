@@ -23,11 +23,20 @@ pub struct RuntimeCallableContract {
 #[derive(Default)]
 pub struct ResolvedSignatureInputs<'program> {
     scopes: Vec<SignatureInputScope>,
-    pub types: Vec<(usize, &'program crate::source_resolved::types::TypeReference)>,
+    pub types: Vec<(
+        usize,
+        &'program crate::source_resolved::types::TypeReference,
+    )>,
     pub expressions: Vec<(usize, crate::source_resolved::expression::ExpressionHandle)>,
-    pub static_arguments: Vec<(usize, &'program crate::source_resolved::expression::StaticMachineArgument)>,
+    pub static_arguments: Vec<(
+        usize,
+        &'program crate::source_resolved::expression::StaticMachineArgument,
+    )>,
     pub symbols: Vec<(usize, SymbolHandle)>,
-    pub invocations: Vec<(usize, &'program crate::source_resolved::name::DiagnosticName)>,
+    pub invocations: Vec<(
+        usize,
+        &'program crate::source_resolved::name::DiagnosticName,
+    )>,
     unresolved: bool,
 }
 
@@ -501,7 +510,9 @@ pub fn callee_uses_value_binding(
         crate::source_resolved::expression::ExpressionNode::Name(path) => {
             value_symbol(path.head_symbol) || value_symbol(path.symbol)
         }
-        crate::source_resolved::expression::ExpressionNode::Member(member) => value_symbol(member.member_symbol),
+        crate::source_resolved::expression::ExpressionNode::Member(member) => {
+            value_symbol(member.member_symbol)
+        }
         crate::source_resolved::expression::ExpressionNode::TypeExpression(_) => false,
         _ => true,
     }

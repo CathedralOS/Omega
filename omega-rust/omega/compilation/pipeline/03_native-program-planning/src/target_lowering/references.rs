@@ -326,13 +326,14 @@ pub(crate) fn reference_call_argument(
             parameter.placement.clone().into(),
         )
     };
-    let (selected, shape, offset, runs) = crate::target_lowering::structural_layout::reference_referent_projection(
-        root_type,
-        &argument.path,
-        argument.access,
-        Some(declaration.structural_type),
-        types,
-    )?;
+    let (selected, shape, offset, runs) =
+        crate::target_lowering::structural_layout::reference_referent_projection(
+            root_type,
+            &argument.path,
+            argument.access,
+            Some(declaration.structural_type),
+            types,
+        )?;
     let indices = super::scalar_sources::runtime_indices(
         runs,
         function,
@@ -1978,7 +1979,11 @@ fn formation_indices(
 ) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
     let root = source_contract(function, live, source.place)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    let runs = crate::target_lowering::structural_layout::reference_formation_indices(root, &source.path, types)?;
+    let runs = crate::target_lowering::structural_layout::reference_formation_indices(
+        root,
+        &source.path,
+        types,
+    )?;
     super::scalar_sources::runtime_indices(
         runs,
         function,

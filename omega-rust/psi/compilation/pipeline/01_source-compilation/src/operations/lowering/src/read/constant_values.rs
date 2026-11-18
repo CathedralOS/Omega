@@ -5,12 +5,12 @@
 //! A declared domain on a leaf arrives as the `as +D` entry that
 //! materialization wrote, and is judged as any other such cast.
 
+use crate::source_state::constant::ConstDeclaration;
 use application_identity::const_value::DecodedCanonicalConstValue;
 use application_identity::const_value::decode_declaration_value;
 use numeric_literals::FloatFormat;
 use semantic_vocabulary::{IeeeFloatValue, IntegerValue, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::constant::ConstDeclaration;
 
 use super::Program;
 use crate::lowering::body::{Expression, ExpressionKind, ValueType};
@@ -360,12 +360,8 @@ impl Program<'_> {
                 !integer.is_address()
                     && matches!(integer_type, numeric_literals::LandedIntegerType::Fixed(carrier) if Some(*carrier) == expected)
                     && match current {
-                        IntegerValue::Signed(current) => {
-                            *value == bignum::BigInt::from(*current)
-                        }
-                        IntegerValue::Unsigned(current) => {
-                            *value == bignum::BigInt::from(*current)
-                        }
+                        IntegerValue::Signed(current) => *value == bignum::BigInt::from(*current),
+                        IntegerValue::Unsigned(current) => *value == bignum::BigInt::from(*current),
                     }
             }
             (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {

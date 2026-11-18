@@ -1,4 +1,7 @@
-use symbols::{BuiltinTypeAtom, BuiltinFunction, FixedCoreDeclaration, BuiltinTypeMember, SymbolKind, SymbolNameRef, BUILTIN_TYPE_COUNT};
+use symbols::{
+    BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration,
+    SymbolKind, SymbolNameRef,
+};
 pub fn is_builtin_type_spelling(name: &str) -> bool {
     let integer_family = name
         .strip_prefix(['i', 'u'])
@@ -38,12 +41,11 @@ pub fn builtin_type_member_symbols(
 }
 #[cfg(test)]
 mod builtin_ordinal_tests {
-    use symbols::BuiltinType;
     use super::{
-        BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind,
-        SymbolNameRef, builtin_function_symbols, builtin_type_symbols,
-        fixed_core_declaration_symbols,
+        BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind, SymbolNameRef,
+        builtin_function_symbols, builtin_type_symbols, fixed_core_declaration_symbols,
     };
+    use symbols::BuiltinType;
 
     #[test]
     fn builtin_type_ordinals_track_the_symbol_table() {

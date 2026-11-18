@@ -4,8 +4,8 @@
 
 use super::{id, number, u32_type};
 use crate::checking::{Hypotheses, connected};
+use arena::IdTable;
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
-use arena::{IdTable};
 use terminal_check_tables::KnowledgeId;
 
 fn value(raw: u64) -> ScalarTerm {

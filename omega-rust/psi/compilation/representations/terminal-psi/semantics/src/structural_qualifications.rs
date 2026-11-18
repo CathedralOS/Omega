@@ -254,7 +254,8 @@ fn writes_default_storage(effect: Option<access_vocabulary::AccessOperation>) ->
     effect.is_some_and(|effect| {
         matches!(
             effect,
-            access_vocabulary::AccessOperation::Write | access_vocabulary::AccessOperation::Atomic(_)
+            access_vocabulary::AccessOperation::Write
+                | access_vocabulary::AccessOperation::Atomic(_)
         ) && effect.reads_and_writes().1
     })
 }

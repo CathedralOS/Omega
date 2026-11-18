@@ -5,8 +5,8 @@
 // that every decision names a scheduled rule in `ordered_rules`, and that
 // decision and candidate identities are duplicate-free across the pass.
 
-use ::wire::cursor::Cursor;
 use crate::optimization_core::identities::IDENTITY_WIDTH;
+use ::wire::cursor::Cursor;
 use std::collections::BTreeSet;
 
 use crate::{

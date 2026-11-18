@@ -20,9 +20,9 @@ provider-plan schemas produced upstream, and we expose closed plan proposals
 and settlement projections to native preparation and installation admission.
 */
 
-pub mod package_review;
 mod callback_artifacts;
 mod canonical_schemas;
+pub mod package_review;
 pub use canonical_schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 mod direct_boundary_leaves;
 pub mod synchronous_invocations;
@@ -38,8 +38,8 @@ pub use direct_boundary_leaves::{
     DirectBoundaryExecution, DirectBoundaryLeaf, NativeRequirementTrust,
 };
 pub use target_providers::{
-    FoldedEntryReach, SelectedCheckedInvocationCandidate, SelectedCheckedInvocationRow, SelectedProviderCandidateRow,
-    TerminalTargetProviderProposal, TerminalTargetProviderSelection,
+    FoldedEntryReach, SelectedCheckedInvocationCandidate, SelectedCheckedInvocationRow,
+    SelectedProviderCandidateRow, TerminalTargetProviderProposal, TerminalTargetProviderSelection,
     admit_selected_checked_providers, close_checked_provider_specializations,
     folded_constant_dependencies, matching_folded_constant_dependencies,
     selected_checked_adapter_header, selected_checked_invocation_rows,

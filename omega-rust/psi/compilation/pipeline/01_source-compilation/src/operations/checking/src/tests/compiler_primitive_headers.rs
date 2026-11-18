@@ -38,16 +38,13 @@ fn typed_at(
         .expect("catalog source tokenizes");
     let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
         .expect("catalog source parses");
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: vec![],
-            retained_base: None,
-        },
-    )?;
-    crate::typing::lower_symbol_resolved_trees(&resolved)
-        .map_err(|error| vec![error])
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: vec![],
+        retained_base: None,
+    })?;
+    crate::typing::lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])
 }
 
 #[test]
@@ -269,7 +266,9 @@ fn judge_observed(
     )
 }
 
-fn observed_program(text: &str) -> Vec<Result<crate::checking::RouteVerdict, crate::checking::CompilationRefusal>> {
+fn observed_program(
+    text: &str,
+) -> Vec<Result<crate::checking::RouteVerdict, crate::checking::CompilationRefusal>> {
     judge_observed(&observed_typed(text))
 }
 
@@ -414,10 +413,12 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
                     .type_reference_table
                     .retain_operand_lifetimes(
                         reference,
-                        [crate::source_state::type_identity::LifetimeParameterIdentity {
-                            declaration: foreign,
-                            ordinal: 0,
-                        }],
+                        [
+                            crate::source_state::type_identity::LifetimeParameterIdentity {
+                                declaration: foreign,
+                                ordinal: 0,
+                            },
+                        ],
                     )
                     .unwrap();
             }

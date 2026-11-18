@@ -27,10 +27,10 @@ preferred for fitting the slot.
 use crate::declaration_selection::DescribedProductEntry;
 use crate::declaration_selection::DescribedProductProvider;
 use crate::declaration_selection::DescribedProductSchema;
+use crate::source_state::TypedTrees;
 use semantic_vocabulary::ProgramEntrySourceCatalog;
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
-use crate::source_state::TypedTrees;
 
 /// Where a path is read from, and what it may name there.
 struct ProductScope<'path> {
@@ -250,8 +250,8 @@ pub(crate) fn describe_parameter(
         "is not a formal visible from",
         declarations.into_iter(),
     )?;
-    let author =
-        crate::source_state::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    let author = crate::source_state::product_operand::ProductRequestAuthors::new(program)
+        .resolve(selecting)?;
     crate::source_state::reflection::construction::product_parameter_description_identity(
         program,
         selected,
@@ -280,8 +280,8 @@ pub(crate) fn describe_field(
         "is not a field visible from",
         declarations.into_iter(),
     )?;
-    let author =
-        crate::source_state::product_operand::ProductRequestAuthors::new(program).resolve(selecting)?;
+    let author = crate::source_state::product_operand::ProductRequestAuthors::new(program)
+        .resolve(selecting)?;
     crate::source_state::reflection::construction::product_field_description_identity(
         program,
         selected,

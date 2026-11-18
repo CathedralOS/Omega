@@ -28,12 +28,15 @@ mod execution;
 mod provider_execution_inputs;
 pub use backend_plan::ProviderExecutionOrigins;
 pub use provider_execution_inputs::plan_provider_execution_inputs;
+mod folded_entry;
 mod package_review;
 mod selected_execution;
-mod folded_entry;
+pub use execution::{
+    NativeProgramPlanningError, plan_published_target_execution, plan_target_execution,
+    plan_unscoped_execution,
+};
 pub use folded_entry::FoldedTargetProgram;
 pub use provider_correspondence::trust;
-pub use execution::{NativeProgramPlanningError, plan_published_target_execution, plan_target_execution, plan_unscoped_execution};
 pub use selected_execution::{SelectedExecution, SelectedProviderResult};
 pub use target_supply::SelectedProviderRealization;
 
@@ -68,7 +71,8 @@ pub use artifact_lowering::{
     lower_native_callable, lower_native_execution, prepare_native_providers,
 };
 pub use body_planning::{
-    NativeBodyObservation, NativeBodyPlan, NativeBodyPlanningError, plan_native_body, plan_runtime_storage,
+    NativeBodyObservation, NativeBodyPlan, NativeBodyPlanningError, plan_native_body,
+    plan_runtime_storage,
 };
 pub use target_lowering::{OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations};
 pub mod replay {
@@ -91,5 +95,5 @@ pub use provider_admission::{
     AdmittedProviderInstallation, NativeCallbackArgumentProposal, SettledCompilerBuiltin,
 };
 
-pub mod observations;
 pub mod callable_planning;
+pub mod observations;

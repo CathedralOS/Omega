@@ -188,7 +188,8 @@ mod tests {
         let id = sources
             .add("widths/main.omg".into(), text.to_owned())
             .source_id;
-        let mut syntax = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut syntax =
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         normalize(&mut syntax).map_err(|diagnostics| {
             diagnostics
                 .iter()

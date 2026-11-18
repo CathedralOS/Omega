@@ -9,13 +9,15 @@
 pub mod values;
 pub use build_time_values::BuildTimeValue;
 
-use terminal_codec::TerminalExecutionView;
-use terminal_installation::{AdmittedCompilerEvaluation, AdmittedScalarApplications};
-use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
-    TerminalProgram, TerminalRuntimeSupplies};
-use terminal_work::{WorkMeter, WorkUsage};
 use evaluation_accounting::EvaluationInvocationAccount;
 use std::sync::Arc;
+use terminal_codec::TerminalExecutionView;
+use terminal_installation::{AdmittedCompilerEvaluation, AdmittedScalarApplications};
+use terminal_interpreter::{
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
+    TerminalRuntimeSupplies,
+};
+use terminal_work::{WorkMeter, WorkUsage};
 
 /// Values and observations offered for one call. `bind` checks these against
 /// the independently admitted code and supplies before sealing the invocation.
@@ -50,7 +52,9 @@ pub struct InvocationReceipt {
 }
 
 impl InvocationReceipt {
-    pub fn code(&self) -> &terminal_codec::TerminalExecutionIdentity { &self.code }
+    pub fn code(&self) -> &terminal_codec::TerminalExecutionIdentity {
+        &self.code
+    }
     pub fn require_inputs(
         &self,
         arguments: &Arc<[BuildTimeValue]>,
@@ -65,8 +69,12 @@ impl InvocationReceipt {
         }
         Ok(())
     }
-    pub fn arguments(&self) -> &[BuildTimeValue] { &self.arguments }
-    pub fn usage(&self) -> &WorkUsage { &self.usage }
+    pub fn arguments(&self) -> &[BuildTimeValue] {
+        &self.arguments
+    }
+    pub fn usage(&self) -> &WorkUsage {
+        &self.usage
+    }
     pub fn same_account(&self, account: Option<&EvaluationInvocationAccount>) -> bool {
         match (self.account.as_ref(), account) {
             (Some(expected), Some(actual)) => expected.same_invocation(actual),
@@ -94,18 +102,32 @@ pub struct InvocationOutcome {
 }
 
 impl<'input> ArtifactInvocation<'input> {
-    pub fn bind(input: InvocationInput<'input>, meter: &'input mut WorkMeter) -> Result<Self, String> {
-        let entry = input.code.module().entry.ok_or("source invocation lost its emitted root")?;
-        input.admission.require_invocation(input.code, input.target, entry)?;
-        input.supplies.require_compiler_evaluation(input.code, input.admission, input.scalars)?;
+    pub fn bind(
+        input: InvocationInput<'input>,
+        meter: &'input mut WorkMeter,
+    ) -> Result<Self, String> {
+        let entry = input
+            .code
+            .module()
+            .entry
+            .ok_or("source invocation lost its emitted root")?;
+        input
+            .admission
+            .require_invocation(input.code, input.target, entry)?;
+        input
+            .supplies
+            .require_compiler_evaluation(input.code, input.admission, input.scalars)?;
         if input.target.is_none() && input.layout_target.is_some() {
             return Err("target-independent evaluation cannot carry target observations".into());
         }
         for argument in input.inputs.iter() {
             if let BuildTimeValue::LayoutTarget(facts) = argument
-                && (input.target != Some(facts.profile.as_str()) || input.layout_target != Some(facts))
+                && (input.target != Some(facts.profile.as_str())
+                    || input.layout_target != Some(facts))
             {
-                return Err("issued layout context differs from the actual invocation target".into());
+                return Err(
+                    "issued layout context differs from the actual invocation target".into(),
+                );
             }
         }
         Ok(Self { input, meter })
@@ -195,7 +217,10 @@ impl<'input> ArtifactInvocation<'input> {
                 )
             })
             .collect::<Result<Vec<_>, String>>()?;
-        let opaque_inputs = inputs.iter().zip(self.input.inputs.iter()).collect::<Vec<_>>();
+        let opaque_inputs = inputs
+            .iter()
+            .zip(self.input.inputs.iter())
+            .collect::<Vec<_>>();
         let result_type = entry
             .result
             .structural()

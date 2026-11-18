@@ -38,9 +38,9 @@ impl From<MachineId> for TargetMachineCallable {
     }
 }
 
+mod product_declaration_scope;
 mod source_review;
 pub mod source_selections;
-mod product_declaration_scope;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
 mod float_integer_conversions;

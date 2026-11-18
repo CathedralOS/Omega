@@ -1,7 +1,7 @@
 use crate::expressions::context::ExpressionContext;
 use crate::token_input::cursor::Input;
-use numerics::arithmetic::ArithmeticDomain;
 use numeric_literals::IntegerLiteral;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::FloatSpelling;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{

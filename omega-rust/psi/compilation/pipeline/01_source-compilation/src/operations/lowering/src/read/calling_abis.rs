@@ -3,15 +3,15 @@
 
 use std::sync::Arc;
 
+use crate::source_state::service_declarations::ProviderSchemaDeclaration;
+use crate::source_state::service_declarations::provider_declarations::ProviderPlanningContext;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use application_identity::callback_declarations::BoundaryTelescope;
 use semantic_vocabulary::{CallingAbiIdentity, CallingSignatureId, MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::calling_policies::*;
 use terminal_psi::{StructuralAccess, TerminalIdentityTableBuilder, TerminalModule};
-use crate::source_state::service_declarations::ProviderSchemaDeclaration;
-use crate::source_state::service_declarations::provider_declarations::ProviderPlanningContext;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
 
@@ -547,13 +547,14 @@ impl PreparedCallingAbis {
             })
             .collect::<Vec<_>>();
         module.identities = identities.build();
-        module.calling_abi_signatures = crate::lowering::calling_publication::join_abi_declarations(
-            self.entry,
-            &module.identities,
-            &module.structural_types,
-            &module.calling_abi_signatures,
-            &rows,
-        )?;
+        module.calling_abi_signatures =
+            crate::lowering::calling_publication::join_abi_declarations(
+                self.entry,
+                &module.identities,
+                &module.structural_types,
+                &module.calling_abi_signatures,
+                &rows,
+            )?;
         for application in self.boundary_applications {
             if module.boundary_machine(application.boundary).is_none() {
                 return Err(unavailable(
@@ -621,13 +622,13 @@ fn intern_telescope(
 #[cfg(test)]
 mod descriptor_storage_tests {
     use super::*;
-    use declaration_contracts::Multiplicity;
-    use semantic_vocabulary::{IntegerType, ScalarType};
-    use arena::{IdTable};
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
     use crate::source_state::data::{DataDefinition, DataField, DataMember, DataProperties};
     use crate::source_state::types::{DomainConstraint, TypeConstraintNode};
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use arena::IdTable;
+    use declaration_contracts::Multiplicity;
+    use semantic_vocabulary::{IntegerType, ScalarType};
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     fn fixture() -> (
         crate::source_state::TypedTrees,
@@ -825,7 +826,11 @@ mod descriptor_storage_tests {
         let checked = written.map(|(reference, access)| {
             let ordinary = program.value_type(entry, reference).unwrap();
             let formal = program
-                .formal_value_type(entry, reference, crate::lowering::body::BorrowedReferent::Slice)
+                .formal_value_type(
+                    entry,
+                    reference,
+                    crate::lowering::body::BorrowedReferent::Slice,
+                )
                 .unwrap();
             let crate::lowering::ValueType::Record(carrier, _, _) = formal else {
                 panic!("a borrowed slice has structural descriptor storage");
@@ -1060,16 +1065,16 @@ mod descriptor_storage_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source_inputs::{SourceMap};
-    use declaration_contracts::source_identity::DependencyScope;
-use source_admission::SourceOrigin;
-use source_admission::SourceResolutionStratum;
-    use source_text::{SourceSpan, Span};
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
+    use crate::source_inputs::SourceMap;
     use crate::source_state::service_declarations::signatures::{
         PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
     };
+    use crate::source_symbols::SymbolTableBuilder;
+    use declaration_contracts::source_identity::DependencyScope;
+    use source_admission::SourceOrigin;
+    use source_admission::SourceResolutionStratum;
+    use source_text::{SourceSpan, Span};
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     fn projection(source: SymbolHandle, result: TypeReferenceHandle) -> PreparedAbiSource {
         PreparedAbiSource {

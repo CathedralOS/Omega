@@ -659,10 +659,10 @@ pub(crate) mod carry_and_suspension_wire {
     };
     use arena::{Handle, HandleSpan};
     use declaration_contracts::CarryAddress;
-use declaration_contracts::CarryCpu;
-use declaration_contracts::CarryHostThread;
-use declaration_contracts::CarryPolicy;
-use declaration_contracts::CarrySuspension;
+    use declaration_contracts::CarryCpu;
+    use declaration_contracts::CarryHostThread;
+    use declaration_contracts::CarryPolicy;
+    use declaration_contracts::CarrySuspension;
     use terminal_psi::{
         TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
         TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
@@ -1636,9 +1636,9 @@ pub(crate) mod opaque_representation_wire {
     };
     use super::{CodecError, Reader, Writer};
     use application_identity::opaque_representations::OpaqueRepresentationApplicationOrigin;
-use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
-use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
-use application_identity::opaque_representations::SelectedOpaqueApplication;
+    use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
+    use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
+    use application_identity::opaque_representations::SelectedOpaqueApplication;
     use terminal_psi::TerminalOpaqueRepresentation;
 
     wire_record! {
@@ -1680,7 +1680,7 @@ pub(crate) mod quotient_wire {
     use super::super::wire::{Writer, decode_canonical};
     use super::super::wire_fields::{Field, Id, Index, List, Text, U32, wire_enum, wire_record};
     use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
-use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
+    use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
     use terminal_psi::terminal_module::quotients::{
         TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
         TerminalQuotientOperation, TerminalQuotientRepresentation,
@@ -2045,17 +2045,19 @@ pub(crate) mod access_lifecycle_wire {
 pub(crate) mod access_view_plan_wire {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
+    use access_admission::PlacementSnapshot;
+    use access_admission::ValidatedPlacement;
     use access_vocabulary::AccessExposure;
-use access_vocabulary::AccessPermissions;
-use access_vocabulary::AtomicPermissions;
-use access_vocabulary::BoundaryReach;
-use access_vocabulary::BoundaryServiceReachId;
-use access_vocabulary::ExternalRead;
-use access_vocabulary::FieldAccess;
-use access_vocabulary::ObservationModel;
-use access_admission::PlacementSnapshot;
-use access_admission::ValidatedPlacement;
-    use layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+    use access_vocabulary::AccessPermissions;
+    use access_vocabulary::AtomicPermissions;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::BoundaryServiceReachId;
+    use access_vocabulary::ExternalRead;
+    use access_vocabulary::FieldAccess;
+    use access_vocabulary::ObservationModel;
+    use layout_plans::{
+        IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    };
     use terminal_psi::{
         TerminalAccessFieldPlan, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
         TerminalIdentityIndex,
@@ -2605,7 +2607,7 @@ pub(crate) mod closed_conformance_wire {
 }
 pub(crate) mod declaration_wire {
     use access_vocabulary::AccessPermissions;
-use access_vocabulary::AtomicPermissions as DomainAtomicPermissions;
+    use access_vocabulary::AtomicPermissions as DomainAtomicPermissions;
 
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -2770,9 +2772,8 @@ use access_vocabulary::AtomicPermissions as DomainAtomicPermissions;
         }
         fn read(reader: &mut Reader<'_>) -> Result<Policy, CodecError> {
             let image = <super::super::wire_fields::Bytes as Field<_>>::read(reader)?;
-            let schema =
-                schema_reflection::SemanticSchemaGraph::from_runtime_image(&image)
-                    .map_err(CodecError::AccessPlan)?;
+            let schema = schema_reflection::SemanticSchemaGraph::from_runtime_image(&image)
+                .map_err(CodecError::AccessPlan)?;
             let issuance = <Optional<List<DomainCaller>> as Field<_>>::read(reader)?;
             let mut rules = || {
                 super::super::wire::decode_counted(reader, |reader| {
@@ -3488,7 +3489,10 @@ pub(crate) mod native_layout_wire {
         wire::{Reader, Writer, decode_bytes},
     };
     use application_identity::callback_declarations::PrivateCallbackSlotSelection;
-    use layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport};
+    use layout_plans::{
+        IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+        NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport,
+    };
     use terminal_psi::{NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization};
     type NativeReport = NativeLayoutPlanReport<PrivateCallbackSlotSelection>;
     type PrivateDemand = PrivateCallbackLayoutDemandReport<PrivateCallbackSlotSelection>;

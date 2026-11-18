@@ -26,10 +26,8 @@ use diagnostics::Diagnostic;
 use native_artifact::RequestedNativeArtifact;
 
 use self::object_emission::emit_realization_object;
+use native_program_planning::{AdmittedNativeRealization, admit_prepared_native_realization};
 use provider_admission::provider_admission::realization_error;
-use native_program_planning::{
-    AdmittedNativeRealization, admit_prepared_native_realization,
-};
 
 pub struct RealizedNativeProduct {
     pub artifact: RequestedNativeArtifact,
@@ -38,10 +36,11 @@ pub struct RealizedNativeProduct {
 
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
-    entry_settlement:
-        Option<native_program_planning::ValidatedNativeProgramEntrySettlement>,
+    entry_settlement: Option<native_program_planning::ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        native_runtime_provisions::NativeRuntimePlan<native_runtime_provisions::NativeForeignAdapterRequest>,
+        native_runtime_provisions::NativeRuntimePlan<
+            native_runtime_provisions::NativeForeignAdapterRequest,
+        >,
     >,
 }
 
@@ -74,10 +73,12 @@ fn admit_realization<'request>(
                 providers
                     .settlements
                     .iter()
-                    .map(|settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
-                        boundary: settlement.boundary,
-                        realization: settlement.realization.clone(),
-                    })
+                    .map(
+                        |settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
+                            boundary: settlement.boundary,
+                            realization: settlement.realization.clone(),
+                        },
+                    )
                     .collect(),
                 request.admission.providers.selected_provider_plans,
                 request.admission.providers.external_binding_rows,
@@ -131,7 +132,8 @@ pub(crate) fn realize_native_artifact(
     });
     let physical_originals = emitted.physical_originals;
     let emitted = emitted.object;
-    let image_request = emitted.object
+    let image_request = emitted
+        .object
         .settle_elf_loader(request.image_request.clone(), request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
     let artifact = {
@@ -167,23 +169,35 @@ pub(crate) fn admit_terminal_runtime(
     } = admit_realization(artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
     let borrowed_storage_layouts = native_program_planning::plan_runtime_storage(
-        input, request.admission.providers.target(), request.optimization_selections,
-        request.optimization_budget(), request.observation.counter(crate::observations::NativePipelineStage::AbstractOptimization),
-    ).map_err(|error| match error {
-        native_program_planning::NativeBodyPlanningError::AbstractOptimization(error) => realization_error("canonical abstract optimization", error),
-        native_program_planning::NativeBodyPlanningError::Target(error) => realization_error("runtime borrowed storage layout", error),
+        input,
+        request.admission.providers.target(),
+        request.optimization_selections,
+        request.optimization_budget(),
+        request
+            .observation
+            .counter(crate::observations::NativePipelineStage::AbstractOptimization),
+    )
+    .map_err(|error| match error {
+        native_program_planning::NativeBodyPlanningError::AbstractOptimization(error) => {
+            realization_error("canonical abstract optimization", error)
+        }
+        native_program_planning::NativeBodyPlanningError::Target(error) => {
+            realization_error("runtime borrowed storage layout", error)
+        }
     })?;
-    Ok(runtime_provisions.map(|provisions| {
-        provisions
-            .map_adapters(auxiliary_native::plan)
-            .map_adapters(auxiliary_native::encode)
-            .map_adapters(auxiliary_native::place)
-            .map_adapters(auxiliary_native::construct)
-            .map_adapters(auxiliary_native::emit)
-            .with_private_entry_ram(private_entry_ram)
-            .with_borrowed_storage_layouts(borrowed_storage_layouts)
-            .with_target_provider_proposals(request.target_provider_proposals.to_vec())
-    }).map(native_artifact::TerminalRuntimeProvisions::from_plan))
+    Ok(runtime_provisions
+        .map(|provisions| {
+            provisions
+                .map_adapters(auxiliary_native::plan)
+                .map_adapters(auxiliary_native::encode)
+                .map_adapters(auxiliary_native::place)
+                .map_adapters(auxiliary_native::construct)
+                .map_adapters(auxiliary_native::emit)
+                .with_private_entry_ram(private_entry_ram)
+                .with_borrowed_storage_layouts(borrowed_storage_layouts)
+                .with_target_provider_proposals(request.target_provider_proposals.to_vec())
+        })
+        .map(native_artifact::TerminalRuntimeProvisions::from_plan))
 }
 
 pub(crate) fn selected_physical_pipeline_failed(

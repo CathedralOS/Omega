@@ -17,31 +17,36 @@
 //! Package capture keeps its original declaration and complete argument graph;
 //! receiving it must reconstruct the same canonical closed header.
 
-use diagnostics::Diagnostic;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::CapturedNativeIntent;
 use crate::declaration_selection::ExecutedNativeBinding;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
-use semantic_vocabulary::PackageKeyIdentity;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{
     ProductDeclarationLookup, ProductRequestAuthors, native_binding_formation,
 };
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub use provider_choices::NativeBindingSelection;
 
 /// Publication needs the same boundary and closed arguments that Build
 /// selected. The evaluation receipt separately authenticates the locator.
-pub fn require_canonical_requirement(selection: &NativeBindingSelection, typed: &TypedTrees) -> Result<(), String> {
+pub fn require_canonical_requirement(
+    selection: &NativeBindingSelection,
+    typed: &TypedTrees,
+) -> Result<(), String> {
     let (subject, requirement) = requirement_owner(typed, selection.requirement)?;
     if subject != selection.subject {
         return Err("native binding changes its declaring boundary trait".into());
     }
     if let Some(application) = selection.application {
-        let closed = typed.product_requirement_application(super::provider_declarations::source_application(application))?;
+        let closed = typed.product_requirement_application(
+            super::provider_declarations::source_application(application),
+        )?;
         if closed.declaring_trait != subject || closed.signature.symbol != requirement {
             return Err("native binding application selects another closed requirement".into());
         }
@@ -348,7 +353,8 @@ pub fn collect_captured(
             ))]
         };
         let requirement_loaded = program.symbols.source_files().any(|file| {
-            file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+            file.dependency_scope
+                == declaration_contracts::source_identity::DependencyScope::Product
                 && program
                     .symbols
                     .source_map()
@@ -359,23 +365,24 @@ pub fn collect_captured(
             resolved.push(None);
             continue;
         }
-        let selected = crate::source_symbols::rejoin_declaration(&declaration
-            .requirement, &program.symbols,
-                program
-                    .traits()
-                    .iter()
-                    .filter(|owner| owner.is_boundary)
-                    .flat_map(|owner| {
-                        program
-                            .trait_machine_signatures(owner)
-                            .iter()
-                            .filter(|signature| {
-                                program.symbols.symbol_source_is_selected(signature.symbol)
-                            })
-                            .map(|signature| signature.symbol)
-                    }),
-            )
-            .map_err(refuse)?;
+        let selected = crate::source_symbols::rejoin_declaration(
+            &declaration.requirement,
+            &program.symbols,
+            program
+                .traits()
+                .iter()
+                .filter(|owner| owner.is_boundary)
+                .flat_map(|owner| {
+                    program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .filter(|signature| {
+                            program.symbols.symbol_source_is_selected(signature.symbol)
+                        })
+                        .map(|signature| signature.symbol)
+                }),
+        )
+        .map_err(refuse)?;
         let (owner, _) = program
             .trait_machine_signature(selected)
             .ok_or_else(|| refuse("lost its exact Product signature"))?;
@@ -406,7 +413,8 @@ pub fn collect_captured(
         let public_toolchain_product = dependency.is_none()
             && owner.is_public
             && source.origin == source_admission::SourceOrigin::Toolchain
-            && source.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product;
+            && source.dependency_scope
+                == declaration_contracts::source_identity::DependencyScope::Product;
         if !(program.symbols.symbol_product_package_identity(selected) == Some(target)
             || public_toolchain_product)
             || dependency.is_some() && !owner.is_public

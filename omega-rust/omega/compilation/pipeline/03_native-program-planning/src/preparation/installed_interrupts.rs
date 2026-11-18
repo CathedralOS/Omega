@@ -42,9 +42,8 @@ pub(crate) fn authorize_target(
     cohort: &AdmittedInstalledInterruptCohort,
 ) -> Result<(), crate::preparation::LegalizationError> {
     use target_operations::{InstallationCallRole, TargetUnitOperation};
-    let fail = |operation, reason| crate::preparation::LegalizationError::InstalledInterruptAssociation {
-        operation,
-        reason,
+    let fail = |operation, reason| {
+        crate::preparation::LegalizationError::InstalledInterruptAssociation { operation, reason }
     };
     if cohort.psi() != target.psi {
         return Err(fail(
@@ -123,9 +122,8 @@ pub(crate) fn validate_target(
     abstract_plan: &abstract_operations::AbstractOperationPlan,
 ) -> Result<(), crate::preparation::LegalizationError> {
     authorize_target(target, module, cohort)?;
-    let fail = |operation, reason| crate::preparation::LegalizationError::InstalledInterruptAssociation {
-        operation,
-        reason,
+    let fail = |operation, reason| {
+        crate::preparation::LegalizationError::InstalledInterruptAssociation { operation, reason }
     };
     let sources = PreparedInstallationSources::new(abstract_plan);
     for (machine, row) in target.functions.iter().flat_map(|function| {

@@ -40,8 +40,11 @@ owes the definedness itself ("Path facts that disprove the predicate remove
 the route", "Policy operators"), and an unconditional route owes nothing.
 */
 
-use semantic_vocabulary::{BlockId, CrashCause, InvocationSite, MachineId, ObligationId, OperationId, Proposition, ScalarType, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, CrashCause, InvocationSite, MachineId, ObligationId, OperationId, Proposition,
+    ScalarType, ValueId,
+};
 use terminal_check_tables::obligations::CrashSite;
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 use terminal_psi::{
@@ -197,7 +200,8 @@ fn call_site(
     let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
         return Err(refuse());
     };
-    let call = crate::checking::call_contracts::invocation(module, lowered, tables, invocation, row)?;
+    let call =
+        crate::checking::call_contracts::invocation(module, lowered, tables, invocation, row)?;
     let guard = match call.inputs.crash_continuations {
         Some(routes) => route(routes, cause).ok_or_else(refuse)?,
         None => {

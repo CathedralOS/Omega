@@ -87,8 +87,6 @@ fn a_declared_constant_nobody_reads_requests_no_evaluation() {
 
 #[test]
 fn callable_signatures_do_not_hide_pending_extent_work() {
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
     use crate::source_state::{
         TypedTrees,
         callable_values::RuntimeCallableContract,
@@ -97,6 +95,8 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
         signature::{StateParameter, StateSignature},
         types::{FixedArrayLength, TypeReferenceNode},
     };
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     let mut symbols = SymbolTableBuilder::default();
     let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -223,12 +223,13 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
         .map(|row| row.request)
         .collect();
     assert!(
-        requests.contains(&crate::source_state::deferred_refusals::DeferredRequest::ArrayExtentEvaluation)
+        requests.contains(
+            &crate::source_state::deferred_refusals::DeferredRequest::ArrayExtentEvaluation
+        )
     );
-    assert!(
-        requests
-            .contains(&crate::source_state::deferred_refusals::DeferredRequest::TypeExpressionEvaluation)
-    );
+    assert!(requests.contains(
+        &crate::source_state::deferred_refusals::DeferredRequest::TypeExpressionEvaluation
+    ));
     assert!(pending.activate_sources(&deferred).is_ok());
 
     let closed_array = typed
@@ -331,8 +332,9 @@ machine main() {}
         let tokens = crate::evaluation::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("existing source lexes");
-        let syntax = crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
-            .expect("existing source parses");
+        let syntax =
+            crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("existing source parses");
         let original = syntax.clone();
         let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
             syntax_trees: syntax,
@@ -344,18 +346,15 @@ machine main() {}
         .expect("ordinary source is retained until requests are typed");
         let (syntax, pending) = evaluated.into_syntax_and_pre_check();
         assert!(syntax == original);
-        let resolved = crate::resolution::resolve(
-            crate::resolution::ResolutionRequest {
-                syntax,
-                sources: Some(sources),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            },
-        )
+        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
         .expect("source resolves through the ordinary resolver");
-        let mut typed =
-            crate::typing::lower_symbol_resolved_trees(&resolved)
-                .expect("source reaches the ordinary typed frontier");
+        let mut typed = crate::typing::lower_symbol_resolved_trees(&resolved)
+            .expect("source reaches the ordinary typed frontier");
         assert!(typed.machines().len() >= 2);
         let before = typed.clone();
         let record = pending
@@ -444,8 +443,9 @@ fn typed_base_scoped(
         let tokens = crate::evaluation::frontend_fixture::Lexer::new(text)
             .tokenize()
             .expect("source lexes");
-        let page = crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
-            .expect("source parses");
+        let page =
+            crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("source parses");
         match &mut syntax {
             Some(syntax) => syntax.extend_from(&page),
             None => syntax = Some(page),
@@ -461,18 +461,15 @@ fn typed_base_scoped(
     })
     .expect("source is retained until its requests are typed");
     let (syntax, pending) = evaluated.into_syntax_and_pre_check();
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(std::sync::Arc::clone(&sources)),
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        },
-    )
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::clone(&sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
     .expect("sources resolve");
-    let base =
-        crate::typing::lower_symbol_resolved_trees_to_seeded_base(resolved)
-            .expect("sources reach the typed frontier");
+    let base = crate::typing::lower_symbol_resolved_trees_to_seeded_base(resolved)
+        .expect("sources reach the typed frontier");
     (sources, identities, base, pending)
 }
 
@@ -1069,7 +1066,8 @@ fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
         .expect("the actual constant invocation is accepted and evaluated");
     crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
     assert_eq!(recorded.accounting.receipts().len(), 1);
-    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) =
+        &recorded.accounting.receipts()[0]
     else {
         panic!("a source job retains its actual invocation receipt")
     };
@@ -1105,7 +1103,7 @@ fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
 #[test]
 fn a_computed_sum_constant_keeps_its_exact_case_and_payload_in_the_receipt() {
     use application_identity::const_value::CanonicalConstIdentity;
-use application_identity::const_value::DecodedCanonicalConstValue;
+    use application_identity::const_value::DecodedCanonicalConstValue;
 
     let (_, _, base, pending) = constant_base(&[(
         "main.omg",
@@ -1179,7 +1177,8 @@ use application_identity::const_value::DecodedCanonicalConstValue;
     materialized.case_symbol = Some(wrong_case.symbol);
     materialized.case_name = Some(wrong_case.name.clone());
     assert_eq!(
-        crate::evaluation::validate_constant_evaluations(&altered, &recorded.accounting).unwrap_err(),
+        crate::evaluation::validate_constant_evaluations(&altered, &recorded.accounting)
+            .unwrap_err(),
         "constant materialization differs from its invocation outcome"
     );
 
@@ -1206,7 +1205,8 @@ use application_identity::const_value::DecodedCanonicalConstValue;
             .get_mut(handle)
             .evaluated_value = Some(encoding.into());
         assert_eq!(
-            crate::evaluation::validate_constant_evaluations(&altered, &recorded.accounting).unwrap_err(),
+            crate::evaluation::validate_constant_evaluations(&altered, &recorded.accounting)
+                .unwrap_err(),
             "constant value differs from its accepted invocation outcome"
         );
     }
@@ -1259,7 +1259,8 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
         .iter()
         .find(|row| program.symbols.name(row.symbol) == "LAST")
         .unwrap();
-    let value = crate::source_state::canonical_const_declaration_value(&program, last.symbol).unwrap();
+    let value =
+        crate::source_state::canonical_const_declaration_value(&program, last.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
         Some(application_identity::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == bignum::BigInt::from(5)
@@ -1269,7 +1270,8 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
         .iter()
         .find(|row| program.symbols.name(row.symbol) == "EXTRA")
         .unwrap();
-    let value = crate::source_state::canonical_const_declaration_value(&program, extra.symbol).unwrap();
+    let value =
+        crate::source_state::canonical_const_declaration_value(&program, extra.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
         Some(application_identity::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == bignum::BigInt::from(6)
@@ -1296,7 +1298,8 @@ fn a_computed_record_array_receipt_checks_each_named_use() {
     crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
 
     let declaration = &program.const_declarations()[0];
-    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) =
+        &recorded.accounting.receipts()[0]
     else {
         panic!("the constant must execute its original initializer");
     };
@@ -1333,7 +1336,8 @@ fn a_computed_record_array_receipt_checks_each_named_use() {
     let wrong = program.expression_table.expression(first).clone();
     *program.expression_table.expression_mut(second) = wrong;
     assert_eq!(
-        crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting).unwrap_err(),
+        crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting)
+            .unwrap_err(),
         "constant materialization differs from its invocation outcome"
     );
 }
@@ -1358,7 +1362,8 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
         .collect::<Vec<_>>();
     let mut changed_use = program.clone();
     let first = program.const_declarations()[0].symbol;
-    let crate::evaluation::PureEvaluationRecord::Invocation(first_receipt) = &recorded.accounting.receipts()[0]
+    let crate::evaluation::PureEvaluationRecord::Invocation(first_receipt) =
+        &recorded.accounting.receipts()[0]
     else {
         panic!("actual invocation")
     };
@@ -1376,7 +1381,10 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
         .expect("the source retains its named use");
     *changed_use.expression_table.expression_mut(expression) =
         crate::source_state::expression::ExpressionNode::Boolean(false);
-    assert!(crate::evaluation::validate_constant_evaluations(&changed_use, &recorded.accounting).is_err());
+    assert!(
+        crate::evaluation::validate_constant_evaluations(&changed_use, &recorded.accounting)
+            .is_err()
+    );
     let mut changed = program.clone();
     changed
         .tables
@@ -1581,10 +1589,11 @@ fn constant_snapshots_preserve_boolean_and_unsigned_high_bits() {
     let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
     crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
     for constant in program.const_declarations() {
-        let value = crate::source_state::canonical_const_declaration_value(&program, constant.symbol)
-            .unwrap()
-            .decode_encoding()
-            .unwrap();
+        let value =
+            crate::source_state::canonical_const_declaration_value(&program, constant.symbol)
+                .unwrap()
+                .decode_encoding()
+                .unwrap();
         match program.symbols.name(constant.symbol) {
             "FLAG" => assert_eq!(
                 value,
@@ -1725,8 +1734,13 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
             supplies: &[],
         };
         let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
-        crate::evaluation::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
-            .unwrap();
+        crate::evaluation::evaluate_constant_initializers(
+            &mut program,
+            request,
+            None,
+            &mut accounting,
+        )
+        .unwrap();
         assert!(accounting.receipts().is_empty());
         assert!(program.const_declarations()[0].evaluated_value.is_none());
         crate::evaluation::validate_constant_evaluations(&program, &accounting).unwrap();
@@ -1779,7 +1793,8 @@ fn a_constant_receipt_authenticates_ordered_argument_storage() {
         let mut program = base.typed().clone();
         let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
         crate::evaluation::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
-        let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+        let crate::evaluation::PureEvaluationRecord::Invocation(receipt) =
+            &recorded.accounting.receipts()[0]
         else {
             panic!("actual invocation")
         };
@@ -1867,7 +1882,8 @@ fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
     .unwrap_err();
     assert!(diagnostics::join_messages(&error).contains("requires"));
     assert_eq!(accounting.receipts().len(), 1);
-    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0]
+    else {
         panic!("actual invocation")
     };
     assert!(receipt.usage().total_units() > 0);
@@ -1927,14 +1943,16 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
         "{}",
         diagnostics::join_messages(&error)
     );
-    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+    let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0]
+    else {
         panic!("actual invocation")
     };
     assert_eq!(
         receipt.usage().total_units(),
         crate::evaluation::evaluation_accounting::PURE_PSI_WORK_BUDGET,
     );
-    let crate::evaluation::PureTerminalEvaluationOutcome::Failed { reason } = receipt.outcome() else {
+    let crate::evaluation::PureTerminalEvaluationOutcome::Failed { reason } = receipt.outcome()
+    else {
         panic!("exhausted invocation returned a value")
     };
     assert!(reason.contains("BudgetExhausted(Work)"), "{reason}");
@@ -2296,17 +2314,29 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
                 supplies: &[],
             };
             let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
-            crate::evaluation::evaluate_const_arguments(&mut program, request, None, None, &mut accounting)
-                .unwrap_or_else(|error| panic!("{argument}, {root}: {error:?}"));
-            crate::evaluation::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
-                .unwrap();
+            crate::evaluation::evaluate_const_arguments(
+                &mut program,
+                request,
+                None,
+                None,
+                &mut accounting,
+            )
+            .unwrap_or_else(|error| panic!("{argument}, {root}: {error:?}"));
+            crate::evaluation::evaluate_constant_initializers(
+                &mut program,
+                request,
+                None,
+                &mut accounting,
+            )
+            .unwrap();
             assert_eq!(
                 accounting.receipts().len(),
                 expected_receipts,
                 "{argument}, {root}"
             );
             accounting.validate_charges().unwrap();
-            let prepared = crate::evaluation::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+            let prepared =
+                crate::evaluation::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
             let invoke = |arguments: &[BuildTimeValue]| {
                 prepared
                     .entry(entry, entry, arguments)
@@ -2437,7 +2467,8 @@ machine read() -> u64 {
     assert!(schema.encoding.is_none());
     let schema = schema.symbol;
     pending.evaluate(&mut program).unwrap();
-    crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(Vec::new(), 0, &mut program).unwrap();
+    crate::evaluation::PreCheckEvaluation::evaluate_extension_or_defer(Vec::new(), 0, &mut program)
+        .unwrap();
     let prepared = crate::evaluation::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
     let target = || crate::evaluation::InvocationTarget {
         name: None,
@@ -2459,7 +2490,8 @@ machine read() -> u64 {
     }
 
     program.record_wire_schema_plan(schema, [], [], false);
-    let error = crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut program).unwrap_err();
+    let error =
+        crate::evaluation::PreCheckEvaluation::defer_declared_requests(&mut program).unwrap_err();
     assert_eq!(
         error[0].message,
         "no product route yet: source wire-schema evaluation"

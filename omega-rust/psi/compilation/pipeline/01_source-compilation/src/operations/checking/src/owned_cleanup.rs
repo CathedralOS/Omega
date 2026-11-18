@@ -1,8 +1,8 @@
 //! Generated cleanup entries use ordinary invocation and requirement rows.
 //! Only the source producer pass mints them; discharge checks the exact rows.
 
+use arena::IdTable;
 use semantic_vocabulary::{EdgeId, InvocationSite, MachineId, StructuralTypeId};
-use arena::{IdTable};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::program::Elaboration;

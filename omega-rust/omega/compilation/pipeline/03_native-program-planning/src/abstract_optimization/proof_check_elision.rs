@@ -271,7 +271,9 @@ pub(crate) mod proof_certified_dead_scalar_elimination {
     use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
     use semantic_vocabulary::ScalarType;
 
-    use crate::abstract_optimization::rules::node_elision::{DeadScalarShape, propose_proof_certified_dead_scalar_nodes};
+    use crate::abstract_optimization::rules::node_elision::{
+        DeadScalarShape, propose_proof_certified_dead_scalar_nodes,
+    };
     use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
     psi_rule_contract!(

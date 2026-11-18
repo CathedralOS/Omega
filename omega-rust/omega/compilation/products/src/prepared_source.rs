@@ -7,11 +7,11 @@
 
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use source_compiler::SourcePreparation;
 use package_compilation::source_assembly::{
     DeferredProductSources, ImmutableSourceParseCheckpoint,
 };
 use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceAssemblyInputs};
+use source_compiler::SourcePreparation;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -26,7 +26,8 @@ pub struct TypedCompilationFrontier {
     pub product_sources: Option<DeferredProductCompilation>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub source_file_count: usize,
-    pub generated_source_custody: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
+    pub generated_source_custody:
+        Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source_compiler::source_inputs::SourceMap>,
 }
 

@@ -5,8 +5,8 @@
 
 use std::sync::Arc;
 
-use crate::source_inputs::{SourceMap};
-use source_text::{SourceSpan};
+use crate::source_inputs::SourceMap;
+use source_text::SourceSpan;
 use terminal_psi::{ProofCallableAssociation, ProofDeclarationId, TargetMachineCallable};
 
 use super::PreparedBuildMachineEntry;
@@ -157,8 +157,7 @@ mod tests {
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::clone(&sources));
         let resolved = crate::resolution::resolve(request).unwrap();
-        let typed =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         (typed, sources)
     }
 
@@ -191,9 +190,13 @@ mod tests {
         };
         let mut denied = typed.clone();
         let mut accounting = SourceCompletionAccounting::default();
-        let error =
-            crate::evaluation::evaluate_constant_initializers(&mut denied, compilation, None, &mut accounting)
-                .unwrap_err();
+        let error = crate::evaluation::evaluate_constant_initializers(
+            &mut denied,
+            compilation,
+            None,
+            &mut accounting,
+        )
+        .unwrap_err();
         assert!(diagnostics::join_messages(&error).contains("reconciled package custody"));
         assert!(accounting.receipts().is_empty());
 
@@ -209,7 +212,9 @@ mod tests {
         .unwrap();
         crate::evaluation::validate_constant_evaluations(&admitted, &accounting).unwrap();
         assert_eq!(accounting.receipts().len(), 1);
-        let crate::evaluation::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+        let crate::evaluation::PureEvaluationRecord::Invocation(receipt) =
+            &accounting.receipts()[0]
+        else {
             panic!("the actual interpreter invocation is retained")
         };
         assert_eq!(

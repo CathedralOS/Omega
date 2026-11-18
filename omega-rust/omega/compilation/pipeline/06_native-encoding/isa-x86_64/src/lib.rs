@@ -41,8 +41,8 @@ pub(crate) use ::wire::codec_bytes;
 
 pub use target_x86_64::x86_64_model_specific_register_state;
 mod frame_protocol;
-pub use target_x86_64::decode_x86_64_generated_entry;
 pub use target_x86_64::ORDINARY_DIRECT_CALL_BYTES;
+pub use target_x86_64::decode_x86_64_generated_entry;
 pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
 pub const INTERRUPT_RETURN_BYTES: [u8; 2] = [0x48, 0xcf];
 pub const CLEAR_DIRECTION_FLAG_BYTES: [u8; 1] = [0xfc];
@@ -52,7 +52,6 @@ mod ieee_float;
 mod machine_effects;
 mod post_handoff_writer;
 
-use target_x86_64::register_model;
 pub use register_model::X86_64_COPY_BYTES;
 pub use register_model::X86_64_DIVIDE_I64;
 pub use register_model::X86_64_DIVIDE_U64;
@@ -103,6 +102,7 @@ pub use register_model::{
 pub use register_model::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
 };
+use target_x86_64::register_model;
 mod selected_form_encoding;
 pub use register_model::{X86_64_RESTORE_FLOATING_CONTROL, X86_64_SAVE_FLOATING_CONTROL};
 pub use selected_form_encoding::system_call::{
@@ -110,20 +110,17 @@ pub use selected_form_encoding::system_call::{
 };
 
 pub use frame_protocol::{
-    X86_64FrameProtocolPlan, plan_system_v_amd64_frame_protocol, encode_planned_system_v_amd64_frame_protocol,
-    X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
-    encode_system_v_amd64_frame_protocol, encode_x86_64_aligned_frame_address,
-    encode_x86_64_frame_address, encode_x86_64_frame_memory, encode_x86_64_integer_constant,
-    encode_x86_64_pointer_memory,
+    X86_64FrameProtocolError, X86_64FrameProtocolPlan, X86_64FrameSlot, X86_64StackProbe,
+    encode_planned_system_v_amd64_frame_protocol, encode_system_v_amd64_frame_protocol,
+    encode_x86_64_aligned_frame_address, encode_x86_64_frame_address, encode_x86_64_frame_memory,
+    encode_x86_64_integer_constant, encode_x86_64_pointer_memory,
+    plan_system_v_amd64_frame_protocol,
 };
 pub use ieee_float::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
     encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
     encode_store_mxcsr_constant_rsp_displacement,
-};
-pub use target_x86_64::import_thunk::{
-    X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk, x86_64_import_thunk_footprint,
 };
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
@@ -135,7 +132,6 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
-pub use target_x86_64::x86_64_preservation_storage_catalog;
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
 pub use register_model::x86_64_microsoft_register_call_keys;
@@ -174,6 +170,10 @@ pub use selected_form_encoding::hosted_read_byte::{
 pub use selected_form_encoding::hosted_write_byte::decode_x86_64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::materialization::mov_r32_imm32::X86_64MovR32Imm32I64MaterializationError;
 pub use selected_form_encoding::materialization::mov_r64_imm32_sign_extended::X86_64MovR64Imm32SignExtendedI64MaterializationError;
+pub use target_x86_64::import_thunk::{
+    X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk, x86_64_import_thunk_footprint,
+};
+pub use target_x86_64::x86_64_preservation_storage_catalog;
 
 pub use hosted_kernel::{
     encode_darwin_read_byte_to_stack, encode_hosted_exit_process_i32_for_target,

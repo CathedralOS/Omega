@@ -3,21 +3,26 @@
 // of each obligation. A discharged verdict is re-decided here by the kernel
 // from the evidence alone, and a tampered certificate must be refused.
 
-use proof_admission::{
-    AcceptedFactRoute, EvidenceRoute, MathematicalCoreDecision, Obligation, ObligationClass,
-    verify_obligation,
-};
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType};
-use arena::{IdTable, NumericId};
-use terminal_check_tables::obligations::ObligationKind;
-use terminal_check_tables::values::Justification;
-use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::lowering::{
     Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
     SourceOrigin, Statement, Strict, Target, Termination, Unpositioned, ValueType,
 };
+use arena::{IdTable, NumericId};
+use proof_admission::{
+    AcceptedFactRoute, EvidenceRoute, MathematicalCoreDecision, Obligation, ObligationClass,
+    verify_obligation,
+};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition,
+    PropositionContext, ScalarTerm, ScalarType,
+};
+use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::values::Justification;
+use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::checking::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
+use crate::checking::{
+    Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge,
+};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod address_bounds;
@@ -245,12 +250,8 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
             ranking: None,
         });
     }
-    let mut elaboration = crate::lowering::lower_bodies(
-        id(1),
-        &bodies,
-        &signatures,
-        &IdTable::default(),
-    )?;
+    let mut elaboration =
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())?;
     declare_body_models(&mut elaboration, &signatures);
     Ok(elaboration)
 }
@@ -1240,7 +1241,8 @@ fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() 
         source_span: None,
         detail: String::from("test"),
     };
-    let authored = source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
+    let authored =
+        source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
     for source_span in [None, Some(authored)] {
         let unsupported = refused(RefusalReason::Unsupported).with_source_span(source_span);
         assert!(matches!(
@@ -1298,10 +1300,12 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
         ScalarTerm::boolean(false),
     )));
     // One uncovered part leaves the whole goal without a rule.
-    assert!(!crate::checking::has_rules_for(&Proposition::Conjunction(vec![
-        at_most(1, 10),
-        Proposition::Equal(flag, ScalarTerm::boolean(true)),
-    ])));
+    assert!(!crate::checking::has_rules_for(&Proposition::Conjunction(
+        vec![
+            at_most(1, 10),
+            Proposition::Equal(flag, ScalarTerm::boolean(true)),
+        ]
+    )));
     // A clause may state a Wrapping or Saturating operation directly
     // (`requires left +% right == 3`). The rules say nothing of what one
     // computes, at any depth of the compared term, so a goal over one has no
@@ -1359,12 +1363,12 @@ fn an_unproved_goal_with_rules_rejects_even_beside_one_without() {
 // A field read is a fresh value; the tests below check when it is provably
 // the value its place holds.
 
+use crate::lowering::{RecordField, RecordType};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{ExactPlaceId, MachineTables};
 use terminal_psi::{Operation, OperationKind, OperationResult};
-use crate::lowering::{RecordField, RecordType};
 
 fn point() -> ValueType {
     ValueType::record(id(1))
@@ -1652,13 +1656,11 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "EmptyCase".into(),
-        shape: crate::lowering::StorageShape::Sum(vec![
-            crate::lowering::CaseType {
-                id: id(1),
-                identity: "Empty".into(),
-                fields: Vec::new(),
-            },
-        ]),
+        shape: crate::lowering::StorageShape::Sum(vec![crate::lowering::CaseType {
+            id: id(1),
+            identity: "Empty".into(),
+            fields: Vec::new(),
+        }]),
         requires: Vec::new(),
     });
     let caller = |again| Shaped {
@@ -2042,9 +2044,7 @@ fn run_places(machines: Vec<Shaped>) -> (crate::lowering::Elaboration, Discharge
 
 /// Every field read of machine 1, in block and operation order, as the
 /// operation and its result value.
-fn field_reads(
-    elaboration: &crate::lowering::Elaboration,
-) -> Vec<(OperationId, ValueId)> {
+fn field_reads(elaboration: &crate::lowering::Elaboration) -> Vec<(OperationId, ValueId)> {
     elaboration.module.machines[0]
         .blocks
         .iter()
@@ -3323,8 +3323,8 @@ fn every_use_of_storage_has_exactly_one_verdict() {
 // case 3 with field 6, and `Empty` case 4. `Holder { shape: Shape }` is type
 // 3 with field 7.
 
-use terminal_psi::Terminator;
 use crate::lowering::CaseType;
+use terminal_psi::Terminator;
 
 const DOT: usize = 0;
 const PAIR: usize = 1;
@@ -3592,7 +3592,10 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let of = |place| crate::checking::places::lineage(id(1), &places, place).unwrap();
     let may = |left, right| {
         let forward = crate::checking::places::overlap(&of(left), &of(right));
-        assert_eq!(forward, crate::checking::places::overlap(&of(right), &of(left)));
+        assert_eq!(
+            forward,
+            crate::checking::places::overlap(&of(right), &of(left))
+        );
         forward
     };
     assert!(may(at, l));
@@ -4002,10 +4005,7 @@ fn number(value: u128) -> ScalarTerm {
 
 fn self_is(case: u64) -> Proposition {
     Proposition::StructuralCaseMembership {
-        subject: StructuralCaseSubject::new(
-            crate::lowering::self_place().unwrap(),
-            Vec::new(),
-        ),
+        subject: StructuralCaseSubject::new(crate::lowering::self_place().unwrap(), Vec::new()),
         case: id(case),
     }
 }
@@ -5180,10 +5180,7 @@ fn windows(result: &Discharge) -> &[WindowUse] {
 }
 
 /// The operation a `DataDomain` obligation of machine 1 names.
-fn owing(
-    elaboration: &crate::lowering::Elaboration,
-    obligation: ObligationId,
-) -> OperationId {
+fn owing(elaboration: &crate::lowering::Elaboration, obligation: ObligationId) -> OperationId {
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let ObligationKind::DataDomain { operation, .. } =
         tables.obligations.get(obligation).unwrap().kind
@@ -5599,10 +5596,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Both"),
-        shape: crate::lowering::StorageShape::Record(vec![
-            field(10, "a"),
-            field(11, "b"),
-        ]),
+        shape: crate::lowering::StorageShape::Record(vec![field(10, "a"), field(11, "b")]),
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
@@ -5610,10 +5604,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Half"),
-        shape: crate::lowering::StorageShape::Record(vec![
-            field(12, "a"),
-            field(13, "b"),
-        ]),
+        shape: crate::lowering::StorageShape::Record(vec![field(12, "a"), field(13, "b")]),
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
@@ -5621,10 +5612,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Limits"),
-        shape: crate::lowering::StorageShape::Record(vec![
-            field(14, "a"),
-            field(15, "b"),
-        ]),
+        shape: crate::lowering::StorageShape::Record(vec![field(14, "a"), field(15, "b")]),
         requires: vec![
             Proposition::LessOrEqual(field_of_self(14), number(5)),
             at_least_one(15),
@@ -6350,7 +6338,9 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::checking::ProofSearchActivity;
-    use crate::checking::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
+    use crate::checking::{
+        Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization,
+    };
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6457,14 +6447,8 @@ mod generic_bodies {
                 ranking: None,
             });
         }
-        crate::lowering::lower_generic(
-            id(1),
-            &bodies,
-            &signatures,
-            &IdTable::default(),
-            &[id(2)],
-        )
-        .unwrap()
+        crate::lowering::lower_generic(id(1), &bodies, &signatures, &IdTable::default(), &[id(2)])
+            .unwrap()
     }
 
     /// The generic body checked once: every obligation of `advance` that
@@ -6536,7 +6520,8 @@ mod generic_bodies {
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
             let mut activity = crate::checking::ProofSearchActivity::default();
             let before = activity.started();
-            let verdicts = crate::checking::verdict::judge_compilation_with_activity(prepared, &mut activity);
+            let verdicts =
+                crate::checking::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6566,7 +6551,8 @@ mod generic_bodies {
             source_span: None,
             detail: "refinement unavailable".to_owned(),
         };
-        let verdicts = crate::checking::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+        let verdicts =
+            crate::checking::judge_compilation(prepared_refinement(2, double(), Err(refused)));
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(
             &verdicts[2],
@@ -7064,8 +7050,7 @@ fn crashing_below_ten(
         ranking: None,
     });
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
@@ -7126,9 +7111,7 @@ fn differs_from(value: u128) -> Proposition {
 
 /// `requires` as given, `when a == 0 -> crash Trap; return 0`, publishing no
 /// route (`crashes none`).
-fn crashing_at_zero(
-    requires: Vec<Proposition>,
-) -> (crate::lowering::Elaboration, Discharge) {
+fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration, Discharge) {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
@@ -7157,8 +7140,7 @@ fn crashing_at_zero(
         ranking: None,
     });
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
@@ -7189,9 +7171,7 @@ fn a_requirement_the_guard_does_not_contradict_leaves_the_crash_site_uncovered()
 
 /// `caller(a) requires .. crashes none { return callee(a) }` and
 /// `callee(a) crashes Trap a == 0 { when a == 0 -> crash Trap; return a }`.
-fn calling_a_zero_route(
-    requires: Vec<Proposition>,
-) -> (crate::lowering::Elaboration, Discharge) {
+fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elaboration, Discharge) {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
@@ -7243,8 +7223,7 @@ fn calling_a_zero_route(
         ranking: None,
     });
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
@@ -7365,13 +7344,9 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             termination: crate::lowering::Termination::Silent,
             ranking: None,
         });
-        let mut elaboration = crate::lowering::lower_bodies(
-            id(1),
-            &bodies,
-            &signatures,
-            &IdTable::default(),
-        )
-        .unwrap();
+        let mut elaboration =
+            crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+                .unwrap();
         let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result)
     };

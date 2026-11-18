@@ -1,12 +1,12 @@
 //! Run with `mbx run -p symbol-resolved-trees --example diagnostic_name_allocations`.
 //! A single-thread process excludes allocations by the Rust test harness.
 
+use source_compiler::source_resolved::name::DiagnosticName;
 use source_text::SourceSpan;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use source_compiler::source_resolved::name::DiagnosticName;
 
 struct CountAllocations;
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);

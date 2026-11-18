@@ -84,8 +84,10 @@ pub(crate) mod accessor_scalar_access {
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: demand.scalar,
-                    shape: crate::target_lowering::scalar_abi::fixed_native_scalar_shape(demand.scalar)
-                        .ok_or_else(|| invalid!())?,
+                    shape: crate::target_lowering::scalar_abi::fixed_native_scalar_shape(
+                        demand.scalar,
+                    )
+                    .ok_or_else(|| invalid!())?,
                 };
                 insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home)?;
                 Some(home)
@@ -242,7 +244,8 @@ pub(crate) mod ieee_float_arithmetic {
         if sources.iter().any(|source| source.scalar_type() != operand) {
             return Err(LoweringError::ValueTypeMismatch(result.value));
         }
-        let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(scalar).ok_or(mismatch)?;
+        let shape = crate::target_lowering::scalar_abi::fixed_native_scalar_shape(scalar)
+            .ok_or(mismatch)?;
         let result_home = TargetUnitScalarHomeRequirement {
             defining_operation: *psi_operation,
             source_value: result.value,
@@ -1529,14 +1532,18 @@ pub(crate) mod scalar_sources {
                     .map(|parameter| parameter.structural_type)
             })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        let regions =
-            crate::target_lowering::structural_layout::reference_projection_regions(root, &argument.path, types)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        let (_, _, _, leaf_indices) = crate::target_lowering::structural_layout::runtime_storage_projection(
-            regions.root,
-            regions.path,
+        let regions = crate::target_lowering::structural_layout::reference_projection_regions(
+            root,
+            &argument.path,
             types,
-        )?;
+        )
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let (_, _, _, leaf_indices) =
+            crate::target_lowering::structural_layout::runtime_storage_projection(
+                regions.root,
+                regions.path,
+                types,
+            )?;
         runtime_indices(
             regions.selector_runs(leaf_indices),
             function,

@@ -8,7 +8,10 @@ pub(super) fn judged(text: &str, select_first: bool) -> RouteVerdict {
     judged_typed(&typed, select_first)
 }
 
-pub(super) fn judged_typed(typed: &crate::source_state::TypedTrees, select_first: bool) -> RouteVerdict {
+pub(super) fn judged_typed(
+    typed: &crate::source_state::TypedTrees,
+    select_first: bool,
+) -> RouteVerdict {
     judged_typed_result(typed, select_first).unwrap()
 }
 

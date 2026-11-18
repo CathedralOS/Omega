@@ -276,8 +276,7 @@ impl BuildFilesystemRuntime {
             None,
         )?;
         if flags != 0 {
-            let wants_write =
-                open_flags::wants_write(flags) || flags & 3 != 0;
+            let wants_write = open_flags::wants_write(flags) || flags & 3 != 0;
             if wants_write {
                 let attempt = &mut self.effects.attempts[ordinal];
                 attempt.authorized_paths.clear();

@@ -18,10 +18,10 @@ use crate::{
     AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptScope,
     AdmittedInterruptContextAnchor,
 };
+use arena::IdSet;
 use language_core::inline_assembly::AsmGlobalDescriptorTableOperation;
 use language_core::static_interrupts::StaticInterruptOperation;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
-use arena::{IdSet};
 use terminal_psi::{
     OperationKind, OperationResult, RegisterOperation, StructuralAccess, TerminalModule,
 };

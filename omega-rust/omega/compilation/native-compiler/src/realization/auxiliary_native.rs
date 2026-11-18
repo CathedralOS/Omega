@@ -48,9 +48,8 @@ pub(crate) type EncodedForeignAdapter = ForeignAdapter<
         physical_planning::PhysicalRecipeOrigin,
     >,
 >;
-pub(crate) type PlacedForeignAdapter = ForeignAdapter<
-    function_layout::entry_placement::PlacedNativeForeignBridge,
->;
+pub(crate) type PlacedForeignAdapter =
+    ForeignAdapter<function_layout::entry_placement::PlacedNativeForeignBridge>;
 pub(crate) type ObjectForeignAdapter = ForeignAdapter<image_emission::NativeForeignBridge>;
 
 pub(super) fn encode(plan: PlannedForeignAdapter) -> Result<EncodedForeignAdapter, String> {

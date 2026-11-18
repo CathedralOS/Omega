@@ -9,12 +9,12 @@ use crate::realization::{ComponentExportImage, ComponentExportRequest, Component
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use native_artifact::NativeComponentProduct;
-use std::sync::Arc;
-use terminal_psi::TerminalIdentityTable;
+use native_program_planning::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use provider_admission::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
-use native_program_planning::{AdmittedNativeComponentCall, ComponentNativeInputs};
+use std::sync::Arc;
+use terminal_psi::TerminalIdentityTable;
 
 pub struct ComponentCompilation<'input> {
     pub input: ComponentNativeInputs<'input>,
@@ -115,9 +115,8 @@ pub(crate) fn emit_components<'input>(
         let exports = crate::realization::emit_component_exports(
             &component.input,
             work,
-            scalars.map(|completed| {
-                native_program_planning::NativeScalarApplications { completed }
-            }),
+            scalars
+                .map(|completed| native_program_planning::NativeScalarApplications { completed }),
             ComponentExportRequest {
                 retain_native_stage_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,

@@ -37,11 +37,11 @@ use crate::resolution::preparation::generic_data::closed_argument_identity;
 use crate::resolution::preparation::generic_data::closed_name_identity;
 
 use crate::resolution::preparation::generic_data::selected_data_item;
-use diagnostics::Diagnostic;
 use application_identity::const_value::CanonicalConstValue;
 use application_identity::const_value::DecodedCanonicalConstValue;
 use application_identity::const_value::boolean_literal_spelling;
 use bignum::BigInt;
+use diagnostics::Diagnostic;
 use numeric_literals::LandedIntegerType;
 use source_text::SourceSpan;
 use syntax_trees::SyntaxTrees;
@@ -74,11 +74,13 @@ mod type_structure {
     */
 
     use super::{Binding, Solver, collect_expression_binder_mentions};
-    use crate::resolution::preparation::generic_data::{closed_argument_identity, closed_fixed_array_length};
+    use crate::resolution::preparation::generic_data::{
+        closed_argument_identity, closed_fixed_array_length,
+    };
     use crate::resolution::tables::syntax_items;
     use crate::resolution::tables::syntax_type_references;
-    use diagnostics::Diagnostic;
     use bignum::BigInt;
+    use diagnostics::Diagnostic;
     use source_text::SourceSpan;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::identifier::JoinedSyntaxPath;
@@ -115,10 +117,10 @@ mod type_structure {
         };
         use crate::resolution::tables::syntax_items;
         use crate::resolution::tables::syntax_type_references;
-        use diagnostics::Diagnostic;
         use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
         use bignum::BigInt;
+        use diagnostics::Diagnostic;
         use source_text::SourceSpan;
         use symbols::BuiltinTypeAtom;
         use syntax_trees::identifier::Identifier;
@@ -1169,10 +1171,11 @@ use application_identity::const_value::DecodedCanonicalConstValue;
                 // types and its contract, but its own binders shadow that input.
                 // Filter the original positions so hiding one name never
                 // renumbers another constructor argument.
-                let inputs = crate::resolution::preparation::callable_signatures::SignatureInputs::of(
-                    syntax,
-                    syntax.items.state_signature(*signature),
-                );
+                let inputs =
+                    crate::resolution::preparation::callable_signatures::SignatureInputs::of(
+                        syntax,
+                        syntax.items.state_signature(*signature),
+                    );
                 for (scope, reference) in &inputs.types {
                     let mut nested = Vec::new();
                     collect_binder_mentions(syntax, *reference, parameters, &mut nested);

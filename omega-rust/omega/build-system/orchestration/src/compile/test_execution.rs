@@ -197,7 +197,9 @@ fn interpret(
         Err(error) => return EngineOutcome::Unavailable(error.to_string()),
     };
     let observation = terminal_runtime::execute(TerminalRuntimeRequest {
-        native_image: report.retained_native_artifact().map(|image| image.inspect_for_runtime()),
+        native_image: report
+            .retained_native_artifact()
+            .map(|image| image.inspect_for_runtime()),
         entry: None,
         native_provider: None,
         native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,

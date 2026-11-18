@@ -6,15 +6,17 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::lowering::body::Qualification;
-use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
-use terminal_check_tables::{Checked, Construct};
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
+use terminal_check_tables::{Checked, Construct};
 
 use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
-use crate::lowering::body::{CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
+use crate::lowering::body::{
+    CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType,
+};
 use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
@@ -281,9 +283,11 @@ impl<'t> Program<'t> {
         }
         let span = typed.expression_table.source_span(handle);
         let source = match node {
-            ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => {
-                self.authored_node(id, crate::source_state::SourceNode::Expression(handle), span)?
-            }
+            ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => self.authored_node(
+                id,
+                crate::source_state::SourceNode::Expression(handle),
+                span,
+            )?,
             _ => SourceOrigin::of(span),
         };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
@@ -396,8 +400,8 @@ impl<'t> Program<'t> {
                         {
                             return unserved("arithmetic on an address");
                         }
-                        let result =
-                            crate::lowering::policy::bitwise_not_type(value_type).ok_or_else(|| {
+                        let result = crate::lowering::policy::bitwise_not_type(value_type)
+                            .ok_or_else(|| {
                                 refuse(
                                     id,
                                     Construct::Machine,
@@ -785,7 +789,11 @@ impl<'t> Program<'t> {
             ));
         }
         if left.result != right.result {
-            return Err(crate::lowering::reject(id, source, "equality operand types differ"));
+            return Err(crate::lowering::reject(
+                id,
+                source,
+                "equality operand types differ",
+            ));
         }
         self.require_intrinsic_tag_equality(id, left_record)?;
         self.require_intrinsic_tag_equality(id, right_record)?;
@@ -1362,13 +1370,21 @@ pub(super) fn binary_selection(
     if suffix.is_some() {
         let operation = crate::lowering::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
-            return Err(crate::lowering::reject(id, source, crate::lowering::policy::WHOLLY_ANONYMOUS));
+            return Err(crate::lowering::reject(
+                id,
+                source,
+                crate::lowering::policy::WHOLLY_ANONYMOUS,
+            ));
         }
         for operand in [left, right] {
             match operand {
                 Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
                 Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-                    return Err(crate::lowering::reject(id, source, crate::lowering::policy::QUALIFIED_OPERAND));
+                    return Err(crate::lowering::reject(
+                        id,
+                        source,
+                        crate::lowering::policy::QUALIFIED_OPERAND,
+                    ));
                 }
                 Some(ValueType::Rigid(_)) | None => {
                     return Err(unserved(crate::lowering::policy::QUALIFIED_OPERAND));

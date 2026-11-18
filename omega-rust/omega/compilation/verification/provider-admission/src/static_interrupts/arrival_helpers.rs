@@ -12,9 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use arena::{IdTable, NumericId};
 use language_core::static_interrupts::StaticInterruptOperation;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
-use arena::{IdTable, NumericId};
 use terminal_installation::SynchronousCallGraph;
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralTypeShape,
@@ -602,9 +602,7 @@ fn require_completed_controller(
     }
 }
 
-fn flat_rows<Id: NumericId, T>(
-    mut rows: Vec<(Id, T)>,
-) -> Result<IdTable<Id, Option<T>>, String> {
+fn flat_rows<Id: NumericId, T>(mut rows: Vec<(Id, T)>) -> Result<IdTable<Id, Option<T>>, String> {
     rows.sort_unstable_by_key(|(identity, _)| *identity);
     if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
         return Err("arrival helper roster repeats an identity".into());

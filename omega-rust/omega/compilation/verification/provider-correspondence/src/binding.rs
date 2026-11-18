@@ -28,10 +28,10 @@ pub use provider_instances::{
     ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
 };
 
+use declaration_contracts::provider_declarations::ProviderDeclarations;
 use diagnostics::Diagnostic;
 use effects::provider_grants::{AuthoredRootGrant, ResolvedAuthoredSelectedProviderGrant};
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use declaration_contracts::provider_declarations::ProviderDeclarations;
 
 pub struct SelectedPlanDeclarations<'plan> {
     pub plan: &'plan ProviderPlan,

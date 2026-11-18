@@ -93,9 +93,9 @@ impl crate::TerminalModule {
         &self,
         service: semantic_vocabulary::ServiceId,
     ) -> Result<language_core::core_vocabulary::FilesystemService, String> {
-        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
         use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, compound};
         use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
 
         let mut services = self.services.iter().filter(|row| row.id == service);
         let (Some(service), None) = (services.next(), services.next()) else {
@@ -281,11 +281,13 @@ impl crate::TerminalModule {
 fn read_core_filesystem_declaration(
     identity: &str,
 ) -> Result<language_core::core_vocabulary::FilesystemService, String> {
+    use application_identity::type_identity::vocabulary::{OwnerForm, TypeForm};
+    use application_identity::type_identity::{
+        TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
+    };
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
-    use application_identity::type_identity::{TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners};
-    use application_identity::type_identity::vocabulary::{OwnerForm, TypeForm};
 
     struct Declaration {
         depth: usize,
@@ -342,12 +344,13 @@ fn read_core_filesystem_declaration(
                     .file
                     .to_str()
                     .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
-                let revision = declaration_contracts::source_identity::toolchain_owned_identity_digest(
-                    "core",
-                    vec![file.to_owned()],
-                    site.source,
-                )
-                .map_err(|_| TypeIdentityVisitError::MalformedIdentity)?;
+                let revision =
+                    declaration_contracts::source_identity::toolchain_owned_identity_digest(
+                        "core",
+                        vec![file.to_owned()],
+                        site.source,
+                    )
+                    .map_err(|_| TypeIdentityVisitError::MalformedIdentity)?;
                 if digest != Some(revision) {
                     return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
                 }
@@ -373,12 +376,14 @@ fn read_core_filesystem_declaration(
 mod tests {
     use super::*;
     use crate::{ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule};
+    use application_identity::type_identity::encoding::{
+        CoordinateTag, atom, bare, byte_atom, compound,
+    };
+    use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+    use declaration_contracts::service_surface::{ServiceMethod, ServiceReceiverApplication};
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
-    use declaration_contracts::service_surface::{ServiceMethod, ServiceReceiverApplication};
-    use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, byte_atom, compound};
-    use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
     use semantic_vocabulary::{PackageKeyIdentity, ServiceId};
 
     fn id() -> ServiceId {

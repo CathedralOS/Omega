@@ -183,10 +183,7 @@ fn encode_float_format(encoder: &mut Encoder, format: numeric_literals::FloatFor
     };
 }
 
-fn encode_compiler_numeric_type(
-    encoder: &mut Encoder,
-    numeric_type: effects::CompilerNumericType,
-) {
+fn encode_compiler_numeric_type(encoder: &mut Encoder, numeric_type: effects::CompilerNumericType) {
     encoder.fixed_bytes(&numeric_type.canonical_encoding());
 }
 

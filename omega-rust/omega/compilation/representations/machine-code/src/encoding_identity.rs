@@ -198,7 +198,10 @@ fn encode_encoding_row(
             hasher.byte(0);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
         }
-        SelectedFormEncodingState::DeferredControl { reason, alternatives } => {
+        SelectedFormEncodingState::DeferredControl {
+            reason,
+            alternatives,
+        } => {
             hasher.byte(1);
             hasher.byte(match reason {
                 DeferredControlEncodingReason::RequiresResolvedBranchLayout => 0,
@@ -206,7 +209,9 @@ fn encode_encoding_row(
             encode_branch_alternative(hasher, &alternatives.baseline);
             for alternative in [&alternatives.widened, &alternatives.shortened] {
                 hasher.byte(u8::from(alternative.is_some()));
-                if let Some(alternative) = alternative { encode_branch_alternative(hasher, alternative); }
+                if let Some(alternative) = alternative {
+                    encode_branch_alternative(hasher, alternative);
+                }
             }
         }
         SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
@@ -449,15 +454,28 @@ mod tests {
                     reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
                     alternatives: Box::new(crate::EncodedControlAlternatives {
                         baseline: crate::EncodedBranchAlternative {
-                            alternative: MachineAlternativeKey { family: MachineAlternativeFamily::ConditionalBranchNonZero, variant: 0 },
+                            alternative: MachineAlternativeKey {
+                                family: MachineAlternativeFamily::ConditionalBranchNonZero,
+                                variant: 0,
+                            },
                             bytes: vec![0x0f, 0x85, 0, 0, 0, 0],
                             field: crate::BranchDisplacementField::Relative32,
-                            field_offset: 2, reference_offset: 6,
+                            field_offset: 2,
+                            reference_offset: 6,
                             footprint: SelectedFormDecodedFootprint {
-                                register_reads: vec![], register_writes: vec![], implicit_defs: vec![], implicit_clobbers: vec![],
-                                encoded: selected_instructions::MachineEncodedEffects::fallthrough_v1(vec![], vec![]),
+                                register_reads: vec![],
+                                register_writes: vec![],
+                                implicit_defs: vec![],
+                                implicit_clobbers: vec![],
+                                encoded:
+                                    selected_instructions::MachineEncodedEffects::fallthrough_v1(
+                                        vec![],
+                                        vec![],
+                                    ),
                             },
-                        }, widened: None, shortened: None,
+                        },
+                        widened: None,
+                        shortened: None,
                     }),
                 },
                 code: SelectedFormEncodedByteSpan::default(),
@@ -591,7 +609,10 @@ mod tests {
             crate::codec_bytes::push_encoded(&mut canonical, count.to_le_bytes());
         }
         assert_eq!(canonical.len(), 303);
-        let expected = [76, 227, 238, 46, 11, 125, 97, 55, 199, 86, 162, 121, 35, 94, 100, 60, 91, 31, 166, 30, 141, 133, 1, 214, 20, 229, 152, 174, 153, 145, 62, 248];
+        let expected = [
+            76, 227, 238, 46, 11, 125, 97, 55, 199, 86, 162, 121, 35, 94, 100, 60, 91, 31, 166, 30,
+            141, 133, 1, 214, 20, 229, 152, 174, 153, 145, 62, 248,
+        ];
         assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
         assert_eq!(program.recomputed_identity().bytes(), expected);
         program.identity = program.recomputed_identity();
@@ -611,7 +632,11 @@ mod tests {
         let identity = original.recomputed_identity();
         for field in 0..9 {
             let mut changed = original.clone();
-            let SelectedFormEncodingState::DeferredControl { alternatives, .. } = &mut changed.rows[0].state else { unreachable!() };
+            let SelectedFormEncodingState::DeferredControl { alternatives, .. } =
+                &mut changed.rows[0].state
+            else {
+                unreachable!()
+            };
             match field {
                 0 => alternatives.baseline.bytes[0] ^= 1,
                 1 => alternatives.baseline.field = crate::BranchDisplacementField::Relative8,

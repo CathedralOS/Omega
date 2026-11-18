@@ -99,7 +99,8 @@ fn a_literal_edge_can_retire_its_descriptor_home() {
         .unwrap();
     let function = &unit.functions[0];
     let inputs = FunctionInputs::new(function);
-    let types = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let types =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let terminator = function.blocks[0].nodes.last().unwrap();
     control::validate(terminator, &[], &inputs, &types).unwrap();
 
@@ -292,7 +293,8 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let node = &unit.functions[0].blocks[0].nodes[0];
     let instruction = &target.functions[0].graph.blocks[0].operations[0];
     let source = instruction.source.as_ref().unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let projected = crate::preparation::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
@@ -331,17 +333,21 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
         .push(optimization_unit::OwnershipEvent::ClaimTransfer(vec![
             semantic_vocabulary::ClaimId::new(7).unwrap(),
         ]));
-    let carried = crate::preparation::legalization_source::scalar_graph::instruction::with_metadata(
-        &carrying,
-        projected.kind.clone(),
-        fixture_types(),
-    )
-    .unwrap();
+    let carried =
+        crate::preparation::legalization_source::scalar_graph::instruction::with_metadata(
+            &carrying,
+            projected.kind.clone(),
+            fixture_types(),
+        )
+        .unwrap();
     assert_eq!(carried.work, carrying.metadata.work);
     assert_eq!(carried.effect, carrying.metadata.effect);
     assert_eq!(carried.ownership, carrying.metadata.ownership);
     let audit = |instruction: &target_operations::TargetInstruction| {
-        crate::preparation::legalization_target::control_flow::validate_instruction_metadata(instruction, node)
+        crate::preparation::legalization_target::control_flow::validate_instruction_metadata(
+            instruction,
+            node,
+        )
     };
     audit(instruction).expect("exact instruction metadata");
     let mut missing = instruction.clone();
@@ -529,7 +535,8 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         indices: Vec::new(),
         result_home: None,
     };
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     crate::preparation::legalization_source::scalar_graph::instruction::project(
         machine(),
         &[],
@@ -600,8 +607,13 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
     };
     assert_eq!(returned.edge, edge(1));
     assert_eq!(returned.work, unit.functions[0].blocks[0].nodes[0].work);
-    crate::preparation::legalization::audit_target_operation_plan(&target, &plan, &unit, fixture_types())
-        .expect("retained exit matches source");
+    crate::preparation::legalization::audit_target_operation_plan(
+        &target,
+        &plan,
+        &unit,
+        fixture_types(),
+    )
+    .expect("retained exit matches source");
     for mutation in 0..4 {
         let mut changed = target.clone();
         let block = &mut changed.functions[0].graph.blocks[0];
@@ -658,9 +670,15 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
     assert_eq!(projected.parameters[0].target, function.graph.parameters[0]);
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let source = crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let audit = |function: &TargetFunction| {
         crate::preparation::legalization_scalar_graph::validate_structural_contract(
             function,
@@ -826,9 +844,11 @@ fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
         scalar_type,
         placement: call_plan.parameters[0].clone(),
     }];
-    let parameters =
-        crate::preparation::legalization_source::scalar_graph::parameters(&target.functions[0], fixture_types())
-            .unwrap();
+    let parameters = crate::preparation::legalization_source::scalar_graph::parameters(
+        &target.functions[0],
+        fixture_types(),
+    )
+    .unwrap();
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].value, val(7));
     assert_eq!(parameters[0].scalar_type.as_checking(), scalar_type);
@@ -964,12 +984,24 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         matches!(origins.as_slice(), [terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. }] if *source == place(1)),
         "source backing: {origins:?}"
     );
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let source = crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let native_unit =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-    crate::preparation::legalization::validate_call_descriptor_origins(&target, &source, &native_unit)
-        .expect("exact source backing");
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let native_unit = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
+    crate::preparation::legalization::validate_call_descriptor_origins(
+        &target,
+        &source,
+        &native_unit,
+    )
+    .expect("exact source backing");
     for mutation in 0..5 {
         let mut changed = target.clone();
         let TargetUnitOperation::Call {
@@ -1002,16 +1034,23 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
             }
         }
         assert!(
-            crate::preparation::legalization::validate_call_descriptor_origins(&changed, &source, &native_unit)
-                .is_err(),
+            crate::preparation::legalization::validate_call_descriptor_origins(
+                &changed,
+                &source,
+                &native_unit
+            )
+            .is_err(),
             "tampered backing {mutation}"
         );
     }
     let caller = unit.functions[0].clone();
     let mut absent = unit.clone();
     absent.functions.clear();
-    let absent =
-        crate::preparation::native_geometry::NativeInput::with_types(&absent, &geometry, fixture_types());
+    let absent = crate::preparation::native_geometry::NativeInput::with_types(
+        &absent,
+        &geometry,
+        fixture_types(),
+    );
     let lowered =
         crate::preparation::legalization_source::scalar_graph::instruction::call_instructions::project_call(
             caller.machine,
@@ -1024,7 +1063,10 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
     };
     assert_eq!(lowered.descriptor_origins, expected);
     assert!(
-        crate::preparation::legalization::validate_call_descriptor_origins(&target, &source, &absent).is_err(),
+        crate::preparation::legalization::validate_call_descriptor_origins(
+            &target, &source, &absent
+        )
+        .is_err(),
         "independent audit still requires source correspondence"
     );
 }
@@ -1118,17 +1160,25 @@ fn retained_scalar_store_geometry_is_checked_against_its_source() {
         });
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         let mut available = source_inputs.available(block_id(1));
         available.push((source.source_value(), source));
@@ -1241,17 +1291,25 @@ fn retained_field_store_value_type_is_checked_against_its_source() {
     };
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         let mut available = source_inputs.available(block_id(1));
         crate::preparation::legalization_target::unit::validate_operation(
@@ -1338,9 +1396,13 @@ fn retained_leaf_copy_selectors_are_checked_against_their_source() {
     );
     let plan = plan(names, vec![array, element], function);
     let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
     let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
         defining_operation: op(1),
         source_value: val(4),
@@ -1348,8 +1410,11 @@ fn retained_leaf_copy_selectors_are_checked_against_their_source() {
         value: IntegerValue::Unsigned(1),
     };
     let layout =
-        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(ty(2), &plan_view)
-            .unwrap();
+        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(
+            ty(2),
+            &plan_view,
+        )
+        .unwrap();
     let row = TargetUnitOperation::StructuralLeafCopy {
         psi_operation: op(2),
         result_home: home(op(2), &result, layout.clone()),
@@ -1365,14 +1430,18 @@ fn retained_leaf_copy_selectors_are_checked_against_their_source() {
     };
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         let mut available = source_inputs.available(block_id(1));
         available.push((val(4), index_source));
@@ -1479,9 +1548,13 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
     );
     let plan = plan(names, vec![array, holder, bytes], function);
     let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
     let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
         defining_operation: op(1),
         source_value: val(4),
@@ -1533,14 +1606,18 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         let mut available = source_inputs.available(block_id(1));
         available.push((val(4), index_source));
@@ -1764,8 +1841,10 @@ fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
             defining_operation: operation,
             source_value: result.value,
             scalar_type: result.scalar_type,
-            shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(result.scalar_type)
-                .unwrap(),
+            shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(
+                result.scalar_type,
+            )
+            .unwrap(),
         },
         expression: target_operations::TargetScalarExpression::Integer {
             scalar_type: u64_type(),
@@ -1964,8 +2043,10 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
                         defining_operation: op(3),
                         source_value: result.value,
                         scalar_type: scalar,
-                        shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(scalar)
-                            .unwrap(),
+                        shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(
+                            scalar,
+                        )
+                        .unwrap(),
                     },
                     expression,
                 }
@@ -2006,16 +2087,27 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-        let plan_view =
-            crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-        let unit_view =
-            crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-        let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-        let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
+        let geometry =
+            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
+                .unwrap();
+        let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+            &plan,
+            &geometry,
+            fixture_types(),
+        );
+        let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+            &unit,
+            &geometry,
+            fixture_types(),
+        );
+        let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(
             &unit.functions[0],
         );
+        let sources =
+            crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+                &target.functions[0].graph,
+                &unit.functions[0],
+            );
         let audit = |row: &TargetUnitOperation| {
             crate::preparation::legalization_target::unit::validate_operation(
                 &target.functions[0],
@@ -2196,12 +2288,20 @@ fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
+    let inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
         &target.functions[0].graph,
         &unit.functions[0],
@@ -2388,12 +2488,20 @@ fn retained_direct_byte_access_projects_and_audits_exact_operands() {
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
+    let inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
         &target.functions[0].graph,
         &unit.functions[0],
@@ -2602,12 +2710,20 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
+    let inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
         &target.functions[0].graph,
         &unit.functions[0],
@@ -2710,17 +2826,27 @@ fn retained_byte_length_audit_reconstructs_the_descriptor_and_exact_fold() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-        let plan_view =
-            crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-        let unit_view =
-            crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
-        let function_inputs =
-            crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-        let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
+        let geometry =
+            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
+                .unwrap();
+        let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+            &plan,
+            &geometry,
+            fixture_types(),
+        );
+        let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+            &unit,
+            &geometry,
+            fixture_types(),
+        );
+        let function_inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(
             &unit.functions[0],
         );
+        let source_inputs =
+            crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+                &target.functions[0].graph,
+                &unit.functions[0],
+            );
         let audit = |expression| {
             let row = TargetUnitOperation::ScalarDefinition {
                 result_home: target_operations::TargetUnitScalarHomeRequirement {
@@ -2868,17 +2994,25 @@ fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         crate::preparation::legalization_target::unit::validate_operation(
             &target.functions[0],
@@ -3157,12 +3291,13 @@ fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry(
         vec![7],
     );
     // No source function or geometry catalog is available to construction.
-    let lowered = crate::preparation::legalization_source::scalar_graph::instruction::project_reference(
-        machine(),
-        std::slice::from_ref(&fact),
-        &row,
-    )
-    .unwrap();
+    let lowered =
+        crate::preparation::legalization_source::scalar_graph::instruction::project_reference(
+            machine(),
+            std::slice::from_ref(&fact),
+            &row,
+        )
+        .unwrap();
     let legalized_operations::LegalizedScalarInstructionKind::EstablishReference {
         result: actual,
         source: actual_source,
@@ -3203,17 +3338,25 @@ fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry(
 
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
-    let unit_view =
-        crate::preparation::native_geometry::NativeInput::with_types(&unit, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        fixture_types(),
+    );
+    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
+        &unit,
+        &geometry,
+        fixture_types(),
+    );
     let function_inputs =
         crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
+    let source_inputs =
+        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
     let audit = |row: &TargetUnitOperation| {
         let mut available = source_inputs.available(block_id(1));
         available.push((index.source_value(), index));
@@ -3569,12 +3712,18 @@ fn dispatch(
     );
     let geometry = geometry(&plan, root, &path);
     let selected = sum_layout(&plan, geometry.selected);
-    let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let prepared =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &layouts, fixture_types());
+    let layouts =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let prepared = crate::preparation::native_geometry::NativeInput::with_types(
+        &plan,
+        &layouts,
+        fixture_types(),
+    );
     let root_layout =
-        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(root, &prepared)
-            .unwrap_or_else(|error| panic!("{name}: root layout {error:?}"));
+        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(
+            root, &prepared,
+        )
+        .unwrap_or_else(|error| panic!("{name}: root layout {error:?}"));
     let source = TargetStructuralCaseSource::BorrowedParameter {
         parameter: abi_parameter(&plan, &plan.functions[0].structural_parameters[0]),
         layout: root_layout,
@@ -3625,8 +3774,13 @@ fn validate_stored_geometry(
     };
     // These hand-built selection rows omit unrelated provenance metadata. Test
     // the validator's geometry checks directly, with the same rows selection uses.
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan = &crate::preparation::native_geometry::NativeInput::with_types(plan, &geometry, fixture_types());
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan = &crate::preparation::native_geometry::NativeInput::with_types(
+        plan,
+        &geometry,
+        fixture_types(),
+    );
     let function = &unit.functions[0];
     let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(function);
     for block in &target.functions[0].graph.blocks {
@@ -3871,10 +4025,15 @@ fn carried_region_size(
     if geometry.pointer_slots.is_empty() && geometry.region_root == geometry.selected {
         sum_size
     } else {
-        let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-        crate::preparation::structural_inputs::structural_reference_input::shape(geometry.region_root, &layouts)
-            .expect("region size")
-            .byte_size
+        let layouts =
+            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
+                .unwrap();
+        crate::preparation::structural_inputs::structural_reference_input::shape(
+            geometry.region_root,
+            &layouts,
+        )
+        .expect("region size")
+        .byte_size
     }
 }
 
@@ -3883,7 +4042,8 @@ fn geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> crate::preparation::structural_inputs::structural_reference_input::ReferenceSourceGeometry {
-    let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let layouts =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     crate::preparation::structural_inputs::structural_reference_input::reference_source_geometry(
         root, path, &layouts,
     )
@@ -3894,8 +4054,13 @@ fn sum_layout(
     plan: &AbstractOperationPlan,
     sum: StructuralTypeId,
 ) -> calling_conventions::ConventionalSumLayout {
-    let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let plan = crate::preparation::native_geometry::NativeInput::with_types(plan, &layouts, fixture_types());
+    let layouts =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan = crate::preparation::native_geometry::NativeInput::with_types(
+        plan,
+        &layouts,
+        fixture_types(),
+    );
     crate::preparation::legalization_scalar_graph::aggregate_results::sum_type_layout(sum, &plan)
         .expect("sum layout")
 }
@@ -3940,7 +4105,8 @@ fn target_plan(
     plan: &AbstractOperationPlan,
     mut blocks: Vec<TargetControlBlock>,
 ) -> TargetOperationPlan {
-    let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let layouts =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
@@ -4005,7 +4171,8 @@ fn target_plan(
         .structural_parameters
         .iter()
         .map(|parameter| {
-            crate::preparation::structural_inputs::parameter_shape(parameter, &layouts).expect("parameter shape")
+            crate::preparation::structural_inputs::parameter_shape(parameter, &layouts)
+                .expect("parameter shape")
         })
         .collect();
     let call_plan = calling_conventions::evaluate_call_plan(
@@ -4072,9 +4239,10 @@ fn abi_parameter(
     plan: &AbstractOperationPlan,
     parameter: &StructuralParameterDeclaration,
 ) -> TargetStructuralParameter {
-    let layouts = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let shape =
-        crate::preparation::structural_inputs::parameter_shape(parameter, &layouts).expect("parameter shape");
+    let layouts =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let shape = crate::preparation::structural_inputs::parameter_shape(parameter, &layouts)
+        .expect("parameter shape");
     let call_plan = calling_conventions::evaluate_call_plan(
         CallingPolicy::native_for_target(HOST()),
         &CallSignature {
@@ -4355,9 +4523,12 @@ fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type()
         .expect("well-formed comparison metadata seed");
     let function = &unit.functions[0];
     let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(function);
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let retaining = crate::preparation::native_geometry::ModuleTypes::of(&module_retaining(&[scalar]));
-    let retained = crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &retaining);
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let retaining =
+        crate::preparation::native_geometry::ModuleTypes::of(&module_retaining(&[scalar]));
+    let retained =
+        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &retaining);
     assert!(
         crate::preparation::legalization_scalar_graph::nodes::validate(
             &function.blocks[0],
@@ -4372,7 +4543,8 @@ fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type()
     let closed = terminal_codec::ClosedTerminalModule::new(TerminalModule::declarations()).unwrap();
     assert!(closed.closed_types().scalar(scalar).is_err());
     let missing = crate::preparation::native_geometry::ModuleTypes::of(&closed);
-    let missing = crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &missing);
+    let missing =
+        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &missing);
     assert!(
         crate::preparation::legalization_scalar_graph::nodes::validate(
             &function.blocks[0],
@@ -4485,7 +4657,10 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
                     defining_operation: op(1),
                     source_value: ValueId::new(1).unwrap(),
                     scalar_type: scalar,
-                    shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(scalar).unwrap(),
+                    shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(
+                        scalar,
+                    )
+                    .unwrap(),
                 },
                 arguments: vec![],
             },

@@ -3,18 +3,18 @@
 //! `audit <bindings|fields> <size> [queries]` reports allocation/work counts.
 //! Generated graphs isolate lookup cost and do not represent whole compilations.
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::hint::black_box;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-use source_compiler::source_symbols::{SymbolTableBuilder};
 use source_compiler::source_state::TypedTrees;
 use source_compiler::source_state::data::{DataDefinition, DataField, DataMember};
 use source_compiler::source_state::signature::StateParameter;
 use source_compiler::source_state::state::State;
 use source_compiler::source_state::statement::{StatementNode, TableLocalData};
 use source_compiler::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use source_compiler::source_symbols::SymbolTableBuilder;
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::hint::black_box;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
 struct CountedAllocator;
 static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);

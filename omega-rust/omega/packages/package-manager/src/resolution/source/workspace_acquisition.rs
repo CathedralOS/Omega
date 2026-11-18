@@ -172,8 +172,8 @@ impl AcquiredWorkspaceBuild {
                     "workspace catalog exceeds its captured-inventory resource ceiling".into(),
                 );
             }
-            let expected =
-                source_capture::CapturedSourceTree::new(projected).map_err(|error| error.to_string())?;
+            let expected = source_capture::CapturedSourceTree::new(projected)
+                .map_err(|error| error.to_string())?;
             let materialized = catalog
                 .materialize(storage, &source_relative_path(path))
                 .map_err(|error| error.to_string())?;

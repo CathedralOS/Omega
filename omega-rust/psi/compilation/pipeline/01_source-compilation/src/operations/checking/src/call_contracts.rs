@@ -356,7 +356,9 @@ pub(crate) fn inputs_at(
                         else {
                             return None;
                         };
-                        Some(Inputs::declared(crate::checking::owned_cleanup::inputs(cleanup)))
+                        Some(Inputs::declared(crate::checking::owned_cleanup::inputs(
+                            cleanup,
+                        )))
                     }),
             )
     });
@@ -380,8 +382,9 @@ pub(crate) fn invocation<'a>(
     row: &InvocationRow,
 ) -> Checked<Invocation<'a>> {
     let concerns = Construct::Invocation(id);
-    let refuse =
-        |detail| crate::checking::refusal(RefusalReason::ForeignIdentity, caller.id, concerns, detail);
+    let refuse = |detail| {
+        crate::checking::refusal(RefusalReason::ForeignIdentity, caller.id, concerns, detail)
+    };
     let inputs = inputs_at(caller, row.site)?
         .ok_or_else(|| refuse("invocation row restates no lowered call"))?;
     if row.callee != inputs.callee || row.required_contract != inputs.required_contract {

@@ -312,19 +312,16 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
     // and an equality or strict order over values are not.
     let closed = sum(integer(9), integer(90));
     assert!(crate::checking::has_rules_for(&within(closed.clone(), 99)));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
-        closed.clone(),
-        integer(99)
-    )));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathEqual(closed.clone(), integer(99))
+    ));
     let open = sum(embedded(1), embedded(2));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
-        open.clone(),
-        open
-    )));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
-        closed,
-        integer(100)
-    )));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathEqual(open.clone(), open)
+    ));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathLessThan(closed, integer(100))
+    ));
     assert!(crate::checking::has_rules_for(&within(
         sum(embedded(1), embedded(2)),
         300
@@ -342,29 +339,25 @@ fn rule_coverage_of_a_mathematical_goal_is_read_from_its_form() {
         sum(embedded(1), narrow),
         300
     )));
-    assert!(!crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
-        embedded(1),
-        integer(7)
-    )));
-    assert!(!crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
-        embedded(1),
-        integer(7)
-    )));
+    assert!(!crate::checking::has_rules_for(
+        &Proposition::IntegerMathEqual(embedded(1), integer(7))
+    ));
+    assert!(!crate::checking::has_rules_for(
+        &Proposition::IntegerMathLessThan(embedded(1), integer(7))
+    ));
     // Shared open terms cancel in the kernel, so both a true comparison and
     // a false one have a rule. Distinct unknown subjects above still do not.
     let first = sum(embedded(1), integer(1));
     let second = sum(embedded(1), integer(2));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
-        first.clone(),
-        second.clone()
-    )));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathLessThan(
-        second.clone(),
-        first.clone()
-    )));
-    assert!(crate::checking::has_rules_for(&Proposition::IntegerMathEqual(
-        first, second
-    )));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathLessThan(first.clone(), second.clone())
+    ));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathLessThan(second.clone(), first.clone())
+    ));
+    assert!(crate::checking::has_rules_for(
+        &Proposition::IntegerMathEqual(first, second)
+    ));
 }
 
 #[test]

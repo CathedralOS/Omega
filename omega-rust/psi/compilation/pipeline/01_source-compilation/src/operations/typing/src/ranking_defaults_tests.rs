@@ -1,18 +1,16 @@
 /* Default views belong to typed subject selection, not source-name guessing. */
+use crate::source_state::TypedTrees;
 use declaration_contracts::RankingViewId;
 use declaration_contracts::RankingWitness;
-use crate::source_state::TypedTrees;
 
 fn resolve_and_type(source: &str) -> TypedTrees {
     let tokens = crate::typing::frontend_fixture::Lexer::new(source)
         .tokenize()
         .expect("ranking source lexes");
-    let syntax =
-        crate::typing::frontend_fixture::parse_syntax_trees(&tokens).expect("ranking source parses");
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest::new(syntax),
-    )
-    .expect("ranking subjects resolve");
+    let syntax = crate::typing::frontend_fixture::parse_syntax_trees(&tokens)
+        .expect("ranking source parses");
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax))
+        .expect("ranking subjects resolve");
     for machine in resolved.machines.iter() {
         if let Some(witness) = &machine.termination_plan.implementation_witness
             && witness.view_path.is_empty()

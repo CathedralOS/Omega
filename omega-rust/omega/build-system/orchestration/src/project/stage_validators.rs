@@ -259,7 +259,9 @@ impl StageValidator {
                         published_object_verification::verify_retained_fixed_frame(object)
                     }
                     Self::SelectedInstructionRewriteReplay => {
-                        match published_object_verification::verify_retained_selected_optimization(object) {
+                        match published_object_verification::verify_retained_selected_optimization(
+                            object,
+                        ) {
                             Ok(true) => Ok(()),
                             Ok(false) => {
                                 return StageValidationResult::Inapplicable(

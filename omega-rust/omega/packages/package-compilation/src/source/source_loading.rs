@@ -33,13 +33,12 @@ pub(crate) fn load_source_files(
     })
 }
 
-
 #[cfg(test)]
 mod tests {
-    use source_capture::{SourceFileSystem};
-    use declaration_contracts::source_identity::DependencyScope;
-    use source_compiler::UnmeasuredProduction;
     use super::load_source_files;
+    use declaration_contracts::source_identity::DependencyScope;
+    use source_capture::SourceFileSystem;
+    use source_compiler::UnmeasuredProduction;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -104,5 +103,4 @@ mod tests {
                 .starts_with(&format!("failed to read {}:", unreadable.display()))
         );
     }
-
 }

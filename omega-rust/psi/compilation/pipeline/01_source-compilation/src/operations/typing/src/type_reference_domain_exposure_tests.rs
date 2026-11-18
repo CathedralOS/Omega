@@ -1,9 +1,9 @@
 /* Typed-domain filtering retains every exposed candidate until carrier checking. */
 use super::domain_constraints::select_domain_candidates_where;
+use crate::source_symbols::SymbolTableBuilder;
 use source_text::{SourceId, SourceSpan, Span};
 use std::sync::Arc;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder};
 
 fn reference(source: usize) -> SourceSpan {
     SourceSpan::new(SourceId(source), Span::new(0, 4))

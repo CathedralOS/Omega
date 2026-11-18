@@ -119,14 +119,14 @@ pub use source_syntax::{
     SourceInput, SourceItems, SourceSyntax,
 };
 mod build_stages;
-mod target_helpers;
 pub(crate) mod source_parsing;
+mod target_helpers;
 
+pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 pub use source_checking::{
     FrozenSource, JudgedSource, ProductRepresentationInput, SourceAdmission,
     SourcePreparationFailure, SourcePreparationRequest,
 };
-pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 
 pub use source_compilation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,

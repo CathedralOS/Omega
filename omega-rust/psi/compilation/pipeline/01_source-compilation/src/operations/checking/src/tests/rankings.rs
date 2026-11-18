@@ -154,8 +154,11 @@ fn ranked(signed: bool, tuple: bool, stalls: bool) -> crate::lowering::Elaborati
 fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
     for (signed, tuple) in [(false, false), (true, false), (false, true)] {
         let mut elaboration = ranked(signed, tuple, false);
-        let discharged =
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        let discharged = discharge(
+            &mut elaboration,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let verdicts = &discharged.machines.get(id(1)).unwrap().verdicts;
         for (obligation, row) in tables.obligations.iter() {
@@ -171,7 +174,8 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
                     assert_kernel_checked(&elaboration, 1, obligation, evidence);
                     let mut consumer = elaboration.clone();
                     let mut activity = crate::checking::ProofSearchActivity::default();
-                    let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+                    let mut replay =
+                        crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
                     reverify(
                         &mut replay,
                         id(1),
@@ -243,7 +247,11 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
             _ => unreachable!(),
         }
         assert!(
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).is_err(),
+            discharge(
+                &mut elaboration,
+                &mut crate::checking::ProofSearchActivity::default()
+            )
+            .is_err(),
             "fault {fault} accepted"
         );
     }
@@ -280,24 +288,25 @@ pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::Typ
     let tokens = crate::checking::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
-    let mut syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let mut syntax =
+        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     let tokens = crate::checking::frontend_fixture::Lexer::new(prefix)
         .tokenize()
         .unwrap();
     crate::checking::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: vec![crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: vec![
+            crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                 source,
                 core,
                 "Nat::Descending",
                 0,
-            )],
-            retained_base: None,
-        },
-    )
+            ),
+        ],
+        retained_base: None,
+    })
     .unwrap();
     crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
@@ -375,8 +384,11 @@ fn borrowed_slice_iterations_keep_their_measure_and_backing() {
 #[test]
 fn every_complete_cycle_must_cross_a_strict_edge() {
     let mut elaboration = ranked(false, false, true);
-    let refusal =
-        discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+    let refusal = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err();
     assert!(
         refusal.detail.contains("removing strict rank edges"),
         "{}",
@@ -411,8 +423,11 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
         .unwrap();
     let old = cycle.edges[last].successor_ranks;
     cycle.observations.get_mut(old.start()).value = zero;
-    let refusal =
-        discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+    let refusal = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err();
     assert!(
         refusal.detail.contains("successor rank") || refusal.detail.contains("actual scope"),
         "{}",
@@ -420,7 +435,9 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
     );
 }
 
-fn observed_verdicts(results: &[Result<RouteVerdict, crate::checking::CompilationRefusal>]) -> Vec<String> {
+fn observed_verdicts(
+    results: &[Result<RouteVerdict, crate::checking::CompilationRefusal>],
+) -> Vec<String> {
     results.iter().map(|result| match result {
         Ok(RouteVerdict::Accepted(_)) => String::from("accepted"),
         Ok(RouteVerdict::FallBack(refusal)) => format!("unsupported: {}", refusal.detail),

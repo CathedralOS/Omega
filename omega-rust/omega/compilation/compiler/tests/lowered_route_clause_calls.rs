@@ -12,8 +12,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use terminal_check_tables::Checked;
 use source_compiler::checking::{RouteVerdict, judge};
+use terminal_check_tables::Checked;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());

@@ -14,9 +14,9 @@ use super::{
     TargetRegisterEnvironmentValidationError, assemble_target_register_environment,
     baseline_target_register_environment,
 };
-use target_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
+use target_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 
 #[test]
 fn prepared_constraints_share_rows_and_keep_the_receiving_identity() {

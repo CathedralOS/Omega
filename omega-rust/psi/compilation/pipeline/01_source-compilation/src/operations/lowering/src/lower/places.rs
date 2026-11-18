@@ -61,14 +61,17 @@ nothing else: lowering never asks what a place holds.
 mod contents;
 
 use crate::lowering::body::Qualification;
-use semantic_vocabulary::{BlockId, DomainSemanticId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, DomainSemanticId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
+    StructuralCaseId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::{ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, ExactPlaceId, ProgramPoint, NumericId, Refusal, RefusalReason,
+    Checked, Construct, ExactPlaceId, NumericId, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
@@ -416,7 +419,9 @@ pub(crate) fn declare<'a, 'b>(
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
         let shape = match &record.shape {
-            crate::lowering::StorageShape::AtomicCell(cell) => StructuralTypeShape::AtomicCell(*cell),
+            crate::lowering::StorageShape::AtomicCell(cell) => {
+                StructuralTypeShape::AtomicCell(*cell)
+            }
             crate::lowering::StorageShape::Opaque => StructuralTypeShape::Opaque,
             crate::lowering::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
             crate::lowering::StorageShape::Record(_) => {
@@ -737,25 +742,30 @@ pub(crate) fn declare<'a, 'b>(
                 "byte domain repeats its source and carrier declaration",
             ));
         }
-        let sources =
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .or_else(|error| {
-                    if identities.is_invocation_scoped() {
-                        Ok(Vec::new())
-                    } else {
-                        Err(error)
-                    }
-                })
-                .map_err(|detail| terminal_check_tables::Refusal {
-                    reason: RefusalReason::Unsupported,
-                    machine: entry,
-                    concerns: Construct::Machine,
-                    source_span: None,
-                    detail: format!("byte domain source identity: {detail}"),
-                })?;
-        let declaration =
-            crate::lowering::qualifications::domain_identity(typed, &sources, source.source, &mut identities)
-                .map_err(unavailable)?;
+        let sources = source_admission::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        )
+        .or_else(|error| {
+            if identities.is_invocation_scoped() {
+                Ok(Vec::new())
+            } else {
+                Err(error)
+            }
+        })
+        .map_err(|detail| terminal_check_tables::Refusal {
+            reason: RefusalReason::Unsupported,
+            machine: entry,
+            concerns: Construct::Machine,
+            source_span: None,
+            detail: format!("byte domain source identity: {detail}"),
+        })?;
+        let declaration = crate::lowering::qualifications::domain_identity(
+            typed,
+            &sources,
+            source.source,
+            &mut identities,
+        )
+        .map_err(unavailable)?;
         let semantic_domain = match semantic_domains
             .iter()
             .find(|(known, _)| *known == declaration)
@@ -1820,7 +1830,11 @@ impl<'a> Lowering<'a> {
         .ok_or_else(|| self.internal("a field is past its declaration"))
     }
 
-    fn case_of(&self, owner: StructuralTypeId, case: usize) -> Checked<&'a crate::lowering::body::CaseType> {
+    fn case_of(
+        &self,
+        owner: StructuralTypeId,
+        case: usize,
+    ) -> Checked<&'a crate::lowering::body::CaseType> {
         self.record_type(owner)?
             .cases()
             .get(case)
@@ -1979,7 +1993,11 @@ impl<'a> Lowering<'a> {
                 scalar_type,
                 policy: Some(policy),
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-            _ => ValueType::Record(storage, record_qualification, crate::lowering::body::Regions::NONE),
+            _ => ValueType::Record(
+                storage,
+                record_qualification,
+                crate::lowering::body::Regions::NONE,
+            ),
         })
     }
 
@@ -2306,7 +2324,8 @@ impl<'a> Lowering<'a> {
             return Ok(place);
         }
         let operation = self.operation_identity(source);
-        let value_type = ValueType::Record(record, qualification, crate::lowering::body::Regions::NONE);
+        let value_type =
+            ValueType::Record(record, qualification, crate::lowering::body::Regions::NONE);
         let (copy, exact) = self.produce(
             operation,
             value_type,
@@ -5330,7 +5349,8 @@ mod tests {
             assert_eq!(declared.identities.text(row.identity), Some(identity));
             assert_eq!(row.shape, StructuralTypeShape::PrimitiveScalar(scalar));
         }
-        let elaboration = crate::lowering::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
+        let elaboration =
+            crate::lowering::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
         let lowered = &elaboration.module.machines[0];
         assert_eq!(lowered.structural_parameters[0].structural_type, plain_id);
         let homes: Vec<_> = lowered

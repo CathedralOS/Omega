@@ -85,26 +85,22 @@ pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use prove::ProofSearchActivity;
 pub use rankings::FiniteIntegerRanking;
-#[cfg(any(test, feature = "test-support"))]
-pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use refinement::finalize_callable_refinements;
 #[cfg(any(test, feature = "test-support"))]
+pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
+#[cfg(not(any(test, feature = "test-support")))]
+pub use reuse::{Carried, CarriedForm, Selection};
+#[cfg(any(test, feature = "test-support"))]
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
-};
-#[cfg(not(any(test, feature = "test-support")))]
-pub use reuse::{
-    Carried, CarriedForm, Selection,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use terminal_check_tables::compilation::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
 };
 #[cfg(not(any(test, feature = "test-support")))]
-pub use terminal_check_tables::compilation::{
-    CallableFormationDefect, CallableFormationFailure,
-};
+pub use terminal_check_tables::compilation::{CallableFormationDefect, CallableFormationFailure};
 #[cfg(any(test, feature = "test-support"))]
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
@@ -113,8 +109,7 @@ pub use verdict::{
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use verdict::{
-    AcceptedClosure, CompilationRefusal, RouteVerdict,
-    UnprovedObligation, judge_compilation,
+    AcceptedClosure, CompilationRefusal, RouteVerdict, UnprovedObligation, judge_compilation,
 };
 
 #[cfg(test)]
@@ -123,12 +118,16 @@ pub(crate) use prove::has_rules_for;
 #[cfg(test)]
 mod tests;
 
+use arena::IdTable;
 use proof_admission::{
     AcceptedFact, CertificateEnvelope, EvidenceRoute, Obligation, ObligationClass,
     ProofSystemMarker, verify_obligation,
 };
-use semantic_vocabulary::{BlockId, CanonicalStructuralPathSegment, EvidenceIdentity, IntegerMathTerm, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId};
-use arena::{IdTable};
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, EvidenceIdentity, IntegerMathTerm, InvocationSite,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
+};
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::Elaboration;

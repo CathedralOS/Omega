@@ -28,13 +28,20 @@ impl SignatureInputs {
         self.scopes.len()
     }
 
-    pub(in crate::resolution::preparation) fn of(syntax: &SyntaxTrees, signature: &StateSignature) -> Self {
+    pub(in crate::resolution::preparation) fn of(
+        syntax: &SyntaxTrees,
+        signature: &StateSignature,
+    ) -> Self {
         let mut inputs = Self::default();
         inputs.signature(syntax, signature, None);
         inputs
     }
 
-    pub(in crate::resolution::preparation) fn hides_type(&self, mut scope: usize, name: &str) -> bool {
+    pub(in crate::resolution::preparation) fn hides_type(
+        &self,
+        mut scope: usize,
+        name: &str,
+    ) -> bool {
         loop {
             let current = &self.scopes[scope];
             if current.type_names.iter().any(|bound| bound == name) {
@@ -47,7 +54,11 @@ impl SignatureInputs {
         }
     }
 
-    pub(in crate::resolution::preparation) fn hides_value(&self, mut scope: usize, name: &str) -> bool {
+    pub(in crate::resolution::preparation) fn hides_value(
+        &self,
+        mut scope: usize,
+        name: &str,
+    ) -> bool {
         loop {
             let current = &self.scopes[scope];
             if current.value_names.iter().any(|bound| bound == name) {
@@ -241,7 +252,10 @@ pub(in crate::resolution::preparation) struct BoundTypeOccurrences {
 }
 
 impl BoundTypeOccurrences {
-    pub(in crate::resolution::preparation) fn contains(&self, reference: &TypeReferenceHandle) -> bool {
+    pub(in crate::resolution::preparation) fn contains(
+        &self,
+        reference: &TypeReferenceHandle,
+    ) -> bool {
         self.rows
             .get(reference.arena_index() as usize)
             .copied()

@@ -2,8 +2,8 @@
 //! The same storage operations handle array construction, copies and writes.
 
 use super::*;
-use terminal_psi::ArrayExtent;
 use crate::lowering::StorageShape;
+use terminal_psi::ArrayExtent;
 
 fn array_types() -> IdTable<StructuralTypeId, RecordType> {
     let mut types = IdTable::default();
@@ -75,7 +75,11 @@ fn equal_selectors_do_not_share_bounds_between_different_extents() {
         ))],
     );
     let mut elaboration = elaborate_over(vec![program], &array_types());
-    let result = discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let result = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let actual = verdicts(&elaboration, &result, 1, safety);
     assert_eq!(actual.len(), 2);
     assert_kernel_checked(&elaboration, 1, actual[0].0, certificate(actual[0].1));
@@ -115,8 +119,11 @@ fn every_bound_in_a_long_short_circuit_guard_reaches_its_array_read() {
             vec![guarded(guard, read), returns(unsigned(0))],
         );
         let mut elaboration = elaborate_over(vec![program], &array_types());
-        let result =
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        let result = discharge(
+            &mut elaboration,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap();
         let obligations = verdicts(&elaboration, &result, 1, safety);
         assert_eq!(obligations.len(), selector_count);
         for (position, (obligation, verdict)) in obligations.into_iter().enumerate() {
@@ -223,9 +230,12 @@ fn array_construction_copy_and_indexed_replacement_preserve_other_elements() {
 #[test]
 fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     let mut typed = crate::source_state::TypedTrees::default();
-    let marker = typed
-        .expression_table
-        .insert(crate::source_state::expression::ExpressionNode::Boolean(true));
+    let marker =
+        typed
+            .expression_table
+            .insert(crate::source_state::expression::ExpressionNode::Boolean(
+                true,
+            ));
     let capture = typed.expression_table.insert_match_subject(marker);
     let foreign_capture = typed.expression_table.insert_match_subject(marker);
     let mut types = array_types();

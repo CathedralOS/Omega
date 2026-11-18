@@ -315,20 +315,44 @@ fn supplied_product(
 fn closed_provider_demand_names_its_exact_source_judgment_and_deployment() {
     let (source, _, roster) = judged(SLOT, REACHES);
     let judge = || {
-        source_compiler::SourcePublication::judge(Arc::clone(&source), roster.clone(), Default::default())
-            .expect("source and its entry roster accept")
+        source_compiler::SourcePublication::judge(
+            Arc::clone(&source),
+            roster.clone(),
+            Default::default(),
+        )
+        .expect("source and its entry roster accept")
     };
     let original = judge();
     let same_source_judged_again = judge();
-    let demand = || original.prepare_provider_demand(None, &[], &[], false).unwrap();
+    let demand = || {
+        original
+            .prepare_provider_demand(None, &[], &[], false)
+            .unwrap()
+    };
     let facts = demand().receive(&original, None).unwrap();
     let source_compiler::provider_supply::SourceProviderDemand::Unscoped { roots } = facts else {
         panic!("expected the actual unscoped source roots");
     };
-    assert_eq!(roots, roster.entries.iter().map(|entry| original.accepted().unwrap().machine_of(*entry).unwrap()).collect::<Vec<_>>());
-    for (publication, target) in [(&same_source_judged_again, None), (&original, Some("linux_x86_64"))] {
-        let diagnostics = demand().receive(publication, target).err().expect("must refuse a stale receipt");
-        assert_eq!(diagnostics[0].message, "closed provider demand belongs to another source judgment or deployment");
+    assert_eq!(
+        roots,
+        roster
+            .entries
+            .iter()
+            .map(|entry| original.accepted().unwrap().machine_of(*entry).unwrap())
+            .collect::<Vec<_>>()
+    );
+    for (publication, target) in [
+        (&same_source_judged_again, None),
+        (&original, Some("linux_x86_64")),
+    ] {
+        let diagnostics = demand()
+            .receive(publication, target)
+            .err()
+            .expect("must refuse a stale receipt");
+        assert_eq!(
+            diagnostics[0].message,
+            "closed provider demand belongs to another source judgment or deployment"
+        );
     }
 }
 
@@ -1052,7 +1076,9 @@ fn execution(
         return native_program_planning::test_support::select_realization(
             accepted.module(),
             profile,
-            settled.realize_no_demand(accepted.module()).map_err(first)?,
+            settled
+                .realize_no_demand(accepted.module())
+                .map_err(first)?,
         )
         .map_err(first);
     }
@@ -1450,13 +1476,14 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
     let program = native_program_planning::calling_policy_plans::CallingProgram {
         artifact: produced(accepted),
     };
-    let applications = native_program_planning::calling_policy_plans::component_calling_applications(
-        profile(),
-        &program,
-        &[plan],
-        &[],
-    )
-    .expect("every member has a materializable declaration application");
+    let applications =
+        native_program_planning::calling_policy_plans::component_calling_applications(
+            profile(),
+            &program,
+            &[plan],
+            &[],
+        )
+        .expect("every member has a materializable declaration application");
     assert_eq!(applications.len(), 2);
 
     let mut changed = plan.clone();

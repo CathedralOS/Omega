@@ -3,10 +3,10 @@
 //! formation, use and completion must retain those separate obligations.
 
 use crate::lowering::body::{Qualification, RecordType, StorageShape, ValueType};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::StructuralAccess;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, places::RecordSource};
 use crate::lowering::{SourceOrigin, Unserved, refuse};
@@ -358,7 +358,10 @@ impl Program<'_> {
             |capture| captures.resolve(capture),
             |projection, descriptor| {
                 if crossing.is_none()
-                    && matches!(projection.kind, crate::lowering::ExpressionKind::Referent(_))
+                    && matches!(
+                        projection.kind,
+                        crate::lowering::ExpressionKind::Referent(_)
+                    )
                 {
                     crossing = Some(
                         descriptor
@@ -432,7 +435,10 @@ impl Program<'_> {
             place,
             |capture| captures.resolve(capture),
             |projection, descriptor| {
-                if matches!(projection.kind, crate::lowering::ExpressionKind::Referent(_)) {
+                if matches!(
+                    projection.kind,
+                    crate::lowering::ExpressionKind::Referent(_)
+                ) {
                     let Some(ValueType::Record(row, _, _)) = descriptor.result else {
                         return Err(refuse(
                             machine,
@@ -523,17 +529,17 @@ const fn access_named(access: StructuralAccess) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source_inputs::{SourceMap};
-    use source_admission::SourceOrigin;
-    use source_text::{SourceSpan, Span};
-    use std::{path::PathBuf, sync::Arc};
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
+    use crate::source_inputs::SourceMap;
     use crate::source_state::{
         TypedTrees,
         name::Identifier,
         types::{DomainConstraint, TypeConstraintNode},
     };
+    use crate::source_symbols::SymbolTableBuilder;
+    use source_admission::SourceOrigin;
+    use source_text::{SourceSpan, Span};
+    use std::{path::PathBuf, sync::Arc};
+    use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
     fn reference_occurrences_keep_their_own_domains_and_lifetime_owners() {

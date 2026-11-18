@@ -5,10 +5,10 @@ use crate::encoding::encode::{
     calling::encode_application, values::providers::encode_carry_policy,
 };
 use crate::record::PackagePolicyServiceMethod;
+use declaration_contracts::DomainPredicatePresence;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use declaration_contracts::DomainPredicatePresence;
 use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(

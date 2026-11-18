@@ -1,14 +1,7 @@
 //! A retained private boundary schema grants no source-call visibility.
 
 use super::Program;
-use semantic_vocabulary::PackageKeyIdentity;
-use crate::source_inputs::{SourceMap};
-use declaration_contracts::source_identity::DependencyScope;
-use source_admission::SourceOrigin;
-use source_text::{SourceSpan, Span};
-use std::sync::Arc;
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder};
+use crate::source_inputs::SourceMap;
 use crate::source_state::TypedTrees;
 use crate::source_state::machine::{Machine, MachineBodyStatus};
 use crate::source_state::name::Identifier;
@@ -16,6 +9,13 @@ use crate::source_state::signature::{AuthoredServiceReachRow, StateSignature};
 use crate::source_state::state::State;
 use crate::source_state::trait_definition::TraitDefinition;
 use crate::source_state::types::TypeReferenceNode;
+use crate::source_symbols::SymbolTableBuilder;
+use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::PackageKeyIdentity;
+use source_admission::SourceOrigin;
+use source_text::{SourceSpan, Span};
+use std::sync::Arc;
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
 struct Fixture {
     typed: TypedTrees,
@@ -28,9 +28,13 @@ struct Fixture {
 
 impl Fixture {
     fn static_callback(&mut self, forwarded: bool) -> (SymbolHandle, SymbolHandle) {
-        use crate::source_state::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
+        use crate::source_state::data::{
+            MachineParameterContract, TypeParameter, TypeParameterKind,
+        };
         use crate::source_state::expression::StaticMachineArgument;
-        use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::source_state::static_applications::{
+            StaticMachineBinding, StaticMachineBindingValue,
+        };
         let binder = self.callback_binder;
         let unit = self
             .typed
@@ -772,7 +776,10 @@ fn a_build_boundary_publishes_its_own_complete_service_contract() {
         .expect("the exact declaring trait");
     let project = |scope| {
         crate::source_state::service_declarations::projection::from_typed(
-            crate::source_state::provider_declarations::ProviderPlanningContext::new(&fixture.typed, scope),
+            crate::source_state::provider_declarations::ProviderPlanningContext::new(
+                &fixture.typed,
+                scope,
+            ),
             owner,
         )
     };
@@ -831,7 +838,10 @@ fn service_metadata_refuses_lost_provenance_in_a_tree_with_sources() {
         Err("boundary declaration lost its retained source provenance")
     );
     assert_eq!(
-        crate::lowering::declare::service_declaration_scope(&TypedTrees::default(), SymbolHandle::invalid()),
+        crate::lowering::declare::service_declaration_scope(
+            &TypedTrees::default(),
+            SymbolHandle::invalid()
+        ),
         Ok(DependencyScope::Product)
     );
 }

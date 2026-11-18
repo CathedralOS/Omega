@@ -41,5 +41,4 @@ pub fn hosted_exit_syscall_number(target: NativeTarget) -> Option<u32> {
     hosted_kernel(target).map(|kernel| kernel.exit)
 }
 
-
 pub const DARWIN_READ_BYTE_LEAF_BYTES: usize = 67;

@@ -352,7 +352,7 @@ pub mod flow_effects {
             arrival: &declaration_contracts::PermissionArrival<String>,
         ) -> Result<(), &'static str> {
             use declaration_contracts::ScopedPermissionClaimIdentity;
-use declaration_contracts::ScopedPermissionProvenance;
+            use declaration_contracts::ScopedPermissionProvenance;
             let ScopedPermissionClaimIdentity::Established {
                 machine_symbol,
                 state_symbol,
@@ -470,10 +470,10 @@ use declaration_contracts::ScopedPermissionProvenance;
             fn published_carry_commits_exact_guard_subject_and_acquisition() {
                 use super::{ConditionalCarryRequirement, template_contract_commitment};
                 use declaration_contracts::PermissionArrival;
-use declaration_contracts::ScopedPermissionClaimIdentity;
-use declaration_contracts::ScopedPermissionEventSource;
-use declaration_contracts::ScopedPermissionProvenance;
-use declaration_contracts::SuspensionValueOrigin;
+                use declaration_contracts::ScopedPermissionClaimIdentity;
+                use declaration_contracts::ScopedPermissionEventSource;
+                use declaration_contracts::ScopedPermissionProvenance;
+                use declaration_contracts::SuspensionValueOrigin;
                 let condition = super::ContractDependency {
                     concrete: false,
                     parameters: vec![0],

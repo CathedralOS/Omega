@@ -7,13 +7,13 @@
 // publishing the materialization context.
 
 use super::CallingPolicySignature;
+use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
 use calling_conventions::validate_fresh_native_parameter_identity;
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, ValidatedBoundaryEntryPlan,
     callback_nominal_report_fingerprint,
 };
-use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
 use layout::BoundaryValueLayout;
 use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
@@ -272,11 +272,7 @@ impl CanonicalCallingSignature {
                 )
             }))
         {
-            validate_callback_requirement_report_collision(
-                &requirements,
-                report,
-                identity,
-            )?;
+            validate_callback_requirement_report_collision(&requirements, report, identity)?;
             if !requirements.iter().any(|(prior, _)| *prior == report) {
                 requirements.push((report, identity.to_owned()));
             }

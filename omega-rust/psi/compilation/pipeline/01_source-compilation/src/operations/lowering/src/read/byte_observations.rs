@@ -2,10 +2,10 @@
 //! shared loans. Contract calls retain the exact storage being observed and
 //! the declaration's complete contract.
 
+use crate::source_state::expression::{ExpressionHandle, TableCallExpression};
 use semantic_vocabulary::{ByteSequencePredicate, MachineId, ScalarType};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::expression::{ExpressionHandle, TableCallExpression};
 
 use super::{Program, Slot};
 use crate::lowering::body::{Expression, ExpressionKind, ValueType};

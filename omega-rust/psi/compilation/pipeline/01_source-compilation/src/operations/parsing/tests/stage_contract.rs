@@ -1,6 +1,6 @@
 use source_admission::LoadedSource;
-use source_text::SourceId;
 use source_compiler::parsing::{ParseOptions, parse};
+use source_text::SourceId;
 
 #[test]
 fn parsing_returns_owned_pages_without_consuming_or_changing_tokens() {

@@ -82,14 +82,6 @@ pub use evaluated_build::{
     ServiceAuditRegistration,
 };
 pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
-pub use product_publication::RetainedNativeArtifact;
-pub use product_publication::{
-    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
-    NativePublicationEvidenceDigest, NativePublicationInputsDigest,
-    executable_installation_evidence_digest,
-};
-pub use product_publication::{NativePackagePublicationReceipt, PackagePublicationComponent};
-pub use product_publication::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use optimization_requests::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
@@ -99,8 +91,16 @@ pub use prepared_build::{
 };
 pub use prepared_source::{
     DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
- TypedCompilationFrontier,
+    TypedCompilationFrontier,
 };
+pub use product_publication::RetainedNativeArtifact;
+pub use product_publication::{
+    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
+    NativePublicationEvidenceDigest, NativePublicationInputsDigest,
+    executable_installation_evidence_digest,
+};
+pub use product_publication::{NativePackagePublicationReceipt, PackagePublicationComponent};
+pub use product_publication::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use provider_admission::provider_admission::TerminalCompilerBuiltinProposal;
 pub use terminal_installation::PrivateEntryRamInitialization;
 pub use verified_optimization_input::native_proposal::{

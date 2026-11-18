@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-pub use native_vocabulary::provenance::PsiProvenance;
 use ::wire::digest_encoder::DomainDigestEncoder;
+pub use native_vocabulary::provenance::PsiProvenance;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
 pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v3\0";

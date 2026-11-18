@@ -27,13 +27,13 @@ use crate::exit_contract::{
     StagedWholeFunctionExitContract, WholeFunctionExitContractError,
     stage_whole_function_exit_contract_for_layout, validate_exit_record_for_current_layout,
 };
+use encoding_admission::frame_protocol::{
+    ValidatedTargetFrameProtocolEncoding, validate_target_frame_protocol_encoding,
+};
 use frame_admission::frame_layout::{
     NonAuthoritativeCalleeSaveStorageIdentity, TargetFrameLayoutPolicy, ValidatedTargetFrameLayout,
     prepare_frame_demands, validate_non_authoritative_callee_save_storage,
     validate_target_frame_demands,
-};
-use encoding_admission::frame_protocol::{
-    ValidatedTargetFrameProtocolEncoding, validate_target_frame_protocol_encoding,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";

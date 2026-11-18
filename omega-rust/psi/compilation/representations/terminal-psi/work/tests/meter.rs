@@ -348,8 +348,11 @@ fn operation() -> Operation {
 }
 
 fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor {
-    use evaluation_accounting::{BuildEvaluationSponsor};
-    use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+    use evaluation_accounting::BuildEvaluationSponsor;
+    use evaluation_contracts::{
+        BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
     BuildEvaluationSponsor::new_with_measurement(
         BuildEvaluationSponsorLimits::new(units, 8, 2, 2, 8, 8, 8, 8).unwrap(),
         EvaluationMeasurementIdentity::TerminalPsi {

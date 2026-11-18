@@ -256,7 +256,9 @@ impl Lowering<'_> {
                         descriptor: *descriptor,
                     },
                 )?;
-                if let Some((owner, crate::source_state::SourceNode::Expression(node))) = source.node() {
+                if let Some((owner, crate::source_state::SourceNode::Expression(node))) =
+                    source.node()
+                {
                     self.source_constructions
                         .push((self.id, operation, owner, node));
                 }
@@ -517,8 +519,13 @@ impl Lowering<'_> {
                 lowering: self,
                 source,
             };
-            return crate::lowering::policy::saturating_shift_left(&mut computation, closed, left, right)
-                .map(Value::Scalar);
+            return crate::lowering::policy::saturating_shift_left(
+                &mut computation,
+                closed,
+                left,
+                right,
+            )
+            .map(Value::Scalar);
         }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.

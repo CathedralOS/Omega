@@ -52,6 +52,6 @@ pub use process_child::{
     ToolCommandChild,
 };
 
+pub use bounded_process::capture_child as capture_bounded_child;
 #[cfg(unix)]
 pub use process_child::descriptors::mark_ambient_close_on_exec;
-pub use bounded_process::capture_child as capture_bounded_child;

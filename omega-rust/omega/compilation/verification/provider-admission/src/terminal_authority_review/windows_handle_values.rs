@@ -7,8 +7,8 @@
 
 use std::collections::BTreeMap;
 
+use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
 use terminal_psi::{BoundaryParameterKind, Operation, TerminalModule, Terminator};
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,

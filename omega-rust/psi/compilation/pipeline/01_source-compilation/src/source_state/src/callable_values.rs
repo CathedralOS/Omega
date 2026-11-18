@@ -146,7 +146,8 @@ impl ScalarValueType {
         self,
         program: &crate::source_state::TypedTrees,
         other: Self,
-    ) -> Result<bool, crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError> {
+    ) -> Result<bool, crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError>
+    {
         match (self, other) {
             (Self::Primitive(left), Self::Primitive(right)) => Ok(left == right),
             (Self::Callable(left), Self::Callable(right)) => {

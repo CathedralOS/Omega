@@ -72,8 +72,12 @@ Knowledge names values only. No row here states a proposition about a place,
 and `semantic_vocabulary::Proposition`'s structural variants are not used.
 */
 
-use semantic_vocabulary::{BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId};
-use arena::{NumericId};
+use arena::NumericId;
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_check_tables::bindings::{PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::edges::Actual;
 use terminal_check_tables::obligations::ObligationKind;
@@ -1124,7 +1128,8 @@ impl<'a> Storage<'a> {
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, value_types, tables)?;
-        storage.cleanup_writes = crate::checking::owned_cleanup::writes(module, lowered, references)?;
+        storage.cleanup_writes =
+            crate::checking::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
         // Compare the authored log first. Then every write uses the same
@@ -1179,7 +1184,10 @@ impl<'a> Storage<'a> {
         Ok(storage)
     }
 
-    fn validate_float_meaning_source(&self, source: &ScalarTerm) -> Result<(), crate::checking::Unbound> {
+    fn validate_float_meaning_source(
+        &self,
+        source: &ScalarTerm,
+    ) -> Result<(), crate::checking::Unbound> {
         let sources = self
             .float_meanings
             .get_or_init(|| {
@@ -2704,7 +2712,10 @@ impl<'a> Storage<'a> {
             ));
         }
         terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::checking::semantics_refusal(self.machine, operation.id))?
+            .map_err(crate::checking::semantics_refusal(
+                self.machine,
+                operation.id,
+            ))?
             .map(|(_, goal)| goal)
             .ok_or_else(|| self.foreign(concerns, "a byte operation has no canonical bounds goal"))
     }
@@ -4784,7 +4795,9 @@ impl<'a> Storage<'a> {
                 .map(|place| (place.id, BytePredicateState::Unseen)),
         )
         .map_err(|_| {
-            crate::checking::Unbound::Unsupported("byte source places are not dense in declaration order")
+            crate::checking::Unbound::Unsupported(
+                "byte source places are not dense in declaration order",
+            )
         })?;
         self.byte_source_with(predicate, actual, concerns, &mut memo)
     }
@@ -4924,9 +4937,11 @@ impl<'a> Storage<'a> {
                 ));
             }
         };
-        *memo.get_mut(place).ok_or(crate::checking::Unbound::Unsupported(
-            "a byte source lost its declared place",
-        ))? = BytePredicateState::Resolved(result.clone());
+        *memo
+            .get_mut(place)
+            .ok_or(crate::checking::Unbound::Unsupported(
+                "a byte source lost its declared place",
+            ))? = BytePredicateState::Resolved(result.clone());
         Ok(result)
     }
 
@@ -5081,7 +5096,10 @@ impl<'a> Storage<'a> {
                     {
                         let used = vec![self.argument(&cleanup.subject, Construct::Edge(edge))?];
                         touches.push(Touch {
-                            cleanup: Some((edge, crate::checking::position(ordinal, self.machine)?)),
+                            cleanup: Some((
+                                edge,
+                                crate::checking::position(ordinal, self.machine)?,
+                            )),
                             at: Construct::Edge(edge),
                             block: block.id,
                             up_to: block.operations.len(),
@@ -5644,7 +5662,9 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
 /// Keep the actual place selected when the invocation's arguments were
 /// evaluated. A completion read changes its observation point, never the
 /// argument or the reference identity it follows.
-pub(crate) trait InputPlaces<'a>: crate::checking::Bindings<Error = crate::checking::Unbound> {
+pub(crate) trait InputPlaces<'a>:
+    crate::checking::Bindings<Error = crate::checking::Unbound>
+{
     fn references(&mut self) -> &mut DescriptorAnalysis<'a>;
     fn input_place(
         &self,
@@ -5675,9 +5695,12 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     }
 
     fn held(&mut self) -> Result<Held<'_, 'a>, crate::checking::Unbound> {
-        let (_, place) = self.structural.as_ref().ok_or(crate::checking::Unbound::Unsupported(
-            "no structural result correspondence",
-        ))?;
+        let (_, place) = self
+            .structural
+            .as_ref()
+            .ok_or(crate::checking::Unbound::Unsupported(
+                "no structural result correspondence",
+            ))?;
         let (block, up_to) = self
             .storage
             .graph
@@ -5695,7 +5718,10 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
         })
     }
 
-    fn held_at<'p>(&'p mut self, place: &'p Lineage) -> Result<Held<'p, 'a>, crate::checking::Unbound> {
+    fn held_at<'p>(
+        &'p mut self,
+        place: &'p Lineage,
+    ) -> Result<Held<'p, 'a>, crate::checking::Unbound> {
         let (block, up_to) = self
             .storage
             .graph
@@ -5754,8 +5780,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
                     "a result has no invocation-entry contents",
                 ));
             }
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+            let subject = terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data subject identity"),
+            )?;
             return self.held()?.field(version, subject, path, scalar_type);
         }
         let access = self.formal_access(root)?;
@@ -5773,8 +5800,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
             return self.inputs.field(version, root, path, scalar_type);
         }
         let actual = self.inputs.input_place(root, path)?;
-        let subject = terminal_check_tables::program::self_place()
-            .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+        let subject = terminal_check_tables::program::self_place().ok_or(
+            crate::checking::Unbound::Unsupported("data subject identity"),
+        )?;
         self.held_at(&actual)?.field(
             semantic_vocabulary::ContentPlaceVersion::Current,
             subject,
@@ -5799,8 +5827,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
                     "a result has no invocation-entry contents",
                 ));
             }
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+            let subject = terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data subject identity"),
+            )?;
             return self
                 .held()?
                 .field_alternatives(version, subject, path, scalar_type);
@@ -5834,8 +5863,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+            let subject = terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data subject identity"),
+            )?;
             return self.held()?.extent(subject, path, scalar_type);
         }
         if self.formal_access(root)? == terminal_psi::StructuralAccess::Owned {
@@ -5857,8 +5887,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+            let subject = terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data subject identity"),
+            )?;
             return self.held()?.byte_predicate(predicate, subject, path);
         }
         if self.formal_access(root)? != terminal_psi::StructuralAccess::SharedBorrow {
@@ -5879,8 +5910,9 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::checking::Unbound::Unsupported("data subject identity"))?;
+            let subject = terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data subject identity"),
+            )?;
             return self.held()?.case(subject, path, case);
         }
         self.owned_inputs(root)?.case(root, path, case)
@@ -6750,7 +6782,13 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             .iter()
             .any(|formal| formal.place == root)
         {
-            return crate::checking::Bindings::field(&mut self.inputs, version, root, path, scalar_type);
+            return crate::checking::Bindings::field(
+                &mut self.inputs,
+                version,
+                root,
+                path,
+                scalar_type,
+            );
         }
         // A subject outside the destination header keeps its existing
         // storage version. It is not a callee input to reread at this edge.
@@ -6853,9 +6891,9 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         let actual = self.inputs.actual(root, path)?;
         crate::checking::Bindings::case(
             &mut self.inputs.held_at(&actual),
-            terminal_check_tables::program::self_place().ok_or(crate::checking::Unbound::Unsupported(
-                "data clause has no self coordinate",
-            ))?,
+            terminal_check_tables::program::self_place().ok_or(
+                crate::checking::Unbound::Unsupported("data clause has no self coordinate"),
+            )?,
             &[],
             case,
         )
@@ -6936,7 +6974,9 @@ impl Held<'_, '_> {
             )
             .map_err(crate::checking::Unbound::Refused)?;
         if let Reached::Extent(producer) = reached {
-            let block = storage.block(self.block).map_err(crate::checking::Unbound::Refused)?;
+            let block = storage
+                .block(self.block)
+                .map_err(crate::checking::Unbound::Refused)?;
             let point = self
                 .up_to
                 .min(block.operations.len())

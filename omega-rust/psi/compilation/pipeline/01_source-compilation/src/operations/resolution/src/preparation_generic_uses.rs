@@ -577,7 +577,9 @@ mod constructors {
         TypeReferenceHandle, TypeReferenceNode,
     };
     use crate::resolution::preparation::generic_data::ClosedArgumentIdentity;
-    use crate::resolution::preparation::generic_data::uses::{ConstructorFrontier, closed_sum_path};
+    use crate::resolution::preparation::generic_data::uses::{
+        ConstructorFrontier, closed_sum_path,
+    };
     use crate::resolution::tables::syntax_items;
     use crate::resolution::tables::syntax_type_references;
     use syntax_trees::identifier::JoinedSyntaxPath;
@@ -1137,7 +1139,9 @@ mod expressions {
         machines; lowering the conformance later cannot repair stale constructor
         identities. Open enclosing binders remain templates, not concrete work.
     */
-    pub(in crate::resolution::preparation::generic_data) fn concrete_machine_declarations<'syntax>(
+    pub(in crate::resolution::preparation::generic_data) fn concrete_machine_declarations<
+        'syntax,
+    >(
         syntax: &'syntax SyntaxTrees,
         declarations: &[syntax_trees::item::ItemHandle],
     ) -> Vec<&'syntax syntax_trees::item::Machine> {
@@ -1827,11 +1831,11 @@ mod patterns {
     }
 }
 
-pub(in crate::resolution::preparation) use expressions::visit_expression_type_inputs;
-pub(in crate::resolution::preparation) use expressions::visit_static_argument_type_inputs;
-pub(crate) use expressions::statement_type_inputs;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use expressions::statement_call_inputs;
+pub(crate) use expressions::statement_type_inputs;
+pub(in crate::resolution::preparation) use expressions::visit_expression_type_inputs;
+pub(in crate::resolution::preparation) use expressions::visit_static_argument_type_inputs;
 
 pub(super) use assignments::{
     relabel_closed_data_uses_in_constants, relabel_closed_data_uses_in_exact_assignments,

@@ -4,12 +4,14 @@
 // handoff: its source capture is admitted independently by source preparation.
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
-use source_compiler::evaluation::provider_declarations::{ProviderSelection, RetainedProviderSelection};
 use diagnostics::Diagnostic;
+use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
+use source_compiler::evaluation::provider_declarations::{
+    ProviderSelection, RetainedProviderSelection,
+};
 use std::path::PathBuf;
-use source_admission::RetainedDeclaration;
 
 pub(super) struct CompletedProviderDefaults {
     supplier: PackageBuildHandoff,
@@ -117,7 +119,8 @@ impl CompletedProviderDefaults {
                     inputs.admit_retained_product_application(&self.supplier, application)?;
             }
             let subject_loaded = source.typed().symbols.source_files().any(|file| {
-                file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+                file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Product
                     && source
                         .typed()
                         .symbols

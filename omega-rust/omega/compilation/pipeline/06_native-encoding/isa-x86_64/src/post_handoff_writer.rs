@@ -29,8 +29,13 @@ mod fragment {
         {
             return None;
         }
-        let layout_plans::ScalarFragment {container_byte_offset: offset, container_width_bits: container_width, destination_lsb, source_lsb, width} =
-            layout_plans::private_address_fragment(placement, i32::MAX as usize)?;
+        let layout_plans::ScalarFragment {
+            container_byte_offset: offset,
+            container_width_bits: container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } = layout_plans::private_address_fragment(placement, i32::MAX as usize)?;
         let offset = u32::try_from(offset).ok()?;
         let container_bytes = (container_width / 8) as u8;
         let whole = destination_lsb == 0 && width == container_width;
@@ -279,7 +284,9 @@ mod tests {
         generated_post_handoff_writer_clobbers, generated_post_handoff_writer_width,
         post_handoff_writer_context_byte_len,
     };
-    use layout_plans::{EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget};
+    use layout_plans::{
+        EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
+    };
     use post_handoff_writer_plan::{
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
     };

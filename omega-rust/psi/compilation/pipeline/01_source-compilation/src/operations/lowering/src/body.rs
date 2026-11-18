@@ -14,8 +14,11 @@ produces. `ValueType::Record` and `RecordType` name both shapes: a record has
 fields and no case, a sum has cases and no field.
 */
 
-use semantic_vocabulary::{BoundaryMachineId, CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BoundaryMachineId, CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId,
+};
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
 

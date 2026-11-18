@@ -10,8 +10,13 @@ use super::{
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
     PostHandoffWriterStep, derive_post_handoff_writer, post_handoff_writer_context_byte_len,
 };
-use layout_plans::{ByteOrder, ConsumptionInstant, EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext, MaterializationWrite, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget, SymbolicFieldValue, SymbolicMaterializationPlan};
-use storage_materialization::{derive_symbolic_materialization};
+use layout_plans::{
+    ByteOrder, ConsumptionInstant, EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport,
+    LayoutPlanReport, MaterializationAction, MaterializationContext, MaterializationWrite,
+    PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget, SymbolicFieldValue,
+    SymbolicMaterializationPlan,
+};
+use storage_materialization::derive_symbolic_materialization;
 
 fn post_handoff_context() -> MaterializationContext {
     MaterializationContext {

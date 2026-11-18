@@ -8,7 +8,9 @@ and any failed charge leaves both counters untouched.
 */
 
 use crate::{BuildEvaluationSponsor, BuildEvaluationSponsorConsumption, BuildEvaluationUsage};
-use evaluation_contracts::{EvaluationMeasurementIdentity, EvaluationAccountingError, EvaluationResource};
+use evaluation_contracts::{
+    EvaluationAccountingError, EvaluationMeasurementIdentity, EvaluationResource,
+};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Default)]

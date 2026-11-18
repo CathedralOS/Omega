@@ -2861,8 +2861,8 @@ mod block_parameters {
     #[cfg(test)]
     mod projected_transfer_tests {
         use super::*;
-        use semantic_vocabulary::{StructuralPlaceKind};
-        use arena::{NumericId};
+        use arena::NumericId;
+        use semantic_vocabulary::StructuralPlaceKind;
         use terminal_psi::{ArrayExtent, StructuralPlaceDeclaration, StructuralTypeShape};
 
         fn id<T: NumericId>(raw: u64) -> T {
@@ -10726,8 +10726,8 @@ mod value_custody {
     #[cfg(test)]
     mod store_tests {
         use super::*;
-        use semantic_vocabulary::{StructuralPlaceKind};
-        use arena::{NumericId};
+        use arena::NumericId;
+        use semantic_vocabulary::StructuralPlaceKind;
         use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::{
             ArrayExtent, StructuralParameterDeclaration, StructuralPlaceDeclaration,

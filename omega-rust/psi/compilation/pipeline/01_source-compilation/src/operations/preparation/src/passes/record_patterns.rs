@@ -8,13 +8,13 @@
 //! naming no field, or a name two fields share, keeps no symbol. Neither is an
 //! error here: the checker refuses both where a program reaches the pattern.
 
-use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataMember};
 use crate::source_state::expression::TableMatchField;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableLocalData};
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut resolutions = Vec::new();
@@ -108,8 +108,6 @@ fn subject_record<'program>(
 #[cfg(test)]
 mod tests {
     use super::prepare;
-    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
     use crate::source_state::TypedTrees;
     use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVariant};
     use crate::source_state::expression::{
@@ -121,6 +119,8 @@ mod tests {
     use crate::source_state::state::State;
     use crate::source_state::statement::{StatementHandle, StatementNode, TableLocalData};
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
     struct Source {
         program: TypedTrees,

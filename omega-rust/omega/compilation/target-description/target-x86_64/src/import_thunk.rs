@@ -20,12 +20,9 @@ pub fn decode_x86_64_import_thunk(bytes: &[u8]) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk,
-        x86_64_import_thunk_footprint,
+        X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk, x86_64_import_thunk_footprint,
     };
-    use calling_conventions::{
-        MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
-    };
+    use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
 
     #[test]
     fn decode_returns_the_emitted_displacement() {

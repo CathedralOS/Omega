@@ -52,6 +52,7 @@ pub mod types_and_values;
 
 pub use application_identity::const_value::FiniteScalarValue;
 
+pub(crate) use ::wire::digest_encoder;
 pub use artifacts::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,
     CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, DebugFileId, DebugSite,
@@ -60,6 +61,8 @@ pub use artifacts::{
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker, TerminalDebugMap, TerminalMachineProvenance,
 };
+pub use declaration_contracts::byte_predicates::ByteSequencePredicate;
+pub use declaration_contracts::byte_predicates::ByteSequencePredicateSet;
 pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
     AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,
@@ -67,9 +70,6 @@ pub use language_core::inline_assembly::{
     AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
     AsmTargetApplicability as RegisterTargetApplicability,
 };
-pub use declaration_contracts::byte_predicates::ByteSequencePredicate;
-pub use declaration_contracts::byte_predicates::ByteSequencePredicateSet;
-pub(crate) use ::wire::digest_encoder;
 
 pub mod prepared_roots {
 
@@ -540,8 +540,8 @@ pub mod calling_policies {
 pub mod native_layouts {
 
     use crate::{TargetLayoutInput, TerminalIdentityIndex};
-    use arena::{Arena, HandleSpan};
     use application_identity::callback_declarations::PrivateCallbackSlotSelection;
+    use arena::{Arena, HandleSpan};
     use layout_plans::NativeLayoutPlanReport;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 

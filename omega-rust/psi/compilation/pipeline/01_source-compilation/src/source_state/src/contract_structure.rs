@@ -62,7 +62,9 @@ pub struct ContractIdentityContext<Type, Fact, Symbol, Cause> {
     pub crash_cause: Cause,
 }
 
-pub fn generic_binders(parameters: &[crate::source_state::data::TypeParameter]) -> Vec<(SymbolHandle, String)> {
+pub fn generic_binders(
+    parameters: &[crate::source_state::data::TypeParameter],
+) -> Vec<(SymbolHandle, String)> {
     parameters
         .iter()
         .enumerate()

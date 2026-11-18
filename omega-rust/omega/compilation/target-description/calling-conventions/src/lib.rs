@@ -59,8 +59,8 @@ pub use boundary_application::{
     validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
-    BoundaryOpaqueRepresentationMovementRole,
-    BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,
+    BoundaryOpaqueRepresentationMovementRole, BoundaryValueClass, BoundaryValueField,
+    BoundaryValueGraph, BoundaryValueShape,
 };
 pub use callback_materializations::{
     BoundaryNativeParameterOrigin, CallbackBinderRequirement, CallbackMaterialization,

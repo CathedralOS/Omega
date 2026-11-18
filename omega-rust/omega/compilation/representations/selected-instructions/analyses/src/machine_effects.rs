@@ -37,11 +37,11 @@ mod analysis {
 mod catalog {
     use std::sync::Arc;
 
-    use target_aarch64::aarch64_machine_effect_catalog;
-    use target_x86_64::x86_64_machine_effect_catalog;
     use register_model::PreparedRegisterConstraintCatalog;
     use selected_instructions::{PreparedMachineEffectCatalog, canonical_machine_effect_catalog};
     use target::NativeTarget;
+    use target_aarch64::aarch64_machine_effect_catalog;
+    use target_x86_64::x86_64_machine_effect_catalog;
 
     use super::MachineEffectStageError;
 

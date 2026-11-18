@@ -14,14 +14,12 @@ fn typed(text: &str) -> Result<crate::source_state::TypedTrees, diagnostics::Dia
         .expect("source tokenizes");
     let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
         .expect("source parses");
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        },
-    )
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
     .expect("source resolves");
     crate::typing::lower_symbol_resolved_trees(&resolved)
 }
@@ -37,8 +35,11 @@ fn widths(kind: &ObligationKind) -> bool {
 }
 
 fn positive(mut form: crate::lowering::Elaboration) {
-    let discharged = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default())
-        .expect("the actual width roster is valid");
+    let discharged = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .expect("the actual width roster is valid");
     let questions = verdicts(&form, &discharged, 1, widths);
     assert_eq!(questions.len(), 1);
     let (question, verdict) = questions[0];
@@ -143,7 +144,11 @@ fn a_positive_width_does_not_authorize_the_wrong_body_guarantee() {
     let mut form = generic(
         "machine entry<const N: u64>(value: u<N>) -> u<N> requires N > 0u64 ensures result != value crashes none { value }",
     );
-    let discharged = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let discharged = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(
         verdicts(&form, &discharged, 1, widths)
             .iter()
@@ -168,7 +173,11 @@ fn an_ordinary_const_value_is_not_an_integer_width_use() {
             .iter()
             .all(|(_, row)| !widths(&row.kind))
     );
-    let discharged = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let discharged = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(
         discharged
             .machines

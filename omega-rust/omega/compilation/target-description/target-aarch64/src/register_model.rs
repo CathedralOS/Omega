@@ -2277,8 +2277,7 @@ mod physical_model {
         })
     }
 
-    pub fn canonical_aarch64_physical_register_model_identity()
-    -> PhysicalRegisterModelIdentity {
+    pub fn canonical_aarch64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
         validated_aarch64_physical_register_model().identity()
     }
 }

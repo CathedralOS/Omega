@@ -37,12 +37,12 @@
 use super::typed_frontier::TypedFrontier;
 use super::{build_continuation, complete_prepared_build, prepare_typed_frontier};
 use diagnostics::Diagnostic;
-use source_compiler::declaration_selection::ExecutedRootBinding;
-use source_compiler::declaration_selection::RootBindingSelection;
 use products::{
     CheckedExecutionRequest, CompileFailure, ComputedBuildConfig, EvaluatedBuild,
     PreparedCheckedSource, PreparedProductSource,
 };
+use source_compiler::declaration_selection::ExecutedRootBinding;
+use source_compiler::declaration_selection::RootBindingSelection;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -134,13 +134,18 @@ fn frozen_frontier(
     root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<TypedFrontier, CompileFailure> {
     let targets = package_compilation::source_imports::source_targets(None);
-    source_compiler::prepare_unbuilt_frontier(typed, accounting, source_compiler::UnbuiltSourceInputs {
-        root_bindings: &build.root_bindings,
-        provider_selections: &build.provider_selections,
-        targets: &targets,
-        subject: root_package,
-        freestanding: build.settings.freestanding,
-    }).map_err(CompileFailure::from)
+    source_compiler::prepare_unbuilt_frontier(
+        typed,
+        accounting,
+        source_compiler::UnbuiltSourceInputs {
+            root_bindings: &build.root_bindings,
+            provider_selections: &build.provider_selections,
+            targets: &targets,
+            subject: root_package,
+            freestanding: build.settings.freestanding,
+        },
+    )
+    .map_err(CompileFailure::from)
 }
 
 /// The binding a Build would have executed as

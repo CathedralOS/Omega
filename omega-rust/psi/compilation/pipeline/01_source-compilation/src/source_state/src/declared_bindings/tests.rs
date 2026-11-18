@@ -3,9 +3,9 @@ use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVaria
 use crate::source_state::signature::StateParameter;
 use crate::source_state::statement::TableLocalData;
 use crate::source_state::types::TypeReferenceNode;
+use crate::source_symbols::SymbolTableBuilder;
 use arena::HandleSpan;
 use symbols::{SymbolKind, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder};
 
 fn graph(extra_locals: usize) -> (TypedTrees, State, [SymbolHandle; 4], TypeReferenceHandle) {
     let mut symbols = SymbolTableBuilder::default();
@@ -401,7 +401,10 @@ fn published_and_detached_queries_share_rows_and_preserve_root_multiplicity() {
     );
     matches_global_roster(&program, &binders);
     program.roots.machines = roots;
-    matches_global_roster(&crate::source_state::FrozenTypedTrees::from(program), &binders);
+    matches_global_roster(
+        &crate::source_state::FrozenTypedTrees::from(program),
+        &binders,
+    );
 }
 
 #[test]
@@ -471,7 +474,10 @@ fn published_rows_refresh_same_shape_storage_and_state_span_edits() {
         &prepared,
         &prepared_body(&program, &state)
     ));
-    matches_global_roster(&crate::source_state::FrozenTypedTrees::from(snapshot), &binders);
+    matches_global_roster(
+        &crate::source_state::FrozenTypedTrees::from(snapshot),
+        &binders,
+    );
 }
 
 #[test]
@@ -521,13 +527,14 @@ fn frozen_published_reads_do_not_take_the_mutable_owner_lock() {
 fn legacy_named_value_and_signature_queries_keep_source_order() {
     let (mut program, state, binders, reference) = graph(0);
     let other = program.type_reference_table.insert(TypeReferenceNode::Unit);
-    let owned_data = program
-        .machine_owned_data
-        .insert_many([crate::source_state::machine::OwnedData {
-            symbol: binders[1],
-            type_reference: other,
-            ..Default::default()
-        }]);
+    let owned_data =
+        program
+            .machine_owned_data
+            .insert_many([crate::source_state::machine::OwnedData {
+                symbol: binders[1],
+                type_reference: other,
+                ..Default::default()
+            }]);
     let states = program
         .machine_states
         .insert_many([state.clone(), state.clone()]);
@@ -681,9 +688,10 @@ fn stale_statement_and_name_spans_refuse_small_and_indexed_queries() {
         );
         state.statement_nodes = statements;
         let mut members = HandleSpan::empty();
-        program
-            .expression_table
-            .push_name_path_member(&mut members, crate::source_state::name::Identifier::generated("same"));
+        program.expression_table.push_name_path_member(
+            &mut members,
+            crate::source_state::name::Identifier::generated("same"),
+        );
         let name = program.expression_table.insert(ExpressionNode::Name(
             crate::source_state::expression::TableNamePath::new(
                 members,

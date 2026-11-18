@@ -52,7 +52,8 @@ impl Default for SemanticDomainTable {
                 "Wrapping".to_owned(),
                 "Saturating".to_owned(),
                 "Trapping".to_owned(),
-            ].into(),
+            ]
+            .into(),
         }
     }
 }

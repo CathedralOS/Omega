@@ -426,8 +426,9 @@ mod product_policy {
                 return Ok((Vec::new(), Vec::new()));
             }
             let source = Arc::clone(&self.input);
-            let lookups =
-                crate::source_state::product_operand::ProductSourceLookups::new(source.typing.typed());
+            let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
+                source.typing.typed(),
+            );
             for formation in formations {
                 let author = lookups
                     .authors
@@ -492,8 +493,9 @@ mod product_policy {
                 .peekable();
             if native_formations.peek().is_some() {
                 let source = Arc::clone(&self.input);
-                let lookups =
-                    crate::source_state::product_operand::ProductSourceLookups::new(source.typing.typed());
+                let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
+                    source.typing.typed(),
+                );
                 for (request, author) in native_formations {
                     let [operand] = request.operands.as_ref() else {
                         return Err(vec![Diagnostic::error(
@@ -1554,16 +1556,15 @@ mod resolution_handoff_tests {
             .tokenize()
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let frontier =
-            crate::resolution::pre_resolution::resolve_deferred_numeric_probe(
-                crate::resolution::ResolutionRequest {
-                    syntax,
-                    sources: Some(Arc::clone(&sources)),
-                    top_level_bindings: Vec::new(),
-                    retained_base: None,
-                },
-            )
-            .unwrap();
+        let frontier = crate::resolution::pre_resolution::resolve_deferred_numeric_probe(
+            crate::resolution::ResolutionRequest {
+                syntax,
+                sources: Some(Arc::clone(&sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .unwrap();
         let typing =
             crate::typing::lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
                 .unwrap();

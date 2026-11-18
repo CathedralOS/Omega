@@ -4,9 +4,6 @@
 
 use std::sync::Arc;
 
-use semantic_vocabulary::{CallingSignatureId, MachineId};
-use symbols::SymbolHandle;
-use terminal_check_tables::Checked;
 use crate::source_state::TypedTrees;
 use crate::source_state::service_declarations::signatures::PreparedBoundaryAbiSignature;
 use crate::source_state::service_declarations::{
@@ -15,6 +12,9 @@ use crate::source_state::service_declarations::{
 use crate::source_state::trait_definition::{
     AppliedTraitScope, TraitApplicationArguments, TraitApplicationEnvironment,
 };
+use semantic_vocabulary::{CallingSignatureId, MachineId};
+use symbols::SymbolHandle;
+use terminal_check_tables::Checked;
 
 use super::{Program, services};
 
@@ -294,7 +294,10 @@ impl Program<'_> {
             }
             None => (&[][..], &[][..]),
         };
-        let context_source = ProviderPlanningContext::new(typed, declaration_contracts::source_identity::DependencyScope::Product);
+        let context_source = ProviderPlanningContext::new(
+            typed,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        );
         let environments = applications
             .iter()
             .cloned()
@@ -310,7 +313,10 @@ impl Program<'_> {
             None => {
                 let catalog = self
                     .shared
-                    .calling_catalog(typed, declaration_contracts::source_identity::DependencyScope::Product)
+                    .calling_catalog(
+                        typed,
+                        declaration_contracts::source_identity::DependencyScope::Product,
+                    )
                     .as_ref()
                     .map(Arc::clone)
                     .map_err(|reason| services::unavailable(context, reason.clone()))?;
@@ -354,14 +360,15 @@ impl Program<'_> {
             let declaration = typed
                 .normalized_hermetic_symbol_identity(scope.declaration.symbol)
                 .map_err(|reason| services::unavailable(context, reason))?;
-            let schema = crate::source_state::service_declarations::projection::from_typed_application(
-                crate::source_state::provider_declarations::ProviderPlanningContext::new(
-                    typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
-                ),
-                scope.clone(),
-            )
-            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+            let schema =
+                crate::source_state::service_declarations::projection::from_typed_application(
+                    crate::source_state::provider_declarations::ProviderPlanningContext::new(
+                        typed,
+                        declaration_contracts::source_identity::DependencyScope::Product,
+                    ),
+                    scope.clone(),
+                )
+                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
             schema
                 .validate_correspondence()
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
@@ -653,14 +660,14 @@ impl Program<'_> {
 #[cfg(test)]
 mod inherited_contract_owner_tests {
     use super::*;
-    use crate::source_inputs::{SourceMap};
-    use source_admission::SourceOrigin;
-    use source_text::{SourceSpan, Span};
-    use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
+    use crate::source_inputs::SourceMap;
     use crate::source_state::name::Identifier;
     use crate::source_state::signature::StateSignature;
     use crate::source_state::trait_definition::{TraitDefinition, TraitRequirement};
+    use crate::source_symbols::SymbolTableBuilder;
+    use source_admission::SourceOrigin;
+    use source_text::{SourceSpan, Span};
+    use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
     fn inherited_callable_parents_require_completion_of_the_exact_application() {
@@ -768,10 +775,8 @@ mod inherited_contract_owner_tests {
 mod header_reading_tests {
     use super::*;
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+    use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
     use crate::source_state::domain::ProofFact;
     use crate::source_state::expression::{
         BinaryOperator, ExpressionNode, TableBinaryExpression, TableNamePath, TableUnaryExpression,
@@ -782,6 +787,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
     };
     use crate::source_state::trait_definition::{TraitApplicationArguments, TraitDefinition};
     use crate::source_state::types::TypeReferenceNode;
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     fn fixture(valid_predicate: bool) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
         header_fixture(valid_predicate, false, false)
@@ -888,16 +895,17 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             symbol: token,
             name: "Token".into(),
         });
-        let members = typed
-            .data_members
-            .insert_many([crate::source_state::data::DataMember::Field(
-                crate::source_state::data::DataField {
-                    symbol: field,
-                    name: "allowed".into(),
-                    type_reference: boolean,
-                    ..Default::default()
-                },
-            )]);
+        let members =
+            typed
+                .data_members
+                .insert_many([crate::source_state::data::DataMember::Field(
+                    crate::source_state::data::DataField {
+                        symbol: field,
+                        name: "allowed".into(),
+                        type_reference: boolean,
+                        ..Default::default()
+                    },
+                )]);
         typed.push_data_definition(crate::source_state::data::DataDefinition {
             symbol: token,
             name: "Token".into(),
@@ -920,12 +928,14 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             .retain_domain_application(domain, token_type, &[])
             .unwrap();
         let constraints = typed.type_reference_table.insert_constraints([
-            crate::source_state::types::TypeConstraintNode::Domain(crate::source_state::types::DomainConstraint {
-                name: "Allowed".into(),
-                symbol: domain,
-                semantic_id,
-                ..Default::default()
-            }),
+            crate::source_state::types::TypeConstraintNode::Domain(
+                crate::source_state::types::DomainConstraint {
+                    name: "Allowed".into(),
+                    symbol: domain,
+                    semantic_id,
+                    ..Default::default()
+                },
+            ),
         ]);
         let qualified = typed
             .type_reference_table
@@ -1282,7 +1292,9 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
         let signature = program
             .read_calling_requirement_header(context, &scope, requirement)
             .unwrap();
-        assert!(signature.parameters[0].qualification() != crate::lowering::body::Qualification::NONE);
+        assert!(
+            signature.parameters[0].qualification() != crate::lowering::body::Qualification::NONE
+        );
         assert!(!signature.requires.is_empty());
         program.completed_operators.finish();
         crate::lowering::selection_questions::capture_with_bodies(
@@ -1388,7 +1400,10 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             // reader must have populated its existing Product slot itself.
             assert_eq!(shared.prepared_calling_catalogs(), 1);
             let product = shared
-                .calling_catalog(&typed, declaration_contracts::source_identity::DependencyScope::Product)
+                .calling_catalog(
+                    &typed,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
                 .as_ref()
                 .unwrap();
             assert!(Arc::ptr_eq(policies.catalog.as_ref().unwrap(), product));
@@ -1401,7 +1416,10 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
         // The other consumer still owns its actual dependency purpose. A Build
         // request cannot reuse a Product binding even though its source is equal.
         let product = shared
-            .calling_catalog(&typed, declaration_contracts::source_identity::DependencyScope::Product)
+            .calling_catalog(
+                &typed,
+                declaration_contracts::source_identity::DependencyScope::Product,
+            )
             .as_ref()
             .unwrap();
         assert!(

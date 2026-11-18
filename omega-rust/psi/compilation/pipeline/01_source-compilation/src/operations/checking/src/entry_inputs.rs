@@ -16,8 +16,11 @@ boundary stops caller inference, while its own declared facts can justify calls
 within its body.
 */
 
-use semantic_vocabulary::{BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, PlaceId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+};
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
@@ -661,8 +664,13 @@ fn derived(
             }
         }
     }
-    let mut prover =
-        crate::checking::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
+    let mut prover = crate::checking::prove::Prover::new(
+        context,
+        &assumptions,
+        &axioms,
+        &tables.values,
+        activity,
+    );
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -1178,7 +1186,8 @@ fn formed(
     let forms = |clause: &Proposition, activity: &mut crate::checking::ProofSearchActivity| {
         let mut proposed = contract.clone();
         proposed.requires.push(clause.clone());
-        match crate::checking::formation::contract(&elaboration.module, callee, &proposed, activity) {
+        match crate::checking::formation::contract(&elaboration.module, callee, &proposed, activity)
+        {
             Ok(_) => Ok(true),
             Err(refusal) if refusal.reason == RefusalReason::ForeignIdentity => Err(refusal),
             Err(_) => Ok(false),

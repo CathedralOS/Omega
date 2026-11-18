@@ -363,7 +363,9 @@ impl<'source> ApplicationPreparation<'source> {
                             .type_reference_table
                             .insert(TypeReferenceNode::Named {
                                 symbol: SymbolHandle::invalid(),
-                                name: crate::source_state::name::Identifier::generated(value.to_string()),
+                                name: crate::source_state::name::Identifier::generated(
+                                    value.to_string(),
+                                ),
                             })
                     })
                     .unwrap_or(argument)
@@ -389,7 +391,11 @@ impl<'source> ApplicationPreparation<'source> {
                     self.source
                         .static_const_literal_from_type_reference(*argument)
                         .is_some()
-                        || crate::source_state::canonical_const_argument_value(self.source, *argument).is_some()
+                        || crate::source_state::canonical_const_argument_value(
+                            self.source,
+                            *argument,
+                        )
+                        .is_some()
                 }
                 _ => false,
             };
@@ -431,9 +437,9 @@ impl<'source> ApplicationPreparation<'source> {
         definition.members = self.source.tables.data_members.insert_many(members);
         // Keep the authored member symbols, requirements, storage properties
         // and source origins. Only the type telescope is applied here.
-        closed &= children
-            .iter()
-            .all(|child| crate::source_state::domain::index_argument_is_closed(self.source, *child));
+        closed &= children.iter().all(|child| {
+            crate::source_state::domain::index_argument_is_closed(self.source, *child)
+        });
         self.source
             .retain_data_application_definition(reference, definition, closed);
         if self.active_declarations.contains(&owner) {
@@ -461,8 +467,8 @@ mod tests {
     use super::*;
     use crate::source_state::data::{DataDefinition, DataField, DataVariant, TypeParameter};
     use crate::source_state::name::Identifier;
-    use symbols::{SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::SymbolNameRef;
 
     /// `data Chain<T> { case Link(head: T, tail: Chain<T>); }` with the
     /// references `Chain<T>` (the member's own type) and `Chain<u8>`.
@@ -582,10 +588,12 @@ mod tests {
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
             root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                (SymbolKind::Data, SymbolNameRef::Static("Choice")),
-                (SymbolKind::Data, SymbolNameRef::Static("Linear")),
-            ]),
+            crate::source_symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([
+                    (SymbolKind::Data, SymbolNameRef::Static("Choice")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Linear")),
+                ]),
         );
         let choice = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
         let linear = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
@@ -687,7 +695,9 @@ mod tests {
                 element_type: choice_type,
                 length: FixedArrayLength::Literal(3),
             });
-        assert!(crate::source_state::canonical_const_carrier_is_supported(&program, array));
+        assert!(crate::source_state::canonical_const_carrier_is_supported(
+            &program, array
+        ));
         program.type_reference_table.substitute_node(
             array,
             TypeReferenceNode::FixedArray {

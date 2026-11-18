@@ -366,8 +366,7 @@ fn validate_original(
         source::retained_source_validation::admit(source, original)?;
         source::retained_source_validation::establish_geometry(source, original)?;
     }
-    if source.emission_facts().termination.is_err()
-    {
+    if source.emission_facts().termination.is_err() {
         return Err(Error::Mismatch(
             "privileged termination obligation differs from original",
         ));
@@ -383,10 +382,16 @@ fn validate_original(
     // The fixed-frame audit reconstructs these projections from retained instructions.
     // An object readback checks its current, immutable publication against the carried facts.
     if artifact.call_origins.as_ref() != &source.emission_facts().calls {
-        return Err(Error::Mismatch("object call origins differ from retained publication"));
+        return Err(Error::Mismatch(
+            "object call origins differ from retained publication",
+        ));
     }
-    if source.emission_facts().foreign_calls.as_ref().ok() != Some(artifact.foreign_call_plans.as_ref()) {
-        return Err(Error::Mismatch("object foreign call plans differ from retained publication"));
+    if source.emission_facts().foreign_calls.as_ref().ok()
+        != Some(artifact.foreign_call_plans.as_ref())
+    {
+        return Err(Error::Mismatch(
+            "object foreign call plans differ from retained publication",
+        ));
     }
     if source::replayed_temporary_stack_bytes_by_function(source)?
         != source::temporary_stack_bytes_by_function(&artifact.emission_input)?
@@ -644,7 +649,9 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                temporary_stack_bytes[source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?].byte_count,
+                temporary_stack_bytes
+                    [source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?]
+                .byte_count,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

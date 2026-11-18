@@ -15,11 +15,6 @@ are read in `statements`, and case dispatch is read in `transitions`.
 */
 
 use crate::lowering::body::{Qualification, StorageShape};
-use semantic_vocabulary::{
-    MachineId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
-};
-use symbols::{SymbolHandle, SymbolKind};
-use terminal_check_tables::{Checked, Construct};
 use crate::source_state::data::{DataDefinition, DataField, DataMember};
 use crate::source_state::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, TableDestructurePattern,
@@ -27,6 +22,11 @@ use crate::source_state::expression::{
 };
 use crate::source_state::name::Identifier;
 use crate::source_state::types::TypeReferenceNode;
+use semantic_vocabulary::{
+    MachineId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
+};
+use symbols::{SymbolHandle, SymbolKind};
+use terminal_check_tables::{Checked, Construct};
 
 use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
@@ -217,15 +217,16 @@ impl Program<'_> {
         let typed = self.typed;
         let symbol = data.symbol;
         self.served(id, symbol)?;
-        let same = |owner: SymbolHandle, retained: &Option<crate::source_state::SourceTypeApplication>| {
-            owner == symbol
-                && match (retained, &application) {
-                    (Some(retained), Some(application)) => {
-                        super::source_records::same_application(typed, retained, application)
-                    }
-                    (None, None) => true,
-                    (None, Some(application)) | (Some(application), None) => {
-                        data.generic_instance.is_none()
+        let same =
+            |owner: SymbolHandle, retained: &Option<crate::source_state::SourceTypeApplication>| {
+                owner == symbol
+                    && match (retained, &application) {
+                        (Some(retained), Some(application)) => {
+                            super::source_records::same_application(typed, retained, application)
+                        }
+                        (None, None) => true,
+                        (None, Some(application)) | (Some(application), None) => {
+                            data.generic_instance.is_none()
                             && data.type_parameters.is_empty()
                             && application.substitutions.is_empty()
                             // An argument-free declaration is its natural
@@ -233,9 +234,9 @@ impl Program<'_> {
                             && typed.normalized_nominal_type_identity(symbol).is_some_and(|identity| {
                                 identity == typed.normalized_type_identity(application.reference)
                             })
+                        }
                     }
-                }
-        };
+            };
         let members = typed.data_members(data);
         // Admission precedes cache reuse: descriptor-only records cannot
         // become executable body types through a shared storage row.
@@ -346,7 +347,10 @@ impl Program<'_> {
                     .iter()
                     .zip(&application.substitutions)
                 {
-                    if matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type) {
+                    if matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                    ) {
                         self.value_type(id, argument.1)?;
                     }
                     // source_application checks each const against its carrier;
@@ -441,7 +445,8 @@ impl Program<'_> {
         // The declaration's `requires`, read once the fields and cases it
         // names have their identities, by the clause reader the machine
         // contracts use.
-        let root = crate::lowering::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let root =
+            crate::lowering::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -959,7 +964,9 @@ impl Program<'_> {
                     "nominal decomposition with qualified subject obligations",
                 )));
             }
-            Ok(Some(crate::lowering::body::Statement::Decompose { subject }))
+            Ok(Some(crate::lowering::body::Statement::Decompose {
+                subject,
+            }))
         } else {
             Ok(None)
         }
@@ -1064,7 +1071,9 @@ impl Program<'_> {
         // A read of `items[i].field` copies only the field, so the indexed
         // element is read as a projection base rather than as a whole value.
         let base = match self.node(id, member.receiver)? {
-            crate::source_state::expression::ExpressionNode::Indexed(indexed) if access == Access::Read => {
+            crate::source_state::expression::ExpressionNode::Indexed(indexed)
+                if access == Access::Read =>
+            {
                 let element = self.indexed(
                     id,
                     slots,
@@ -1636,7 +1645,8 @@ fn record_shape_for<'m>(
     payload: impl Fn(&'m crate::source_state::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-    if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque && !members.is_empty()
+    if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque
+        && !members.is_empty()
     {
         return unserved("opaque data with declared members");
     }
@@ -1718,7 +1728,10 @@ pub(super) fn literal_value_type(written: ValueType, expected: Option<ValueType>
 
 /// `value_type` at `regions`, when it is a record type; a record row is the
 /// same whatever regions a value of it holds (`regions`).
-pub(super) fn with_regions(value_type: ValueType, regions: crate::lowering::body::Regions) -> ValueType {
+pub(super) fn with_regions(
+    value_type: ValueType,
+    regions: crate::lowering::body::Regions,
+) -> ValueType {
     match value_type {
         ValueType::Record(record, qualification, _) => {
             ValueType::Record(record, qualification, regions)
@@ -1879,8 +1892,12 @@ pub(super) fn reference_lifetime_declared(
     if resolved
         || tag.as_str().is_empty()
         || !owner.is_valid()
-        || crate::source_state::type_identity::lifetime_parameter_identity(typed, owner, tag.as_str())
-            .is_some()
+        || crate::source_state::type_identity::lifetime_parameter_identity(
+            typed,
+            owner,
+            tag.as_str(),
+        )
+        .is_some()
     {
         return Ok(());
     }
@@ -1919,8 +1936,8 @@ fn copy_field_is_unrestricted(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arena::{Handle, HandleSpan};
     use crate::source_state::data::{DataField, DataProperties, DataVariant};
+    use arena::{Handle, HandleSpan};
 
     fn machine() -> MachineId {
         MachineId::new(1).unwrap()

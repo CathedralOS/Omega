@@ -487,13 +487,13 @@ pub(crate) mod domain_constraints {
 #[path = "type_reference_domain_exposure_tests.rs"]
 mod domain_exposure_tests;
 
+use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_resolved as resolved;
 use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
 use crate::source_state as typed;
 use crate::typing::lowerer::Lowerer;
 use diagnostics::Diagnostic;
-use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
 
@@ -664,9 +664,9 @@ pub(crate) mod const_arguments {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::name::Identifier;
         use crate::source_state::types::TypeReferenceNode;
-        use diagnostics::Diagnostic;
         use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
+        use diagnostics::Diagnostic;
 
         pub(crate) fn normalize(
             program: &mut TypedTrees,
@@ -2009,13 +2009,13 @@ use application_identity::const_value::DecodedCanonicalConstValue;
     pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
 }
 pub(crate) mod constraints {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state as typed;
     use crate::typing::tables::{type_constraints, type_references};
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 
     pub(crate) fn lower_type_constraint_node_span_from_table(
         source_trees: &SymbolResolvedTrees,
@@ -2155,7 +2155,8 @@ pub(crate) mod constraints {
             if let Some(permission) = declaration_contracts::CarryPermission::from_name(name) {
                 return DomainConstraintSubject::Carry(permission);
             }
-            if let Some(domain) = declaration_contracts::value_domain::ValueDomain::from_name(name) {
+            if let Some(domain) = declaration_contracts::value_domain::ValueDomain::from_name(name)
+            {
                 return DomainConstraintSubject::Value(domain);
             }
         }
@@ -2168,13 +2169,13 @@ pub(crate) mod constraints {
     }
 }
 pub(crate) mod direct {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::source_resolved as resolved;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state as typed;
-    use diagnostics::Diagnostic;
     use application_identity::const_value;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+    use diagnostics::Diagnostic;
 
     use crate::typing::lowerer::name::{lower_name, lower_names};
     use crate::typing::type_reference::constraints::lower_type_constraint_node_span_with_context;
@@ -3236,13 +3237,13 @@ pub(crate) mod generic_origins {
     }
 }
 pub(crate) mod table {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state as typed;
     use crate::typing::tables::type_references;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 
     use crate::typing::lowerer::name::lower_names;
     use crate::typing::type_reference::constraints::lower_type_constraint_node_span_from_table;
@@ -3607,8 +3608,8 @@ pub(crate) fn retain_type_reference_recipe_selection(
     exposure: Option<AuthoredDeclarationSelectionExposure>,
     kind: AuthoredDeclarationSelectionKind,
 ) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
-    use crate::source_selections::AuthoredDeclarationSelectionCoordinateError as CoordinateError;
     use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
+    use crate::source_selections::AuthoredDeclarationSelectionCoordinateError as CoordinateError;
     let Some(exposure) = exposure else {
         return Ok(None);
     };

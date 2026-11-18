@@ -19,9 +19,9 @@ pub(crate) mod activation_storage {
     };
     use crate::storage::runtime_rows::RuntimeRows;
     use evaluation_accounting::EvaluationInvocationAccount;
-    use resource_bounds::{ActivationClaimBranch};
-use extents::{ActivationClaimId, ActivationClaimRequest};
-use extent_contracts::{ActivationClaimSiteId};
+    use extent_contracts::ActivationClaimSiteId;
+    use extents::{ActivationClaimId, ActivationClaimRequest};
+    use resource_bounds::ActivationClaimBranch;
     use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::{Operation, OperationKind, StructuralPathSegment};
 
@@ -4841,7 +4841,7 @@ pub(crate) mod runtime_indexes {
 pub(crate) mod runtime_rows {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-    use evaluation_contracts::{EvaluationAccountingError};
+    use evaluation_contracts::EvaluationAccountingError;
     use std::collections::{BTreeMap, btree_map};
 
     fn reserve_row(
@@ -5048,8 +5048,11 @@ pub(crate) mod runtime_rows {
     #[cfg(test)]
     mod tests {
         use super::RuntimeRows;
-        use evaluation_accounting::{BuildEvaluationSponsor};
-        use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+        use evaluation_accounting::BuildEvaluationSponsor;
+        use evaluation_contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
 
         fn sponsor(cells: u64) -> BuildEvaluationSponsor {
             BuildEvaluationSponsor::new_with_measurement(

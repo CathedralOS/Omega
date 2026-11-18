@@ -454,7 +454,10 @@ impl ItemTable {
         self.declaration_storage.proof_facts.get(handle)
     }
 
-    pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<source_text::SourceSpan> {
+    pub fn proof_fact_source_span(
+        &self,
+        handle: Handle<ProofFact>,
+    ) -> Option<source_text::SourceSpan> {
         *self
             .declaration_storage
             .proof_fact_source_spans
@@ -646,7 +649,9 @@ impl Default for ItemTable {
     }
 }
 
-fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<source_text::SourceSpan>> {
+fn proof_fact_source_span_handle(
+    handle: Handle<ProofFact>,
+) -> Handle<Option<source_text::SourceSpan>> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 

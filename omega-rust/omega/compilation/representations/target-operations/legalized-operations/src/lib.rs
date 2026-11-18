@@ -46,8 +46,8 @@ pub use crate as legalized_operations;
 
 pub mod function_abi;
 pub use function_abi::LegalizedFunctionAbi;
-pub mod native_geometry;
 pub mod installed_interrupt_geometry;
+pub mod native_geometry;
 pub mod structural_inputs;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

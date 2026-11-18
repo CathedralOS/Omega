@@ -6,13 +6,13 @@
 
 use std::collections::VecDeque;
 
-use diagnostics::Diagnostic;
-use application_identity::const_value::DecodedCanonicalConstValue;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataField;
 use crate::source_state::expression::ExpressionHandle;
 use crate::source_state::references::TypedReferences;
+use application_identity::const_value::DecodedCanonicalConstValue;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use crate::evaluation::{BuildTimeValue, SourceCompletionAccounting};
 
@@ -102,7 +102,8 @@ pub fn validate_constant_evaluations(
                     }))
         {
             let target = receipt.admission().target();
-            let rows: &mut Vec<&crate::evaluation::PureTerminalEvaluationReceipt> = &mut receipts[index];
+            let rows: &mut Vec<&crate::evaluation::PureTerminalEvaluationReceipt> =
+                &mut receipts[index];
             if rows.iter().any(|row| {
                 let other = row.admission().target();
                 other.is_none() || target.is_none() || other == target
@@ -706,15 +707,16 @@ fn deployment_targets<'scope>(
         .collect::<Vec<_>>();
     ordered.sort_by(|left, right| left.target.cmp(&right.target));
     for scope in ordered {
-        let selection = crate::source_state::references::DeclarationSelection::from_computation_roots(
-            program,
-            scope.entry_declarations.iter().copied().chain(
-                scope
-                    .provider_declarations
-                    .iter()
-                    .map(|row| row.provider_type.symbol),
-            ),
-        )?;
+        let selection =
+            crate::source_state::references::DeclarationSelection::from_computation_roots(
+                program,
+                scope.entry_declarations.iter().copied().chain(
+                    scope
+                        .provider_declarations
+                        .iter()
+                        .map(|row| row.provider_type.symbol),
+                ),
+            )?;
         for (position, constant) in constants.iter().enumerate() {
             let targets: &mut Vec<&super::FixedLayoutTargetScope> = &mut reached[position];
             if !selection.contains(*constant) {

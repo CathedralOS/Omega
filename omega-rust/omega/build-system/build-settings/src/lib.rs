@@ -97,7 +97,6 @@ pub use build_evaluation::{
     RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
-pub use source_compiler::evaluation::WireCompatibilityDemand;
 pub use effects::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
@@ -114,12 +113,12 @@ pub use package_compilation::build_execution::{
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use products::{BuildConfig, ComputedBuildConfig};
+pub use source_compiler::evaluation::WireCompatibilityDemand;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;
-pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
 pub use declaration_contracts::selection::RootBinding;
-
+pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
 
 #[cfg(test)]
 #[path = "../../../../../tests/support/frontend.rs"]

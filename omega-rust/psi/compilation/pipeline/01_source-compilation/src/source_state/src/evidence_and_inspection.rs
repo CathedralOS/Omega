@@ -651,8 +651,8 @@ pub mod evidence {
         use crate::source_state::name::Identifier;
         use crate::source_state::type_identity::TypeIdentityRequest;
         use crate::source_state::types::TypeReferenceHandle;
-        use arena::HandleSpan;
         use crate::source_symbols::JoinedPath;
+        use arena::HandleSpan;
         use symbols::SymbolHandle;
 
         pub(crate) mod constructor_values {
@@ -857,7 +857,9 @@ pub mod evidence {
             let label = render_evidence_type(program, evidence, &display_substitutions);
             let (trait_symbol, arguments) =
                 match program.type_reference_table.type_reference(evidence) {
-                    crate::source_state::types::TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
+                    crate::source_state::types::TypeReferenceNode::Named { symbol, .. } => {
+                        (*symbol, &[][..])
+                    }
                     crate::source_state::types::TypeReferenceNode::Generic {
                         base_symbol,
                         arguments,
@@ -929,8 +931,10 @@ pub mod evidence {
                 trait_arguments: &[String],
                 visited: &mut Vec<(SymbolHandle, Vec<String>)>,
                 requirements: &mut Vec<NormalizedEvidenceRequirementIdentity>,
-            ) -> Result<(), crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError>
-            {
+            ) -> Result<
+                (),
+                crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError,
+            > {
                 let visit = (trait_symbol, trait_arguments.to_vec());
                 if visited.contains(&visit) {
                     return Ok(());
@@ -1016,7 +1020,11 @@ pub mod evidence {
             symbols: &[SymbolHandle],
         ) -> bool {
             let mut references = FreeInputMentions::new(program, symbols);
-            crate::source_state::references::visit_type_reference(program, &mut references, type_reference);
+            crate::source_state::references::visit_type_reference(
+                program,
+                &mut references,
+                type_reference,
+            );
             references.mentioned
         }
 
@@ -1031,7 +1039,10 @@ pub mod evidence {
         }
 
         impl<'program, 'query> FreeInputMentions<'program, 'query> {
-            fn new(program: &'program crate::source_state::TypedTrees, symbols: &'query [SymbolHandle]) -> Self {
+            fn new(
+                program: &'program crate::source_state::TypedTrees,
+                symbols: &'query [SymbolHandle],
+            ) -> Self {
                 Self {
                     program,
                     symbols,
@@ -1060,7 +1071,10 @@ pub mod evidence {
         }
 
         impl crate::source_state::references::TypedReferences for FreeInputMentions<'_, '_> {
-            fn callable_signature(&mut self, signature: &crate::source_state::signature::StateSignature) {
+            fn callable_signature(
+                &mut self,
+                signature: &crate::source_state::signature::StateSignature,
+            ) {
                 self.pending_binders = self
                     .program
                     .state_signature_type_parameters(signature)
@@ -1564,9 +1578,9 @@ pub mod evidence {
                         .iter()
                         .map(|(_, parameter)| parameter)
                         .find_map(|parameter| match &parameter.kind {
-                            crate::source_state::data::TypeParameterKind::Proposition { contract }
-                                if parameter.symbol == application.proposition =>
-                            {
+                            crate::source_state::data::TypeParameterKind::Proposition {
+                                contract,
+                            } if parameter.symbol == application.proposition => {
                                 Some(contract.parameters.len())
                             }
                             _ => None,
@@ -2729,21 +2743,37 @@ pub mod inspection {
                             name: parameter.name.to_string(),
                             kind: match parameter.kind {
                                 crate::source_state::data::TypeParameterKind::Type => "type",
-                                crate::source_state::data::TypeParameterKind::Implementation => "implementation",
-                                crate::source_state::data::TypeParameterKind::Const { .. } => "const",
-                                crate::source_state::data::TypeParameterKind::Value { .. } => "value",
-                                crate::source_state::data::TypeParameterKind::Machine { .. } => "machine",
-                                crate::source_state::data::TypeParameterKind::Proposition { .. } => "proposition",
+                                crate::source_state::data::TypeParameterKind::Implementation => {
+                                    "implementation"
+                                }
+                                crate::source_state::data::TypeParameterKind::Const { .. } => {
+                                    "const"
+                                }
+                                crate::source_state::data::TypeParameterKind::Value { .. } => {
+                                    "value"
+                                }
+                                crate::source_state::data::TypeParameterKind::Machine {
+                                    ..
+                                } => "machine",
+                                crate::source_state::data::TypeParameterKind::Proposition {
+                                    ..
+                                } => "proposition",
                             },
                             const_type: match parameter.kind {
-                                crate::source_state::data::TypeParameterKind::Const { type_reference }
-                                | crate::source_state::data::TypeParameterKind::Value { type_reference } => {
-                                    Some(type_reference_snapshot(program, type_reference))
+                                crate::source_state::data::TypeParameterKind::Const {
+                                    type_reference,
                                 }
+                                | crate::source_state::data::TypeParameterKind::Value {
+                                    type_reference,
+                                } => Some(type_reference_snapshot(program, type_reference)),
                                 crate::source_state::data::TypeParameterKind::Type
                                 | crate::source_state::data::TypeParameterKind::Implementation
-                                | crate::source_state::data::TypeParameterKind::Machine { .. }
-                                | crate::source_state::data::TypeParameterKind::Proposition { .. } => None,
+                                | crate::source_state::data::TypeParameterKind::Machine {
+                                    ..
+                                }
+                                | crate::source_state::data::TypeParameterKind::Proposition {
+                                    ..
+                                } => None,
                             },
                         })
                         .collect(),
@@ -2964,7 +2994,9 @@ pub mod inspection {
             ) -> MathematicalBinderSnapshot {
                 let (kind, carrier) = match &parameter.kind {
                     crate::source_state::data::TypeParameterKind::Type => ("type", None),
-                    crate::source_state::data::TypeParameterKind::Implementation => ("implementation", None),
+                    crate::source_state::data::TypeParameterKind::Implementation => {
+                        ("implementation", None)
+                    }
                     crate::source_state::data::TypeParameterKind::Const { type_reference }
                     | crate::source_state::data::TypeParameterKind::Value { type_reference } => {
                         let kind = match &parameter.kind {
@@ -2976,8 +3008,12 @@ pub mod inspection {
                             Some(type_reference_snapshot(program, *type_reference)),
                         )
                     }
-                    crate::source_state::data::TypeParameterKind::Machine { .. } => ("machine", None),
-                    crate::source_state::data::TypeParameterKind::Proposition { .. } => ("proposition", None),
+                    crate::source_state::data::TypeParameterKind::Machine { .. } => {
+                        ("machine", None)
+                    }
+                    crate::source_state::data::TypeParameterKind::Proposition { .. } => {
+                        ("proposition", None)
+                    }
                 };
                 MathematicalBinderSnapshot {
                     has_symbol: parameter.symbol.is_valid(),
@@ -3667,7 +3703,7 @@ pub mod inspection {
                 interface: &declaration_contracts::TerminationInterface,
             ) -> TerminationInterfaceSnapshot {
                 use declaration_contracts::TerminationGuarantee;
-use declaration_contracts::TerminationInterface;
+                use declaration_contracts::TerminationInterface;
                 match interface {
                     TerminationInterface::InternalDerived => {
                         TerminationInterfaceSnapshot::InternalDerived
@@ -3979,7 +4015,9 @@ use declaration_contracts::TerminationInterface;
             use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
             use crate::source_state::inspection::snapshot;
             use crate::source_state::statement::TransitionExit;
-            use crate::source_state::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+            use crate::source_state::statement::{
+                StatementNode, TransitionGuardNode, TransitionTargetNode,
+            };
             use serde::Serialize;
             use snapshot::TypeReferenceSnapshot;
             use snapshot::type_snapshots::{path_snapshot, type_reference_snapshot};
@@ -5236,21 +5274,28 @@ use declaration_contracts::TerminationInterface;
                     .wire_members(members)
                     .iter()
                     .map(|member| match member {
-                        crate::source_state::wire::WireMember::Field(field) => WireMemberSnapshot::Field {
-                            number: field.number,
-                            name: field.name.to_string(),
-                            relevance: snapshot_binding_relevance(field.relevance),
-                            type_reference: type_reference_snapshot(program, field.type_reference),
-                        },
+                        crate::source_state::wire::WireMember::Field(field) => {
+                            WireMemberSnapshot::Field {
+                                number: field.number,
+                                name: field.name.to_string(),
+                                relevance: snapshot_binding_relevance(field.relevance),
+                                type_reference: type_reference_snapshot(
+                                    program,
+                                    field.type_reference,
+                                ),
+                            }
+                        }
                         crate::source_state::wire::WireMember::Reserved(reserved) => {
                             WireMemberSnapshot::Reserved {
                                 number: reserved.number,
                             }
                         }
-                        crate::source_state::wire::WireMember::Version(version) => WireMemberSnapshot::Version {
-                            name: version.name.to_string(),
-                            members: wire_member_snapshots(program, version.members),
-                        },
+                        crate::source_state::wire::WireMember::Version(version) => {
+                            WireMemberSnapshot::Version {
+                                name: version.name.to_string(),
+                                members: wire_member_snapshots(program, version.members),
+                            }
+                        }
                     })
                     .collect()
             }

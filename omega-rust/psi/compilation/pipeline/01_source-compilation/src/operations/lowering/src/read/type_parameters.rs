@@ -2,12 +2,12 @@
 //! The carrier keeps the original binder and unknown contents. It grants no
 //! geometry, field access or cleanup permission.
 
+use crate::source_state::data::TypeParameterKind;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::values::RigidType;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::data::TypeParameterKind;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, places::RecordSource};
 use crate::lowering::body::{RecordType, StorageShape, ValueType};
@@ -24,7 +24,10 @@ pub(super) struct ParameterStorage {
 impl Program<'_> {
     pub(super) fn extended_source_scope(
         &self,
-        bindings: Vec<(SymbolHandle, crate::source_state::types::TypeReferenceHandle)>,
+        bindings: Vec<(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )>,
     ) -> std::sync::Arc<crate::source_state::SourceTypeScope> {
         if bindings.is_empty() {
             return self.source_scope.clone();

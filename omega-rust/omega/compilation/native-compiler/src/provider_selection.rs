@@ -1,7 +1,9 @@
 //! Select the native providers for one published program and target.
 use backend_plan::PublishedProviderDemand;
 use diagnostics::Diagnostic;
-pub use native_program_planning::{SelectedExecution, SelectedProviderRealization, SelectedProviderResult};
+pub use native_program_planning::{
+    SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
+};
 
 pub fn select_published_providers(
     demand: PublishedProviderDemand,
@@ -24,7 +26,15 @@ pub fn select_published_providers(
             origins,
             review,
             folded_entry,
-        } => (profile, logical, bodies, labels, origins, review, folded_entry),
+        } => (
+            profile,
+            logical,
+            bodies,
+            labels,
+            origins,
+            review,
+            folded_entry,
+        ),
     };
     let artifact = std::sync::Arc::clone(&origins.artifact);
     let module = artifact.semantic_module();

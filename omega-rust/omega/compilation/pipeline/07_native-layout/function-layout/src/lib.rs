@@ -26,9 +26,9 @@ pub use fragment_emission::{
 };
 pub use frame_application::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity, PlacedBodyEvidence,
-    StagedFunctionFragmentFrameApplication, function_fragment_frame_application_identity,
-    validate_current_relative_branch_rows,
+    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
+    PlacedBodyEvidence, StagedFunctionFragmentFrameApplication,
+    function_fragment_frame_application_identity, validate_current_relative_branch_rows,
 };
 pub use function_realization::{
     FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,

@@ -25,7 +25,10 @@ pub fn prepare_program_entry(
     checked: &PublishedCompilation,
 ) -> Result<(SelectedProgramEntrySignature, ProducedTerminalApplication), Vec<Diagnostic>> {
     let program = checked.program();
-    let selected = native_compiler::PublishedNativeEntry::for_program(program.artifact(), checked.execution())?;
+    let selected = native_compiler::PublishedNativeEntry::for_program(
+        program.artifact(),
+        checked.execution(),
+    )?;
     let signature = selected.source_signature().clone();
     let application = TerminalApplicationCustody::prepare(
         selected.nominal_root(),

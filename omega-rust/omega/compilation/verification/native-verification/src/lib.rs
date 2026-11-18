@@ -14,16 +14,16 @@ use encoding_admission::{
     SelectedFormEncodingValidation, validate_encoded_integrity,
     validate_optimized_layout_independent_selected_form_encoding,
 };
+use native_layout::StagedOptimizedX86BranchRelaxation;
 use optimization_core::OptimizationExecutionPhase;
 use physical_planning::RetainedAllocation;
 use physical_planning::StagedOptimizedPostAllocationMachinePlan;
-use native_layout::StagedOptimizedX86BranchRelaxation;
 use selected_instruction_analyses::SelectedOptimizationRecord;
 mod allocation;
 use allocation::AllocationOriginals;
 use allocation::validate_allocated_callee_saved_requirements;
-use selected_instruction_analyses::SelectedProgramView;
 pub use physical_planning::SelectedOptimizationReplay;
+use selected_instruction_analyses::SelectedProgramView;
 
 #[derive(Debug)]
 pub struct PhysicalVerificationEvidence {

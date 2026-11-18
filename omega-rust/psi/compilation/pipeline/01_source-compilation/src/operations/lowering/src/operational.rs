@@ -20,12 +20,14 @@ pub(crate) fn retain(
                 ..CallAcknowledgement::generated()
             }
         }
-        declaration_contracts::CallOperationalAcknowledgementOrigin::Source => CallAcknowledgement {
-            origin: CallOrigin::Authored,
-            acknowledges_suspend: acknowledgement.acknowledges_suspend,
-            acknowledges_block: acknowledgement.acknowledges_block,
-            suspension_position,
-        },
+        declaration_contracts::CallOperationalAcknowledgementOrigin::Source => {
+            CallAcknowledgement {
+                origin: CallOrigin::Authored,
+                acknowledges_suspend: acknowledgement.acknowledges_suspend,
+                acknowledges_block: acknowledgement.acknowledges_block,
+                suspension_position,
+            }
+        }
     });
 }
 

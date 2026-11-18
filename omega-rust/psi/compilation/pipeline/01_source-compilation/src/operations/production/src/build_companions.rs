@@ -6,6 +6,10 @@
 //! machine, operation and boundary together in BuildCallSite, so helpers cannot
 //! share a call key.
 
+use crate::declaration_selection::BuildOperation;
+use crate::declaration_selection::BuildSelectionRequest;
+use crate::declaration_selection::NativeBindingFormation;
+use crate::declaration_selection::ProductDeclarationRequest;
 use crate::lowering::Elaboration;
 use crate::production::{
     AcceptedTerminalSource, BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
@@ -16,13 +20,9 @@ use crate::production::{
 };
 use crate::source_state::TypedTrees;
 use crate::source_symbols::is_build_protocol;
-use diagnostics::Diagnostic;
 use declaration_contracts::build_requests::SELECTION_PROTOCOL;
 use declaration_contracts::build_requests::SelectionProtocolOperation;
-use crate::declaration_selection::BuildOperation;
-use crate::declaration_selection::BuildSelectionRequest;
-use crate::declaration_selection::NativeBindingFormation;
-use crate::declaration_selection::ProductDeclarationRequest;
+use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;

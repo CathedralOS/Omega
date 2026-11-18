@@ -1,7 +1,7 @@
 use super::*;
+use crate::lowering::Borrowed;
 use language_core::ReferenceAccess;
 use terminal_psi::{TerminalAffineCleanupAction, Terminator};
-use crate::lowering::Borrowed;
 
 /// The moved contents, rather than a caller guard, establish the call bound.
 fn moved_record(first: u128) -> crate::lowering::Elaboration {
@@ -136,8 +136,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         });
     }
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &affine_records())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &affine_records()).unwrap();
     declare_body_models(&mut elaboration, &signatures);
     let caller = &elaboration.module.machines[0];
     assert!(

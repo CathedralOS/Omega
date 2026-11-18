@@ -29,7 +29,10 @@ impl PackageSourceRequest {
         }
     }
 
-    pub fn set_optimization_rollback(&mut self, rollback: optimization_requests::OptimizationRollback) {
+    pub fn set_optimization_rollback(
+        &mut self,
+        rollback: optimization_requests::OptimizationRollback,
+    ) {
         match self {
             Self::Execute(request) => request.optimization_rollback = rollback,
             Self::Product(request) => request.options.optimization_rollback = rollback,

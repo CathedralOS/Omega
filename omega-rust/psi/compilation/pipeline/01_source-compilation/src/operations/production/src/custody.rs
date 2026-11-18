@@ -8,13 +8,13 @@
     late application attachment without reopening source trees.
 */
 
+use crate::declaration_selection::NativeBindingFormation;
+use crate::declaration_selection::ProductDeclarationRequest;
 use crate::production::ProducedTerminalApplication;
 use crate::production::TerminalBuildFilesystemCall;
 use crate::production::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
 use compiler_storage::RecordWriter;
 use diagnostics::Diagnostic;
-use crate::declaration_selection::NativeBindingFormation;
-use crate::declaration_selection::ProductDeclarationRequest;
 use std::sync::Arc;
 use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};

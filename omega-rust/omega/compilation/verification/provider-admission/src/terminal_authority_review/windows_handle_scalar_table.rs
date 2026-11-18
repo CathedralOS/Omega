@@ -8,8 +8,8 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use semantic_vocabulary::{ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::ValueId;
 
 const PAGE_LEN: usize = 64;
 

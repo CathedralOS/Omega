@@ -774,9 +774,12 @@ pub(crate) mod structural_type_lookup {
     use std::ops::Deref;
 
     use abstract_operations::StructuralTypeCatalog;
+    use arena::NonDenseIdentities;
     use calling_conventions::terminal_layout::StructuralLayouts;
-    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType, StructuralTypeId, TargetCarrierLayout};
-    use arena::{NonDenseIdentities};
+    use semantic_vocabulary::{
+        ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType, StructuralTypeId,
+        TargetCarrierLayout,
+    };
     use target::NativeTarget;
     use terminal_psi::{
         LayoutApplicationId, StructuralFieldType, StructuralPathSegment, TargetLayoutRealization,

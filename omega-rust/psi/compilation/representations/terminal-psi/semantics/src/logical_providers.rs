@@ -1,9 +1,11 @@
 //! Close chosen provider bodies over accepted canonical declarations.
 //! ABI planning consumes these exact choices and cannot select replacements.
 
+use crate::provider_candidates::{
+    CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions,
+};
 use semantic_vocabulary::{BoundaryMachineId, PackageKeyIdentity};
 use terminal_psi::{TerminalModule, TerminalProviderSelection, TerminalServiceSchema};
-use crate::provider_candidates::{CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions};
 
 fn text(
     module: &TerminalModule,
@@ -154,7 +156,6 @@ impl ProviderSelectionError {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChosenProviderRow {
     pub requirement: String,
@@ -187,7 +188,9 @@ fn selected_logical_providers(
     reached: &[BoundaryMachineId],
 ) -> Result<Vec<LogicalProvider>, ProviderSelectionError> {
     let candidates = candidates(module)?;
-    let mut lifetime_families = module.closed_conformance_applications.iter()
+    let mut lifetime_families = module
+        .closed_conformance_applications
+        .iter()
         .flat_map(|application| &application.schemas)
         .filter(|schema| schema.lifetime_parameter_count != 0)
         .map(|schema| text(module, schema.public_requirement_identity))
@@ -195,10 +198,16 @@ fn selected_logical_providers(
     lifetime_families.sort_unstable();
     lifetime_families.dedup();
     let mut selections = Vec::new();
-    for choice in module.provider_selections.iter().filter(|choice| choice.target == target) {
+    for choice in module
+        .provider_selections
+        .iter()
+        .filter(|choice| choice.target == target)
+    {
         let schema = module.service_schema(choice.schema_declaration, choice.schema_application)?;
         let chosen = chosen_candidates(choice, &candidates);
-        if !schema_is_demanded(module, schema, chosen, reached)? { continue; }
+        if !schema_is_demanded(module, schema, chosen, reached)? {
+            continue;
+        }
         let provider = text(module, choice.provider_identity)?;
         let owner = text(module, choice.provider_declaration)?;
         let mut package = None::<Option<PackageKeyIdentity>>;
@@ -208,15 +217,21 @@ fn selected_logical_providers(
             let begin = chosen.partition_point(|row| row.requirement < requirement);
             let end = begin + chosen[begin..].partition_point(|row| row.requirement == requirement);
             let selected = &chosen[begin..end];
-            let first = selected.first().ok_or_else(|| ProviderSelectionError::MissingCheckedRow {
-                provider_declaration: choice.provider_declaration,
-                provider_identity: choice.provider_identity,
-                schema_declaration: schema.declaration,
-                schema_application: schema.application,
-                requirement_identity: requirement.to_owned(),
-            })?;
-            if selected.iter().any(|row| row.source_callable != first.source_callable
-                || row.row.source_candidate_package_identity != first.row.source_candidate_package_identity) {
+            let first =
+                selected
+                    .first()
+                    .ok_or_else(|| ProviderSelectionError::MissingCheckedRow {
+                        provider_declaration: choice.provider_declaration,
+                        provider_identity: choice.provider_identity,
+                        schema_declaration: schema.declaration,
+                        schema_application: schema.application,
+                        requirement_identity: requirement.to_owned(),
+                    })?;
+            if selected.iter().any(|row| {
+                row.source_callable != first.source_callable
+                    || row.row.source_candidate_package_identity
+                        != first.row.source_candidate_package_identity
+            }) {
                 return Err(format!("chosen provider `{provider}` has competing exact realizations for `{requirement}`").into());
             }
             if lifetime_families.binary_search(&requirement).is_ok() {
@@ -224,7 +239,9 @@ fn selected_logical_providers(
             }
             let row_package = first.row.source_candidate_package_identity;
             if package.is_some_and(|previous| previous != row_package) {
-                return Err("chosen map needs an unrepresented cross-package adapter closure".into());
+                return Err(
+                    "chosen map needs an unrepresented cross-package adapter closure".into(),
+                );
             }
             package = Some(row_package);
             query_rows.push(CheckedProviderRow {
@@ -234,32 +251,56 @@ fn selected_logical_providers(
                 machine_package: row_package,
             });
         }
-        let positions = selected_candidate_positions(CheckedProviderQuery {
-            name: &satisfies_plan_name(target, schema.surface.identity_text(schema.surface.trait_name), provider),
-            declaration: owner,
-            provider,
-            surface: &schema.surface,
-            rows: &query_rows,
-        }, module)?;
+        let positions = selected_candidate_positions(
+            CheckedProviderQuery {
+                name: &satisfies_plan_name(
+                    target,
+                    schema.surface.identity_text(schema.surface.trait_name),
+                    provider,
+                ),
+                declaration: owner,
+                provider,
+                surface: &schema.surface,
+                rows: &query_rows,
+            },
+            module,
+        )?;
         if positions.len() != query_rows.len() || positions.iter().any(Vec::is_empty) {
             return Err("chosen plan does not rejoin every canonical checked candidate".into());
         }
-        let rows = query_rows.into_iter().zip(positions).map(|(row, candidate_positions)| ChosenProviderRow {
-            requirement: row.requirement.to_owned(),
-            machine: row.machine.to_owned(),
-            machine_package: row.machine_package,
-            candidate_positions,
-        }).collect();
+        let rows = query_rows
+            .into_iter()
+            .zip(positions)
+            .map(|(row, candidate_positions)| ChosenProviderRow {
+                requirement: row.requirement.to_owned(),
+                machine: row.machine.to_owned(),
+                machine_package: row.machine_package,
+                candidate_positions,
+            })
+            .collect();
         let mut covered = Vec::new();
         for &boundary in reached {
-            let declaration = module.boundary_machine(boundary).ok_or("provider demand names an absent boundary")?;
+            let declaration = module
+                .boundary_machine(boundary)
+                .ok_or("provider demand names an absent boundary")?;
             let identity = text(module, declaration.identity)?;
-            if chosen.iter().any(|candidate| candidate.row.boundary == boundary)
-                || schema.surface.methods.iter().any(|method| schema.surface.identity_text(method.requirement_identity) == identity) {
+            if chosen
+                .iter()
+                .any(|candidate| candidate.row.boundary == boundary)
+                || schema.surface.methods.iter().any(|method| {
+                    schema.surface.identity_text(method.requirement_identity) == identity
+                })
+            {
                 covered.push(boundary);
             }
         }
-        selections.push(LogicalProvider { choice: choice.clone(), schema: schema.clone(), rows, origin_package: package.flatten(), covered });
+        selections.push(LogicalProvider {
+            choice: choice.clone(),
+            schema: schema.clone(),
+            rows,
+            origin_package: package.flatten(),
+            covered,
+        });
     }
     Ok(selections)
 }
@@ -293,12 +334,23 @@ impl ClosedLogicalProviders {
         })
     }
 
-    pub fn program(&self) -> terminal_psi::TerminalPsiIdentity { self.program }
-    pub fn target(&self) -> &str { &self.target }
-    pub fn requirements(&self) -> &[BoundaryMachineId] { &self.reached }
-    pub fn providers(&self) -> &[LogicalProvider] { &self.providers }
+    pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.program
+    }
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+    pub fn requirements(&self) -> &[BoundaryMachineId] {
+        &self.reached
+    }
+    pub fn providers(&self) -> &[LogicalProvider] {
+        &self.providers
+    }
 
-    pub fn require_program(&self, program: terminal_psi::TerminalPsiIdentity) -> Result<(), &'static str> {
+    pub fn require_program(
+        &self,
+        program: terminal_psi::TerminalPsiIdentity,
+    ) -> Result<(), &'static str> {
         if self.program != program {
             return Err("logical provider choices belong to a different accepted program");
         }

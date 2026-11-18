@@ -10,10 +10,10 @@ operation as the corresponding policy-qualified operands. domains.md,
 "Operands", applies that selection in code, requires and ensures alike.
 */
 
+use crate::source_state::expression::BinaryOperator;
 use numerics::arithmetic::ArithmeticDomain;
 use semantic_vocabulary::{IntegerType, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::OperationKind;
-use crate::source_state::expression::BinaryOperator;
 
 use crate::lowering::body::{Policy, Strict, ValueType};
 

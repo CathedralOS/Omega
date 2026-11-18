@@ -433,7 +433,11 @@ machine use(left: u8, right: u8) {}
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -681,7 +685,11 @@ fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -1068,7 +1076,11 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -1274,7 +1286,11 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -1349,7 +1365,11 @@ machine use(same: bool) { }",
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -1414,7 +1434,11 @@ machine use(same: bool) { }",
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
@@ -1671,7 +1695,11 @@ machine use(same: bool) { }",
     let elaborate = || {
         crate::lowering::elaborate_for(
             &typed,
-            roster(&[entry], &[Some(package())], declaration_contracts::source_identity::DependencyScope::Build),
+            roster(
+                &[entry],
+                &[Some(package())],
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()

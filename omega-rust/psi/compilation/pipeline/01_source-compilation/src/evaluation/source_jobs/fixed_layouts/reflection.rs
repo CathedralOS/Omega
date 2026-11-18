@@ -1,10 +1,12 @@
 //! A policy sees the actual fields with their target-resolved extents. Schema
 //! construction does not inspect source text or choose a replacement layout.
 
-use layout_plans::{LayoutTargetFacts, StorageGeometry};
 use crate::source_state::data::{DataDefinition, DataMember};
-use crate::source_state::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use crate::source_state::{PlanLaidSchemaField, PlanLaidSchemaFieldKind, TypedTrees};
+use layout_plans::{LayoutTargetFacts, StorageGeometry};
 
 pub(super) fn record_fields(
     typed: &TypedTrees,

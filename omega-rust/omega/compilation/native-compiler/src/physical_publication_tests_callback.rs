@@ -573,7 +573,7 @@ fn check_callback_publication(retain_body_source: bool) {
         function_layout::entry_placement::place_private_entry(entry).unwrap(),
     );
     let private = image_emission::bind_private_function_entry(entry, Arc::new(body.into_object()))
-    .expect("bind the encoded entry to its body");
+        .expect("bind the encoded entry to its body");
     let published = native_artifact::publish_fragment_object(
         root,
         native_artifact::FragmentObjectPublicationRequest {

@@ -11,16 +11,12 @@ impl<'text> Lexer<'text> {
     pub fn new(text: &'text str) -> Self {
         Self(text)
     }
-    pub fn tokenize(
-        self,
-    ) -> Result<tokens::TokenStream<'static>, lexing::LexError> {
+    pub fn tokenize(self) -> Result<tokens::TokenStream<'static>, lexing::LexError> {
         lex_retained(Arc::from(self.0))
     }
 }
 
-pub fn lex_retained(
-    source: Arc<str>,
-) -> Result<tokens::TokenStream<'static>, lexing::LexError> {
+pub fn lex_retained(source: Arc<str>) -> Result<tokens::TokenStream<'static>, lexing::LexError> {
     let loaded = [LoadedSource {
         source,
         ..Default::default()

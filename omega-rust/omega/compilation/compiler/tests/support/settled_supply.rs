@@ -1,8 +1,8 @@
 //! Exercise source choices through the canonical native entrance in tests.
 use diagnostics::Diagnostic;
-use source_compiler::provider_choice_inputs::ProviderSelectionSubject;
 use native_program_planning::target_supply::{NormalizedNativeSupplies, NormalizedNativeSupply};
 use semantic_vocabulary::BoundaryMachineId;
+use source_compiler::provider_choice_inputs::ProviderSelectionSubject;
 use source_compiler::provider_supply::{SettledTargetSupply, SupplySelection};
 use terminal_psi::TerminalModule;
 
@@ -90,8 +90,11 @@ impl SettledSupplyNative for SettledTargetSupply {
             )]);
         }
         let Some(target) = self.target() else {
-            return native_program_planning::target_supply::RealizedTargetSupply::unscoped(module, &[])
-                .map_err(|reason| vec![Diagnostic::error(reason)]);
+            return native_program_planning::target_supply::RealizedTargetSupply::unscoped(
+                module,
+                &[],
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)]);
         };
         native_program_planning::target_supply::RealizedTargetSupply::from_checked(
             module,

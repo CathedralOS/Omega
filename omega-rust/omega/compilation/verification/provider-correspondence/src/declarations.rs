@@ -1,9 +1,9 @@
 //! Authored provider declarations retained with selection provenance. Settlement
 //! uses their composition mode when deciding how chosen plans may be joined.
 
-use diagnostics::Diagnostic;
 use declaration_contracts::selection::CompositionMode;
 use declaration_contracts::selection::ProductTarget;
+use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderIdentity<Declaration> {

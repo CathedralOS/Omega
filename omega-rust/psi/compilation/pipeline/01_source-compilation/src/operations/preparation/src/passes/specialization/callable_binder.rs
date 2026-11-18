@@ -3,7 +3,6 @@
 //! meet a stronger requirement. A comparison needing a proof stays deferred.
 
 use super::{Served, Stop, unserved};
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::callable_signature_shapes::CallableShapeMismatch;
 use crate::source_state::data::{
@@ -14,6 +13,7 @@ use crate::source_state::machine::Machine;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 use crate::source_state::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
 
 /// What a binder-side declaration stands for while the callback is compared
 /// with the binder.
@@ -259,7 +259,8 @@ pub(super) fn satisfies_binder(
                         .span_or_empty(contract.facts)
                         .iter()
                         .all(|fact| {
-                            let crate::source_state::domain::ProofFact::Expression(expression) = fact
+                            let crate::source_state::domain::ProofFact::Expression(expression) =
+                                fact
                             else {
                                 return false;
                             };
@@ -344,15 +345,19 @@ fn admits_types_only(
                 return false;
             };
             let mut types_only = root.is_valid();
-            program.subtree_for_each(*root, crate::source_state::SubtreeEdges::default(), |_, node| {
-                types_only &= matches!(
-                    node,
-                    ExpressionNode::TypeExpression(_)
-                        | ExpressionNode::Boolean(_)
-                        | ExpressionNode::Binary(_)
-                        | ExpressionNode::Unary(_)
-                );
-            });
+            program.subtree_for_each(
+                *root,
+                crate::source_state::SubtreeEdges::default(),
+                |_, node| {
+                    types_only &= matches!(
+                        node,
+                        ExpressionNode::TypeExpression(_)
+                            | ExpressionNode::Boolean(_)
+                            | ExpressionNode::Binary(_)
+                            | ExpressionNode::Unary(_)
+                    );
+                },
+            );
             types_only
         })
 }
@@ -364,11 +369,11 @@ mod tests {
 
     #[test]
     fn callback_binder_matches_named_outer_lifetimes_and_nested_type_arguments() {
-        use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
         use crate::source_state::name::Identifier;
         use crate::source_state::signature::StateParameter;
         use crate::source_state::state::State;
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::{SymbolKind, SymbolNameRef};
 
         let mut symbols = SymbolTableBuilder::default();
         let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));

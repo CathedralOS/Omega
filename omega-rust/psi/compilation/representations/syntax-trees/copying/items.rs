@@ -27,7 +27,11 @@ pub(crate) struct SyntaxCopy<'destination> {
     pub(crate) expression_substitutions: Vec<(ExpressionHandle, ExpressionHandle)>,
     pub(crate) supplied_type_copies: Vec<crate::types::TypeReferenceHandle>,
     pub(crate) retain_alias_header_role: bool,
-    lifetime_substitutions: Vec<(source_text::SourceSpan, String, crate::identifier::Identifier)>,
+    lifetime_substitutions: Vec<(
+        source_text::SourceSpan,
+        String,
+        crate::identifier::Identifier,
+    )>,
     pub(crate) scoped_lifetimes: Vec<(String, crate::identifier::Identifier)>,
     pub(crate) array_length_substitutions: Vec<(
         source_text::SourceSpan,
@@ -149,7 +153,11 @@ impl SyntaxTrees {
             crate::types::TypeReferenceHandle,
         )],
         expressions: &[(ExpressionHandle, ExpressionHandle)],
-        lifetimes: &[(source_text::SourceSpan, String, crate::identifier::Identifier)],
+        lifetimes: &[(
+            source_text::SourceSpan,
+            String,
+            crate::identifier::Identifier,
+        )],
         array_lengths: &[(
             source_text::SourceSpan,
             String,

@@ -1,11 +1,11 @@
 //! Form static schemas in their own binder scope and retain each exact
 //! required/supplied question. A named map grants no evidence by itself.
 
+use crate::source_state::signature::StateSignature;
+use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use crate::source_state::signature::StateSignature;
-use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 
 use super::{Program, services};
 use crate::lowering::body::ValueType;
@@ -87,7 +87,8 @@ impl<'program> Program<'program> {
         signature: &StateSignature,
         boundary: bool,
     ) -> Checked<StaticSourceEnvelope> {
-        let written = crate::lowering::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
+        let written =
+            crate::lowering::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
             if signature.service_reach_is_installation_bound && !boundary {
                 return Err(services::unavailable(
@@ -225,7 +226,9 @@ impl<'program> Program<'program> {
             .iter()
             .enumerate()
             // An implementation binder is its declared record value, not a type.
-            .filter(|(_, parameter)| parameter.kind == crate::source_state::data::TypeParameterKind::Type)
+            .filter(|(_, parameter)| {
+                parameter.kind == crate::source_state::data::TypeParameterKind::Type
+            })
             .map(|(ordinal, parameter)| {
                 Ok((
                     parameter.symbol,
@@ -387,9 +390,11 @@ impl<'program> Program<'program> {
         // Boundary parents keep their callable declarations in their own
         // schemas. Validate each actual application here; the calling-policy
         // owner projects the interface and checks completed ordinary parents.
-        let scopes =
-            crate::source_state::service_declarations::projection::inherited_scopes(typed, scope.clone())
-                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        let scopes = crate::source_state::service_declarations::projection::inherited_scopes(
+            typed,
+            scope.clone(),
+        )
+        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
         let mut needs_contract_owner = false;
         for view in &scopes {
             if !view.declaration.is_boundary {
@@ -517,7 +522,8 @@ impl<'program> Program<'program> {
             if row.declaring_trait != implemented.symbol {
                 return Err(unserved("implementation row of an inherited requirement"));
             }
-            if row.source == crate::source_state::trait_definition::ConformanceRowSource::Reference {
+            if row.source == crate::source_state::trait_definition::ConformanceRowSource::Reference
+            {
                 if !parameters.is_empty() || !implemented.type_parameters.is_empty() {
                     return Err(unserved("generic reference-row refinement"));
                 }
@@ -954,7 +960,10 @@ impl crate::source_state::references::TypedReferences for SignatureReferences<'_
     fn derived_declaration_references(&self) -> bool {
         false
     }
-    fn type_reference(&mut self, reference: crate::source_state::types::TypeReferenceHandle) -> bool {
+    fn type_reference(
+        &mut self,
+        reference: crate::source_state::types::TypeReferenceHandle,
+    ) -> bool {
         if !self
             .typed
             .type_reference_table
@@ -974,7 +983,10 @@ impl crate::source_state::references::TypedReferences for SignatureReferences<'_
         }
         enter(&mut self.types, reference)
     }
-    fn expression(&mut self, expression: crate::source_state::expression::ExpressionHandle) -> bool {
+    fn expression(
+        &mut self,
+        expression: crate::source_state::expression::ExpressionHandle,
+    ) -> bool {
         if !self.typed.expression_table.expression_is_valid(expression) {
             self.error = Some("static signature has a stale contract operand");
             return false;
@@ -1015,13 +1027,13 @@ fn validate_references(
 #[cfg(test)]
 mod parent_contract_tests {
     use super::*;
-    use crate::source_inputs::{SourceMap};
+    use crate::source_inputs::SourceMap;
+    use crate::source_state::trait_definition::TraitRequirement;
+    use crate::source_symbols::SymbolTableBuilder;
     use source_admission::SourceOrigin;
     use source_text::{SourceSpan, Span};
     use std::sync::Arc;
     use symbols::{SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder};
-    use crate::source_state::trait_definition::TraitRequirement;
 
     #[test]
     fn ordinary_boundary_parents_require_a_contract_owner_without_service_reach() {

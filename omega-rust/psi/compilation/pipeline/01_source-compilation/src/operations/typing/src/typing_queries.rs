@@ -3,10 +3,6 @@ These queries read retained declaration identities and already formed types.
 They establish no contract, value inhabitation, or body judgment. A missing
 required type is unavailable rather than reconstructed with the retired checker.
 */
-use diagnostics::Diagnostic;
-use numerics::arithmetic::ArithmeticDomain;
-use numeric_literals::FloatFormat;
-use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use crate::source_state::{
     TypedTrees,
     data::DataField,
@@ -17,6 +13,10 @@ use crate::source_state::{
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+use diagnostics::Diagnostic;
+use numeric_literals::FloatFormat;
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 
 pub(crate) fn float_literal_atom(format: FloatFormat) -> BuiltinTypeAtom {
     match format {
@@ -131,14 +131,18 @@ pub(crate) fn selected_construction_field_type(
     let parent = program.symbols.get(symbol).parent;
     let owner = if program.symbols.get(parent).kind == SymbolKind::Variant {
         if literal.case_symbol != Some(parent) {
-            return Err(crate::typing::unavailable_judgment("constructor case identity"));
+            return Err(crate::typing::unavailable_judgment(
+                "constructor case identity",
+            ));
         }
         program.symbols.get(parent).parent
     } else {
         parent
     };
     if owner != literal.type_symbol {
-        return Err(crate::typing::unavailable_judgment("constructor field owner"));
+        return Err(crate::typing::unavailable_judgment(
+            "constructor field owner",
+        ));
     }
     Ok(field.type_reference)
 }
@@ -231,7 +235,9 @@ pub(crate) fn declared_place_type(
             .ok_or_else(|| crate::typing::unavailable_judgment("assignment storage binder"))?;
         program
             .declared_binding_type_by_symbol(state, binder)
-            .ok_or_else(|| crate::typing::unavailable_judgment("unique assignment storage declaration"))
+            .ok_or_else(|| {
+                crate::typing::unavailable_judgment("unique assignment storage declaration")
+            })
     })
 }
 
@@ -251,7 +257,9 @@ pub(crate) fn declared_callable_value_type(
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
     if !table.expression_is_valid(target) {
-        return Err(crate::typing::unavailable_judgment("declared value expression"));
+        return Err(crate::typing::unavailable_judgment(
+            "declared value expression",
+        ));
     }
     // A suffixed literal fixes its own carrier. Reading a receiving type here
     // could re-land it in a different carrier or silently drop its policy.
@@ -280,14 +288,17 @@ pub(crate) fn declared_callable_value_type(
         return program
             .type_reference_table
             .find_arithmetic_result_type_reference(symbol, policy)
-            .ok_or_else(|| crate::typing::unavailable_judgment("literal's retained qualified type"));
+            .ok_or_else(|| {
+                crate::typing::unavailable_judgment("literal's retained qualified type")
+            });
     }
     let mut target = target;
     for _ in 0..table.expression_count() {
         if !table.expression_is_valid(target) {
             break;
         }
-        let crate::source_state::expression::ExpressionNode::Call(call) = table.expression(target) else {
+        let crate::source_state::expression::ExpressionNode::Call(call) = table.expression(target)
+        else {
             break;
         };
         if call.receiver.is_valid()
@@ -306,7 +317,9 @@ pub(crate) fn declared_callable_value_type(
             break;
         }
         let [argument] = table.expression_handles(call.arguments) else {
-            return Err(crate::typing::unavailable_judgment("old input declared type arity"));
+            return Err(crate::typing::unavailable_judgment(
+                "old input declared type arity",
+            ));
         };
         target = *argument;
     }
@@ -322,7 +335,9 @@ pub(crate) fn declared_callable_value_type(
         // (`requires (root as -Handle) != 0`), each a value of the type the
         // declaration gives it.
         let Some(definition) = program.unique_data_definition_by_symbol(owner) else {
-            return Err(crate::typing::unavailable_judgment("contract callable declaration"));
+            return Err(crate::typing::unavailable_judgment(
+                "contract callable declaration",
+            ));
         };
         return declared_projection_type(program, target, |path| {
             if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
@@ -336,12 +351,16 @@ pub(crate) fn declared_callable_value_type(
                 .type_reference_table
                 .contains_type_reference(field.type_reference)
                 .then_some(field.type_reference)
-                .ok_or_else(|| crate::typing::unavailable_judgment("data clause field declared type"))
+                .ok_or_else(|| {
+                    crate::typing::unavailable_judgment("data clause field declared type")
+                })
         });
     }
     declared_projection_type(program, target, |path| {
         if path.static_application.is_valid() {
-            return Err(crate::typing::unavailable_judgment("applied contract value"));
+            return Err(crate::typing::unavailable_judgment(
+                "applied contract value",
+            ));
         }
         let reference = if path.reserved_result_of.is_valid() {
             if path.resolved_symbol().is_some()
@@ -356,7 +375,9 @@ pub(crate) fn declared_callable_value_type(
                     .iter()
                     .any(|symbol| symbol.is_valid())
             {
-                return Err(crate::typing::unavailable_judgment("reserved result identity"));
+                return Err(crate::typing::unavailable_judgment(
+                    "reserved result identity",
+                ));
             }
             let result_owner = path.reserved_result_of;
             let mut results = states
@@ -471,7 +492,9 @@ fn declared_projection_type(
                             collection_element_type(program, reference)?
                         }
                         _ => {
-                            return Err(crate::typing::unavailable_judgment("assignment storage selector"));
+                            return Err(crate::typing::unavailable_judgment(
+                                "assignment storage selector",
+                            ));
                         }
                     };
                     if !program
@@ -496,7 +519,9 @@ fn declared_projection_type(
             _ => break,
         }
     }
-    Err(crate::typing::unavailable_judgment("assignment storage expression"))
+    Err(crate::typing::unavailable_judgment(
+        "assignment storage expression",
+    ))
 }
 
 pub(crate) fn declared_projection_field<'program>(
@@ -517,7 +542,9 @@ pub(crate) fn declared_projection_field<'program>(
         if !program.symbols.symbols().nodes().is_valid(selected)
             || program.symbols.get(selected).kind != SymbolKind::Field
         {
-            return Err(crate::typing::unavailable_judgment("assignment field identity"));
+            return Err(crate::typing::unavailable_judgment(
+                "assignment field identity",
+            ));
         }
         let parent = program.symbols.get(selected).parent;
         if program.symbols.get(parent).kind == SymbolKind::Variant {
@@ -550,14 +577,18 @@ pub(crate) fn declared_projection_field<'program>(
         .next()
         .ok_or_else(|| crate::typing::unavailable_judgment("assignment field declaration"))?;
     if fields.next().is_some() {
-        return Err(crate::typing::unavailable_judgment("assignment field identity"));
+        return Err(crate::typing::unavailable_judgment(
+            "assignment field identity",
+        ));
     }
     if selected != SymbolHandle::invalid() {
         let actual = program
             .data_constructor_field(carrier, data.symbol, selected)
             .ok_or_else(|| crate::typing::unavailable_judgment("assignment field identity"))?;
         if actual.symbol != field.symbol {
-            return Err(crate::typing::unavailable_judgment("assignment field identity"));
+            return Err(crate::typing::unavailable_judgment(
+                "assignment field identity",
+            ));
         }
     }
     Ok(field)
@@ -754,7 +785,11 @@ pub(crate) fn scoped_expression_type_reference(
             ExpressionNode::Cast(cast) => Some(cast.target_type),
             ExpressionNode::SavedSubject(saved) => match program.saved_value_source(saved) {
                 Some(value) => visit(program, parameters, result, value, state_scope, active)?,
-                None => return Err(crate::typing::unavailable_judgment("saved value source type")),
+                None => {
+                    return Err(crate::typing::unavailable_judgment(
+                        "saved value source type",
+                    ));
+                }
             },
             ExpressionNode::Atomic(atomic) => visit(
                 program,
@@ -957,7 +992,10 @@ impl<'program> DeclaredCallTargets<'program> {
             ))
     }
 
-    fn named_expression_call(&self, call: &crate::source_state::expression::TableCallExpression) -> bool {
+    fn named_expression_call(
+        &self,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> bool {
         matches!(
             self.program.named_conformance_call_member(call),
             Ok(Some(_))
@@ -1252,7 +1290,8 @@ pub(crate) fn defer_unbound_calls(
                 let undeclared = matches!(
                     request,
                     DeferredRequest::UnresolvedCallTarget | DeferredRequest::ReceiverCallSelection
-                ) && bare == crate::source_symbols::UnresolvedName::NoVisibleDeclaration;
+                ) && bare
+                    == crate::source_symbols::UnresolvedName::NoVisibleDeclaration;
                 let request = if undeclared {
                     DeferredRequest::UndeclaredCallName
                 } else {
@@ -1360,7 +1399,8 @@ fn complete_byte_domain_selection(
     // The primitive meaning belongs to the authenticated declaration, not an
     // unbound spelling. The ordinary resolved Call row remains its custody;
     // rewriting it to a synthetic intrinsic would erase the actual selection.
-    let Some((actual, _)) = crate::source_state::byte_predicates::byte_predicate_call(program, expression)
+    let Some((actual, _)) =
+        crate::source_state::byte_predicates::byte_predicate_call(program, expression)
     else {
         return Err(fail("changes its selected primitive or declaration"));
     };
@@ -1535,7 +1575,8 @@ impl DeclaredExpressionTypes {
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
                 let operand = self.get(program, owner, unary.operand)?;
-                crate::source_state::operator::core_integer_operand(program, operand).map(|_| operand)
+                crate::source_state::operator::core_integer_operand(program, operand)
+                    .map(|_| operand)
             }
             // Selection supplies the exact declared return type before an enclosing
             // cast is accounted. No contract or membership evidence is inferred.
@@ -1665,9 +1706,9 @@ fn core_integer_result(
 mod tests {
     #[test]
     fn exact_constructor_fields_keep_case_and_constructor_owners() {
-        use symbols::{SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
         use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVariant};
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::SymbolNameRef;
         let mut symbols = SymbolTableBuilder::default();
         let owner = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice"));
         let foreign = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Foreign"));
@@ -1766,8 +1807,6 @@ mod tests {
 
     #[test]
     fn assignment_places_keep_applied_fields_and_refuse_foreign_or_duplicate_binders() {
-        use symbols::{SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
         use crate::source_state::{
             data::{DataDefinition, DataField, DataMember, TypeParameter},
             expression::{TableIndexedExpression, TableMemberExpression, TableNamePath},
@@ -1776,6 +1815,8 @@ mod tests {
             state::State,
             types::FixedArrayLength,
         };
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::SymbolNameRef;
         let mut builder = SymbolTableBuilder::default();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let owners = builder.insert_children(
@@ -2166,7 +2207,10 @@ mod tests {
             program.primitive_type_reference(*element_type),
             Some(PrimitiveType::U8)
         );
-        assert_eq!(*length, crate::source_state::types::FixedArrayLength::Literal(4));
+        assert_eq!(
+            *length,
+            crate::source_state::types::FixedArrayLength::Literal(4)
+        );
         for selected in [original.symbol, actual.symbol, SymbolHandle::invalid()] {
             assert_eq!(
                 declared_field_type(&program, reference, "storage", selected).unwrap(),
@@ -2193,7 +2237,9 @@ mod tests {
 
     #[test]
     fn primitive_byte_domain_calls_keep_their_exact_builtin_meaning() {
-        use crate::source_state::byte_predicates::{ByteSequencePredicate, primitive_byte_slice_domain};
+        use crate::source_state::byte_predicates::{
+            ByteSequencePredicate, primitive_byte_slice_domain,
+        };
         use crate::source_state::domain::ProofFact;
         use crate::source_state::expression::TableCallExpression;
 
@@ -2212,7 +2258,8 @@ mod tests {
                 .tokenize()
                 .unwrap();
             let mut syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             let mut bindings = Vec::new();
             if core {
                 let text = include_str!(concat!(
@@ -2234,12 +2281,14 @@ mod tests {
                     .tokenize()
                     .unwrap();
                 crate::typing::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
-                bindings.push(crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                    source,
-                    declaration,
-                    "omega::language::core::byte_observation",
-                    3,
-                ));
+                bindings.push(
+                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                        source,
+                        declaration,
+                        "omega::language::core::byte_observation",
+                        3,
+                    ),
+                );
             }
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
@@ -2427,7 +2476,8 @@ mod tests {
         assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
         let mut malformed = program.clone();
         let (_, argument) =
-            crate::source_state::byte_predicates::byte_predicate_call(&program, expression).unwrap();
+            crate::source_state::byte_predicates::byte_predicate_call(&program, expression)
+                .unwrap();
         let arguments =
             malformed
                 .expression_table
@@ -2594,9 +2644,10 @@ mod tests {
             panic!("call expression")
         };
         node.receiver = Default::default();
-        program
-            .expression_table
-            .set_unresolved_name(unbound, crate::source_symbols::UnresolvedName::NoVisibleDeclaration);
+        program.expression_table.set_unresolved_name(
+            unbound,
+            crate::source_symbols::UnresolvedName::NoVisibleDeclaration,
+        );
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
@@ -2655,8 +2706,8 @@ mod tests {
 
     #[test]
     fn a_call_names_each_kind_of_declaration_only_in_its_own_call_form() {
-        use symbols::{BuiltinFunction};
         use crate::source_symbols::{builtin_function_symbols, builtin_type_symbols};
+        use symbols::BuiltinFunction;
         let mut symbols = crate::source_symbols::SymbolTableBuilder::default();
         let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
         let children = symbols.insert_children(
@@ -2688,10 +2739,12 @@ mod tests {
             symbols: symbols.finish(),
             ..Default::default()
         };
-        program.push_mathematical_definition(crate::source_state::mathematical::MathematicalDefinition {
-            symbol: identity,
-            ..Default::default()
-        });
+        program.push_mathematical_definition(
+            crate::source_state::mathematical::MathematicalDefinition {
+                symbol: identity,
+                ..Default::default()
+            },
+        );
         let embed = program
             .symbols
             .builtin_function_symbol(BuiltinFunction::IntegerEmbed)

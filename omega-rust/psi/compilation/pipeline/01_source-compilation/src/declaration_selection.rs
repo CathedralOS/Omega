@@ -240,8 +240,7 @@ mod product {
         pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
             use ProductOperandRole as Role;
             match (self, position) {
-                (Self::ProviderSelection, 0)
-                | (Self::ServiceExclusion | Self::ServiceAudit, 0) => {
+                (Self::ProviderSelection, 0) | (Self::ServiceExclusion | Self::ServiceAudit, 0) => {
                     Some(Role::BoundarySubject)
                 }
                 (Self::ProviderSelection, 1) => Some(Role::Provider),

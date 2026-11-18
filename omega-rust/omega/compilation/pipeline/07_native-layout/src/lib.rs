@@ -16,9 +16,9 @@ use encoding_admission::relaxation::{
 };
 use encoding_admission::relaxation::{relaxation_roots, x86_rel8_selected};
 use machine_code::{
-    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence,
-    ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedJumpEvidence,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+    SelectedFunctionLayoutPolicy,
 };
 use machine_code::{
     ResolvedMachineLayout, SelectedFormEncoding,

@@ -69,11 +69,11 @@ mod transitions;
 mod type_parameters;
 mod types;
 
+use crate::source_state::TypedTrees;
+use arena::IdTable;
 use semantic_vocabulary::{CrashCause, MachineId, PackageKeyIdentity, StructuralTypeId};
-use arena::{IdTable};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::TypedTrees;
 
 use crate::lowering::body::{RecordType, Signature, ValueType};
 use crate::lowering::{Unserved, refuse};
@@ -169,8 +169,10 @@ pub(crate) struct Program<'t> {
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_envelopes:
         IdTable<semantic_vocabulary::ContractId, crate::lowering::reach::SourceEnvelope>,
-    pub declaration_sources:
-        IdTable<semantic_vocabulary::ContractId, &'t crate::source_state::signature::StateSignature>,
+    pub declaration_sources: IdTable<
+        semantic_vocabulary::ContractId,
+        &'t crate::source_state::signature::StateSignature,
+    >,
     /// Selected headers keep their supplying call and complete application.
     /// This is construction input for the existing public contract table,
     /// not permission to invoke its implementation.
@@ -298,7 +300,10 @@ pub(crate) struct Program<'t> {
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
-    resolving: Vec<(SymbolHandle, Option<crate::source_state::SourceTypeApplication>)>,
+    resolving: Vec<(
+        SymbolHandle,
+        Option<crate::source_state::SourceTypeApplication>,
+    )>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -423,7 +428,9 @@ impl<'t> Program<'t> {
 
     /// Provider rows and other readings of this program use the same exact
     /// source identities; publication must not hash the source files per row.
-    pub(crate) fn exact_toolchain_sources(&self) -> Result<&[(source_text::SourceId, [u8; 32])], &str> {
+    pub(crate) fn exact_toolchain_sources(
+        &self,
+    ) -> Result<&[(source_text::SourceId, [u8; 32])], &str> {
         self.shared.exact_toolchain_sources(self.typed)
     }
 
@@ -444,13 +451,15 @@ impl<'t> Program<'t> {
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),
-            admitted_declarations: crate::source_state::references::DeclarationSelection::from_symbols([]),
+            admitted_declarations:
+                crate::source_state::references::DeclarationSelection::from_symbols([]),
             admitted_bodies: crate::source_state::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
             admitted_signature_view_owners: Vec::new(),
             signature_view_owner: None,
             boundary_parent_contracts: Vec::new(),
-            completed_operators: crate::lowering::selection_questions::CompletedOperators::default(),
+            completed_operators: crate::lowering::selection_questions::CompletedOperators::default(
+            ),
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -458,7 +467,8 @@ impl<'t> Program<'t> {
             checking_envelopes: IdTable::default(),
             callables: crate::lowering::callables::CallableNamespace::default(),
             boundaries: crate::lowering::boundaries::BoundaryNamespace::default(),
-            external_providers: crate::lowering::external_providers::ExternalProviderNamespace::default(),
+            external_providers:
+                crate::lowering::external_providers::ExternalProviderNamespace::default(),
             static_contracts: crate::lowering::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
             declaration_envelopes: IdTable::default(),
@@ -686,13 +696,6 @@ mod tests {
     use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
     use crate::lowering::body::ExpressionKind;
-    use language_core::ReferenceAccess;
-    use numeric_literals::{FloatFormat, IntegerLiteral};
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-    use symbols::{SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
     use crate::source_state::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
     };
@@ -700,6 +703,13 @@ mod tests {
         TableBinaryExpression, TableBorrowExpression, TableRangeExpression,
     };
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use language_core::ReferenceAccess;
+    use numeric_literals::{FloatFormat, IntegerLiteral};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
+    };
+    use symbols::SymbolNameRef;
 
     fn machine() -> MachineId {
         MachineId::new(1).unwrap()
@@ -787,7 +797,8 @@ mod tests {
         use terminal_psi::StructuralAccess;
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
-        let source = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let source =
+            crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: SymbolHandle::invalid(),
@@ -844,14 +855,14 @@ mod tests {
 
     #[test]
     fn a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence() {
-        use declaration_contracts::DomainPredicatePresence;
-        use semantic_vocabulary::Proposition;
-        use crate::source_inputs::{SourceMap};
-        use declaration_contracts::source_identity::DependencyScope;
-use source_admission::SourceOrigin;
-use source_admission::SourceResolutionStratum;
-        use source_text::{SourceSpan};
+        use crate::source_inputs::SourceMap;
         use crate::source_state::domain::{DomainDefinition, ProofFact};
+        use declaration_contracts::DomainPredicatePresence;
+        use declaration_contracts::source_identity::DependencyScope;
+        use semantic_vocabulary::Proposition;
+        use source_admission::SourceOrigin;
+        use source_admission::SourceResolutionStratum;
+        use source_text::SourceSpan;
 
         // Each domain's subject is the record `Point`: lowering refuses a
         // record domain whose subject type has no exact identity.
@@ -881,7 +892,10 @@ use source_admission::SourceResolutionStratum;
             .map(|(kind, (start, end))| {
                 (
                     kind,
-                    SymbolNameRef::Source(SourceSpan::new(source, source_text::Span::new(start, end))),
+                    SymbolNameRef::Source(SourceSpan::new(
+                        source,
+                        source_text::Span::new(start, end),
+                    )),
                 )
             }),
         );
@@ -955,7 +969,8 @@ use source_admission::SourceResolutionStratum;
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components = crate::lowering::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        let components =
+            crate::lowering::prepare_call_components(&bodies, &mut program.signatures).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lowering::lower_program(
             None,
@@ -1076,7 +1091,8 @@ use source_admission::SourceResolutionStratum;
         use crate::source_state::deferred_refusals::DeferredRequest;
         let (mut typed, [served, holder]) = unit_machines();
         let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
-        let authored = source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
+        let authored =
+            source_text::SourceSpan::new(source_text::SourceId(1), source_text::Span::new(13, 19));
         for source_span in [None, Some(authored)] {
             typed.record_deferred_refusal(
                 state,
@@ -1152,15 +1168,14 @@ use source_admission::SourceResolutionStratum;
         );
         for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
             let mut statements = typed.clone();
-            let handle =
-                statements
-                    .statement_table
-                    .insert(crate::source_state::statement::StatementNode::Call(
-                        crate::source_state::statement::TableCall {
-                            target_symbol,
-                            ..Default::default()
-                        },
-                    ));
+            let handle = statements.statement_table.insert(
+                crate::source_state::statement::StatementNode::Call(
+                    crate::source_state::statement::TableCall {
+                        target_symbol,
+                        ..Default::default()
+                    },
+                ),
+            );
             let refusal = Program::new(&statements, false)
                 .call_statement_at(machine(), &[], handle)
                 .unwrap_err();
@@ -1168,7 +1183,8 @@ use source_admission::SourceResolutionStratum;
         }
         // Runtime calls intentionally have no declaration target. They still
         // require their actual authored owner, rather than acquiring one here.
-        let runtime_call = Some(crate::source_state::callable_values::RuntimeCallBinding::default());
+        let runtime_call =
+            Some(crate::source_state::callable_values::RuntimeCallBinding::default());
         assert_eq!(
             refused(
                 &typed,
@@ -1267,7 +1283,10 @@ use source_admission::SourceResolutionStratum;
                         runtime_call,
                         ..Default::default()
                     })]);
-                (body, crate::source_state::SourceNode::Statement(body.start()))
+                (
+                    body,
+                    crate::source_state::SourceNode::Statement(body.start()),
+                )
             } else {
                 let handle =
                     typed
@@ -1312,9 +1331,11 @@ use source_admission::SourceResolutionStratum;
                     ..
                 }
             ));
-            assert!(matches!(read.source, crate::lowering::SourceOrigin::AuthoredNode {
+            assert!(
+                matches!(read.source, crate::lowering::SourceOrigin::AuthoredNode {
                 source_member, owner, node: source_node, ..
-            } if source_member == id && owner == caller && source_node == node));
+            } if source_member == id && owner == caller && source_node == node)
+            );
         }
     }
 
@@ -1429,9 +1450,9 @@ use source_admission::SourceResolutionStratum;
     /// a result in an entry clause are refused, and a body cannot name it.
     #[test]
     fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
-        use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
         use crate::source_state::name::Identifier;
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::{SymbolKind, SymbolNameRef};
         let mut symbols = SymbolTableBuilder::default();
         let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
         let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
@@ -1621,11 +1642,11 @@ use source_admission::SourceResolutionStratum;
     #[test]
     fn old_retains_the_existing_scalar_or_storage_input_and_its_policy() {
         use crate::lowering::body::{DomainSet, Policy, Qualification};
-        use semantic_vocabulary::PlaceId;
-        use symbols::{BuiltinFunction};
-        use crate::source_symbols::{builtin_function_symbols};
         use crate::source_state::expression::TableCallExpression;
         use crate::source_state::name::Identifier;
+        use crate::source_symbols::builtin_function_symbols;
+        use semantic_vocabulary::PlaceId;
+        use symbols::BuiltinFunction;
         let mut builder = SymbolTableBuilder::new();
         let owner = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -1730,21 +1751,20 @@ use source_admission::SourceResolutionStratum;
             name: Identifier::generated("u32"),
             symbol: children.handle_at(7),
         });
-        let parameter_type =
-            typed
-                .mathematical_types
-                .insert(crate::source_state::mathematical::MathematicalType::Ordinary(
-                    reference,
-                ));
+        let parameter_type = typed
+            .mathematical_types
+            .insert(crate::source_state::mathematical::MathematicalType::Ordinary(reference));
         let logical_inputs = logical::MathematicalInputs::new(
             &typed,
             machine(),
-            arena::RootRows::from_slice(&[crate::source_state::mathematical::MathematicalParameter {
-                symbol: formal,
-                name: Identifier::generated("x"),
-                relevance: language_core::BindingRelevance::Relevant,
-                ty: parameter_type,
-            }]),
+            arena::RootRows::from_slice(&[
+                crate::source_state::mathematical::MathematicalParameter {
+                    symbol: formal,
+                    name: Identifier::generated("x"),
+                    relevance: language_core::BindingRelevance::Relevant,
+                    ty: parameter_type,
+                },
+            ]),
             logical::MathematicalAddressContext::Binding(None),
         )
         .unwrap();
@@ -1759,9 +1779,9 @@ use source_admission::SourceResolutionStratum;
                 }));
         let completion = crate::source_state::signature::SignatureContract {
             kind: crate::source_state::signature::SignatureContractKind::Ensures,
-            facts: typed
-                .proof_facts
-                .insert_many([crate::source_state::domain::ProofFact::Expression(same_input)]),
+            facts: typed.proof_facts.insert_many([
+                crate::source_state::domain::ProofFact::Expression(same_input),
+            ]),
             ..Default::default()
         };
         let slot = || Slot {
@@ -2126,7 +2146,9 @@ use source_admission::SourceResolutionStratum;
         );
         assert_eq!(names.ensures.len(), 1);
         let callee = MachineId::new(2).unwrap();
-        let source = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::ConformanceWitness);
+        let source = crate::lowering::SourceOrigin::Unpositioned(
+            crate::lowering::Unpositioned::ConformanceWitness,
+        );
         let call = crate::lowering::body::Expression {
             call_context: None,
             kind: ExpressionKind::Call {
@@ -2246,8 +2268,8 @@ use source_admission::SourceResolutionStratum;
     /// is rejected.
     #[test]
     fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
-        use semantic_vocabulary::StructuralTypeId;
         use crate::source_state::expression::{TableDestructurePattern, TableMatchExpression};
+        use semantic_vocabulary::StructuralTypeId;
         let mut typed = TypedTrees::default();
         let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let scalar_match =
@@ -2280,7 +2302,9 @@ use source_admission::SourceResolutionStratum;
                     machine(),
                     record,
                     &pattern,
-                    crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                    crate::lowering::SourceOrigin::Unpositioned(
+                        crate::lowering::Unpositioned::SpanAbsent,
+                    ),
                 )
                 .unwrap_err();
             assert_eq!(
@@ -2305,10 +2329,10 @@ use source_admission::SourceResolutionStratum;
     /// each refused by name, as is a named constant.
     #[test]
     fn each_place_statement_outside_the_slice_is_refused_by_name() {
-        use semantic_vocabulary::StructuralTypeId;
         use crate::source_state::expression::TableMemberExpression;
         use crate::source_state::name::Identifier;
         use crate::source_state::statement::{TableAssignment, TableLocalData};
+        use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -2338,7 +2362,8 @@ use source_admission::SourceResolutionStratum;
                 }))
         };
         let whole = name(&mut typed, local, "p");
-        let whole_span = source_text::SourceSpan::new(source_text::SourceId(0), source_text::Span::new(14, 15));
+        let whole_span =
+            source_text::SourceSpan::new(source_text::SourceId(0), source_text::Span::new(14, 15));
         typed.expression_table.set_source_span(whole, whole_span);
         let named_constant = name(&mut typed, constant, "LIMIT");
         let projected =
@@ -2489,10 +2514,10 @@ use source_admission::SourceResolutionStratum;
     /// the rows are spelled.
     #[test]
     fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
-        use semantic_vocabulary::StructuralTypeId;
         use crate::source_state::expression::{MatchFieldAction, TableMatchField};
         use crate::source_state::name::Identifier;
         use crate::source_state::statement::TableLocalData;
+        use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -2732,7 +2757,10 @@ use source_admission::SourceResolutionStratum;
             ))
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
-        assert!(matches!(statement, crate::lowering::Statement::Bind { slot: 0, .. }));
+        assert!(matches!(
+            statement,
+            crate::lowering::Statement::Bind { slot: 0, .. }
+        ));
         let (computed_slot, statement) = program
             .local(
                 machine(),
@@ -2930,11 +2958,11 @@ use source_admission::SourceResolutionStratum;
     /// `embed`, and a guard that cannot restate the mathematical comparison.
     #[test]
     fn a_comparison_of_embedded_integers_is_a_mathematical_proposition() {
-        use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, Proposition};
-        use symbols::{BuiltinFunction};
-        use crate::source_symbols::{builtin_function_symbols};
         use crate::source_state::expression::TableCallExpression;
         use crate::source_state::name::Identifier;
+        use crate::source_symbols::builtin_function_symbols;
+        use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, Proposition};
+        use symbols::BuiltinFunction;
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(

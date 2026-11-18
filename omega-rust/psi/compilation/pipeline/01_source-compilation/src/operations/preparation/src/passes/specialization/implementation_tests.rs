@@ -18,10 +18,7 @@
 //! for `apply`, which is not served: it is the failing twin.
 
 use super::prepare;
-use arena::HandleSpan;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-use crate::source_symbols::{SymbolTableBuilder};
 use crate::source_state::TypedTrees;
 use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::expression::{
@@ -39,6 +36,9 @@ use crate::source_state::trait_definition::{
     Conformance, ConformanceRow, ConformanceRowSource, ImplementationValueIdentity, TraitDefinition,
 };
 use crate::source_state::types::TypeReferenceHandle;
+use crate::source_symbols::SymbolTableBuilder;
+use arena::HandleSpan;
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
 struct Source {
     program: TypedTrees,
@@ -390,13 +390,12 @@ fn source_with_record_children(typed_record: bool, with_children: bool) -> Sourc
     );
 
     if typed_record {
-        let schema =
-            program
-                .type_reference_table
-                .insert(crate::source_state::types::TypeReferenceNode::Named {
-                    symbol: step,
-                    name: Identifier::generated("Step"),
-                });
+        let schema = program.type_reference_table.insert(
+            crate::source_state::types::TypeReferenceNode::Named {
+                symbol: step,
+                name: Identifier::generated("Step"),
+            },
+        );
         let parameters =
             program
                 .data_type_parameters
@@ -1211,7 +1210,8 @@ fn nested_const_record_frames_refuse_foreign_owners_prefixes_and_suppliers() {
             .expect_err("corrupt source identity must refuse");
         assert!(identity.contains(expected), "{identity}");
     };
-    let replace = |program: &mut TypedTrees, receipt: crate::source_state::MachineSpecialization| {
+    let replace = |program: &mut TypedTrees,
+                   receipt: crate::source_state::MachineSpecialization| {
         program.machine_specializations.edit(|rows| {
             *rows.iter_mut().find(|row| row.instance == child).unwrap() = receipt;
         });
@@ -1244,7 +1244,8 @@ fn nested_const_record_frames_refuse_foreign_owners_prefixes_and_suppliers() {
     // untouched outer declaration. Restore the source row before the next check.
     let prefix = original.template_parameters.start();
     let original_parameter = program.data_type_parameters.get(prefix).clone();
-    program.data_type_parameters.get_mut(prefix).kind = crate::source_state::data::TypeParameterKind::Type;
+    program.data_type_parameters.get_mut(prefix).kind =
+        crate::source_state::data::TypeParameterKind::Type;
     refused(&program, "prefix");
     *program.data_type_parameters.get_mut(prefix) = original_parameter;
 

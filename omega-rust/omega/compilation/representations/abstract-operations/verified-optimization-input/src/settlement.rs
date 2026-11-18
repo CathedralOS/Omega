@@ -56,11 +56,13 @@ pub mod boundary_application_settlement {
         .map_err(|message| vec![Diagnostic::error(message)])?;
         let provenance = provenance
             .iter()
-            .map(|row| provider_correspondence::CompilerIntrinsicPlanProvenance {
-                plan: row.plan,
-                semantic_schema: row.semantic_schema,
-                row_executions: row.row_executions,
-            })
+            .map(
+                |row| provider_correspondence::CompilerIntrinsicPlanProvenance {
+                    plan: row.plan,
+                    semantic_schema: row.semantic_schema,
+                    row_executions: row.row_executions,
+                },
+            )
             .collect::<Vec<_>>();
         let module = artifact.semantic_module();
         let mut provider_demands = Vec::new();
@@ -304,12 +306,8 @@ pub mod comparison_settlement {
                                 provider_plan_commitment,
                                 comparison: *comparison,
                                 format: match format {
-                                    numeric_literals::FloatFormat::F32 => {
-                                        IeeeFloatFormat::Binary32
-                                    }
-                                    numeric_literals::FloatFormat::F64 => {
-                                        IeeeFloatFormat::Binary64
-                                    }
+                                    numeric_literals::FloatFormat::F32 => IeeeFloatFormat::Binary32,
+                                    numeric_literals::FloatFormat::F64 => IeeeFloatFormat::Binary64,
                                 },
                             },
                         );

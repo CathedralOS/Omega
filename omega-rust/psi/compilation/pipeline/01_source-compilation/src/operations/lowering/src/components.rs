@@ -21,8 +21,8 @@ refused here by name, as `Unsupported`, before anything is lowered
 (`wiki/drafts/designs/loops_recursion_termination_lane.md`, "Slices").
 */
 
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::CrashRouteGuard;
 

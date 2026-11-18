@@ -26,12 +26,12 @@ pub(crate) mod equality {
     internal lowering of `in`).
     */
 
+    use crate::source_resolved as resolved;
     use crate::typing::tables::resolved_statements;
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
     use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
     use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-    use crate::source_resolved as resolved;
 
     pub(crate) fn validate_equality_operands_in(
         program: &SymbolResolvedTrees,
@@ -290,6 +290,7 @@ pub(crate) mod equality {
 }
 
 pub(crate) mod exhaustiveness {
+    use crate::source_resolved as resolved;
     use crate::typing::expressions::call_results::declared_call_return;
     use crate::typing::tables::{resolved_expressions, resolved_statements};
     use arena::HandleSpan;
@@ -300,7 +301,6 @@ pub(crate) mod exhaustiveness {
     use resolved::name::DiagnosticName;
     use resolved::statement::{StatementNode, TransitionGuardNode};
     use resolved::types::TypeReference;
-    use crate::source_resolved as resolved;
     use symbols::SymbolHandle;
 
     #[cfg(test)]
@@ -319,7 +319,8 @@ pub(crate) mod exhaustiveness {
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             crate::resolution::resolve(request).unwrap()
@@ -2589,15 +2590,15 @@ pub(crate) mod exhaustiveness {
 }
 
 pub(crate) mod proposition {
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::typing::expressions::expression::lower_expression_handle_from_table_in_fact_position;
     use crate::typing::lowerer::Lowerer;
     use crate::typing::lowerer::name::lower_name;
     use crate::typing::tables::{expression_table_mut, resolved_expressions};
     use diagnostics::Diagnostic;
     use resolved::types::TypeReference;
-    use crate::source_resolved as resolved;
     use typed::proposition::PropositionBinderArgumentKind as ArgumentKind;
-    use crate::source_state as typed;
 
     pub(crate) fn is_proposition_call_target(
         symbols: &crate::source_symbols::SymbolTable,
@@ -3043,16 +3044,18 @@ mod equality_identity_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../tests/fixtures/run/equality/closed_generic_comparison/main.omg"
         ));
-        let checked =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", accepted)]);
+        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", accepted,
+        )]);
         assert!(checked.is_ok(), "{checked:?}");
         let refused = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../tests/fixtures/fail/equality/closed_generic_comparison_wrong_argument/main.omg"
         ));
-        let error =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", refused)])
-                .unwrap_err();
+        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", refused,
+        )])
+        .unwrap_err();
         assert!(
             error.contains("field `point` of `Player` is not Equatable"),
             "{error}"
@@ -3064,8 +3067,9 @@ mod equality_identity_tests {
         let source = "trait Equatable<T> { machine equals(left: T, right: T) -> bool; } data Point [copy] { x: i32; } PointEquality satisfies Equatable<Point> { }";
         for name in ["Equatable", "UserComparable"] {
             let source = source.replace("Equatable", name);
-            let error = crate::typing::qualified_operator_home_tests::checked(&[("main.omg", &source)])
-                .unwrap_err();
+            let error =
+                crate::typing::qualified_operator_home_tests::checked(&[("main.omg", &source)])
+                    .unwrap_err();
             assert!(error.contains("equals"), "{name}: {error}");
         }
     }
@@ -3073,13 +3077,15 @@ mod equality_identity_tests {
     #[test]
     fn qualified_record_operands_keep_their_exact_domains() {
         let source = "data Point<T> [copy] { x: i32; } domain i32::A; domain i32::B; AEquality satisfies Equatable<Point<i32 in A>> { } machine compare(left: Point<i32 in A>, right: Point<i32 in A>) -> bool { left == right }";
-        let checked =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
+        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", source,
+        )]);
         assert!(checked.is_ok(), "{checked:?}");
         let wrong = source.replace("right: Point<i32 in A>", "right: Point<i32 in B>");
-        let error =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", &wrong)])
-                .unwrap_err();
+        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", &wrong,
+        )])
+        .unwrap_err();
         assert!(error.contains("different data types"), "{error}");
     }
 
@@ -3087,13 +3093,15 @@ mod equality_identity_tests {
     fn only_payloadless_sums_have_implicit_data_equality() {
         let source =
             "data Empty { } machine compare(left: Empty, right: Empty) -> bool { left == right }";
-        let error =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
-                .unwrap_err();
+        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", source,
+        )])
+        .unwrap_err();
         assert!(error.contains("is not Equatable"), "{error}");
         let sum = "data Tag { case A; case B; } machine compare(left: Tag, right: Tag) -> bool { left == right }";
-        let checked =
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[("main.omg", sum)]);
+        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", sum,
+        )]);
         assert!(checked.is_ok(), "{checked:?}");
     }
 }

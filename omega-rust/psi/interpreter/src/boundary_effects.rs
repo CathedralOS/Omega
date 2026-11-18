@@ -3119,8 +3119,11 @@ pub(crate) mod results {
     pub(crate) mod tests {
         use super::*;
         use crate::engine::calls::frames::tests::empty_program;
-        use evaluation_accounting::{BuildEvaluationSponsor};
-        use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+        use evaluation_accounting::BuildEvaluationSponsor;
+        use evaluation_contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
         use semantic_vocabulary::{PlaceId, StructuralTypeId};
         use std::sync::Arc;
         use terminal_psi::{
@@ -4328,8 +4331,13 @@ impl TerminalRuntimeSupplies {
                 layouts.terminal_psi() != code.identity()
                     || Some(layouts.target()) != admission.target()
             })
-            || self.entry.is_some_and(|entry| Some(entry) != code.module().entry)
-            || self.supplies.values().any(|supply| !matches!(supply, AdmittedBoundarySupply::CheckedProvider(_)))
+            || self
+                .entry
+                .is_some_and(|entry| Some(entry) != code.module().entry)
+            || self
+                .supplies
+                .values()
+                .any(|supply| !matches!(supply, AdmittedBoundarySupply::CheckedProvider(_)))
             || self.native_code_layouts.is_some()
             || self.x86_flags.is_some()
             || self.memory_ordering.is_some()
@@ -4343,7 +4351,10 @@ impl TerminalRuntimeSupplies {
                 || primary.targets() != self.target_machines.as_ref()
                 || primary.layouts() != self.target_layouts.as_deref()
             {
-                return Err("compiler evaluation scalar observations differ from its admitted invocation".into());
+                return Err(
+                    "compiler evaluation scalar observations differ from its admitted invocation"
+                        .into(),
+                );
             }
         }
         Ok(())

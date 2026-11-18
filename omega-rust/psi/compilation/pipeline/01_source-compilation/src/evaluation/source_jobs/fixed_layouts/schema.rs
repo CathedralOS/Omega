@@ -3,7 +3,9 @@
 //! a field that a returned layout may place.
 
 use crate::evaluation::BuildTimeValue as Value;
-use crate::source_state::{PlanLaidFieldLayoutSource, PlanLaidSchemaField, PlanLaidSchemaFieldKind};
+use crate::source_state::{
+    PlanLaidFieldLayoutSource, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
+};
 
 const FIELD_CAPACITY: usize = 32;
 const CASE_CAPACITY: usize = 32;

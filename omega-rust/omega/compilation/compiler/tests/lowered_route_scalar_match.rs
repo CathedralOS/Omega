@@ -475,11 +475,15 @@ fn execute_policy_transition_fixture(root: &std::path::Path, check_consent: bool
     let discovered = fixture_package_inputs::discover_fixture(root, Default::default())
         .unwrap_or_else(|errors| panic!("{root:?} discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
-        retain_native_inputs: false, retain_native_stage_inputs: false,
-        installation_assumptions: Vec::new(), image: Default::default(),
+        retain_native_inputs: false,
+        retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(),
+        image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
     });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,

@@ -2,10 +2,10 @@
 //! record namespace. This pass parses no body and grants no value, lifetime,
 //! access, initialization, disposal or claim authority.
 
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, services};
 use crate::lowering::calling_publication::PreparedCallingStorage;

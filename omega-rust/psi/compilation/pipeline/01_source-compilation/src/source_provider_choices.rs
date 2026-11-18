@@ -145,17 +145,22 @@ fn declaration<'a>(
         ),
     ] {
         if identity.applied {
-            if !typed
-                .product_operand_applications
-                .is_valid(crate::evaluation::provider_declarations::source_application(identity.application))
-            {
+            if !typed.product_operand_applications.is_valid(
+                crate::evaluation::provider_declarations::source_application(identity.application),
+            ) {
                 return Err(diagnostic(
                     "provider policy lost its exact complete static application",
                 ));
             }
-            let retained = typed.product_operand_applications.get(crate::evaluation::provider_declarations::source_application(identity.application));
+            let retained = typed.product_operand_applications.get(
+                crate::evaluation::provider_declarations::source_application(identity.application),
+            );
             let actual = typed
-                .product_operand_application_identity(crate::evaluation::provider_declarations::source_application(identity.application))
+                .product_operand_application_identity(
+                    crate::evaluation::provider_declarations::source_application(
+                        identity.application,
+                    ),
+                )
                 .map_err(diagnostic)?;
             if retained.role != Some(role)
                 || retained.declaration != identity.symbol
@@ -205,7 +210,10 @@ pub fn prepare_with_source_defaults(
     source_defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedProviderChoices, Vec<Diagnostic>> {
     let typed: &TypedTrees = source;
-    let context = ProviderPlanningContext::new(typed, declaration_contracts::source_identity::DependencyScope::Product);
+    let context = ProviderPlanningContext::new(
+        typed,
+        declaration_contracts::source_identity::DependencyScope::Product,
+    );
     let defaults = source_defaults
         .iter()
         .flat_map(|wrapper| {

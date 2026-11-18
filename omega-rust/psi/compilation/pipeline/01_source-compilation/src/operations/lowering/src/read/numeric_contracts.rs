@@ -5,11 +5,11 @@
 //! does not prove that equality. The catalog keeps the complete normal-result
 //! meaning and result policy. Opaque mathematical types remain type references.
 
+use crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement;
+use crate::source_state::signature::SignatureContractKind;
 use semantic_vocabulary::{MachineId, ValueId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
-use crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement;
-use crate::source_state::signature::SignatureContractKind;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};

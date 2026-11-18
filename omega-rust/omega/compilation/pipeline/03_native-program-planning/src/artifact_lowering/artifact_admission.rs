@@ -958,10 +958,11 @@ mod native {
             let record =
                 terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
             let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
-            let input = crate::artifact_lowering::lower_artifact(&authorize_test_artifact(&artifact), None)
-                .unwrap()
-                .into_optimization_artifact()
-                .into_optimization_input();
+            let input =
+                crate::artifact_lowering::lower_artifact(&authorize_test_artifact(&artifact), None)
+                    .unwrap()
+                    .into_optimization_artifact()
+                    .into_optimization_input();
             let plan = input.plan().clone();
             let facts = input.into_lowering_facts();
             assert!(

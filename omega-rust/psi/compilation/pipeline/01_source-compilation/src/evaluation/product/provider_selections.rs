@@ -6,17 +6,17 @@ use super::authored_requests::{AuthoredRequests, refusal};
 use super::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, form, identity,
 };
-use diagnostics::Diagnostic;
-use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationOperand;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
-use std::sync::Arc;
-use symbols::SymbolHandle;
+use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::ProductDeclarationLookup;
+use diagnostics::Diagnostic;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 struct Formation {
     /// `None` for a request authored inside a generic helper: each executed
@@ -99,7 +99,9 @@ fn satisfied_application(
     let scope = if provider.applied {
         typed
             .product_operand_applications
-            .get(super::provider_declarations::source_application(provider.application))
+            .get(super::provider_declarations::source_application(
+                provider.application,
+            ))
             .scope
             .scope(typed)?
     } else {
@@ -181,8 +183,14 @@ fn formation(
         .typed
         .symbols
         .rejoin_product_occurrence(request.source_span);
-    let origin = crate::source_symbols::capture_build_selection_origin(&context.typed.symbols, author, author, span, None)
-        .map_err(|reason| refusal(request, reason))?;
+    let origin = crate::source_symbols::capture_build_selection_origin(
+        &context.typed.symbols,
+        author,
+        author,
+        span,
+        None,
+    )
+    .map_err(|reason| refusal(request, reason))?;
     form(
         context,
         slot.identity,

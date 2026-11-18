@@ -35,17 +35,17 @@
 
 mod data {
     use crate::source_resolved::SymbolResolvedTrees;
+    use crate::source_symbols::SymbolTable;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
-    use std::collections::HashMap;
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::data::TypeParameterKind;
     use crate::source_resolved::name::DiagnosticName;
     use crate::source_resolved::types::GenericTypeReference;
     use crate::source_resolved::types::GenericTypeReferenceStorage;
     use crate::source_resolved::types::TypeReference;
+    use std::collections::HashMap;
 
     pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
         let (_, trait_proposition_slots, trait_machine_identity_slots) =
@@ -218,8 +218,8 @@ mod data {
 }
 mod domains {
     use crate::source_resolved::SymbolResolvedTrees;
-    use symbols::{SymbolKind};
-    use crate::source_symbols::{SymbolTable};
+    use crate::source_symbols::SymbolTable;
+    use symbols::SymbolKind;
 
     use crate::resolution::symbols::top_level::next_child_of_kind;
     use crate::resolution::symbols::top_level::operators::assign_operator_symbols;
@@ -255,10 +255,10 @@ mod domains {
     }
 }
 mod machines {
-    use diagnostics::Diagnostic;
     use crate::source_resolved::SymbolResolvedTrees;
+    use crate::source_symbols::SymbolTable;
+    use diagnostics::Diagnostic;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::expressions::assign_expression_table_symbols;
     use crate::resolution::symbols::lookup::top_level_symbol_for_source;
@@ -272,8 +272,8 @@ mod machines {
         assign_type_reference_argument_symbols_with_constraints,
         assign_type_reference_symbol_with_locals_and_constraints,
     };
-    use declaration_contracts::MachineSupplyMode;
     use crate::source_resolved::data::TypeParameterKind;
+    use declaration_contracts::MachineSupplyMode;
 
     pub(super) fn assign_machine_symbols(
         program: &mut SymbolResolvedTrees,
@@ -330,13 +330,14 @@ mod machines {
                 }
             });
         }
-        let conformance_scopes = match crate::resolution::symbols::scope::DeclarationTypeScopes::of(program) {
-            Ok(scopes) => scopes,
-            Err(errors) => {
-                diagnostics.extend(errors);
-                return diagnostics;
-            }
-        };
+        let conformance_scopes =
+            match crate::resolution::symbols::scope::DeclarationTypeScopes::of(program) {
+                Ok(scopes) => scopes,
+                Err(errors) => {
+                    diagnostics.extend(errors);
+                    return diagnostics;
+                }
+            };
         let tables = &mut program.tables;
         let type_constraints = &tables.types.constraints;
         let declarations = &mut tables.declarations;
@@ -731,8 +732,8 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
 }
 mod mathematical {
     use crate::source_resolved::SymbolResolvedTrees;
-    use symbols::{SymbolKind};
-    use crate::source_symbols::{SymbolTable};
+    use crate::source_symbols::SymbolTable;
+    use symbols::SymbolKind;
 
     use super::super::top_level::next_child_of_kind;
     use crate::source_resolved::data::TypeParameterKind;
@@ -771,8 +772,8 @@ mod mathematical {
 }
 mod measures {
     use crate::source_resolved::SymbolResolvedTrees;
-    use symbols::{SymbolKind};
-    use crate::source_symbols::{SymbolTable};
+    use crate::source_symbols::SymbolTable;
+    use symbols::SymbolKind;
 
     use super::next_child_of_kind;
     use crate::resolution::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
@@ -806,10 +807,10 @@ mod measures {
     }
 }
 mod operators {
-    use arena::Arena;
     use crate::source_resolved::SymbolResolvedTrees;
+    use crate::source_symbols::SymbolTable;
+    use arena::Arena;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::top_level::next_child_of_kind;
     use crate::resolution::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
@@ -920,8 +921,8 @@ mod operators {
 }
 mod propositions {
     use crate::source_resolved::SymbolResolvedTrees;
-    use symbols::{SymbolKind};
-    use crate::source_symbols::{SymbolTable};
+    use crate::source_symbols::SymbolTable;
+    use symbols::SymbolKind;
 
     use super::super::top_level::next_child_of_kind;
     use crate::source_resolved::proposition::PropositionBinderKind;
@@ -954,10 +955,10 @@ mod propositions {
     }
 }
 mod traits {
-    use diagnostics::Diagnostic;
     use crate::source_resolved::SymbolResolvedTrees;
+    use crate::source_symbols::SymbolTable;
+    use diagnostics::Diagnostic;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::lookup::top_level_symbol_for_source;
     use crate::resolution::symbols::top_level::{
@@ -1124,8 +1125,8 @@ mod type_aliases {
     use crate::resolution::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_resolved::data::TypeParameterKind;
+    use crate::source_symbols::SymbolTable;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     pub(super) fn assign_type_alias_symbols(
         program: &mut SymbolResolvedTrees,
@@ -1195,10 +1196,10 @@ mod type_aliases {
 }
 
 use crate::resolution::tables::resolved_declarations;
-use arena::Arena;
 use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_symbols::SymbolTable;
+use arena::Arena;
 use symbols::{SymbolHandle, SymbolKind};
-use crate::source_symbols::{SymbolTable};
 
 use super::top_level::data::assign_data_symbols;
 use super::top_level::domains::assign_domain_symbols;
@@ -1208,7 +1209,6 @@ use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
 use crate::resolution::symbols::lookup::top_level_symbol_for_source;
-use std::collections::HashSet;
 use crate::source_resolved::data::MachineParameterContract;
 use crate::source_resolved::data::PropositionParameterSignature;
 use crate::source_resolved::data::TypeParameter;
@@ -1217,6 +1217,7 @@ use crate::source_resolved::machine::GenericConformanceBound;
 use crate::source_resolved::signature::StateParameter;
 use crate::source_resolved::signature::StateSignature;
 use crate::source_resolved::types::TypeConstraint;
+use std::collections::HashSet;
 
 /*
     Trait-side tables both machine and trait assignment consult: which

@@ -72,9 +72,9 @@ mod custody {
 }
 mod policies {
     use crate::{ValidatedAllocatorAvailability, materialize_allocator_availability};
+    use register_homes::AllocatorAvailabilityPolicy;
     use target_aarch64::aarch64_preservation_convention_for_target;
     use target_x86_64::x86_64_preservation_convention_for_target;
-    use register_homes::AllocatorAvailabilityPolicy;
 
     use crate::StagedOptimizedLiveRanges;
 

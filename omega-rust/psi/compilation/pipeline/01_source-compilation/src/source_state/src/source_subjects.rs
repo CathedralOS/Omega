@@ -3,8 +3,8 @@
 //! membership is neither a body judgment nor permission to execute source.
 
 use crate::source_state::TypedTrees;
-use semantic_vocabulary::PackageKeyIdentity;
 use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub fn contains(

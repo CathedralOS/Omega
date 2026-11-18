@@ -47,8 +47,11 @@ returns as `Err`:
   (`Storage::initial_contents_are_declared`).
 */
 
-use semantic_vocabulary::{BlockId, IntegerValue, MachineId, OperationId, ScalarType, StructuralCaseId, StructuralTypeId, ValueId};
 use arena::{IdTable, NumericId};
+use semantic_vocabulary::{
+    BlockId, IntegerValue, MachineId, OperationId, ScalarType, StructuralCaseId, StructuralTypeId,
+    ValueId,
+};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::{Checked, Construct, MachineTables, ProgramPoint};
 use terminal_psi::{
@@ -1023,7 +1026,8 @@ impl<'a> Storage<'a> {
             // does not know of.
             _ => {
                 if produced.is_some()
-                    || crate::checking::result_equation(self.machine, operation, value_types)?.is_none()
+                    || crate::checking::result_equation(self.machine, operation, value_types)?
+                        .is_none()
                 {
                     return Err(
                         self.unsupported(concerns, "an operation whose stores are not derived")

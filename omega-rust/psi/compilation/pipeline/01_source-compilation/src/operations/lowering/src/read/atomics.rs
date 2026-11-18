@@ -2,20 +2,22 @@
 //! load. Decode its retained carrier once, keeping the storage path separate
 //! from the operands and binding the prior only to the event's actual result.
 
-use language_core::atomic::{AtomicExpressionResultCustody, AtomicOrderingPlan};
-use semantic_vocabulary::{AtomicCellType, IntegerSign, IntegerType, MachineId, ScalarType};
-use symbols::BuiltinTypeAtom;
-use terminal_check_tables::{Checked, Construct};
-use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression,
 };
 use crate::source_state::statement::{StatementNode, TableLocalData};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use language_core::atomic::{AtomicExpressionResultCustody, AtomicOrderingPlan};
+use semantic_vocabulary::{AtomicCellType, IntegerSign, IntegerType, MachineId, ScalarType};
+use symbols::BuiltinTypeAtom;
+use terminal_check_tables::{Checked, Construct};
+use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 
 use super::authority::Access;
 use super::{Program, Slot};
-use crate::lowering::body::{Expression, ExpressionKind, RecordType, Statement, StorageShape, ValueType};
+use crate::lowering::body::{
+    Expression, ExpressionKind, RecordType, Statement, StorageShape, ValueType,
+};
 use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {

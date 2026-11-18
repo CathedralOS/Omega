@@ -523,8 +523,9 @@ pub(crate) fn legalize_target_operations(
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::preparation::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
-    let callable_invocations = crate::preparation::PreparedCallableInvocations::new(unit, callable_roots)
-        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+    let callable_invocations =
+        crate::preparation::PreparedCallableInvocations::new(unit, callable_roots)
+            .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     prepare_execution_plan(
         target,
         PreparationEvidence {
@@ -670,7 +671,11 @@ pub fn prepare_execution_plan(
     types: &crate::preparation::native_geometry::ModuleTypes,
     pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
-    crate::preparation::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
+    crate::preparation::installed_interrupts::authorize_target(
+        target,
+        origins.module,
+        installed_interrupts,
+    )?;
     validate_boundary_origins(target, origins)?;
     let rosters = source::derive_target_function_rosters(target, evidence, types)?;
     if target.publication.functions().len() != target.functions.len()
@@ -717,9 +722,12 @@ pub fn verify_target_operation_plan_with_closed_module(
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
-    let closed_types =
-        crate::preparation::native_geometry::accepted_types(closed_module, target.psi, origins.module)
-            .ok_or_else(LegalizationError::custody)?;
+    let closed_types = crate::preparation::native_geometry::accepted_types(
+        closed_module,
+        target.psi,
+        origins.module,
+    )
+    .ok_or_else(LegalizationError::custody)?;
     verify_target_operation_plan_input(
         target,
         abstract_plan,
@@ -774,12 +782,11 @@ fn audit_target_operation_plan_with_module(
     closed_types: &crate::preparation::native_geometry::ModuleTypes,
     module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<(), LegalizationError> {
-    crate::preparation::publication::verify_source_publication(abstract_plan, &target.publication).map_err(
-        |reason| LegalizationError::PublishedPlanMismatch {
+    crate::preparation::publication::verify_source_publication(abstract_plan, &target.publication)
+        .map_err(|reason| LegalizationError::PublishedPlanMismatch {
             machine: None,
             part: reason,
-        },
-    )?;
+        })?;
     let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
     let retained = source::derive_target_function_rosters(
         target,
@@ -823,9 +830,12 @@ pub fn verify_execution_plan(
         pre_physical,
     } = inputs;
     let mismatch = |machine, part| LegalizationError::PublishedPlanMismatch { machine, part };
-    let closed_types =
-        crate::preparation::native_geometry::accepted_types(closed_module, target.psi, origins.module)
-            .ok_or_else(LegalizationError::custody)?;
+    let closed_types = crate::preparation::native_geometry::accepted_types(
+        closed_module,
+        target.psi,
+        origins.module,
+    )
+    .ok_or_else(LegalizationError::custody)?;
     let plan = prepared.plan();
     let callable_program =
         optimization_unit_semantics::callable_values::optimized_callable_values(unit)
@@ -965,27 +975,37 @@ fn derive_expected_functions(
         &unit.boundary_machines,
         module,
     )?;
-    let plan_geometry = crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-        &abstract_plan.structural_types,
-        abstract_plan.structural_types.owned_sequence_bounds(),
-    )
-    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-    let unit_geometry = crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-        &unit.structural_types,
-        unit.structural_types.owned_sequence_bounds(),
-    )
-    .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+    let plan_geometry =
+        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+            &abstract_plan.structural_types,
+            abstract_plan.structural_types.owned_sequence_bounds(),
+        )
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
+    let unit_geometry =
+        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+            &unit.structural_types,
+            unit.structural_types.owned_sequence_bounds(),
+        )
+        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let abstract_plan = &crate::preparation::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,
         closed_types,
     );
-    let unit = &crate::preparation::native_geometry::NativeInput::with_types(unit, &unit_geometry, closed_types);
+    let unit = &crate::preparation::native_geometry::NativeInput::with_types(
+        unit,
+        &unit_geometry,
+        closed_types,
+    );
     source::validate_source_custody(target, abstract_plan, unit)?;
     validate_call_descriptor_origins(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
     let descriptor_inputs =
-        crate::preparation::legalization_descriptor_inputs::DescriptorInputs::new(target, abstract_plan, unit);
+        crate::preparation::legalization_descriptor_inputs::DescriptorInputs::new(
+            target,
+            abstract_plan,
+            unit,
+        );
     for function in &target.functions {
         let mut abstracted = abstract_plan
             .functions

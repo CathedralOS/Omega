@@ -5,10 +5,10 @@
 // source admission as retained provider selections.
 
 use super::PackageBuildHandoff;
-use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
-use source_compiler::declaration_selection::CapturedNativeIntent;
 pub use declaration_contracts::selection::NativeBindingProducer;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::declaration_selection::CapturedNativeIntent;
+use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
 use std::sync::Arc;
 
 pub use effects::semantic_bindings::{NativeBindingProduction, PackageNativeBindingOrigin};

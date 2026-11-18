@@ -7,8 +7,8 @@
 
 use std::collections::BTreeMap;
 
+use arena::IdTable;
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct ScalarConditions {

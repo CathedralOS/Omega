@@ -2,16 +2,21 @@
 //! immutable module and exclusively owns one machine's checking tables; proof
 //! contexts are constructed only by running jobs, on the invocation's workers.
 
+use arena::IdTable;
 use rayon::prelude::*;
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use semantic_vocabulary::MachineId;
 use std::sync::atomic::{AtomicU64, Ordering};
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 
 pub(super) fn check<T: Send>(
     tables: &mut IdTable<MachineId, MachineTables>,
     activity: &mut crate::checking::ProofSearchActivity,
-    check: impl Fn(MachineId, &mut MachineTables, &mut crate::checking::ProofSearchActivity) -> Checked<T> + Sync,
+    check: impl Fn(
+        MachineId,
+        &mut MachineTables,
+        &mut crate::checking::ProofSearchActivity,
+    ) -> Checked<T>
+    + Sync,
 ) -> Checked<IdTable<MachineId, T>> {
     let mut result = IdTable::default();
     if execution_admission::current_workers() == 1 || tables.len() < 2 {
@@ -86,7 +91,13 @@ mod tests {
                 let completed = AtomicUsize::new(0);
                 let result = check(&mut tables, &mut activity, |id, tables, activity| {
                     assert!(execution_admission::on_budget_worker());
-                    let _ = crate::checking::prove::Prover::new(&context, &[], &[], &tables.values, activity);
+                    let _ = crate::checking::prove::Prover::new(
+                        &context,
+                        &[],
+                        &[],
+                        &tables.values,
+                        activity,
+                    );
                     completed.fetch_add(1, Ordering::SeqCst);
                     let running = active.fetch_add(1, Ordering::SeqCst) + 1;
                     peak.fetch_max(running, Ordering::SeqCst);

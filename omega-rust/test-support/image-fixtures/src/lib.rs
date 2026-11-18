@@ -37,4 +37,6 @@ pub fn encode_locator_import(
 }
 
 mod bridges;
-pub use bridges::{emit_native_entry_bridge, emit_native_foreign_bridge, emit_native_foreign_bridge_object};
+pub use bridges::{
+    emit_native_entry_bridge, emit_native_foreign_bridge, emit_native_foreign_bridge_object,
+};

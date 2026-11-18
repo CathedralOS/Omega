@@ -41,13 +41,16 @@ assumptions (entry `requires`, callee `ensures`) and semantic axioms
 
 use std::cmp::Ordering;
 
+use arena::IdTable;
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
     lift_exact_integer_order, lower_integer_math_relation, map_integer_affine_bound,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, ValueId,
+};
 
 #[path = "prove/float_integer.rs"]
 mod float_integer;

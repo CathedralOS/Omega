@@ -116,7 +116,8 @@ fn validate_image_selection_origins(
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
     use selected_instructions::SelectedImageAddressReference as Reference;
-    let current_input = crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+    let current_input =
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
     let catalogs = super::code_catalogs(&current_input);
     for address in &source.source().text_section().unresolved_image_addresses {
         if !matches!(
@@ -279,7 +280,8 @@ pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
-    let current_input = crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
+    let current_input =
+        crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
     let fragments = fragments(&current_input);
     if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8
@@ -379,8 +381,14 @@ pub(in crate::function_fragments) fn admit(
     let interrupt_helpers =
         provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
             abstract_plan.psi,
-            original.target_for_correspondence().lowering_facts().module(),
-            original.target_for_correspondence().lowering_facts().installed_interrupts(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .module(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .installed_interrupts(),
         );
     for fragment in &fragments.functions {
         let (abstracted, targeted) = audited_function(source, original, fragment.machine)?;
@@ -395,8 +403,14 @@ pub(in crate::function_fragments) fn admit(
         let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
         installed_calls::validate(abstracted, targeted, selected)?;
         let installed_scopes = installed_interrupts::validate(
-            original.target_for_correspondence().lowering_facts().module(),
-            original.target_for_correspondence().lowering_facts().installed_interrupts(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .module(),
+            original
+                .target_for_correspondence()
+                .lowering_facts()
+                .installed_interrupts(),
             current
                 .installation_authority()
                 .installed_stack_requirements(),
@@ -916,9 +930,11 @@ mod current_contract_tests {
 
 impl crate::FragmentReplay {
     pub fn verify_access_geometry(&self) -> Result<(), diagnostics::Diagnostic> {
-        let original = self.target_source().ok_or_else(|| diagnostics::Diagnostic::error(
-            "target-operation audit requires retained target operations",
-        ))?;
+        let original = self.target_source().ok_or_else(|| {
+            diagnostics::Diagnostic::error(
+                "target-operation audit requires retained target operations",
+            )
+        })?;
         establish_geometry(self.fragment_source(), original)
             .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }

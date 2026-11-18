@@ -4,7 +4,6 @@
 
 #![forbid(unsafe_code)]
 
-
 pub use errors::parse_error::ParseError;
 
 use crate::declarations::items::{ParsedDeclaration, parse_item};

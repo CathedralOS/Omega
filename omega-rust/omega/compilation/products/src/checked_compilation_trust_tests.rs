@@ -1,4 +1,6 @@
-use declaration_contracts::trust_declarations::{AcceptedContractDeclaration, AcceptedMachineDeclaration, TrustDeclarations};
+use declaration_contracts::trust_declarations::{
+    AcceptedContractDeclaration, AcceptedMachineDeclaration, TrustDeclarations,
+};
 use provider_correspondence::trust::{RootTrustPolicy, reconstruct_trust_obligations};
 
 fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {

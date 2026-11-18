@@ -600,8 +600,13 @@ impl<'a> Storage<'a> {
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
-        let actual =
-            crate::checking::call_contracts::invocation(module, self.lowered, tables, invocation, row)?;
+        let actual = crate::checking::call_contracts::invocation(
+            module,
+            self.lowered,
+            tables,
+            invocation,
+            row,
+        )?;
         if actual.inputs.structural_arguments != arguments {
             return Err(self.foreign(concerns, "loan arguments differ from their canonical call"));
         }
@@ -1867,7 +1872,8 @@ impl<'a> Storage<'a> {
                 )?;
                 let arguments = operation.kind.structural_arguments();
                 let site = InvocationSite::Operation(operation.id);
-                let call = crate::checking::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
+                let call =
+                    crate::checking::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
                 let retained = terminal_semantics::reference_call_lifetimes(
                     module,
                     self.lowered,
@@ -1890,9 +1896,10 @@ impl<'a> Storage<'a> {
             }
             // A terminator that is a call lends as an operation does; the
             // loans of one that never returns are disposed of on its edge.
-            if let Some(site) = crate::checking::call_contracts::terminator_site(&block.terminator) {
-                let inputs =
-                    crate::checking::call_contracts::inputs_at(self.lowered, site)?.ok_or_else(|| {
+            if let Some(site) = crate::checking::call_contracts::terminator_site(&block.terminator)
+            {
+                let inputs = crate::checking::call_contracts::inputs_at(self.lowered, site)?
+                    .ok_or_else(|| {
                         self.foreign(
                             Construct::Block(block.id),
                             "terminal call lost its canonical inputs",

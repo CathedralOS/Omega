@@ -1,12 +1,12 @@
 // Normalize a completed Build supply into its locator receipt. This does not
 // select a provider or admit a service schema; those require canonical authority.
-use evaluation_receipts::NativeBindingMaterialization;
 use effects::provider_plan::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
     EvaluatedForeignSyscall,
 };
+use evaluation_receipts::NativeBindingMaterialization;
 use semantic_vocabulary::NativeBindingLocator;
 
 #[cfg(test)]
@@ -21,9 +21,8 @@ pub fn normalize_native_binding(
     requirement: &str,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<effects::provider_plan::EvaluatedNativeBinding, String> {
-    let target =
-        target::TargetProfile::from_canonical_target_name(&supply.target)
-            .map_err(|error| error.to_string())?;
+    let target = target::TargetProfile::from_canonical_target_name(&supply.target)
+        .map_err(|error| error.to_string())?;
     evaluate(supply, requirement, target, identities)
 }
 

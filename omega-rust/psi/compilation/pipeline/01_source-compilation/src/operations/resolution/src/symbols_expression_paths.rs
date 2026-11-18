@@ -19,8 +19,8 @@
 */
 
 mod calls {
+    use crate::source_symbols::SymbolTable;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use super::super::scope::MachineScope;
     use super::super::targets::resolve_call_target_symbol;
@@ -130,7 +130,6 @@ pub(in crate::resolution::symbols) mod projected_receivers {
         Bounds, case reachability, effects, and access remain later-stage obligations.
     */
 
-    use arena::Arena;
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::expression::{
         ExpressionHandle, ExpressionNode, ExpressionTable, TableCallExpression,
@@ -138,8 +137,9 @@ pub(in crate::resolution::symbols) mod projected_receivers {
     use crate::source_resolved::signature::StateParameter;
     use crate::source_resolved::statement::Statement;
     use crate::source_resolved::types::TypeReference;
+    use crate::source_symbols::SymbolTable;
+    use arena::Arena;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use super::super::scope::MachineScope;
 
@@ -367,8 +367,8 @@ pub(in crate::resolution::symbols) mod projected_receivers {
 mod receivers {
 
     use super::super::scope::MachineScope;
+    use crate::source_symbols::SymbolTable;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use super::super::lookup::{
         child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,

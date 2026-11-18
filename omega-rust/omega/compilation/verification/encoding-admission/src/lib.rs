@@ -6,14 +6,14 @@
 //! producer stage or callback is an input to these checks.
 
 #![forbid(unsafe_code)]
-pub mod frame_protocol;
 mod control_encoding;
 pub mod exit_requirements;
 pub mod frame_address;
+pub mod frame_protocol;
 pub mod layout;
 pub mod layout_requirements;
-pub mod relaxation;
 pub mod relative_branches;
+pub mod relaxation;
 mod validation;
 use OptimizedSelectedFormEncodingError as Error;
 use isa_aarch64::{

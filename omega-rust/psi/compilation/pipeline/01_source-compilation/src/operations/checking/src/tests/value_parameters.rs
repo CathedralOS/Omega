@@ -29,10 +29,7 @@ fn number(value: u128) -> ScalarTerm {
 
 /// The generic check form of `machine`, whose last `rigid` formals are its
 /// value parameters, discharged once.
-fn checked_once(
-    machine: Machine,
-    rigid: usize,
-) -> (crate::lowering::Elaboration, Discharge) {
+fn checked_once(machine: Machine, rigid: usize) -> (crate::lowering::Elaboration, Discharge) {
     let mut form = lower(vec![machine]).unwrap();
     form.value_parameters.push(rigid);
     let found = discharge(&mut form, &mut Default::default()).unwrap();
@@ -329,9 +326,7 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
     );
 }
 
-fn width_form_without_discharge(
-    requires_positive: bool,
-) -> crate::lowering::Elaboration {
+fn width_form_without_discharge(requires_positive: bool) -> crate::lowering::Elaboration {
     let mut machine = width_identity();
     if !requires_positive {
         machine.requires.clear();
@@ -420,7 +415,11 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
 #[test]
 fn a_width_body_needs_its_own_positive_width_proof() {
     let mut valid = width_form_without_discharge(true);
-    let found = discharge(&mut valid, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let found = discharge(
+        &mut valid,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(
         verdicts(&valid, &found, 1, |kind| matches!(
             kind,
@@ -430,7 +429,11 @@ fn a_width_body_needs_its_own_positive_width_proof() {
         .all(|(_, verdict)| verdict.is_ok())
     );
     let mut missing = width_form_without_discharge(false);
-    let found = discharge(&mut missing, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let found = discharge(
+        &mut missing,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let questions = verdicts(&missing, &found, 1, |kind| {
         matches!(kind, ObligationKind::IntegerWidthPositive { .. })
     });

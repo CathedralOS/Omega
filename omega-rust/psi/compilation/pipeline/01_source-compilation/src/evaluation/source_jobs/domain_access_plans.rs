@@ -33,18 +33,18 @@
 
 use std::sync::Arc;
 
-use diagnostics::Diagnostic;
-use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
-use declaration_contracts::DomainEstablishmentRoute;
-use schema_reflection::CallableDescription;
-use schema_reflection::SemanticSchemaGraph;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::domain::{
     AccessPlanJudgment, CheckedDomainAccessPlan, CheckedIssuance, DomainIssuance,
 };
 use crate::source_state::expression::ExpressionNode;
 use crate::source_state::references::StaticArgumentCall;
+use declaration_contracts::DomainEstablishmentRoute;
+use diagnostics::Diagnostic;
+use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
+use schema_reflection::CallableDescription;
+use schema_reflection::SemanticSchemaGraph;
+use symbols::SymbolHandle;
 
 use super::PreparedBuildMachineProgram;
 use crate::evaluation::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
@@ -265,13 +265,16 @@ fn subject_schema(
         definition.symbol,
         subject.symbol,
     )?;
-    let graph = crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
+    let graph =
+        crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
+            typed,
+            definition.target_type,
+            authority,
+        )?;
+    let revision = crate::source_state::reflection::construction::declaration_source_revision(
         typed,
-        definition.target_type,
-        authority,
+        subject.symbol,
     )?;
-    let revision =
-        crate::source_state::reflection::construction::declaration_source_revision(typed, subject.symbol)?;
     // Ordinary result snapshots use the canonical record identity, not its
     // short source name. Construct the input with that same identity so the
     // complete returned value can be compared without discarding its type.

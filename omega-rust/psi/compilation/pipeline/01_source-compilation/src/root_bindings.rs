@@ -13,11 +13,11 @@ is bound once. This reads declarations and names only; whether the bound
 machine is a valid entry is judged where the entry is checked.
 */
 
-use diagnostics::Diagnostic;
 use crate::declaration_selection::ExecutedRootBinding;
-use declaration_contracts::selection::RootBinding;
 use crate::declaration_selection::RootBindingSelection;
 use crate::source_state::TypedTrees;
+use declaration_contracts::selection::RootBinding;
+use diagnostics::Diagnostic;
 
 pub(crate) fn collect_root_bindings(
     typed: &TypedTrees,
@@ -40,18 +40,19 @@ pub(crate) fn collect_root_bindings(
             );
                     continue;
                 }
-                let selected = crate::source_symbols::rejoin_declaration(&described
-                    .declaration, &typed.symbols,
-                        typed.machines().iter().filter_map(|machine| {
-                            typed
-                                .symbols
-                                .symbol_source_is_selected(machine.symbol)
-                                .then_some(machine.symbol)
-                        }),
-                    )
-                    .map_err(|reason| {
-                        vec![Diagnostic::error(reason).with_source_span(binding.source_span)]
-                    })?;
+                let selected = crate::source_symbols::rejoin_declaration(
+                    &described.declaration,
+                    &typed.symbols,
+                    typed.machines().iter().filter_map(|machine| {
+                        typed
+                            .symbols
+                            .symbol_source_is_selected(machine.symbol)
+                            .then_some(machine.symbol)
+                    }),
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(binding.source_span)]
+                })?;
                 (described.machine_name.clone(), selected)
             }
             RootBindingSelection::AuthoredPath(implementation) => {
@@ -187,19 +188,14 @@ mod tests {
             .expect("source lexes");
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("source parses");
-        let resolved = crate::resolution::resolve(
-            crate::resolution::ResolutionRequest {
-                syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            },
-        )
+        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
         .expect("source resolves");
-        let base =
-            crate::typing::lower_symbol_resolved_trees_to_seeded_base(
-                resolved,
-            )
+        let base = crate::typing::lower_symbol_resolved_trees_to_seeded_base(resolved)
             .expect("source types");
         (base.into_typed(), source_id)
     }

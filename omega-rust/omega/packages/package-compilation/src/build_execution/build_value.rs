@@ -26,8 +26,8 @@ pub use configuration::{EvaluatedBuildSettings, PrivilegedServicesGrants, X86Dep
 pub(super) use vocabulary::is_build_machine;
 
 use super::BuildMachineFilesystemScope;
-use source_compiler::evaluation::BuildTimeValue;
 use diagnostics::Diagnostic;
+use source_compiler::evaluation::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy)]

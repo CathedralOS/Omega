@@ -20,12 +20,12 @@ use super::{
 };
 use crate::resolution::tables::syntax_items;
 use crate::resolution::tables::syntax_type_references;
-use arena::Handle;
-use diagnostics::Diagnostic;
+use crate::source_resolved::SymbolResolvedTrees;
 use application_identity::const_value::CanonicalConstValue;
 use application_identity::const_value::DecodedCanonicalConstValue;
+use arena::Handle;
+use diagnostics::Diagnostic;
 use numeric_literals::{IntegerLiteral, IntegerRadix};
-use crate::source_resolved::SymbolResolvedTrees;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{
     SyntaxTrees,
@@ -51,12 +51,12 @@ mod argument_types {
     use super::{ConstantSelection, SourceLinks};
     use crate::resolution::tables::body_expressions;
     use crate::resolution::tables::resolved_declarations;
-    use arena::{Handle, HandleSpan};
-    use diagnostics::Diagnostic;
-    use expression::ExpressionNode;
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::types::TypeReference;
     use crate::source_resolved::{SymbolResolvedTrees, expression, statement, types};
+    use arena::{Handle, HandleSpan};
+    use diagnostics::Diagnostic;
+    use expression::ExpressionNode;
     use symbols::{SymbolHandle, SymbolKind};
     use syntax_trees::SyntaxTrees;
     use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -80,8 +80,8 @@ mod argument_types {
         };
         use crate::resolution::tables::syntax_items;
         use crate::resolution::tables::syntax_type_references;
-        use diagnostics::Diagnostic;
         use crate::source_resolved::{SymbolResolvedTrees, expression, types};
+        use diagnostics::Diagnostic;
         use symbols::{SymbolHandle, SymbolKind};
         use syntax_trees::{
             SyntaxTrees,
@@ -1035,15 +1035,15 @@ mod completion {
 }
 use super::generic_data::canonicalize_selected_declared_const_definition;
 use super::generic_data::closed_argument_identity;
+use crate::source_resolved::expression::ExpressionHandle;
+use crate::source_resolved::expression::ExpressionNode;
+use crate::source_resolved::statement::Statement;
+use crate::source_resolved::types::TypeConstraint;
 pub(crate) use argument_types::DeclaredTypeOrigin;
 use argument_types::call_constraints;
 use completion::complete_arguments;
 use numerics::arithmetic::ArithmeticDomain;
 use std::iter::once;
-use crate::source_resolved::expression::ExpressionHandle;
-use crate::source_resolved::expression::ExpressionNode;
-use crate::source_resolved::statement::Statement;
-use crate::source_resolved::types::TypeConstraint;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ItemHandle;
 use syntax_trees::statement::StatementHandle;

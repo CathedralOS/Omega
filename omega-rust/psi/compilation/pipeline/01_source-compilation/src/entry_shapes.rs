@@ -3,8 +3,8 @@
 use crate::source_state::TypedTrees;
 use crate::source_state::callable_signature_shapes::{BoundCallableShape, ParameterOccurrence};
 use crate::source_state::product_operand::core_arrival_requirement;
-use diagnostics::Diagnostic;
 use declaration_contracts::selection::RootBinding;
+use diagnostics::Diagnostic;
 
 /// Retain every executed binding's visible calling shape, including rows for
 /// targets this invocation does not realize. Source custody names the core

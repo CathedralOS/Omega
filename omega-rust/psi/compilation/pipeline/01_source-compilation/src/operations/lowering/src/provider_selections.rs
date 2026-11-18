@@ -2,13 +2,13 @@
 //! is released. Selection is descriptive; body refinement and permissions are
 //! separate ordinary judgments.
 
+use crate::source_state::{TypedTrees, trait_definition::TraitApplicationEnvironment};
 use arena::Handle;
 use declaration_contracts::selection::CompositionMode;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use crate::source_state::{TypedTrees, trait_definition::TraitApplicationEnvironment};
 
 #[derive(Debug, Clone)]
 pub struct ProviderSelectionInput {
@@ -56,9 +56,10 @@ pub(crate) fn publish(
             "competing source provider-selection publication",
         ));
     }
-    let source_identities =
-        source_admission::source_identity::toolchain_source_identities(source.source.symbols.source_files())
-            .map_err(|reason| unavailable(context, reason))?;
+    let source_identities = source_admission::source_identity::toolchain_source_identities(
+        source.source.symbols.source_files(),
+    )
+    .map_err(|reason| unavailable(context, reason))?;
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
     let mut rows: Vec<terminal_psi::TerminalProviderSelection> =
         Vec::with_capacity(source.rows.len());

@@ -253,11 +253,14 @@ impl TargetRealizedIntrinsics {
     }
 }
 
-impl artifact_evaluation::scalar_applications::TargetImportRealizations for TargetRealizedIntrinsics {
+impl artifact_evaluation::scalar_applications::TargetImportRealizations
+    for TargetRealizedIntrinsics
+{
     fn admit(
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
-    ) -> Result<Box<dyn artifact_evaluation::scalar_applications::AdmittedImportRealizations>, String> {
+    ) -> Result<Box<dyn artifact_evaluation::scalar_applications::AdmittedImportRealizations>, String>
+    {
         use provider_admission::provider_admission as admission;
         let module = self.artifact.view().module();
         // Catalog admission matches selected rows by callable identity. An

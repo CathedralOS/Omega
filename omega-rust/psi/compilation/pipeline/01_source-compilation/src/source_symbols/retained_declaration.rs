@@ -8,7 +8,7 @@
 
 use super::{SymbolHandle, SymbolTable};
 use source_admission::RetainedDeclaration;
-use source_text::{Span};
+use source_text::Span;
 
 /*
     The symbols of one table that carry an authored source span, looked up by
@@ -64,7 +64,10 @@ impl SourceSpanCandidates {
     }
 }
 
-pub fn retain_declaration(symbols: &SymbolTable, selected: SymbolHandle) -> Result<RetainedDeclaration, &'static str> {
+pub fn retain_declaration(
+    symbols: &SymbolTable,
+    selected: SymbolHandle,
+) -> Result<RetainedDeclaration, &'static str> {
     if !selected.is_valid() {
         return Err("selected declaration has no symbol");
     }
@@ -74,7 +77,11 @@ pub fn retain_declaration(symbols: &SymbolTable, selected: SymbolHandle) -> Resu
     let source = symbols
         .source_file(span)
         .ok_or("selected declaration lost its source custody")?;
-    Ok(RetainedDeclaration::from_source_occurrence(source.clone(), span.span, symbols.get(selected).kind))
+    Ok(RetainedDeclaration::from_source_occurrence(
+        source.clone(),
+        span.span,
+        symbols.get(selected).kind,
+    ))
 }
 
 /*
@@ -129,16 +136,16 @@ pub fn rejoin_declaration(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use symbols::SymbolKind;
+    use crate::source_inputs::SourceMap;
     use crate::source_symbols::{SymbolNameRef, SymbolTableBuilder};
-    use semantic_vocabulary::PackageKeyIdentity;
-    use crate::source_inputs::{SourceMap};
     use declaration_contracts::source_identity::DependencyScope;
-use source_admission::SourceOrigin;
-use source_admission::SourceResolutionStratum;
-    use source_text::{SourceSpan};
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source_admission::SourceOrigin;
+    use source_admission::SourceResolutionStratum;
+    use source_text::SourceSpan;
     use std::path::PathBuf;
     use std::sync::Arc;
+    use symbols::SymbolKind;
 
     fn program(
         text: &str,
@@ -178,16 +185,24 @@ use source_admission::SourceResolutionStratum;
     fn retained_declaration_rejoins_source_identity_not_arena_or_file_number() {
         let (original, declarations) =
             program("launch launch", None, DependencyScope::Product, false);
-        let selected = crate::source_symbols::retain_declaration(&original, declarations[1]).unwrap();
+        let selected =
+            crate::source_symbols::retain_declaration(&original, declarations[1]).unwrap();
         let owner = PackageKeyIdentity::from_digest([7; 32]).unwrap();
         let (destination, declarations) =
             program("launch launch", Some(owner), DependencyScope::Product, true);
         assert_eq!(
-            crate::source_symbols::rejoin_declaration(&selected, &destination, declarations.iter().copied())
-                .unwrap(),
+            crate::source_symbols::rejoin_declaration(
+                &selected,
+                &destination,
+                declarations.iter().copied()
+            )
+            .unwrap(),
             declarations[1]
         );
-        assert!(crate::source_symbols::rejoin_declaration(&selected, &destination, [declarations[0]]).is_err());
+        assert!(
+            crate::source_symbols::rejoin_declaration(&selected, &destination, [declarations[0]])
+                .is_err()
+        );
     }
 
     #[test]
@@ -199,7 +214,8 @@ use source_admission::SourceResolutionStratum;
             DependencyScope::Product,
             false,
         );
-        let selected = crate::source_symbols::retain_declaration(&original, declarations[1]).unwrap();
+        let selected =
+            crate::source_symbols::retain_declaration(&original, declarations[1]).unwrap();
         for (text, owner, scope) in [
             (
                 "launch launch // changed",
@@ -215,7 +231,10 @@ use source_admission::SourceResolutionStratum;
             ("launch launch", Some(owner), DependencyScope::Build),
         ] {
             let (destination, declarations) = program(text, owner, scope, false);
-            assert!(crate::source_symbols::rejoin_declaration(&selected, &destination, declarations).is_err());
+            assert!(
+                crate::source_symbols::rejoin_declaration(&selected, &destination, declarations)
+                    .is_err()
+            );
         }
     }
 
@@ -223,8 +242,11 @@ use source_admission::SourceResolutionStratum;
     fn retained_declaration_refuses_missing_source_and_ambiguous_occurrences() {
         let (original, declarations) =
             program("launch launch", None, DependencyScope::Product, false);
-        assert!(crate::source_symbols::retain_declaration(&original, SymbolHandle::invalid()).is_err());
-        let selected = crate::source_symbols::retain_declaration(&original, declarations[0]).unwrap();
+        assert!(
+            crate::source_symbols::retain_declaration(&original, SymbolHandle::invalid()).is_err()
+        );
+        let selected =
+            crate::source_symbols::retain_declaration(&original, declarations[0]).unwrap();
         let mut symbols = SymbolTableBuilder::with_sources(original.source_map());
         let span = original.symbol_source_span(declarations[0]).unwrap();
         let candidates =

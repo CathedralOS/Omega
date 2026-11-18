@@ -72,7 +72,7 @@ pub(crate) fn bind_generated_call_selection(
     target: symbols::SymbolHandle,
 ) -> Result<bool, diagnostics::Diagnostic> {
     use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Late;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
     let selections = program.authored_declaration_selections();
     let selection = selections.get(occurrence).ok_or_else(|| {
         diagnostics::Diagnostic::error("rewritten call lost its original selection record")
@@ -80,9 +80,7 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
     let source_span = selection.source_span();
     let refused =
         |reason: &str| diagnostics::Diagnostic::error(reason).with_source_span(source_span);
-    if selection.kind()
-        != crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
-    {
+    if selection.kind() != crate::declaration_selection::AuthoredDeclarationSelectionKind::Call {
         return Err(refused(
             "rewritten call does not own a call selection record",
         ));
@@ -107,14 +105,14 @@ use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 }
 
 pub(crate) mod build_selections {
+    use crate::declaration_selection::BuildOperation;
+    use crate::declaration_selection::BuildSelectionRequest;
+    use crate::declaration_selection::RootBindingOperand;
     use crate::source_state::expression::{
         BuildSelectionCall, BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase,
         ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::BuildOperation;
-use crate::declaration_selection::BuildSelectionRequest;
-use crate::declaration_selection::RootBindingOperand;
 
     pub(crate) fn lower(
         source: &crate::source_resolved::SymbolResolvedTrees,
@@ -628,6 +626,8 @@ pub(crate) mod call_results {
 
 pub(crate) mod capture_product_operands {
 
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
+    use crate::declaration_selection::product_operands::*;
     use crate::source_resolved::name::DiagnosticName;
     use crate::source_resolved::{
         SymbolResolvedTrees, expression as source_expression, types as source_types,
@@ -635,8 +635,6 @@ pub(crate) mod capture_product_operands {
     use crate::typing::tables::{resolved_expressions, type_constraints};
     use arena::{Handle, HandleSpan};
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
-    use crate::declaration_selection::product_operands::*;
     use symbols::SymbolHandle;
 
     pub(crate) struct Captured {
@@ -3295,11 +3293,11 @@ pub(crate) mod construction_destinations {
 }
 
 pub(crate) mod installed_interrupts {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_state::expression::InstalledInterruptOperationRequest;
     use crate::typing::expressions::expression::lower_static_machine_argument;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
     use symbols::SymbolKind;
 
     pub(crate) fn lower_request(
@@ -3477,11 +3475,11 @@ pub(crate) mod product_queries {
         members: &[crate::source_resolved::name::DiagnosticName],
         span: source_text::SourceSpan,
     ) -> Option<crate::source_state::expression::BuildSelectionRequest> {
-        use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
         use crate::declaration_selection::BuildOperation;
-use crate::declaration_selection::BuildSelectionRequest;
-use crate::declaration_selection::ProductDeclarationOperand;
-use crate::declaration_selection::ProductDeclarationRequest;
+        use crate::declaration_selection::BuildSelectionRequest;
+        use crate::declaration_selection::ProductDeclarationOperand;
+        use crate::declaration_selection::ProductDeclarationRequest;
+        use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
         if source.symbols.source_file(span)?.dependency_scope
             != declaration_contracts::source_identity::DependencyScope::Build
         {
@@ -3652,15 +3650,15 @@ use crate::declaration_selection::ProductDeclarationRequest;
 }
 
 pub(crate) mod product_selections {
+    use crate::declaration_selection;
+    use crate::declaration_selection::BuildOperation;
+    use crate::declaration_selection::BuildSelectionRequest;
+    use crate::declaration_selection::ProductDeclarationOperand;
+    use crate::declaration_selection::ProductDeclarationRequest;
+    use crate::declaration_selection::ProductOperandRole;
     use crate::source_symbols::JoinedPath;
     use crate::typing::expressions::expression::lower_static_machine_argument;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection;
-    use crate::declaration_selection::BuildOperation;
-use crate::declaration_selection::BuildSelectionRequest;
-use crate::declaration_selection::ProductDeclarationOperand;
-use crate::declaration_selection::ProductDeclarationRequest;
-use crate::declaration_selection::ProductOperandRole;
 
     pub(crate) struct Request {
         pub request: crate::source_state::expression::BuildSelectionRequest,
@@ -3758,7 +3756,7 @@ use crate::declaration_selection::ProductOperandRole;
         };
         if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
             use crate::declaration_selection::EnumExclusionRequest;
-use crate::declaration_selection::ExclusionVocabulary;
+            use crate::declaration_selection::ExclusionVocabulary;
             // The call resolved into the prelude, so the prelude machine it
             // calls names the operation. A call resolves to its callee's
             // entry state, whose parent is that machine. The written name
@@ -3979,6 +3977,9 @@ use crate::declaration_selection::ExclusionVocabulary;
 }
 
 pub(crate) mod qualification_casts {
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+    use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;
+    use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
     use crate::source_state::TypedTrees;
     use crate::source_state::expression::ExpressionNode;
     use crate::source_state::types::{
@@ -3987,9 +3988,6 @@ pub(crate) mod qualification_casts {
     use crate::typing::tables::expression_table;
     use crate::typing::type_reference::domain_constraints::normalize_domain_constraints_for_type;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
     use symbols::SymbolHandle;
 
     pub(crate) fn normalize_qualification_casts(

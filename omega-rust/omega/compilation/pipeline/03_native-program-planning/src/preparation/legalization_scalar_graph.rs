@@ -429,11 +429,12 @@ pub(crate) mod aggregate_results {
             if matches!(owner, target_operations::CallSiteOwner::Installation { .. }) {
                 return Err(LegalizationError::custody());
             }
-            let declaration = crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
-                callee,
-                position,
-                argument.place,
-            )?;
+            let declaration =
+                crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
+                    callee,
+                    position,
+                    argument.place,
+                )?;
             let destination = &declaration;
             if argument.access != destination.access
                 || !matches!(
@@ -687,17 +688,21 @@ pub(crate) mod aggregate_results {
             native: &TargetOperationPlan,
             plan: &crate::preparation::native_geometry::NativePlan<'_>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-            let declaration = crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
-                callee,
-                position,
-                argument.place,
-            )?;
+            let declaration =
+                crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
+                    callee,
+                    position,
+                    argument.place,
+                )?;
             let destination = &declaration;
             if destination.access != terminal_psi::StructuralAccess::Owned {
                 return Err(LegalizationError::custody());
             }
-            let shape = crate::preparation::structural_inputs::parameter_shape(destination, plan.geometry())
-                .ok_or(LegalizationError::custody())?;
+            let shape = crate::preparation::structural_inputs::parameter_shape(
+                destination,
+                plan.geometry(),
+            )
+            .ok_or(LegalizationError::custody())?;
             let value_shape = owned_storage_shape(destination.structural_type, plan.geometry())
                 .ok_or(LegalizationError::custody())?;
             if shape != value_shape {
@@ -1567,7 +1572,9 @@ pub(crate) mod aggregate_results {
         }
         Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
             primitive_array_shape(structural_type, plan.geometry())
-                .or_else(|| crate::preparation::structural_inputs::shape(structural_type, plan.geometry()))
+                .or_else(|| {
+                    crate::preparation::structural_inputs::shape(structural_type, plan.geometry())
+                })
                 .ok_or(LegalizationError::custody())?,
         ))
     }
@@ -1988,15 +1995,17 @@ pub(crate) mod byte_views {
                 }
                 _ => return Err(LegalizationError::custody()),
             };
-        let parameters =
-            abstracted
-                .structural_parameters
-                .iter()
-                .zip(structural_parameters)
-                .map(|(semantic, target)| {
-                    crate::preparation::structural_inputs::structural_unit_input::Parameter { semantic, target }
-                })
-                .collect::<Vec<_>>();
+        let parameters = abstracted
+            .structural_parameters
+            .iter()
+            .zip(structural_parameters)
+            .map(|(semantic, target)| {
+                crate::preparation::structural_inputs::structural_unit_input::Parameter {
+                    semantic,
+                    target,
+                }
+            })
+            .collect::<Vec<_>>();
         if target.machine != abstracted.machine
             || target.machine != optimized.machine
             || target.attachment != abstracted.attachment
@@ -2042,7 +2051,8 @@ pub(crate) mod byte_views {
             return Err(LegalizationError::custody());
         }
         if optimized.block_structural_parameters().any(|parameter| {
-            crate::preparation::structural_inputs::parameter_shape(parameter, plan.geometry()).is_none()
+            crate::preparation::structural_inputs::parameter_shape(parameter, plan.geometry())
+                .is_none()
         }) {
             return Err(LegalizationError::custody());
         }
@@ -2971,8 +2981,11 @@ pub(crate) mod cleanup_calls {
                     .structural_parameters
                     .iter()
                     .map(|parameter| {
-                        crate::preparation::structural_inputs::parameter_shape(parameter, plan.geometry())
-                            .ok_or(LegalizationError::custody())
+                        crate::preparation::structural_inputs::parameter_shape(
+                            parameter,
+                            plan.geometry(),
+                        )
+                        .ok_or(LegalizationError::custody())
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let call_plan = evaluate_call_plan(
@@ -4035,11 +4048,12 @@ pub(crate) mod normalized_foreign {
                 {
                     return Err(LegalizationError::custody());
                 }
-                let storage = crate::preparation::structural_inputs::structural_reference_input::shape(
-                    result.structural_type,
-                    plan.geometry(),
-                )
-                .ok_or(LegalizationError::custody())?;
+                let storage =
+                    crate::preparation::structural_inputs::structural_reference_input::shape(
+                        result.structural_type,
+                        plan.geometry(),
+                    )
+                    .ok_or(LegalizationError::custody())?;
                 let shape = calling_conventions::classified_boundary_shape(
                     result.structural_type,
                     plan.geometry(),
@@ -4364,74 +4378,79 @@ pub(crate) mod normalized_foreign {
                 )
             })
             .flatten();
-        let (projected_type, source_byte_offset, elements) =
-            if let Some((offset, _, _)) = presentation {
-                if presentation_debt {
-                    return Err(LegalizationError::custody());
-                }
-                (declaration_parameter.structural_type, offset, Vec::new())
-            } else if semantic.path.contains(&StructuralPathSegment::Referent) {
-                let projection = reference_projection(
-                    root_type,
-                    &semantic.path,
-                    semantic.access,
-                    Some(declaration_parameter.structural_type),
-                    declarations,
-                )
-                .ok_or(LegalizationError::custody())?;
-                if projection.scalar_descriptor {
-                    let shape = crate::preparation::structural_inputs::shape(projection.selected, declarations)
+        let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
+            presentation
+        {
+            if presentation_debt {
+                return Err(LegalizationError::custody());
+            }
+            (declaration_parameter.structural_type, offset, Vec::new())
+        } else if semantic.path.contains(&StructuralPathSegment::Referent) {
+            let projection = reference_projection(
+                root_type,
+                &semantic.path,
+                semantic.access,
+                Some(declaration_parameter.structural_type),
+                declarations,
+            )
+            .ok_or(LegalizationError::custody())?;
+            if projection.scalar_descriptor {
+                let shape =
+                    crate::preparation::structural_inputs::shape(projection.selected, declarations)
                         .ok_or(LegalizationError::custody())?;
-                    let exported_width = scalar_reference_export_width(
-                        projection.selected,
-                        semantic.access,
-                        declarations,
-                    );
-                    if exported_width != Some(shape.byte_size) {
-                        validate_scalar_backing_width(
-                            semantic,
-                            shape.byte_size,
-                            optimized,
-                            plan,
-                            call_operation,
-                            target_plan,
-                            unit,
-                        )
-                        .map_err(|reason| {
-                            LegalizationError::InvalidScalarReferenceBacking {
-                                machine: optimized.machine,
-                                operation: call_operation,
-                                reason,
-                            }
-                        })?;
-                    }
-                }
-                (
+                let exported_width = scalar_reference_export_width(
                     projection.selected,
-                    projection.referent_offset,
-                    projection.elements,
-                )
-            } else if semantic.access != StructuralAccess::Owned {
-                runtime_borrowed_projection(
-                    root_type,
-                    &semantic.path,
                     semantic.access,
-                    Some(declaration_parameter.structural_type),
                     declarations,
-                )
+                );
+                if exported_width != Some(shape.byte_size) {
+                    validate_scalar_backing_width(
+                        semantic,
+                        shape.byte_size,
+                        optimized,
+                        plan,
+                        call_operation,
+                        target_plan,
+                        unit,
+                    )
+                    .map_err(|reason| {
+                        LegalizationError::InvalidScalarReferenceBacking {
+                            machine: optimized.machine,
+                            operation: call_operation,
+                            reason,
+                        }
+                    })?;
+                }
+            }
+            (
+                projection.selected,
+                projection.referent_offset,
+                projection.elements,
+            )
+        } else if semantic.access != StructuralAccess::Owned {
+            runtime_borrowed_projection(
+                root_type,
+                &semantic.path,
+                semantic.access,
+                Some(declaration_parameter.structural_type),
+                declarations,
+            )
+            .ok_or(LegalizationError::custody())?
+        } else {
+            runtime_projection(root_type, &semantic.path, declarations)
                 .ok_or(LegalizationError::custody())?
-            } else {
-                runtime_projection(root_type, &semantic.path, declarations)
-                    .ok_or(LegalizationError::custody())?
-            };
-        let root_shape =
-            crate::preparation::structural_inputs::structural_reference_input::shape(root_type, declarations)
-                .ok_or(LegalizationError::custody())?;
-        let projected_shape = crate::preparation::structural_inputs::structural_reference_input::shape(
-            projected_type,
+        };
+        let root_shape = crate::preparation::structural_inputs::structural_reference_input::shape(
+            root_type,
             declarations,
         )
         .ok_or(LegalizationError::custody())?;
+        let projected_shape =
+            crate::preparation::structural_inputs::structural_reference_input::shape(
+                projected_type,
+                declarations,
+            )
+            .ok_or(LegalizationError::custody())?;
         let destination = plan_row.ok_or(LegalizationError::custody())?;
         let (shape, destination_shape, multiplicity) = match semantic.access {
             StructuralAccess::Owned => {
@@ -5326,13 +5345,16 @@ pub(crate) mod structural_case {
             return Err(LegalizationError::custody());
         }
         for element in &indices {
-            crate::preparation::legalization::runtime_indices::defined_type(function, element.index)
-                .and_then(|scalar| plan.closed_scalar(scalar))
-                .filter(|scalar| {
-                    matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
+            crate::preparation::legalization::runtime_indices::defined_type(
+                function,
+                element.index,
+            )
+            .and_then(|scalar| plan.closed_scalar(scalar))
+            .filter(|scalar| {
+                matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
                         if integer.bits() <= 64)
-                })
-                .ok_or(LegalizationError::custody())?;
+            })
+            .ok_or(LegalizationError::custody())?;
         }
         let shape = crate::preparation::structural_inputs::shape(copy_type, plan.geometry())
             .ok_or(LegalizationError::custody())?;
@@ -5701,7 +5723,9 @@ pub(crate) mod structural_call {
             TargetStructuralArgument,
         };
         use crate::preparation::LegalizationError;
-        use crate::preparation::legalization::scalar_graph_input::aggregate_results::{node_site, precedes};
+        use crate::preparation::legalization::scalar_graph_input::aggregate_results::{
+            node_site, precedes,
+        };
         use crate::preparation::legalization::scalar_graph_input::structural_case;
         use crate::preparation::structural_inputs::structural_reference_input::{
             fixed_byte_array_view, fixed_element_array_view, parameter_shape,
@@ -6236,11 +6260,12 @@ pub(crate) mod structural_call {
         custody: &super::reference_custody::Custody,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         let caller = function_inputs.function();
-        let declaration = crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
-            called,
-            position,
-            semantic.place,
-        )?;
+        let declaration =
+            crate::preparation::legalization::scalar_graph_input::call_signature::parameter(
+                called,
+                position,
+                semantic.place,
+            )?;
         let destination_parameter = &declaration;
         let parameter_ordinal = called
             .scalar_parameter_count()
@@ -6657,11 +6682,12 @@ pub(crate) mod structural_call {
             {
                 return Err(LegalizationError::custody());
             }
-            let shape = crate::preparation::structural_inputs::structural_reference_input::parameter_shape(
-                destination_parameter,
-                plan.geometry(),
-            )
-            .ok_or(LegalizationError::custody())?;
+            let shape =
+                crate::preparation::structural_inputs::structural_reference_input::parameter_shape(
+                    destination_parameter,
+                    plan.geometry(),
+                )
+                .ok_or(LegalizationError::custody())?;
             let destination = call
                 .parameters
                 .get(parameter_ordinal)
@@ -7371,7 +7397,10 @@ pub(crate) fn structural_parameters(
 }
 pub(crate) fn structural_contract(
     target: &TargetFunction,
-) -> Result<Option<legalized_operations::LegalizedStructuralContract>, crate::preparation::LegalizationError> {
+) -> Result<
+    Option<legalized_operations::LegalizedStructuralContract>,
+    crate::preparation::LegalizationError,
+> {
     let Some(contract) = &target.structural_contract else {
         return Ok(None);
     };
@@ -8795,7 +8824,8 @@ pub(crate) fn match_input(
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
-    let function_inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
+    let function_inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
     // Check semantic SSA declarations at their existing function/block/node
     // owners, before an independent metadata classifier can interpret them.
     // Generated native transport registers are outside these source tables.
@@ -9125,7 +9155,8 @@ pub(crate) fn callee_plan(
     {
         return Err(LegalizationError::custody());
     }
-    let callee_inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
+    let callee_inputs =
+        crate::preparation::legalization_function_inputs::FunctionInputs::new(optimized);
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, &callee_inputs, native.target, plan)?
     } else if structural_parameters(target).is_some() {
@@ -9241,7 +9272,8 @@ mod diagnostic_tests {
             functions: Vec::new(),
         };
         let geometry = crate::preparation::native_geometry::NativeGeometry::new(&[]).unwrap();
-        let input = crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
+        let input =
+            crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
         let machine = MachineId::new(7).unwrap();
         let operation = OperationId::new(11).unwrap();
         for raw_type in [3, 5] {

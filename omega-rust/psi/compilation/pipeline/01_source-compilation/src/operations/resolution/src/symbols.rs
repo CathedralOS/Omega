@@ -3355,7 +3355,8 @@ mod propositions {
                 .source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
             let syntax =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                    .unwrap();
             let program = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
@@ -3400,7 +3401,8 @@ mod propositions {
             let source_id = sources.add("identity.omg".into(), text.into()).source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
             let syntax =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                    .unwrap();
             let program = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),

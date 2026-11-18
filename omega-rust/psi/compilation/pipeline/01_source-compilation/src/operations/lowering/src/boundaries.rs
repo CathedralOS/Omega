@@ -2,8 +2,8 @@
 //! Provider selection settles that requirement later; it does not replace this
 //! identity with a named body or an implicit service receiver.
 
+use arena::IdTable;
 use semantic_vocabulary::{BoundaryCompletion, BoundaryMachineId, MachineId};
-use arena::{IdTable};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{
@@ -201,76 +201,77 @@ impl BoundaryNamespace {
                 }
                 _ => CheckedBoundaryExecution::Provider,
             };
-            let checked =
-                if execution.compiler_owned() {
-                    let mut reach = Vec::new();
-                    for service in &envelope.service_reach {
-                        reach.push(
-                            services
-                                .identity(*service)
-                                .ok_or_else(|| refusal("boundary reach has no exact identity"))?,
+            let checked = if execution.compiler_owned() {
+                let mut reach = Vec::new();
+                for service in &envelope.service_reach {
+                    reach.push(
+                        services
+                            .identity(*service)
+                            .ok_or_else(|| refusal("boundary reach has no exact identity"))?,
+                    );
+                }
+                let mut entries = Vec::new();
+                for entry in &envelope.invocations {
+                    if let terminal_psi::TerminalCallableInvocation::Service(service) = entry {
+                        entries.push(
+                            services.identity(*service).ok_or_else(|| {
+                                refusal("boundary invocation has no exact identity")
+                            })?,
                         );
                     }
-                    let mut entries = Vec::new();
-                    for entry in &envelope.invocations {
-                        if let terminal_psi::TerminalCallableInvocation::Service(service) = entry {
-                            entries.push(services.identity(*service).ok_or_else(|| {
-                                refusal("boundary invocation has no exact identity")
-                            })?);
-                        }
-                    }
-                    crate::lowering::declare::boundary(
-                        reader.typed,
-                        source.source,
-                        execution,
-                        &source.signature,
-                        crate::lowering::declare::Published {
-                            operational: [envelope.suspends, envelope.blocks],
-                            reach: &reach,
-                            entries: &entries,
-                        },
-                        &mut qualifications.identities,
-                    )
-                    .map_err(|error| refusal(&error.message))?
-                    .1
+                }
+                crate::lowering::declare::boundary(
+                    reader.typed,
+                    source.source,
+                    execution,
+                    &source.signature,
+                    crate::lowering::declare::Published {
+                        operational: [envelope.suspends, envelope.blocks],
+                        reach: &reach,
+                        entries: &entries,
+                    },
+                    &mut qualifications.identities,
+                )
+                .map_err(|error| refusal(&error.message))?
+                .1
+            } else {
+                let required = if reader
+                    .typed
+                    .trait_machine_signature(source.source)
+                    .is_some()
+                {
+                    source.source
                 } else {
-                    let required = if reader
-                        .typed
-                        .trait_machine_signature(source.source)
-                        .is_some()
-                    {
-                        source.source
-                    } else {
-                        let mut declarations =
-                            reader.external_providers.rows.iter().filter(|row| {
-                                row.source == source.source && row.boundary == Some(id)
-                            });
-                        let (Some(declared), None) = (declarations.next(), declarations.next())
-                        else {
-                            return Err(refusal(
-                                "native boundary has no unique retained requirement association",
-                            ));
-                        };
-                        self.row(declared.requirement)
-                            .ok_or_else(|| refusal("native boundary lost its required source row"))?
-                            .source
+                    let mut declarations = reader
+                        .external_providers
+                        .rows
+                        .iter()
+                        .filter(|row| row.source == source.source && row.boundary == Some(id));
+                    let (Some(declared), None) = (declarations.next(), declarations.next()) else {
+                        return Err(refusal(
+                            "native boundary has no unique retained requirement association",
+                        ));
                     };
-                    let (owner, _) = reader
-                        .typed
-                        .trait_machine_signature(required)
-                        .ok_or_else(|| refusal("boundary lost its exact service declaration"))?;
-                    let service_declaration =
-                        crate::lowering::declare::service_declaration_commitment(reader.typed, owner)
-                            .map_err(|diagnostic| refusal(&diagnostic.message))?;
-                    CheckedBoundaryCallable {
-                        service_declaration,
-                        source: declaration,
-                        execution,
-                        method_arguments: source
-                            .declaration
-                            .method_arguments(&mut qualifications.identities),
-                    }
+                    self.row(declared.requirement)
+                        .ok_or_else(|| refusal("native boundary lost its required source row"))?
+                        .source
                 };
+                let (owner, _) = reader
+                    .typed
+                    .trait_machine_signature(required)
+                    .ok_or_else(|| refusal("boundary lost its exact service declaration"))?;
+                let service_declaration =
+                    crate::lowering::declare::service_declaration_commitment(reader.typed, owner)
+                        .map_err(|diagnostic| refusal(&diagnostic.message))?;
+                CheckedBoundaryCallable {
+                    service_declaration,
+                    source: declaration,
+                    execution,
+                    method_arguments: source
+                        .declaration
+                        .method_arguments(&mut qualifications.identities),
+                }
+            };
             let reference_outputs = reader
                 .declared_reference_outputs(
                     context,

@@ -15,8 +15,10 @@ pub mod lookup_indexes {
 
     #[derive(Clone, Default)]
     pub struct GenericOriginIndex {
-        pub origins_by_symbol:
-            SymbolKeyMap<SymbolHandle, Vec<Handle<crate::source_resolved::types::GenericApplicationOrigin>>>,
+        pub origins_by_symbol: SymbolKeyMap<
+            SymbolHandle,
+            Vec<Handle<crate::source_resolved::types::GenericApplicationOrigin>>,
+        >,
         pub definitions_by_symbol: SymbolKeyMap<SymbolHandle, Vec<usize>>,
         pub malformed: bool,
     }
@@ -384,8 +386,9 @@ pub mod storage {
 
                 for proposition in roots.propositions.iter().skip(frontier.propositions.len()) {
                     for binder in proposition_binders.span_or_empty(proposition.binders) {
-                        if let crate::source_resolved::proposition::PropositionBinderKind::Const { type_reference } =
-                            &binder.kind
+                        if let crate::source_resolved::proposition::PropositionBinderKind::Const {
+                            type_reference,
+                        } = &binder.kind
                         {
                             tables.insert_type_reference(&transplant, type_reference);
                         }
@@ -393,8 +396,9 @@ pub mod storage {
                     for parameter in state_parameters.span_or_empty(proposition.parameters) {
                         tables.insert_type_reference(&transplant, &parameter.type_reference);
                     }
-                    if let crate::source_resolved::proposition::PropositionBody::Witness { evidence } =
-                        &proposition.body
+                    if let crate::source_resolved::proposition::PropositionBody::Witness {
+                        evidence,
+                    } = &proposition.body
                     {
                         tables.insert_type_reference(&transplant, evidence);
                     }
@@ -542,7 +546,9 @@ pub mod storage {
                 &mut self,
                 transplant: &Transplant<'_>,
                 machine: &Machine,
-                declared_type_equations: &Arena<crate::source_resolved::machine::DeclaredTypeEquation>,
+                declared_type_equations: &Arena<
+                    crate::source_resolved::machine::DeclaredTypeEquation,
+                >,
                 machine_owned_data: &Arena<OwnedData>,
                 machine_state_handles: &Arena<arena::Handle<State>>,
                 machine_states: &mut Arena<State>,
@@ -626,8 +632,11 @@ pub mod storage {
 
             #[test]
             fn rebuild_tables_collects_typed_program_payloads() {
-                let (mut program, states) = crate::source_resolved::machine::test_program_with_guarded_transition();
-                program.machines.push(crate::source_resolved::machine::test_machine(states));
+                let (mut program, states) =
+                    crate::source_resolved::machine::test_program_with_guarded_transition();
+                program
+                    .machines
+                    .push(crate::source_resolved::machine::test_machine(states));
 
                 program.rebuild_tables();
 

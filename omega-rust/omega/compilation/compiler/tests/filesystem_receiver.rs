@@ -14,6 +14,7 @@
 //! a refusal control. The existing toolchain policy still supplies physical
 //! classification independently, so an unsupported leaf must refuse.
 
+use ::provider_admission::provider_admission;
 use effects::{
     CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,
     TerminalAuthorityDisposition,
@@ -25,7 +26,6 @@ use package_manager::{
 use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
-use ::provider_admission::provider_admission;
 
 const FIXTURE: &str = "tests/fixtures/pass/filesystem/windows_canonicalize_exit/main.omg";
 const TARGET: &str = "windows_x86_64";

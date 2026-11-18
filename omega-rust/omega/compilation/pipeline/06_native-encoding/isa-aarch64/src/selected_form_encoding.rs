@@ -349,9 +349,7 @@ pub(crate) mod atomic {
     }
     use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
     use register_model::RegisterViewId;
-    use selected_instructions::{
-        AtomicForm, AtomicOperation,
-    };
+    use selected_instructions::{AtomicForm, AtomicOperation};
 
     pub(crate) fn footprint(
         form: AtomicForm,
@@ -3600,9 +3598,7 @@ pub(crate) mod float_result_policy {
 
     use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
     use register_model::RegisterViewId;
-    use selected_instructions::{
-        FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat,
-    };
+    use selected_instructions::{FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat};
 
     pub(crate) fn footprint(
         form: FloatResultPolicyForm,
@@ -4097,12 +4093,24 @@ pub(crate) mod float_result_policy {
         for form in FloatResultPolicyForm::ALL {
             let lengths = [0, 8].map(|register| {
                 let registers = [register; 4];
-                (program(form, &registers).into_iter().flat_map(|word| encode_word(word).to_le_bytes()).count()) as u16
+                (program(form, &registers)
+                    .into_iter()
+                    .flat_map(|word| encode_word(word).to_le_bytes())
+                    .count()) as u16
             });
             match target_aarch64::float_sizes::float_result_policy_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
-                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
-                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                MachineSizeKnowledge::ExactBytes(bytes) => {
+                    assert_eq!(lengths, [bytes; 2], "{form:?}")
+                }
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes,
+                    maximum_bytes,
+                } => {
+                    assert_eq!(
+                        (lengths[0], Some(lengths[1])),
+                        (minimum_bytes, maximum_bytes),
+                        "{form:?}"
+                    );
                 }
             }
         }
@@ -4117,8 +4125,7 @@ pub(crate) mod floating_control {
     };
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeKey,
-        MachineSemanticKind, SelectedInstructionKind,
+        LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
     };
 
     fn request(
@@ -4690,9 +4697,7 @@ pub(crate) mod register_access {
 
     use super::Aarch64SelectedFormEncodingError;
 
-    use selected_instructions::{
-        RegisterOperation, SystemRegister,
-    };
+    use selected_instructions::{RegisterOperation, SystemRegister};
 
     pub(crate) fn encode(
         operation: RegisterOperation,
@@ -5271,13 +5276,13 @@ pub(crate) mod trapping_forms {
     #[cfg(test)]
     pub(crate) use target_aarch64::form_effects::trapping_forms::byte_size;
 
-    pub(crate) use target_aarch64::form_effects::trapping_forms::{conversion_high_bit, effects, operand_count};
+    pub(crate) use target_aarch64::form_effects::trapping_forms::{
+        conversion_high_bit, effects, operand_count,
+    };
 
     use super::decoding::DecodedWord;
 
-    use selected_instructions::{
-        SaturatingCarrier, TrappingForm, TrappingOperation,
-    };
+    use selected_instructions::{SaturatingCarrier, TrappingForm, TrappingOperation};
     use semantic_vocabulary::IntegerSign;
 
     const EQUAL: u8 = 0;
@@ -6625,7 +6630,11 @@ pub(crate) mod trapping_forms {
     #[test]
     fn trapping_lengths_match_instruction_words() {
         for form in TrappingForm::ALL {
-            assert_eq!(usize::from(byte_size(form)), 4 * realization(form, &[1, 2, 3, 4]).len(), "{form:?}");
+            assert_eq!(
+                usize::from(byte_size(form)),
+                4 * realization(form, &[1, 2, 3, 4]).len(),
+                "{form:?}"
+            );
         }
     }
 }
@@ -6789,14 +6798,16 @@ pub(crate) mod hosted_exit_process {
     use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+        SelectedInstructionKind,
     };
     use target::NativeTarget;
 
     pub(crate) fn effects(
         target: NativeTarget,
     ) -> Result<MachineEncodedEffects, Aarch64SelectedFormEncodingError> {
-        target_aarch64::form_effects::hosted_exit_process::effects(target).map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+        target_aarch64::form_effects::hosted_exit_process::effects(target)
+            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
     }
 
     fn request(
@@ -9626,12 +9637,24 @@ pub(crate) mod ieee_float_arithmetic {
         for form in IeeeFloatArithmeticForm::ALL {
             let lengths = [0, 8].map(|register| {
                 let registers = [register; 4];
-                (program(form, &registers).into_iter().flat_map(|word| encode_word(word).to_le_bytes()).count()) as u16
+                (program(form, &registers)
+                    .into_iter()
+                    .flat_map(|word| encode_word(word).to_le_bytes())
+                    .count()) as u16
             });
             match target_aarch64::float_sizes::ieee_float_arithmetic_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => assert_eq!(lengths, [bytes; 2], "{form:?}"),
-                MachineSizeKnowledge::EncoderResolved { minimum_bytes, maximum_bytes } => {
-                    assert_eq!((lengths[0], Some(lengths[1])), (minimum_bytes, maximum_bytes), "{form:?}");
+                MachineSizeKnowledge::ExactBytes(bytes) => {
+                    assert_eq!(lengths, [bytes; 2], "{form:?}")
+                }
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes,
+                    maximum_bytes,
+                } => {
+                    assert_eq!(
+                        (lengths[0], Some(lengths[1])),
+                        (minimum_bytes, maximum_bytes),
+                        "{form:?}"
+                    );
                 }
             }
         }
@@ -12580,23 +12603,40 @@ mod normalized_foreign_call {
 
     #[test]
     fn field_sizes_match_encoded_callbacks_and_refusals() {
-        use layout_plans::LayoutPlacementReport::{At, Bits};
         use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
+        use layout_plans::LayoutPlacementReport::{At, Bits};
         for root in [R::Aarch64X(0), R::Aarch64X(15), R::Aarch64X(30), R::X86Rdi] {
             for offset in [0, 1, 255, 4095, 4096, 32760, u64::MAX] {
-                let mut groups = vec![vec![], vec![At { offset }], vec![At {offset}, At {offset: 16}]];
+                let mut groups = vec![
+                    vec![],
+                    vec![At { offset }],
+                    vec![At { offset }, At { offset: 16 }],
+                ];
                 for container_width in [8, 16, 24, 32, 40, 48, 56, 64] {
-                    for (destination_lsb, source_lsb, width) in [(0, 0, container_width), (1, 3, 4), (2, 2, 63)] {
-                        groups.push(vec![Bits { container: offset, container_width, destination_lsb, source_lsb, width }]);
+                    for (destination_lsb, source_lsb, width) in
+                        [(0, 0, container_width), (1, 3, 4), (2, 2, 63)]
+                    {
+                        groups.push(vec![Bits {
+                            container: offset,
+                            container_width,
+                            destination_lsb,
+                            source_lsb,
+                            width,
+                        }]);
                     }
                 }
                 for placements in groups {
                     let destination = Aarch64CallbackMaterializationDestination::RecordField {
-                        root_register: root, placements: PrivateCallbackPlacements::new(&placements),
+                        root_register: root,
+                        placements: PrivateCallbackPlacements::new(&placements),
                     };
-                    let actual = callback_group_bytes(&destination).map(|bytes| u16::try_from(bytes.len()).unwrap());
-                    assert_eq!(target_aarch64::callback_geometry::callback_field_bytes(root, &placements), actual,
-                               "{root:?} {placements:?}");
+                    let actual = callback_group_bytes(&destination)
+                        .map(|bytes| u16::try_from(bytes.len()).unwrap());
+                    assert_eq!(
+                        target_aarch64::callback_geometry::callback_field_bytes(root, &placements),
+                        actual,
+                        "{root:?} {placements:?}"
+                    );
                 }
             }
         }
@@ -15093,9 +15133,7 @@ pub(crate) mod system_call {
     use register_model::{
         RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
     };
-    use selected_instructions::{
-        MachineAlternativeKey, SelectedInstructionKind,
-    };
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
     use target::NativeTarget;
 
     pub fn encode_aarch64_selected_system_call_form(
@@ -15142,8 +15180,16 @@ pub(crate) mod system_call {
         bytes: &[u8],
     ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
         let effects = target_aarch64::inspection::selected_system_call_effects(
-            target, physical, kind, alternative, operand_views, operand_accesses, number, bytes,
-        ).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+            target,
+            physical,
+            kind,
+            alternative,
+            operand_views,
+            operand_accesses,
+            number,
+            bytes,
+        )
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
         let views_for = |access| views_with_access(operand_views, operand_accesses, access);
         Ok(ValidatedAarch64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -15229,7 +15275,7 @@ pub(crate) mod system_call {
     }
 }
 pub(crate) mod table_call {
-    pub(crate) use target_aarch64::form_effects::table_call::{table_address};
+    pub(crate) use target_aarch64::form_effects::table_call::table_address;
 
     use super::{
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
@@ -15267,8 +15313,13 @@ pub(crate) mod table_call {
         bytes: &[u8],
     ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
         let effects = target_aarch64::inspection::selected_table_call_effects(
-            record, alternative, views, accesses, bytes,
-        ).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+            record,
+            alternative,
+            views,
+            accesses,
+            bytes,
+        )
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
         let registers = |access| views_with_access(views, accesses, access);
         Ok(ValidatedAarch64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -15280,7 +15331,6 @@ pub(crate) mod table_call {
             },
         })
     }
-
 }
 #[cfg(test)]
 mod tests {

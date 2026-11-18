@@ -185,7 +185,9 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_retained_provider_selections(
         self,
-        selections: Vec<source_compiler::evaluation::provider_declarations::RetainedProviderSelection>,
+        selections: Vec<
+            source_compiler::evaluation::provider_declarations::RetainedProviderSelection,
+        >,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
         if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())

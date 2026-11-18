@@ -8,12 +8,12 @@
 // roster by `(predicted_cost_delta, candidate)` and verifies that any chosen
 // candidate is a member of that roster.
 
-use ::wire::cursor::Cursor;
 use crate::optimization_core::CountFrame;
 use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
 };
+use ::wire::cursor::Cursor;
 
 const BASELINE_DECISION_DOMAIN: &[u8] = b"omega.baseline-decision.v1\0";
 

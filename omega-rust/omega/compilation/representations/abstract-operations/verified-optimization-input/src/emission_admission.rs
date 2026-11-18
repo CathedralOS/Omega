@@ -31,8 +31,13 @@ impl super::AdmittedLoweringFacts {
             original_entry: module.entry,
             identities: module.identities.clone(),
             entry_declaration: entry.and_then(|entry| entry.declaration.clone()),
-            entry_parameters: entry.map_or_else(Vec::new, |entry| entry.structural_parameters.clone()),
-            carriers: module.structural_types.iter().map(|carrier| (carrier.id, carrier.identity)).collect(),
+            entry_parameters: entry
+                .map_or_else(Vec::new, |entry| entry.structural_parameters.clone()),
+            carriers: module
+                .structural_types
+                .iter()
+                .map(|carrier| (carrier.id, carrier.identity))
+                .collect(),
             native_execution_scope: self.native_execution_scope.clone(),
             selected_provider_closure: self.selected_provider_closure,
             target_context: self.target_context.clone(),
@@ -54,37 +59,73 @@ impl EmissionAdmission {
         if self.terminal != identity || self.entry != entry {
             return Err("native object entry differs from its admitted executable input");
         }
-        let Some(selections) = self.target_context() else { return Ok(None); };
+        let Some(selections) = self.target_context() else {
+            return Ok(None);
+        };
         let profile = target::TargetProfile::from_canonical_target_name(selections.target())
             .map_err(|_| "native object entry has an unknown admitted deployment tag")?;
         if profile.native_realization() != Some(native_target) {
             return Err("native object target differs from its admitted deployment profile");
         }
-        selections.entry(identity, artifact.semantic_module(), terminal_psi::TargetMachineCallable::Machine(entry))
-            .map(Some).map_err(|_| "native object entry has no executable member at its admitted deployment")
+        selections
+            .entry(
+                identity,
+                artifact.semantic_module(),
+                terminal_psi::TargetMachineCallable::Machine(entry),
+            )
+            .map(Some)
+            .map_err(|_| "native object entry has no executable member at its admitted deployment")
     }
 
-    pub const fn terminal(&self) -> TerminalPsiIdentity { self.terminal }
-    pub const fn entry(&self) -> MachineId { self.entry }
-    pub const fn original_entry(&self) -> Option<terminal_psi::TargetMachineCallable> { self.original_entry }
-    pub fn identities(&self) -> &terminal_psi::TerminalIdentityTable { &self.identities }
-    pub fn entry_declaration(&self) -> Option<&terminal_psi::CheckedMachineDeclaration> { self.entry_declaration.as_ref() }
-    pub fn target_context(&self) -> Option<&terminal_installation::TerminalTargetContext> { self.target_context.as_ref() }
-    pub fn native_callbacks(&self) -> &provider_admission::AdmittedNativeCallbackCohort { &self.native_callbacks }
-    pub fn installed_interrupts(&self) -> &provider_admission::AdmittedInstalledInterruptCohort { &self.installed_interrupts }
+    pub const fn terminal(&self) -> TerminalPsiIdentity {
+        self.terminal
+    }
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+    pub const fn original_entry(&self) -> Option<terminal_psi::TargetMachineCallable> {
+        self.original_entry
+    }
+    pub fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
+    }
+    pub fn entry_declaration(&self) -> Option<&terminal_psi::CheckedMachineDeclaration> {
+        self.entry_declaration.as_ref()
+    }
+    pub fn target_context(&self) -> Option<&terminal_installation::TerminalTargetContext> {
+        self.target_context.as_ref()
+    }
+    pub fn native_callbacks(&self) -> &provider_admission::AdmittedNativeCallbackCohort {
+        &self.native_callbacks
+    }
+    pub fn installed_interrupts(&self) -> &provider_admission::AdmittedInstalledInterruptCohort {
+        &self.installed_interrupts
+    }
 
-    pub fn access_view_input_parameter(&self, row: &terminal_psi::TerminalAccessViewInput) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    pub fn access_view_input_parameter(
+        &self,
+        row: &terminal_psi::TerminalAccessViewInput,
+    ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
         let declaration = self.entry_declaration.as_ref()?;
         if row.machine != self.entry
             || declaration.machine.identity() != row.source_machine_identity
             || declaration.state.identity() != row.source_state_identity
-            || !self.carriers.iter().any(|(_, identity)| *identity == row.carrier_identity)
-        { return None; }
+            || !self
+                .carriers
+                .iter()
+                .any(|(_, identity)| *identity == row.carrier_identity)
+        {
+            return None;
+        }
         let parameter = self.entry_parameters.get(row.runtime_position as usize)?;
-        let (_, identity) = self.carriers.iter().find(|(id, _)| *id == parameter.structural_type)?;
+        let (_, identity) = self
+            .carriers
+            .iter()
+            .find(|(id, _)| *id == parameter.structural_type)?;
         (*identity == row.carrier_identity
             && parameter.access == row.access
-            && row.access != terminal_psi::StructuralAccess::Owned).then_some(parameter)
+            && row.access != terminal_psi::StructuralAccess::Owned)
+            .then_some(parameter)
     }
 
     pub fn native_execution_scope_for(
@@ -94,8 +135,13 @@ impl EmissionAdmission {
         entry: MachineId,
         selected_provider_closure: [u8; 32],
     ) -> Result<Option<&super::NativeExecutionScope>, &'static str> {
-        let Some(scope) = self.native_execution_scope.as_deref() else { return Ok(None); };
-        let selections = self.target_context.as_ref().ok_or("native execution scope has no target selection custody")?;
+        let Some(scope) = self.native_execution_scope.as_deref() else {
+            return Ok(None);
+        };
+        let selections = self
+            .target_context
+            .as_ref()
+            .ok_or("native execution scope has no target selection custody")?;
         let profile = target::TargetProfile::from_canonical_target_name(selections.target())
             .map_err(|_| "native execution scope names an unknown target")?;
         if self.terminal != terminal
@@ -104,7 +150,9 @@ impl EmissionAdmission {
             || self.entry != entry
             || self.selected_provider_closure != Some(selected_provider_closure)
         {
-            return Err("native execution scope belongs to another artifact, target, entry or provider selection");
+            return Err(
+                "native execution scope belongs to another artifact, target, entry or provider selection",
+            );
         }
         Ok(Some(scope))
     }

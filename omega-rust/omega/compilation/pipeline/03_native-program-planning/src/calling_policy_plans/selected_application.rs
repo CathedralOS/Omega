@@ -113,8 +113,14 @@ pub(crate) fn selected_calling_applications(
                     "selected ABI application has stale policy custody",
                 ));
             }
-            if realization.recomputed_commitment().map_err(Diagnostic::error)? != realization.commitment {
-                return Err(Diagnostic::error("selected ABI application changes its complete commitment"));
+            if realization
+                .recomputed_commitment()
+                .map_err(Diagnostic::error)?
+                != realization.commitment
+            {
+                return Err(Diagnostic::error(
+                    "selected ABI application changes its complete commitment",
+                ));
             }
             let application = realization.clone();
             if selected.as_ref().is_some_and(|prior| prior != &application) {
@@ -221,7 +227,8 @@ pub fn native_calling_applications(
 pub(crate) struct NativeCallingResults {
     target: target::TargetProfile,
     artifact: [u8; 32],
-    by_binding: std::collections::BTreeMap<(semantic_vocabulary::BoundaryMachineId, [u8; 32]), usize>,
+    by_binding:
+        std::collections::BTreeMap<(semantic_vocabulary::BoundaryMachineId, [u8; 32]), usize>,
     pub(crate) applications: Vec<calling_conventions::BoundaryCallingApplication>,
 }
 
@@ -234,7 +241,9 @@ pub(crate) fn native_calling_results(
     let artifact = *program.artifact.manifest().identity().as_bytes();
     let failure = |reason: String| vec![Diagnostic::error(reason)];
     if retained.is_some_and(|prior| prior.target != profile || prior.artifact != artifact) {
-        return Err(failure("retained default calling plans name another program or deployment".into()));
+        return Err(failure(
+            "retained default calling plans name another program or deployment".into(),
+        ));
     }
     let module = program.artifact.semantic_module();
     let mut result = NativeCallingResults {
@@ -244,9 +253,15 @@ pub(crate) fn native_calling_results(
         applications: Vec::with_capacity(bindings.len()),
     };
     for supplied in bindings {
-        let origin = (supplied.boundary, supplied.binding.receipt().identity_digest());
+        let origin = (
+            supplied.boundary,
+            supplied.binding.receipt().identity_digest(),
+        );
         if let Some(application) = retained.and_then(|prior| {
-            prior.by_binding.get(&origin).map(|&index| &prior.applications[index])
+            prior
+                .by_binding
+                .get(&origin)
+                .map(|&index| &prior.applications[index])
         }) {
             result.retain(origin, application.clone());
             continue;
@@ -338,7 +353,10 @@ impl NativeCallingResults {
         origin: (semantic_vocabulary::BoundaryMachineId, [u8; 32]),
         application: calling_conventions::BoundaryCallingApplication,
     ) {
-        let index = self.applications.iter().position(|prior| prior == &application)
+        let index = self
+            .applications
+            .iter()
+            .position(|prior| prior == &application)
             .unwrap_or_else(|| {
                 self.applications.push(application);
                 self.applications.len() - 1

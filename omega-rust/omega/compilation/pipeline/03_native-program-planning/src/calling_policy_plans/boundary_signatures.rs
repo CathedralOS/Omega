@@ -4,11 +4,9 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement,
 };
+use calling_conventions::ValidatedBoundaryEntryPlan;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
-};
-use calling_conventions::{
-    ValidatedBoundaryEntryPlan,
 };
 
 pub(super) struct BoundaryOpaqueMovementGeometry<'geometry> {
@@ -171,16 +169,15 @@ pub(crate) fn boundary_shape_path(
     }
 }
 
-
 pub use calling_conventions::BoundaryNativeParameterShape;
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use calling_conventions::{
-        BoundaryNativeParameterGeometry, CallbackRequirementId, StaticMachineBinderId, CallSignature, CallingPolicy, NativeParameterId,
-        ValueShape, evaluate_ordinary_boundary_entry_plan,
+        BoundaryNativeParameterGeometry, CallSignature, CallbackRequirementId, CallingPolicy,
+        NativeParameterId, StaticMachineBinderId, ValueShape,
+        evaluate_ordinary_boundary_entry_plan,
     };
 
     #[test]

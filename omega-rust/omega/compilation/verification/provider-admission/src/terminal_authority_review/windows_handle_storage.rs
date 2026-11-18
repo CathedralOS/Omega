@@ -9,8 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use arena::IdTable;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
-use arena::{IdTable};
 use terminal_psi::{
     Operation, OperationKind, StructuralTypeShape, TerminalMachine, TerminalModule,
 };

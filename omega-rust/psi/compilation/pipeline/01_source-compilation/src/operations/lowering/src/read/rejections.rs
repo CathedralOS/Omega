@@ -312,9 +312,9 @@ pub(super) fn scalar_named(scalar: ScalarType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source_state::TypedTrees;
     use semantic_vocabulary::{IntegerType, StructuralTypeId, ValueId, WidthParameter};
     use terminal_check_tables::{RefusalReason, values::RigidType};
-    use crate::source_state::TypedTrees;
 
     #[test]
     fn scalar_names_distinguish_closed_and_parameter_widths() {

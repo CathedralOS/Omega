@@ -2,8 +2,8 @@
 //! inference settles. Source rows already belong to machines: borrow them in
 //! place instead of flattening, rescanning and copying the complete branch list.
 
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
 use terminal_check_tables::program::{Branch, MachineSources, authored_machine_sources};
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 use terminal_psi::TerminalModule;

@@ -2,9 +2,9 @@
 //! Generic dependency discovery, selected witnesses and source correspondence
 //! belong here; the next stage only judges the modules and relationships emitted.
 
+use crate::source_state::TypedTrees;
 use symbols::SymbolHandle;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
-use crate::source_state::TypedTrees;
 
 type WitnessRow<'source> = (
     SymbolHandle,
@@ -46,32 +46,37 @@ pub fn prepare_compilation(
         .bindings
         .iter()
         .map(|binding| {
-            let requirement = crate::source_symbols::rejoin_declaration(&binding
-                .requirement, &typed.symbols,
-                    typed.traits().iter().flat_map(|owner| {
-                        typed
-                            .trait_machine_signatures(owner)
-                            .iter()
-                            .map(|row| row.symbol)
-                    }),
-                )
-                .map_err(|detail| terminal_check_tables::Refusal {
-                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                    machine: semantic_vocabulary::MachineId::new(1)
-                        .expect("nonzero diagnostic identity"),
-                    concerns: terminal_check_tables::Construct::Machine,
-                    source_span: None,
-                    detail: detail.to_owned(),
-                })?;
+            let requirement = crate::source_symbols::rejoin_declaration(
+                &binding.requirement,
+                &typed.symbols,
+                typed.traits().iter().flat_map(|owner| {
+                    typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .map(|row| row.symbol)
+                }),
+            )
+            .map_err(|detail| terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                machine: semantic_vocabulary::MachineId::new(1)
+                    .expect("nonzero diagnostic identity"),
+                concerns: terminal_check_tables::Construct::Machine,
+                source_span: None,
+                detail: detail.to_owned(),
+            })?;
             let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
                 crate::lowering::refuse(
                     semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
                     terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Contract("bound arrival lost its exact source signature"),
+                    crate::lowering::Unserved::Contract(
+                        "bound arrival lost its exact source signature",
+                    ),
                 )
             })?;
             let source = binding.source_span.map_or(
-                crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::ConformanceWitness),
+                crate::lowering::SourceOrigin::Unpositioned(
+                    crate::lowering::Unpositioned::ConformanceWitness,
+                ),
                 crate::lowering::SourceOrigin::Authored,
             );
             let mut witness = crate::lowering::read::logical::projected_arrival(
@@ -92,7 +97,12 @@ pub fn prepare_compilation(
     // verdict, the rest beside it (`PreparedCompilation::further`).
     let mut further = Vec::new();
     let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
-        match crate::lowering::elaborate_source_for(typed, compilation, publication, captures.clone()) {
+        match crate::lowering::elaborate_source_for(
+            typed,
+            compilation,
+            publication,
+            captures.clone(),
+        ) {
             Ok(prepared) => (
                 Ok(prepared.program),
                 Some(prepared.source),
@@ -224,14 +234,18 @@ pub fn prepare_compilation(
         }
     }
     closure = closure.and_then(|mut elaboration| {
-        crate::lowering::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
-            .map_err(|(owner, reason)| {
-                crate::lowering::refuse(
-                    owner,
-                    terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Declaration(reason),
-                )
-            })?;
+        crate::lowering::declare::close_specializations(
+            &forms,
+            prepared_applications,
+            &mut elaboration,
+        )
+        .map_err(|(owner, reason)| {
+            crate::lowering::refuse(
+                owner,
+                terminal_check_tables::Construct::Machine,
+                crate::lowering::Unserved::Declaration(reason),
+            )
+        })?;
         // Proof scope retains the completed callable headers for later
         // admission. Capture commitments are part of those headers.
         crate::lowering::publication::finalize_source(
@@ -351,8 +365,8 @@ pub(crate) fn prepare_selected_signatures<'source>(
     closure: &crate::lowering::Elaboration,
     source: &crate::lowering::SourceFormCorrespondence,
 ) -> terminal_check_tables::Checked<Vec<SelectedSourceCall<'source>>> {
-    use terminal_check_tables::Construct;
     use crate::source_state::expression::ExpressionNode;
+    use terminal_check_tables::Construct;
     let mut demanded = closure
         .selections
         .iter()
@@ -385,7 +399,9 @@ pub(crate) fn prepare_selected_signatures<'source>(
         return Err(crate::lowering::refuse(
             pair[0].0.0,
             Construct::Machine,
-            crate::lowering::Unserved::Declaration("selected source call has duplicate emitted sites"),
+            crate::lowering::Unserved::Declaration(
+                "selected source call has duplicate emitted sites",
+            ),
         ));
     }
     let mut signatures = Vec::new();
@@ -536,7 +552,9 @@ fn prepare_generic_forms(
     struct PreparedGeneric<'source> {
         template: SymbolHandle,
         name: String,
-        forms: terminal_check_tables::Checked<Vec<crate::lowering::publication::PreparedProgram<'source>>>,
+        forms: terminal_check_tables::Checked<
+            Vec<crate::lowering::publication::PreparedProgram<'source>>,
+        >,
         applies: Option<Vec<usize>>,
     }
     let mut prepared = Vec::new();

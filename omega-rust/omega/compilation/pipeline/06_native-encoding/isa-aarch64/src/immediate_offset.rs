@@ -136,7 +136,6 @@ pub(crate) use target_aarch64::form_effects::address_word_count;
 #[cfg(test)]
 use target_aarch64::form_effects::MAX_ADDRESS_BYTES;
 
-
 pub(crate) use target_aarch64::inspection::decode_address_words;
 
 #[cfg(test)]

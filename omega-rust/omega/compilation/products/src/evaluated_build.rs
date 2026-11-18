@@ -5,11 +5,11 @@
 // occurrence's fresh invocation observations while preserving dependency
 // native-binding evaluations and completed source requirements.
 
-use source_compiler::evaluation::WireCompatibilityDemand;
+use declaration_contracts::selection::RootBinding;
 use effects::AuthoredBehaviorExclusion;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
+use source_compiler::evaluation::WireCompatibilityDemand;
 use source_compiler::provider_choice_inputs::ProviderSelection;
-use declaration_contracts::selection::RootBinding;
 use source_compiler::source_state::opaque_representations::OpaqueRepresentationSelection;
 
 #[derive(Clone)]
@@ -50,7 +50,8 @@ pub struct BuildConfig {
     pub native_bindings: Vec<provider_choices::NativeBuildSupply>,
     pub native_binding_evaluation:
         Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
-    pub assumed_bindings: Vec<source_compiler::evaluation::assumed_bindings::AssumedBindingContract>,
+    pub assumed_bindings:
+        Vec<source_compiler::evaluation::assumed_bindings::AssumedBindingContract>,
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
     pub root_bindings: Vec<RootBinding>,
@@ -134,8 +135,7 @@ pub struct ComputedBuildConfig {
     pub product_selection_requests:
         Vec<source_compiler::declaration_selection::ExecutedProductSelection>,
     pub native_formations: Vec<source_compiler::declaration_selection::NativeBindingFormation>,
-    pub native_binding_requests:
-        Vec<source_compiler::declaration_selection::ExecutedNativeBinding>,
+    pub native_binding_requests: Vec<source_compiler::declaration_selection::ExecutedNativeBinding>,
     pub behavior_exclusion_requests:
         Vec<source_compiler::declaration_selection::ExecutedEnumExclusion>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,
@@ -348,7 +348,8 @@ impl ComputedBuildConfig {
                 .provider_selections
                 .iter()
                 .filter(|selection| {
-                    selection.composition_mode == declaration_contracts::selection::CompositionMode::Independent
+                    selection.composition_mode
+                        == declaration_contracts::selection::CompositionMode::Independent
                 })
                 .map(|selection| IndependentComponentSelection {
                     selection: selection.clone(),

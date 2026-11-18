@@ -38,16 +38,16 @@ mod selected;
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
 
+use crate::source_state::{MachineInstantiation, TypedTrees};
 use ::wire::digest_encoder::DomainDigestEncoder;
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_psi::{
     CheckedMachineCapture, CheckedMachineDeclaration, ClosedReachApplication, ClosedReachCapture,
     ClosedReachParameter, NominalDeclarationIdentity, TerminalIdentityTableBuilder,
     TerminalMachine,
 };
-use crate::source_state::{MachineInstantiation, TypedTrees};
 
 use crate::lowering::{Elaboration, Signature};
 
@@ -112,8 +112,9 @@ pub(crate) fn declare(
     let signatures = &program.signatures;
     let requirement_sources = &program.declaration_sources;
     let requirement_signatures = &program.declaration_signatures;
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files());
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    );
     // A service is committed to by its portable identity, never by its
     // module-local number.
     let services: Vec<(semantic_vocabulary::ServiceId, String)> = elaboration
@@ -357,15 +358,17 @@ pub(crate) fn declare(
                     body: definition.body.clone(),
                 },
             );
-            elaboration.predicate_sources.push(crate::lowering::PredicateSource {
-                declaration,
-                name: typed.symbols.display_path(definition.symbol, "::"),
-                machine: definition.diagnostic,
-                source_span: typed
-                    .symbols
-                    .symbol_provenance_source_span(definition.symbol)
-                    .filter(|span| *span != source_text::SourceSpan::default()),
-            });
+            elaboration
+                .predicate_sources
+                .push(crate::lowering::PredicateSource {
+                    declaration,
+                    name: typed.symbols.display_path(definition.symbol, "::"),
+                    machine: definition.diagnostic,
+                    source_span: typed
+                        .symbols
+                        .symbol_provenance_source_span(definition.symbol)
+                        .filter(|span| *span != source_text::SourceSpan::default()),
+                });
         }
         elaboration
             .module
@@ -499,9 +502,10 @@ pub(crate) fn provider_candidates(
     if supplied.is_empty() {
         return Ok(Vec::new());
     }
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| "a provider toolchain source has no exact identity")?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|_| "a provider toolchain source has no exact identity")?;
     let source_key = |provider: SymbolHandle, requirement: SymbolHandle| {
         (
             provider.arena_index(),
@@ -1084,7 +1088,9 @@ pub(crate) fn access_caller_route(
         (application.template, identity)
     } else {
         use crate::source_state::data::TypeParameterKind;
-        use crate::source_state::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::source_state::static_applications::{
+            StaticMachineBinding, StaticMachineBindingValue,
+        };
         use crate::source_state::types::TypeReferenceNode;
         let parameters = typed.machine_type_parameters(machine);
         if !typed
@@ -1176,10 +1182,10 @@ fn const_argument(
     binder: SymbolHandle,
     reference: crate::source_state::types::TypeReferenceHandle,
 ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
-    use application_identity::const_value::CanonicalConstValue;
-use application_identity::const_value::DecodedCanonicalConstValue;
     use crate::source_state::data::TypeParameterKind;
     use crate::source_state::expression::ExpressionNode;
+    use application_identity::const_value::CanonicalConstValue;
+    use application_identity::const_value::DecodedCanonicalConstValue;
 
     let parameter = typed
         .data_type_parameter_by_symbol(binder)
@@ -1202,15 +1208,17 @@ use application_identity::const_value::DecodedCanonicalConstValue;
         let selected = typed
             .conformance_by_symbol(operand.symbol)
             .ok_or("an application's record argument has no exact named value")?;
-        let actual =
-            crate::source_state::trait_definition::AppliedTraitScope::from_conformance(typed, selected)
-                .ok_or("an application's record argument lost its complete schema application")?;
+        let actual = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+            typed, selected,
+        )
+        .ok_or("an application's record argument lost its complete schema application")?;
         if !required.same_application(typed, &actual) {
             return Err("an application's record argument has another declared schema");
         }
-        let sources =
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(|_| "an application's record argument lost its exact source registry")?;
+        let sources = source_admission::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        )
+        .map_err(|_| "an application's record argument lost its exact source registry")?;
         return typed.canonical_operation_record_value(operand.symbol, &sources);
     }
     if typed.primitive_type_reference(type_reference).is_none() {
@@ -1614,12 +1622,14 @@ pub(crate) fn service_declaration_commitment(
     // The declaration's actual source instance selects its checking context.
     // This describes the complete service; it grants no execution permission.
     let scope = service_declaration_scope(typed, owner.symbol).map_err(Diagnostic::error)?;
-    Ok(crate::source_state::service_declarations::projection::from_typed(
-        crate::source_state::provider_declarations::ProviderPlanningContext::new(typed, scope),
-        owner,
-    )?
-    .declaration
-    .declaration_commitment())
+    Ok(
+        crate::source_state::service_declarations::projection::from_typed(
+            crate::source_state::provider_declarations::ProviderPlanningContext::new(typed, scope),
+            owner,
+        )?
+        .declaration
+        .declaration_commitment(),
+    )
 }
 
 /// A bodyless trait method retains its actual nominal owner and signature.
@@ -1677,9 +1687,10 @@ pub(crate) fn boundary(
             "boundary declaration has no published crash ceiling",
         ));
     }
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| Diagnostic::error("a boundary toolchain source has no exact identity"))?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|_| Diagnostic::error("a boundary toolchain source has no exact identity"))?;
     let service_declaration = service_declaration_commitment(typed, owner)?;
     let (owner, source, method_arguments) = trait_requirement(
         typed,
@@ -1736,7 +1747,9 @@ fn primitive_boundary(
     let mut requirements = typed
         .machine_trait_conformances(machine)
         .iter()
-        .map(|edge| crate::source_state::machine::resolve_satisfied_declaration(typed, machine, edge));
+        .map(|edge| {
+            crate::source_state::machine::resolve_satisfied_declaration(typed, machine, edge)
+        });
     let requirement = requirements
         .next()
         .flatten()
@@ -1821,9 +1834,10 @@ fn top_level_boundary(
             [false; 2],
         )
     };
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| Diagnostic::error("primitive source has no exact identity"))?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|_| Diagnostic::error("primitive source has no exact identity"))?;
     let owner = NominalDeclarationIdentity::new(
         nominal(typed, &sources, symbol, identities).map_err(Diagnostic::error)?,
     );
@@ -2295,7 +2309,8 @@ fn invocation_local(
             return Err("an invocation declaration has an invalid source token");
         }
         if typed.symbols.symbol_package_identity(symbol).is_some()
-            || typed.symbols.symbol_source_origin(symbol) != Some(source_admission::SourceOrigin::User)
+            || typed.symbols.symbol_source_origin(symbol)
+                != Some(source_admission::SourceOrigin::User)
         {
             return Ok(None);
         }
@@ -2352,9 +2367,10 @@ pub(crate) fn boundary_source(
     signature: &crate::source_state::signature::StateSignature,
     callable: String,
 ) -> Result<BoundaryDeclarationSource, &'static str> {
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|_| "a boundary toolchain source has no exact identity")?;
     if callable.is_empty() {
         return Err("the boundary has no callable identity");
     }
@@ -2566,9 +2582,10 @@ pub(crate) fn intrinsic_boundary_source(
             typed, symbol,
         )
         .ok_or("intrinsic has no exact source declaration")?;
-    let sources =
-        source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| "intrinsic source has no exact identity")?;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        typed.symbols.source_files(),
+    )
+    .map_err(|_| "intrinsic source has no exact identity")?;
     let nominal = typed
         .exact_owner_nominal_identity(symbol, &sources)
         .and_then(|id| typed.type_identity_text(id))

@@ -61,8 +61,8 @@ pub use stack_composition::{
 
 use identities::commitment_digest;
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use wire::fnv1a::Fnv1a as Fingerprint;
 use stack_composition::WcsuStackPlanProjection;
+use wire::fnv1a::Fnv1a as Fingerprint;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskPlanDiagnostic(pub String);

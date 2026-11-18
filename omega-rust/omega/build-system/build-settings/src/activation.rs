@@ -49,6 +49,10 @@ pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
+use package_compilation::build_execution::build_value::{
+    BuildValueAdmission, EvaluatedBuildSettings,
+};
+use source_compiler::ProducedTerminalProgram;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
 use source_compiler::declaration_selection::ExecutedEnumExclusion;
 use source_compiler::declaration_selection::ExecutedNativeBinding;
@@ -56,10 +60,6 @@ use source_compiler::declaration_selection::ExecutedProductSelection;
 use source_compiler::declaration_selection::ExecutedRootBinding;
 use source_compiler::declaration_selection::NativeBindingFormation;
 use source_compiler::declaration_selection::ProductDeclarationRequest;
-use package_compilation::build_execution::build_value::{
-    BuildValueAdmission, EvaluatedBuildSettings,
-};
-use source_compiler::ProducedTerminalProgram;
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,

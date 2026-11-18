@@ -109,7 +109,10 @@ pub(crate) mod borrowed_calls {
                 if argument.path.is_empty() {
                     (
                         home.structural_type(),
-                        crate::target_lowering::structural_layout::structural_shape(home.structural_type(), types)?,
+                        crate::target_lowering::structural_layout::structural_shape(
+                            home.structural_type(),
+                            types,
+                        )?,
                         0,
                         Vec::new(),
                     )
@@ -374,11 +377,12 @@ pub(crate) mod borrowed_calls {
             types,
         )
         .ok_or_else(unsupported)?;
-        let (selected, shape, offset, runs) = crate::target_lowering::structural_layout::runtime_storage_projection(
-            regions.root,
-            regions.path,
-            types,
-        )?;
+        let (selected, shape, offset, runs) =
+            crate::target_lowering::structural_layout::runtime_storage_projection(
+                regions.root,
+                regions.path,
+                types,
+            )?;
         let selected_shape = selected.shape(types).ok_or_else(unsupported)?;
         let destination_type = types
             .get(declaration.structural_type)
@@ -483,14 +487,14 @@ pub(crate) mod borrowed_calls {
                 },
             )
         } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
-            let source =
-                if crate::target_lowering::scalar::element_views::is_element_view_parameter(declaration, types) {
-                    let values = super::observations::scalar_values(
-                        live,
-                        &prepared.scalar_parameters,
-                        types,
-                    )?;
-                    let (_, identity, access) = crate::target_lowering::scalar::element_views::resolve_element_view(
+            let source = if crate::target_lowering::scalar::element_views::is_element_view_parameter(
+                declaration,
+                types,
+            ) {
+                let values =
+                    super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
+                let (_, identity, access) =
+                    crate::target_lowering::scalar::element_views::resolve_element_view(
                         function,
                         types,
                         &prepared.parameters,
@@ -500,40 +504,37 @@ pub(crate) mod borrowed_calls {
                         argument.place,
                         &mut Vec::new(),
                     )?;
-                    if identity != *structural_type
-                        || !(access == argument.access
-                            || access == StructuralAccess::MutableBorrow && shared)
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    TargetStructuralArgumentSource::EstablishedElementView {
-                        psi_operation: *producer,
-                    }
-                } else {
-                    let values = super::observations::scalar_values(
-                        live,
-                        &prepared.scalar_parameters,
-                        types,
-                    )?;
-                    let (_, access) = crate::target_lowering::scalar::byte_views::resolve_byte_view(
-                        function,
-                        types,
-                        &prepared.parameters,
-                        live.element_view_backings(),
-                        &values,
-                        &live.lengths,
-                        argument.place,
-                        &mut Vec::new(),
-                    )?;
-                    if access != argument.access
-                        && !(access == StructuralAccess::MutableBorrow && shared)
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    TargetStructuralArgumentSource::EstablishedByteView {
-                        psi_operation: *producer,
-                    }
-                };
+                if identity != *structural_type
+                    || !(access == argument.access
+                        || access == StructuralAccess::MutableBorrow && shared)
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: *producer,
+                }
+            } else {
+                let values =
+                    super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
+                let (_, access) = crate::target_lowering::scalar::byte_views::resolve_byte_view(
+                    function,
+                    types,
+                    &prepared.parameters,
+                    live.element_view_backings(),
+                    &values,
+                    &live.lengths,
+                    argument.place,
+                    &mut Vec::new(),
+                )?;
+                if access != argument.access
+                    && !(access == StructuralAccess::MutableBorrow && shared)
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: *producer,
+                }
+            };
             (*structural_type, source)
         } else if live.block_views.contains(&argument.place)
             || live.owned_arrivals.contains(&argument.place)
@@ -775,7 +776,9 @@ pub(crate) mod call_signature {
     use target::NativeTarget;
 
     use crate::target_lowering::LoweringError;
-    use crate::target_lowering::structural_signature::{StructuralCallPlan, StructuralCallSignature};
+    use crate::target_lowering::structural_signature::{
+        StructuralCallPlan, StructuralCallSignature,
+    };
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
 
     pub(crate) struct PreparedScalarCallFormal {
@@ -876,8 +879,12 @@ pub(crate) mod call_signature {
         })
     }
 
-    impl From<crate::target_lowering::function_signature::PreparedFunctionSignature> for PreparedCallSignature {
-        fn from(signature: crate::target_lowering::function_signature::PreparedFunctionSignature) -> Self {
+    impl From<crate::target_lowering::function_signature::PreparedFunctionSignature>
+        for PreparedCallSignature
+    {
+        fn from(
+            signature: crate::target_lowering::function_signature::PreparedFunctionSignature,
+        ) -> Self {
             Self {
                 call_plan: signature.call_plan,
                 scalar_parameters: signature
@@ -905,7 +912,9 @@ pub(crate) mod calls {
     use super::primitive_storage::retain_result;
     use super::{LiveDefinitions, RowSite};
     use crate::target_lowering::LoweringError;
-    use crate::target_lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
+    use crate::target_lowering::function_signature::{
+        PreparedFunctionSignature, prepare_function_signature,
+    };
     use crate::target_lowering::scalar::byte_views::is_byte_parameter;
     use crate::target_lowering::scalar::element_views::is_element_view_parameter;
     use crate::target_lowering::scalar_abi::fixed_native_scalar_shape;
@@ -1416,13 +1425,14 @@ pub(crate) mod calls {
                 fixed_native_scalar_shape(parameter.scalar_type).ok_or_else(unsupported)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let call_plan = crate::target_lowering::structural_signature::StructuralCallSignature::derive(
-            &parameter_shapes,
-            [],
-            Some(result_shape),
-            &calling_conventions::terminal_layout::StructuralLayouts::default(),
-        )?
-        .plan(target)?;
+        let call_plan =
+            crate::target_lowering::structural_signature::StructuralCallSignature::derive(
+                &parameter_shapes,
+                [],
+                Some(result_shape),
+                &calling_conventions::terminal_layout::StructuralLayouts::default(),
+            )?
+            .plan(target)?;
         if call.scalar_arguments.len() != callee_function.parameters.len()
             || call.scalar_arguments.len() != call_plan.parameters.len()
         {
@@ -1666,17 +1676,19 @@ pub(crate) mod calls {
                 &live.block_views,
                 types,
             )?;
-            if let Some(presentation) = crate::target_lowering::unit::roster_arguments::fixed_array_view_argument(
-                argument,
-                declaration,
-                destination.shape,
-                &destination.placement,
-                callee,
-                &root.declaration,
-                root.backing_shape.byte_size,
-                root.source,
-                types,
-            )? {
+            if let Some(presentation) =
+                crate::target_lowering::unit::roster_arguments::fixed_array_view_argument(
+                    argument,
+                    declaration,
+                    destination.shape,
+                    &destination.placement,
+                    callee,
+                    &root.declaration,
+                    root.backing_shape.byte_size,
+                    root.source,
+                    types,
+                )?
+            {
                 return Ok(presentation);
             }
         }

@@ -701,9 +701,13 @@ impl ExceededReach {
             crate::checking::ceilings::Axis::Entries => {
                 format!("{} (synchronous invocation)", self.statement)
             }
-            crate::checking::ceilings::Axis::Suspension => format!("{} (suspension)", self.statement),
+            crate::checking::ceilings::Axis::Suspension => {
+                format!("{} (suspension)", self.statement)
+            }
             crate::checking::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
-            crate::checking::ceilings::Axis::Termination => format!("{} (termination)", self.statement),
+            crate::checking::ceilings::Axis::Termination => {
+                format!("{} (termination)", self.statement)
+            }
         }
     }
 
@@ -773,8 +777,12 @@ fn exceeded_reach(
         }
     };
     let ceiling_description = match excess.axis {
-        crate::checking::ceilings::Axis::Reach => format!("reaches `{}`", permissions(&excess.ceiling)),
-        crate::checking::ceilings::Axis::Entries => format!("invokes `{}`", permissions(&excess.ceiling)),
+        crate::checking::ceilings::Axis::Reach => {
+            format!("reaches `{}`", permissions(&excess.ceiling))
+        }
+        crate::checking::ceilings::Axis::Entries => {
+            format!("invokes `{}`", permissions(&excess.ceiling))
+        }
         crate::checking::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
         crate::checking::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
         crate::checking::ceilings::Axis::Termination => "guarantees termination".to_owned(),
@@ -1989,8 +1997,7 @@ fn site_of(
 #[derive(Clone, Copy)]
 struct Roster<'a> {
     names: &'a arena::IdTable<MachineId, terminal_check_tables::names::MachineNames>,
-    sources:
-        &'a arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+    sources: &'a arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
 }
 
 impl<'a> Roster<'a> {
@@ -2122,10 +2129,7 @@ mod unsupported_tests {
             unsupported.note(MachineId::new(machine).unwrap(), refused(machine, detail));
         }
         let mut further = Vec::new();
-        let (names, sources) = (
-            arena::IdTable::default(),
-            arena::IdTable::default(),
-        );
+        let (names, sources) = (arena::IdTable::default(), arena::IdTable::default());
         let roster = Roster {
             names: &names,
             sources: &sources,

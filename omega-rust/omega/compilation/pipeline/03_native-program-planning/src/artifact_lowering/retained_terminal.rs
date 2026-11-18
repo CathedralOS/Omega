@@ -96,8 +96,13 @@ mod native_providers {
         execution: PreparedNativeExecution,
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         scalar_applications: Option<crate::artifact_lowering::NativeScalarApplications<'_>>,
-    ) -> Result<(crate::artifact_lowering::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
-    {
+    ) -> Result<
+        (
+            crate::artifact_lowering::VerifiedNativeArtifactInput,
+            PreparedNativeExecution,
+        ),
+        Vec<Diagnostic>,
+    > {
         let authorization = execution.authorization().clone();
         let artifact = authorization.artifact();
         let checked = execution.scope();
@@ -256,11 +261,9 @@ mod native_providers {
 }
 
 pub use native_providers::{
-    PreparedNativeExecution, RetainedNativeProviderInputs,
-    lower_native_callable, lower_native_execution, prepare_native_providers,
+    PreparedNativeExecution, RetainedNativeProviderInputs, lower_native_callable,
+    lower_native_execution, prepare_native_providers,
 };
-
-
 
 pub use verified_optimization_input::RetainedTerminalArtifact;
 pub use verified_optimization_input::native_proposal::{

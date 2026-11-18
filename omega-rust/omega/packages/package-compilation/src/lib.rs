@@ -41,8 +41,8 @@ mod codec_bytes;
 mod cursor;
 mod reuse;
 mod source;
-pub use build_execution::*;
 pub(crate) use ::wire::digest_encoder;
+pub use build_execution::*;
 pub use source::source_assembly;
 pub use source::source_assembly::BuildSourceSelection;
 pub use source::source_imports;
@@ -53,6 +53,10 @@ pub use reuse::review_record_encoding;
 mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
+pub use effects::semantic_bindings::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+    program_entry_semantic_binding_role,
+};
 pub use package_compilation::{
     IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
@@ -65,10 +69,6 @@ pub use reuse::checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimi
 pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use reuse::review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
-};
-pub use effects::semantic_bindings::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
-    program_entry_semantic_binding_role,
 };
 pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
@@ -124,6 +124,5 @@ pub fn capture_selected_anonymous_compilation_source(
     Ok(captured)
 }
 pub use package_compilation::{
-    NativeBindingProducer, NativeBindingProduction,
-    PackageNativeBindingOrigin,
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
 };

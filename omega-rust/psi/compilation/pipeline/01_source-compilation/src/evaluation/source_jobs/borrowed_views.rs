@@ -144,7 +144,8 @@ machine run() -> i64 crashes none {
     let (value, accounting) = run_recorded(source)
         .expect("both independent inputs remain lent until the selected result ends");
     assert_eq!(value, BuildTimeValue::Int(41));
-    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+    else {
         panic!("one actual execution retains its invocation receipt")
     };
     let module = receipt.program().view().module();
@@ -371,7 +372,8 @@ machine run() -> i64 crashes none {
     let (value, accounting) =
         run_recorded(source).expect("renamed binders keep two independent input regions");
     assert_eq!(value, BuildTimeValue::Int(41));
-    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+    else {
         panic!("the actual call has one retained invocation receipt")
     };
     let module = receipt.program().view().module();

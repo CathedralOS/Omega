@@ -37,49 +37,99 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
-            use semantic_vocabulary::{BoundaryRequirementKind, Proposition, ScalarQualificationSetId};
+            use semantic_vocabulary::{
+                BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
+            };
             let main = repository().join(format!("tests/fixtures/run/float/{fixture}/main.omg"));
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
-            ).result.unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
-            let publication = checked.terminal_publication().accepted().unwrap().closure().publish().unwrap();
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
             let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
                 publication.artifact.semantic_bytes(),
-            ).unwrap();
+            )
+            .unwrap();
             let module = reopened.module();
             for source in [NumericType::F32, NumericType::F64] {
                 for target in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
-                    for domain in [ArithmeticDomain::Exact, ArithmeticDomain::Trapping, ArithmeticDomain::Saturating] {
+                    for domain in [
+                        ArithmeticDomain::Exact,
+                        ArithmeticDomain::Trapping,
+                        ArithmeticDomain::Saturating,
+                    ] {
                         let meaning = NumericIntrinsic::Conversion {
-                            source, target: NumericType::Integer(target), domain,
+                            source,
+                            target: NumericType::Integer(target),
+                            domain,
                         };
-                        let boundary = module.boundary_machines.iter().find(|row| row.numeric_intrinsic == Some(meaning)).unwrap();
+                        let boundary = module
+                            .boundary_machines
+                            .iter()
+                            .find(|row| row.numeric_intrinsic == Some(meaning))
+                            .unwrap();
                         assert_eq!(boundary.kind, BoundaryRequirementKind::Machine);
-                        terminal_semantics::numeric_primitives::validate_boundary(module, boundary).unwrap();
-                        let [Proposition::FloatIntegerConversion(relation)] = boundary.scalar_ensures.as_slice() else {
+                        terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                            .unwrap();
+                        let [Proposition::FloatIntegerConversion(relation)] =
+                            boundary.scalar_ensures.as_slice()
+                        else {
                             panic!("conversion's complete integer-result contract");
                         };
                         relation.validate().unwrap();
-                        let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
+                        let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result
+                        else {
                             panic!("integer scalar result");
                         };
-                        assert_eq!(result.qualifications == ScalarQualificationSetId::ZERO, domain == ArithmeticDomain::Exact);
-                        assert_eq!(boundary.scalar_requires.len(), if domain == ArithmeticDomain::Exact {3} else {0});
-                        provider_admission::provider_admission::numeric_boundary_execution(module, boundary).unwrap();
+                        assert_eq!(
+                            result.qualifications == ScalarQualificationSetId::ZERO,
+                            domain == ArithmeticDomain::Exact
+                        );
+                        assert_eq!(
+                            boundary.scalar_requires.len(),
+                            if domain == ArithmeticDomain::Exact {
+                                3
+                            } else {
+                                0
+                            }
+                        );
+                        provider_admission::provider_admission::numeric_boundary_execution(
+                            module, boundary,
+                        )
+                        .unwrap();
                     }
                 }
             }
-            let invalid = repository().join(format!("tests/fixtures/fail/float/{fixture}/main.omg"));
+            let invalid =
+                repository().join(format!("tests/fixtures/fail/float/{fixture}/main.omg"));
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
-            ).result.expect_err("the ordinary converter still requires its upper bound").into_diagnostics();
+            )
+            .result
+            .expect_err("the ordinary converter still requires its upper bound")
+            .into_diagnostics();
             assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-            assert!(diagnostics[0].message.starts_with("cannot prove requires clause 2 of the called machine."), "{diagnostics:?}");
-        }).unwrap().join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+            assert!(
+                diagnostics[0]
+                    .message
+                    .starts_with("cannot prove requires clause 2 of the called machine."),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
 
@@ -246,7 +296,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
 
 fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
     use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
     use terminal_psi::NominalDeclarationIdentity;
     let original = NumericIntrinsic::Conversion {
@@ -882,7 +932,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             use semantic_vocabulary::{
                 FloatMeaningClauseValue, IeeeFloatFormat, ScalarType, ValueId,
             };
@@ -1131,7 +1181,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
@@ -1267,7 +1317,7 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use declaration_contracts::numeric_intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             let main =
                 repository().join("tests/fixtures/run/float/exact_integer_to_float/main.omg");

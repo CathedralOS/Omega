@@ -5,4 +5,4 @@
 #![forbid(unsafe_code)]
 
 mod native_binding;
-pub use native_binding::{NativeBuildEvaluation, NativeBindingMaterialization};
+pub use native_binding::{NativeBindingMaterialization, NativeBuildEvaluation};

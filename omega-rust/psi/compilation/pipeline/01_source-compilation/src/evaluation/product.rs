@@ -70,16 +70,16 @@ pub mod native_bindings;
 #[path = "product/product_declarations.rs"]
 pub mod product_declarations;
 pub mod product_policy {
-    use diagnostics::Diagnostic;
+    use crate::declaration_selection::BuildOperation;
+    use crate::declaration_selection::ExecutedEnumExclusion;
+    use crate::declaration_selection::ExecutedProductSelection;
+    use crate::declaration_selection::ProductDeclarationRequest;
+    use crate::source_state::TypedTrees;
     use declaration_contracts::selection::AuthoredBehaviorExclusion;
-use declaration_contracts::selection::AuthoredRootGrant;
-use crate::declaration_selection::BuildOperation;
-use crate::declaration_selection::ExecutedEnumExclusion;
-use crate::declaration_selection::ExecutedProductSelection;
-use crate::declaration_selection::ProductDeclarationRequest;
+    use declaration_contracts::selection::AuthoredRootGrant;
+    use diagnostics::Diagnostic;
     use std::sync::Arc;
     use symbols::SymbolHandle;
-    use crate::source_state::TypedTrees;
     pub fn collect_behavior_exclusions(
         _typed: &TypedTrees,
         _activation: Option<SymbolHandle>,
@@ -107,15 +107,15 @@ use crate::declaration_selection::ProductDeclarationRequest;
     }
 }
 pub mod provider_declarations {
-    use diagnostics::Diagnostic;
-    pub use declaration_contracts::selection::CompositionMode;
-    use crate::declaration_selection::product_operands::ProductStaticOperandGraph;
     use crate::declaration_selection::BuildSelectionOrigin;
-use declaration_contracts::selection::ProductTarget;
-    use std::sync::Arc;
-    use source_admission::RetainedDeclaration;
-    use symbols::SymbolHandle;
+    use crate::declaration_selection::product_operands::ProductStaticOperandGraph;
     pub use crate::source_state::provider_declarations::ProviderPlanningContext;
+    pub use declaration_contracts::selection::CompositionMode;
+    use declaration_contracts::selection::ProductTarget;
+    use diagnostics::Diagnostic;
+    use source_admission::RetainedDeclaration;
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct RetainedProductApplication {
         pub graph: ProductStaticOperandGraph,
@@ -143,17 +143,21 @@ use declaration_contracts::selection::ProductTarget;
         pub composition_mode: CompositionMode,
         pub origin: BuildSelectionOrigin,
     }
+    pub use crate::provider_choice_inputs::ProviderOperatorFamilyCoordinate;
+    pub use crate::provider_choice_inputs::ProviderOperatorFamilySelection;
+    pub use crate::provider_choice_inputs::ProviderSelection;
+    pub use crate::provider_choice_inputs::ProviderSelectionIdentity;
+    pub use crate::provider_choice_inputs::ProviderSelectionSubject;
+    pub use crate::provider_choice_inputs::TargetProviderDefaults;
     pub use provider_choices::ProviderApplicationId;
-pub use crate::provider_choice_inputs::ProviderSelectionIdentity;
-pub use crate::provider_choice_inputs::ProviderOperatorFamilyCoordinate;
-pub use crate::provider_choice_inputs::ProviderOperatorFamilySelection;
-pub use crate::provider_choice_inputs::ProviderSelectionSubject;
-pub use crate::provider_choice_inputs::ProviderSelection;
-pub use crate::provider_choice_inputs::TargetProviderDefaults;
-    pub fn source_application(id: ProviderApplicationId) -> arena::Handle<crate::source_state::product_operand::ProductOperandApplication> {
+    pub fn source_application(
+        id: ProviderApplicationId,
+    ) -> arena::Handle<crate::source_state::product_operand::ProductOperandApplication> {
         arena::Handle::from_parts(id.arena_index(), id.generation())
     }
-    pub(super) fn application_id(handle: arena::Handle<crate::source_state::product_operand::ProductOperandApplication>) -> ProviderApplicationId {
+    pub(super) fn application_id(
+        handle: arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+    ) -> ProviderApplicationId {
         ProviderApplicationId::from_parts(handle.arena_index(), handle.generation())
     }
     pub fn collect_product_provider_selections(
@@ -182,7 +186,9 @@ pub use crate::provider_choice_inputs::TargetProviderDefaults;
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
                 && !machine.target_family_interface
                 && context.contains(machine.symbol)
-                && (context.scope == declaration_contracts::source_identity::DependencyScope::Product || machine.target.is_none())
+                && (context.scope
+                    == declaration_contracts::source_identity::DependencyScope::Product
+                    || machine.target.is_none())
         }) {
             let target = machine
                 .authored_target
@@ -215,12 +221,12 @@ pub use crate::provider_choice_inputs::TargetProviderDefaults;
     /// does without.
     mod defaults {
         use super::{CompositionMode, ProviderPlanningContext, ProviderSelection, form, identity};
-        use diagnostics::Diagnostic;
-        use crate::source_symbols::JoinedPath;
         use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
         use crate::source_state::machine::Machine;
         use crate::source_state::product_operand::{ProductOperandKind, resolve_product_operand};
         use crate::source_state::statement::StatementNode;
+        use crate::source_symbols::JoinedPath;
+        use diagnostics::Diagnostic;
 
         /// One `select_provider` call as its statement holds it.
         struct Call<'typed> {

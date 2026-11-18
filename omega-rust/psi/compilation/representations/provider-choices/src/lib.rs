@@ -4,8 +4,8 @@
 
 #![forbid(unsafe_code)]
 
-use symbols::SymbolHandle;
 use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 /// Exact prepared application coordinate. Only the source owner can join it
 /// to its private arena; native consumers use the full canonical identity.
@@ -19,13 +19,21 @@ impl ProviderApplicationId {
     pub const fn from_parts(index: u32, generation: u32) -> Self {
         Self { index, generation }
     }
-    pub const fn arena_index(self) -> u32 { self.index }
-    pub const fn generation(self) -> u32 { self.generation }
-    pub const fn is_valid(self) -> bool { self.index != 0 }
+    pub const fn arena_index(self) -> u32 {
+        self.index
+    }
+    pub const fn generation(self) -> u32 {
+        self.generation
+    }
+    pub const fn is_valid(self) -> bool {
+        self.index != 0
+    }
 }
 
 impl Default for ProviderApplicationId {
-    fn default() -> Self { Self::from_parts(0, 0) }
+    fn default() -> Self {
+        Self::from_parts(0, 0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +48,6 @@ pub struct NativeBindingSelection {
     pub supplier_package: PackageKeyIdentity,
     pub source_span: source_text::SourceSpan,
 }
-
 
 /// One completed Build invocation and the exact binding it produced.
 #[derive(Debug, Clone, PartialEq, Eq)]

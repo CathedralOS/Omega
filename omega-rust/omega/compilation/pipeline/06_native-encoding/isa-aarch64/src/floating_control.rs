@@ -19,7 +19,6 @@ const MSR_FPCR_X9: u32 = 0xd51b_4400 | SCRATCH_REGISTER;
 const STR_X9: u32 = 0xf900_0000 | SCRATCH_REGISTER;
 const LDR_X9: u32 = 0xf940_0000 | SCRATCH_REGISTER;
 
-
 pub fn encode_save_fpcr_to_sp_displacement(byte_offset: u32) -> Result<Vec<u8>, Diagnostic> {
     let mut words = vec![MRS_FPCR_X9];
     words.extend(stack_access(STR_X9, SAVE_ADDRESS_REGISTER, byte_offset)?);

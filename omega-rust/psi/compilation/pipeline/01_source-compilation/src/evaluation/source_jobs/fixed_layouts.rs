@@ -4,13 +4,13 @@
 
 use std::sync::Arc;
 
-use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use crate::source_state::references::{DeclarationSelection, collect_program_type_occurrences};
 use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidTargetLayout, TypedTrees,
 };
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
 use crate::evaluation::{

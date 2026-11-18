@@ -17,15 +17,15 @@ inert until the product owner resolves and admits them.
 */
 
 use crate::host::requests::build_facet;
+use declaration_contracts::selection::CompositionMode;
+use declaration_contracts::selection::ProductTarget;
 use source_compiler::declaration_selection::BuildOperation;
 use source_compiler::declaration_selection::BuildSelectionRequest;
-use declaration_contracts::selection::CompositionMode;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
 use source_compiler::declaration_selection::ExecutedProductSelection;
 use source_compiler::declaration_selection::ExecutedRootBinding;
 use source_compiler::declaration_selection::NativeBindingFormation;
 use source_compiler::declaration_selection::ProductDeclarationRequest;
-use declaration_contracts::selection::ProductTarget;
 use source_compiler::declaration_selection::ProviderReadinessRequest;
 use source_compiler::declaration_selection::RootBindingOperand;
 use source_compiler::declaration_selection::RootBindingSelection;

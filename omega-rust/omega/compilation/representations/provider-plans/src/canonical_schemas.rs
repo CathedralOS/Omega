@@ -2,9 +2,9 @@
 //! module. A direct primitive does not require an unrelated selected provider
 //! just to recover that contract's nominal result and progress information.
 
+use declaration_contracts::service_surface::ServiceReceiverApplication;
 use effects::provider_plan::{ServiceMethod, ServiceSchema, ServiceSurface};
 use language_core::sealed_intrinsics::HostedOperation;
-use declaration_contracts::service_surface::ServiceReceiverApplication;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{CheckedBoundaryExecution, TerminalModule};
 

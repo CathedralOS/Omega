@@ -72,9 +72,8 @@ mod relocation_free_object;
 mod target_matrix;
 
 pub use fragment_container::{
-    ObjectPublication,
-    RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
-    stage_optimized_relocation_free_object_container,
+    ObjectPublication, RelocationFreeObjectContainerError,
+    StagedOptimizedRelocationFreeObjectContainer, stage_optimized_relocation_free_object_container,
     validate_optimized_relocation_free_object_container,
 };
 pub use machine_code::{

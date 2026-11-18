@@ -1,17 +1,26 @@
 //! Compare supplied adapter bytes and effects with the exact canonical request.
 /// Encoded whole-entry bundles issued for a physical planner's settled recipe.
-pub type EncodedHostedProgram<Context> = native_encoding::hosted_program::EncodedHostedProgramEntry<physical_planning::PhysicalRecipeOrigin, Context>;
-pub type EncodedPhysicalProgram<Context> = native_encoding::physical_entry::EncodedPhysicalEntry<physical_planning::PhysicalRecipeOrigin, Context>;
+pub type EncodedHostedProgram<Context> = native_encoding::hosted_program::EncodedHostedProgramEntry<
+    physical_planning::PhysicalRecipeOrigin,
+    Context,
+>;
+pub type EncodedPhysicalProgram<Context> = native_encoding::physical_entry::EncodedPhysicalEntry<
+    physical_planning::PhysicalRecipeOrigin,
+    Context,
+>;
 use diagnostics::Diagnostic;
 use native_encoding::native_entry_bridge::encode_native_entry_bridge;
-pub type EncodedNativeEntryBridge =
-    native_encoding::native_entry_bridge::NativeEntryBridge<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedNativeEntryBridge = native_encoding::native_entry_bridge::NativeEntryBridge<
+    physical_planning::PhysicalRecipeOrigin,
+>;
 use native_encoding::native_foreign_bridge::encode_native_foreign_bridge;
-pub type EncodedNativeForeignBridge =
-    native_encoding::native_foreign_bridge::NativeForeignBridge<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedNativeForeignBridge = native_encoding::native_foreign_bridge::NativeForeignBridge<
+    physical_planning::PhysicalRecipeOrigin,
+>;
 /// Callable transports issued from the admitted physical planner's private origin.
-pub type EncodedCallableEntry =
-    native_encoding::callable_entry::CallableEntryTransport<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedCallableEntry = native_encoding::callable_entry::CallableEntryTransport<
+    physical_planning::PhysicalRecipeOrigin,
+>;
 pub type EncodedPrivateEntry =
     native_encoding::callable_entry::EncodedPrivateEntry<physical_planning::PhysicalRecipeOrigin>;
 use physical_planning::native_entry_bridge::{

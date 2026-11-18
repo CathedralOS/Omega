@@ -1,7 +1,7 @@
 //! Measure the compiler's complete loaded-source to syntax operation.
 use source_admission::{LoadedSource, LoadedSources};
-use source_text::SourceId;
 use source_compiler::{SourceInput, UnmeasuredProduction};
+use source_text::SourceId;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 use std::sync::Arc;

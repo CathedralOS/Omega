@@ -1081,15 +1081,15 @@ pub(crate) mod access_lifecycles {
 }
 pub(crate) mod access_ram_correspondence {
 
+    use access_admission::validate_access_resources;
+    use access_admission::validate_resource_profile;
     use access_vocabulary::AtomicCapability;
-use access_vocabulary::BoundaryReach;
-use access_vocabulary::ExternalCapability;
-use access_vocabulary::PeerWritability;
-use access_vocabulary::ResourceProfile;
-use access_vocabulary::ResourceRegion;
-use access_vocabulary::StableCapability;
-use access_admission::validate_access_resources;
-use access_admission::validate_resource_profile;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
     use semantic_vocabulary::StructuralTypeId;
     use terminal_psi::{
         StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalModule,

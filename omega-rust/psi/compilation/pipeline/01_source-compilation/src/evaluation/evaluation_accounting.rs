@@ -467,9 +467,14 @@ impl PureTerminalEvaluationReceipt {
             execution.require_admission(self.program.view(), &self.admission)?;
             execution.require_inputs(&self.arguments, &self.inputs, Some(&self.account))?;
             if execution.usage() != &self.usage {
-                return Err("source invocation receipt changed its actual execution charges".into());
+                return Err(
+                    "source invocation receipt changed its actual execution charges".into(),
+                );
             }
-        } else if matches!(self.outcome, PureTerminalEvaluationOutcome::Materialized { .. }) {
+        } else if matches!(
+            self.outcome,
+            PureTerminalEvaluationOutcome::Materialized { .. }
+        ) {
             return Err("source invocation result has no actual artifact execution receipt".into());
         }
         if self.usage.schedule() != terminal_work::WorkSchedule::CURRENT.identity()
@@ -532,7 +537,8 @@ impl PureTerminalEvaluationReceipt {
             return Err("source invocation receipt names another call".into());
         }
         let call = self.call()?;
-        let source_view = crate::source_state::references::StaticArgumentCall::Expression(self.call, call);
+        let source_view =
+            crate::source_state::references::StaticArgumentCall::Expression(self.call, call);
         if source_view.applications().any(|application| {
             !self
                 .source

@@ -31,7 +31,9 @@ pub(crate) fn requested_native_code_layouts(
         if let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
             && !layouts.iter().any(|layout| layout.machine == machine)
         {
-            layouts.push(describe_native_code_layout_from_records(text, frames, machine)?);
+            layouts.push(describe_native_code_layout_from_records(
+                text, frames, machine,
+            )?);
         }
     }
     Ok(layouts.into())

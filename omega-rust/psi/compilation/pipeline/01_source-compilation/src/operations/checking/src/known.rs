@@ -13,11 +13,14 @@
 
 use std::collections::VecDeque;
 
+use arena::IdTable;
 use proof_admission::{
     ProofNode, ProofRule, check_value_equality_denotation, check_value_equality_substitution,
 };
-use semantic_vocabulary::{IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    ValueId,
+};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
 

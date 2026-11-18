@@ -1,18 +1,21 @@
 use super::*;
-use application_identity::opaque_representations::{OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition};
-use arena::IdTable;
-use semantic_vocabulary::PackageKeyIdentity;
 use crate::source_inputs::SourceMap;
-use source_admission::SourceOrigin;
-use source_text::{SourceSpan, Span};
-use std::{path::PathBuf, sync::Arc};
-use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-use crate::source_symbols::SymbolTableBuilder;
 use crate::source_state::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment, TypedTrees,
     data::{DataDefinition, DataField, DataMember, DataProperties},
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+use crate::source_symbols::SymbolTableBuilder;
+use application_identity::opaque_representations::{
+    OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
+    OpaqueRepresentationLifecycleDisposition,
+};
+use arena::IdTable;
+use semantic_vocabulary::PackageKeyIdentity;
+use source_admission::SourceOrigin;
+use source_text::{SourceSpan, Span};
+use std::{path::PathBuf, sync::Arc};
+use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
 // Supply the input contract of this stage, including the same package identity
 // for every symbol. Build selection authority is checked by the source compiler.
@@ -39,12 +42,14 @@ fn selection() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let children = builder.insert_children(
         root,
-        crate::source_symbols::builtin_type_symbols().into_iter().chain([
-            (SymbolKind::Data, token("Receipt")),
-            (SymbolKind::Data, token("Word")),
-            (SymbolKind::Conformance, token("Representation")),
-            (SymbolKind::Data, token("Permit")),
-        ]),
+        crate::source_symbols::builtin_type_symbols()
+            .into_iter()
+            .chain([
+                (SymbolKind::Data, token("Receipt")),
+                (SymbolKind::Data, token("Word")),
+                (SymbolKind::Conformance, token("Representation")),
+                (SymbolKind::Data, token("Permit")),
+            ]),
     );
     let opaque = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
     let word = children

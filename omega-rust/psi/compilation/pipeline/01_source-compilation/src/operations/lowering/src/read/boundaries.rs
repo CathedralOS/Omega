@@ -1,10 +1,10 @@
 //! Resolve bodyless requirements by their declaration, retaining the service
 //! which owns the call and its independently declared completion behavior.
 
+use crate::source_state::static_applications::StaticMachineApplicationHandle;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use crate::source_state::static_applications::StaticMachineApplicationHandle;
 
 use super::{Program, services};
 use crate::lowering::{Signature, boundaries::BoundarySource};
@@ -210,7 +210,9 @@ impl Program<'_> {
                     .machine_trait_conformances(machine)
                     .iter()
                     .filter_map(|edge| {
-                        crate::source_state::machine::resolve_satisfied_declaration(typed, machine, edge)
+                        crate::source_state::machine::resolve_satisfied_declaration(
+                            typed, machine, edge,
+                        )
                     });
             let requirement = requirements
                 .next()
@@ -311,8 +313,9 @@ impl Program<'_> {
                 .trait_requirement_callable_identity_text(owner, declared),
         )
         .map_err(|reason| services::unavailable(context, reason))?;
-        let completion =
-            crate::source_state::boundary_completions::boundary_requirement_completion(self.typed, target);
+        let completion = crate::source_state::boundary_completions::boundary_requirement_completion(
+            self.typed, target,
+        );
         let (signature, _) = self.boundary_signature(context, declared)?;
         // The boundary and service retain their declaring owner below. A read
         // of this member does not select its siblings' source contract clauses.

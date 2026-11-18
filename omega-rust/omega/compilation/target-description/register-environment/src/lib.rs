@@ -42,11 +42,6 @@ use catalog::{
     conservative_baseline_reservation_profile, prepared_target_constraint_catalog,
     selected_constraint_keys, target_physical_register_model,
 };
-use target_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
-use target_x86_64::{
-    X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view,
-    x86_64_preservation_convention_for_target,
-};
 use register_model::{
     PreparedRegisterConstraintCatalog, PreservationConvention, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterModelValidationError, RegisterReservationProfile,
@@ -58,6 +53,13 @@ use register_model::{
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
+use target_aarch64::{
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
+};
+use target_x86_64::{
+    X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view,
+    x86_64_preservation_convention_for_target,
+};
 
 pub fn baseline_target_register_environment(
     target: NativeTarget,
@@ -261,11 +263,17 @@ pub fn selected_abi_preservation(
         ),
         (Architecture::Aarch64, ObjectFormat::Elf) => (
             FrameAbiPreservationConvention::Aapcs64,
-            target_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+            target_aarch64::aarch64_preservation_convention_for_target(
+                environment.physical(),
+                target,
+            ),
         ),
         (Architecture::Aarch64, ObjectFormat::MachO) => (
             FrameAbiPreservationConvention::DarwinAapcs64,
-            target_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+            target_aarch64::aarch64_preservation_convention_for_target(
+                environment.physical(),
+                target,
+            ),
         ),
         _ => {
             return Err(AbiPreservationSelectionError::UnsupportedTargetConvention);

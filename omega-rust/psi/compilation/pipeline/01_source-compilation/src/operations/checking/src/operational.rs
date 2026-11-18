@@ -110,8 +110,12 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
             && let Some(row) = formation(CallSite::Edge(*edge))
             && let Some(callee) = row.tail_callee
         {
-            let tail =
-                crate::checking::call_contracts::tail_call(&elaboration.module, &tails, callee, *edge)?;
+            let tail = crate::checking::call_contracts::tail_call(
+                &elaboration.module,
+                &tails,
+                callee,
+                *edge,
+            )?;
             calls.push(Call {
                 site: row.site,
                 callee: Callee::Declared(tail.callee.id.into()),

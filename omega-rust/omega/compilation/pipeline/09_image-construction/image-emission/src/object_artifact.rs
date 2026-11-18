@@ -23,7 +23,8 @@ mod carriers {
         pub(crate) emission_input: std::sync::Arc<crate::object_input::ObjectEmissionInput>,
         pub(crate) body_readback: std::sync::Arc<machine_code::placed_body::NativeBodyReadback>,
         pub(crate) publication: object_file::ObjectPublication,
-        pub(crate) semantic: std::sync::Arc<verified_optimization_input::publication::SemanticEmissionFacts>,
+        pub(crate) semantic:
+            std::sync::Arc<verified_optimization_input::publication::SemanticEmissionFacts>,
         pub(crate) statistics: crate::function_fragments::reporting::FunctionPublicationStatistics,
         pub(crate) image_data: crate::function_fragments::image_data::ObjectImageData,
         pub(crate) foreign_call_plans:
@@ -93,7 +94,9 @@ mod carriers {
             &self.publication
         }
 
-        pub fn emission_facts(&self) -> &verified_optimization_input::publication::SemanticEmissionFacts {
+        pub fn emission_facts(
+            &self,
+        ) -> &verified_optimization_input::publication::SemanticEmissionFacts {
             &self.semantic
         }
 
@@ -188,7 +191,9 @@ mod carriers {
         /// compile retained native stage inputs for a correspondence audit.
         pub fn retained_target_operations(
             &self,
-        ) -> Option<&verified_optimization_input::publication::target_replay::TargetOperationsForReplay> {
+        ) -> Option<
+            &verified_optimization_input::publication::target_replay::TargetOperationsForReplay,
+        > {
             self.composition_source
                 .as_deref()
                 .unwrap_or(self)
@@ -942,7 +947,6 @@ pub(crate) mod installed_stack {
         use installation_evidence::InstalledBodyFaultPremises;
         use selected_instructions::MachineEncodedTrapBehavior as Trap;
 
-
         pub(super) fn derive(
             body: &ObjectArtifact,
         ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
@@ -963,7 +967,9 @@ pub(crate) mod installed_stack {
                 ));
             }
             let current = &body.body_readback;
-            let origins = body.emission_input.emission_facts()
+            let origins = body
+                .emission_input
+                .emission_facts()
                 .faults
                 .as_ref()
                 .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?;
@@ -1000,27 +1006,37 @@ pub(crate) mod installed_stack {
             .require_without_floating_state()?;
             let mut encoded = current.encoding.rows().iter();
             for function in &origins.functions {
-                let mut placements = body.functions().iter().filter(|placed| placed.machine == function.machine);
+                let mut placements = body
+                    .functions()
+                    .iter()
+                    .filter(|placed| placed.machine == function.machine);
                 let placed = placements.next().ok_or(Error::Mismatch(
                     "installed fault analysis has no exact placed function",
                 ))?;
                 if placements.next().is_some() {
-                    return Err(Error::Mismatch("installed function has multiple object placements"));
+                    return Err(Error::Mismatch(
+                        "installed function has multiple object placements",
+                    ));
                 }
-                let function_bytes = placed.text_offset.checked_add(placed.byte_count)
+                let function_bytes = placed
+                    .text_offset
+                    .checked_add(placed.byte_count)
                     .and_then(|end| body.text_bytes().get(placed.text_offset..end))
-                    .ok_or(Error::Mismatch("installed function bytes exceed the object text"))?;
-                let relative_branches = encoding_admission::relative_branches::validate_published_relative_branches(
-                    &current.frame_application.fragments,
-                    &current.branches,
-                    &current.physical,
-                    function.machine,
-                    function_bytes,
-                )
-                .map_err(|error| Error::InstalledRelativeBranches {
-                    machine: function.machine,
-                    source: error,
-                })?;
+                    .ok_or(Error::Mismatch(
+                        "installed function bytes exceed the object text",
+                    ))?;
+                let relative_branches =
+                    encoding_admission::relative_branches::validate_published_relative_branches(
+                        &current.frame_application.fragments,
+                        &current.branches,
+                        &current.physical,
+                        function.machine,
+                        function_bytes,
+                    )
+                    .map_err(|error| Error::InstalledRelativeBranches {
+                        machine: function.machine,
+                        source: error,
+                    })?;
                 for instruction in &function.instructions {
                     let machine = function.machine;
                     let row = encoded
@@ -1091,8 +1107,6 @@ pub(crate) mod installed_stack {
                 physical_program_identity: origins.physical_identity,
             }))
         }
-
-
     }
 
     impl From<installation_admission::arrival::ArrivalCompositionError> for Error {
@@ -1107,8 +1121,6 @@ pub(crate) mod installed_stack {
             }
         }
     }
-
-
 
     pub fn installed_interrupt_stack_requirement(
         private: &PrivateFunctionObject,
@@ -1214,10 +1226,13 @@ pub(crate) mod installed_stack {
                 )?);
             }
             for scope in authority.installed_interrupts().scopes() {
-                let first =
-                    actual_requirements.partition_point(|row| (row.installation_machine, row.operation) < (scope.machine(), scope.operation()));
-                let last =
-                    actual_requirements.partition_point(|row| (row.installation_machine, row.operation) <= (scope.machine(), scope.operation()));
+                let first = actual_requirements.partition_point(|row| {
+                    (row.installation_machine, row.operation) < (scope.machine(), scope.operation())
+                });
+                let last = actual_requirements.partition_point(|row| {
+                    (row.installation_machine, row.operation)
+                        <= (scope.machine(), scope.operation())
+                });
                 if first == last {
                     continue;
                 }
@@ -1225,7 +1240,9 @@ pub(crate) mod installed_stack {
                     .installed_interrupts()
                     .entries()
                     .iter()
-                    .filter(|entry| entry.machine == scope.machine() && entry.operation == scope.operation())
+                    .filter(|entry| {
+                        entry.machine == scope.machine() && entry.operation == scope.operation()
+                    })
                     .collect();
                 let proposed_root = authority.installed_stack_requirements()[first]
                     .arrival
@@ -1358,7 +1375,9 @@ pub(crate) mod replay {
                 }
                 let layout = match target.architecture {
                     Architecture::X86_64 => target_x86_64::write_line::layout(custody.bytes.len()),
-                    Architecture::Aarch64 => target_aarch64::write_line::layout(custody.bytes.len()),
+                    Architecture::Aarch64 => {
+                        target_aarch64::write_line::layout(custody.bytes.len())
+                    }
                 };
                 let Some((data, total)) = layout else {
                     return false;
@@ -1372,9 +1391,13 @@ pub(crate) mod replay {
                     return false;
                 }
                 function_bytes.is_none_or(|function| {
-                    let Some(bytes) = settlement.code_offset.checked_add(total)
+                    let Some(bytes) = settlement
+                        .code_offset
+                        .checked_add(total)
                         .and_then(|end| function.get(settlement.code_offset..end))
-                    else { return false; };
+                    else {
+                        return false;
+                    };
                     let literal = match target.architecture {
                         Architecture::X86_64 => target_x86_64::write_line::decode(bytes),
                         Architecture::Aarch64 => target_aarch64::write_line::decode(bytes),
@@ -2112,11 +2135,15 @@ pub(crate) mod replay {
                 bytes: &[u8],
             ) -> Option<(MachineRegister, u32)> {
                 if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
-                    target_x86_64::inspection::decode_x86_64_selected_hosted_write_byte_i32(target, bytes)
+                    target_x86_64::inspection::decode_x86_64_selected_hosted_write_byte_i32(
+                        target, bytes,
+                    )
                 } else if target == NativeTarget::linux_arm64()
                     || target == NativeTarget::macos_arm64()
                 {
-                    target_aarch64::inspection::decode_aarch64_selected_hosted_write_byte_i32(target, bytes)
+                    target_aarch64::inspection::decode_aarch64_selected_hosted_write_byte_i32(
+                        target, bytes,
+                    )
                 } else {
                     None
                 }
@@ -2236,7 +2263,9 @@ pub(crate) mod replay {
                 {
                     let Some(byte_count) =
                         u32::try_from(scratch_byte_offset).ok().and_then(|home| {
-                            target_aarch64::inspection::aarch64_hosted_write_byte_i32_byte_count(target, home)
+                            target_aarch64::inspection::aarch64_hosted_write_byte_i32_byte_count(
+                                target, home,
+                            )
                         })
                     else {
                         return false;

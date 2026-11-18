@@ -7,12 +7,12 @@ Mach-O shared-component images.
 */
 
 pub(crate) mod component_object {
+    use crate::NativeEntryBridge;
     use crate::entries::callable_entry_transport::native_entry_request;
     use diagnostics::Diagnostic;
     use image::{
         FinalImage, FinalImageInput, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
-    use crate::NativeEntryBridge;
     use object_file::SymbolKind;
 
     pub struct ComponentFunctionImage {
@@ -80,7 +80,8 @@ pub(crate) mod component_object {
                         "entry bridge belongs to a different ordinary body ABI",
                     ));
                 }
-                bridge.validate_published_code(bridge.bytes())
+                bridge
+                    .validate_published_code(bridge.bytes())
                     .map_err(|error| invalid(&error.to_string()))?;
                 let offset = image
                     .memory
@@ -155,8 +156,8 @@ pub(crate) mod component_object {
 }
 
 pub(crate) mod component_shared_image {
-    use diagnostics::Diagnostic;
     use crate::NativeEntryBridge;
+    use diagnostics::Diagnostic;
 
     #[derive(Debug)]
     pub enum ComponentSharedContainer {

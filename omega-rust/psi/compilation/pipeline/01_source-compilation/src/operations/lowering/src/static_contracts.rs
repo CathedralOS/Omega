@@ -1,9 +1,9 @@
 //! Static schemas retain open bounds explicitly. Their conformance questions
 //! name real selected bodies, independently of runtime callable construction.
 
+use arena::IdTable;
 use declaration_contracts::ServiceReachId;
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
+use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};
@@ -394,7 +394,9 @@ impl StaticContracts {
                             provider.declaration,
                             &mut qualifications.identities,
                         )
-                        .map_err(|reason| crate::lowering::read::services::unavailable(context, reason))?;
+                        .map_err(|reason| {
+                            crate::lowering::read::services::unavailable(context, reason)
+                        })?;
                         Ok(StaticProviderCandidate {
                             boundary: provider.boundary,
                             declaration: terminal_psi::NominalDeclarationIdentity::new(identity),

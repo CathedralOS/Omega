@@ -29,7 +29,9 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Evaluation, Lowering, Reached, Value};
-use crate::lowering::body::{CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType};
+use crate::lowering::body::{
+    CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType,
+};
 use crate::lowering::canonical;
 use crate::lowering::outcome::Outcome;
 use crate::lowering::{SourceOrigin, Unserved, refuse};
@@ -702,7 +704,10 @@ impl Lowering<'_> {
         arguments: &Arguments,
     ) -> Checked<bool> {
         let signature = self.target_signature(callable, required_contract)?;
-        if crate::lowering::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
+        if crate::lowering::inhabitation::excludes_result(
+            &self.records.inhabitation,
+            signature.result,
+        ) {
             return Ok(false);
         }
         if self.published_postcondition_is_false(&signature, arguments)? {

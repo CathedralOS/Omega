@@ -20,8 +20,8 @@ use crate::{
     StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId, TaskStackFrameId,
     TaskStackFrameValidationId,
 };
-use wire::fnv1a::Fnv1a;
 use std::collections::{BTreeMap, BTreeSet};
+use wire::fnv1a::Fnv1a;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SameStackContributionAdmissionCandidate {

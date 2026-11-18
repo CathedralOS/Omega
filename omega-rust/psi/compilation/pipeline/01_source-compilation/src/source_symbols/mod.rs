@@ -1,14 +1,21 @@
 //! Source-owned declaration lookup, construction and exact-source correspondence.
 mod builtin;
+mod retained_declaration;
 mod storage;
 mod table;
-mod retained_declaration;
-#[cfg(test)] mod tests;
-use symbols::*;
-pub use builtin::{is_builtin_type_spelling, builtin_type_symbols, builtin_function_symbols, fixed_core_declaration_symbols, builtin_type_member_symbols};
+#[cfg(test)]
+mod tests;
+pub use builtin::{
+    builtin_function_symbols, builtin_type_member_symbols, builtin_type_symbols,
+    fixed_core_declaration_symbols, is_builtin_type_spelling,
+};
+pub use retained_declaration::{SourceSpanCandidates, rejoin_declaration, retain_declaration};
 pub use storage::{SymbolHierarchy, SymbolRows};
-pub use table::{JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable, SymbolTableAppender, SymbolTableBuilder, SymbolTableExtension, UnresolvedName, same_semantic_name};
-pub use retained_declaration::{SourceSpanCandidates, retain_declaration, rejoin_declaration};
+use symbols::*;
+pub use table::{
+    JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable, SymbolTableAppender,
+    SymbolTableBuilder, SymbolTableExtension, UnresolvedName, same_semantic_name,
+};
 /*
     The custody gate in front of the sealed intrinsic catalog: only a file the
     toolchain supplied, outside any admitted package graph, can be classified,
@@ -67,11 +74,7 @@ fn toolchain_site<'a>(
 }
 
 use source_text::SourceSpan;
-pub fn is_build_protocol(
-    symbols: &SymbolTable,
-    declaration: SymbolHandle,
-    name: &str,
-) -> bool {
+pub fn is_build_protocol(symbols: &SymbolTable, declaration: SymbolHandle, name: &str) -> bool {
     if !declaration.is_valid() || symbols.name(declaration) != name {
         return false;
     }
@@ -95,5 +98,10 @@ pub fn capture_build_selection_origin(
     if author.source().source_id != occurrence.source_id {
         return Err("Build selection occurrence does not belong to its lexical author");
     }
-    crate::declaration_selection::BuildSelectionOrigin::from_retained_parts(activation, author, occurrence.span, event_ordinal)
+    crate::declaration_selection::BuildSelectionOrigin::from_retained_parts(
+        activation,
+        author,
+        occurrence.span,
+        event_ordinal,
+    )
 }

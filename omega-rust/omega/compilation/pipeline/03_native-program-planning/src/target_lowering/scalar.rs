@@ -1234,8 +1234,10 @@ pub(crate) mod element_views {
                     (*original, &relation.source_layout),
                     (element, &relation.target_layout),
                 ] {
-                    let shape =
-                        crate::target_lowering::structural_layout::structural_shape(identity, structural_types)?;
+                    let shape = crate::target_lowering::structural_layout::structural_shape(
+                        identity,
+                        structural_types,
+                    )?;
                     if u64::from(shape.byte_size) != layout.size
                         || u64::from(shape.alignment) != layout.alignment
                         || layout.leaves.iter().any(|leaf| {
@@ -1281,8 +1283,10 @@ pub(crate) mod element_views {
                     {
                         return Err(invalid());
                     }
-                    let source_shape =
-                        crate::target_lowering::structural_layout::structural_shape(original, structural_types)?;
+                    let source_shape = crate::target_lowering::structural_layout::structural_shape(
+                        original,
+                        structural_types,
+                    )?;
                     if u64::from(source_shape.byte_size) != source_layout.size
                         || u64::from(source_shape.alignment) != source_layout.alignment
                         || source_layout.leaves.iter().any(|leaf| {
@@ -1324,8 +1328,10 @@ pub(crate) mod element_views {
                     )
                 }
             };
-            let element_shape =
-                crate::target_lowering::structural_layout::structural_shape(element, structural_types)?;
+            let element_shape = crate::target_lowering::structural_layout::structural_shape(
+                element,
+                structural_types,
+            )?;
             let element_stride = crate::target_lowering::structural_layout::checked_align_up_u32(
                 element_shape.byte_size,
                 u32::from(element_shape.alignment),
@@ -1434,7 +1440,8 @@ pub(crate) mod element_views {
         pub(crate) homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
         views: &'a BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
         address_joins: &'a BTreeSet<PlaceId>,
-        pub(crate) selectors: crate::target_lowering::control_flow::scalar_sources::ScalarSources<'a>,
+        pub(crate) selectors:
+            crate::target_lowering::control_flow::scalar_sources::ScalarSources<'a>,
     }
 
     impl<'a> ElementViewBackings<'a> {
@@ -3007,7 +3014,12 @@ mod width_tests {
         assert_eq!(shape.alignment, 2);
         assert!(matches!(
             super::scalar_shape(value, scalar, true, &types),
-            Err(crate::target_lowering::LoweringError::ParameterWidthNotNativelySupported { bits: 13, .. })
+            Err(
+                crate::target_lowering::LoweringError::ParameterWidthNotNativelySupported {
+                    bits: 13,
+                    ..
+                }
+            )
         ));
         let symbolic = ScalarType::Integer(IntegerType::parameterized(
             IntegerSign::Unsigned,

@@ -33,13 +33,13 @@ use crate::BuildCanonicalSourceMetadataIdentity;
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
 };
+use diagnostics::Diagnostic;
+use filesystem_authority::FilesystemSponsorEntry;
 use source_compiler::evaluation::{
     BuildMachineCapturedFilesystemRoot, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
     BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor,
 };
-use diagnostics::Diagnostic;
-use filesystem_authority::FilesystemSponsorEntry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -76,7 +76,7 @@ pub struct BuildMachineFilesystemScope {
 struct NamedBuildInput {
     name: Vec<u8>,                                 // Validated UTF-8 slot name.
     input: CapturedBuildSourceInput,               // Immutable captured input inventory.
-    snapshot: source_capture::SourceSnapshot,              // Memory snapshot view for interpreter reads.
+    snapshot: source_capture::SourceSnapshot,      // Memory snapshot view for interpreter reads.
     root: BuildMachineFilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
 }
 

@@ -5,13 +5,13 @@
 // once for both the wire codec (`CountFrame::Wire`, `u32` fact count) and the
 // canonical decision digest (`CountFrame::Canonical`, `u64` fact count).
 
-use ::wire::cursor::Cursor;
 use crate::optimization_core::CountFrame;
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
+use ::wire::cursor::Cursor;
 
 use super::{
     DECISION_FIXED_WIDTH, DECISION_WIRE_FORMAT, InvalidOptimizationManifestRecord,

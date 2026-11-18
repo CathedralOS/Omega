@@ -1,8 +1,8 @@
 //! Register identities, ABI constraints and physical frame plans for x86_64.
 
-pub mod import_thunk;
 mod constraint_keys;
 pub mod frame_protocol;
+pub mod import_thunk;
 mod preservation_storage;
 pub mod register_model;
 pub use constraint_keys::*;
@@ -16,9 +16,9 @@ pub mod hosted_kernel;
 pub use hosted_kernel::hosted_syscall_target;
 pub mod callback_geometry;
 pub mod inspection;
-pub mod write_line;
 pub mod instruction_bytes;
 mod model_specific_state;
+pub mod write_line;
 pub use model_specific_state::x86_64_model_specific_register_state;
 pub const PRIVILEGED_STOP_BYTES: [u8; 4] = [0xfa, 0xf4, 0xeb, 0xfd];
 mod generated_entry;

@@ -151,7 +151,8 @@ pub struct CheckedCompileOutcome {
 pub struct CompileTargetOutcome {
     target: Option<TargetProfile>,
     result: Result<CompileReport, Vec<Diagnostic>>,
-    failed_source_completion_accounting: Option<source_compiler::evaluation::SourceCompletionAccounting>,
+    failed_source_completion_accounting:
+        Option<source_compiler::evaluation::SourceCompletionAccounting>,
 }
 
 impl CompileTargetOutcome {

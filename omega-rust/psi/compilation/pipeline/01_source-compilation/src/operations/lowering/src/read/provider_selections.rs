@@ -1,11 +1,11 @@
 //! Admit the exact provider records chosen by source policy. No candidate
 //! body, schema application or declaration is inferred from a name.
 
-use semantic_vocabulary::MachineId;
-use terminal_check_tables::Checked;
 use crate::source_state::provider_declarations::ProviderPlanningContext;
 use crate::source_state::service_declarations::projection;
 use crate::source_state::trait_definition::AppliedTraitScope;
+use semantic_vocabulary::MachineId;
+use terminal_check_tables::Checked;
 
 use super::{Program, services};
 use crate::lowering::provider_selections::{
@@ -75,9 +75,7 @@ impl<'source> Program<'source> {
                     ));
                 }
                 let actual = typed.product_operand_applications.get(application);
-                if actual.role
-                    != Some(crate::declaration_selection::ProductOperandRole::Provider)
-                {
+                if actual.role != Some(crate::declaration_selection::ProductOperandRole::Provider) {
                     return Err(services::unavailable(
                         context,
                         "provider choice application has a different source operand role",
@@ -151,7 +149,10 @@ impl<'source> Program<'source> {
                 ));
             }
             let projected = projection::from_typed_application(
-                ProviderPlanningContext::new(typed, declaration_contracts::source_identity::DependencyScope::Product),
+                ProviderPlanningContext::new(
+                    typed,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                ),
                 scope.clone(),
             )
             .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
@@ -227,8 +228,10 @@ impl<'source> Program<'source> {
                     .map_err(|reason| services::unavailable(context, reason))?,
                 provider_application,
                 provider_package: typed.symbols.symbol_package_identity(provider),
-                provider_custody: crate::lowering::selection_questions::declaration_custody(typed, provider)
-                    .map_err(|reason| services::unavailable(context, reason.to_string()))?,
+                provider_custody: crate::lowering::selection_questions::declaration_custody(
+                    typed, provider,
+                )
+                .map_err(|reason| services::unavailable(context, reason.to_string()))?,
                 composition_mode: selected.composition_mode,
             });
             self.admitted_declarations.include(provider);

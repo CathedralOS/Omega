@@ -14,8 +14,8 @@ mod selected_application;
 mod terminal_signature;
 
 pub use boundary_signatures::{
-    BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
-    BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
+    BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, BoundaryValueClass,
+    BoundaryValueField, BoundaryValueShape,
 };
 pub use build_time_decoding::decode_boundary_plan_result;
 pub use calling_program::CallingProgram;

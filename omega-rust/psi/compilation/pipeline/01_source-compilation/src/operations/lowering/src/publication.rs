@@ -1,8 +1,8 @@
 //! Source correspondence retained by the driver, outside Terminal judgments.
 
 use crate::lowering::Elaboration;
+use arena::IdTable;
 use semantic_vocabulary::{MachineId, OperationId};
-use arena::{IdTable};
 
 /// Source forms in the same order as the Terminal compilation: the primary
 /// closure, its generic forms, then its conformance witnesses. A failed reader

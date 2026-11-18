@@ -1190,7 +1190,9 @@ mod scalar_result {
                     installed_boundary.is_none()
                         && source::call_target_matches(callee, contract.call.target)
                 }
-                native_vocabulary::emission::ScalarCallOrigin::Boundary(boundary) => installed_boundary == Some(boundary),
+                native_vocabulary::emission::ScalarCallOrigin::Boundary(boundary) => {
+                    installed_boundary == Some(boundary)
+                }
             };
             matches.then_some(row.result)
         });

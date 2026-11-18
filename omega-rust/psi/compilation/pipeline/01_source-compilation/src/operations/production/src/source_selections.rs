@@ -150,13 +150,13 @@ mod tests {
             let tokens = crate::production::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            let syntax = crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            let syntax =
+                crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                    .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
             let resolved = crate::resolution::resolve(request).unwrap();
-            let typed =
-                crate::typing::lower_symbol_resolved_trees(&resolved)
-                    .unwrap();
+            let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
             let identities = typed
                 .machines()
                 .iter()
@@ -192,7 +192,10 @@ mod tests {
             )
             .unwrap();
             let produced = accepted
-                .produce(Default::default(), &mut crate::production::UnmeasuredProduction)
+                .produce(
+                    Default::default(),
+                    &mut crate::production::UnmeasuredProduction,
+                )
                 .unwrap();
             let questions = &produced.source_selections().unwrap().questions;
             terminal_installation::selection_questions::validate_selection_questions(
@@ -265,12 +268,12 @@ mod tests {
         let tokens = crate::production::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let syntax = crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let syntax =
+            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::clone(&sources));
         let resolved = crate::resolution::resolve(request).unwrap();
-        let typed =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let entry = typed.realized_machine_named("build").unwrap().symbol;
         let (frozen, _) = crate::preparation::prepare_typed_trees(
             typed,

@@ -26,7 +26,7 @@ mod layout_demand_tests {
     #[test]
     fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
         use declaration_contracts::selection::NativeBindingProducer;
-use declaration_contracts::selection::ProductTarget;
+        use declaration_contracts::selection::ProductTarget;
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
         let subject = symbols::SymbolHandle::from_parts(1, 0);
         let requirement = symbols::SymbolHandle::from_parts(2, 0);

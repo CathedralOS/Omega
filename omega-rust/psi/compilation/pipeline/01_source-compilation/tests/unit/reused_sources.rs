@@ -1,7 +1,7 @@
-use std::path::PathBuf;
 use super::*;
 use crate::UnmeasuredProduction;
 use source_text::SourceId;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 fn core_sources() -> Vec<(PathBuf, Arc<str>)> {

@@ -33,7 +33,8 @@ fn select_home_with_base(
         let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let unit = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let unit = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+            .unwrap();
         if seeded && position + 1 < units.len() {
             base_syntax.extend_from(&unit);
         } else {

@@ -43,7 +43,8 @@ pub enum PhysicalFrameError {
 }
 diagnostics::failed_display!(PhysicalFrameError, "physical frame planning failed");
 impl std::error::Error for PhysicalFrameError {}
-pub type PhysicalFrameProgram = physical_recipes::frame_protocol::PhysicalFrameProgram<PhysicalRecipeOrigin>;
+pub type PhysicalFrameProgram =
+    physical_recipes::frame_protocol::PhysicalFrameProgram<PhysicalRecipeOrigin>;
 
 fn plan_function_frame(
     program: PostAllocationMachineProgram,
@@ -123,9 +124,10 @@ pub fn plan_physical_program(
     retain_originals: bool,
 ) -> Result<PlannedPhysicalProgram, PhysicalPlanningError> {
     use std::sync::atomic::Ordering;
-    let environment =
-        register_environment::baseline_target_register_environment(input.program.plan.plan().target)
-            .map_err(PhysicalPlanningError::RegisterEnvironment)?;
+    let environment = register_environment::baseline_target_register_environment(
+        input.program.plan.plan().target,
+    )
+    .map_err(PhysicalPlanningError::RegisterEnvironment)?;
     observation
         .instruction_selection
         .fetch_add(1, Ordering::Relaxed);
@@ -188,18 +190,18 @@ pub fn plan_physical_program(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalRecipeOrigin(());
 
+pub mod body_cpu;
 mod bridge_values;
+pub mod callable_entry;
+pub mod handler_order;
 pub mod hosted_entry;
 pub mod hosted_program;
-pub mod physical_entry;
-pub mod callable_entry;
 pub mod imports;
-pub mod handler_order;
-pub mod body_cpu;
 pub mod installation_resources;
 pub mod installed_handlers;
 pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
+pub mod physical_entry;
 pub mod physical_stack_switch;
 pub mod windows_internet;
 

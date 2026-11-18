@@ -1,13 +1,12 @@
 //! Execute an already admitted policy over its exact native signature.
 //! No source producer or Build callback participates in this invocation.
 
+use super::{
+    CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
+    decode_boundary_plan_result, encode_calling_policy_signature, validate_calling_policy_result,
+};
 use artifact_evaluation::values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
-use super::{
-    CallingScalarScope, TerminalCallingPolicyInvocation,
-    complete_calling_scalar_inputs, decode_boundary_plan_result, encode_calling_policy_signature,
-    validate_calling_policy_result,
-};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,

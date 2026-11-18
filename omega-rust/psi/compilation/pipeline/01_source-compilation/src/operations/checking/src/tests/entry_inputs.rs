@@ -33,10 +33,7 @@ fn guarded_calls(other: u128) -> Machine {
     )
 }
 
-fn with_private_inputs(
-    machines: Vec<Machine>,
-    private: &[u64],
-) -> crate::lowering::Elaboration {
+fn with_private_inputs(machines: Vec<Machine>, private: &[u64]) -> crate::lowering::Elaboration {
     let mut elaboration = lower(machines).unwrap();
     elaboration.private_inputs = private.iter().copied().map(id).collect();
     elaboration
@@ -128,7 +125,11 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
     let entry = super::boundary_calls::entry(&typed);
     let elaboration = crate::lowering::elaborate_for(
         &typed,
-        super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+        super::build_purpose::roster(
+            &[entry],
+            &[],
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
@@ -315,8 +316,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
         });
     }
     let mut elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     elaboration.private_inputs = vec![id(2)];
     let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
         panic!("the non-returning call has a positive input")
@@ -505,7 +505,11 @@ machine entry() crashes Trap {
         let entry = super::boundary_calls::entry(&typed);
         let elaboration = crate::lowering::elaborate_for(
             &typed,
-            super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();
@@ -583,7 +587,11 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
         let entry = super::boundary_calls::entry(&typed);
         let elaboration = crate::lowering::elaborate_for(
             &typed,
-            super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();
@@ -711,7 +719,11 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
         let entry = super::boundary_calls::entry(&typed);
         let elaboration = crate::lowering::elaborate_for(
             &typed,
-            super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();

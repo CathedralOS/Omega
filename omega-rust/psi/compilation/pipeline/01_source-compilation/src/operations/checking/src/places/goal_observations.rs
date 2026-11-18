@@ -55,12 +55,17 @@ impl Held<'_, '_> {
                         "the last overlapping store supplies no scalar operand",
                     ));
                 };
-                let written = row.backing.single_place().ok_or(crate::checking::Unbound::Unproved(
-                    "an indexed store has more than one possible cell",
-                ))?;
-                let selected = backed.single_place().ok_or(crate::checking::Unbound::Unproved(
-                    "an indexed observation has more than one possible cell",
-                ))?;
+                let written =
+                    row.backing
+                        .single_place()
+                        .ok_or(crate::checking::Unbound::Unproved(
+                            "an indexed store has more than one possible cell",
+                        ))?;
+                let selected = backed
+                    .single_place()
+                    .ok_or(crate::checking::Unbound::Unproved(
+                        "an indexed observation has more than one possible cell",
+                    ))?;
                 if written.root != selected.root
                     || written.segments.len() != selected.segments.len()
                 {
@@ -137,13 +142,15 @@ impl Held<'_, '_> {
                 if exact_write {
                     return Ok(vec![operand]);
                 }
-                let position = row
-                    .position
-                    .checked_sub(1)
-                    .ok_or(crate::checking::Unbound::Unsupported(
-                        "an indexed store has no prestate",
-                    ))?;
-                let block = storage.block(self.block).map_err(crate::checking::Unbound::Refused)?;
+                let position =
+                    row.position
+                        .checked_sub(1)
+                        .ok_or(crate::checking::Unbound::Unsupported(
+                            "an indexed store has no prestate",
+                        ))?;
+                let block = storage
+                    .block(self.block)
+                    .map_err(crate::checking::Unbound::Refused)?;
                 let before = position
                     .checked_sub(1)
                     .map_or(ProgramPoint::BlockEntry(self.block), |previous| {

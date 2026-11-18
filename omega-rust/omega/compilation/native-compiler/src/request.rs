@@ -7,19 +7,18 @@
 // commit limits.
 
 use diagnostics::Diagnostic;
-use target::ExecutableImageEmissionRequest;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
+use target::ExecutableImageEmissionRequest;
 
 pub(crate) struct NativeRealizationRequest<'request> {
     pub retain_native_stage_inputs: bool,
     pub observation: &'request crate::observations::NativePipelineObservation,
     pub proposal: &'request native_program_planning::TerminalNativeRealizationProposal,
     pub execution: &'request native_program_planning::PreparedNativeExecution,
-    pub scalar_applications:
-        Option<native_program_planning::NativeScalarApplications<'request>>,
+    pub scalar_applications: Option<native_program_planning::NativeScalarApplications<'request>>,
     pub program_entry: native_program_planning::NativeProgramEntrySettlement<'request>,
     pub admission: native_program_planning::NativeAdmissionRequest<'request, 'request>,
     pub image_request: ExecutableImageEmissionRequest,

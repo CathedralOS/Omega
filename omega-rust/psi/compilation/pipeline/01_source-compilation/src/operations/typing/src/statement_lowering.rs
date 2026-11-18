@@ -121,13 +121,13 @@ pub(crate) mod statement {
         }
     }
     pub(crate) mod arguments {
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use crate::typing::expressions::expression::lower_executable_expression_handle;
         use crate::typing::lowerer::Lowerer;
         use crate::typing::tables::{resolved_statements, statement_table_mut};
         use arena::HandleSpan;
         use diagnostics::Diagnostic;
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
 
         pub(crate) fn lower_statement_expression(
             lowerer: &mut Lowerer,
@@ -169,13 +169,13 @@ pub(crate) mod statement {
         }
     }
     pub(crate) mod calls {
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use crate::typing::expressions::proposition::is_proposition_call_target;
         use crate::typing::lowerer::Lowerer;
         use crate::typing::tables::{expression_table_mut, resolved_statements};
         use diagnostics::Diagnostic;
-        use crate::source_resolved as resolved;
         use typed::statement::StatementNode;
-        use crate::source_state as typed;
 
         use super::arguments::{lower_statement_argument_span, lower_statement_path_members};
 
@@ -209,14 +209,15 @@ pub(crate) mod statement {
             };
             if call.machine_arguments.is_empty()
                 && call.evidence_arguments.is_empty()
-                && let Some(request) = crate::typing::expressions::product_queries::description_request(
-                    lowerer.source_trees,
-                    call.target_symbol,
-                    (!call.receiver.is_empty()).then_some(call.receiver_symbol),
-                    operand,
-                    members,
-                    call.target.source_span(),
-                )
+                && let Some(request) =
+                    crate::typing::expressions::product_queries::description_request(
+                        lowerer.source_trees,
+                        call.target_symbol,
+                        (!call.receiver.is_empty()).then_some(call.receiver_symbol),
+                        operand,
+                        members,
+                        call.target.source_span(),
+                    )
             {
                 let expression = crate::typing::expressions::build_selections::lower(
                     lowerer.source_trees,
@@ -433,14 +434,14 @@ pub(crate) mod statement {
     }
     pub(crate) mod initializer_type {
         use super::LocalTypes;
+        use crate::source_resolved as resolved;
+        use crate::source_resolved::types::TypeReference;
+        use crate::source_state as typed;
         use crate::typing::expressions::call_results::declared_call_return;
         use crate::typing::lowerer::Lowerer;
         use crate::typing::tables::resolved_expressions;
         use crate::typing::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
-        use crate::source_resolved as resolved;
-        use crate::source_resolved::types::TypeReference;
-        use crate::source_state as typed;
 
         use resolved::expression::{ExpressionHandle, ExpressionNode};
 
@@ -475,10 +476,11 @@ pub(crate) mod statement {
                 expressions.expression(initial_value),
                 ExpressionNode::Member(_)
             ) {
-                let lowered = crate::typing::expressions::expression::lower_executable_expression_handle(
-                    lowerer,
-                    initial_value,
-                )?;
+                let lowered =
+                    crate::typing::expressions::expression::lower_executable_expression_handle(
+                        lowerer,
+                        initial_value,
+                    )?;
                 if lowerer
                     .typed_trees
                     .expression_table
@@ -865,12 +867,13 @@ pub(crate) mod statement {
                 if !matches!(parameter.kind, resolved::data::TypeParameterKind::Type) {
                     continue;
                 }
-                let selected = crate::typing::expressions::expression::lower_static_machine_argument(
-                    Some(lowerer.source_trees),
-                    &mut lowerer.typed_trees,
-                    lowerer.type_reference_exposure,
-                    argument,
-                )?;
+                let selected =
+                    crate::typing::expressions::expression::lower_static_machine_argument(
+                        Some(lowerer.source_trees),
+                        &mut lowerer.typed_trees,
+                        lowerer.type_reference_exposure,
+                        argument,
+                    )?;
                 let concrete = lowerer
                     .typed_trees
                     .static_operand_type_reference(&selected)
@@ -1178,12 +1181,12 @@ pub(crate) mod statement {
     }
     pub(crate) mod root_bindings {
         use super::arguments::lower_statement_expression;
+        use crate::declaration_selection::BuildSelectionRequest;
+        use crate::declaration_selection::RootBindingOperand;
+        use crate::declaration_selection::RootBindingRequest;
+        use crate::source_state::statement::StatementNode;
         use crate::typing::lowerer::Lowerer;
         use diagnostics::Diagnostic;
-        use crate::declaration_selection::BuildSelectionRequest;
-use crate::declaration_selection::RootBindingOperand;
-use crate::declaration_selection::RootBindingRequest;
-        use crate::source_state::statement::StatementNode;
 
         pub(crate) fn lower(
             lowerer: &mut Lowerer,
@@ -1228,12 +1231,12 @@ use crate::declaration_selection::RootBindingRequest;
         }
     }
     pub(crate) mod transitions {
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use crate::typing::expressions::exhaustiveness::closed_boolean_guard;
         use crate::typing::lowerer::Lowerer;
         use crate::typing::tables::{resolved_statements, statement_table_mut};
         use diagnostics::Diagnostic;
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
 
         use super::arguments::{
             lower_statement_argument_span, lower_statement_expression, lower_statement_path_members,
@@ -1281,7 +1284,9 @@ use crate::declaration_selection::RootBindingRequest;
                                 output_field: crate::typing::lowerer::name::lower_name(
                                     &selector.output_field,
                                 ),
-                                binding: crate::typing::lowerer::name::lower_name(&selector.binding),
+                                binding: crate::typing::lowerer::name::lower_name(
+                                    &selector.binding,
+                                ),
                             }),
                     ),
                 exit: match transition.exit {
@@ -1377,15 +1382,15 @@ use crate::declaration_selection::RootBindingRequest;
         }
     }
 
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::typing::contracts::proof_facts::lower_statement_fact;
     use crate::typing::expressions::expression::native_code_layout::result_type;
     use crate::typing::lowerer::Lowerer;
     use crate::typing::tables::{expression_table_mut, type_references};
     use crate::typing::type_reference::lower_type_reference_handle_from_table;
     use diagnostics::Diagnostic;
-    use crate::source_resolved as resolved;
     use typed::statement::TableLocalData;
-    use crate::source_state as typed;
 
     use self::arguments::lower_statement_expression;
     use self::calls::lower_call_statement;
@@ -1393,16 +1398,16 @@ use crate::declaration_selection::RootBindingRequest;
     use self::transitions::lower_transition_statement;
     pub(crate) mod assembly {
         use super::{LocalTypes, lower_statement_node};
-        use crate::typing::contracts::proof_facts::lower_statement_fact;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::tables::resolved_statements;
-        use arena::Handle;
-        use diagnostics::Diagnostic;
         use crate::source_resolved as resolved;
         use crate::source_state::statement::{
             AssemblyBlock, AssemblyControlFlow, AssemblyControlPoint, AssemblyExit,
             AssemblyFactKind, StatementNode, TableAssemblyFact,
         };
+        use crate::typing::contracts::proof_facts::lower_statement_fact;
+        use crate::typing::lowerer::Lowerer;
+        use crate::typing::tables::resolved_statements;
+        use arena::Handle;
+        use diagnostics::Diagnostic;
 
         pub(crate) fn lower(
             lowerer: &mut Lowerer,
@@ -1711,8 +1716,9 @@ use crate::declaration_selection::RootBindingRequest;
                         }
                     })
                     .collect::<Vec<_>>();
-                let pattern_fields = crate::typing::tables::expression_table_mut(&mut lowerer.typed_trees)
-                    .insert_match_fields(roster);
+                let pattern_fields =
+                    crate::typing::tables::expression_table_mut(&mut lowerer.typed_trees)
+                        .insert_match_fields(roster);
                 Ok(typed::statement::StatementNode::LocalData(TableLocalData {
                     pattern_fields,
                     pattern_subject: symbols::SymbolHandle::invalid(),
@@ -1771,17 +1777,16 @@ mod boolean_result_tests {
             .tokenize()
             .unwrap();
         let syntax = crate::typing::frontend_fixture::parse_syntax_trees(&tokens).unwrap();
-        let resolved = crate::resolution::resolve(
-            crate::resolution::ResolutionRequest::new(syntax),
-        )
-        .unwrap();
+        let resolved =
+            crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax)).unwrap();
         let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let mut captured = 0;
         let mut authored = 0;
         for machine in typed.machines() {
             for state in typed.machine_states(machine) {
                 for statement in typed.statement_table.statements(state.statement_nodes) {
-                    let crate::source_state::statement::StatementNode::LocalData(local) = statement else {
+                    let crate::source_state::statement::StatementNode::LocalData(local) = statement
+                    else {
                         continue;
                     };
                     if local.role == language_core::LocalBindingRole::DispatchSubject {

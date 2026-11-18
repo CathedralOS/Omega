@@ -3,8 +3,12 @@
 //! program before a receiver checks which declarations its packages may select.
 
 use crate::compiler_evaluation::DeclarationCustody;
-use crate::{BlockId, BoundaryMachineId, CallableContractId, CallableInvocationSite, EdgeId, MachineDescriptorId, MachineId, OperationId, SelectionDeclarationId, SelectionQuestionId, StructuralTypeId, TargetMachineCallable, ValueId};
-use arena::{IdTable};
+use crate::{
+    BlockId, BoundaryMachineId, CallableContractId, CallableInvocationSite, EdgeId,
+    MachineDescriptorId, MachineId, OperationId, SelectionDeclarationId, SelectionQuestionId,
+    StructuralTypeId, TargetMachineCallable, ValueId,
+};
+use arena::IdTable;
 
 /// Operation numbers are local to a machine; the boundary fixes its requirement.
 /// The existing Build request and host records share this one representation.

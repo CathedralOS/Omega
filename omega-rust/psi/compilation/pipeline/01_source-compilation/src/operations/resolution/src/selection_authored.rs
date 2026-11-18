@@ -2001,7 +2001,9 @@ mod copied_call_tests {
         let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let syntax = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let syntax =
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap();
         let mut program = resolve(ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),
@@ -2116,7 +2118,8 @@ mod copied_call_tests {
             let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap()
         };
         let sources = Arc::new(sources);
         let mut projected = resolve(ResolutionRequest {
@@ -2336,7 +2339,8 @@ mod copied_call_tests {
             let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap()
         };
         let sources = Arc::new(sources);
         let mut projected = resolve(ResolutionRequest {

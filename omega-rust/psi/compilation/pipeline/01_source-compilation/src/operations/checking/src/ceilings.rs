@@ -1165,7 +1165,8 @@ fn judge_axes(
                 | InvocationSite::InvokeNoNormal(edge)
                 | InvocationSite::Cleanup { edge, .. } => Construct::Edge(edge),
             };
-            let call = crate::checking::call_contracts::invocation(module, caller, rows, invocation, row)?;
+            let call =
+                crate::checking::call_contracts::invocation(module, caller, rows, invocation, row)?;
             let envelope = envelope_for(elaboration, caller.id, call.inputs)?;
             let context = Calls {
                 module,
@@ -1176,9 +1177,12 @@ fn judge_axes(
                 at,
             };
             let mut reached = Contributions::default();
-            if let Some(applied) =
-                crate::checking::static_reach::call_reach(elaboration, caller.id, row.site, call.inputs)?
-            {
+            if let Some(applied) = crate::checking::static_reach::call_reach(
+                elaboration,
+                caller.id,
+                row.site,
+                call.inputs,
+            )? {
                 reached.reach.extend(applied.services);
                 if applied.open && ceiling.reach().is_some() {
                     return Err(context.unsupported(

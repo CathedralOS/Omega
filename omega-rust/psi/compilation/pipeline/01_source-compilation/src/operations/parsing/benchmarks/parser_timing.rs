@@ -1,8 +1,8 @@
 //! Time parsing of retained, pre-lexed batches; omega-bench owns paired comparisons.
 //! Syntax snapshots and token fingerprints are checked outside the timed loop.
 
-use source_text::SourceId;
 use source_admission::{LoadedSource, LoadedSources};
+use source_text::SourceId;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;

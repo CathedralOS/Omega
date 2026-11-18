@@ -5,17 +5,17 @@
 
 use super::assumed_bindings::AssumedBindingContract;
 use super::test_groups::{TestGroupRegistration, TestGroupService};
-use diagnostics::Diagnostic;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
-use declaration_contracts::wire::WireCompatibilityDemand;
-use std::sync::Arc;
-use symbols::{SymbolHandle};
-use source_admission::RetainedDeclaration;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
+use declaration_contracts::wire::WireCompatibilityDemand;
+use diagnostics::Diagnostic;
+use source_admission::RetainedDeclaration;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceAuditRegistration {
@@ -106,10 +106,10 @@ impl<'request> AuthoredFormations<'request> {
             request
                 .validate_shape()
                 .map_err(|reason| refuse(request, reason))?;
-            if !typed
-                .symbols
-                .symbol_is_in_dependency_scope(*author, declaration_contracts::source_identity::DependencyScope::Build)
-            {
+            if !typed.symbols.symbol_is_in_dependency_scope(
+                *author,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            ) {
                 return Err(refuse(
                     request,
                     "Build declaration author is not Build source",
@@ -145,9 +145,10 @@ impl<'request> AuthoredFormations<'request> {
         let request = &event.request;
         if activation.is_none_or(|machine| {
             typed.machine_by_symbol(machine).is_none()
-                || !typed
-                    .symbols
-                    .symbol_is_in_dependency_scope(machine, declaration_contracts::source_identity::DependencyScope::Build)
+                || !typed.symbols.symbol_is_in_dependency_scope(
+                    machine,
+                    declaration_contracts::source_identity::DependencyScope::Build,
+                )
         }) || event.target.is_some()
             || event.composition.is_some()
         {

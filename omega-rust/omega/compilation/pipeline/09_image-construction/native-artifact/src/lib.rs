@@ -57,8 +57,8 @@ pub use package_publication::{
     NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
 pub use runtime_provisions::{
-    TerminalCallableRuntimeProvisions,
-    TerminalRuntimeHostProvision, TerminalRuntimeHostProvisions, TerminalRuntimeProvisions,
+    TerminalCallableRuntimeProvisions, TerminalRuntimeHostProvision, TerminalRuntimeHostProvisions,
+    TerminalRuntimeProvisions,
 };
 
 pub use physical::{NativePhysicalOriginals, PrivatePhysicalOriginal};

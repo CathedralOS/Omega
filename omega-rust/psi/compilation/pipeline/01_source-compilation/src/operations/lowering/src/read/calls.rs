@@ -4,6 +4,8 @@ application and authored selection it must leave unused, and the call itself
 with its arguments.
 */
 
+use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+use crate::declaration_selection::ResolvedAuthoredCallBinding;
 use crate::lowering::body::Qualification;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
@@ -16,8 +18,6 @@ use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::statement::TableCall;
 use crate::source_state::static_applications::StaticMachineApplicationHandle;
 use language_core::ReferenceAccess;
-use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::ResolvedAuthoredCallBinding;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
@@ -646,7 +646,8 @@ impl<'t> Program<'t> {
             .authored_selection
             .and_then(|occurrence| self.typed.authored_declaration_selections().get(occurrence))
             .ok_or_else(|| unserved("static call argument lost its authored selection"))?;
-        if selection.kind() != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+        if selection.kind()
+            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
             || selection.target().as_resolved().is_none_or(|selected| {
                 let selected = selected.selected_symbol();
                 !self.typed.symbols.symbols().nodes().is_valid(selected)
@@ -655,7 +656,9 @@ impl<'t> Program<'t> {
                         && self.entered_machine(selected) != self.entered_machine(argument.symbol))
             })
         {
-            return Err(unserved("static call argument changed its authored selection"));
+            return Err(unserved(
+                "static call argument changed its authored selection",
+            ));
         }
         let selection_source = selection.source_span();
         let file = self
@@ -2128,17 +2131,18 @@ impl<'t> Program<'t> {
                 arguments: nested,
                 conformance,
             });
-            self.static_contracts
-                .conformances
-                .push(crate::lowering::static_contracts::SourceConformance {
+            self.static_contracts.conformances.push(
+                crate::lowering::static_contracts::SourceConformance {
                     declaration: parameter,
                     requirement: required.symbol,
                     application,
-                    implementation: crate::lowering::static_contracts::SourceImplementation::Machine(body),
+                    implementation:
+                        crate::lowering::static_contracts::SourceImplementation::Machine(body),
                     signature,
                     envelope,
                     provider: None,
-                });
+                },
+            );
         }
         Ok(bindings)
     }
@@ -4167,11 +4171,11 @@ mod tests {
 
     #[test]
     fn copied_call_bindings_keep_their_exact_authored_state() {
+        use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+        use crate::declaration_selection::ResolvedAuthoredCallBinding;
         use crate::source_state::{MachineSpecialization, machine::Machine, state::State};
         use crate::source_symbols::SymbolTableBuilder;
-        use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use crate::declaration_selection::ResolvedAuthoredCallBinding;
         use symbols::SymbolNameRef;
         let mut builder = SymbolTableBuilder::default();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));

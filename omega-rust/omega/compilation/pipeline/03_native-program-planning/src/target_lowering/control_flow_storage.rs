@@ -253,7 +253,11 @@ pub(crate) mod aggregate_borrows {
             (selected, shape, offset, Vec::new())
         } else {
             let (selected, shape, offset, runs) =
-                crate::target_lowering::structural_layout::runtime_projection(root_type, &argument.path, types)?;
+                crate::target_lowering::structural_layout::runtime_projection(
+                    root_type,
+                    &argument.path,
+                    types,
+                )?;
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,
@@ -603,12 +607,13 @@ pub(crate) mod atomic_access {
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let (field_byte_offset, bytes) = crate::target_lowering::structural_layout::static_atomic_geometry(
-            regions.root,
-            regions.path,
-            scalar_type,
-            types,
-        )?;
+        let (field_byte_offset, bytes) =
+            crate::target_lowering::structural_layout::static_atomic_geometry(
+                regions.root,
+                regions.path,
+                scalar_type,
+                types,
+            )?;
         if bytes != u32::from(integer.bits() / 8) || field_byte_offset % bytes != 0 {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -1879,7 +1884,9 @@ pub(crate) mod leaf_copy {
         let (endpoint, shape, byte_offset, indices) = match path {
             abstract_operations::StructuralCopyPath::Case(path) => {
                 let (endpoint, shape, offset) =
-                    crate::target_lowering::structural_layout::case_projection(root_type, path, types)?;
+                    crate::target_lowering::structural_layout::case_projection(
+                        root_type, path, types,
+                    )?;
                 (endpoint, shape, offset, Vec::new())
             }
             abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => (
@@ -1900,7 +1907,10 @@ pub(crate) mod leaf_copy {
         let byte_carrier = endpoint != result.structural_type
             && byte_carrier_leaf_copy(types, root_type, path, result.structural_type);
         let shape = if byte_carrier {
-            crate::target_lowering::structural_layout::structural_shape(result.structural_type, types)?
+            crate::target_lowering::structural_layout::structural_shape(
+                result.structural_type,
+                types,
+            )?
         } else {
             shape
         };
@@ -2835,16 +2845,17 @@ pub(crate) mod primitive_storage {
         ) {
             let values =
                 super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
-            let (_, resolved_type, access) = crate::target_lowering::scalar::element_views::resolve_element_view(
-                function,
-                types,
-                &prepared.parameters,
-                live.element_view_backings(),
-                &values,
-                &live.lengths,
-                place,
-                &mut Vec::new(),
-            )?;
+            let (_, resolved_type, access) =
+                crate::target_lowering::scalar::element_views::resolve_element_view(
+                    function,
+                    types,
+                    &prepared.parameters,
+                    live.element_view_backings(),
+                    &values,
+                    &live.lengths,
+                    place,
+                    &mut Vec::new(),
+                )?;
             if resolved_type != structural_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -2871,11 +2882,18 @@ pub(crate) mod primitive_storage {
             Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => prefix,
             _ => &argument.path,
         };
-        let regions =
-            crate::target_lowering::structural_layout::reference_projection_regions(root, carrier_path, types)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let regions = crate::target_lowering::structural_layout::reference_projection_regions(
+            root,
+            carrier_path,
+            types,
+        )
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let (_, _, _, leaf_indices) =
-            crate::target_lowering::structural_layout::runtime_projection(regions.root, regions.path, types)?;
+            crate::target_lowering::structural_layout::runtime_projection(
+                regions.root,
+                regions.path,
+                types,
+            )?;
         let runs = regions.selector_runs(leaf_indices);
         super::scalar_sources::runtime_indices(
             runs,
@@ -3221,8 +3239,9 @@ pub(crate) mod primitive_storage {
                             .map(|parameter| parameter.structural_type)
                     })
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                let runs =
-                    crate::target_lowering::structural_layout::storage_address_indices(identity, path, types)?;
+                let runs = crate::target_lowering::structural_layout::storage_address_indices(
+                    identity, path, types,
+                )?;
                 let indices = super::scalar_sources::runtime_indices(
                     runs,
                     function,

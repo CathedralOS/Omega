@@ -215,11 +215,11 @@ pub(crate) mod inline_carriers {
         #[test]
         fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
             use schema_reflection::DeclarationDescription;
-use schema_reflection::SchemaNode;
-use schema_reflection::SchemaNodeHandle;
-use schema_reflection::SchemaQueryAuthority;
-use schema_reflection::SchemaShape;
-use schema_reflection::SemanticSchemaGraph;
+            use schema_reflection::SchemaNode;
+            use schema_reflection::SchemaNodeHandle;
+            use schema_reflection::SchemaQueryAuthority;
+            use schema_reflection::SchemaShape;
+            use schema_reflection::SemanticSchemaGraph;
             use semantic_vocabulary::{
                 DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
             };

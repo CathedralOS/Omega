@@ -9,8 +9,10 @@
 mod claims;
 pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId};
-use arena::{IdSet};
+use arena::IdSet;
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId,
+};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,

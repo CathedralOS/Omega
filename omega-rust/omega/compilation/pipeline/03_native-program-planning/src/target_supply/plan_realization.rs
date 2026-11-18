@@ -152,18 +152,24 @@ fn checked_plan(
     let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
     attach_calling(&mut schema_value, &choice.target, calling)?;
     let mut identities = ProviderIdentityTable::default();
-    let rows = schema.surface.methods.iter().zip(&logical.rows).map(|(method, row)| ProviderPlanRow {
-        method: method.name.clone(),
-        requirement_identity: identities.intern(&row.requirement),
-        declared_requirement_identity: identities.intern(&row.requirement),
-        calling_signature: None,
-        requirement_lifetime_partition: Vec::new(),
-        admitted_same_stack_bytes: 0,
-        binding: ProviderBinding::CheckedAdapter {
-            machine_identity: identities.intern(&row.machine),
-            machine_package_identity: row.machine_package,
-        },
-    }).collect::<Vec<_>>();
+    let rows = schema
+        .surface
+        .methods
+        .iter()
+        .zip(&logical.rows)
+        .map(|(method, row)| ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: identities.intern(&row.requirement),
+            declared_requirement_identity: identities.intern(&row.requirement),
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CheckedAdapter {
+                machine_identity: identities.intern(&row.machine),
+                machine_package_identity: row.machine_package,
+            },
+        })
+        .collect::<Vec<_>>();
     let provider_application = choice
         .provider_application
         .map(|identity| text(module, identity))
@@ -478,16 +484,27 @@ pub fn realize_target_supply(
     let module = request.module;
     target::TargetProfile::from_canonical_target_name(request.target)
         .map_err(|error| error.to_string())?;
-    request.logical.require_program(terminal_codec::terminal_psi_identity(module)
-        .map_err(|error| format!("native planning lost its canonical input identity: {error:?}"))?)?;
-    if request.target != request.logical.target() || request.reached != request.logical.requirements() {
+    request
+        .logical
+        .require_program(
+            terminal_codec::terminal_psi_identity(module).map_err(|error| {
+                format!("native planning lost its canonical input identity: {error:?}")
+            })?,
+        )?;
+    if request.target != request.logical.target()
+        || request.reached != request.logical.requirements()
+    {
         return Err("native planning changed its closed logical target or requirements".into());
     }
     let logical = request.logical.providers();
     let mut plans = Vec::with_capacity(logical.len());
     let mut covered = vec![false; request.reached.len()];
     for selected in logical {
-        plans.push(checked_plan(module, selected, &request.calling_applications)?);
+        plans.push(checked_plan(
+            module,
+            selected,
+            &request.calling_applications,
+        )?);
         for (ordinal, boundary) in request.reached.iter().enumerate() {
             covered[ordinal] |= selected.covered.contains(boundary);
         }

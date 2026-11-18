@@ -27,9 +27,8 @@ pub use machine_code::function_fragment_frame_application_identity;
 use machine_code::{
     EncodedControlIndex, FunctionFragment, FunctionFragmentBranchEvidence,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
-    FunctionFragmentEmissionPlan,
-    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
-    TargetFrameProtocolEncodingIdentity,
+    FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
+    FunctionFragmentInternalMachineFixup, TargetFrameProtocolEncodingIdentity,
 };
 pub use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
@@ -73,7 +72,11 @@ pub fn stage_function_fragment_frame_application(
     let branch_origins = prepare_branch_origins(source.fragments()).into();
     let application = Arc::new(application);
     let receipt = seal(&application);
-    let placed_body = Arc::new(PlacedBodyEvidence::capture(&source, &application, branch_origins));
+    let placed_body = Arc::new(PlacedBodyEvidence::capture(
+        &source,
+        &application,
+        branch_origins,
+    ));
     let retains_originals = source.source().has_original_replay();
     Ok(StagedFunctionFragmentFrameApplication {
         placed_body,
@@ -369,7 +372,9 @@ impl From<RelativeBranchError> for FrameApplicationError {
             Source::MissingFunction(machine) => Self::MissingFunction(machine),
             Source::SourceShapeMismatch(machine) => Self::SourceShapeMismatch(machine),
             Source::MissingTargetBlock(block) => Self::MissingTargetBlock(block),
-            Source::BranchFallthroughMismatch(instruction) => Self::BranchFallthroughMismatch(instruction),
+            Source::BranchFallthroughMismatch(instruction) => {
+                Self::BranchFallthroughMismatch(instruction)
+            }
             Source::BranchEffectsMismatch(instruction) => Self::BranchEffectsMismatch(instruction),
             Source::X86_64Branch(instruction, error) => Self::X86_64Branch(instruction, error),
             Source::Aarch64Branch(instruction, error) => Self::Aarch64Branch(instruction, error),
@@ -1243,9 +1248,14 @@ fn validate_function(
             }
             check_bytes(&candidate.bytes, cursor, &candidate_row.bytes)?;
             if let Some(branch) = source_row.branch.as_deref() {
-                validate_branch_row(branch, candidate_row, &candidate_row.bytes, architecture, physical, |block| {
-                    block_offsets.get(&block).copied()
-                })?;
+                validate_branch_row(
+                    branch,
+                    candidate_row,
+                    &candidate_row.bytes,
+                    architecture,
+                    physical,
+                    |block| block_offsets.get(&block).copied(),
+                )?;
             } else if candidate_row.branch.is_some() || candidate_row.bytes != source_row.bytes {
                 return Err(FrameApplicationError::ArtifactMismatch);
             }
@@ -1456,11 +1466,10 @@ fn same_or_widened_alternative(
 mod tests {
     use super::{
         FrameApplicationError, FunctionFragment, FunctionFragmentBranchEvidence,
-        FunctionFragmentConditionalBranchEvidence,
-        FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
-        FunctionFragmentFrameApplication, FunctionFragmentInstructionSpan,
-        FunctionFragmentInternalMachineFixup, TargetFrameProtocolEncodingPlan,
-        validate_frame_protocol_application,
+        FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
+        FunctionFragmentEmissionPlan, FunctionFragmentFrameApplication,
+        FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
+        TargetFrameProtocolEncodingPlan, validate_frame_protocol_application,
     };
     use encoding_admission::frame_protocol::{
         FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
@@ -1468,8 +1477,9 @@ mod tests {
     };
     use isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH;
     use machine_code::{
-        FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchPredicate, FunctionFragmentInternalMachineFixupKind,
-        FunctionFragmentInternalMachineFixupState, TargetFrameLayoutIdentity,
+        FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchPredicate,
+        FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+        TargetFrameLayoutIdentity,
     };
     use optimization_core::{
         FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
@@ -2015,8 +2025,11 @@ mod tests {
                         .unwrap();
                 let branch = &application.fragments.functions[0].blocks[0].instructions[0];
                 check_published_branch_bytes(
-                    &application.fragments, &super::prepare_branch_origins(&source), &physical,
-                    source.entry, branch,
+                    &application.fragments,
+                    &super::prepare_branch_origins(&source),
+                    &physical,
+                    source.entry,
+                    branch,
                 );
                 assert_eq!(branch.bytes.len(), expected_width);
                 assert_eq!(
@@ -2472,7 +2485,10 @@ mod tests {
         for index in offset..offset + original.bytes.len() {
             for bit in 0..8 {
                 bytes[index] ^= 1 << bit;
-                assert!(published(&bytes).is_err(), "published byte {index}, bit {bit}");
+                assert!(
+                    published(&bytes).is_err(),
+                    "published byte {index}, bit {bit}"
+                );
                 bytes[index] ^= 1 << bit;
             }
         }

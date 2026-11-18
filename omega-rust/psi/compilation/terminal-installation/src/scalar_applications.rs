@@ -753,8 +753,8 @@ pub(crate) mod conditions {
         use super::super::ScalarConditionScope;
         use super::*;
         use arena::Arena;
-        use numerics::{scalar_predicates::ScalarValue};
-        use bignum::{BigInt};
+        use bignum::BigInt;
+        use numerics::scalar_predicates::ScalarValue;
         use semantic_vocabulary::proof_applications::{
             ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
             ProofDeclarationDependencies,

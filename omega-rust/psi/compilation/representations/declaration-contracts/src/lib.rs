@@ -1358,7 +1358,7 @@ mod tests;
 
 pub mod selection;
 
-pub mod source_identity;
 pub mod entry_contract_identity;
+pub mod source_identity;
 
 pub mod build_stage;

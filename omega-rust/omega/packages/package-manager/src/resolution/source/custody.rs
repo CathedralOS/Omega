@@ -115,7 +115,10 @@ impl PackageSourceCustody {
         }
     }
 
-    pub(crate) fn with_captured_source(mut self, tree: Arc<source_capture::CapturedSourceTree>) -> Self {
+    pub(crate) fn with_captured_source(
+        mut self,
+        tree: Arc<source_capture::CapturedSourceTree>,
+    ) -> Self {
         self.captured_source = Some(tree);
         self
     }

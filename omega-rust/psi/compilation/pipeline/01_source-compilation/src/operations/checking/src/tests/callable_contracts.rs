@@ -113,13 +113,7 @@ fn refinement_module() -> TerminalModule {
 /// The finalizer receives a real source-issued nominal publication. Logical
 /// implication controls above deliberately use source-free abstract bodies.
 fn declared_refinement_module() -> TerminalModule {
-    use crate::source_inputs::{SourceMap};
-    use source_admission::SourceOrigin;
-    use source_text::{SourceSpan, Span};
-    use std::path::PathBuf;
-    use std::sync::Arc;
-    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use crate::source_inputs::SourceMap;
     use crate::source_state::TypedTrees;
     use crate::source_state::callable_values::RuntimeCallableContract;
     use crate::source_state::expression::{Expression as TypedExpression, NamePath};
@@ -129,6 +123,12 @@ fn declared_refinement_module() -> TerminalModule {
     use crate::source_state::state::State;
     use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
     use crate::source_state::types::TypeReferenceNode;
+    use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+    use source_admission::SourceOrigin;
+    use source_text::{SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]);
     let mut sources = SourceMap::default();
@@ -384,7 +384,10 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
     module.callables.descriptors[0].refinement_evidence[0]
         .proof
         .conclusion = Proposition::Falsehood;
-    assert!(crate::checking::finalize_callable_refinements(&mut module, &mut Default::default(),).is_err());
+    assert!(
+        crate::checking::finalize_callable_refinements(&mut module, &mut Default::default(),)
+            .is_err()
+    );
 }
 
 #[test]
@@ -402,7 +405,8 @@ fn checker_refuses_operational_strengthening_before_publication() {
         .unwrap()
         .published_may_block = true;
     let refusal =
-        crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap_err();
+        crate::checking::finalize_callable_refinements(&mut module, &mut Default::default())
+            .unwrap_err();
     assert_eq!(
         refusal.detail,
         "selected machine may block outside the callable contract"
@@ -411,7 +415,8 @@ fn checker_refuses_operational_strengthening_before_publication() {
     let mut abstract_form = refinement_module();
     abstract_form.callables.descriptors.clear();
     assert!(abstract_form.machines[0].declaration.is_none());
-    crate::checking::finalize_callable_refinements(&mut abstract_form, &mut Default::default()).unwrap();
+    crate::checking::finalize_callable_refinements(&mut abstract_form, &mut Default::default())
+        .unwrap();
 }
 
 #[test]
@@ -593,12 +598,12 @@ machine build_entry(value: u32) -> u32 {{
     let tokens = crate::checking::frontend_fixture::Lexer::new(&negative)
         .tokenize()
         .unwrap();
-    let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let syntax =
+        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = crate::resolution::resolve(request).unwrap();
-    let error =
-        crate::typing::lower_symbol_resolved_trees(&resolved).unwrap_err();
+    let error = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap_err();
     assert_eq!(
         error.message,
         "the evaluated call operand is not a runtime callable"

@@ -15,8 +15,8 @@ produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
 */
 
 use crate::host::bindings::BuildProviderRequest;
-use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use source_compiler::ProducedBuildProvider;
+use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use terminal_installation::{

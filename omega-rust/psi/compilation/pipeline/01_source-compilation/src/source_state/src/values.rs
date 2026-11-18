@@ -326,10 +326,9 @@ pub mod expression {
         StaticMachineLifetimeBinding,
     };
     use arena::{Handle, HandleSpan, RetainedArena as Arena};
-    pub type BuildSelectionRequest =
-        crate::declaration_selection::BuildSelectionRequest<
-            crate::source_state::types::TypeReferenceHandle,
-        >;
+    pub type BuildSelectionRequest = crate::declaration_selection::BuildSelectionRequest<
+        crate::source_state::types::TypeReferenceHandle,
+    >;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum BuildSelectionPhase {
@@ -6200,6 +6199,10 @@ fn retains_input_rows<T: Default>(
 
 #[cfg(test)]
 mod build_selection_input_tests {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+    use crate::declaration_selection::EnumExclusionRequest;
+    use crate::declaration_selection::ExclusionVocabulary;
     use crate::source_selections::AuthoredDeclarationSelections;
     use crate::source_state::expression::{
         BuildSelectionCall, BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest,
@@ -6207,10 +6210,6 @@ mod build_selection_input_tests {
     };
     use compiler_storage::{RecordLimits, decode, encode};
     use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use crate::declaration_selection::EnumExclusionRequest;
-use crate::declaration_selection::ExclusionVocabulary;
     use symbols::SymbolHandle;
 
     #[test]
@@ -6454,7 +6453,8 @@ mod storage_ownership_tests {
         ));
         let limits = compiler_storage::RecordLimits::default();
         let bytes = compiler_storage::encode(&child, limits).unwrap();
-        let decoded: crate::source_state::TypedTrees = compiler_storage::decode(&bytes, limits).unwrap();
+        let decoded: crate::source_state::TypedTrees =
+            compiler_storage::decode(&bytes, limits).unwrap();
         assert_eq!(decoded, child);
         let stale =
             arena::Handle::from_parts(rows.start().arena_index(), rows.start().generation() + 1);

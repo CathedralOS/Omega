@@ -534,10 +534,10 @@ pub(crate) mod external_loans {
     use crate::extent::diagnostic::ExtentDiagnostic;
 
     use crate::loans::ExtentLoan;
-use extent_contracts::LoanPolarity;
     use arena::NormalizedIdentitySet;
     use extent_contracts::ExternalBorrowerId;
     use extent_contracts::ExternalLoanId;
+    use extent_contracts::LoanPolarity;
     use extent_contracts::{
         AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
     };

@@ -5,8 +5,11 @@
 
 use std::collections::HashSet;
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment, IntegerType, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId};
-use arena::{NumericId};
+use arena::NumericId;
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerType, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, ExactPlaceId, ProgramPoint};

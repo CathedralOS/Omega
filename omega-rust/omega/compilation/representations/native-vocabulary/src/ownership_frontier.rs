@@ -86,10 +86,7 @@ pub fn ownership_frontier_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v3\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
-    ::wire::codec_bytes::push_encoded(
-        &mut canonical,
-        psi.vocabulary_marker.get().to_le_bytes(),
-    );
+    ::wire::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     ::wire::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
     encode_ownership_frontier_site(&mut canonical, site);
     encode_frontier_snapshot_identity(&mut canonical, snapshot);
@@ -133,10 +130,7 @@ fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFr
     for partition in &snapshot.nominal_partitions {
         ::wire::codec_bytes::push_encoded(bytes, partition.place.get().to_le_bytes());
         encode_frontier_path(bytes, &partition.path);
-        ::wire::codec_bytes::push_encoded(
-            bytes,
-            partition.structural_type.get().to_le_bytes(),
-        );
+        ::wire::codec_bytes::push_encoded(bytes, partition.structural_type.get().to_le_bytes());
     }
 }
 

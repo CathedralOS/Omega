@@ -1358,7 +1358,8 @@ pub struct TypedTrees {
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
     pub declaration_indexes: declaration_index::DeclarationIndexes,
-    pub ranking_expression_custody: arena::RetainedRows<crate::source_state::ranking::RankingExpressionCustody>,
+    pub ranking_expression_custody:
+        arena::RetainedRows<crate::source_state::ranking::RankingExpressionCustody>,
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::source_state::expression::ExpressionHandle>,
     pub constant_recipes: arena::RootedArena<constant_recipes::RetainedConstantRecipe>,
@@ -1498,12 +1499,12 @@ pub struct TypedTreeTables {
     pub runtime_callable_lowering: crate::source_state::callable_values::RuntimeCallableLowering,
     pub designated_static_type_arguments: arena::RootedArena<DesignatedStaticTypeArgument>,
     pub retained_product_application_handles: arena::RootedArena<Handle<ProductOperandApplication>>,
-    pub product_input_selections: arena::RootedArena<crate::source_state::product_operand::ProductInputSelection>,
+    pub product_input_selections:
+        arena::RootedArena<crate::source_state::product_operand::ProductInputSelection>,
     pub product_input_argument_steps:
         arena::RootedArena<crate::source_state::product_operand::ProductArgumentStep>,
     pub product_operand_applications: arena::RootedArena<ProductOperandApplication>,
-    authored_declaration_selections:
-        crate::source_selections::AuthoredDeclarationSelections,
+    authored_declaration_selections: crate::source_selections::AuthoredDeclarationSelections,
     pub const_declarations: arena::RootedArena<crate::source_state::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
     pub type_aliases: arena::RootedArena<crate::source_state::type_aliases::TypeAliasDefinition>,
@@ -2096,14 +2097,14 @@ mod continuation_storage_tests {
             DeferredRequest::ReceiverCallSelection,
             source_text::SourceSpan::default(),
         );
-        original
-            .authored_service_reach_rows
-            .push(crate::source_state::signature::AuthoredServiceReachRow {
+        original.authored_service_reach_rows.push(
+            crate::source_state::signature::AuthoredServiceReachRow {
                 owner,
                 keyword_source_spans: vec![source_text::SourceSpan::default()],
                 targets: Vec::new(),
                 installation_bound: false,
-            });
+            },
+        );
         assert!(original.applied_domain_applications.insert(
             crate::source_state::domain::AppliedDomainApplication {
                 declaration: owner,

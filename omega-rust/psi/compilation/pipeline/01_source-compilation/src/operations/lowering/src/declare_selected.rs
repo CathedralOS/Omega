@@ -3,6 +3,7 @@
 //! establish refinement, and invocation admission still establishes permission.
 
 use super::{nominal, requirement_application};
+use crate::source_state::TypedTrees;
 use semantic_vocabulary::ContractId;
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
@@ -12,7 +13,6 @@ use terminal_psi::{
     StaticRequirementDispatch, TargetMachineCallable, TerminalIdentityTableBuilder,
     TerminalMachineResult, TerminalModule,
 };
-use crate::source_state::TypedTrees;
 
 /// A selected public header's link to its closed application, with the
 /// public signature's declared lifetime groups the header publishes.
@@ -110,17 +110,18 @@ pub(super) fn publish(
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let scope = crate::source_state::trait_definition::AppliedTraitScope::from_conformance_application(
-            typed,
-            selected,
-            crate::source_state::trait_definition::TraitApplicationArguments {
-                lexical_owner: source_owner,
-                enclosing_data_applications: &[],
-                arguments: &references,
-                lifetimes: raw_lifetimes,
-            },
-        )
-        .ok_or("selected map lost its complete applied trait scope")?;
+        let scope =
+            crate::source_state::trait_definition::AppliedTraitScope::from_conformance_application(
+                typed,
+                selected,
+                crate::source_state::trait_definition::TraitApplicationArguments {
+                    lexical_owner: source_owner,
+                    enclosing_data_applications: &[],
+                    arguments: &references,
+                    lifetimes: raw_lifetimes,
+                },
+            )
+            .ok_or("selected map lost its complete applied trait scope")?;
         let mut telescope = Vec::with_capacity(parameters.len() + raw_lifetimes.len());
         for (parameter, argument) in selected.lifetime_parameters.iter().zip(raw_lifetimes) {
             let argument = crate::source_state::type_identity::portable_applied_lifetime_identity(

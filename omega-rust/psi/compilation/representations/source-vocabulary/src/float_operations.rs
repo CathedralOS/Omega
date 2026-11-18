@@ -201,7 +201,6 @@ pub fn canonical_float_operation_name(requirement: &str) -> Option<&'static str>
         .max_by_key(|canonical| canonical.len())
 }
 
-
 /// A target owner's declared support for numeric language operations.
 /// Source settlement observes support; native planning separately chooses ISA
 /// realizations and proves their calling and control-state obligations.
@@ -214,6 +213,9 @@ pub struct NumericTargetCapabilities {
 impl NumericTargetCapabilities {
     pub fn support_for(&self, requirement: &str) -> Option<Result<(), &'static str>> {
         let name = canonical_float_operation_name(requirement)?;
-        self.operations.iter().find(|(operation, _)| *operation == name).map(|(_, support)| *support)
+        self.operations
+            .iter()
+            .find(|(operation, _)| *operation == name)
+            .map(|(_, support)| *support)
     }
 }

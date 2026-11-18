@@ -1,6 +1,6 @@
+use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_carrier::FixedInteger;
-use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
 
 pub(crate) fn parse_integer_literal(

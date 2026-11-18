@@ -46,9 +46,9 @@ mod immediate_offset;
 mod machine_effects;
 mod post_handoff_writer;
 
-use target_aarch64::register_model;
 pub use register_model::aarch64_linux_system_call_keys;
 pub use register_model::{AARCH64_LOAD_ENCODED_SCALAR, AARCH64_STORE_ENCODED_SCALAR};
+use target_aarch64::register_model;
 mod saturating_forms;
 #[cfg(test)]
 pub(crate) mod test_support {
@@ -118,16 +118,15 @@ pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
 };
 mod selected_form_encoding;
-pub use target_aarch64::ORDINARY_DIRECT_CALL_BYTES;
-pub use target_aarch64::ORDINARY_RETURN_BYTES;
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
 };
 pub use frame_protocol::{
-    Aarch64FrameProtocolPlan, plan_aapcs64_frame_protocol, encode_planned_aapcs64_frame_protocol,
-    Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe, encode_aapcs64_frame_protocol,
-    encode_aarch64_aligned_frame_address, encode_aarch64_frame_address,
-    encode_aarch64_frame_memory, encode_aarch64_integer_constant, encode_aarch64_pointer_memory,
+    Aarch64FrameProtocolError, Aarch64FrameProtocolPlan, Aarch64FrameSlot, Aarch64StackProbe,
+    encode_aapcs64_frame_protocol, encode_aarch64_aligned_frame_address,
+    encode_aarch64_frame_address, encode_aarch64_frame_memory, encode_aarch64_integer_constant,
+    encode_aarch64_pointer_memory, encode_planned_aapcs64_frame_protocol,
+    plan_aapcs64_frame_protocol,
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
@@ -139,6 +138,8 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
+pub use target_aarch64::ORDINARY_DIRECT_CALL_BYTES;
+pub use target_aarch64::ORDINARY_RETURN_BYTES;
 pub use target_aarch64::aarch64_preservation_storage_catalog;
 
 #[cfg(test)]

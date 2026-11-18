@@ -5,10 +5,10 @@
 // compilations reject individual accepted-machine grants while permitting
 // selected provider grants.
 
-use effects::provider_grants::ResolvedSelectedProviderGrant;
-use diagnostics::Diagnostic;
 use declaration_contracts::trust_declarations::AcceptedMachineDeclaration;
 use declaration_contracts::trust_declarations::TrustDeclarations;
+use diagnostics::Diagnostic;
+use effects::provider_grants::ResolvedSelectedProviderGrant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NonProviderTrustGrant {

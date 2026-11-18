@@ -13,12 +13,12 @@ directly at the offending machine body.
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{AbstractFunction, AbstractOperation};
+use arena::IdSet;
 use effects::{
     CheckedPhysicalTerminalMechanismIdentity, TerminalAuthorityClosureLeafOrigin,
     TerminalMechanismIdentity,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use arena::{IdSet};
 use terminal_psi::RegisterTargetApplicability;
 
 use super::{PhysicalAuthorityUse, physical_authority_use};

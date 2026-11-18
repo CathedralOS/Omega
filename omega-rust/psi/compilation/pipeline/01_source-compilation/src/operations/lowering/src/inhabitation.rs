@@ -2,8 +2,8 @@
 //! identities and predicates are the same rows lowering publishes; a type's
 //! spelling and a callee's private body never participate in this question.
 
+use arena::IdTable;
 use semantic_vocabulary::{Proposition, StructuralTypeId};
-use arena::{IdTable};
 use terminal_semantics::inhabitation::{Inhabitation, Status, TypeContracts};
 
 use crate::lowering::body::{RecordType, StorageShape, ValueType};

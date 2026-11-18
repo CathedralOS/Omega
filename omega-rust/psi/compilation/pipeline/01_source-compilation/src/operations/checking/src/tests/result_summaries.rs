@@ -24,10 +24,7 @@ fn identity(requires: Vec<Proposition>) -> Machine {
     }
 }
 
-fn with_local_results(
-    machines: Vec<Machine>,
-    local: &[u64],
-) -> crate::lowering::Elaboration {
+fn with_local_results(machines: Vec<Machine>, local: &[u64]) -> crate::lowering::Elaboration {
     let mut elaboration = lower(machines).unwrap();
     elaboration.local_results = local.iter().copied().map(id).collect();
     elaboration

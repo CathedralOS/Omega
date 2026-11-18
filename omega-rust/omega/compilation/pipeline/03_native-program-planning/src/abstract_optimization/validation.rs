@@ -585,14 +585,22 @@ pub(crate) mod invariant_calls {
     pub(crate) fn unit_effect_summaries(
         unit: &PsiOptimizationUnit,
     ) -> Result<crate::abstract_optimization::EffectSummaryAnalysis, &'static str> {
-        match crate::abstract_optimization::compute_analysis(unit, optimization_core::AnalysisKind::EffectSummaries) {
-            Ok(Some(crate::abstract_optimization::AnalysisProduct::EffectSummaries(analysis))) => Ok(analysis),
+        match crate::abstract_optimization::compute_analysis(
+            unit,
+            optimization_core::AnalysisKind::EffectSummaries,
+        ) {
+            Ok(Some(crate::abstract_optimization::AnalysisProduct::EffectSummaries(analysis))) => {
+                Ok(analysis)
+            }
             Ok(_) => Err("the requested effect-summary analysis is unavailable"),
             Err(reason) => Err(reason),
         }
     }
 
-    fn scalar_call_callee_pure(effects: &crate::abstract_optimization::EffectSummaryAnalysis, callee: MachineId) -> bool {
+    fn scalar_call_callee_pure(
+        effects: &crate::abstract_optimization::EffectSummaryAnalysis,
+        callee: MachineId,
+    ) -> bool {
         effects
             .functions
             .iter()
@@ -2358,16 +2366,9 @@ pub(crate) mod projection {
             self.psi
         }
 
-
-
         pub const fn final_unit(self) -> OptimizationUnitIdentity {
             self.final_unit
         }
-
-
-
-
-
 
         pub fn identity(self) -> OptimizedAbstractPlanProjectionIdentity {
             let mut canonical = Vec::with_capacity(272);

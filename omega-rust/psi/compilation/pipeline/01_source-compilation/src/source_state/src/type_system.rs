@@ -10,9 +10,9 @@ pub mod closed_numeric {
         expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
         types::{PrimitiveType, TypeReferenceHandle},
     };
-    use numerics::{arithmetic::ArithmeticDomain};
-    use numeric_literals::LandedIntegerType;
     use bignum::{BigInt, BigRational};
+    use numeric_literals::LandedIntegerType;
+    use numerics::arithmetic::ArithmeticDomain;
     use semantic_vocabulary::{IntegerType, IntegerValue};
 
     pub struct AnonymousNumericValue {
@@ -488,9 +488,9 @@ pub mod closed_numeric {
         _spelling: language_core::OperatorSpelling,
     ) -> bool {
         use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as LateBinding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+        use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as LateBinding;
+        use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
         program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -577,7 +577,9 @@ pub(crate) mod type_predicates {
                 let identity = |reference| {
                     self.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
                         substitutions,
-                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(reference)
+                        ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                            reference,
+                        )
                     })
                 };
                 return Some((identity(left) == identity(right)) != negate);
@@ -619,8 +621,14 @@ pub(crate) mod type_predicates {
         admitted_match_cases: Vec<(ExpressionHandle, Vec<symbols::SymbolHandle>)>,
         case_memberships: Vec<CaseMembershipTypeFacts>,
         rows: Vec<(ExpressionHandle, Vec<TypeWorld>)>,
-        statement_rows: Vec<(crate::source_state::statement::StatementHandle, Vec<TypeWorld>)>,
-        transition_rows: Vec<(crate::source_state::statement::TransitionTargetHandle, Vec<TypeWorld>)>,
+        statement_rows: Vec<(
+            crate::source_state::statement::StatementHandle,
+            Vec<TypeWorld>,
+        )>,
+        transition_rows: Vec<(
+            crate::source_state::statement::TransitionTargetHandle,
+            Vec<TypeWorld>,
+        )>,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -1063,13 +1071,15 @@ pub mod types {
                     };
                     self.target
                         .type_reference_table
-                        .retain_type_alias_application(crate::source_state::type_aliases::TypeAliasApplication {
-                            instance: copied,
-                            application: copied_application,
-                            arguments,
-                            lifetime_arguments,
-                            ..application
-                        });
+                        .retain_type_alias_application(
+                            crate::source_state::type_aliases::TypeAliasApplication {
+                                instance: copied,
+                                application: copied_application,
+                                arguments,
+                                lifetime_arguments,
+                                ..application
+                            },
+                        );
                 }
                 copied
             }
@@ -1391,7 +1401,9 @@ pub mod types {
         use diagnostics::comma_join_display;
 
         use crate::source_state::expression::ExpressionTable;
-        use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
+        use crate::source_state::types::{
+            TypeConstraintNode, TypeReferenceNode, TypeReferenceTable,
+        };
 
         impl TypeReferenceNode {
             pub fn display_name(&self, table: &TypeReferenceTable) -> String {
@@ -2094,7 +2106,8 @@ pub mod types {
         constant_origins: Arena<TypeConstantOrigin>,
         array_extent_arguments: Arena<TypeReferenceHandle>,
         operand_lifetime_owners: Arena<SymbolHandle>,
-        operand_lifetime_spans: Arena<HandleSpan<crate::source_state::type_identity::LifetimeParameterIdentity>>,
+        operand_lifetime_spans:
+            Arena<HandleSpan<crate::source_state::type_identity::LifetimeParameterIdentity>>,
         operand_lifetimes: Arena<crate::source_state::type_identity::LifetimeParameterIdentity>,
         operand_origins: Arena<TypeOperandOrigin>,
         named_rows: NamedRowIndex,
@@ -2243,7 +2256,8 @@ pub mod types {
         pub fn type_alias_applications(
             &self,
             reference: TypeReferenceHandle,
-        ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication> {
+        ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication>
+        {
             self.type_alias_applications
                 .iter()
                 .filter_map(move |(_, application)| {
@@ -2290,10 +2304,12 @@ pub mod types {
                 .cloned()
                 .collect::<Vec<_>>();
             for application in applications {
-                self.retain_type_alias_application(crate::source_state::type_aliases::TypeAliasApplication {
-                    instance: fresh,
-                    ..application
-                });
+                self.retain_type_alias_application(
+                    crate::source_state::type_aliases::TypeAliasApplication {
+                        instance: fresh,
+                        ..application
+                    },
+                );
             }
             fresh
         }
@@ -2372,7 +2388,9 @@ pub mod types {
         pub fn retain_operand_lifetimes(
             &mut self,
             reference: TypeReferenceHandle,
-            lifetimes: impl IntoIterator<Item = crate::source_state::type_identity::LifetimeParameterIdentity>,
+            lifetimes: impl IntoIterator<
+                Item = crate::source_state::type_identity::LifetimeParameterIdentity,
+            >,
         ) -> Result<(), &'static str> {
             if !self.contains_type_reference(reference) {
                 return Err("resolved regions have no registered type row");
@@ -3419,9 +3437,9 @@ pub mod types {
             TypeOperandOrigin, TypeReferenceNode, TypeReferenceTable,
         };
         use crate::source_state::name::Identifier;
+        use crate::source_symbols::SymbolTableBuilder;
         use language_core::ReferenceAccess;
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         #[test]
         fn a_type_continuation_shares_retained_rows_and_keeps_metadata_coordinates() {
@@ -3490,8 +3508,8 @@ pub mod types {
         #[test]
         fn a_builtin_integer_atom_is_its_sign_and_width() {
             use super::PrimitiveType;
-            use numerics::integer_carrier::FixedInteger;
             use numeric_literals::LandedIntegerType;
+            use numerics::integer_carrier::FixedInteger;
 
             for (name, carrier, bytes) in [
                 ("i8", FixedInteger::signed(8), 1),
@@ -3563,9 +3581,9 @@ pub mod types {
         #[test]
         fn scalar_identity_survives_names_qualifications_and_atomic_wrappers() {
             use super::PrimitiveType;
+            use crate::source_symbols::builtin_type_symbols;
             use numerics::integer_carrier::FixedInteger;
             use symbols::{BuiltinTypeAtom, SymbolHandle};
-            use crate::source_symbols::{builtin_type_symbols};
 
             let mut builder = SymbolTableBuilder::new();
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -4119,7 +4137,10 @@ pub mod source_projections {
                 substitutions: Vec::new(),
             }
         }
-        pub fn current(&mut self, program: &crate::source_state::TypedTrees) -> TypeReferenceHandle {
+        pub fn current(
+            &mut self,
+            program: &crate::source_state::TypedTrees,
+        ) -> TypeReferenceHandle {
             self.current = substituted_type_reference(program, self.current, &self.substitutions);
             self.current
         }
@@ -4132,7 +4153,10 @@ pub mod source_projections {
                 field_type_reference(program, self.current, symbol, &mut self.substitutions)?;
             Some(self.current(program))
         }
-        pub fn element(&mut self, program: &crate::source_state::TypedTrees) -> Option<TypeReferenceHandle> {
+        pub fn element(
+            &mut self,
+            program: &crate::source_state::TypedTrees,
+        ) -> Option<TypeReferenceHandle> {
             self.current =
                 indexed_element_type_reference(program, self.current, &self.substitutions)?;
             Some(self.current(program))
@@ -4154,13 +4178,17 @@ pub mod source_projections {
         program: &crate::source_state::TypedTrees,
         type_reference: crate::source_state::types::TypeReferenceHandle,
         field_symbol: SymbolHandle,
-        substitutions: &mut Vec<(SymbolHandle, crate::source_state::types::TypeReferenceHandle)>,
+        substitutions: &mut Vec<(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )>,
     ) -> Option<crate::source_state::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         match program.type_reference_table.type_reference(type_reference) {
             crate::source_state::types::TypeReferenceNode::Reference { referee, .. }
             | crate::source_state::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
+                base_type: referee,
+                ..
             } => field_type_reference(program, *referee, field_symbol, substitutions),
             crate::source_state::types::TypeReferenceNode::Generic {
                 base_symbol,
@@ -4169,10 +4197,14 @@ pub mod source_projections {
             } => {
                 let exact_application = substitutions.is_empty()
                     || program.normalized_type_identity(type_reference)
-                        == program.type_identity(crate::source_state::type_identity::TypeIdentityRequest {
-                            substitutions,
-                            ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(type_reference)
-                        });
+                        == program.type_identity(
+                            crate::source_state::type_identity::TypeIdentityRequest {
+                                substitutions,
+                                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                                    type_reference,
+                                )
+                            },
+                        );
                 if let Some(instance) = program
                     .data_application_definition(type_reference)
                     .filter(|_| exact_application)
@@ -4225,16 +4257,22 @@ pub mod source_projections {
     pub fn indexed_element_type_reference(
         program: &crate::source_state::TypedTrees,
         type_reference: crate::source_state::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, crate::source_state::types::TypeReferenceHandle)],
+        substitutions: &[(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )],
     ) -> Option<crate::source_state::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         let element = match program.type_reference_table.type_reference(type_reference) {
             crate::source_state::types::TypeReferenceNode::Reference { referee, .. }
             | crate::source_state::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
+                base_type: referee,
+                ..
             } => indexed_element_type_reference(program, *referee, substitutions),
             crate::source_state::types::TypeReferenceNode::FixedArray { element_type, .. }
-            | crate::source_state::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+            | crate::source_state::types::TypeReferenceNode::Slice { element_type } => {
+                Some(*element_type)
+            }
             crate::source_state::types::TypeReferenceNode::Callable { .. }
             | crate::source_state::types::TypeReferenceNode::ConstExpression(_)
             | crate::source_state::types::TypeReferenceNode::Generic { .. }
@@ -4262,7 +4300,10 @@ pub mod source_projections {
     pub fn substituted_type_reference(
         program: &crate::source_state::TypedTrees,
         mut type_reference: crate::source_state::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, crate::source_state::types::TypeReferenceHandle)],
+        substitutions: &[(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )],
     ) -> crate::source_state::types::TypeReferenceHandle {
         let mut remaining = substitutions.len().saturating_add(1);
         while remaining > 0 {

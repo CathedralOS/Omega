@@ -10,8 +10,8 @@ mod default_build_workflow;
 use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
-use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use compiler::{CheckedCompileRequest, CompilationSession};
+use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 
 /// Resolve one project's sources with the host-profile execution defaults that
 /// every single-root case shares.
@@ -565,15 +565,16 @@ fn source_discovery_root_resources() {
     ] {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
-        let filesystem = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
-            workspace.join("caller"),
-            source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
-                maximum_entries: 32,
-                maximum_total_logical_bytes: bytes,
-                maximum_object_extent: 1024,
-            },
-        )
-        .unwrap();
+        let filesystem =
+            source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+                workspace.join("caller"),
+                source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
+                    maximum_entries: 32,
+                    maximum_total_logical_bytes: bytes,
+                    maximum_object_extent: 1024,
+                },
+            )
+            .unwrap();
         let output = filesystem.session_root().unwrap().join("output");
         let evaluation = sponsor(limits(work));
         let mut session = orchestration::BuildSession::create(&workspace.join("session")).unwrap();
@@ -1109,7 +1110,8 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("naming.omg")
-                && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build)
+                && file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Build)
     );
     assert!(
         syntax
@@ -1138,7 +1140,8 @@ fn initial_build_source_isolation() {
             .sources
             .files()
             .any(|file| file.path == root.with_file_name("result.omg")
-                && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product)
+                && file.dependency_scope
+                    == declaration_contracts::source_identity::DependencyScope::Product)
     );
     let retained = product.sources.get(original.source_id).unwrap();
     assert_eq!(retained.path, original.path);
@@ -1149,7 +1152,8 @@ fn initial_build_source_isolation() {
             sources
                 .files()
                 .any(|file| file.path.ends_with("float_operations.omg")
-                    && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build)
+                    && file.dependency_scope
+                        == declaration_contracts::source_identity::DependencyScope::Build)
         );
     }
     println!("product_preparation_retained_the_exact_build_source_bytes");
@@ -1967,20 +1971,24 @@ fn completed_build_target_fanout() {
             .message
             .contains("cannot change its source or semantic admission")
     }));
-    products.push(((host, true), compiler::PreparedPackageProduct {
-        build,
-        product: compiler::CompilationProduct::Native(products::NativeProductRequest {
-            installation_assumptions: Vec::new(),
-            retain_native_inputs: false,
-            retain_native_stage_inputs: false,
-            image: Default::default(),
-            private_entry_ram: Vec::new(),
-            terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
-            terminal_authority_permission_policy: None,
-            optimization_rollback: Default::default(),
-        }),
-        permissions: None,
-    }));
+    products.push((
+        (host, true),
+        compiler::PreparedPackageProduct {
+            build,
+            product: compiler::CompilationProduct::Native(products::NativeProductRequest {
+                installation_assumptions: Vec::new(),
+                retain_native_inputs: false,
+                retain_native_stage_inputs: false,
+                image: Default::default(),
+                private_entry_ram: Vec::new(),
+                terminal_authority_policy:
+                    provider_admission::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: Default::default(),
+            }),
+            permissions: None,
+        },
+    ));
     let completions = counters::product_source_completion_count();
     let outcomes = session
         .compiler()

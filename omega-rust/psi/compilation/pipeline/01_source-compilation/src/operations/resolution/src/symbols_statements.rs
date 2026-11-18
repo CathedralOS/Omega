@@ -13,10 +13,10 @@ mod assembly {
     use super::routing;
     use crate::resolution::symbols::expressions::assign_statement_expression_symbols;
     use crate::resolution::symbols::scope::MachineScope;
-    use arena::{Arena, HandleSpan};
     use crate::source_resolved::{expression, name, signature, statement, types};
-    use symbols::{SymbolHandle};
-    use crate::source_symbols::{SymbolTable};
+    use crate::source_symbols::SymbolTable;
+    use arena::{Arena, HandleSpan};
+    use symbols::SymbolHandle;
 
     pub(super) struct AssemblyScopeRouting<'scope> {
         pub graphs: &'scope Arena<statement::AssemblyControlFlow>,
@@ -136,9 +136,9 @@ mod assembly {
     }
 }
 mod routing {
+    use crate::source_symbols::SymbolTable;
     use arena::Arena;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::expressions::{
         assign_expression_span_symbols, assign_statement_expression_symbols,
@@ -411,11 +411,12 @@ mod routing {
                         let handle = retained.pattern.fields.handle_at(position);
                         let field = &expression_table.match_fields(retained.pattern.fields)
                             [position as usize];
-                        let symbol = crate::resolution::symbols::expression_paths::pattern_field_symbol(
-                            symbols,
-                            selected,
-                            field.member.as_str(),
-                        );
+                        let symbol =
+                            crate::resolution::symbols::expression_paths::pattern_field_symbol(
+                                symbols,
+                                selected,
+                                field.member.as_str(),
+                            );
                         expression_table.match_field_mut(handle).field_symbol = symbol;
                     }
                     assign_expr!(retained.pattern.condition);
@@ -832,10 +833,10 @@ fn resolve_ranking_view(
     machine: symbols::SymbolHandle,
     members: &[crate::source_resolved::name::DiagnosticName],
 ) -> declaration_contracts::RankingViewSelection {
+    use crate::source_symbols::SymbolLookup;
     use declaration_contracts::RankingViewId;
-use declaration_contracts::RankingViewSelection;
-    use symbols::{SymbolKind};
-    use crate::source_symbols::{SymbolLookup};
+    use declaration_contracts::RankingViewSelection;
+    use symbols::SymbolKind;
     if members.is_empty() {
         return RankingViewSelection::Unresolved;
     }
@@ -866,7 +867,10 @@ use declaration_contracts::RankingViewSelection;
 
 #[cfg(test)]
 mod scalar_pattern_selection_tests {
-    use crate::declaration_selection::{AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Late, AuthoredDeclarationSelectionTarget as Target};
+    use crate::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
     use crate::source_resolved::expression::{BinaryOperator, ExpressionNode};
 
     #[test]
@@ -879,7 +883,9 @@ mod scalar_pattern_selection_tests {
         let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let syntax = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let syntax =
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap();
         let program = crate::resolution::resolve(crate::resolution::ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),

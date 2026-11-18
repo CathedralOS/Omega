@@ -2,14 +2,14 @@
 //! Construction only records code selection. The checker later proves every
 //! obligation reconstructed from that selection and the published contract.
 
-use semantic_vocabulary::{CallableContractId, MachineDescriptorId, MachineId, ScalarType};
-use symbols::SymbolKind;
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use terminal_psi::TerminalCallableTermination;
 use crate::source_state::callable_values::{MachineValue, RuntimeCallableContractHandle};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::type_identity::IndexIdentityArgument;
 use crate::source_state::types::TypeReferenceNode;
+use semantic_vocabulary::{CallableContractId, MachineDescriptorId, MachineId, ScalarType};
+use symbols::SymbolKind;
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_psi::TerminalCallableTermination;
 
 use super::Program;
 use crate::lowering::body::{Expression, ExpressionKind, Termination, ValueType};

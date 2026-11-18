@@ -1,13 +1,15 @@
 //! Match completed Build requests to their original occurrence and lexical author.
 
-use diagnostics::Diagnostic;
-use crate::declaration_selection::{BuildOperation, ExecutedProductSelection, ProductDeclarationRequest};
-use std::sync::Arc;
-use symbols::SymbolHandle;
+use crate::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+};
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{
     ProductRequestAuthors, ProductSelectionOccurrence, collect_product_selection_occurrences,
 };
+use diagnostics::Diagnostic;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 type OccurrenceKey = (usize, usize, usize);
 
@@ -44,10 +46,10 @@ fn authored_owner(
             "Build request has ambiguous lexical authors",
         ));
     }
-    if !typed
-        .symbols
-        .symbol_is_in_dependency_scope(owner, declaration_contracts::source_identity::DependencyScope::Build)
-    {
+    if !typed.symbols.symbol_is_in_dependency_scope(
+        owner,
+        declaration_contracts::source_identity::DependencyScope::Build,
+    ) {
         return Err(refusal(request, "Build request author is not Build source"));
     }
     Ok(owner)
@@ -102,9 +104,10 @@ impl<'program, 'request> AuthoredRequests<'program, 'request> {
         let activation = activation
             .filter(|symbol| {
                 typed.machine_by_symbol(*symbol).is_some()
-                    && typed
-                        .symbols
-                        .symbol_is_in_dependency_scope(*symbol, declaration_contracts::source_identity::DependencyScope::Build)
+                    && typed.symbols.symbol_is_in_dependency_scope(
+                        *symbol,
+                        declaration_contracts::source_identity::DependencyScope::Build,
+                    )
             })
             .ok_or_else(|| {
                 refusal(

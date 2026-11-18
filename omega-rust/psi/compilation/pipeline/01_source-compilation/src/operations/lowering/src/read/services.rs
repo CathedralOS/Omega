@@ -3,16 +3,18 @@
 //! list of eligible implementations. Published axes are checked as ceilings.
 
 use crate::lowering::reach::{SourceEnvelope, SourceInvocation as Invocation};
+use crate::source_state::TypedTrees;
+use crate::source_state::signature::{
+    AuthoredInvocation, AuthoredInvocationTarget, StateSignature,
+};
+use arena::IdTable;
 use declaration_contracts::ServiceReachId;
 use declaration_contracts::ServiceReachRowId;
 use declaration_contracts::TerminationGuarantee;
 use declaration_contracts::TerminationInterface;
 use semantic_vocabulary::{ContractId, MachineId};
-use arena::{IdTable};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{TerminalCallableTermination, TerminalModule};
-use crate::source_state::TypedTrees;
-use crate::source_state::signature::{AuthoredInvocation, AuthoredInvocationTarget, StateSignature};
 
 use super::Program;
 use crate::lowering::body::{
@@ -748,15 +750,17 @@ impl Program<'_> {
             .signature_invokes
             .span(signature.invokes)
             .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
-        let mut reach = if crate::lowering::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
-            if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
-                crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
+        let mut reach =
+            if crate::lowering::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
+                if signature.service_reach_is_installation_bound && source_owner != signature.symbol
+                {
+                    crate::lowering::reach::written_ceiling(self.typed, id, source_owner)?
+                } else {
+                    Some(finite_reach(self.typed, id, signature.service_reach_row)?)
+                }
             } else {
-                Some(finite_reach(self.typed, id, signature.service_reach_row)?)
-            }
-        } else {
-            None
-        };
+                None
+            };
         // An open requirement defers to the implementation's published bound.
         // Infer from its body only when that declaration also omits the bound.
         if reach.is_none() && source_owner != signature.symbol {
@@ -1214,7 +1218,10 @@ impl Program<'_> {
         Ok(bindings)
     }
 
-    pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::lowering::reach::ServiceMap> {
+    pub(crate) fn service_map(
+        &mut self,
+        context: MachineId,
+    ) -> Checked<crate::lowering::reach::ServiceMap> {
         let bindings = self.prepare_service_bindings(context)?;
         let services = if self.services.is_empty() {
             if !bindings.is_empty() {
@@ -1255,8 +1262,9 @@ impl Program<'_> {
                     "callable contract disappeared while projecting its envelope",
                 )
             })?;
-            row.signature.reaches =
-                crate::lowering::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.reaches = crate::lowering::Ceiling::Authored(
+                services.row(context, &row.envelope.service_reach)?,
+            );
             row.signature.invokes = crate::lowering::Ceiling::Authored(
                 services
                     .envelope(context, &row.envelope)?
@@ -1277,8 +1285,9 @@ impl Program<'_> {
                     "boundary disappeared while projecting its envelope",
                 )
             })?;
-            row.signature.reaches =
-                crate::lowering::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.reaches = crate::lowering::Ceiling::Authored(
+                services.row(context, &row.envelope.service_reach)?,
+            );
             row.signature.invokes = crate::lowering::Ceiling::Authored(
                 services
                     .envelope(context, &row.envelope)?
@@ -1307,8 +1316,8 @@ fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
     );
 }
 
-use semantic_vocabulary::ServiceId;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+use semantic_vocabulary::ServiceId;
 
 use crate::lowering::{Unserved, refuse};
 
@@ -1411,7 +1420,8 @@ impl<'t> Program<'t> {
         requirement: bool,
     ) -> Checked<crate::lowering::Ceiling> {
         let typed = self.typed;
-        let Some(owner) = crate::lowering::reach::authored_ceiling_owner(typed, caller, owner)? else {
+        let Some(owner) = crate::lowering::reach::authored_ceiling_owner(typed, caller, owner)?
+        else {
             return Ok(crate::lowering::Ceiling::Inferred);
         };
         let mut named = Vec::new();
@@ -1645,13 +1655,12 @@ impl<'t> Program<'t> {
         }
         let unavailable =
             |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
-        let sources =
-            source_admission::source_identity::toolchain_source_identities(self.typed.symbols.source_files())
-                .map_err(|_| {
-                    unavailable(
-                        "an awaited requirement has a toolchain source with no exact identity",
-                    )
-                })?;
+        let sources = source_admission::source_identity::toolchain_source_identities(
+            self.typed.symbols.source_files(),
+        )
+        .map_err(|_| {
+            unavailable("an awaited requirement has a toolchain source with no exact identity")
+        })?;
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let rows = self
             .readiness

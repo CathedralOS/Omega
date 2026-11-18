@@ -32,7 +32,8 @@ pub(crate) fn domain_identity(
     instance: DomainInstance,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
-    let declaration = crate::lowering::declare::nominal(typed, sources, instance.declaration, identities)?;
+    let declaration =
+        crate::lowering::declare::nominal(typed, sources, instance.declaration, identities)?;
     let exact = identities
         .text(declaration)
         .ok_or("domain application lost its retained declaration identity")?;
@@ -155,12 +156,13 @@ pub(crate) fn publish_access_plans(
             }
             requested.sort_unstable();
             requested.dedup();
-            let bindings = crate::source_state::reflection::construction::callable_description_sources(
-                typed, &requested,
-            )
-            .map_err(|_| {
-                unavailable("access caller descriptions lost their exact source applications")
-            })?;
+            let bindings =
+                crate::source_state::reflection::construction::callable_description_sources(
+                    typed, &requested,
+                )
+                .map_err(|_| {
+                    unavailable("access caller descriptions lost their exact source applications")
+                })?;
             let mut callers = Vec::with_capacity(bindings.len());
             for (description, selected, _) in bindings {
                 let route = crate::lowering::declare::access_caller_route(
@@ -255,8 +257,9 @@ fn establishment_routes<R: Ord>(
                         (*symbol == *machine).then_some((body, ordinal))
                     }),
                 );
-                let declaration = crate::lowering::declare::semantic_identity(typed, *machine, builder)
-                    .map_err(unavailable)?;
+                let declaration =
+                    crate::lowering::declare::semantic_identity(typed, *machine, builder)
+                        .map_err(unavailable)?;
                 let machine = typed
                     .machine_by_symbol(*machine)
                     .ok_or_else(|| unavailable("domain issuer has no declaration"))?;

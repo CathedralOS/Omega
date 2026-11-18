@@ -523,7 +523,10 @@ machine supplied(value: u32) {supplied} {{ Console::write(value); }}
 fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
     let refine = |required: &str, supplied: &str| {
         let witness = callable_witness(required, supplied)?;
-        crate::checking::prove_callable_refinement(witness, &mut crate::checking::ProofSearchActivity::default())
+        crate::checking::prove_callable_refinement(
+            witness,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
     };
     let inside = "reaches Output crashes none invokes Handler";
     refine(inside, inside).unwrap();
@@ -554,9 +557,11 @@ fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings
     // Removing the declarations must remain a foreign-identity refusal; the
     // logical witness cannot bypass service admission because it has no body.
     witness.module.services.clear();
-    let refused =
-        crate::checking::prove_callable_refinement(witness, &mut crate::checking::ProofSearchActivity::default())
-            .unwrap_err();
+    let refused = crate::checking::prove_callable_refinement(
+        witness,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err();
     assert_eq!(
         refused.reason,
         terminal_check_tables::RefusalReason::ForeignIdentity
@@ -679,8 +684,11 @@ terminates
     assert!(form.module.machine(helper).unwrap().published_may_block);
     assert!(!form.module.machine(helper).unwrap().published_may_suspend);
 
-    let discharged = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default())
-        .expect("the real calls retain their blocking acknowledgements");
+    let discharged = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .expect("the real calls retain their blocking acknowledgements");
     for (machine, result) in discharged.machines.iter() {
         if !form.requirements.contains(&machine) {
             assert!(
@@ -705,7 +713,11 @@ terminates
     assert_ne!(denied, SOURCE);
     let source = typed(&denied);
     let mut form = crate::lowering::elaborate_generic(&source, entry(&source)).unwrap();
-    let refused = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+    let refused = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Violation);
     assert_eq!(
         refused.detail,

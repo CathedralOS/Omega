@@ -11,8 +11,11 @@ use std::collections::{BTreeMap, BTreeSet};
 #[path = "windows_handle_replay_execution.rs"]
 mod execution;
 
-use semantic_vocabulary::{EdgeId, IntegerType, IntegerValue, InvocationSite, MachineId, ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    EdgeId, IntegerType, IntegerValue, InvocationSite, MachineId, ScalarTerm, ScalarType,
+    StructuralCaseId, StructuralTypeId, ValueId,
+};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{Operation, OperationKind};
 use terminal_semantics::descriptor_lifetimes::DescriptorLocation;

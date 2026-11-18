@@ -9,12 +9,12 @@
 use std::path::Path;
 
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
-use terminal_check_tables::obligations::ObligationKind;
 use source_compiler::checking::{
     ProofSearchActivity, Selection, discharge, reverify_specialization,
 };
 use source_compiler::lowering::Elaboration;
+use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
+use terminal_check_tables::obligations::ObligationKind;
 
 fn one_line(text: impl std::fmt::Display) -> String {
     text.to_string()
@@ -408,15 +408,16 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                     })
                     .collect();
                 // Form both exact declarations before entering search-free replay.
-                let generic_scope = match source_compiler::checking::prepare_replay(
-                    generic,
-                    &mut proof_activity,
-                ) {
-                    Ok(scope) => scope,
-                    Err(refusal) => {
-                        return format!("route=outside\tformation: {}", one_line(&refusal.detail));
-                    }
-                };
+                let generic_scope =
+                    match source_compiler::checking::prepare_replay(generic, &mut proof_activity) {
+                        Ok(scope) => scope,
+                        Err(refusal) => {
+                            return format!(
+                                "route=outside\tformation: {}",
+                                one_line(&refusal.detail)
+                            );
+                        }
+                    };
                 let mut consumer_scope = match source_compiler::checking::prepare_replay(
                     &mut consumer,
                     &mut proof_activity,

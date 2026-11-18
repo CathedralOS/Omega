@@ -35,8 +35,16 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
     let mut syntax = None;
     let mut ids = Vec::new();
     for (path, text, origin) in [
-        ("package/build.omg", build, source_admission::SourceOrigin::User),
-        ("<build-prelude>", PRELUDE, source_admission::SourceOrigin::Toolchain),
+        (
+            "package/build.omg",
+            build,
+            source_admission::SourceOrigin::User,
+        ),
+        (
+            "<build-prelude>",
+            PRELUDE,
+            source_admission::SourceOrigin::Toolchain,
+        ),
     ] {
         let id = sources
             .add_checked_instance(
@@ -63,15 +71,13 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
             }
         }
     }
-    let mut request =
-        source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
-    request.top_level_bindings = vec![source_compiler::source_symbols::SourceScopedTopLevelBinding::new(
-        ids[0], ids[1], "Build",
-    )];
+    request.top_level_bindings = vec![
+        source_compiler::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+    ];
     let resolved = source_compiler::resolution::resolve(request).unwrap();
-    let typed =
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed
         .machines()
         .iter()

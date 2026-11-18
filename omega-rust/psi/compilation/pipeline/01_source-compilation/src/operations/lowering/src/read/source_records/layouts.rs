@@ -3,6 +3,7 @@
 //! field namespaces; the checker and native emission both use this same
 //! layout application, before the module gets a verdict.
 
+use crate::source_state::{PlanLaidLayout, PlanLaidRealizations, PlanLaidTargetLayout};
 use semantic_vocabulary::{
     AuthoredFieldStorage, AuthoredRecordStorage, MachineId, StructuralFieldId,
 };
@@ -15,7 +16,6 @@ use terminal_psi::{
     TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
     TargetLayoutSchemaFieldKind, TerminalModule,
 };
-use crate::source_state::{PlanLaidLayout, PlanLaidRealizations, PlanLaidTargetLayout};
 
 use super::{Program, malformed};
 
@@ -366,8 +366,12 @@ fn realization(
             byte_size: source.byte_size,
             byte_alignment: source.byte_alignment,
             kind: match source.kind {
-                crate::source_state::PlanLaidSchemaFieldKind::Scalar => TargetLayoutSchemaFieldKind::Scalar,
-                crate::source_state::PlanLaidSchemaFieldKind::Nested => TargetLayoutSchemaFieldKind::Nested,
+                crate::source_state::PlanLaidSchemaFieldKind::Scalar => {
+                    TargetLayoutSchemaFieldKind::Scalar
+                }
+                crate::source_state::PlanLaidSchemaFieldKind::Nested => {
+                    TargetLayoutSchemaFieldKind::Nested
+                }
                 crate::source_state::PlanLaidSchemaFieldKind::Repeated => {
                     TargetLayoutSchemaFieldKind::Repeated
                 }

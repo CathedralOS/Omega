@@ -38,7 +38,9 @@ pub(crate) mod adjacent_block_merge {
         merge_candidates, provenance_realized_at, record_block_provenance,
         record_merged_node_positions, record_node_provenance,
     };
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         AdjacentBlockMergeRule,
@@ -277,7 +279,9 @@ pub(crate) mod constant_conditional_fold {
     use crate::abstract_optimization::rules::control_flow_cleanup::{
         provenance_proven_unreachable_at, provenance_realized_at, record_block_effect_drift,
     };
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         ConstantConditionalFoldRule,
@@ -473,7 +477,9 @@ pub(crate) mod linear_empty_block_thread {
     use crate::abstract_optimization::rules::control_flow_cleanup::{
         provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
     };
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         LinearEmptyBlockThreadRule,
@@ -704,7 +710,9 @@ pub(crate) mod non_adjacent_block_merge {
         merge_candidates, provenance_realized_at, record_merged_node_positions,
         record_node_provenance,
     };
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         NonAdjacentBlockMergeRule,
@@ -916,7 +924,9 @@ pub(crate) mod path_qualified_empty_block_thread {
     use crate::abstract_optimization::rules::control_flow_cleanup::{
         provenance_realized_at, thread_accounting_tail, threadable_empty_blocks,
     };
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         PathQualifiedEmptyBlockThreadRule,
@@ -1073,8 +1083,12 @@ pub(crate) mod shared_jump_fusion {
 
     use crate::abstract_optimization::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
     use crate::abstract_optimization::rules::control_flow_cleanup::scalar_cleanup_functions;
-    use crate::abstract_optimization::rules::control_flow_cleanup::{provenance_realized_at, terminal_jump};
-    use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+    use crate::abstract_optimization::rules::control_flow_cleanup::{
+        provenance_realized_at, terminal_jump,
+    };
+    use crate::abstract_optimization::{
+        AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    };
 
     psi_rule_contract!(
         SharedJumpFusionRule,

@@ -249,7 +249,8 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
         "machine entry<const N: u64>(first: &[u8; N], second: &[u8; N], value: u64) -> u64 requires value <= N ensures result <= N { value }",
     );
     let found = discharge(&mut generic, &mut Default::default()).unwrap();
-    let generic_scope = crate::checking::prepare_replay(&mut generic, &mut Default::default()).unwrap();
+    let generic_scope =
+        crate::checking::prepare_replay(&mut generic, &mut Default::default()).unwrap();
     for (first, second, element, admitted) in [
         (0, 0, "u8", true),
         (3, 3, "u8", true),
@@ -259,7 +260,8 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
         let mut actual = concrete_array_form(&format!(
             "machine entry(first: &[u8; {first}], second: &[{element}; {second}], value: u64) -> u64 requires value <= {first}u64 ensures result <= {first}u64 {{ value }}"
         ));
-        let mut actual_scope = crate::checking::prepare_replay(&mut actual, &mut Default::default()).unwrap();
+        let mut actual_scope =
+            crate::checking::prepare_replay(&mut actual, &mut Default::default()).unwrap();
         let result = crate::checking::reverify_specialization(
             &generic_scope,
             &found,
@@ -504,7 +506,11 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
-            super::build_purpose::roster(&[entry], &[None], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[None],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .program,

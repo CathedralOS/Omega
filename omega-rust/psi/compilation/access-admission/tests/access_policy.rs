@@ -489,9 +489,7 @@ mod plan_validation {
     use access_vocabulary::FieldAccess;
     use access_vocabulary::ObservationModel;
     use layout_plans::test_support::{layout_field_entry, layout_report};
-    use layout_plans::{
-        LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-    };
+    use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
     use storage_access::AccessAuthorization;
 
     #[test]
@@ -722,13 +720,23 @@ mod plan_validation {
             .expect("control descriptor");
         assert_eq!(control.container_byte_offset(), 8);
         assert_eq!(
-            control.logical_extent().fragments().iter().map(|fragment|
-                (fragment.layout_bit_offset(), fragment.source_bit_offset(), fragment.width_bits())
-            ).collect::<Vec<_>>(),
+            control
+                .logical_extent()
+                .fragments()
+                .iter()
+                .map(|fragment| (
+                    fragment.layout_bit_offset(),
+                    fragment.source_bit_offset(),
+                    fragment.width_bits()
+                ))
+                .collect::<Vec<_>>(),
             [(64, 0, 8)]
         );
         assert_eq!(
-            (control.effect_footprint().byte_offset(), control.effect_footprint().length_bytes()),
+            (
+                control.effect_footprint().byte_offset(),
+                control.effect_footprint().length_bytes()
+            ),
             (8, 4),
             "a narrow logical bitfield retains its whole transfer container"
         );

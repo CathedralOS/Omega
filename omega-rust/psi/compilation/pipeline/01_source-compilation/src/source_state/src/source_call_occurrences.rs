@@ -127,8 +127,10 @@ fn find<'program, Calls: ExpressionCalls<'program>>(
 }
 
 pub trait StatementCalls<'program>: ExpressionCalls<'program> {
-    fn named_statement_call_is_selected(&self, call: &'program crate::source_state::statement::TableCall)
-    -> bool;
+    fn named_statement_call_is_selected(
+        &self,
+        call: &'program crate::source_state::statement::TableCall,
+    ) -> bool;
     fn visit_statement_call(
         &mut self,
         call: &'program crate::source_state::statement::TableCall,

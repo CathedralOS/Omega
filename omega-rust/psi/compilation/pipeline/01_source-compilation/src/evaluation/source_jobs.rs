@@ -1,10 +1,10 @@
 //! Evaluate source computations through the same checker used by programs.
 //! Each invocation retains its actual caller, inputs and execution admission.
 use crate::evaluation::BuildTimeSelectionAuthority;
+use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use crate::source_state::TypedTrees;
 
 pub(crate) mod access_plan_values;
 mod build_activation;
@@ -29,7 +29,8 @@ pub struct FixedLayoutTargetScope {
     pub facts: Option<layout_plans::LayoutTargetFacts>,
     /// Exact computation roots. An empty list never requests library-wide geometry.
     pub entry_declarations: Vec<symbols::SymbolHandle>,
-    pub provider_declarations: Vec<crate::evaluation::product::provider_declarations::ProviderSelection>,
+    pub provider_declarations:
+        Vec<crate::evaluation::product::provider_declarations::ProviderSelection>,
 }
 /// Evaluate the layout policies needed by the requested entry declarations.
 /// Unused applications remain deferred at their owning declarations.
@@ -60,8 +61,8 @@ pub use crate::evaluation::evaluation_requests::{
     CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,
     FilesystemAccess as BuildMachineFilesystemAccess,
 };
-pub use evaluation_accounting::{BuildEvaluationSponsor};
-pub use evaluation_contracts::{BuildEvaluationSponsorLimits};
+pub use evaluation_accounting::BuildEvaluationSponsor;
+pub use evaluation_contracts::BuildEvaluationSponsorLimits;
 pub use filesystem_authority::{
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
@@ -167,7 +168,8 @@ impl PreparedBuildMachineEntry {
         &self,
         target: crate::evaluation::InvocationTarget<'_>,
         accounting: &mut crate::evaluation::SourceCompletionAccounting,
-    ) -> Result<crate::evaluation::MeasuredEvaluation<crate::evaluation::BuildTimeValue>, String> {
+    ) -> Result<crate::evaluation::MeasuredEvaluation<crate::evaluation::BuildTimeValue>, String>
+    {
         let produced = Arc::new(self.produce_invocation()?);
         self.invoke_produced_recorded(produced, target, accounting)
     }
@@ -226,18 +228,28 @@ impl PreparedBuildMachineEntry {
         produced: Arc<crate::production::ProducedTerminalProgram>,
         target: crate::evaluation::InvocationTarget<'_>,
         accounting: &mut crate::evaluation::SourceCompletionAccounting,
-    ) -> Result<crate::evaluation::MeasuredEvaluation<crate::evaluation::BuildTimeValue>, String> {
+    ) -> Result<crate::evaluation::MeasuredEvaluation<crate::evaluation::BuildTimeValue>, String>
+    {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation::evaluation_accounting::pure_terminal_invocation_account()?;
         let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
-        let executed = self.execute_invocation(&produced, &admitted, requirements, target, &mut meter);
-        let execution = executed.as_ref().ok().map(|outcome| outcome.receipt.clone());
-        let result = executed.and_then(|outcome| outcome.value).and_then(|value| {
+        let executed =
+            self.execute_invocation(&produced, &admitted, requirements, target, &mut meter);
+        let execution = executed
+            .as_ref()
+            .ok()
+            .map(|outcome| outcome.receipt.clone());
+        let result = executed
+            .and_then(|outcome| outcome.value)
+            .and_then(|value| {
                 let usage = account
                     .snapshot()
                     .map_err(|error| format!("source invocation usage: {error:?}"))?;
-                Ok(crate::evaluation::MeasuredEvaluation::new(value, *usage.record()))
+                Ok(crate::evaluation::MeasuredEvaluation::new(
+                    value,
+                    *usage.record(),
+                ))
             });
         let outcome = match &result {
             Ok(value) => crate::evaluation::PureTerminalEvaluationOutcome::Materialized {
@@ -487,7 +499,12 @@ impl PreparedBuildMachineProgram {
         typed: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        Self::prepare_for(typed, authority, declaration_contracts::source_identity::DependencyScope::Product, None)
+        Self::prepare_for(
+            typed,
+            authority,
+            declaration_contracts::source_identity::DependencyScope::Product,
+            None,
+        )
     }
 
     /// Retain the caller's actual source purpose and captured-source consent.
@@ -501,9 +518,11 @@ impl PreparedBuildMachineProgram {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
         let exact_toolchain_sources =
-            source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(invocation_error)?
-                .into_boxed_slice();
+            source_admission::source_identity::toolchain_source_identities(
+                typed.symbols.source_files(),
+            )
+            .map_err(invocation_error)?
+            .into_boxed_slice();
         Ok(Self {
             source: Arc::new(typed.clone()),
             exact_toolchain_sources,
@@ -590,7 +609,9 @@ impl PreparedBuildMachineProgram {
             .cloned()
             .ok_or_else(|| invocation_error("source invocation lost its accepted call"))?;
         let physical = match declaration {
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(required) => {
+            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(
+                required,
+            ) => {
                 let physical = accepted
                     .source()
                     .machine_by_symbol(actual_call.target_symbol)
@@ -614,7 +635,9 @@ impl PreparedBuildMachineProgram {
                 }
                 physical.symbol
             }
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Signature(required) => {
+            crate::source_state::callable_signature_shapes::CallableDeclaration::Signature(
+                required,
+            ) => {
                 let original = self
                     .source
                     .closed_requirement_application(required.symbol)
@@ -669,7 +692,10 @@ impl PreparedBuildMachineProgram {
                     .source()
                     .source_call_requirement_signature(
                         caller,
-                        crate::source_state::references::StaticArgumentCall::Expression(call, &actual_call),
+                        crate::source_state::references::StaticArgumentCall::Expression(
+                            call,
+                            &actual_call,
+                        ),
                     )
                     .map_err(invocation_error)?;
                 let (owner, _) = accepted
@@ -831,7 +857,9 @@ impl PreparedBuildMachineProgram {
         let call = invocation::direct_call(&self.source, machine).map_err(invocation_error)?;
         self.prepare_call(
             requester,
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
+            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(
+                machine.symbol,
+            ),
             &call,
             crate::source_state::expression::ExpressionHandle::invalid(),
             arguments,
@@ -951,7 +979,9 @@ impl PreparedBuildMachineProgram {
         let call = invocation::declaration_call(signature.symbol, signature.name.clone());
         self.prepare_call(
             requester,
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Signature(signature),
+            crate::source_state::callable_signature_shapes::CallableDeclaration::Signature(
+                signature,
+            ),
             &call,
             crate::source_state::expression::ExpressionHandle::invalid(),
             arguments,
@@ -977,7 +1007,9 @@ impl PreparedBuildMachineProgram {
         let call = invocation::direct_call(&self.source, machine)?;
         self.prepare_call(
             requester,
-            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
+            crate::source_state::callable_signature_shapes::CallableDeclaration::Machine(
+                machine.symbol,
+            ),
             &call,
             crate::source_state::expression::ExpressionHandle::invalid(),
             arguments,
@@ -1021,7 +1053,8 @@ pub(crate) mod tests {
         let tokens = crate::evaluation::frontend_fixture::Lexer::new(source)
             .tokenize()
             .expect("lex source");
-        let syntax = crate::evaluation::frontend_fixture::parse_syntax_trees(&tokens).expect("parse source");
+        let syntax =
+            crate::evaluation::frontend_fixture::parse_syntax_trees(&tokens).expect("parse source");
         let mut sources = crate::source_inputs::SourceMap::default();
         sources.add_with_metadata(
             "/job/policy.omg".into(),
@@ -1032,10 +1065,8 @@ pub(crate) mod tests {
         );
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
-        let resolved =
-            crate::resolution::resolve(request).expect("resolve source");
-        crate::typing::lower_symbol_resolved_trees(&resolved)
-            .expect("type source")
+        let resolved = crate::resolution::resolve(request).expect("resolve source");
+        crate::typing::lower_symbol_resolved_trees(&resolved).expect("type source")
     }
 
     fn program(source: &str) -> PreparedBuildMachineProgram {
@@ -1264,7 +1295,8 @@ pub(crate) mod tests {
         assert!(source.plan_laid_target_layouts.is_empty());
         assert!(accounting.receipts().is_empty());
         assert!(source.deferred_refusals_of(entry).any(|row| {
-            row.request == crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage
+            row.request
+                == crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage
         }));
     }
 
@@ -1687,7 +1719,8 @@ pub(crate) mod tests {
             panic!("one plan for the selected target");
         };
         assert_eq!(layout.machine, member.realization_machine);
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one physical policy invocation");
         };
         assert_ne!(receipt.machine(), member.realization_machine);
@@ -1856,9 +1889,10 @@ pub(crate) mod tests {
                 let Some([formal]) = source.state_parameters(state).as_array() else {
                     panic!("one declared float input")
                 };
-                let crate::source_state::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
-                    .type_reference_table
-                    .type_reference(formal.type_reference)
+                let crate::source_state::types::TypeReferenceNode::Named { symbol: scalar, .. } =
+                    source
+                        .type_reference_table
+                        .type_reference(formal.type_reference)
                 else {
                     panic!("the declared builtin float")
                 };
@@ -1890,10 +1924,12 @@ pub(crate) mod tests {
         .unwrap();
         let prepared = Arc::new(prepared);
         for (declaration, format) in declarations {
-            let symbol = crate::source_symbols::rejoin_declaration(&declaration, &prepared.symbols,
-                    prepared.machines().iter().map(|machine| machine.symbol),
-                )
-                .unwrap();
+            let symbol = crate::source_symbols::rejoin_declaration(
+                &declaration,
+                &prepared.symbols,
+                prepared.machines().iter().map(|machine| machine.symbol),
+            )
+            .unwrap();
             let accepted = crate::production::AcceptedTerminalSource::judge(
                 Arc::clone(&prepared),
                 crate::production::TerminalSourceCompilation {
@@ -1951,7 +1987,10 @@ pub(crate) mod tests {
     fn returned_source_call(
         source: &TypedTrees,
         name: &str,
-    ) -> (SymbolHandle, crate::source_state::expression::ExpressionHandle) {
+    ) -> (
+        SymbolHandle,
+        crate::source_state::expression::ExpressionHandle,
+    ) {
         let machine = source.realized_machine_named(name).unwrap();
         let Some([state]) = source.machine_states(machine).as_array() else {
             panic!("one authored entry")
@@ -2004,7 +2043,9 @@ pub(crate) mod tests {
                 .invoke_recorded(target(), &mut accounting)
                 .expect("the exact ordinary selected member executes");
             assert_eq!(result.value(), &BuildTimeValue::Int(expected));
-            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] =
+                accounting.receipts()
+            else {
                 panic!("one actual selected call")
             };
             assert_eq!(receipt.requester(), requester);
@@ -2283,7 +2324,9 @@ pub(crate) mod tests {
             let (operand, owner) = source
                 .source_call_selected_operand(
                     requester,
-                    crate::source_state::references::StaticArgumentCall::Expression(expression, call),
+                    crate::source_state::references::StaticArgumentCall::Expression(
+                        expression, call,
+                    ),
                 )
                 .unwrap();
             let scope = source
@@ -2326,7 +2369,9 @@ pub(crate) mod tests {
             let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
             let result = entry.invoke_recorded(target(), &mut accounting).unwrap();
             assert_eq!(result.value(), &BuildTimeValue::Int(41));
-            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] =
+                accounting.receipts()
+            else {
                 panic!("one exact selected invocation")
             };
             let (_, invocation) = receipt.invocation().unwrap().unwrap();
@@ -2446,7 +2491,8 @@ pub(crate) mod tests {
                 .value(),
             &BuildTimeValue::Int(41)
         );
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one selected call retains its exact execution receipt")
         };
         let (canonical_caller, invocation) = receipt.invocation().unwrap().unwrap();
@@ -2884,7 +2930,10 @@ pub(crate) mod tests {
 
     #[test]
     fn field_queries_return_the_selected_declaration_and_its_complete_application() {
-        fn field<'a>(value: &'a crate::evaluation::BuildTimeValue, name: &str) -> &'a crate::evaluation::BuildTimeValue {
+        fn field<'a>(
+            value: &'a crate::evaluation::BuildTimeValue,
+            name: &str,
+        ) -> &'a crate::evaluation::BuildTimeValue {
             let crate::evaluation::BuildTimeValue::Struct { fields, .. } = value else {
                 panic!("the query returns the ordinary FieldInfo record")
             };
@@ -3065,10 +3114,11 @@ pub(crate) mod tests {
         let selected = source
             .declaration_operand_from_expression(*operand)
             .unwrap();
-        let original = crate::source_state::reflection::construction::callable_description_identity(
-            &source, &selected, owner,
-        )
-        .unwrap();
+        let original =
+            crate::source_state::reflection::construction::callable_description_identity(
+                &source, &selected, owner,
+            )
+            .unwrap();
         let mut crossed = selected.clone();
         crossed.symbol = query_machine(&source, "other");
         assert!(
@@ -3102,20 +3152,24 @@ pub(crate) mod tests {
         assert_eq!(binding.parameter, selected_binder);
         let source_application = crate::source_state::expression::StaticMachineArgument {
             symbol: selected.symbol,
-            application: Some(Box::new(crate::source_state::expression::StaticSymbolApplication {
-                member: Default::default(),
-                lifetime_arguments: Box::default(),
-                arguments: source
-                    .expression_table
-                    .static_machine_application_arguments(application)
-                    .to_vec()
-                    .into_boxed_slice(),
-            })),
+            application: Some(Box::new(
+                crate::source_state::expression::StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: Box::default(),
+                    arguments: source
+                        .expression_table
+                        .static_machine_application_arguments(application)
+                        .to_vec()
+                        .into_boxed_slice(),
+                },
+            )),
             ..Default::default()
         };
         let invoked_identity = crate::source_state::type_identity::portable_applied_index_identity(
             &source,
-            crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(&source_application),
+            crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                &source_application,
+            ),
             used,
             &[],
         )
@@ -3395,7 +3449,8 @@ pub(crate) mod tests {
         let (requester, expression) = returned_source_call(&source, "answer");
         let (another, _) = returned_source_call(&source, "other");
         let original = source.expression_table.call_node(expression).unwrap();
-        let request = crate::source_state::references::StaticArgumentCall::Expression(expression, original);
+        let request =
+            crate::source_state::references::StaticArgumentCall::Expression(expression, original);
         let [operand] = request.arguments(&source) else {
             panic!("one actual type operand")
         };
@@ -3416,7 +3471,8 @@ pub(crate) mod tests {
             .unwrap()
             .invoke_recorded(target(), &mut accounting)
             .expect("the actual bare declaration produces its schema");
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one actual query invocation")
         };
         receipt.validate_charge().unwrap();
@@ -3571,7 +3627,9 @@ pub(crate) mod tests {
                 .unwrap()
                 .invoke_recorded(target(), &mut accounting)
                 .expect("the actual selected type produces its schema");
-            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] =
+                accounting.receipts()
+            else {
                 panic!("one actual query request")
             };
             let request = crate::source_state::references::StaticArgumentCall::Expression(
@@ -3862,7 +3920,9 @@ pub(crate) mod tests {
                 .invoke_recorded(target(), &mut accounting)
                 .expect("run the bound actual call");
             assert_eq!(result.value(), &expected);
-            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] =
+                accounting.receipts()
+            else {
                 panic!("one actual invocation receipt")
             };
             assert!(std::ptr::eq(receipt.source(), entry.accepted_source()));
@@ -3972,7 +4032,8 @@ pub(crate) mod tests {
             field(field(result.value(), "side"), "value"),
             &BuildTimeValue::Int(9)
         );
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one exact call was interpreted")
         };
         assert_eq!(receipt.arguments(), &arguments);
@@ -4188,7 +4249,8 @@ pub(crate) mod tests {
         accounting
             .validate_charges()
             .expect("complete measured charges");
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one actual invocation receipt")
         };
         assert_eq!(receipt.machine(), entry.symbol());
@@ -4231,28 +4293,61 @@ pub(crate) mod tests {
         let source = program("machine answer(bytes: &[u8]) -> &[u8] { bytes }");
         let entry = bind(&source, &[BuildTimeValue::Text(vec![0, 255, b'x'])]).unwrap();
         let code = entry.produce_invocation().unwrap();
-        let first_account = crate::evaluation::evaluation_accounting::pure_terminal_invocation_account().unwrap();
-        let second_account = crate::evaluation::evaluation_accounting::pure_terminal_invocation_account().unwrap();
+        let first_account =
+            crate::evaluation::evaluation_accounting::pure_terminal_invocation_account().unwrap();
+        let second_account =
+            crate::evaluation::evaluation_accounting::pure_terminal_invocation_account().unwrap();
         let mut receipts = Vec::new();
         for account in [&first_account, &second_account] {
             let (admission, requirements) = entry.admit_invocation(&code, target()).unwrap();
-            let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None).unwrap();
-            let executed = entry.execute_invocation(&code, &admission, requirements, target(), &mut meter).unwrap();
-            assert_eq!(executed.value.unwrap(), BuildTimeValue::Text(vec![0, 255, b'x']));
+            let mut meter =
+                terminal_work::WorkMeter::with_invocation(account.clone(), None).unwrap();
+            let executed = entry
+                .execute_invocation(&code, &admission, requirements, target(), &mut meter)
+                .unwrap();
+            assert_eq!(
+                executed.value.unwrap(),
+                BuildTimeValue::Text(vec![0, 255, b'x'])
+            );
             assert!(executed.receipt.usage().total_units() > 0);
-            executed.receipt.require_admission(code.view(), &admission).unwrap();
-            executed.receipt.require_inputs(&entry.arguments, &entry.input_values, Some(account)).unwrap();
+            executed
+                .receipt
+                .require_admission(code.view(), &admission)
+                .unwrap();
+            executed
+                .receipt
+                .require_inputs(&entry.arguments, &entry.input_values, Some(account))
+                .unwrap();
             receipts.push(executed.receipt);
         }
         assert_eq!(receipts[0].code(), receipts[1].code());
-        assert_eq!(receipts[0].usage().total_units(), receipts[1].usage().total_units());
+        assert_eq!(
+            receipts[0].usage().total_units(),
+            receipts[1].usage().total_units()
+        );
         assert!(!receipts[0].same_account(Some(&second_account)));
         assert!(!receipts[1].same_account(Some(&first_account)));
-        assert!(receipts[0].require_inputs(&entry.arguments, &entry.input_values, Some(&second_account)).is_err());
+        assert!(
+            receipts[0]
+                .require_inputs(&entry.arguments, &entry.input_values, Some(&second_account))
+                .is_err()
+        );
         let replacement_arguments = Arc::from(entry.arguments.as_ref());
-        assert!(receipts[0].require_inputs(&replacement_arguments, &entry.input_values, Some(&first_account)).is_err());
+        assert!(
+            receipts[0]
+                .require_inputs(
+                    &replacement_arguments,
+                    &entry.input_values,
+                    Some(&first_account)
+                )
+                .is_err()
+        );
         let replacement_inputs = Arc::from(entry.input_values.as_ref());
-        assert!(receipts[0].require_inputs(&entry.arguments, &replacement_inputs, Some(&first_account)).is_err());
+        assert!(
+            receipts[0]
+                .require_inputs(&entry.arguments, &replacement_inputs, Some(&first_account))
+                .is_err()
+        );
     }
 
     #[test]
@@ -4356,15 +4451,15 @@ pub(crate) mod tests {
                 let tokens = crate::evaluation::frontend_fixture::Lexer::new(text)
                     .tokenize()
                     .expect("lex source");
-                crate::evaluation::frontend_fixture::parse(&mut syntax, id, &tokens).expect("parse source");
+                crate::evaluation::frontend_fixture::parse(&mut syntax, id, &tokens)
+                    .expect("parse source");
             }
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
-            let resolved = crate::resolution::resolve(request)
-                .expect("resolve actual source owners");
-            let typed =
-                crate::typing::lower_symbol_resolved_trees(&resolved)
-                    .expect("prepare declarations");
+            let resolved =
+                crate::resolution::resolve(request).expect("resolve actual source owners");
+            let typed = crate::typing::lower_symbol_resolved_trees(&resolved)
+                .expect("prepare declarations");
             let requester = typed.realized_machine_named("request").unwrap().symbol;
             let callee = typed.realized_machine_named("answer").unwrap().symbol;
             assert_eq!(typed.symbols.symbol_package_identity(requester), owner);
@@ -4462,12 +4557,14 @@ pub(crate) mod tests {
                 crate::evaluation::frontend_fixture::parse(syntax, source, &tokens).unwrap();
             } else {
                 syntax = Some(
-                    crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                    crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(
+                        source, &tokens,
+                    )
+                    .unwrap(),
                 );
             }
         }
-        let mut request =
-            crate::resolution::ResolutionRequest::new(syntax.unwrap());
+        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
         request.top_level_bindings = bindings
             .iter()
@@ -4476,8 +4573,7 @@ pub(crate) mod tests {
             })
             .collect();
         let resolved = crate::resolution::resolve(request).unwrap();
-        let source =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let source = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         (packages, source)
     }
 
@@ -4596,7 +4692,8 @@ pub(crate) mod tests {
         let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
         let value = entry.invoke_recorded(target(), &mut accounting).unwrap();
         assert_eq!(value.value(), &BuildTimeValue::Int(1));
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one actual selected receipt")
         };
         let (_, call) = receipt.invocation().unwrap().unwrap();
@@ -4832,8 +4929,7 @@ pub(crate) mod tests {
         }
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
-        let resolved = crate::resolution::resolve(request)
-            .expect("two actual source owners");
+        let resolved = crate::resolution::resolve(request).expect("two actual source owners");
         let source = crate::typing::lower_symbol_resolved_trees(&resolved)
             .expect("type both source declarations");
         let selected = |package, name: &str| {
@@ -4909,7 +5005,8 @@ pub(crate) mod tests {
             .invoke_recorded(target(), &mut accounting)
             .expect("the actual direct edge is selected");
         assert_eq!(value.value(), &BuildTimeValue::Int(1));
-        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+        else {
             panic!("one actual receipt")
         };
         assert_eq!(receipt.requester(), requester);

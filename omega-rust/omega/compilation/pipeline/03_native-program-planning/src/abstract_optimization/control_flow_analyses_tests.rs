@@ -285,7 +285,9 @@ fn optimized_publication_keeps_block_ownership_after_node_removal() {
     let source = case_plan();
     let mut optimized = unit(&source);
     optimized.functions[0].blocks[0].nodes.remove(1);
-    let published = crate::abstract_optimization::publication::source::project_plan(&source, &optimized).unwrap();
+    let published =
+        crate::abstract_optimization::publication::source::project_plan(&source, &optimized)
+            .unwrap();
     let function = &published.functions[0];
     assert_eq!(function.blocks.len(), 5);
     assert_eq!(function.blocks[0].operations.len(), 2);

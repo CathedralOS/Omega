@@ -14,12 +14,12 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use symbols::SymbolHandle;
 use source_compiler::source_state::TypedTrees;
 use source_compiler::source_state::data::{DataField, DataMember};
 use source_compiler::source_state::domain::DomainDefinition;
 use source_compiler::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use source_compiler::source_state::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
 
 /// Names in a reviewed clause come from its retained declaration, never from
 /// their spelling. Domain predicates and callable clauses share this projection.
@@ -116,7 +116,10 @@ impl<'a> PackageReviewInput<'a> {
         reference: TypeReferenceHandle,
         lifetime_scope: Option<(
             SymbolHandle,
-            &[(source_compiler::source_state::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
@@ -145,18 +148,23 @@ impl<'a> PackageReviewInput<'a> {
         reference: TypeReferenceHandle,
         lifetime_scope: Option<(
             SymbolHandle,
-            &[(source_compiler::source_state::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let canonical = self
             .typed()
-            .exact_owner_type_identity(source_compiler::source_state::type_identity::ExactOwnerTypeIdentityRequest {
-                type_reference: reference,
-                lifetime_scope,
-                binders: &[],
-                substitutions: &[],
-                exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
-            })
+            .exact_owner_type_identity(
+                source_compiler::source_state::type_identity::ExactOwnerTypeIdentityRequest {
+                    type_reference: reference,
+                    lifetime_scope,
+                    binders: &[],
+                    substitutions: &[],
+                    exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
+                },
+            )
             .and_then(|identity| self.typed().type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| unavailable("a type without a package-qualified identity"))?;
@@ -174,9 +182,10 @@ impl<'a> PackageReviewInput<'a> {
             .package_identity()
             .ok_or_else(|| unavailable("a type outside the reviewed package subject"))?;
         let symbols = &self.typed().symbols;
-        for symbol in
-            source_compiler::source_state::references::collect_type_symbol_dependencies(self.typed(), reference)
-        {
+        for symbol in source_compiler::source_state::references::collect_type_symbol_dependencies(
+            self.typed(),
+            reference,
+        ) {
             if !symbols.symbols().nodes().is_valid(symbol) {
                 return Err(unavailable("a stale declaration in a public type"));
             }
@@ -217,7 +226,10 @@ impl<'a> PackageReviewInput<'a> {
         field: &DataField,
         lifetimes: (
             SymbolHandle,
-            &[(source_compiler::source_state::type_identity::LifetimeParameterIdentity, usize)],
+            &[(
+                source_compiler::source_state::type_identity::LifetimeParameterIdentity,
+                usize,
+            )],
         ),
     ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
         Ok(PackageReviewDataField {
@@ -357,7 +369,8 @@ impl<'a> PackageReviewInput<'a> {
             let mut predicate_facts = Vec::new();
             for handle in definition.facts.handles() {
                 let fact = self.typed().proof_facts.get(handle);
-                let source_compiler::source_state::domain::ProofFact::Expression(expression) = fact else {
+                let source_compiler::source_state::domain::ProofFact::Expression(expression) = fact
+                else {
                     return Err(unavailable("a non-expression domain predicate fact"));
                 };
                 predicate_facts.push(PackageReviewContractFact::Expression(self.expression(
@@ -422,8 +435,9 @@ impl<'a> PackageReviewInput<'a> {
         if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
             return Ok(());
         }
-        let spelling = source_compiler::source_state::operator::binary_operator_spelling(binary.operator)
-            .ok_or_else(|| unavailable("an unserved contract operator family"))?;
+        let spelling =
+            source_compiler::source_state::operator::binary_operator_spelling(binary.operator)
+                .ok_or_else(|| unavailable("an unserved contract operator family"))?;
         let operands = [
             self.operand_type(binary.left, scope)?,
             self.operand_type(binary.right, scope)?,
@@ -464,10 +478,12 @@ impl<'a> PackageReviewInput<'a> {
                 }
                 if let Some(parameter) = scope.statics.iter().find(|p| p.symbol == name.symbol) {
                     return match parameter.kind {
-                        source_compiler::source_state::data::TypeParameterKind::Const { type_reference }
-                        | source_compiler::source_state::data::TypeParameterKind::Value { type_reference } => {
-                            Ok(Some(type_reference))
+                        source_compiler::source_state::data::TypeParameterKind::Const {
+                            type_reference,
                         }
+                        | source_compiler::source_state::data::TypeParameterKind::Value {
+                            type_reference,
+                        } => Ok(Some(type_reference)),
                         _ => Err(unavailable("a non-value contract binder")),
                     };
                 }

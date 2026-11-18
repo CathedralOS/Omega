@@ -3,10 +3,13 @@
 // complete checked promise together with the selected Build locator receipt.
 
 use super::TrustAdmission;
-use diagnostics::Diagnostic;
 use declaration_contracts::selection::AuthoredRootGrant;
 use declaration_contracts::selection::RootGrantSubject;
-use declaration_contracts::trust_declarations::{AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality, TrustDeclarations};
+use declaration_contracts::trust_declarations::{
+    AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality,
+    TrustDeclarations,
+};
+use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 
 enum PreparedTrustIdentity {

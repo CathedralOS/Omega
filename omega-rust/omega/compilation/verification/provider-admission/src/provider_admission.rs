@@ -93,8 +93,8 @@ pub mod terminal_authority_permissions {
 use crate::AdmissionSource as NativeRealizationInput;
 use crate::AdmittedProviderInstallation;
 use ::diagnostics::Diagnostic;
-use installation_evidence::ProviderExecutionEvidence;
 use application_identity::type_identity::callable_display_path as requirement_path;
+use installation_evidence::ProviderExecutionEvidence;
 use terminal_authority_review::reachability::AuthorityGraph;
 
 pub fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {

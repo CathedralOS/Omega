@@ -8,8 +8,8 @@ use package_compilation::{
 };
 use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
-use std::path::Path;
 use source_compiler::source_state::service_declarations::ProviderSchemaDeclaration;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {

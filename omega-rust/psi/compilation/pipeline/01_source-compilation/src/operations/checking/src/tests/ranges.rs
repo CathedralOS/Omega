@@ -533,10 +533,7 @@ fn one_more_than_a_value_below_another_is_at_most_that_value() {
             "machine entry(n: u64, p: u64) -> u64 requires {requires} {{ n - (p + 1) }}"
         ));
         let entry = super::boundary_calls::entry(&program);
-        super::judge(crate::lowering::elaborate_closure(
-            &program, entry,
-        ))
-        .unwrap()
+        super::judge(crate::lowering::elaborate_closure(&program, entry)).unwrap()
     };
     let accepted = judged("p < n");
     assert!(

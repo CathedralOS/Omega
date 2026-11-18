@@ -1,6 +1,9 @@
 //! Recorded-cost replay tests; public Build execution is covered by build_charge.
-use evaluation_accounting::{BuildEvaluationSponsor};
-use evaluation_contracts::{BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::{
+    BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
+};
 use semantic_vocabulary::WorkScheduleIdentity;
 use std::sync::{Arc, Barrier};
 

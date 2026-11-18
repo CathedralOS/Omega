@@ -211,7 +211,9 @@ pub(in crate::encoding::encode) fn data_shape(
     encoder.field("supply", |encoder| {
         match shape.supply {
             declaration_contracts::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            declaration_contracts::DataSupplyMode::BoundaryOpaque => encoder.tag("boundary_opaque", 1),
+            declaration_contracts::DataSupplyMode::BoundaryOpaque => {
+                encoder.tag("boundary_opaque", 1)
+            }
         };
         Ok(())
     })?;

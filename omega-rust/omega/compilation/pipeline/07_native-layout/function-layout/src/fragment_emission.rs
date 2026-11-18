@@ -215,7 +215,9 @@ pub struct StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
-    pub fn installation_authority(&self) -> &Arc<installation_admission::BoundInstallationAuthority> {
+    pub fn installation_authority(
+        &self,
+    ) -> &Arc<installation_admission::BoundInstallationAuthority> {
         &self.installation_authority
     }
 
@@ -351,10 +353,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         if installation_program.psi != physical.psi
             || installation_program.target != physical.target
             || installation_program.machine != physical.entry
-            || !self.installation_authority().matches_frame(
-                physical.identity,
-                self.program().frame_identity,
-            )
+            || !self
+                .installation_authority()
+                .matches_frame(physical.identity, self.program().frame_identity)
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }

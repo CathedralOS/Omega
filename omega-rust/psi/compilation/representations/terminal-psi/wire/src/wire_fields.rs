@@ -10,8 +10,8 @@ pub(crate) use crate::semantic_module::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
 pub(crate) mod wire {
 
     use super::{CodecError, MAX_CONTENT_IDENTITY_BYTES};
-    use semantic_vocabulary::InvocationSite;
     use arena::NumericId;
+    use semantic_vocabulary::InvocationSite;
 
     pub(crate) fn encode_invocation_site(writer: &mut Writer, site: InvocationSite) {
         let (tag, identity, action_ordinal) = match site {
@@ -274,10 +274,7 @@ pub(crate) mod wire {
             Ok(values)
         }
 
-        pub(crate) fn id<T: NumericId>(
-            &mut self,
-            label: &'static str,
-        ) -> Result<T, CodecError> {
+        pub(crate) fn id<T: NumericId>(&mut self, label: &'static str) -> Result<T, CodecError> {
             let raw = self.u64()?;
             T::new(raw).ok_or(CodecError::ZeroIdentity(label))
         }
@@ -390,8 +387,11 @@ use super::wire::{
     Reader, Writer, bounded_count, decode_bytes, decode_counted, decode_ids, decode_optional_id,
     encode_optional_id,
 };
-use semantic_vocabulary::{CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue, ProofTerm, ScalarTerm, StructuralFieldId};
-use arena::{NumericId};
+use arena::NumericId;
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation,
+    IeeeFloatValue, IntegerValue, ProofTerm, ScalarTerm, StructuralFieldId,
+};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequencePredicate, ClaimTransfer, CompletionReceipt, ElementViewRegion,

@@ -1,13 +1,13 @@
 //! Source settlement owns activation, visibility and the mutable source catalogue.
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::sync::Arc;
 use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
 use source_text::{SourceId, SourceSpan};
-use semantic_vocabulary::PackageKeyIdentity;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Permit private source selections within one captured Build invocation.
 /// This consent assigns no declaration owner, package edge or execution effect.
@@ -652,8 +652,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::{
-        DependencyScope, SourceFile, SourceId, SourceMap, SourceOrigin,
-        SourceResolutionStratum, SourceSpan,
+        DependencyScope, SourceFile, SourceId, SourceMap, SourceOrigin, SourceResolutionStratum,
+        SourceSpan,
     };
     use semantic_vocabulary::PackageKeyIdentity;
 
@@ -861,131 +861,131 @@ mod tests {
 }
 
 #[cfg(test)]
-    mod identity_tests {
-        use super::*;
-        use source_admission::source_identity::*;
-use declaration_contracts::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
+mod identity_tests {
+    use super::*;
+    use declaration_contracts::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
+    use source_admission::source_identity::*;
 
-        fn toolchain(root: &str) -> SourceFile {
-            let mut sources = SourceMap::default();
-            let root = std::path::PathBuf::from(root).join("core");
-            sources
-                .add_with_metadata(
-                    root.join("numbers.omg"),
-                    "machine answer() -> u64 { 16 }".into(),
-                    root,
-                    None,
-                    SourceOrigin::Toolchain,
-                )
-                .clone()
-        }
-
-        #[test]
-        fn toolchain_protocol_is_stable_across_physical_roots_and_source_ids() {
-            let first = toolchain("first/toolchain");
-            let mut relocated = toolchain("different/cache");
-            relocated.source_id = source_text::SourceId(417);
-            let digest = toolchain_source_identity_digest(&first).expect("identity");
-            let hexadecimal = digest
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
-            assert_eq!(
-                hexadecimal,
-                "8aa68ba24b8af7d4b20c3b58d6a447d0cd25214f14901a6956fb815578d4a4fb"
-            );
-            assert_eq!(
-                digest,
-                toolchain_source_identity_digest(&relocated).expect("relocated identity")
-            );
-            relocated.source = "machine answer() -> u64 { 17 }".into();
-            assert_ne!(
-                digest,
-                toolchain_source_identity_digest(&relocated).expect("changed identity")
-            );
-        }
-
-        #[test]
-        fn closed_contract_identity_retains_role_without_granting_core_exposure() {
-            let mut file = toolchain("toolchain");
-            let core = toolchain_source_identity_digest(&file).expect("core identity");
-            file.origin = SourceOrigin::ToolchainContract;
-            let contract = consumed_source_unit(&file, false).expect("contract identity");
-            assert_eq!(contract.kind(), ConsumedSourceUnitKind::ToolchainContract);
-            let encoded = canonical_source_entry(&file).expect("canonical contract");
-            assert_eq!(encoded[0], 5);
-            let digest = toolchain_source_identity_digest(&file).expect("contract digest");
-            assert_ne!(core, digest, "changing exposure changes admission identity");
-            assert_eq!(
-                toolchain_source_identities([&file]).unwrap(),
-                vec![(file.source_id, digest)]
-            );
-            assert_eq!(
-                ConsumedSourceUnit::from_retained(
-                    contract.kind(),
-                    contract.package(),
-                    contract.toolchain_namespace().map(str::to_owned),
-                    contract.relative_path().to_vec(),
-                    contract.byte_count(),
-                    contract.content_digest(),
-                )
-                .unwrap(),
-                contract,
-            );
-            assert!(consumed_source_unit(&file, true).is_err());
-            file.path = "<build-prelude>".into();
-            assert!(consumed_source_unit(&file, false).is_err());
-        }
-
-        #[test]
-        fn changing_toolchain_role_does_not_share_an_unbound_namespace() {
-            let core = toolchain("toolchain");
-            let mut contract = core.clone();
-            contract.source_id = source_text::SourceId(1);
-            contract.origin = SourceOrigin::ToolchainContract;
-            let core_span = core.source_span(source_text::Span::new(0, 4));
-            let contract_span = contract.source_span(source_text::Span::new(0, 4));
-            let sources = SourceMap::from_files(vec![core, contract]);
-            assert!(!sources.same_package(core_span, contract_span));
-            assert!(!sources.same_checked_instance(core_span, contract_span));
-        }
-
-        #[test]
-        fn source_identity_does_not_grant_toolchain_or_generated_authority() {
-            let mut file = toolchain("toolchain");
-            assert!(
-                consumed_source_unit(&file, true)
-                    .expect_err("generated toolchain")
-                    .contains("generated-source custody")
-            );
-            file.origin = SourceOrigin::User;
-            assert!(
-                toolchain_source_identity_digest(&file)
-                    .expect_err("user source")
-                    .contains("non-toolchain")
-            );
-            assert!(
-                consumed_source_unit(&file, false)
-                    .expect_err("missing package")
-                    .contains("no reconciled package identity")
-            );
-        }
-
-        #[test]
-        fn generated_coordinates_retain_checked_scope_but_authored_bytes_share() {
-            let mut file = toolchain("package");
-            file.origin = SourceOrigin::User;
-            file.package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
-            let authored = consumed_source_unit(&file, false).expect("authored");
-            let generated = consumed_source_unit(&file, true).expect("generated");
-            file.dependency_scope = declaration_contracts::source_identity::DependencyScope::Build;
-            assert_eq!(
-                authored,
-                consumed_source_unit(&file, false).expect("authored Build")
-            );
-            assert_ne!(
-                generated,
-                consumed_source_unit(&file, true).expect("generated Build")
-            );
-        }
+    fn toolchain(root: &str) -> SourceFile {
+        let mut sources = SourceMap::default();
+        let root = std::path::PathBuf::from(root).join("core");
+        sources
+            .add_with_metadata(
+                root.join("numbers.omg"),
+                "machine answer() -> u64 { 16 }".into(),
+                root,
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .clone()
     }
+
+    #[test]
+    fn toolchain_protocol_is_stable_across_physical_roots_and_source_ids() {
+        let first = toolchain("first/toolchain");
+        let mut relocated = toolchain("different/cache");
+        relocated.source_id = source_text::SourceId(417);
+        let digest = toolchain_source_identity_digest(&first).expect("identity");
+        let hexadecimal = digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            hexadecimal,
+            "8aa68ba24b8af7d4b20c3b58d6a447d0cd25214f14901a6956fb815578d4a4fb"
+        );
+        assert_eq!(
+            digest,
+            toolchain_source_identity_digest(&relocated).expect("relocated identity")
+        );
+        relocated.source = "machine answer() -> u64 { 17 }".into();
+        assert_ne!(
+            digest,
+            toolchain_source_identity_digest(&relocated).expect("changed identity")
+        );
+    }
+
+    #[test]
+    fn closed_contract_identity_retains_role_without_granting_core_exposure() {
+        let mut file = toolchain("toolchain");
+        let core = toolchain_source_identity_digest(&file).expect("core identity");
+        file.origin = SourceOrigin::ToolchainContract;
+        let contract = consumed_source_unit(&file, false).expect("contract identity");
+        assert_eq!(contract.kind(), ConsumedSourceUnitKind::ToolchainContract);
+        let encoded = canonical_source_entry(&file).expect("canonical contract");
+        assert_eq!(encoded[0], 5);
+        let digest = toolchain_source_identity_digest(&file).expect("contract digest");
+        assert_ne!(core, digest, "changing exposure changes admission identity");
+        assert_eq!(
+            toolchain_source_identities([&file]).unwrap(),
+            vec![(file.source_id, digest)]
+        );
+        assert_eq!(
+            ConsumedSourceUnit::from_retained(
+                contract.kind(),
+                contract.package(),
+                contract.toolchain_namespace().map(str::to_owned),
+                contract.relative_path().to_vec(),
+                contract.byte_count(),
+                contract.content_digest(),
+            )
+            .unwrap(),
+            contract,
+        );
+        assert!(consumed_source_unit(&file, true).is_err());
+        file.path = "<build-prelude>".into();
+        assert!(consumed_source_unit(&file, false).is_err());
+    }
+
+    #[test]
+    fn changing_toolchain_role_does_not_share_an_unbound_namespace() {
+        let core = toolchain("toolchain");
+        let mut contract = core.clone();
+        contract.source_id = source_text::SourceId(1);
+        contract.origin = SourceOrigin::ToolchainContract;
+        let core_span = core.source_span(source_text::Span::new(0, 4));
+        let contract_span = contract.source_span(source_text::Span::new(0, 4));
+        let sources = SourceMap::from_files(vec![core, contract]);
+        assert!(!sources.same_package(core_span, contract_span));
+        assert!(!sources.same_checked_instance(core_span, contract_span));
+    }
+
+    #[test]
+    fn source_identity_does_not_grant_toolchain_or_generated_authority() {
+        let mut file = toolchain("toolchain");
+        assert!(
+            consumed_source_unit(&file, true)
+                .expect_err("generated toolchain")
+                .contains("generated-source custody")
+        );
+        file.origin = SourceOrigin::User;
+        assert!(
+            toolchain_source_identity_digest(&file)
+                .expect_err("user source")
+                .contains("non-toolchain")
+        );
+        assert!(
+            consumed_source_unit(&file, false)
+                .expect_err("missing package")
+                .contains("no reconciled package identity")
+        );
+    }
+
+    #[test]
+    fn generated_coordinates_retain_checked_scope_but_authored_bytes_share() {
+        let mut file = toolchain("package");
+        file.origin = SourceOrigin::User;
+        file.package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+        let authored = consumed_source_unit(&file, false).expect("authored");
+        let generated = consumed_source_unit(&file, true).expect("generated");
+        file.dependency_scope = declaration_contracts::source_identity::DependencyScope::Build;
+        assert_eq!(
+            authored,
+            consumed_source_unit(&file, false).expect("authored Build")
+        );
+        assert_ne!(
+            generated,
+            consumed_source_unit(&file, true).expect("generated Build")
+        );
+    }
+}

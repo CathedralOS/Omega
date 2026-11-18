@@ -156,9 +156,7 @@ pub struct AdmittedInstalledInterruptScope {
 }
 
 impl AdmittedInstalledInterruptScope {
-    pub fn shared_facts(
-        &self,
-    ) -> &std::sync::Arc<bound_installations::BoundInterruptInstallation> {
+    pub fn shared_facts(&self) -> &std::sync::Arc<bound_installations::BoundInterruptInstallation> {
         &self.facts
     }
 }
@@ -237,9 +235,7 @@ pub struct AdmittedCallbackEntry {
 }
 
 impl AdmittedCallbackEntry {
-    pub fn shared_contract(
-        &self,
-    ) -> &std::sync::Arc<bound_installations::BoundCallbackEntry> {
+    pub fn shared_contract(&self) -> &std::sync::Arc<bound_installations::BoundCallbackEntry> {
         &self.contract
     }
 }

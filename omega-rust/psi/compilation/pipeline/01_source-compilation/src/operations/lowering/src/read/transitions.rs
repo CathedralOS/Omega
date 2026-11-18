@@ -5,18 +5,20 @@ over a sum, which stage 01 writes as one guarded transition per case arm.
 */
 
 use crate::lowering::body::Qualification;
-use semantic_vocabulary::{MachineId, ScalarType};
-use terminal_check_tables::{Checked, Construct};
 use crate::source_state::expression::ExpressionHandle;
 use crate::source_state::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionExit, TransitionGuardNode,
     TransitionTargetNode,
 };
+use semantic_vocabulary::{MachineId, ScalarType};
+use terminal_check_tables::{Checked, Construct};
 
 use super::authority::Access;
 use super::expressions::{case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::lowering::body::{CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType};
+use crate::lowering::body::{
+    CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType,
+};
 use crate::lowering::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {

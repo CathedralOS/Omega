@@ -4,11 +4,13 @@
 //! rows by the resolved contract handle. Reserve each row before lowering its
 //! children so recursive references can resolve.
 
-use diagnostics::Diagnostic;
 use crate::source_resolved as resolved;
 use crate::source_state as typed;
+use diagnostics::Diagnostic;
 
-pub(crate) fn lower_contracts(lowerer: &mut crate::typing::lowerer::Lowerer<'_>) -> Result<(), Diagnostic> {
+pub(crate) fn lower_contracts(
+    lowerer: &mut crate::typing::lowerer::Lowerer<'_>,
+) -> Result<(), Diagnostic> {
     let mut pending = Vec::new();
     lowerer.typed_trees.runtime_callable_lowering =
         typed::callable_values::RuntimeCallableLowering::from_contracts(
@@ -59,8 +61,9 @@ pub(crate) fn lower_contracts(lowerer: &mut crate::typing::lowerer::Lowerer<'_>)
         pending.push((handle, &row.signature));
     }
     for (handle, signature) in pending {
-        let signature =
-            crate::typing::signatures::callable_signature::lower_state_signature(lowerer, signature)?;
+        let signature = crate::typing::signatures::callable_signature::lower_state_signature(
+            lowerer, signature,
+        )?;
         lowerer
             .typed_trees
             .runtime_callable_contracts
@@ -1370,15 +1373,14 @@ machine entry(scale: &Scale) -> u64 {
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-            let resolved = crate::resolution::resolve(
-                crate::resolution::ResolutionRequest {
-                    syntax,
-                    sources: Some(std::sync::Arc::new(sources)),
-                    top_level_bindings: Vec::new(),
-                    retained_base: None,
-                },
-            )
+                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
+            let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            })
             .unwrap();
             let named_members = resolved
                 .tables

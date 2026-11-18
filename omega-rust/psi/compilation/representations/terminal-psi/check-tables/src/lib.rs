@@ -38,8 +38,11 @@ pub mod values;
 
 use std::num::NonZeroU64;
 
-pub use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, PropositionId, ValueId};
 pub use arena::{IdTable, NumericId};
+pub use semantic_vocabulary::{
+    BlockId, EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, PropositionId,
+    ValueId,
+};
 
 macro_rules! check_id {
     ($name:ident, $doc:literal) => {

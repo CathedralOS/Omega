@@ -15,12 +15,12 @@ mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use semantic_vocabulary::{MachineId};
-use arena::{IdTable};
-use symbols::SymbolHandle;
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
 use source_compiler::checking::{RouteVerdict, judge};
-use source_compiler::source_state::deferred_refusals::DeferredRequest;
 use source_compiler::lowering::{Compilation, elaborate, elaborate_closure};
+use source_compiler::source_state::deferred_refusals::DeferredRequest;
+use symbols::SymbolHandle;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -304,9 +304,7 @@ fn assert_authored_site(
     assert_eq!(site.span, source_text::Span::new(start, start + text.len()));
 }
 
-fn rule_violation(
-    frontier: &compiler::TypedFrontier,
-) -> source_compiler::checking::RuleViolation {
+fn rule_violation(frontier: &compiler::TypedFrontier) -> source_compiler::checking::RuleViolation {
     let (_, verdict) = route_verdict(frontier);
     let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("the route must reject a rule violation: {verdict:?}");
@@ -693,7 +691,8 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                     .and_then(|span| typed.symbols.source_file(span))
                     .is_some_and(|file| {
                         file.origin == source_admission::SourceOrigin::User
-                            && file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+                            && file.dependency_scope
+                                == declaration_contracts::source_identity::DependencyScope::Product
                     })
         })
         .expect("the fixture declares `pick` beside its entry");

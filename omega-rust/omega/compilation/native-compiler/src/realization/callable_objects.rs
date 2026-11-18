@@ -129,8 +129,7 @@ impl LaidOutCallable {
             observation,
             authority,
         } = self.custody;
-        let projection =
-            pipeline::construct_body_object(self.body).map_err(callable_error)?;
+        let projection = pipeline::construct_body_object(self.body).map_err(callable_error)?;
         let physical_original = native_artifact::PrivatePhysicalOriginal::new(
             projection.object().psi(),
             code,
@@ -141,7 +140,9 @@ impl LaidOutCallable {
         Ok(CallableObjectProduct {
             physical_original,
             projection,
-            runtime: self.runtime.map_adapters(super::auxiliary_native::construct),
+            runtime: self
+                .runtime
+                .map_adapters(super::auxiliary_native::construct),
             authority,
         })
     }

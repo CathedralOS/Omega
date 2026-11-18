@@ -171,7 +171,9 @@ pub(crate) mod catalog {
         proof_check_elision, representation_specialization_rule_registrations,
         sparse_conditional_constant_propagation, state_specialization,
     };
-    use crate::abstract_optimization::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
+    use crate::abstract_optimization::{
+        OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError,
+    };
 
     type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
@@ -490,7 +492,9 @@ pub(crate) mod registry {
     use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 
     use crate::abstract_optimization::analyses::analysis_index;
-    use crate::abstract_optimization::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
+    use crate::abstract_optimization::{
+        AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis,
+    };
 
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct RuleAnalysisView<'a> {
@@ -728,7 +732,9 @@ pub(crate) mod copy_propagation {
 
         use crate::abstract_optimization::rules::COPY_PROPAGATION_PASS_NAME;
         use crate::abstract_optimization::rules::control_flow_cleanup::provenance_realized_at;
-        use crate::abstract_optimization::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+        use crate::abstract_optimization::{
+            AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+        };
 
         psi_rule_contract!(
             RedundantBlockParameterRule,
@@ -896,8 +902,12 @@ pub(crate) mod dead_scalar_elimination {
         use semantic_vocabulary::ScalarType;
 
         use crate::abstract_optimization::rules::DEAD_PURE_SCALAR_PASS_NAME;
-        use crate::abstract_optimization::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_nodes};
-        use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+        use crate::abstract_optimization::rules::node_elision::{
+            DeadScalarShape, propose_unproved_dead_scalar_nodes,
+        };
+        use crate::abstract_optimization::{
+            PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+        };
 
         psi_rule_contract!(
             DeadScalarLiteralEliminationRule,
@@ -955,8 +965,12 @@ pub(crate) mod dead_scalar_elimination {
         use semantic_vocabulary::ScalarType;
 
         use crate::abstract_optimization::rules::DEAD_PURE_SCALAR_PASS_NAME;
-        use crate::abstract_optimization::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_nodes};
-        use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+        use crate::abstract_optimization::rules::node_elision::{
+            DeadScalarShape, propose_unproved_dead_scalar_nodes,
+        };
+        use crate::abstract_optimization::{
+            PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+        };
 
         psi_rule_contract!(
             DeadUnconditionallyTotalScalarEliminationRule,

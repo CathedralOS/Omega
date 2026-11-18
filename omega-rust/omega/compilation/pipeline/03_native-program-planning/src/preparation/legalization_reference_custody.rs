@@ -7,7 +7,9 @@ resident joins, retirements, and stored calls.
 
 use crate::preparation::LegalizationError;
 use crate::preparation::legalization::scalar_graph_input::structural_case::source_result;
-use crate::preparation::legalization::scalar_graph_input::{AbstractOperation, PsiOptimizationFunction};
+use crate::preparation::legalization::scalar_graph_input::{
+    AbstractOperation, PsiOptimizationFunction,
+};
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::call_source;
 use optimization_unit_semantics::CallRegion;
@@ -1047,7 +1049,9 @@ pub(crate) mod descriptor_backing {
 
     pub(crate) fn prepare(
         function: &PsiOptimizationFunction,
-        descriptor_inputs: &crate::preparation::legalization_descriptor_inputs::DescriptorInputs<'_>,
+        descriptor_inputs: &crate::preparation::legalization_descriptor_inputs::DescriptorInputs<
+            '_,
+        >,
     ) -> Result<Observations, LegalizationError> {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
@@ -1714,21 +1718,23 @@ pub(crate) mod observations {
                 operation: None,
                 site: diagnostics::CompilerCheckSite::caller(),
                 reason: self.description(),
-                context: Box::new(crate::preparation::legalization::model::ReferenceObservationContext {
-                    position: custody.reference_position,
-                    place,
-                    path: path.to_vec(),
-                    carrier,
-                    catalog_available: custody.stored_calls.reference_catalog_available,
-                    location,
-                    observation_available: observation.is_some(),
-                    storage,
-                    resident_path,
-                    resident_referent,
-                    interference: None,
-                    origin_count: observation
-                        .and_then(|observation| observation.origins.as_ref().map(Vec::len)),
-                }),
+                context: Box::new(
+                    crate::preparation::legalization::model::ReferenceObservationContext {
+                        position: custody.reference_position,
+                        place,
+                        path: path.to_vec(),
+                        carrier,
+                        catalog_available: custody.stored_calls.reference_catalog_available,
+                        location,
+                        observation_available: observation.is_some(),
+                        storage,
+                        resident_path,
+                        resident_referent,
+                        interference: None,
+                        origin_count: observation
+                            .and_then(|observation| observation.origins.as_ref().map(Vec::len)),
+                    },
+                ),
             }
         }
     }
@@ -2872,7 +2878,9 @@ pub(crate) mod stored_calls {
     }
 
     pub(crate) fn prepare(
-        descriptor_inputs: &crate::preparation::legalization_descriptor_inputs::DescriptorInputs<'_>,
+        descriptor_inputs: &crate::preparation::legalization_descriptor_inputs::DescriptorInputs<
+            '_,
+        >,
     ) -> Effects {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
@@ -6455,9 +6463,10 @@ pub(crate) fn apply(
             field,
             ..
         } => {
-            let extent = crate::preparation::legalization::scalar_graph_input::borrowed_windows::moved(
-                function, source, path, *field, result, plan, custody,
-            )?;
+            let extent =
+                crate::preparation::legalization::scalar_graph_input::borrowed_windows::moved(
+                    function, source, path, *field, result, plan, custody,
+                )?;
             if !contains_reference(types, result.structural_type) {
                 return Ok(());
             }
@@ -6492,15 +6501,16 @@ pub(crate) fn apply(
             value,
             ..
         } => {
-            let extent = crate::preparation::legalization::scalar_graph_input::borrowed_windows::extent(
-                function,
-                destination,
-                path,
-                *field,
-                plan,
-                custody,
-                disposition.required_access(),
-            )?;
+            let extent =
+                crate::preparation::legalization::scalar_graph_input::borrowed_windows::extent(
+                    function,
+                    destination,
+                    path,
+                    *field,
+                    plan,
+                    custody,
+                    disposition.required_access(),
+                )?;
             if !contains_reference(types, extent.field_type) {
                 return Ok(());
             }
@@ -7417,31 +7427,34 @@ pub(crate) fn referent_argument(
     }
     call_paths::call_reference_custody(caller, custody, types, argument)?;
     let root_type = source_contract(caller, custody, argument.place).ok_or(invalid())?;
-    let projection = crate::preparation::structural_inputs::structural_reference_input::reference_projection(
-        root_type,
-        &argument.path,
-        argument.access,
-        Some(declaration.structural_type),
-        types,
-    )
-    .ok_or(invalid())?;
+    let projection =
+        crate::preparation::structural_inputs::structural_reference_input::reference_projection(
+            root_type,
+            &argument.path,
+            argument.access,
+            Some(declaration.structural_type),
+            types,
+        )
+        .ok_or(invalid())?;
     let selected = projection.selected;
     let source_byte_offset = projection.referent_offset;
     if selected != declaration.structural_type
-        || Some(destination.shape) != crate::preparation::structural_inputs::parameter_shape(declaration, types)
+        || Some(destination.shape)
+            != crate::preparation::structural_inputs::parameter_shape(declaration, types)
     {
         return Err(invalid());
     }
     let target_caller = native.function(caller.machine).ok_or(invalid())?;
     let source = if let Some(parameter) = caller.structural_parameter(argument.place) {
-        let retained =
-            crate::preparation::legalization::scalar_graph_input::structural_parameters(target_caller)
-                .and_then(|parameters| {
-                    parameters
-                        .iter()
-                        .find(|parameter| parameter.place == argument.place)
-                })
-                .ok_or(invalid())?;
+        let retained = crate::preparation::legalization::scalar_graph_input::structural_parameters(
+            target_caller,
+        )
+        .and_then(|parameters| {
+            parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+        })
+        .ok_or(invalid())?;
         if parameter.access == StructuralAccess::WriteOnlyBorrow
             || retained.structural_type != root_type
         {

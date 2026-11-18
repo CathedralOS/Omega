@@ -45,11 +45,11 @@ pub(crate) mod name {
 }
 pub(crate) mod progress {
     use crate::source_state as typed;
-    use diagnostics::Diagnostic;
     use declaration_contracts::ProgressPremise;
-use declaration_contracts::ProgressSubject;
-use declaration_contracts::TerminationGuarantee;
-use declaration_contracts::TerminationInterface;
+    use declaration_contracts::ProgressSubject;
+    use declaration_contracts::TerminationGuarantee;
+    use declaration_contracts::TerminationInterface;
+    use diagnostics::Diagnostic;
     use typed::machine::resolve_satisfied_declaration;
 
     pub(crate) fn normalize_trait_progress_premises(
@@ -626,15 +626,15 @@ pub(crate) mod seeded_continuation {
         Lowerer, TypingCohort, append_authored_service_reach_rows, close_typed_cohort,
         lower_evidence_forwarding, lower_symbol_resolved_trees, type_resolved_cohort,
     };
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::source_inputs::SourceMap;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_resolved::machine::MachineBodyStatus;
     use crate::source_state::TypedTrees;
     use crate::source_symbols::SourceScopedTopLevelBinding;
     use crate::source_tables::SemanticDomainTable;
-    use diagnostics::Diagnostic;
     use declaration_contracts::SemanticDomainId;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use diagnostics::Diagnostic;
     use std::sync::Arc;
     use symbols::SymbolHandle;
 
@@ -2192,9 +2192,7 @@ impl Lowerer<'_> {
 
     pub(crate) fn with_type_reference_exposure<T>(
         &mut self,
-        exposure: impl Into<
-            Option<crate::declaration_selection::AuthoredDeclarationSelectionExposure>,
-        >,
+        exposure: impl Into<Option<crate::declaration_selection::AuthoredDeclarationSelectionExposure>>,
         operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
     ) -> Result<T, Diagnostic> {
         let previous = std::mem::replace(&mut self.type_reference_exposure, exposure.into());

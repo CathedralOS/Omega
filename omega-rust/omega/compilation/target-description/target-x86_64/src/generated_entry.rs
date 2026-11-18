@@ -577,7 +577,11 @@ mod tests {
             let effects = effects.finish();
             assert_eq!(effects.registers_read().as_slice(), &[register]);
             assert_eq!(effects.registers().as_slice(), &[register]);
-            assert!(!effects.machine_state().contains_all(MachineStateSet::new([State::Flags])));
+            assert!(
+                !effects
+                    .machine_state()
+                    .contains_all(MachineStateSet::new([State::Flags]))
+            );
         }
         assert!(instruction(&[0x66, 0x0f, 0xc8], 0).is_err());
         assert!(instruction(&[0x0f], 0).is_err());

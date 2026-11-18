@@ -1,9 +1,9 @@
 //! Casts retain their exact selected domain and read declaration-owned values.
 
 use super::*;
+use crate::source_state::statement::{StatementNode, TransitionTargetNode};
 use crate::typing::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
-use crate::source_state::statement::{StatementNode, TransitionTargetNode};
 
 fn source_result(
     text: &str,

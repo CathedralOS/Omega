@@ -9,10 +9,10 @@ use crate::extent::Extent;
 use crate::extent::diagnostic::ExtentDiagnostic;
 
 use crate::loans::ExtentLoan;
-use extent_contracts::LoanPolarity;
 use crate::roots::root_grants::ValidatedExtentGeometry;
 use crate::roots::root_origins::ExtentRootOrigin;
 use arena::NormalizedIdentitySet;
+use extent_contracts::LoanPolarity;
 use extent_contracts::MappingGrantId;
 use extent_contracts::MappingId;
 use extent_contracts::{

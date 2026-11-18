@@ -9,10 +9,10 @@ pub use dominance::{DominanceInterval, dominance_forest};
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use arena::NumericId;
+use semantic_vocabulary::CycleComponentId;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
-use semantic_vocabulary::{CycleComponentId};
-use arena::{NumericId};
 use terminal_psi::{Block, StructuralArgument, TerminalMachine, TerminalNaturalCycle, Terminator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

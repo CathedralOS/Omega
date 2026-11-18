@@ -4,10 +4,10 @@
 
 use super::BuildMachineFilesystemScope;
 use super::build_value::{BuildValueAdmission, is_build_machine};
+use diagnostics::Diagnostic;
 use source_compiler::evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
 };
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {

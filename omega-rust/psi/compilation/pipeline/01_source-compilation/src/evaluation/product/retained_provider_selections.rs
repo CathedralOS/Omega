@@ -21,12 +21,12 @@ use super::provider_declarations::{
     ProviderSelectionSubject, RetainedProductApplication, RetainedProviderSelection, form,
     identity,
 };
-use diagnostics::Diagnostic;
 use crate::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
-use std::sync::Arc;
-use source_admission::RetainedDeclaration;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
+use diagnostics::Diagnostic;
+use source_admission::RetainedDeclaration;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 /// The closed application `identity` carries, as a consumer can form it
 /// again; `None` for a declaration that applies nothing.
@@ -41,7 +41,12 @@ fn captured(
             Ok(None)
         };
     };
-    RetainedProductApplication::capture(typed, super::provider_declarations::source_application(identity.application), text.clone()).map(Some)
+    RetainedProductApplication::capture(
+        typed,
+        super::provider_declarations::source_application(identity.application),
+        text.clone(),
+    )
+    .map(Some)
 }
 
 impl RetainedProductApplication {
@@ -49,7 +54,9 @@ impl RetainedProductApplication {
     /// established by its declaration owner; package handoff adds no new meaning.
     pub fn capture(
         typed: &TypedTrees,
-        application_handle: arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+        application_handle: arena::Handle<
+            crate::source_state::product_operand::ProductOperandApplication,
+        >,
         identity: String,
     ) -> Result<Self, String> {
         if !typed
@@ -92,7 +99,12 @@ fn applied(
     declaration: SymbolHandle,
     selected: &mut ProviderSelectionIdentity,
 ) -> Result<(), Diagnostic> {
-    selected.application = super::provider_declarations::application_id(retained.prepare(program, role, declaration, &selected.authored_path)?);
+    selected.application = super::provider_declarations::application_id(retained.prepare(
+        program,
+        role,
+        declaration,
+        &selected.authored_path,
+    )?);
     selected.applied = true;
     selected.application_identity = Some(retained.identity.clone());
     Ok(())
@@ -107,8 +119,10 @@ impl RetainedProductApplication {
         role: ProductOperandRole,
         declaration: SymbolHandle,
         authored_path: &str,
-    ) -> Result<arena::Handle<crate::source_state::product_operand::ProductOperandApplication>, Diagnostic>
-    {
+    ) -> Result<
+        arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+        Diagnostic,
+    > {
         let own = |span: source_text::SourceSpan| -> Option<source_text::SourceSpan> {
             let file = self.sources.get(span.source_id)?;
             let here = program

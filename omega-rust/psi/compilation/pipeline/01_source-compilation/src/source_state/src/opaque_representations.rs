@@ -30,7 +30,8 @@ impl OpaqueRepresentationSelection {
     pub fn portable_application(
         &self,
         typed: &crate::source_state::TypedTrees,
-    ) -> Result<application_identity::opaque_representations::SelectedOpaqueApplication, String> {
+    ) -> Result<application_identity::opaque_representations::SelectedOpaqueApplication, String>
+    {
         Ok(
             application_identity::opaque_representations::SelectedOpaqueApplication {
                 opaque_identity: typed.normalized_hermetic_symbol_identity(self.opaque())?,

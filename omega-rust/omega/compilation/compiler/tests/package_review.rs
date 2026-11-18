@@ -925,12 +925,14 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let original = source.artifact().view();
     let original_bytes = source.artifact().to_bytes();
     assert!(original.module().folded_constants.dependencies.is_empty());
-    let source_demand = publication.prepare_provider_demand(
-        Some("linux_x86_64"),
-        &checked.build().config.provider_selections,
-        &checked.build().config.native_bindings,
-        checked.sources().package_identity().is_some(),
-    ).expect("close the Linux source provider choices");
+    let source_demand = publication
+        .prepare_provider_demand(
+            Some("linux_x86_64"),
+            &checked.build().config.provider_selections,
+            &checked.build().config.native_bindings,
+            checked.sources().package_identity().is_some(),
+        )
+        .expect("close the Linux source provider choices");
     let demand = portable_publication::ProductCodeSource {
         publication,
         sources: checked.sources(),
@@ -1023,7 +1025,9 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         "folded scalar entry belongs to another program or deployment"
     );
     assert!(
-        selected.effective_artifact(retained.shared_artifact()).is_err(),
+        selected
+            .effective_artifact(retained.shared_artifact())
+            .is_err(),
         "derived code must not reenter planning as its own source"
     );
     let preimages =
@@ -1851,8 +1855,9 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
             .evaluated_native_bindings()
             .is_empty()
     );
-    let review = review_evidence::project_package_review(&checked, inputs.root(), target, usize::MAX)
-        .expect("review the idle entry and its completed Build");
+    let review =
+        review_evidence::project_package_review(&checked, inputs.root(), target, usize::MAX)
+            .expect("review the idle entry and its completed Build");
     let bytes = review.policy.canonical_bytes().unwrap();
     let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
     assert_eq!(policy.canonical_bytes().unwrap(), bytes);
@@ -1906,15 +1911,19 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
         diagnostics::join_messages(&refusal)
     };
     let mut changed = checked.build().clone();
-    let authored = changed.config.native_bindings.iter_mut()
+    let authored = changed
+        .config
+        .native_bindings
+        .iter_mut()
         .find(|supply| supply.selection.target.canonical_name() == target.target_name())
         .unwrap();
     authored.selection.source_occurrence_digest[0] ^= 1;
     assert!(inspect(changed).contains("the complete selected native supply custody"));
     let mut missing = checked.build().clone();
-    missing.config.native_bindings.retain(|binding| {
-        binding.selection.target.canonical_name() != target.target_name()
-    });
+    missing
+        .config
+        .native_bindings
+        .retain(|binding| binding.selection.target.canonical_name() != target.target_name());
     assert!(inspect(missing).contains("the complete selected native supply custody"));
     assert!(
         inspect(checked.build().clone()).contains("the checked program for native calling policy")
@@ -2014,7 +2023,8 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
         installation_assumptions: Vec::new(),
         image: Default::default(),
         private_entry_ram: Vec::new(),
-        terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2228,17 +2238,17 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         },
     )
     .expect("discover the exact closed registrar binding");
-    let product =
-        compiler::CompilationProduct::Native(products::NativeProductRequest {
-            installation_assumptions: Vec::new(),
-            retain_native_inputs: true,
-            retain_native_stage_inputs: false,
-            image: Default::default(),
-            private_entry_ram: Vec::new(),
-            terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
-            terminal_authority_permission_policy: None,
-            optimization_rollback: Default::default(),
-        });
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: true,
+        retain_native_stage_inputs: false,
+        image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy:
+            provider_admission::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
     let mut prepared = fixture_package_inputs::review_fixture(
         discovered,
         &[target::TargetProfile::MacosArm64],
@@ -2585,26 +2595,26 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
     let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = source_compiler::resolution::resolve(request).unwrap();
-    let typed =
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed.realized_machine_named("build").unwrap().symbol;
-    let prepared = source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
-        program: typed,
-        accounting: Default::default(),
-        admission: Default::default(),
-        compilation: source_compiler::TerminalSourceCompilation {
-            entries: &[entry],
-            subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Build,
-            selected: &[],
-            declaration_metadata: &[],
-            bindings: &[],
-            calling: None,
-            providers: None,
-            supplies: &[],
-        },
-    })
-    .unwrap();
+    let prepared =
+        source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation: source_compiler::TerminalSourceCompilation {
+                entries: &[entry],
+                subjects: &[],
+                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                selected: &[],
+                declaration_metadata: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+        })
+        .unwrap();
     assert_eq!(prepared.accounting.receipts().len(), 1);
     prepared.accounting.validate_charges().unwrap();
     prepared.accounting

@@ -16,17 +16,6 @@ mod provenance_effects;
 mod register_calls;
 mod return_effects;
 
-use target_aarch64::Aarch64MachineEffectCatalogValidationError as Aarch64EffectError;
-use target_aarch64::{
-    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, aarch64_machine_effect_catalog,
-    aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
-};
-use target_x86_64::X86_64MachineEffectCatalogValidationError as X86_64EffectError;
-use target_x86_64::{
-    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
-    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
-    x86_64_preservation_convention_for_target,
-};
 use register_model::{
     PhysicalRegisterModel, PreparedRegisterConstraintCatalog, PreservationConvention,
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId, RegisterView,
@@ -38,6 +27,17 @@ use selected_instructions::{
     MachineSemanticKind, PreparedMachineEffectCatalog, SelectedConstraintKeys,
 };
 use target::{Architecture, NativeTarget};
+use target_aarch64::Aarch64MachineEffectCatalogValidationError as Aarch64EffectError;
+use target_aarch64::{
+    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, aarch64_machine_effect_catalog,
+    aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
+};
+use target_x86_64::X86_64MachineEffectCatalogValidationError as X86_64EffectError;
+use target_x86_64::{
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
+    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
+    x86_64_preservation_convention_for_target,
+};
 
 use super::super::catalog::scalar_call_constraint_key;
 use super::super::{ValidatedTargetRegisterEnvironment, baseline_target_register_environment};

@@ -76,7 +76,9 @@ fn emit_body_inspecting_physical<'execution>(
         }
     });
     inspect_target(&target);
-    if !retain_native_stage_inputs {target.original_for_audit=None;}
+    if !retain_native_stage_inputs {
+        target.original_for_audit = None;
+    }
     let installations = crate::pipeline::plan_installations(&target, None, Vec::new()).unwrap();
     let physical = crate::pipeline::prepare_physical_body(
         target,
@@ -122,8 +124,16 @@ fn emit_body_inspecting_physical<'execution>(
     let mut other_program = bound.frame.instructions.identity;
     other_program[0] ^= 1;
     let frame_identity = bound.frame.frame.receipt().identity();
-    assert!(bound.installations.matches_frame(bound.frame.instructions.identity, frame_identity));
-    assert!(!bound.installations.matches_frame(other_program, frame_identity));
+    assert!(
+        bound
+            .installations
+            .matches_frame(bound.frame.instructions.identity, frame_identity)
+    );
+    assert!(
+        !bound
+            .installations
+            .matches_frame(other_program, frame_identity)
+    );
     let mut other_frame = frame_identity.bytes();
     other_frame[0] ^= 1;
     assert!(!bound.installations.matches_frame(
@@ -147,7 +157,8 @@ fn emit_body_inspecting_physical<'execution>(
     );
     match (planned_cpu, decoded_cpu) {
         (Ok(planned), Ok(decoded)) => assert_eq!(
-            planned.observations(), decoded.observations(),
+            planned.observations(),
+            decoded.observations(),
             "physical CPU facts must agree with independent encoded readback"
         ),
         (Err(planned), Err(decoded)) => assert_eq!(
@@ -220,10 +231,7 @@ fn reject_changed_entry_literal(
 /// changed value type, a width the module does not retain and a dropped
 /// proof record by stage 02's validator, and installations admitted for another program by the binding
 /// check in front of selection.
-fn check_published_plan(
-    body: &native_program_planning::NativeBodyPlan,
-    entry: MachineId,
-) {
+fn check_published_plan(body: &native_program_planning::NativeBodyPlan, entry: MachineId) {
     use legalized_operations::PreparedExecutionPlan;
     use native_program_planning::replay::TargetOperationAuditError::PublishedPlanMismatch;
     use physical_planning::test_support::{
@@ -696,7 +704,10 @@ fn physical_publication_rejoins_emitted_object_and_receiver() {
 fn check_publication(
     through_boundary: bool,
     retain_native_stage_inputs: bool,
-) -> (native_artifact::NativeArtifactIdentity, Option<image_emission::FragmentReplay>) {
+) -> (
+    native_artifact::NativeArtifactIdentity,
+    Option<image_emission::FragmentReplay>,
+) {
     use provider_admission::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
@@ -806,7 +817,10 @@ fn check_publication(
         assert!(target.private_references.is_empty());
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {
-            reject_changed_entry_literal(target.original_for_audit.as_deref().unwrap(), bootstrap_entry);
+            reject_changed_entry_literal(
+                target.original_for_audit.as_deref().unwrap(),
+                bootstrap_entry,
+            );
         }
     });
     let unrelated = constant_artifact(!through_boundary);
@@ -839,7 +853,8 @@ fn check_publication(
         retain_native_stage_inputs,
         "ordinary image publication has no instruction graph lookup capability"
     );
-    let target_audit = published_object_verification::verify_retained_target_operations(&published.object);
+    let target_audit =
+        published_object_verification::verify_retained_target_operations(&published.object);
     let audit = published_object_verification::verify_retained_fixed_frame(&published.object);
     if retain_native_stage_inputs {
         target_audit.expect("independent target audit accepts the retained stage 02 output");

@@ -16,12 +16,12 @@
 // field is stated over the value its leaf holds, so a log, a place or a
 // value that is wrong changes what is proved without touching an obligation.
 
+use crate::lowering::Elaboration;
 use semantic_vocabulary::{EdgeId, InvocationSite};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::ObligationRow;
 use terminal_check_tables::values::{KnowledgeRow, ValueRow};
 use terminal_psi::OperationKind;
-use crate::lowering::Elaboration;
 
 use super::*;
 
@@ -713,7 +713,11 @@ fn compact_zero_and_complete_filtered_legacy_names_both_check() {
     for preceding in [[0, 0], [0, 7]] {
         let mut compact = zeroed_point(&preceding);
         let read = field_reads(&compact)[0];
-        discharge(&mut compact, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        discharge(
+            &mut compact,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap();
         let tables = compact.tables.machines.get(id(1)).unwrap();
         assert_eq!(read_equals(tables, read), None);
         assert_read_equation(tables, read, number(0));
@@ -727,7 +731,11 @@ fn compact_zero_and_complete_filtered_legacy_names_both_check() {
         }
         zero_aliases(&mut legacy, &aliases);
         let read = field_reads(&legacy)[0];
-        discharge(&mut legacy, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        discharge(
+            &mut legacy,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap();
         assert_eq!(
             read_equals(legacy.tables.machines.get(id(1)).unwrap(), read),
             Some(values[0])

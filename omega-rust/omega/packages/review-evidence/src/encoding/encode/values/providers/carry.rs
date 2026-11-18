@@ -2,7 +2,10 @@
 
 use crate::encoding::encode::encoder::Encoder;
 
-pub(crate) fn encode_carry_policy(encoder: &mut Encoder, policy: declaration_contracts::CarryPolicy) {
+pub(crate) fn encode_carry_policy(
+    encoder: &mut Encoder,
+    policy: declaration_contracts::CarryPolicy,
+) {
     let _ = encoder.field("suspension", |encoder| {
         match policy.suspension {
             declaration_contracts::CarrySuspension::Forbidden => encoder.tag("forbidden", 0),

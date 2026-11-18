@@ -3,7 +3,6 @@
 //! requirements; this constructor supplies no acceptance or source authority.
 
 use crate::evaluation::BuildTimeValue;
-use symbols::{SymbolHandle, SymbolKind};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataField, DataMember, DataMemberIdentity};
 use crate::source_state::expression::{
@@ -14,6 +13,7 @@ use crate::source_state::machine::Machine;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use symbols::{SymbolHandle, SymbolKind};
 
 fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
     let [state] = program.machine_states(machine).as_array()?;
@@ -240,8 +240,8 @@ fn materialize_argument(
     destination: TypeReferenceHandle,
     value: &BuildTimeValue,
 ) -> Result<ExpressionHandle, String> {
-    use numeric_literals::{IntegerLiteral, IntegerRadix};
     use crate::source_state::types::PrimitiveType;
+    use numeric_literals::{IntegerLiteral, IntegerRadix};
     if !program
         .type_reference_table
         .contains_type_reference(destination)
@@ -460,7 +460,8 @@ pub(crate) fn declaration_call(
         build_selection: Default::default(),
         arguments: Default::default(),
         evidence_arguments: Box::default(),
-        operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement::default(),
+        operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement::default(
+        ),
     }
 }
 
@@ -550,7 +551,8 @@ pub(crate) fn prepare_value_invocation(
         let mut selection = probe
             .expression_table
             .copy_static_argument_from_self(selection);
-        let name = crate::source_state::name::Identifier::from(probe.symbols.name(selection.symbol));
+        let name =
+            crate::source_state::name::Identifier::from(probe.symbols.name(selection.symbol));
         if selection.path.is_empty() {
             // The resolved declaration supplies diagnostic text only; its
             // symbol and complete source operand remain the selected identity.
@@ -624,8 +626,10 @@ pub(crate) fn prepare_value_invocation(
     } else if parameters.len() != arguments.len() {
         return Err("constant invocation arguments differ from its checked entry arity".into());
     }
-    let static_call =
-        crate::source_state::references::StaticArgumentCall::Expression(request_expression, request);
+    let static_call = crate::source_state::references::StaticArgumentCall::Expression(
+        request_expression,
+        request,
+    );
     let mut supplied = static_call.arguments(program).to_vec();
     if !request.machine_arguments.is_empty()
         && request.machine_arguments.as_ref() != supplied.as_slice()
@@ -634,10 +638,12 @@ pub(crate) fn prepare_value_invocation(
             "source invocation static arguments differ from their retained application".into(),
         );
     }
-    if type_parameters
-        .iter()
-        .any(|parameter| !matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type))
-    {
+    if type_parameters.iter().any(|parameter| {
+        !matches!(
+            parameter.kind,
+            crate::source_state::data::TypeParameterKind::Type
+        )
+    }) {
         return Err("source invocation non-type static arguments are not materialized".into());
     }
     if type_parameters.len() != supplied.len() {

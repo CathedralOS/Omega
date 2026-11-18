@@ -426,9 +426,13 @@ pub(crate) mod entry_effects {
                     .final_text_bytes
                     .get(region.section_offset..end)
                     .ok_or_else(|| Diagnostic::error("final entry state byte span is stale"))?;
-                bridge.validate_published_code(bytes).map_err(|reason| Diagnostic::error(reason.to_string()))?;
+                bridge
+                    .validate_published_code(bytes)
+                    .map_err(|reason| Diagnostic::error(reason.to_string()))?;
                 if region.footprint.as_ref() != Some(bridge.adapter_effects().footprint()) {
-                    return Err(Diagnostic::error("final entry effects differ from its physical plan"));
+                    return Err(Diagnostic::error(
+                        "final entry effects differ from its physical plan",
+                    ));
                 }
             }
         }
@@ -1661,9 +1665,9 @@ pub(crate) mod image_output {
                 return Ok(request);
             };
             match elf_interpreter {
-                Some(interpreter) if interpreter.target().native_target() == self.target() => {
-                    Ok(ExecutableImageEmissionRequest::dynamic_elf(interpreter.clone()))
-                }
+                Some(interpreter) if interpreter.target().native_target() == self.target() => Ok(
+                    ExecutableImageEmissionRequest::dynamic_elf(interpreter.clone()),
+                ),
                 Some(interpreter) => Err(Box::new(
                     RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
                         interpreter: interpreter.clone(),
@@ -1970,7 +1974,9 @@ pub(crate) mod image_output {
     }
 
     impl ExecutableImage {
-        pub fn companion_images(&self) -> &[crate::NativeCompanionImage] { &self.companions }
+        pub fn companion_images(&self) -> &[crate::NativeCompanionImage] {
+            &self.companions
+        }
 
         pub const fn psi(&self) -> TerminalPsiIdentity {
             self.psi

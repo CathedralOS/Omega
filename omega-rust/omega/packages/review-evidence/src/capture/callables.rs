@@ -57,12 +57,15 @@ impl PackageReviewInput<'_> {
             return Err(unavailable("an unambiguous accepted Build declaration"));
         }
         let source = accepted.source();
-        let retained = source_compiler::source_symbols::retain_declaration(&source.symbols, *original)
-            .map_err(unavailable)?;
-        let rejoined = source_compiler::source_symbols::rejoin_declaration(&retained, &self.typed().symbols,
-                self.typed().machines().iter().map(|machine| machine.symbol),
-            )
-            .map_err(unavailable)?;
+        let retained =
+            source_compiler::source_symbols::retain_declaration(&source.symbols, *original)
+                .map_err(unavailable)?;
+        let rejoined = source_compiler::source_symbols::rejoin_declaration(
+            &retained,
+            &self.typed().symbols,
+            self.typed().machines().iter().map(|machine| machine.symbol),
+        )
+        .map_err(unavailable)?;
         if rejoined != selected
             || computed.selected_machine_identity(self.typed())?
                 != self
@@ -78,13 +81,17 @@ impl PackageReviewInput<'_> {
                 "a selected Build owned by the reviewed package",
             ));
         }
-        let exact_sources =
-            source_admission::source_identity::toolchain_source_identities(source.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let exact_sources = source_admission::source_identity::toolchain_source_identities(
+            source.symbols.source_files(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let service_names = service_identities(
             source,
             &exact_sources,
-            &service_origins(accepted, declaration_contracts::source_identity::DependencyScope::Build)?,
+            &service_origins(
+                accepted,
+                declaration_contracts::source_identity::DependencyScope::Build,
+            )?,
         )?;
         validate_body_effect_inventory(accepted.module())?;
         self.callable(
@@ -453,7 +460,9 @@ impl PackageReviewInput<'_> {
 
     pub(super) fn signature_contracts<'clause>(
         &self,
-        clauses: impl IntoIterator<Item = &'clause source_compiler::source_state::signature::SignatureContract>,
+        clauses: impl IntoIterator<
+            Item = &'clause source_compiler::source_state::signature::SignatureContract,
+        >,
         scope: super::declarations::ContractScope<'_>,
         return_type: source_compiler::source_state::types::TypeReferenceHandle,
     ) -> Result<Vec<crate::record::PackageReviewCallableContract>, Vec<Diagnostic>> {
@@ -525,7 +534,9 @@ pub(super) fn service_origins(
     accepted: &source_compiler::AcceptedTerminalSource,
     purpose: declaration_contracts::source_identity::DependencyScope,
 ) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
-    use source_compiler::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+    use source_compiler::source_state::trait_definition::{
+        AppliedTraitScope, TraitApplicationArguments,
+    };
     let source = accepted.source();
     let module = accepted.module();
     let application = |owner| {

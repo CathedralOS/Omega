@@ -1,18 +1,21 @@
 //! Prepare target scopes and retain each scalar execution's actual receipt.
 //! The source owner supplies immutable scopes to the artifact executor.
 use crate::evaluation::evaluation_accounting::CanonicalScalarEvaluationReceipt;
+pub use artifact_evaluation::scalar_applications::{
+    AdmittedImportRealizations, InvocationTarget, TargetImportRealizations,
+    complete_invocation_scalar_applications, evaluate_scalar_applications,
+    evaluate_scalar_applications_with_address_model,
+};
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_installation::{ScalarApplicationClosure, ScalarApplicationObservations};
 use terminal_interpreter::TerminalExecutionResult;
-pub use artifact_evaluation::scalar_applications::{
-    InvocationTarget, TargetImportRealizations, AdmittedImportRealizations,
-    evaluate_scalar_applications, evaluate_scalar_applications_with_address_model,
-    complete_invocation_scalar_applications,
+#[cfg(test)]
+use terminal_interpreter::{
+    TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
+    TerminalScalarApplicationRequest,
 };
 #[cfg(test)]
 use terminal_work::WorkMeter;
-#[cfg(test)]
-use terminal_interpreter::{TerminalInstantiation, TerminalProgram, TerminalExecutionStatus, TerminalScalarApplicationRequest};
 pub struct ScalarScopeEvaluation {
     pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
     /// No deployment means ordinary Psi evaluation, not host selection.
@@ -206,15 +209,20 @@ fn complete_scopes(
             &selected.providers,
             selected.carrier_layout,
         )?;
-        let (conditions, executions) = artifact_evaluation::scalar_applications::evaluate_accounted_scope(
-            &mut observations,
-            primary,
-            demand,
-            selected.address_model.as_ref().ok().and_then(Option::as_ref),
-            selected.import_realizations.as_deref(),
-            sponsor,
-            crate::evaluation::evaluation_accounting::PURE_PSI_WORK_BUDGET,
-        );
+        let (conditions, executions) =
+            artifact_evaluation::scalar_applications::evaluate_accounted_scope(
+                &mut observations,
+                primary,
+                demand,
+                selected
+                    .address_model
+                    .as_ref()
+                    .ok()
+                    .and_then(Option::as_ref),
+                selected.import_realizations.as_deref(),
+                sponsor,
+                crate::evaluation::evaluation_accounting::PURE_PSI_WORK_BUDGET,
+            );
         for execution in executions {
             let outcome = match execution.outcome {
                 Ok(value) => crate::evaluation::PureTerminalEvaluationOutcome::Returned {
@@ -223,8 +231,12 @@ fn complete_scopes(
                 Err(reason) => crate::evaluation::PureTerminalEvaluationOutcome::Failed { reason },
             };
             records.push(CanonicalScalarEvaluationReceipt::new(
-                std::sync::Arc::clone(&input), execution.application, execution.values,
-                execution.captures, outcome, execution.usage,
+                std::sync::Arc::clone(&input),
+                execution.application,
+                execution.values,
+                execution.captures,
+                outcome,
+                execution.usage,
             ));
         }
         let conditions = conditions?;
@@ -1083,7 +1095,9 @@ mod tests {
             .receipts()
             .iter()
             .map(|receipt| match receipt {
-                crate::evaluation::PureEvaluationRecord::CanonicalScalar(receipt) => receipt.application(),
+                crate::evaluation::PureEvaluationRecord::CanonicalScalar(receipt) => {
+                    receipt.application()
+                }
                 _ => panic!("only scalar executions were requested"),
             })
             .collect::<Vec<_>>();
@@ -1349,10 +1363,13 @@ mod tests {
     fn unscoped_scalar_conditions_execute_and_retain_targetless_receipts() {
         let legacy = compiler_storage::encode(&1_u32, Default::default()).unwrap();
         assert!(
-            compiler_storage::decode::<crate::evaluation::PureEvaluationRecord>(&legacy, Default::default())
-                .unwrap_err()
-                .to_string()
-                .contains("without explicit deployment scope")
+            compiler_storage::decode::<crate::evaluation::PureEvaluationRecord>(
+                &legacy,
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("without explicit deployment scope")
         );
         for expected in [41, 42] {
             let artifact = unscoped_constant(expected, false);
@@ -1376,7 +1393,8 @@ mod tests {
             let restored: crate::evaluation::SourceCompletionAccounting =
                 compiler_storage::decode(&encoded, Default::default()).unwrap();
             restored.validate_charges().unwrap();
-            let crate::evaluation::PureEvaluationRecord::CanonicalScalar(receipt) = &restored.receipts()[0]
+            let crate::evaluation::PureEvaluationRecord::CanonicalScalar(receipt) =
+                &restored.receipts()[0]
             else {
                 panic!("scalar invocation retains its canonical receipt");
             };

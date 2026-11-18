@@ -1436,7 +1436,9 @@ mod case_pattern_tests {
         let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let syntax = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let syntax =
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap();
         crate::resolution::driver::resolve(crate::resolution::driver::ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),

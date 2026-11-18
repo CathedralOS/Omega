@@ -29,13 +29,13 @@ pub(crate) mod conformance {
             )));
         }
         crate::typing::type_reference::retain_type_reference_selection(
-        symbol_resolved_trees,
-        &mut lowerer.typed_trees,
-        &conformance.trait_name,
-        conformance.trait_symbol,
-        conformance_exposure,
-        crate::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
-    )?;
+            symbol_resolved_trees,
+            &mut lowerer.typed_trees,
+            &conformance.trait_name,
+            conformance.trait_symbol,
+            conformance_exposure,
+            crate::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        )?;
         let source_type_parameters = conformance.type_parameters;
         let mut arguments = HandleSpan::empty();
         for argument in symbol_resolved_trees
@@ -525,13 +525,13 @@ pub(crate) mod domain {
         owner: symbols::SymbolHandle,
     ) -> Result<typed::domain::CleanupSelection, Diagnostic> {
         let authorization = crate::typing::type_reference::retain_path_selection_occurrence(
-        &mut lowerer.typed_trees,
-        &selection.path,
-        selection.symbol,
-        lowerer.type_reference_exposure,
-        crate::declaration_selection::AuthoredDeclarationSelectionKind::DomainCleanupSelection,
-        "domain cleanup",
-    )?;
+            &mut lowerer.typed_trees,
+            &selection.path,
+            selection.symbol,
+            lowerer.type_reference_exposure,
+            crate::declaration_selection::AuthoredDeclarationSelectionKind::DomainCleanupSelection,
+            "domain cleanup",
+        )?;
         let selected = crate::typing::expressions::expression::lower_static_machine_argument(
             Some(lowerer.source_trees),
             &mut lowerer.typed_trees,
@@ -585,6 +585,8 @@ pub(crate) mod domain {
     }
 }
 pub(crate) mod machine {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
     use crate::typing::access_borrow_factory::access_borrow_factory;
@@ -599,10 +601,8 @@ pub(crate) mod machine {
         lower_type_reference_into_table, retain_type_reference_selection,
     };
     use arena::HandleSpan;
-    use diagnostics::Diagnostic;
     use declaration_contracts::MachineSupplyMode;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+    use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
     pub(crate) mod generic_data {
@@ -1761,6 +1761,8 @@ pub(crate) mod proposition {
     }
 }
 pub(crate) mod provider_defaults {
+    use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    use crate::declaration_selection::BuildOperation;
     use crate::source_state::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding as Binding,
         AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget as Target,
@@ -1768,8 +1770,6 @@ pub(crate) mod provider_defaults {
     };
     use crate::typing::tables::expression_table;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-use crate::declaration_selection::BuildOperation;
 
     pub(crate) fn finalize_provider_default_calls(
         typed: &mut TypedTrees,
@@ -1825,36 +1825,38 @@ use crate::declaration_selection::BuildOperation;
         for state in typed.machine_states(machine) {
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 match statement {
-                crate::source_state::statement::StatementNode::Call(call)
-                    if crate::declaration_selection::is_unresolved_provider_selection_call(
-                        call.target.as_str(),
-                        call.target_symbol,
-                    ) =>
-                {
-                    occurrences.extend(call.authored_call_selection);
-                }
-                crate::source_state::statement::StatementNode::Expression(expression) => {
-                    if let crate::source_state::expression::ExpressionNode::Call(call) =
-                        typed.expression_table.expression(*expression)
-                        && BuildOperation::from_call_target(call.target.as_str())
-                            == Some(BuildOperation::ProviderSelection)
-                        && !call.target_symbol.is_valid()
+                    crate::source_state::statement::StatementNode::Call(call)
+                        if crate::declaration_selection::is_unresolved_provider_selection_call(
+                            call.target.as_str(),
+                            call.target_symbol,
+                        ) =>
                     {
-                        occurrences.extend(
-                            expression_table(typed).authored_selection_occurrences(*expression).filter(|occurrence| {
-                                    typed
-                                        .authored_declaration_selections()
-                                        .get(*occurrence)
-                                        .is_some_and(|selection| {
-                                            selection.kind()
-                                                == AuthoredDeclarationSelectionKind::Call
-                                        })
-                                }),
-                        );
+                        occurrences.extend(call.authored_call_selection);
                     }
+                    crate::source_state::statement::StatementNode::Expression(expression) => {
+                        if let crate::source_state::expression::ExpressionNode::Call(call) =
+                            typed.expression_table.expression(*expression)
+                            && BuildOperation::from_call_target(call.target.as_str())
+                                == Some(BuildOperation::ProviderSelection)
+                            && !call.target_symbol.is_valid()
+                        {
+                            occurrences.extend(
+                                expression_table(typed)
+                                    .authored_selection_occurrences(*expression)
+                                    .filter(|occurrence| {
+                                        typed
+                                            .authored_declaration_selections()
+                                            .get(*occurrence)
+                                            .is_some_and(|selection| {
+                                                selection.kind()
+                                                    == AuthoredDeclarationSelectionKind::Call
+                                            })
+                                    }),
+                            );
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
             }
         }
         occurrences
@@ -1866,8 +1868,8 @@ pub(crate) mod state {
     use crate::typing::expressions::statement::{LocalTypes, lower_statement};
     use crate::typing::lowerer::Lowerer;
     use crate::typing::tables::{expression_table, resolved_statements, statement_table_mut};
-    use diagnostics::Diagnostic;
     use declaration_contracts::CallOperationalAcknowledgementOrigin;
+    use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
     use typed::expression::ExpressionHandle;
 
@@ -2161,6 +2163,7 @@ pub(crate) mod state {
     }
 }
 pub(crate) mod trait_definition {
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::source_resolved as resolved;
     use crate::source_resolved::signature::StateSignature;
     use crate::source_state as typed;
@@ -2173,7 +2176,6 @@ pub(crate) mod trait_definition {
     };
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
-    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use typed::trait_definition::TraitRefinementClause;
 
     pub(crate) fn lower_trait_definition(

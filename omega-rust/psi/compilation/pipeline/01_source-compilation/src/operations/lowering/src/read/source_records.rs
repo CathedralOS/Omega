@@ -2,12 +2,14 @@
 //! Retain an actual application from the same typed owner while reading; the
 //! product factory must not reconstruct one from a name after checking.
 
+use crate::source_state::data::DataDefinition;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::{
+    SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication,
+};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use crate::source_state::data::DataDefinition;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-use crate::source_state::{SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication};
 
 mod layouts;
 mod opaque;
@@ -223,16 +225,19 @@ fn source_application_in_scope(
                             ));
                         }
                     } else {
-                        if !crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
-                        {
+                        if !crate::source_state::canonical_const_carrier_is_supported(
+                            typed,
+                            type_reference,
+                        ) {
                             return Err(unavailable(
                                 "record const argument with an unsupported canonical carrier",
                             ));
                         }
-                        let value = crate::source_state::canonical_const_argument_value(typed, *argument)
-                            .ok_or_else(|| {
-                            unavailable("record const argument has no canonical value")
-                        })?;
+                        let value =
+                            crate::source_state::canonical_const_argument_value(typed, *argument)
+                                .ok_or_else(|| {
+                                unavailable("record const argument has no canonical value")
+                            })?;
                         let bindings = parameters
                             .iter()
                             .zip(arguments)
@@ -525,13 +530,14 @@ impl Program<'_> {
                     .binary_search_by_key(&source.record, |row| row.id)
                     .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
                 let declaration = &mut module.structural_types[position];
-                let (identity, _) = crate::source_state::reflection::construction::exact_symbol_identity(
-                    self.typed,
-                    source.declaration,
-                )
-                .map_err(|_| {
-                    malformed(machine, "canonical type lost its exact source declaration")
-                })?;
+                let (identity, _) =
+                    crate::source_state::reflection::construction::exact_symbol_identity(
+                        self.typed,
+                        source.declaration,
+                    )
+                    .map_err(|_| {
+                        malformed(machine, "canonical type lost its exact source declaration")
+                    })?;
                 if !declaration.declaration_identity.is_absent() {
                     return Err(malformed(
                         machine,
@@ -668,9 +674,11 @@ impl Program<'_> {
                 "access plan subject differs from its record application",
             ));
         }
-        let (owner, _) =
-            crate::source_state::reflection::construction::exact_symbol_identity(self.typed, data.symbol)
-                .map_err(|_| malformed(machine, "access schema lost its subject identity"))?;
+        let (owner, _) = crate::source_state::reflection::construction::exact_symbol_identity(
+            self.typed,
+            data.symbol,
+        )
+        .map_err(|_| malformed(machine, "access schema lost its subject identity"))?;
         let application = crate::source_state::reflection::construction::schema_type_identity(
             self.typed,
             subject,
@@ -694,12 +702,13 @@ impl Program<'_> {
                           case: Option<(semantic_vocabulary::StructuralCaseId, &str)>|
          -> Checked<()> {
             for (symbol, field) in symbols.iter().zip(declared) {
-                let (identity, _) = crate::source_state::reflection::construction::exact_symbol_identity(
-                    self.typed, *symbol,
-                )
-                .map_err(|_| {
-                    malformed(machine, "access field lost its source declaration identity")
-                })?;
+                let (identity, _) =
+                    crate::source_state::reflection::construction::exact_symbol_identity(
+                        self.typed, *symbol,
+                    )
+                    .map_err(|_| {
+                        malformed(machine, "access field lost its source declaration identity")
+                    })?;
                 let mut path = Vec::with_capacity(if case.is_some() { 2 } else { 1 });
                 if let Some((case, _)) = case {
                     path.push(StructuralPathSegment::Case(case));
@@ -718,8 +727,10 @@ impl Program<'_> {
         append(&source.fields, declared.fields(), None)?;
         for ((symbol, symbols), case) in source.cases.iter().zip(declared.cases()) {
             let (identity, _) =
-                crate::source_state::reflection::construction::exact_symbol_identity(self.typed, *symbol)
-                    .map_err(|_| {
+                crate::source_state::reflection::construction::exact_symbol_identity(
+                    self.typed, *symbol,
+                )
+                .map_err(|_| {
                     malformed(machine, "access case lost its source declaration identity")
                 })?;
             append(symbols, &case.fields, Some((case.id, &identity)))?;
@@ -828,7 +839,8 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
-            if let crate::lowering::StorageShape::Reference { referent, access } = declaration.shape {
+            if let crate::lowering::StorageShape::Reference { referent, access } = declaration.shape
+            {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(
                         machine,
@@ -981,7 +993,8 @@ impl Program<'_> {
                     .position(|candidate| std::ptr::eq(candidate, plan))
                     .and_then(|index| u32::try_from(index).ok())
                     .ok_or_else(|| malformed(machine, "source layout coordinate overflows"))?;
-                let crate::source_state::PlanLaidRealizations::TargetInputs(span) = plan.realizations
+                let crate::source_state::PlanLaidRealizations::TargetInputs(span) =
+                    plan.realizations
                 else {
                     return Err(refuse(
                         machine,
@@ -1003,12 +1016,12 @@ impl Program<'_> {
                 retained.realizations = span
                     .handles()
                     .zip(members)
-                    .map(
-                        |(handle, member)| crate::source_state::SourceLayoutRealizationCoordinate {
+                    .map(|(handle, member)| {
+                        crate::source_state::SourceLayoutRealizationCoordinate {
                             target: member.target.as_str().to_owned(),
                             member: handle,
-                        },
-                    )
+                        }
+                    })
                     .collect();
                 retained
                     .realizations
@@ -1055,20 +1068,21 @@ fn correspondence(
         return Err(malformed(machine, "record/source member rosters differ"));
     }
     let mut fields = Vec::new();
-    let mut append =
-        |declared: &[crate::lowering::body::RecordField], symbols: &[SymbolHandle]| -> Checked<()> {
-            for (field, symbol) in declared.iter().zip(symbols) {
-                if !symbol.is_valid() {
-                    return Err(malformed(machine, "record field has no declaration"));
-                }
-                fields.push(SourceFieldCorrespondence {
-                    field: field.id,
-                    declaration: *symbol,
-                    schema: *symbol,
-                });
+    let mut append = |declared: &[crate::lowering::body::RecordField],
+                      symbols: &[SymbolHandle]|
+     -> Checked<()> {
+        for (field, symbol) in declared.iter().zip(symbols) {
+            if !symbol.is_valid() {
+                return Err(malformed(machine, "record field has no declaration"));
             }
-            Ok(())
-        };
+            fields.push(SourceFieldCorrespondence {
+                field: field.id,
+                declaration: *symbol,
+                schema: *symbol,
+            });
+        }
+        Ok(())
+    };
     append(declaration.fields(), &source.fields)?;
     for (case, (symbol, symbols)) in declaration.cases().iter().zip(&source.cases) {
         if !symbol.is_valid() {
@@ -1125,8 +1139,8 @@ mod tests {
         TypeReferenceHandle,
         TypeReferenceHandle,
     ) {
+        use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolKind, SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
 
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -1300,14 +1314,14 @@ mod tests {
 
     impl AppliedFixture {
         fn new(bounds: crate::source_state::data::DataProperties) -> Self {
+            use crate::source_inputs::SourceMap;
+            use crate::source_state::data::{DataField, DataMember, DataVariant, TypeParameter};
+            use crate::source_symbols::SymbolTableBuilder;
             use semantic_vocabulary::PackageKeyIdentity;
-            use crate::source_inputs::{SourceMap};
             use source_admission::SourceOrigin;
             use source_text::{SourceSpan, Span};
             use std::{path::PathBuf, sync::Arc};
             use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-            use crate::source_symbols::{SymbolTableBuilder};
-            use crate::source_state::data::{DataField, DataMember, DataVariant, TypeParameter};
             let text = "Container T None Some value";
             let mut sources = SourceMap::default();
             let source = sources
@@ -1597,16 +1611,17 @@ mod tests {
         let crate::source_state::data::DataMember::Variant(some) = &mut members[1] else {
             panic!("the retained Some case");
         };
-        let replacement =
-            crate::source_symbols::SymbolTableBuilder::child_handles(fixture.typed.symbols.append_children(
+        let replacement = crate::source_symbols::SymbolTableBuilder::child_handles(
+            fixture.typed.symbols.append_children(
                 some.symbol,
                 [(
                     symbols::SymbolKind::Field,
                     symbols::SymbolNameRef::Static("value"),
                 )],
-            ))
-            .next()
-            .unwrap();
+            ),
+        )
+        .next()
+        .unwrap();
         let mut fields = fixture.typed.data_payload_fields(some).to_vec();
         assert_ne!(fields[0].symbol, replacement);
         fields[0].symbol = replacement;

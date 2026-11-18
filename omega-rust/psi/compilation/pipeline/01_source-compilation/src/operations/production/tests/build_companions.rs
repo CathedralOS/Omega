@@ -153,9 +153,8 @@ fn typed_with_core_sources(
             .unwrap();
         match &mut syntax {
             None => {
-                syntax = Some(
-                    crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
-                );
+                syntax =
+                    Some(crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
             }
             Some(syntax) => {
                 crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();

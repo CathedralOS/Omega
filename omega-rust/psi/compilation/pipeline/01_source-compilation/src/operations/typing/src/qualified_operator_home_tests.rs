@@ -85,7 +85,8 @@ fn packages(
         let tokens = crate::typing::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let parsed = crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let parsed =
+            crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         parsed_units.push(parsed);
     }
     sources.retain_product_dependency_scope(
@@ -230,10 +231,15 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
 
 #[test]
 fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature() {
-    use crate::declaration_selection::{AuthoredDeclarationSelectionIntrinsic as Intrinsic, AuthoredDeclarationSelectionTarget as Target};
-    use declaration_contracts::numeric_intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation};
-    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use crate::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
     use crate::source_state::expression::{BinaryOperator, ExpressionNode};
+    use declaration_contracts::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
 
     let files = bundled_core_sources();
     let mut units = files
@@ -313,10 +319,15 @@ machine difference(time: &Time, earlier: Time) -> u64 in Wrapping {
 
 #[test]
 fn core_policy_comparisons_read_selected_collection_lengths() {
-    use crate::declaration_selection::{AuthoredDeclarationSelectionIntrinsic as Intrinsic, AuthoredDeclarationSelectionTarget as Target};
-    use declaration_contracts::numeric_intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation};
-    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use crate::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
     use crate::source_state::expression::{BinaryOperator, ExpressionNode};
+    use declaration_contracts::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
 
     let files = bundled_core_sources();
     let mut units = files
@@ -421,10 +432,10 @@ machine fixed_length(items: &[u8; 4], count: u64 in Trapping) -> bool {
 #[test]
 fn collection_length_type_queries_use_the_retained_selection() {
     use crate::declaration_selection::CollectionMeasure;
+    use crate::source_state::expression::{ExpressionNode, MemberSelection};
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::integer_carrier::FixedInteger;
     use symbols::BuiltinTypeAtom;
-    use crate::source_state::expression::{ExpressionNode, MemberSelection};
 
     let mut program = typed(&[(
         "members.omg",
@@ -944,7 +955,7 @@ fn a_bare_case_spelling_stays_an_unknown_name_of_its_holder() {
 #[test]
 fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
     use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
+    use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
     use crate::source_state::expression::ExpressionNode;
     let declaration = format!("use units; {OPERATOR}");
     let program = typed(&[

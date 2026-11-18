@@ -13,7 +13,9 @@ pub mod type_system {
         use crate::source_resolved::name::DiagnosticName;
 
         pub(crate) mod display {
-            use crate::source_resolved::types::{ConstrainedTypeReference, TypeConstraint, TypeReference};
+            use crate::source_resolved::types::{
+                ConstrainedTypeReference, TypeConstraint, TypeReference,
+            };
 
             impl TypeReference {
                 fn display_name_with(
@@ -979,8 +981,8 @@ pub mod type_system {
         #[cfg(test)]
         mod scalar_identity_tests {
             use super::TypeReference;
-            use symbols::{BuiltinTypeAtom, PrimitiveType, SymbolKind, SymbolNameRef};
             use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+            use symbols::{BuiltinTypeAtom, PrimitiveType, SymbolKind, SymbolNameRef};
 
             #[test]
             fn resolved_scalar_identity_ignores_diagnostic_spelling() {
@@ -1025,7 +1027,10 @@ pub mod type_system {
         }
 
         impl TypeReference {
-            pub fn primitive_type(&self, symbols: &crate::source_symbols::SymbolTable) -> Option<PrimitiveType> {
+            pub fn primitive_type(
+                &self,
+                symbols: &crate::source_symbols::SymbolTable,
+            ) -> Option<PrimitiveType> {
                 match self {
                     TypeReference::Named { symbol, .. } => symbols.primitive_type(*symbol),
                     TypeReference::AliasUse { expansion, .. } => expansion.primitive_type(symbols),

@@ -108,9 +108,12 @@ impl SelectedFunction {
         &self,
     ) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
         self.blocks.iter().flat_map(|block| {
-            block.instructions.iter().chain(std::iter::once(
-                super::terminator_instruction(&block.terminator),
-            ))
+            block
+                .instructions
+                .iter()
+                .chain(std::iter::once(super::terminator_instruction(
+                    &block.terminator,
+                )))
         })
     }
 

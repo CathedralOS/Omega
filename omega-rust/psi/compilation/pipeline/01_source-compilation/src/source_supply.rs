@@ -1,11 +1,11 @@
 //! Close provider-body demand inside source settlement. Targets supply only
 //! declared numeric capabilities; this worklist cannot evaluate native ABI
 //! plans or emit code.
-use diagnostics::Diagnostic;
 use crate::provider_supply::{
     JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
     TargetSupplyRequest,
 };
+use diagnostics::Diagnostic;
 
 /// Immutable target observations admitted before source work starts.
 #[derive(Debug, Clone, PartialEq, Eq)]

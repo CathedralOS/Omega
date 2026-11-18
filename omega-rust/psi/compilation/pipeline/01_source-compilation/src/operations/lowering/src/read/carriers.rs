@@ -22,13 +22,13 @@ over that parameter is then decided from those premises alone; one they do
 not decide is an obligation the generic body does not establish.
 */
 
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use crate::source_state::static_applications::StaticMachineBindingValue;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, MachineId, ScalarType};
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use terminal_check_tables::Checked;
 use terminal_check_tables::values::RigidType;
-use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use crate::source_state::static_applications::StaticMachineBindingValue;
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
 use crate::lowering::body::ValueType;
@@ -323,9 +323,9 @@ impl Program<'_> {
         let parameters = self.typed.machine_type_parameters(machine);
         let arguments = table.static_machine_application_arguments(application);
         if parameters.len() != arguments.len()
-            || parameters
-                .iter()
-                .any(|parameter| parameter.kind != crate::source_state::data::TypeParameterKind::Type)
+            || parameters.iter().any(|parameter| {
+                parameter.kind != crate::source_state::data::TypeParameterKind::Type
+            })
         {
             return None;
         }

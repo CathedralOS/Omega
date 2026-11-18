@@ -1,15 +1,17 @@
 //! Core layout queries retain their data operand without inventing a callee.
 
 use super::*;
-use language_core::data_layout_queries::DataLayoutQueryKind;
-use symbols::SymbolNameRef;
-use crate::source_symbols::SymbolTableBuilder;
-use crate::source_state::expression::{DataLayoutQueryRequest, StaticMachineArgument, TableCallExpression};
+use crate::source_state::expression::{
+    DataLayoutQueryRequest, StaticMachineArgument, TableCallExpression,
+};
 use crate::source_state::machine::Machine;
 use crate::source_state::name::Identifier;
 use crate::source_state::state::State;
 use crate::source_state::statement::StatementNode;
 use crate::source_state::types::TypeReferenceNode;
+use crate::source_symbols::SymbolTableBuilder;
+use language_core::data_layout_queries::DataLayoutQueryKind;
+use symbols::SymbolNameRef;
 
 #[test]
 fn layout_queries_keep_the_operand_and_refuse_stale_or_missing_nominal_calls() {

@@ -32,13 +32,19 @@ pub(crate) struct PlannedPrivateBody {
     pub identity: function_identity::MachineFunctionIdentity,
     pub callable: super::callable_objects::CallablePhysicalProduct,
     pub entry: physical_planning::callable_entry::PlannedPrivateEntry,
-    measurement: std::sync::OnceLock<Result<physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>>,
+    measurement: std::sync::OnceLock<
+        Result<physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>,
+    >,
 }
 
-pub(super) type EncodedPrivateBody =
-    PrivateBody<super::callable_objects::EncodedCallable, native_verification::bridges::EncodedPrivateEntry>;
-pub(super) type LaidOutPrivateBody =
-    PrivateBody<super::callable_objects::LaidOutCallable, function_layout::entry_placement::PlacedPrivateEntry>;
+pub(super) type EncodedPrivateBody = PrivateBody<
+    super::callable_objects::EncodedCallable,
+    native_verification::bridges::EncodedPrivateEntry,
+>;
+pub(super) type LaidOutPrivateBody = PrivateBody<
+    super::callable_objects::LaidOutCallable,
+    function_layout::entry_placement::PlacedPrivateEntry,
+>;
 
 pub(super) struct PrivateBody<Callable, Entry> {
     callable: Callable,
@@ -54,23 +60,35 @@ impl PlannedPrivateBody {
         &self,
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
-    ) -> Result<&physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>> {
-        let measured = self.measurement.get_or_init(|| {
-            let bridge = self.entry.bridge().ok_or_else(|| {
-                realization_error("installed handler stack", "installed handler has no arrival bridge")
-            })?;
-            physical_planning::installed_handlers::measure_installed_handler(
-                self.identity,
-                &self.callable.body.frame,
-                &self.callable.body.facts,
-                &self.callable.body.installations,
-                bridge,
-                self.entry.cpu_state(),
-            ).map_err(|error| realization_error("installed handler stack", error))
-        }).as_ref().map_err(Clone::clone)?;
+    ) -> Result<&physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>
+    {
+        let measured = self
+            .measurement
+            .get_or_init(|| {
+                let bridge = self.entry.bridge().ok_or_else(|| {
+                    realization_error(
+                        "installed handler stack",
+                        "installed handler has no arrival bridge",
+                    )
+                })?;
+                physical_planning::installed_handlers::measure_installed_handler(
+                    self.identity,
+                    &self.callable.body.frame,
+                    &self.callable.body.facts,
+                    &self.callable.body.installations,
+                    bridge,
+                    self.entry.cpu_state(),
+                )
+                .map_err(|error| realization_error("installed handler stack", error))
+            })
+            .as_ref()
+            .map_err(Clone::clone)?;
         let row = measured.requirement();
         if (row.installation_machine, row.operation) != (machine, operation) {
-            return Err(realization_error("installed handler stack", "installed stack guard has no retained physical handler"));
+            return Err(realization_error(
+                "installed handler stack",
+                "installed stack guard has no retained physical handler",
+            ));
         }
         Ok(measured)
     }
@@ -86,9 +104,7 @@ impl PlannedPrivateBody {
     }
 }
 impl BoundPrivateBody {
-    pub(super) fn encode(
-        self,
-    ) -> Result<EncodedPrivateBody, Vec<Diagnostic>> {
+    pub(super) fn encode(self) -> Result<EncodedPrivateBody, Vec<Diagnostic>> {
         let callable = self.callable.encode()?;
         let entry = native_encoding::callable_entry::encode_private_function_entry(self.entry)
             .map_err(|error| {
@@ -102,9 +118,7 @@ impl BoundPrivateBody {
 }
 
 impl EncodedPrivateBody {
-    pub(super) fn layout(
-        self,
-    ) -> Result<LaidOutPrivateBody, Vec<Diagnostic>> {
+    pub(super) fn layout(self) -> Result<LaidOutPrivateBody, Vec<Diagnostic>> {
         Ok(PrivateBody {
             callable: self.callable.layout()?,
             entry: function_layout::entry_placement::place_private_entry(self.entry)

@@ -9,7 +9,9 @@ pub(super) fn typed(text: &str) -> crate::source_state::TypedTrees {
     try_typed(text).expect("boundary-call fixture must pass source typing")
 }
 
-pub(super) fn try_typed(text: &str) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
+pub(super) fn try_typed(
+    text: &str,
+) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
     // The boundary belongs to this fixture's user package. Its declared
     // owner is required by ordinary header publication; it grants no
     // toolchain identity or provider-execution authority.
@@ -37,15 +39,14 @@ fn try_typed_in_package(
     let tokens = crate::checking::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
-    let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let resolved = crate::resolution::resolve(
-        crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        },
-    )
+    let syntax =
+        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
     .unwrap();
     crate::typing::lower_symbol_resolved_trees(&resolved)
 }
@@ -112,10 +113,11 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
     let tokens = crate::checking::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
-    let refusal = match crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
-        Ok(_) => panic!("an open boundary reach contract must refuse"),
-        Err(refusal) => refusal,
-    };
+    let refusal =
+        match crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
+            Ok(_) => panic!("an open boundary reach contract must refuse"),
+            Err(refusal) => refusal,
+        };
     assert_eq!(
         refusal.message,
         "boundary-trait machine requirement `Probe::read` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach"
@@ -152,7 +154,10 @@ fn source_service_signature(typed: &crate::source_state::TypedTrees, owner: &str
         .find(|declaration| declaration.name.as_str() == owner)
         .unwrap();
     let surface = from_typed(
-        ProviderPlanningContext::new(typed, declaration_contracts::source_identity::DependencyScope::Product),
+        ProviderPlanningContext::new(
+            typed,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
         declaration,
     )
     .unwrap();
@@ -426,7 +431,10 @@ machine entry() {}
         .find(|requirement| requirement.name.as_str() == "Operations::write")
         .unwrap();
     let surface = from_typed_boundary_requirement(
-        ProviderPlanningContext::new(&program, declaration_contracts::source_identity::DependencyScope::Product),
+        ProviderPlanningContext::new(
+            &program,
+            declaration_contracts::source_identity::DependencyScope::Product,
+        ),
         requirement,
     )
     .unwrap();
@@ -649,10 +657,11 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
             .require_closed_requirement_call_application(first.1, third.2)
             .is_ok()
     );
-    let stale = crate::source_state::static_applications::StaticMachineApplicationHandle::from_parts(
-        first.2.arena_index(),
-        first.2.generation() + 1,
-    );
+    let stale =
+        crate::source_state::static_applications::StaticMachineApplicationHandle::from_parts(
+            first.2.arena_index(),
+            first.2.generation() + 1,
+        );
     assert_eq!(
         typed.require_closed_requirement_call_application(first.1, stale),
         Err("closed requirement call has a stale declaration or application"),
@@ -675,7 +684,8 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
         typed.require_closed_requirement_call_application(first.1, third.2),
         Err("closed requirement call argument differs from its retained binding"),
     );
-    let crate::source_state::static_applications::StaticMachineBindingValue::Type(reference) = &original
+    let crate::source_state::static_applications::StaticMachineBindingValue::Type(reference) =
+        &original
     else {
         panic!("the original application binds its type parameter");
     };
@@ -686,7 +696,8 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     typed
         .expression_table
         .static_machine_application_bindings_mut(third.2)[0]
-        .value = crate::source_state::static_applications::StaticMachineBindingValue::Type(stale_reference);
+        .value =
+        crate::source_state::static_applications::StaticMachineBindingValue::Type(stale_reference);
     assert_eq!(
         typed.require_closed_requirement_call_application(first.1, third.2),
         Err("closed requirement call has a stale operand input"),
@@ -801,7 +812,9 @@ machine entry() -> u32 crashes none {
 // selects a different overload. That declaration identity must survive too.
 #[test]
 fn overloaded_boundary_calling_templates_keep_one_signature() {
-    use crate::declaration_selection::product_operands::{ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph};
+    use crate::declaration_selection::product_operands::{
+        ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+    };
     use crate::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
     // These are accepted headers. The original ambiguous generic call source
     // remains a separate recorded refusal, not a requirement for this identity check.
@@ -1431,8 +1444,7 @@ machine entry() -> u32 crashes none {
         .unwrap();
     let method = &open.trait_machine_signatures(parent)[0];
     let binder = open.state_signature_type_parameters(method)[0].symbol;
-    let mut forms =
-        crate::lowering::elaborate_generic_forms(&open, &[child.symbol]).unwrap();
+    let mut forms = crate::lowering::elaborate_generic_forms(&open, &[child.symbol]).unwrap();
     let form = forms.remove(0);
     assert_eq!(form.generic_binders, [binder]);
     let mut wrongly_accepted = Vec::new();
@@ -1498,8 +1510,11 @@ fn changed_boundary_effects_must_match_the_published_call_envelope() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
-        let refusal =
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+        let refusal = discharge(
+            &mut elaboration,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
         assert_eq!(
             refusal.detail,
@@ -1523,8 +1538,11 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .source;
         assert_eq!(published.published_may_suspend, effect == "suspends");
         assert_eq!(published.published_may_block, effect == "blocks");
-        let refusal =
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap_err();
+        let refusal = discharge(
+            &mut elaboration,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Violation);
         let site = refusal
             .source_span
@@ -1593,10 +1611,7 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
     }
 }
 
-fn borrowed_requirement(
-    second: &str,
-    caller_bound: &str,
-) -> crate::lowering::Elaboration {
+fn borrowed_requirement(second: &str, caller_bound: &str) -> crate::lowering::Elaboration {
     let typed = typed(&format!(
         r#"
 trait Touch {{
@@ -1618,7 +1633,11 @@ crashes none
 #[test]
 fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut valid = borrowed_requirement("right", "< 10");
-    let discharged = discharge(&mut valid, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let discharged = discharge(
+        &mut valid,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let entry = discharged.machines.get(id(1)).unwrap();
     assert!(entry.conflicts.is_empty());
     assert!(entry.unestablished().next().is_none());
@@ -1645,7 +1664,11 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut alias = borrowed_requirement("left", "< 10");
-    let discharged = discharge(&mut alias, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let discharged = discharge(
+        &mut alias,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
 }
 
@@ -1922,7 +1945,11 @@ fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
         member.symbol,
     )
     .unwrap();
-    let discharged = discharge(&mut witness, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let discharged = discharge(
+        &mut witness,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let body = id(2);
     let tables = witness.tables.machines.get(body).unwrap();
     let judgments = discharged.machines.get(body).unwrap();
@@ -2214,7 +2241,10 @@ fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
     );
 }
 
-fn inline_parameter_prepared(actual: &str, guarantee: &str) -> crate::source_state::FrozenTypedTrees {
+fn inline_parameter_prepared(
+    actual: &str,
+    guarantee: &str,
+) -> crate::source_state::FrozenTypedTrees {
     inline_parameter_prepared_with(actual, guarantee, typed)
 }
 
@@ -2274,10 +2304,7 @@ fn inline_parameter_read(
     )
 }
 
-fn inline_parameter_dispatch(
-    actual: &str,
-    guarantee: &str,
-) -> crate::lowering::Elaboration {
+fn inline_parameter_dispatch(actual: &str, guarantee: &str) -> crate::lowering::Elaboration {
     let prepared = inline_parameter_prepared(actual, guarantee);
     let elaboration =
         inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
@@ -2299,8 +2326,11 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
     for (actual, accepted) in [("7", true), ("0", false)] {
         let mut elaboration = inline_parameter_dispatch(actual, "");
         let caller = elaboration.selections[0].caller;
-        let found =
-            discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        let found = discharge(
+            &mut elaboration,
+            &mut crate::checking::ProofSearchActivity::default(),
+        )
+        .unwrap();
         let tables = elaboration.tables.machines.get(caller).unwrap();
         let judgments = found.machines.get(caller).unwrap();
         let calls: Vec<_> = tables
@@ -2324,7 +2354,11 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
 fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
     let mut elaboration = inline_parameter_dispatch("7", "ensures result == 0");
     let caller = elaboration.selections[0].caller;
-    let found = discharge(&mut elaboration, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let found = discharge(
+        &mut elaboration,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let tables = elaboration.tables.machines.get(caller).unwrap();
     let judgments = found.machines.get(caller).unwrap();
     assert!(
@@ -2434,7 +2468,8 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
 fn an_anonymous_parameter_application_rejects_a_foreign_template_handle() {
     let mut prepared = inline_parameter_prepared_with("7", "", |text| {
         try_typed_in_package(text, None).expect("type the unowned invocation")
-    }).into_inner();
+    })
+    .into_inner();
     let template = prepared.machine_specializations[0].template;
     prepared.machine_specializations.edit(|rows| {
         rows[0].template =
@@ -2819,12 +2854,12 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
         if let Some(syntax) = &mut syntax {
             crate::checking::frontend_fixture::parse(syntax, id, &tokens).unwrap();
         } else {
-            syntax =
-                Some(crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
+            syntax = Some(
+                crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+            );
         }
     }
-    let mut request =
-        crate::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
     request
         .top_level_bindings
@@ -3248,9 +3283,12 @@ fn generic_named_map_body_uses_its_own_rigid_telescope() {
         .named_conformance_call_member(call)
         .unwrap()
         .unwrap();
-    let mut form =
-        crate::lowering::elaborate_generic(&program, row.realization_machine).unwrap();
-    let discharged = discharge(&mut form, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+    let mut form = crate::lowering::elaborate_generic(&program, row.realization_machine).unwrap();
+    let discharged = discharge(
+        &mut form,
+        &mut crate::checking::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let root = discharged
         .machines
         .get(id(1))
@@ -3272,8 +3310,8 @@ fn generic_named_map_body_cannot_be_an_unapplied_runtime_entry() {
         .named_conformance_call_member(call)
         .unwrap()
         .unwrap();
-    let refusal = crate::lowering::elaborate_closure(&program, row.realization_machine)
-        .unwrap_err();
+    let refusal =
+        crate::lowering::elaborate_closure(&program, row.realization_machine).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal
@@ -3514,15 +3552,14 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
     let arguments = program
         .type_reference_table
         .insert_type_reference_handles(arguments);
-    call.requirement_application =
-        program
-            .type_reference_table
-            .insert(crate::source_state::types::TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                lifetime_arguments,
-                arguments,
-            });
+    call.requirement_application = program.type_reference_table.insert(
+        crate::source_state::types::TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            lifetime_arguments,
+            arguments,
+        },
+    );
     let failure = program.named_conformance_call_member(&call).unwrap_err();
     assert!(failure.contains("region-free map argument"), "{failure}");
     assert!(program.named_conformance_capture_key(&call).is_err());

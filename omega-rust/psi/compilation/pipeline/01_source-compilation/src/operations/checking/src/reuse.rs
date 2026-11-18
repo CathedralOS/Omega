@@ -17,6 +17,7 @@ the certificate's conclusion against the consumer's goal and each cited
 hypothesis against the consumer's own.
 */
 
+use arena::IdTable;
 #[cfg(any(test, feature = "test-support"))]
 use proof_admission::{
     AcceptedFact, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, Obligation,
@@ -26,8 +27,10 @@ use proof_admission::{
 use proof_admission::{
     CertificateEnvelope, IntegerAffineWitness, ProofNode, ProofRule, ProofSystemMarker,
 };
-use semantic_vocabulary::{EvidenceIdentity, IntegerMathTerm, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use arena::{IdTable};
+use semantic_vocabulary::{
+    EvidenceIdentity, IntegerMathTerm, MachineId, ObligationId, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, ValueId,
+};
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::Elaboration;
@@ -139,8 +142,13 @@ pub fn reverify_at_call(
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
     let lowered = crate::checking::terminal_machine(&elaboration.module.machines, caller, caller)?;
-    let call =
-        crate::checking::call_contracts::invocation(&elaboration.module, lowered, tables, invocation, row)?;
+    let call = crate::checking::call_contracts::invocation(
+        &elaboration.module,
+        lowered,
+        tables,
+        invocation,
+        row,
+    )?;
     let actuals = crate::checking::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
@@ -821,7 +829,8 @@ pub fn reverify_specialization(
     })?;
     let prepared = crate::checking::prepare(formed, domains, specialization, tables)?;
     let tables = &*tables;
-    let lowered = crate::checking::terminal_machine(&module.machines, specialization, specialization)?;
+    let lowered =
+        crate::checking::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.structural_types);
     let storage = crate::checking::places::Storage::new(
         specialization,
@@ -1500,8 +1509,13 @@ impl<'a> Carry<'a> {
         point: terminal_check_tables::ProgramPoint,
         goal: Proposition,
     ) -> Checked<Evidence> {
-        let hypotheses =
-            crate::checking::hypotheses(graph, self.tables, self.specialization, obligation, point)?;
+        let hypotheses = crate::checking::hypotheses(
+            graph,
+            self.tables,
+            self.specialization,
+            obligation,
+            point,
+        )?;
         let proof = self.proof(obligation, kind, &goal, &hypotheses)?;
         let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
             self.refuse(
@@ -1673,7 +1687,8 @@ impl Carry<'_> {
             .get(entry)
             .ok_or_else(|| unsupported("the conformance witness was not discharged"))?
             .verdicts;
-        let lowered = crate::checking::terminal_machine(&selection.witness.module.machines, entry, entry)?;
+        let lowered =
+            crate::checking::terminal_machine(&selection.witness.module.machines, entry, entry)?;
         let mut invocations = tables.invocations.iter();
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(unsupported(

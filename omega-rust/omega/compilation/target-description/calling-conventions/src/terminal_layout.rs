@@ -9,8 +9,11 @@ reports the first error reached from its queried root.
 */
 
 use crate::ValueShape;
-use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, IeeeFloatFormat, ScalarApplicationId, ScalarType, StructuralTypeId};
 use arena::{IdTable, NonDenseIdentities};
+use semantic_vocabulary::{
+    ClosedIntegerType, ClosedScalarType, IeeeFloatFormat, ScalarApplicationId, ScalarType,
+    StructuralTypeId,
+};
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};

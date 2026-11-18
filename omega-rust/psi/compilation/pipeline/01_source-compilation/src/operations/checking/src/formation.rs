@@ -156,7 +156,13 @@ impl ReplayScope<'_> {
         activity: &mut crate::checking::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher also forms the complete replacement before use.
-        crate::checking::result_summaries::publish(self.elaboration, machine, summary, exits, activity)
+        crate::checking::result_summaries::publish(
+            self.elaboration,
+            machine,
+            summary,
+            exits,
+            activity,
+        )
     }
 
     pub(crate) fn finalize_callable_refinements(

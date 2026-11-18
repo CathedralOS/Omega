@@ -65,8 +65,11 @@ mod operations;
 pub(crate) mod places;
 mod ranking;
 
-use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
-use arena::{IdTable};
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    ScalarQualificationSetId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::values::{RigidType, ValueOrigin, ValueRow};
 use terminal_check_tables::{
@@ -224,7 +227,10 @@ pub(crate) fn static_signature_header(
     boundaries: &crate::lowering::boundaries::BoundaryNamespace,
     qualifications: &mut crate::lowering::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
-    let policy = if matches!(signature.crashes, crate::lowering::body::CrashCeiling::Inferred) {
+    let policy = if matches!(
+        signature.crashes,
+        crate::lowering::body::CrashCeiling::Inferred
+    ) {
         crate::lowering::callable_headers::CallableCrashPolicy::Open
     } else {
         crate::lowering::callable_headers::CallableCrashPolicy::Closed

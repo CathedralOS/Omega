@@ -14,14 +14,14 @@ mod retained_inputs;
 pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
+pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
+pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 pub use evaluated_bindings::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
     EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
 };
-pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
-pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 pub use service_schemas::{BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise};
 pub use service_schemas::{
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,

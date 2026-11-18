@@ -2237,9 +2237,9 @@ pub mod values {
                 Option<access_vocabulary::AccessOperation>,
             )> {
                 use access_vocabulary::AccessOperation::CompoundMutation;
-use access_vocabulary::AccessOperation::Read;
-use access_vocabulary::AccessOperation::Take;
-use access_vocabulary::AccessOperation::Write;
+                use access_vocabulary::AccessOperation::Read;
+                use access_vocabulary::AccessOperation::Take;
+                use access_vocabulary::AccessOperation::Write;
                 let mut uses = Vec::new();
                 let mut push = |storage, operation| uses.push((storage, operation));
                 match self {
@@ -2763,10 +2763,10 @@ use access_vocabulary::AccessOperation::Write;
             fn storage_uses_keep_field_effects_separate_from_descriptor_transport() {
                 use crate::{AtomicAccessEvent, MemoryOrdering, StructuralStorageUse};
                 use access_vocabulary::AccessOperation::Atomic;
-use access_vocabulary::AccessOperation::Read;
-use access_vocabulary::AccessOperation::Take;
-use access_vocabulary::AccessOperation::Write;
-use access_vocabulary::AtomicAccessOperation;
+                use access_vocabulary::AccessOperation::Read;
+                use access_vocabulary::AccessOperation::Take;
+                use access_vocabulary::AccessOperation::Write;
+                use access_vocabulary::AtomicAccessOperation;
                 let field = StructuralFieldId::new(7).unwrap();
                 let read = OperationKind::StructuralByteSequenceFieldLength {
                     source: place(1),

@@ -1,7 +1,7 @@
 //! Build selects its required entry slot before source settlement. Native
 //! planning later sees the corresponding accepted declaration and call plans.
-use diagnostics::Diagnostic;
 use declaration_contracts::selection::RootBinding;
+use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedProgramEntry<'config> {

@@ -58,10 +58,10 @@ pub(crate) fn prepare(
 
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
-            let Some(collection) = crate::typing::typing_queries::DeclaredExpressionTypes::default()
-                .get(
-                program, caller, collection,
-            ) else {
+            let Some(collection) =
+                crate::typing::typing_queries::DeclaredExpressionTypes::default()
+                    .get(program, caller, collection)
+            else {
                 continue;
             };
             retain_builtin_range_type(program, caller, expression, collection)?;
@@ -316,7 +316,8 @@ fn retain_builtin_range_type(
     ) {
         return Ok(());
     }
-    let Ok(element_type) = crate::typing::typing_queries::collection_element_type(program, collection)
+    let Ok(element_type) =
+        crate::typing::typing_queries::collection_element_type(program, collection)
     else {
         return Ok(());
     };
@@ -1504,9 +1505,11 @@ mod tests {
                 .next()
                 .unwrap();
             let expected =
-                crate::source_state::type_system::source_projections::SourceTypeCursor::new(parameter)
-                    .field(&program, field.symbol)
-                    .unwrap();
+                crate::source_state::type_system::source_projections::SourceTypeCursor::new(
+                    parameter,
+                )
+                .field(&program, field.symbol)
+                .unwrap();
             let actual = program
                 .expression_table
                 .constructed_value_type_reference(indexed.collection);

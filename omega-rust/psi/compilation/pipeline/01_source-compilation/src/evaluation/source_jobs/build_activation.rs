@@ -20,14 +20,14 @@
 //! `Build` a script holds is the one it was lent. That the declaration has
 //! this shape is checked here; the checker judges the program against it.
 
-use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::domain::DomainIssuance;
 use crate::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use super::is_exact_toolchain_build_prelude_data;
 
@@ -116,7 +116,8 @@ fn is_issued_seal(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     };
     let affine = typed.data_definitions().iter().any(|definition| {
         definition.symbol == *symbol
-            && definition.properties.multiplicity != declaration_contracts::Multiplicity::Unrestricted
+            && definition.properties.multiplicity
+                != declaration_contracts::Multiplicity::Unrestricted
     });
     let [TypeConstraintNode::Domain(domain)] = types.constraints(*constraints) else {
         return false;
@@ -155,8 +156,18 @@ public data Build<'storage> {
         let mut sources = crate::source_inputs::SourceMap::default();
         let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
         let files = [
-            Some(("package/build.omg", build, source_admission::SourceOrigin::User)),
-            prelude.map(|text| ("<build-prelude>", text, source_admission::SourceOrigin::Toolchain)),
+            Some((
+                "package/build.omg",
+                build,
+                source_admission::SourceOrigin::User,
+            )),
+            prelude.map(|text| {
+                (
+                    "<build-prelude>",
+                    text,
+                    source_admission::SourceOrigin::Toolchain,
+                )
+            }),
         ];
         for (path, text, origin) in files.into_iter().flatten() {
             let id = sources
@@ -176,7 +187,10 @@ public data Build<'storage> {
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(
+                            id, &tokens,
+                        )
+                        .unwrap(),
                     );
                 }
                 Some(syntax) => {
@@ -184,8 +198,7 @@ public data Build<'storage> {
                 }
             }
         }
-        let mut request =
-            crate::resolution::ResolutionRequest::new(syntax.unwrap());
+        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
         let resolved = crate::resolution::resolve(request).unwrap();
         crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()

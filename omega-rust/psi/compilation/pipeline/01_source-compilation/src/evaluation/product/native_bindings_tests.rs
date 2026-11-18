@@ -131,20 +131,23 @@ fn typed_requirement_at(
             .unwrap();
         match &mut syntax {
             None => {
-                syntax =
-                    Some(crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap())
+                syntax = Some(
+                    crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                        .unwrap(),
+                )
             }
             Some(syntax) => {
                 crate::evaluation::frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
         }
     }
-    let mut request =
-        crate::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = vec![
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
-        crate::source_symbols::SourceScopedTopLevelBinding::module_import(ids[0], ids[2], "Build", 0),
+        crate::source_symbols::SourceScopedTopLevelBinding::module_import(
+            ids[0], ids[2], "Build", 0,
+        ),
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[3], "ForeignBinding"),
         crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[3], "DllImport"),
     ];
@@ -159,11 +162,12 @@ fn capture(typed: &TypedTrees) -> (Vec<CapturedNativeDeclaration>, Vec<CapturedN
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let request = crate::source_state::product_operand::collect_product_selection_occurrences(typed)
-        .into_iter()
-        .find(|occurrence| occurrence.request.operation == BuildOperation::NativeBinding)
-        .unwrap()
-        .request;
+    let request =
+        crate::source_state::product_operand::collect_product_selection_occurrences(typed)
+            .into_iter()
+            .find(|occurrence| occurrence.request.operation == BuildOperation::NativeBinding)
+            .unwrap()
+            .request;
     let formation = native_binding_formation(typed, author, Some(author), request.clone()).unwrap();
     let event = ExecutedNativeBinding {
         request,
@@ -261,8 +265,7 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
     let mut missing = selection.clone();
     missing.application = None;
     assert_eq!(
-        super::require_canonical_requirement(&missing, &receiving)
-            .unwrap_err(),
+        super::require_canonical_requirement(&missing, &receiving).unwrap_err(),
         "native binding lost its complete requirement application"
     );
     let closed = receiving
@@ -279,13 +282,11 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
     let [other_selection] = other_selections.as_slice() else {
         panic!("one other closed binding must rejoin")
     };
-    super::require_canonical_requirement(other_selection, &receiving)
-        .unwrap();
+    super::require_canonical_requirement(other_selection, &receiving).unwrap();
     let mut changed_handle = selection.clone();
     changed_handle.application = other_selection.application;
     assert_eq!(
-        super::require_canonical_requirement(&changed_handle, &receiving)
-            .unwrap_err(),
+        super::require_canonical_requirement(&changed_handle, &receiving).unwrap_err(),
         "native binding application selects another closed requirement"
     );
     assert_ne!(

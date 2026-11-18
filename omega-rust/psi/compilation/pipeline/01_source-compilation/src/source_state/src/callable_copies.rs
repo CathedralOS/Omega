@@ -4,9 +4,13 @@
 //! and recursive references therefore keep one destination, while staging and
 //! later symbol rebinding never retain a source arena coordinate as identity.
 
-use crate::source_state::callable_values::{RuntimeCallableContract, RuntimeCallableContractHandle};
+use crate::source_state::callable_values::{
+    RuntimeCallableContract, RuntimeCallableContractHandle,
+};
 use crate::source_state::domain::ProofFact;
-use crate::source_state::expression::{ExpressionCopy, ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use crate::source_state::expression::{
+    ExpressionCopy, ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
 use crate::source_state::types::{TypeExpressionCopy, TypeReferenceHandle};
 use crate::source_state::{SymbolRebinding, TypedTreeTables, remapped};
@@ -210,7 +214,8 @@ impl<'source, 'target, 'records> TypeCopy<'source, 'target, 'records> {
             for (source, destination) in originals.into_iter().zip(contract.facts.handles()) {
                 let source_index = crate::source_state::proof_fact_source_span_index(source);
                 if let Some(Some(span)) = self.source.proof_fact_source_spans.get(source_index) {
-                    let destination_index = crate::source_state::proof_fact_source_span_index(destination);
+                    let destination_index =
+                        crate::source_state::proof_fact_source_span_index(destination);
                     self.target.proof_fact_source_spans.resize(
                         self.target
                             .proof_fact_source_spans
@@ -376,7 +381,10 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
             .signature_invokes
             .for_each_span_mut(signature.invokes, |invocation| {
                 match &mut invocation.target {
-                    crate::source_state::signature::AuthoredInvocationTarget::Parameter { symbol, .. }
+                    crate::source_state::signature::AuthoredInvocationTarget::Parameter {
+                        symbol,
+                        ..
+                    }
                     | crate::source_state::signature::AuthoredInvocationTarget::Service(symbol) => {
                         *symbol = remapped(*symbol, symbols)
                     }
@@ -401,7 +409,10 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
         }
     }
 
-    fn parameters(&mut self, parameters: HandleSpan<crate::source_state::signature::StateParameter>) {
+    fn parameters(
+        &mut self,
+        parameters: HandleSpan<crate::source_state::signature::StateParameter>,
+    ) {
         for handle in parameters.handles() {
             let mut parameter = self.target.state_parameters.get(handle).clone();
             parameter.symbol = remapped(parameter.symbol, self.symbols);
@@ -697,7 +708,9 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
                 .match_arms(matched.arms)
                 .to_vec();
             for arm in &mut arms {
-                if let crate::source_state::expression::MatchPattern::Destructure(pattern) = &mut arm.pattern {
+                if let crate::source_state::expression::MatchPattern::Destructure(pattern) =
+                    &mut arm.pattern
+                {
                     pattern.application_type = owner.reference(pattern.application_type);
                 }
             }
@@ -747,14 +760,14 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
 #[cfg(test)]
 mod build_request_copy_tests {
     use super::*;
+    use crate::declaration_selection::ProductDeclarationOperand;
+    use crate::declaration_selection::ProviderReadinessRequest;
     use crate::source_state::expression::BuildSelectionCall;
     use crate::source_state::expression::{
         BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, TableCallExpression,
     };
     use crate::source_state::types::TypeReferenceNode;
     use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
-    use crate::declaration_selection::ProductDeclarationOperand;
-use crate::declaration_selection::ProviderReadinessRequest;
     use symbols::SymbolHandle;
 
     #[test]

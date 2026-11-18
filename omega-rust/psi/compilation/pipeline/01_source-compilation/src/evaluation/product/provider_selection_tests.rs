@@ -9,13 +9,13 @@ use super::provider_declarations::{
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
+use crate::source_state::TypedTrees;
 use declaration_contracts::selection::ProductTarget;
-use semantic_vocabulary::PackageKeyIdentity;
 use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceOrigin;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use crate::source_state::TypedTrees;
 
 const PRELUDE: &str = r#"
 public data Build { marker: u64; }
@@ -159,7 +159,10 @@ impl Fixture {
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                        crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(
+                            id, &tokens,
+                        )
+                        .unwrap(),
                     )
                 }
                 Some(syntax) => {
@@ -167,16 +170,16 @@ impl Fixture {
                 }
             }
         }
-        let mut request =
-            crate::resolution::ResolutionRequest::new(syntax.unwrap());
+        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
         request.top_level_bindings = vec![
             crate::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
-            crate::source_symbols::SourceScopedTopLevelBinding::module_import(ids[0], ids[2], "Build", 0),
+            crate::source_symbols::SourceScopedTopLevelBinding::module_import(
+                ids[0], ids[2], "Build", 0,
+            ),
         ];
         let resolved = crate::resolution::resolve(request).unwrap();
-        let typed =
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let activation = typed
             .machines()
             .iter()
@@ -365,15 +368,16 @@ machine unselected(builder: &mut Build) { Build::audit_service<Untaken>(builder)
     let [audit] = admitted.service_audits.as_slice() else {
         panic!("only the executed registration survives and duplicates collapse");
     };
-    let selected = crate::source_symbols::rejoin_declaration(&audit
-        .declaration, &fixture.typed.symbols,
-            fixture
-                .typed
-                .traits()
-                .iter()
-                .map(|declaration| declaration.symbol),
-        )
-        .unwrap();
+    let selected = crate::source_symbols::rejoin_declaration(
+        &audit.declaration,
+        &fixture.typed.symbols,
+        fixture
+            .typed
+            .traits()
+            .iter()
+            .map(|declaration| declaration.symbol),
+    )
+    .unwrap();
     assert_eq!(fixture.typed.symbols.name(selected), "Unused");
 
     event.selecting_machine = fixture.typed.symbols.symbol_source_span(fixture.authors[1]);
@@ -757,7 +761,9 @@ fn trust_census_keeps_unrequested_claims_and_missing_receipts() {
     )
     .unwrap();
     let inventory = crate::source_state::provider_declarations::PreparedProviderInventory::new(
-        Arc::new(crate::source_state::FrozenTypedTrees::from(fixture.typed.clone())),
+        Arc::new(crate::source_state::FrozenTypedTrees::from(
+            fixture.typed.clone(),
+        )),
         &[],
     );
     let census = inventory.trust_declarations().unwrap();

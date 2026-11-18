@@ -15,7 +15,9 @@ pub fn execute_report_with_completion(
     let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("named Product publishes portable Terminal");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: report.retained_native_artifact().map(|image| image.inspect_for_runtime()),
+        native_image: report
+            .retained_native_artifact()
+            .map(|image| image.inspect_for_runtime()),
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),

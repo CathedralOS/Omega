@@ -821,11 +821,6 @@ impl BuiltinFunction {
     may, because it never competes with a type.
 */
 
-
-
-
-
-
 /*
     Closed semantic identity for the fixed `core::*` mathematical
     declarations (PROOF-CONTRACT-MIGRATION): the compiler-known universe and
@@ -914,7 +909,6 @@ impl FixedCoreDeclaration {
     vocabulary that surface elaborates, though no authored declaration backs
     them.
 */
-
 
 /*
     Mathematical members owned by a builtin carrier. Their child slots, not

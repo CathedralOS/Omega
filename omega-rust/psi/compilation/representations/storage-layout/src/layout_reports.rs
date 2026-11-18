@@ -403,11 +403,7 @@ fn conventional_sum_member_identities_are_unambiguous(
     true
 }
 
-fn hash_optional_member_identity(
-    hash: &mut wire::fnv1a::Fnv1a,
-    identity: Option<u64>,
-    name: &str,
-) {
+fn hash_optional_member_identity(hash: &mut wire::fnv1a::Fnv1a, identity: Option<u64>, name: &str) {
     match identity {
         Some(identity) => {
             hash.byte(1);

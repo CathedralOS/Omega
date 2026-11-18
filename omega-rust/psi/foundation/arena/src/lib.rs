@@ -62,7 +62,7 @@ pub use paged::{
 };
 
 mod id_table;
-pub use id_table::{IdTable, IdSet, IdTableBuildError, NonDenseIdentities, NumericId};
+pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities, NumericId};
 
 mod normalized_set;
 pub use normalized_set::NormalizedIdentitySet;

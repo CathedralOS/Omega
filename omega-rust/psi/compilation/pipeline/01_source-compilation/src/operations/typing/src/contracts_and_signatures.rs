@@ -248,7 +248,11 @@ pub(crate) mod contracts {
                 program: &mut TypedTrees,
                 owners: &crate::source_state::references::ProgramOperandOwners,
             ) -> Result<(), Diagnostic> {
-                use crate::declaration_selection::{AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Binding, AuthoredDeclarationSelectionTarget as Target};
+                use crate::declaration_selection::{
+                    AuthoredDeclarationSelectionKind as Kind,
+                    AuthoredDeclarationSelectionLateBinding as Binding,
+                    AuthoredDeclarationSelectionTarget as Target,
+                };
                 let unselected = program
                     .proof_facts
                     .iter()
@@ -400,14 +404,14 @@ pub(crate) mod contracts {
             #[cfg(test)]
             mod tests {
                 use super::*;
+                use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+                use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+                use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
                 use crate::source_state::data::DataDefinition;
                 use crate::source_state::domain::ProofMembershipFact;
                 use crate::source_state::expression::ExpressionNode;
                 use crate::source_state::name::Identifier;
                 use crate::source_symbols::SymbolTableBuilder;
-                use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
                 use symbols::{SymbolKind, SymbolNameRef};
 
                 /// A program with data `Held` and `Bystander`, and one
@@ -508,14 +512,17 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                                 membership.semantic_domain,
                             )
                             .expect("the complete selected domain application");
-                        let crate::source_state::types::TypeReferenceNode::FixedArray { length, .. } =
-                            program
-                                .type_reference_table
-                                .type_reference(domain.target_type)
+                        let crate::source_state::types::TypeReferenceNode::FixedArray {
+                            length,
+                            ..
+                        } = program
+                            .type_reference_table
+                            .type_reference(domain.target_type)
                         else {
                             panic!("the selected carrier is the actual fixed array")
                         };
-                        let crate::source_state::types::FixedArrayLength::Literal(length) = length else {
+                        let crate::source_state::types::FixedArrayLength::Literal(length) = length
+                        else {
                             panic!("the complete capacity is retained")
                         };
                         seen.push(*length);
@@ -617,12 +624,13 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                         .tokenize()
                         .unwrap();
                     let syntax =
-                        crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-                    let mut request =
-                        crate::resolution::ResolutionRequest::new(syntax);
+                        crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                            .unwrap();
+                    let mut request = crate::resolution::ResolutionRequest::new(syntax);
                     request.sources = Some(std::sync::Arc::new(sources));
                     let resolved = crate::resolution::resolve(request).unwrap();
-                    let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+                    let mut program =
+                        crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
                     let handle = program
                         .proof_facts
                         .iter()
@@ -640,7 +648,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                     membership.domain = second;
                     membership.domain_symbol = symbols::SymbolHandle::invalid();
                     membership.semantic_domain = declaration_contracts::SemanticDomainId::NULL;
-                    let owners = crate::source_state::references::collect_program_operand_owners(&program);
+                    let owners =
+                        crate::source_state::references::collect_program_operand_owners(&program);
                     let error = normalize(&resolved, &mut program, &owners).unwrap_err();
                     assert!(
                         error
@@ -658,7 +667,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                 #[test]
                 fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
                     let (mut program, [holder, bystander]) = unselected_membership(true);
-                    let owners = crate::source_state::references::collect_program_operand_owners(&program);
+                    let owners =
+                        crate::source_state::references::collect_program_operand_owners(&program);
                     normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
@@ -675,7 +685,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                 #[test]
                 fn an_unselected_membership_no_declaration_holds_still_refuses() {
                     let (mut program, [holder, bystander]) = unselected_membership(false);
-                    let owners = crate::source_state::references::collect_program_operand_owners(&program);
+                    let owners =
+                        crate::source_state::references::collect_program_operand_owners(&program);
                     let error = normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
@@ -781,7 +792,8 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                                         domain,
                                         domain_symbol: atom.symbol,
                                         domain_arguments,
-                                        semantic_domain: declaration_contracts::SemanticDomainId::NULL,
+                                        semantic_domain:
+                                            declaration_contracts::SemanticDomainId::NULL,
                                         authored_domain_selection: membership
                                             .authored_domain_selection,
                                     },
@@ -1256,10 +1268,10 @@ pub(crate) mod signatures {
         }
     }
     pub(crate) mod lexical_context {
+        use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
         use diagnostics::Diagnostic;
-        use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
         use symbols::{SymbolHandle, SymbolKind};
 
         fn enclosing_declarations<'program>(

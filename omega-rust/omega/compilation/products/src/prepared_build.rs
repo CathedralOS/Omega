@@ -90,7 +90,8 @@ pub struct CheckedProductSource {
     pub optimizations: optimization_core::OptimizationSelections,
     pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     pub program: Arc<source_compiler::source_state::FrozenTypedTrees>,
-    pub provider_inventory: Arc<source_compiler::source_state::provider_declarations::PreparedProviderInventory>,
+    pub provider_inventory:
+        Arc<source_compiler::source_state::provider_declarations::PreparedProviderInventory>,
     pub terminal_publication: Arc<source_compiler::SourcePublication>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,

@@ -21,7 +21,8 @@ pub(crate) mod diagnostic {
 use self::diagnostic::reject_when;
 use crate::plan_policy::normalized_identities::authoritative_access_layout_commitment;
 use crate::{
-    AccessExposure, AccessPermissions, AccessPlanDiagnostic, ExternalRead, FieldAccess, ObservationModel,
+    AccessExposure, AccessPermissions, AccessPlanDiagnostic, ExternalRead, FieldAccess,
+    ObservationModel,
 };
 use layout_plans::{LayoutPlanReport, normalized_layout_plan_report_fingerprint};
 use std::collections::BTreeMap;

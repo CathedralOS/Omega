@@ -75,11 +75,12 @@ pub fn encode_darwin_read_byte_to_stack(
     Ok(bytes)
 }
 
-
-
 #[cfg(test)]
 fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
-    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(NativeTarget::macos_x64(), bytes)
+    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(
+        NativeTarget::macos_x64(),
+        bytes,
+    )
 }
 
 #[cfg(test)]

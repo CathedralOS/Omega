@@ -8,8 +8,8 @@ use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use crate::preparation::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
-use target::ExecutableImageEmissionRequest;
 use native_program_planning::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use target::ExecutableImageEmissionRequest;
 
 pub fn compile(
     retained: &RetainedTerminalArtifact,
@@ -61,12 +61,9 @@ fn produce(
         components: prepared_components,
     } = prepared;
     let result = (|| {
-        let scalar_input =
-            || {
-                scalars.map(|completed| {
-                    native_program_planning::NativeScalarApplications { completed }
-                })
-            };
+        let scalar_input = || {
+            scalars.map(|completed| native_program_planning::NativeScalarApplications { completed })
+        };
         let artifact = retained.shared_artifact();
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             vec![Diagnostic::error(

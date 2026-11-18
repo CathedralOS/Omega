@@ -49,7 +49,9 @@ fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::Compilation
 }
 
 /// The detail of each verdict that refuses a construct as not supported.
-fn not_supported(verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>]) -> Vec<String> {
+fn not_supported(
+    verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>],
+) -> Vec<String> {
     verdicts
         .iter()
         .filter_map(|verdict| match verdict {

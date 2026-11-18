@@ -35,10 +35,10 @@
 //! machine and root symbol: it cannot establish one of that machine's universal
 //! result lifetimes, even when the borrowed window is empty.
 
+use crate::source_state::type_identity::LifetimeParameterIdentity;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::type_identity::LifetimeParameterIdentity;
 
 use super::Program;
 use crate::lowering::body::{Regions, ValueType};
@@ -226,8 +226,9 @@ impl Program<'_> {
 
     /// The lifetime parameters `owner` declares, as regions in order.
     pub(crate) fn own_regions(&self, owner: SymbolHandle) -> Vec<Region> {
-        let count = crate::source_state::type_identity::declaration_lifetime_parameters(self.typed, owner)
-            .map_or(0, <[_]>::len);
+        let count =
+            crate::source_state::type_identity::declaration_lifetime_parameters(self.typed, owner)
+                .map_or(0, <[_]>::len);
         (0..count)
             .map(|ordinal| {
                 Region::Parameter(LifetimeParameterIdentity {
@@ -518,9 +519,10 @@ impl Program<'_> {
         &self,
         machine: SymbolHandle,
     ) -> Vec<LifetimeParameterIdentity> {
-        let declared =
-            crate::source_state::type_identity::declaration_lifetime_parameters(self.typed, machine)
-                .map_or(0, <[_]>::len);
+        let declared = crate::source_state::type_identity::declaration_lifetime_parameters(
+            self.typed, machine,
+        )
+        .map_or(0, <[_]>::len);
         let elided = self
             .elided_lifetimes
             .iter()

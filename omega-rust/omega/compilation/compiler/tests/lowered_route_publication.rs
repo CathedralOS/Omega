@@ -40,13 +40,12 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     .unwrap()
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) =
-        native_program_planning::test_support::build_verified_psi_optimization_unit(
-            input,
-            terminal_work::WorkSchedule::CURRENT.identity(),
-        )
-        .unwrap()
-        .into_parts();
+    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input,
+        terminal_work::WorkSchedule::CURRENT.identity(),
+    )
+    .unwrap()
+    .into_parts();
     optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
         &unit,
         &[],
@@ -244,13 +243,12 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     .expect("Omega 00 lowers the published module with its seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) =
-        native_program_planning::test_support::build_verified_psi_optimization_unit(
-            input,
-            terminal_work::WorkSchedule::CURRENT.identity(),
-        )
-        .expect("Omega 01 builds the verified unit")
-        .into_parts();
+    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input,
+        terminal_work::WorkSchedule::CURRENT.identity(),
+    )
+    .expect("Omega 01 builds the verified unit")
+    .into_parts();
     let sealed: Vec<[u8; 32]> = unit
         .accepted_obligation_facts
         .iter()

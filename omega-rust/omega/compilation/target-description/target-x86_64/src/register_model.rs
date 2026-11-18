@@ -1565,8 +1565,9 @@ mod float_scalar_calls {
                 family: selected_instructions::MachineAlternativeFamily::ReturnScalar,
                 variant: 0,
             };
-            let encoded = isa_x86_64::encode_x86_64_selected_form(&physical, kind, alternative, &[home])
-                .expect("floating return");
+            let encoded =
+                isa_x86_64::encode_x86_64_selected_form(&physical, kind, alternative, &[home])
+                    .expect("floating return");
             isa_x86_64::validate_x86_64_selected_form_encoding(
                 &physical,
                 kind,
@@ -2762,8 +2763,7 @@ mod physical_model {
         })
     }
 
-    pub fn canonical_x86_64_physical_register_model_identity()
-    -> PhysicalRegisterModelIdentity {
+    pub fn canonical_x86_64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
         validated_x86_64_physical_register_model().identity()
     }
 }

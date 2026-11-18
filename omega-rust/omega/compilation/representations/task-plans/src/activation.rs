@@ -13,9 +13,9 @@ whole-call-graph WCSU stack demand, and validate the resulting
 use crate::*;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ServiceMethod, ServiceSchema};
-use wire::fnv1a::Fnv1a;
 use std::borrow::Cow;
 use terminal_psi::*;
+use wire::fnv1a::Fnv1a;
 
 pub fn realize_task_activations(
     demands: &TerminalTaskActivationDemands,

@@ -1688,8 +1688,11 @@ pub(crate) mod completion {
         use crate::storage::byte_sequences::{
             ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
         };
-        use evaluation_accounting::{BuildEvaluationSponsor};
-        use evaluation_contracts::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity};
+        use evaluation_accounting::BuildEvaluationSponsor;
+        use evaluation_contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
         use semantic_vocabulary::{ClaimId, StructuralTypeId};
         use terminal_psi::{
             StructuralMultiplicity, StructuralOperationResult, StructuralResultClaimBinding,

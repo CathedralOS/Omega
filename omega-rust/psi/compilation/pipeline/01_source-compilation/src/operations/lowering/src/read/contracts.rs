@@ -6,16 +6,18 @@ with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
 use crate::lowering::body::{Policy, Qualification};
+use crate::source_state::closed_numeric;
+use crate::source_state::domain::ProofFact;
+use crate::source_state::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
     Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::closed_numeric;
-use crate::source_state::domain::ProofFact;
-use crate::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::authority::Access;
 use super::places::Member;
@@ -647,11 +649,10 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let subject =
-            crate::source_state::byte_predicates::whole_byte_observation_subject(self.typed, argument)
-                .ok_or_else(|| {
-                    unserved("logical byte observation requires a shared exact whole view")
-                })?;
+        let subject = crate::source_state::byte_predicates::whole_byte_observation_subject(
+            self.typed, argument,
+        )
+        .ok_or_else(|| unserved("logical byte observation requires a shared exact whole view"))?;
         let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
             return Err(unserved("byte predicate of something that is not storage"));
         };
@@ -1259,26 +1260,30 @@ impl Program<'_> {
                 ScalarTerm::Boolean(*value),
                 ValueType::plain(ScalarType::Boolean),
             )),
-            ExpressionNode::Binary(binary) => match crate::lowering::policy::suffix(binary.policy) {
-                // The shared declaration phase forms this canonical term
-                // before any containing clause becomes proof knowledge.
-                crate::lowering::policy::Suffix::Unwritten => {
-                    self.arithmetic_term(id, scope, binary, None, expected, operands)
-                }
-                // "An arithmetic operation whose selected meaning can
-                // transfer control cannot form a proof term. It is not
-                // silently read as Exact or mathematical arithmetic."
-                crate::lowering::policy::Suffix::Trapping => Err(crate::lowering::reject(
-                    id,
-                    crate::lowering::SourceOrigin::of(self.typed.expression_table.source_span(expression)),
-                    "a trapping operator (`+!`, `-!`, `*!`) in a contract clause: an operation \
+            ExpressionNode::Binary(binary) => {
+                match crate::lowering::policy::suffix(binary.policy) {
+                    // The shared declaration phase forms this canonical term
+                    // before any containing clause becomes proof knowledge.
+                    crate::lowering::policy::Suffix::Unwritten => {
+                        self.arithmetic_term(id, scope, binary, None, expected, operands)
+                    }
+                    // "An arithmetic operation whose selected meaning can
+                    // transfer control cannot form a proof term. It is not
+                    // silently read as Exact or mathematical arithmetic."
+                    crate::lowering::policy::Suffix::Trapping => Err(crate::lowering::reject(
+                        id,
+                        crate::lowering::SourceOrigin::of(
+                            self.typed.expression_table.source_span(expression),
+                        ),
+                        "a trapping operator (`+!`, `-!`, `*!`) in a contract clause: an operation \
                      that can crash forms no proof term, and it is not read as exact or \
                      mathematical arithmetic",
-                )),
-                crate::lowering::policy::Suffix::Total(policy) => {
-                    self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
+                    )),
+                    crate::lowering::policy::Suffix::Total(policy) => {
+                        self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
+                    }
                 }
-            },
+            }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
                 let (operand, value_type) = self.term(id, scope, unary.operand, expected)?;
                 let Some(result @ ValueType::Scalar(ScalarType::Integer(carrier), _)) =
@@ -1310,8 +1315,9 @@ impl Program<'_> {
             }
             ExpressionNode::Call(call) if call.layout_query.is_some() => {
                 let query = call.layout_query.as_ref().expect("matched a layout query");
-                let source =
-                    crate::lowering::SourceOrigin::of(typed.expression_table.source_span(expression));
+                let source = crate::lowering::SourceOrigin::of(
+                    typed.expression_table.source_span(expression),
+                );
                 let measured = self.layout_query(id, call, query, source)?;
                 if let (
                     crate::lowering::body::ExpressionKind::ScalarApplication { application },
@@ -1509,9 +1515,14 @@ impl Program<'_> {
             self.wholly_anonymous(binary.left),
             self.wholly_anonymous(binary.right),
         );
-        let source = crate::lowering::SourceOrigin::of(self.typed.expression_table.source_span(binary.left));
+        let source =
+            crate::lowering::SourceOrigin::of(self.typed.expression_table.source_span(binary.left));
         if suffix.is_some() && anonymous == (true, true) {
-            return Err(crate::lowering::reject(id, source, crate::lowering::policy::WHOLLY_ANONYMOUS));
+            return Err(crate::lowering::reject(
+                id,
+                source,
+                crate::lowering::policy::WHOLLY_ANONYMOUS,
+            ));
         }
         let ((left, left_type), (right, right_type)) = if anonymous.0 {
             let right = self.term(id, scope, binary.right, expected)?;
@@ -1530,7 +1541,9 @@ impl Program<'_> {
             suffix,
             (
                 source,
-                crate::lowering::SourceOrigin::of(self.typed.expression_table.source_span(binary.right)),
+                crate::lowering::SourceOrigin::of(
+                    self.typed.expression_table.source_span(binary.right),
+                ),
             ),
         )?;
         let operation = operation
@@ -1540,8 +1553,8 @@ impl Program<'_> {
                 "arithmetic contract term has no selected integer carrier",
             ));
         };
-        let term =
-            crate::lowering::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
+        let term = crate::lowering::policy::term(operation, policy, carrier, left, right)
+            .ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
         // Source selection must see the operands this reader actually
@@ -2209,7 +2222,9 @@ impl Program<'_> {
                             return None;
                         };
                         match transition.guard {
-                            crate::source_state::statement::TransitionGuardNode::When(guard) => Some(guard),
+                            crate::source_state::statement::TransitionGuardNode::When(guard) => {
+                                Some(guard)
+                            }
                             _ => None,
                         }
                     })

@@ -955,7 +955,7 @@ pub use scalar_conditions::{
 };
 pub mod quotients {
     use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
-use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
+    use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]

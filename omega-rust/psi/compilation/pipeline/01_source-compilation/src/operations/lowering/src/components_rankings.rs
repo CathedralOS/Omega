@@ -4,8 +4,8 @@
 
 use super::{CallGraph, Components, index};
 use crate::lowering::body::{Expression, ExpressionKind, Signature, Strict, ValueType};
+use arena::IdTable;
 use semantic_vocabulary::{MachineId, ScalarType};
-use arena::{IdTable};
 use terminal_check_tables::{Checked, Construct};
 
 pub(super) fn carry(

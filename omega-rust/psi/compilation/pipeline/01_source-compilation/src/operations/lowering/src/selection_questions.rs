@@ -5,6 +5,9 @@ use std::fmt;
 
 type Membership<Key> = HashSet<Key, symbols::BuildSymbolHasher>;
 
+use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
+use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;
+use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
 use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
 use crate::source_state::TypedTrees;
 use crate::source_state::callable_values::RuntimeCallBinding;
@@ -13,9 +16,6 @@ use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::references::{DeclarationSelection, TypedReferences};
 use crate::source_state::statement::{StatementHandle, StatementNode};
 use crate::source_state::types::TypeReferenceHandle;
-use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
 use symbols::{SymbolHandle, SymbolKind};
 
 /// Answers produced while this form reads an actual primitive operation.
@@ -68,9 +68,9 @@ impl CompletedOperators {
         expression: ExpressionHandle,
     ) -> Result<(), SelectionCaptureError> {
         use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
-use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+        use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
+        use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
         if !typed.expression_table.expression_is_valid(expression) {
             return Err(SelectionCaptureError(
                 "completed operator has a stale expression".into(),
@@ -512,8 +512,7 @@ impl Capture<'_> {
             .ok_or_else(|| {
                 SelectionCaptureError("runtime call lost its own authored occurrence".into())
             })?;
-        if row.kind()
-            != crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+        if row.kind() != crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
             || !matches!(
                 row.target(),
                 AuthoredDeclarationSelectionTarget::Resolved(_)
@@ -1284,6 +1283,9 @@ mod layout_query_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+    use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as LateBinding;
     use crate::source_inputs::SourceMap;
     use crate::source_state::expression::{Expression, NamePath};
     use crate::source_state::machine::Machine;
@@ -1291,9 +1293,6 @@ mod tests {
     use crate::source_state::state::State;
     use crate::source_state::statement::StatementNode;
     use crate::source_symbols::SymbolTableBuilder;
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
-use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as LateBinding;
     use source_admission::SourceOrigin;
     use source_text::{SourceSpan, Span};
     use std::path::PathBuf;

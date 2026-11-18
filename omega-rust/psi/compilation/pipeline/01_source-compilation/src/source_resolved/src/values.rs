@@ -2294,7 +2294,13 @@ pub mod expression {
             assert_ne!(original.generation(), current.generation());
             assert!(!table.expression_is_valid(original));
             assert!(table.expression_is_valid(current));
-            assert!(table.spans.expression_handles.span(original_arguments).is_none());
+            assert!(
+                table
+                    .spans
+                    .expression_handles
+                    .span(original_arguments)
+                    .is_none()
+            );
             assert_eq!(table.expression_handles(current_arguments), [current]);
         }
 
@@ -3014,11 +3020,11 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     pub use display::display_name_path;
     pub use numeric_literals::FloatLiteral;
 
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::source_resolved::AuthoredDeclarationSelectionOccurrenceId;
     use crate::source_resolved::name::DiagnosticName;
     use crate::source_selections::CompilerDerivedSelectionPartition;
     use arena::{Arena, Handle, HandleSpan};
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use numeric_literals::IntegerLiteral;
     use source_text::SourceSpan;
     use symbols::SymbolHandle;
@@ -4173,11 +4179,11 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
 #[cfg(test)]
 mod static_input_record_tests {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::source_resolved::expression::StaticMachineArgument;
     use crate::source_selections::AuthoredDeclarationSelections;
     use compiler_storage::{RecordLimits, decode, encode};
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use symbols::SymbolHandle;
 
     #[test]

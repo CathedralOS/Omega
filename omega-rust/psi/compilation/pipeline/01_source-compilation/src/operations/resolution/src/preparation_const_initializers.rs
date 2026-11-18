@@ -757,7 +757,8 @@ mod tests {
                 .tokenize()
                 .unwrap();
             let unit =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             syntax.extend_from(&unit);
         }
         resolve(ResolutionRequest {

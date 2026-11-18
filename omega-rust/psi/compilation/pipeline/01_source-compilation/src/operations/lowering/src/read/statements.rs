@@ -11,11 +11,13 @@ referent like a home, a field of a record referent like a field of a mutable
 local.
 */
 
+use crate::source_state::expression::ExpressionNode;
+use crate::source_state::statement::{
+    StatementHandle, StatementNode, TableAssignment, TableLocalData,
+};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::StructuralAccess;
-use crate::source_state::expression::ExpressionNode;
-use crate::source_state::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 use super::authority::Access;
 use super::references::reference_access_violation;

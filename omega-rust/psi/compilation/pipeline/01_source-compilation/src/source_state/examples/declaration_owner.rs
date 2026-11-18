@@ -1,19 +1,19 @@
 //! Compare actual declaration-owner APIs from two explicitly built revisions.
 //! The generated tables are metadata payloads, not executable Omega programs.
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::hint::black_box;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Instant;
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
-use source_compiler::source_symbols::{SymbolTableBuilder};
 use source_compiler::source_state::machine::Machine;
 use source_compiler::source_state::signature::StateParameter;
 use source_compiler::source_state::state::State;
 use source_compiler::source_state::statement::{StatementNode, TableLocalData};
 use source_compiler::source_state::types::TypeReferenceNode;
 use source_compiler::source_state::{FrozenTypedTrees, TypedTrees};
+use source_compiler::source_symbols::SymbolTableBuilder;
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::hint::black_box;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::Instant;
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
 
 struct MeasuredAllocator;
 static COUNTING: AtomicBool = AtomicBool::new(false);
@@ -231,9 +231,9 @@ fn run(shape: Shape, mode: &str, work: usize) {
             global(&program, &payload, 0);
             let started = Instant::now();
             for query in 0..black_box(work) {
-                program
-                    .expression_table
-                    .insert(source_compiler::source_state::expression::ExpressionNode::Boolean(true));
+                program.expression_table.insert(
+                    source_compiler::source_state::expression::ExpressionNode::Boolean(true),
+                );
                 checksum += global(&program, &payload, query);
             }
             elapsed = started.elapsed().as_nanos();

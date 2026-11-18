@@ -5,10 +5,11 @@ pub(crate) fn validate_target(
     target: &TargetOperationPlan,
     source: &PreparedInstallationSources<'_>,
 ) -> Result<(), crate::preparation::LegalizationError> {
-    let fail = |operation, reason| crate::preparation::LegalizationError::InstalledInterruptAssociation {
-        operation: Some(operation),
-        reason,
-    };
+    let fail =
+        |operation, reason| crate::preparation::LegalizationError::InstalledInterruptAssociation {
+            operation: Some(operation),
+            reason,
+        };
     for (machine, row) in target.functions.iter().flat_map(|function| {
         function
             .graph

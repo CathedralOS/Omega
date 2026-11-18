@@ -38,8 +38,8 @@ use crate::patterns::fields::DestructureFields;
 use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::types::references::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
-use numerics::arithmetic::ArithmeticDomain;
 use numeric_literals::IntegerLiteral;
+use numerics::arithmetic::ArithmeticDomain;
 use source_text::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{

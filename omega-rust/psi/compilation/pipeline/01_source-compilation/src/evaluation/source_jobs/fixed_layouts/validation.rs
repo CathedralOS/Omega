@@ -2,9 +2,9 @@
 //! supplied field roster before any consumer can trust its offsets or extent.
 
 use crate::evaluation::BuildTimeValue as Value;
-use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use crate::source_state::data::DataDefinition;
 use crate::source_state::{PlanLaidSchemaField, TypedTrees};
+use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a Value, String> {
     let Value::Struct { fields, .. } = value else {
@@ -136,9 +136,8 @@ pub(super) fn record_plan(
         })
     });
     Ok(LayoutPlanReport {
-        schema_report_fingerprint: crate::source_state::identity::normalized_schema_report_fingerprint(
-            typed, data,
-        ),
+        schema_report_fingerprint:
+            crate::source_state::identity::normalized_schema_report_fingerprint(typed, data),
         entries,
         offsets: Some(offsets),
         size: Some(size),

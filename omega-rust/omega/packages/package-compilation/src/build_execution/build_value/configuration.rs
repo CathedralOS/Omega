@@ -10,8 +10,8 @@
 // to bind AArch64 targets alongside x86 targets without conflict.
 
 use super::optimization;
-use source_compiler::evaluation::BuildTimeValue;
 use optimization_core::OptimizationSelections;
+use source_compiler::evaluation::BuildTimeValue;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -44,14 +44,12 @@ impl SourceCallingInputs {
             entries: self
                 .entries
                 .iter()
-                .map(
-                    |entry| crate::TerminalProgramEntryContractSelection {
-                        target: &entry.target,
-                        application: &entry.application,
-                        physical_source_digest: entry.physical_source_digest,
-                        implementation: entry.implementation,
-                    },
-                )
+                .map(|entry| crate::TerminalProgramEntryContractSelection {
+                    target: &entry.target,
+                    application: &entry.application,
+                    physical_source_digest: entry.physical_source_digest,
+                    implementation: entry.implementation,
+                })
                 .collect(),
         }
     }

@@ -3,9 +3,9 @@ mod prepared;
 pub use prepared::PreparedCallbackDeclarations;
 
 use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
-use arena::{Arena, Handle};
 use application_identity::callback_declarations::CallbackDeclaration;
 use application_identity::callback_declarations::CallbackRegistrationDeclaration;
+use arena::{Arena, Handle};
 
 pub type CallbackUseId = Handle<CallbackUseDeclaration>;
 pub type CallbackRequirementId = Handle<CallbackRequirementDeclaration>;

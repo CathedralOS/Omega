@@ -8,14 +8,14 @@
     bounds are never rewritten, and an origin-free cycle publishes nothing.
 */
 
-use arena::{Handle, HandleSpan};
-use diagnostics::Diagnostic;
-use source_text::SourceSpan;
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use crate::source_resolved::expression::{ExpressionNode, StaticMachineArgument};
 use crate::source_resolved::statement::Statement;
 use crate::source_resolved::types::{FixedArrayLength, TypeReference};
+use arena::{Handle, HandleSpan};
+use diagnostics::Diagnostic;
+use source_text::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
 pub(crate) fn pending(parameter: &TypeParameter) -> bool {

@@ -97,7 +97,8 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
 
 pub(crate) struct SharedProgram {
     pub captures: crate::source_state::NamedConformanceCaptureIndex,
-    exact_toolchain_sources: std::sync::OnceLock<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
+    exact_toolchain_sources:
+        std::sync::OnceLock<Result<Vec<(source_text::SourceId, [u8; 32])>, String>>,
     /// The service catalog that supplies boundary calling ABIs, one slot per
     /// dependency purpose (`Product`, `Build`). The catalog depends only on
     /// the typed program and that purpose, so the first reading that asks for
@@ -106,8 +107,10 @@ pub(crate) struct SharedProgram {
     calling_catalogs: [std::sync::OnceLock<CallingCatalog>; 2],
 }
 
-type CallingCatalog =
-    Result<std::sync::Arc<crate::source_state::service_declarations::PreparedServiceCatalog>, String>;
+type CallingCatalog = Result<
+    std::sync::Arc<crate::source_state::service_declarations::PreparedServiceCatalog>,
+    String,
+>;
 
 impl SharedProgram {
     pub(crate) fn exact_toolchain_sources(
@@ -116,7 +119,9 @@ impl SharedProgram {
     ) -> Result<&[(source_text::SourceId, [u8; 32])], &str> {
         self.exact_toolchain_sources
             .get_or_init(|| {
-                source_admission::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                source_admission::source_identity::toolchain_source_identities(
+                    typed.symbols.source_files(),
+                )
             })
             .as_deref()
             .map_err(String::as_str)
@@ -168,20 +173,20 @@ pub use body::{
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{
-    Body, Borrowed, Ceiling,
-    DomainSet, Expression, ExpressionKind, RecordType, Signature, Statement, StorageShape, Target, Termination, ValueType,
+    Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType, Signature,
+    Statement, StorageShape, Target, Termination, ValueType,
 };
 pub use callable_formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
-#[cfg(any(test, feature = "test-support"))]
-pub use compilation::{PreparedSource, prepare_compilation};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use compilation::prepare_compilation;
 #[cfg(any(test, feature = "test-support"))]
-pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
+pub use compilation::{PreparedSource, prepare_compilation};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use external_providers::ExternalProviderCandidate;
+#[cfg(any(test, feature = "test-support"))]
+pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use outcome::Outcome;
 pub use reach::ServiceReach;
 pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
@@ -197,13 +202,13 @@ pub use terminal_check_tables::compilation::{
 };
 pub use terminal_check_tables::names::{Binder, ClauseText, MachineNames, Piece};
 
+use crate::source_state::TypedTrees;
+use arena::IdTable;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity, StructuralTypeId};
-use arena::{IdTable};
 use symbols::SymbolHandle;
 pub use terminal_check_tables::contracts::RequirementCeilings;
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalModule;
-use crate::source_state::TypedTrees;
 
 /// What one compilation asks to have judged. This is request information: the
 /// typed trees also hold declarations of other packages and do not say which
@@ -538,7 +543,10 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 /// Single-declaration APIs use that declaration's checked source context.
 /// Source-free representation fixtures retain the Product interpretation.
 #[cfg(any(test, feature = "test-support"))]
-fn declaration_context(typed: &TypedTrees, declaration: SymbolHandle) -> declaration_contracts::source_identity::DependencyScope {
+fn declaration_context(
+    typed: &TypedTrees,
+    declaration: SymbolHandle,
+) -> declaration_contracts::source_identity::DependencyScope {
     typed
         .symbols
         .symbol_provenance_source_span(declaration)

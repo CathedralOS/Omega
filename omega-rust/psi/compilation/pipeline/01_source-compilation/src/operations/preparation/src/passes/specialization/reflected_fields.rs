@@ -30,11 +30,10 @@
 
 use super::callable_binder::{Bound, satisfies_binder};
 use super::{Served, Stop, named_type, unserved};
-use language_core::ReferenceAccess;
-use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
-use symbols::{SymbolHandle, SymbolKind};
 use crate::source_state::TypedTrees;
-use crate::source_state::data::{DataField, DataMember, MachineParameterContract, TypeParameterKind};
+use crate::source_state::data::{
+    DataField, DataMember, MachineParameterContract, TypeParameterKind,
+};
 use crate::source_state::expression::{
     Expression, ExpressionHandle, ExpressionNode, MemberSelection, NamePath, StaticMachineArgument,
     TableBorrowExpression, TableCallExpression, TableMemberExpression,
@@ -45,6 +44,9 @@ use crate::source_state::signature::StateSignature;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementHandle, StatementNode, TableCall, TableLocalData};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use language_core::ReferenceAccess;
+use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
+use symbols::{SymbolHandle, SymbolKind};
 
 /// Close every `inspect_record_fields` call statement in the machine at
 /// `position`. The first call that cannot be closed is left as typing wrote

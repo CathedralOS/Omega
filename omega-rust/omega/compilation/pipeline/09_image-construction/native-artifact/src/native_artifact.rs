@@ -39,7 +39,9 @@ use crate::physical::{
     derive_physical_evidence,
 };
 use crate::publication::publication_digest;
-pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, RetainedDynamicElfArtifact};
+pub use dynamic_elf::{
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, RetainedDynamicElfArtifact,
+};
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
     foreign_call_custody_digest,
@@ -779,7 +781,6 @@ impl RetainedNativeArtifact {
     pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
         self.physical_evidence_gap.as_ref()
     }
-
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

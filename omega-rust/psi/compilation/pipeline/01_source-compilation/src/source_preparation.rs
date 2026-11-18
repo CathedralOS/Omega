@@ -12,7 +12,8 @@ pub struct SourcePreparation {
 impl SourcePreparation {
     pub fn catalogue(
         &self,
-    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>> {
+    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>>
+    {
         self.catalogue
             .lock()
             .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])

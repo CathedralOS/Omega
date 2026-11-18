@@ -41,13 +41,13 @@ an array element and a partial write inside such a value (`read::authority`)
 retain their independent establishment restrictions.
 */
 
+use crate::source_state::expression::ExpressionHandle;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
     ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
-use crate::source_state::expression::ExpressionHandle;
 
 use super::authority::has_predicates;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
@@ -136,7 +136,8 @@ impl Program<'_> {
                 .with(domain)
                 .ok_or_else(|| unavailable("runtime membership domain roster"))?,
         };
-        let at = crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let at =
+            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
         let clauses =
             if let Some((root, path, actual)) = self.projected(id, scope, membership.value)? {
                 let plain = actual
@@ -418,13 +419,15 @@ impl Program<'_> {
         while let Some(domain) = self.declared_domains.get(slot) {
             let instance = domain.instance;
             let carrier = domain.carrier;
-            let domains = crate::lowering::DomainSet::EMPTY.with(instance).ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("domain predicate subject"),
-                )
-            })?;
+            let domains = crate::lowering::DomainSet::EMPTY
+                .with(instance)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("domain predicate subject"),
+                    )
+                })?;
             let qualification = Qualification {
                 policy: None,
                 domains,
@@ -590,17 +593,19 @@ impl Program<'_> {
         // executable storage. Its explicit shared range still owes the
         // ordinary operator selection on the actual declared slice type.
         if let Some((expression, _)) =
-            crate::source_state::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
+            crate::source_state::byte_predicates::byte_slice_domain_predicate(
+                self.typed, definition,
+            )
         {
             let (_, argument) =
                 crate::source_state::byte_predicates::byte_predicate_call(self.typed, expression)
                     .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("primitive byte domain lost its observer call"),
-                        )
-                    })?;
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("primitive byte domain lost its observer call"),
+                    )
+                })?;
             return self.complete_byte_observation_range(
                 id,
                 definition.symbol,
@@ -613,17 +618,20 @@ impl Program<'_> {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
-        let at = crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let at =
+            crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
         self.declared_domain(id, domain, carrier, definition.target_type, at)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
-                let domains = crate::lowering::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Declaration("domain identity"),
-                    )
-                })?;
+                let domains = crate::lowering::body::DomainSet::EMPTY
+                    .with(domain)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Declaration("domain identity"),
+                        )
+                    })?;
                 self.cast_predicates(
                     id,
                     Qualification {
@@ -671,10 +679,12 @@ impl Program<'_> {
         };
         let mut clauses = Vec::with_capacity(predicates.len());
         for predicate in predicates {
-            if let Some((expression, _)) = crate::source_state::byte_predicates::byte_slice_domain_predicate(
-                self.typed,
-                self.domain_theory(id, predicate.instance)?,
-            ) && expression == predicate.expression
+            if let Some((expression, _)) =
+                crate::source_state::byte_predicates::byte_slice_domain_predicate(
+                    self.typed,
+                    self.domain_theory(id, predicate.instance)?,
+                )
+                && expression == predicate.expression
             {
                 let ValueType::Record(carrier, _, _) = plain else {
                     return Err(refuse(

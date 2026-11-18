@@ -6,17 +6,16 @@
 
 mod assignment {
     use crate::resolution::tables::resolved_declarations;
-    use arena::{Arena, Handle, HandleSpan};
     use crate::source_resolved::SymbolResolvedTrees;
-    use symbols::{SymbolHandle, SymbolKind};
     use crate::source_symbols::{JoinedPath, SymbolTable};
+    use arena::{Arena, Handle, HandleSpan};
+    use symbols::{SymbolHandle, SymbolKind};
 
     use super::super::scope::evidence_type_parameters;
     use crate::resolution::symbols::lookup::{
         diagnostic_path_source_span, top_level_symbol_for_source, top_level_type_symbol_for_source,
     };
     use crate::resolution::symbols::targets::resolve_free_machine_entry_state_symbol;
-    use std::mem::take;
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::data::MachineParameterContract;
     use crate::source_resolved::data::TypeParameter;
@@ -29,6 +28,7 @@ mod assignment {
     use crate::source_resolved::types::TypeConstraint;
     use crate::source_resolved::types::TypeReference;
     use crate::source_resolved::wire::WireMember;
+    use std::mem::take;
 
     /*
         An instantiated use and its retained application are separate type rows.
@@ -512,11 +512,12 @@ mod assignment {
             let local_type_parameters = data_type_parameters
                 .span_or_empty(conformance.type_parameters)
                 .to_vec();
-            conformance.trait_symbol = crate::resolution::symbols::lookup::top_level_symbol_for_source(
-                symbols,
-                SymbolKind::Trait,
-                &conformance.trait_name,
-            );
+            conformance.trait_symbol =
+                crate::resolution::symbols::lookup::top_level_symbol_for_source(
+                    symbols,
+                    SymbolKind::Trait,
+                    &conformance.trait_name,
+                );
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,
@@ -819,11 +820,12 @@ mod assignment {
                         continue;
                     };
                     if domain.receiving_application.is_valid() {
-                        let selected = crate::resolution::symbols::lookup::top_level_symbol_for_source(
-                            symbols,
-                            SymbolKind::Domain,
-                            &domain.name,
-                        );
+                        let selected =
+                            crate::resolution::symbols::lookup::top_level_symbol_for_source(
+                                symbols,
+                                SymbolKind::Domain,
+                                &domain.name,
+                            );
                         crate::resolution::constant::bind_receiving_application(
                             child_type_references,
                             domain.receiving_application,
@@ -1150,9 +1152,9 @@ mod assignment {
     }
 }
 mod queries {
+    use crate::source_symbols::SymbolTable;
     use arena::Arena;
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::lookup::child_symbol_by_kinds;
     use crate::resolution::symbols::scope::MachineScope;
@@ -1222,14 +1224,14 @@ mod value_expressions {
         lexical subjects before a later phase can establish that their value is static.
     */
 
-    use arena::{Arena, Handle};
     use crate::source_resolved::{
         expression::ExpressionTable,
         signature::StateParameter,
         types::{FixedArrayLength, TypeConstraint, TypeReference},
     };
+    use crate::source_symbols::SymbolTable;
+    use arena::{Arena, Handle};
     use symbols::{SymbolHandle, SymbolKind};
-    use crate::source_symbols::{SymbolTable};
 
     use crate::resolution::symbols::expressions::lexical_value_head;
     use crate::resolution::symbols::scope::MachineScope;
@@ -1286,7 +1288,8 @@ mod value_expressions {
         for (owner, parameters, selection) in applications {
             let scope = MachineScope {
                 symbol: owner,
-                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(),
+                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(
+                ),
                 attached_machines: &attached_machines,
                 binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
@@ -1319,7 +1322,8 @@ mod value_expressions {
         for conformance in program.roots.conformances.iter() {
             let scope = MachineScope {
                 symbol: conformance.symbol,
-                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(),
+                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(
+                ),
                 attached_machines: &attached_machines,
                 binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
@@ -1355,7 +1359,8 @@ mod value_expressions {
             .for_each_mut(|declaration| {
                 let scope = MachineScope {
                     symbol: declaration.symbol,
-                    lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(),
+                    lexical_requirements:
+                        crate::resolution::symbols::scope::LexicalRequirements::none(),
                     attached_machines: &attached_machines,
                     binder_roles: &binder_roles,
                     resolution_indexes: &program.resolution_indexes,
@@ -1393,7 +1398,8 @@ mod value_expressions {
                 .to_vec();
             let scope = MachineScope {
                 symbol: alias.symbol,
-                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(),
+                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(
+                ),
                 attached_machines: &attached_machines,
                 binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
@@ -1435,7 +1441,8 @@ mod value_expressions {
             let members = declarations.data_members.span_or_empty(definition.members);
             let mut scope = MachineScope {
                 symbol: definition.symbol,
-                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(),
+                lexical_requirements: crate::resolution::symbols::scope::LexicalRequirements::none(
+                ),
                 attached_machines: &attached_machines,
                 binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
@@ -1910,8 +1917,11 @@ mod value_expressions {
                 .unwrap_or_else(SymbolHandle::invalid),
             );
         }
-        let constant =
-            crate::resolution::symbols::lookup::top_level_symbol_for_source(symbols, SymbolKind::Const, name);
+        let constant = crate::resolution::symbols::lookup::top_level_symbol_for_source(
+            symbols,
+            SymbolKind::Const,
+            name,
+        );
         constant.is_valid().then_some(constant)
     }
 
@@ -1921,7 +1931,6 @@ mod value_expressions {
 
         use super::*;
         use crate::resolution::symbols::scope::{LexicalRequirements, attached_machines};
-        use source_text::SourceSpan;
         use crate::source_resolved::{
             SymbolResolvedTrees,
             data::{DataDefinition, DataDefinitionStorage, TypeParameter, TypeParameterKind},
@@ -1929,8 +1938,9 @@ mod value_expressions {
             type_aliases::TypeAliasDefinition,
             types::{GenericTypeReference, GenericTypeReferenceStorage},
         };
-        use symbols::{SymbolNameRef};
-        use crate::source_symbols::{SymbolTableBuilder};
+        use crate::source_symbols::SymbolTableBuilder;
+        use source_text::SourceSpan;
+        use symbols::SymbolNameRef;
 
         fn name(value: &str) -> DiagnosticName {
             DiagnosticName::from_str(value, SourceSpan::default())
@@ -1957,12 +1967,14 @@ mod value_expressions {
                 let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
                 let roots = builder.insert_children(
                     root,
-                    crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                        (SymbolKind::Data, SymbolNameRef::Static("Record")),
-                        (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
-                        (SymbolKind::Module, SymbolNameRef::Static("other")),
-                        (SymbolKind::Const, SymbolNameRef::Static("index")),
-                    ]),
+                    crate::source_symbols::builtin_type_symbols()
+                        .into_iter()
+                        .chain([
+                            (SymbolKind::Data, SymbolNameRef::Static("Record")),
+                            (SymbolKind::TypeAlias, SymbolNameRef::Static("Alias")),
+                            (SymbolKind::Module, SymbolNameRef::Static("other")),
+                            (SymbolKind::Const, SymbolNameRef::Static("index")),
+                        ]),
                 );
                 let u64_symbol = roots.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
                 let record = roots.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
@@ -2062,7 +2074,8 @@ mod value_expressions {
                     });
                 }
                 let attached = attached_machines(&program);
-                let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(&program, &symbols);
+                let binder_roles =
+                    crate::resolution::symbols::scope::BinderRoles::of(&program, &symbols);
                 let parameter = StateParameter {
                     symbol: parameter,
                     name: name("index"),

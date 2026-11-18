@@ -553,7 +553,8 @@ mod body_completion {
                 .add("completion/main.omg".into(), source_text.to_owned())
                 .source_id;
             let syntax =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                    .unwrap();
             let frontier =
                 super::super::resolve_deferred_numeric_probe(super::super::ResolutionRequest {
                     syntax,
@@ -819,7 +820,8 @@ mod continuations {
             let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap()
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                .unwrap()
         }
 
         #[test]
@@ -2789,7 +2791,8 @@ mod call_result_selection_tests {
             .source_id;
         let sources = std::sync::Arc::new(sources);
         let syntax =
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                .unwrap();
         let request = |syntax| ResolutionRequest {
             syntax,
             sources: Some(sources.clone()),
@@ -2899,7 +2902,8 @@ mod primitive_family_binding_tests {
             .add("primitive-family/main.omg".into(), source_text.to_owned())
             .source_id;
         let syntax =
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                .unwrap();
         match resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -2981,7 +2985,8 @@ mod primitive_family_binding_tests {
                 .source_id;
             let tokens = Lexer::new(text).tokenize().unwrap();
             let unit =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             syntax.extend_from(&unit);
         }
         resolve(ResolutionRequest {
@@ -3116,7 +3121,8 @@ mod primitive_family_binding_tests {
                 .source_id;
             let tokens = Lexer::new(&text).tokenize().unwrap();
             let syntax =
-                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+                crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    .unwrap();
             let result = resolve(ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
@@ -3191,7 +3197,8 @@ mod domain_lookup_tests {
             .add("domain-lookup/main.omg".into(), source_text.to_owned())
             .source_id;
         let syntax =
-            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("parse");
         resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),

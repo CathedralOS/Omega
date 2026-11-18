@@ -5,8 +5,8 @@
 // a filename scan or machine name alone. `has_exact_toolchain_build_facet` checks that
 // a facet data definition belongs to the compiler's build prelude.
 
-use symbols::SymbolHandle;
 use source_compiler::source_state::TypedTrees;
+use symbols::SymbolHandle;
 
 const BUILD_MACHINE: &str = "build";
 
@@ -41,10 +41,12 @@ fn named_data_symbol(
         source_compiler::source_state::types::TypeReferenceNode::Reference { referee, .. } => {
             named_data_symbol(typed, *referee)
         }
-        source_compiler::source_state::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            named_data_symbol(typed, *base_type)
+        source_compiler::source_state::types::TypeReferenceNode::Constrained {
+            base_type, ..
+        } => named_data_symbol(typed, *base_type),
+        source_compiler::source_state::types::TypeReferenceNode::Named { symbol, .. } => {
+            Some(*symbol)
         }
-        source_compiler::source_state::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
         _ => None,
     }
 }

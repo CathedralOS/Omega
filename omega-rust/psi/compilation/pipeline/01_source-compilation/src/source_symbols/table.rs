@@ -5,16 +5,16 @@
 
 use std::sync::Arc;
 
+use crate::source_inputs::SourceMap;
 use crate::source_symbols::storage::{SymbolHierarchy, SymbolRows};
 use arena::{HandleSpan, RetainedArena, SpanHandles};
 use semantic_vocabulary::PackageKeyIdentity;
-use crate::source_inputs::{SourceMap};
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_text::{SourceId, SourceSpan};
 
-use symbols::BUILTIN_TYPE_COUNT;
 use numerics::integer_carrier::{FixedInteger, IntegerSign};
+use symbols::BUILTIN_TYPE_COUNT;
 
 /* The spelling of the head of an integer family application, `u<N>` or `i<N>`. */
 fn integer_family_name(sign: IntegerSign) -> &'static str {
@@ -425,7 +425,8 @@ mod indices {
             Declared leaf name → (order, handle), for Domain-kind candidates
             only: the carrier-qualified arm is the sole leaf-shaped selector.
         */
-        pub(super) domain_leaves: crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) domain_leaves:
+            crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     }
 
     /*
@@ -544,9 +545,9 @@ mod modules {
     use source_text::{SourceId, SourceSpan};
 
     use super::indices::{BindingSourceIndex, PreparedModuleImport, SourceLookupScope};
+    use super::name_from_source;
     use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
     use crate::source_symbols::{Symbol, SymbolHandle, SymbolKind, SymbolNameRef};
-    use super::name_from_source;
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub(super) struct ModuleImport {
@@ -1967,7 +1968,9 @@ mod source_queries {
             if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
-            crate::source_symbols::core_source_at(self.source_file(self.symbol_source_span(symbol)?)?)
+            crate::source_symbols::core_source_at(
+                self.source_file(self.symbol_source_span(symbol)?)?,
+            )
         }
 
         /*
@@ -2271,9 +2274,10 @@ mod source_queries {
                 return true;
             };
             sources.same_package(reference, declaration)
-                && sources
-                    .file_at(declaration)
-                    .is_none_or(|file| file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product)
+                && sources.file_at(declaration).is_none_or(|file| {
+                    file.dependency_scope
+                        == declaration_contracts::source_identity::DependencyScope::Product
+                })
         }
 
         /*
@@ -2343,7 +2347,8 @@ mod source_queries {
         ) -> Option<PackageKeyIdentity> {
             let source_span = self.provenance_source_span(symbol)?;
             let source_file = self.source_file(source_span)?;
-            (source_file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product)
+            (source_file.dependency_scope
+                == declaration_contracts::source_identity::DependencyScope::Product)
                 .then(|| self.symbol_package_identity(symbol))
                 .flatten()
         }
@@ -2977,10 +2982,9 @@ impl SymbolTable {
         let _ = self.get(parent);
         let mut appended = HandleSpan::empty();
         for (generated_from, kind, name) in children {
-            let name = self.names.insert(name_from_source(
-                name,
-                self.sources.as_deref(),
-            ));
+            let name = self
+                .names
+                .insert(name_from_source(name, self.sources.as_deref()));
             let child = self.symbols.insert_supplemental_child(
                 parent,
                 Symbol {
@@ -3239,7 +3243,11 @@ impl SymbolTable {
 
         {
             let name = self.names.get(symbol.name);
-            name.spelling().unwrap_or_else(|| name.source_span().and_then(|span| self.sources.as_deref().map(|sources| sources.text_at(span))).unwrap_or(""))
+            name.spelling().unwrap_or_else(|| {
+                name.source_span()
+                    .and_then(|span| self.sources.as_deref().map(|sources| sources.text_at(span)))
+                    .unwrap_or("")
+            })
         }
     }
 
@@ -4025,7 +4033,10 @@ impl SymbolTable {
     }
 
     /// Scalar meaning is derived from the selected builtin, never its display name.
-    pub fn primitive_type(&self, symbol: SymbolHandle) -> Option<crate::source_symbols::PrimitiveType> {
+    pub fn primitive_type(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<crate::source_symbols::PrimitiveType> {
         self.builtin_type_atom(symbol)
             .and_then(crate::source_symbols::PrimitiveType::from_builtin_atom)
     }
@@ -4406,7 +4417,9 @@ impl SymbolTableAppender for SymbolTableExtension {
 
 fn name_from_source(name: SymbolNameRef<'_>, sources: Option<&SourceMap>) -> SymbolName {
     let text = match name {
-        SymbolNameRef::OwnedSource { source_span, .. } => sources.and_then(|sources| sources.file_at(source_span)).map(|file| &file.source),
+        SymbolNameRef::OwnedSource { source_span, .. } => sources
+            .and_then(|sources| sources.file_at(source_span))
+            .map(|file| &file.source),
         _ => None,
     };
     SymbolName::from_ref_with_text(name, text)

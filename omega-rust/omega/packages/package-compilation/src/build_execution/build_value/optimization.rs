@@ -9,9 +9,9 @@
 mod selection;
 mod vocabulary;
 
-use source_compiler::evaluation::BuildTimeValue;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
+use source_compiler::evaluation::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 use vocabulary::OptimizationBuildVocabulary;

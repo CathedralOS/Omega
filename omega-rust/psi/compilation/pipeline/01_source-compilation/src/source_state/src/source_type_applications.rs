@@ -57,7 +57,12 @@ impl SourceTypeScope {
         reference: TypeReferenceHandle,
     ) -> Option<NormalizedTypeIdentity> {
         self.with_substitutions(|substitutions, starts, _| {
-            crate::source_state::type_identity::scoped_index_identity(typed, reference, substitutions, starts)
+            crate::source_state::type_identity::scoped_index_identity(
+                typed,
+                reference,
+                substitutions,
+                starts,
+            )
         })
     }
 
@@ -155,21 +160,25 @@ impl SourceTypeApplication {
 mod tests {
     use super::*;
     use crate::source_state::types::TypeReferenceNode;
+    use crate::source_symbols::SymbolTableBuilder;
     use std::sync::Arc;
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
-    use crate::source_symbols::SymbolTableBuilder;
 
     #[test]
     fn shared_source_frames_preserve_simultaneous_substitution() {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let mut symbols = SymbolTableBuilder::child_handles(builder.insert_children(
-            root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("U")),
-            ]),
-        ))
+        let mut symbols = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                crate::source_symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain([
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("U")),
+                    ]),
+            ),
+        )
         .collect::<Vec<_>>();
         let u = symbols.pop().unwrap();
         let t = symbols.pop().unwrap();
@@ -212,15 +221,19 @@ mod tests {
         use crate::source_state::types::PrimitiveType;
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let mut children = SymbolTableBuilder::child_handles(builder.insert_children(
-            root,
-            crate::source_symbols::builtin_type_symbols().into_iter().chain([
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("M")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("Other")),
-            ]),
-        ))
+        let mut children = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                crate::source_symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain([
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("M")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Other")),
+                    ]),
+            ),
+        )
         .collect::<Vec<_>>();
         let other = children.pop().unwrap();
         let t = children.pop().unwrap();

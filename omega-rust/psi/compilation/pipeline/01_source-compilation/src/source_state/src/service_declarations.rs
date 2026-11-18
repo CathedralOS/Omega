@@ -5,9 +5,9 @@ typed declaration and application for later provider selection.
 */
 
 pub mod provider_declarations {
-    use diagnostics::Diagnostic;
     use declaration_contracts::provider_declarations::SelectedTargetMachineOrigin;
     use declaration_contracts::trust_declarations::TrustDeclarations;
+    use diagnostics::Diagnostic;
     use std::sync::{Arc, OnceLock};
 
     pub fn closed_provider_requirements(
@@ -20,7 +20,8 @@ pub mod provider_declarations {
             .filter(|receipt| receipt.template == template.symbol)
             .filter_map(|receipt| typed.machine(receipt.instance))
             .filter(|instance| {
-                instance.supply_mode == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                instance.supply_mode
+                    == declaration_contracts::MachineSupplyMode::TopLevelRequirement
             })
             .map(|instance| typed.machine_callable_identity(instance))
             .filter(|identity| identity.is_valid())
@@ -44,7 +45,9 @@ pub mod provider_declarations {
         Authored(symbols::SymbolHandle),
         BuildNative {
             requirement: symbols::SymbolHandle,
-            application: Option<arena::Handle<crate::source_state::product_operand::ProductOperandApplication>>,
+            application: Option<
+                arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+            >,
         },
         Toolchain,
     }
@@ -125,7 +128,8 @@ pub mod provider_declarations {
             ));
         }
         let requirement = typed.machine_by_symbol(symbol)?;
-        if requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement {
+        if requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+        {
             return None;
         }
         Some((
@@ -162,7 +166,9 @@ pub mod provider_declarations {
     /// Declaration catalogs share the exact immutable source owner. Preparing
     /// them grants no checking or admission authority: the product factory must
     /// separately retain the route's acceptance of that same source.
-    pub struct PreparedProviderInventory<Owner: AsRef<crate::source_state::TypedTrees> = crate::source_state::FrozenTypedTrees> {
+    pub struct PreparedProviderInventory<
+        Owner: AsRef<crate::source_state::TypedTrees> = crate::source_state::FrozenTypedTrees,
+    > {
         owner: Arc<Owner>,
         origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
         trust: OnceLock<Result<TrustDeclarations, Diagnostic>>,
@@ -239,7 +245,13 @@ pub mod provider_declarations {
 
         /// Read the source census captured for this invocation before provider selection.
         pub fn published_trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
-            self.trust.get().ok_or_else(|| Diagnostic::error("root grants have no published source declarations"))?.as_ref().map_err(Clone::clone)
+            self.trust
+                .get()
+                .ok_or_else(|| {
+                    Diagnostic::error("root grants have no published source declarations")
+                })?
+                .as_ref()
+                .map_err(Clone::clone)
         }
 
         /// Retain every authored claim, including claims the program never uses.
@@ -296,7 +308,8 @@ pub mod provider_declarations {
                 typed
                     .symbols
                     .symbol_is_in_dependency_scope(machine.symbol, scope)
-                    && (scope == declaration_contracts::source_identity::DependencyScope::Product || machine.target.is_none())
+                    && (scope == declaration_contracts::source_identity::DependencyScope::Product
+                        || machine.target.is_none())
             })
             .filter_map(|machine| {
                 machine.authored_target.as_ref().map(|target| {
@@ -372,7 +385,10 @@ pub mod provider_declarations {
             ));
             assert!(inventory.published_trust_declarations().is_err());
             let trust = inventory.trust_declarations().unwrap();
-            assert!(std::ptr::eq(trust, inventory.published_trust_declarations().unwrap()));
+            assert!(std::ptr::eq(
+                trust,
+                inventory.published_trust_declarations().unwrap()
+            ));
             assert!(trust.machines.is_empty());
             assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
         }
@@ -412,9 +428,9 @@ pub mod provider_declarations {
 pub mod projection {
     pub(crate) mod applied_receivers {
         use crate::source_state::trait_definition::AppliedTraitScope;
-        use diagnostics::Diagnostic;
         use declaration_contracts::service_surface::ServiceReceiverApplication;
         use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+        use diagnostics::Diagnostic;
 
         pub fn collect_scopes<'program>(
             program: &'program crate::source_state::TypedTrees,
@@ -796,14 +812,14 @@ pub mod projection {
     use crate::source_state::provider_declarations::ProviderPlanningContext;
     use crate::source_state::trait_definition::{AppliedTraitScope, AppliedTypeReference};
     use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
-use declaration_contracts::service_surface::ServiceEntryClaim;
-use declaration_contracts::service_surface::ServiceMethod;
-use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
-use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
-use declaration_contracts::service_surface::ServiceProgressPremise;
-use declaration_contracts::service_surface::ServiceProgressSubject;
-use declaration_contracts::service_surface::ServiceResultClaim;
-use declaration_contracts::service_surface::ServiceSurface;
+    use declaration_contracts::service_surface::ServiceEntryClaim;
+    use declaration_contracts::service_surface::ServiceMethod;
+    use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
+    use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
+    use declaration_contracts::service_surface::ServiceProgressPremise;
+    use declaration_contracts::service_surface::ServiceProgressSubject;
+    use declaration_contracts::service_surface::ServiceResultClaim;
+    use declaration_contracts::service_surface::ServiceSurface;
 
     pub(super) fn projection_failure(
         program: &crate::source_state::TypedTrees,
@@ -973,7 +989,8 @@ use declaration_contracts::service_surface::ServiceSurface;
     ) -> Option<ProjectedServiceSurface<'program>> {
         if !context.contains(requirement.symbol)
             || !requirement.symbol.is_valid()
-            || requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            || requirement.supply_mode
+                != declaration_contracts::MachineSupplyMode::TopLevelRequirement
             || requirement.body_is_present
         {
             return None;
@@ -1185,9 +1202,11 @@ use declaration_contracts::service_surface::ServiceSurface;
         premises
             .iter()
             .map(|premise| {
-                let position =
-                    crate::source_state::signature::state_parameter_position(parameters, premise.subject.root)
-                        .expect("normalized public progress premise must be parameter-rooted");
+                let position = crate::source_state::signature::state_parameter_position(
+                    parameters,
+                    premise.subject.root,
+                )
+                .expect("normalized public progress premise must be parameter-rooted");
                 let subject = ServiceProgressSubject::Parameter(position);
                 let profile = program
                     .semantic_domains
@@ -1244,9 +1263,9 @@ use declaration_contracts::service_surface::ServiceSurface;
                     .trait_machine_signature_by_symbol(owner, route.requirement_symbol())
                     .expect("normalized progress establishment route must name one requirement");
                 let kind = match route {
-                    declaration_contracts::DomainEstablishmentRoute::CheckedRequirement { .. } => {
-                        ServiceProgressEstablishmentRouteKind::CheckedRequirement
-                    }
+                    declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+                        ..
+                    } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
                     declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
                         ..
                     } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
@@ -1389,7 +1408,10 @@ use declaration_contracts::service_surface::ServiceSurface;
         }
     }
 
-    fn domain_claim_name(program: &crate::source_state::TypedTrees, domain: &DomainConstraint) -> String {
+    fn domain_claim_name(
+        program: &crate::source_state::TypedTrees,
+        domain: &DomainConstraint,
+    ) -> String {
         domain
             .semantic_id
             .is_valid()
@@ -1412,7 +1434,8 @@ use declaration_contracts::service_surface::ServiceSurface;
             boundary_trait,
             requirement,
             &mut |_, domain| {
-                if domain.predicate_presence != declaration_contracts::DomainPredicatePresence::Absent
+                if domain.predicate_presence
+                    != declaration_contracts::DomainPredicatePresence::Absent
                 {
                     return;
                 }
@@ -1525,7 +1548,8 @@ use declaration_contracts::service_surface::ServiceSurface;
         let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
         invocation_names(
             program,
-            crate::source_state::invocations::declared_machine_invocations(program, machine).ok()?,
+            crate::source_state::invocations::declared_machine_invocations(program, machine)
+                .ok()?,
             &parameters,
         )
     }
@@ -1580,8 +1604,8 @@ pub(crate) mod catalog {
     use crate::source_state::type_identity::TypeIdentityId;
     use crate::source_state::types::TypeReferenceHandle;
     use arena::{Arena, Handle, HandleSpan};
-    use diagnostics::Diagnostic;
     use declaration_contracts::service_surface::ServiceSurface;
+    use diagnostics::Diagnostic;
     use semantic_vocabulary::PackageKeyIdentity;
     use std::sync::Arc;
     use symbols::SymbolHandle;
@@ -2243,12 +2267,12 @@ pub mod signatures {
     use crate::source_state::TypedTrees;
     use crate::source_state::provider_declarations::ProviderPlanningContext;
     use crate::source_state::types::TypeReferenceHandle;
-    use arena::Arena;
     use application_identity::callback_declarations::BOUNDARY_NATIVE_PARAMETER_CAPACITY;
-use application_identity::callback_declarations::BoundaryCallbackBinderDeclaration;
-use application_identity::callback_declarations::BoundaryDirectCallbackDeclaration;
-use application_identity::callback_declarations::BoundaryRuntimeFormal;
-use application_identity::callback_declarations::BoundaryTelescope;
+    use application_identity::callback_declarations::BoundaryCallbackBinderDeclaration;
+    use application_identity::callback_declarations::BoundaryDirectCallbackDeclaration;
+    use application_identity::callback_declarations::BoundaryRuntimeFormal;
+    use application_identity::callback_declarations::BoundaryTelescope;
+    use arena::Arena;
     use semantic_vocabulary::{
         PackageKeyIdentity, callback_requirement_id, nominal_callback_binder_id,
         nominal_callback_native_parameter_id,
@@ -2514,7 +2538,11 @@ use application_identity::callback_declarations::BoundaryTelescope;
                     .machine_trait_conformances(machine)
                     .iter()
                     .filter_map(|conformance| {
-                        crate::source_state::machine::resolve_satisfied_declaration(typed, machine, conformance)
+                        crate::source_state::machine::resolve_satisfied_declaration(
+                            typed,
+                            machine,
+                            conformance,
+                        )
                     })
                     .filter_map(|declaration| {
                         boundaries
@@ -2644,7 +2672,8 @@ use application_identity::callback_declarations::BoundaryTelescope;
             let Some((owner, signature)) = typed.trait_machine_signature(declaration.symbol) else {
                 return (declaration.requirement_identity.clone(), false);
             };
-            let scope = crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let scope =
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
             let outer = scope
                 .portable_application_identity(typed)
                 .and_then(|identity| typed.type_identity_text(identity))
@@ -2845,7 +2874,8 @@ use application_identity::callback_declarations::BoundaryTelescope;
                 typed: &TypedTrees,
                 declarations: &Arena<BoundarySignatureDeclaration>,
             ) -> Self {
-                let vocabularies = crate::source_state::calling_vocabulary::standard_calling_vocabularies(typed);
+                let vocabularies =
+                    crate::source_state::calling_vocabulary::standard_calling_vocabularies(typed);
                 let mut prepared = Self::default();
                 if vocabularies.is_empty() {
                     return prepared;
@@ -3089,19 +3119,23 @@ use application_identity::callback_declarations::BoundaryTelescope;
             // conformance already covers keeps that conformance's instance.
             // These are the applied roots the service catalog also reads, so
             // an application has an instance exactly when it has a surface.
-            let portable = |scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>| {
-                scope
-                    .portable_application_identity(typed)
-                    .and_then(|identity| typed.type_identity_text(identity))
-            };
+            let portable =
+                |scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>| {
+                    scope
+                        .portable_application_identity(typed)
+                        .and_then(|identity| typed.type_identity_text(identity))
+                };
             let mut covered = typed
                 .conformances()
                 .iter()
                 .filter(|conformance| conformance.trait_symbol == boundary.symbol)
                 .filter_map(|conformance| {
-                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(typed, conformance)
-                        .and_then(|scope| scope.declaring_scope(typed, boundary.symbol))
-                        .and_then(|scope| portable(&scope))
+                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                        typed,
+                        conformance,
+                    )
+                    .and_then(|scope| scope.declaring_scope(typed, boundary.symbol))
+                    .and_then(|scope| portable(&scope))
                 })
                 .collect::<Vec<_>>();
             for root in typed.applied_trait_roots() {
@@ -3143,7 +3177,9 @@ use application_identity::callback_declarations::BoundaryTelescope;
             calling_trait: &crate::source_state::trait_definition::TraitDefinition,
             calling_policy: &crate::source_state::trait_definition::TraitDefinition,
         ) -> Result<crate::source_state::trait_definition::Supply, String> {
-            use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+            use crate::source_state::trait_definition::{
+                AppliedTraitScope, TraitApplicationArguments,
+            };
             let boundary_scope = AppliedTraitScope::new(
                 typed,
                 boundary,
@@ -3343,7 +3379,10 @@ use application_identity::callback_declarations::BoundaryTelescope;
 
     impl PreparedBoundarySignatures {
         pub(crate) fn prepare(typed: &TypedTrees) -> Self {
-            let product = ProviderPlanningContext::new(typed, declaration_contracts::source_identity::DependencyScope::Product);
+            let product = ProviderPlanningContext::new(
+                typed,
+                declaration_contracts::source_identity::DependencyScope::Product,
+            );
             let mut declarations = Arena::new();
             for definition in typed.traits() {
                 for signature in typed.trait_machine_signatures(definition) {
@@ -3482,9 +3521,12 @@ use application_identity::callback_declarations::BoundaryTelescope;
         let mut binders = Vec::new();
         let mut callback_sources = Vec::new();
         let mut static_machine_ordinal = 0u32;
-        let invocations = crate::source_state::invocations::declared_signature_invocations(typed, signature)?;
+        let invocations =
+            crate::source_state::invocations::declared_signature_invocations(typed, signature)?;
         for parameter in typed.state_signature_type_parameters(signature) {
-            let crate::source_state::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            let crate::source_state::data::TypeParameterKind::Machine { contract } =
+                &parameter.kind
+            else {
                 continue;
             };
             let ordinal = static_machine_ordinal;

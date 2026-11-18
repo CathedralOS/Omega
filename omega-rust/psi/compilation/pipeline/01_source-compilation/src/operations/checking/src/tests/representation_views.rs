@@ -67,7 +67,11 @@ machine entry() crashes Trap {
         let entry = super::boundary_calls::entry(&typed);
         judge(crate::lowering::elaborate_for(
             &typed,
-            super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         ))
     };
@@ -231,7 +235,11 @@ machine entry() crashes Trap {
         let entry = super::boundary_calls::entry(&typed);
         let elaboration = crate::lowering::elaborate_for(
             &typed,
-            super::build_purpose::roster(&[entry], &[], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();

@@ -1,15 +1,17 @@
 //! Preserve an operator choice made by the actual body or contract reader.
 
-use language_core::OperatorSpelling;
 use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
 use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
 use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+use crate::source_state::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use crate::source_state::types::TypeReferenceHandle;
+use language_core::OperatorSpelling;
 use semantic_vocabulary::{MachineId, ScalarType};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use crate::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use crate::source_state::types::TypeReferenceHandle;
 
 use super::Program;
 use crate::lowering::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
@@ -17,7 +19,10 @@ use crate::lowering::{Unserved, refuse};
 
 /// Machine contracts name their entry State; source traversal owns the
 /// same clause under its uniquely registered machine declaration.
-fn operator_owner(typed: &crate::source_state::TypedTrees, source_owner: SymbolHandle) -> SymbolHandle {
+fn operator_owner(
+    typed: &crate::source_state::TypedTrees,
+    source_owner: SymbolHandle,
+) -> SymbolHandle {
     typed
         .unique_machine_by_entry_state_symbol(source_owner)
         .map_or(source_owner, |(declaration, _)| declaration.symbol)
@@ -474,7 +479,9 @@ impl Program<'_> {
         operands: &[Option<TypeReferenceHandle>],
         selected: declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature,
     ) -> Checked<()> {
-        use declaration_contracts::numeric_intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature};
+        use declaration_contracts::numeric_intrinsics::{
+            CoreIntegerOperand, CoreIntegerOperatorSignature,
+        };
         let mismatch = || {
             refuse(
                 machine,

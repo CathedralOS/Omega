@@ -869,12 +869,14 @@ mod tests {
     use semantic_vocabulary::IntegerType;
 
     fn canonical_filesystem_module() -> terminal_psi::TerminalModule {
+        use application_identity::type_identity::encoding::{
+            CoordinateTag, atom, bare, byte_atom, compound,
+        };
+        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+        use declaration_contracts::service_surface::{ServiceReceiverApplication, ServiceSurface};
         use language_core::core_vocabulary::{
             CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
         };
-        use declaration_contracts::service_surface::{ServiceReceiverApplication, ServiceSurface};
-        use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, byte_atom, compound};
-        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
         use terminal_psi::{
             ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule, TerminalServiceSchema,
         };

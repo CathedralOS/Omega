@@ -40,7 +40,9 @@ pub use checking::{
     PreparedPackageBuild, RestrictedBuildGrants, SourceCompilation,
 };
 pub use compilation_session::CompilationSession;
-pub use optimization_requests::{OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement};
+pub use optimization_requests::{
+    OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
+};
 pub use package_compilation::{
     CompletedBuild, PackageBuild, PackageBuildInvocation, PackageCompilationRequest,
     PackageCompileFailure, PackageProductOptions, PackageProductSourceRequest,

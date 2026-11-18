@@ -25,13 +25,13 @@ is refused, as is any recursion through unfolding. Anything else stays
 refused at the clause that calls it.
 */
 
-use semantic_vocabulary::{MachineId, Proposition, ScalarTerm, ScalarType};
-use symbols::{SymbolHandle, SymbolKind};
-use terminal_check_tables::{Checked, Construct};
 use crate::source_state::expression::TableCallExpression;
 use crate::source_state::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
+use semantic_vocabulary::{MachineId, Proposition, ScalarTerm, ScalarType};
+use symbols::{SymbolHandle, SymbolKind};
+use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use super::contracts::{ClauseScope, ResultTerm};

@@ -4,9 +4,9 @@
 // refusal) in a `OnceLock` without retrying or permitting a different Psi
 // optimization projection to replace it.
 
+use crate::{PortableTerminalProgram, SourceCompilationRoster};
 use diagnostics::Diagnostic;
 use optimization::PsiOptimizationSelections;
-use crate::{PortableTerminalProgram, SourceCompilationRoster};
 use std::sync::{Arc, OnceLock};
 
 pub struct SourcePublication {
@@ -104,7 +104,9 @@ impl SourcePublication {
         self.accepted_owner().map(Arc::as_ref)
     }
 
-    pub(crate) fn accepted_owner(&self) -> Result<&Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
+    pub(crate) fn accepted_owner(
+        &self,
+    ) -> Result<&Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
         // The factory seals the module the unoptimized check judged. A
         // nonempty selection needs the second lowered-form check, which has
         // no route yet.
@@ -129,24 +131,31 @@ impl SourcePublication {
     pub fn publish(
         &self,
         optimizations: &PsiOptimizationSelections,
-        authority: Option<&dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
+        authority: Option<
+            &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+        >,
         observer: &mut impl crate::PsiCompilationObserver,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
         self.retain(optimizations, || {
-            let program = self.accepted()?
+            let program = self
+                .accepted()?
                 .produce(Default::default(), observer)?
                 .into_shared_portable()
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
             let packet = program.source_selections().ok_or_else(|| {
-                vec![Diagnostic::error("Product publication lost its source declaration selections")]
+                vec![Diagnostic::error(
+                    "Product publication lost its source declaration selections",
+                )]
             })?;
-            packet.admit(
-                program.artifact().view().into(),
-                &terminal_installation::selection_questions::SelectionAuthorities {
-                    build: None,
-                    product: authority,
-                },
-            ).map_err(|reason| vec![Diagnostic::error(reason)])?;
+            packet
+                .admit(
+                    program.artifact().view().into(),
+                    &terminal_installation::selection_questions::SelectionAuthorities {
+                        build: None,
+                        product: authority,
+                    },
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
             Ok(Arc::new(program))
         })
     }
@@ -163,8 +172,7 @@ impl SourcePublication {
         &self,
         optimizations: &PsiOptimizationSelections,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
-        if &self.optimizations != optimizations
-        {
+        if &self.optimizations != optimizations {
             return Err(vec![Diagnostic::error(
                 "Terminal publication differs from the Product's fixed Psi optimization selection",
             )]);
@@ -181,8 +189,7 @@ impl SourcePublication {
         optimizations: &PsiOptimizationSelections,
         produce: impl FnOnce() -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
-        if &self.optimizations != optimizations
-        {
+        if &self.optimizations != optimizations {
             return Err(vec![Diagnostic::error(
                 "Terminal publication differs from the Product's fixed Psi optimization selection",
             )]);
@@ -208,7 +215,8 @@ mod tests {
             assert_eq!(result.unwrap_err()[0].message, "fixed source refusal");
         }
         assert_eq!(attempts, 1);
-        let different = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
+        let different =
+            PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
         let error = publication
             .retain(&different, || {
                 attempts += 1;
@@ -227,7 +235,8 @@ mod tests {
     }
     #[test]
     fn accepted_publication_refuses_unexecuted_psi_optimizations() {
-        let selected = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
+        let selected =
+            PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
         let publication = SourcePublication::new(selected);
         assert_eq!(
             publication.accepted().unwrap_err()[0].message,

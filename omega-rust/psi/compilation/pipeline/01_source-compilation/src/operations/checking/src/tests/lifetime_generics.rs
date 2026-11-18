@@ -198,7 +198,9 @@ machine build_entry() {{ }}
 /// contract is checked once in its own form, and the program checks each call
 /// at its actual arguments and regions (generics.md, "Publication and
 /// assumptions"). The closure comes first, then that form.
-fn lifetime_requirement(contract: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn lifetime_requirement(
+    contract: &str,
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let (typed, _) = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "data Holder {{ value: u32; }}
@@ -217,7 +219,11 @@ machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::ta
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
-            super::build_purpose::roster(&[entry], &[None], declaration_contracts::source_identity::DependencyScope::Product),
+            super::build_purpose::roster(
+                &[entry],
+                &[None],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
             terminal_codec::TerminalPublication::Invocation,
         )
         .program,
