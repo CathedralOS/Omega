@@ -26,7 +26,7 @@ reference's referent or one selected executable machine application:
 
 ```omega
 let storage_address = address_of(&myVar);
-let machine_address = address_of<Something::SomeFunc<u32>>();
+let machine_address = address_of::<Something::SomeFunc<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
@@ -138,7 +138,7 @@ alignment than the type's minimum; it need not expose the greatest divisor of
 a physical numeric address.
 
 ```omega
-const required_alignment: u64 = align_of<u8>();
+const required_alignment: u64 = align_of::<u8>();
 let packet_alignment: u64 = align_of(packet);
 ```
 
@@ -221,7 +221,7 @@ An ordinary range may describe bytes beginning at an entry:
 
 ```omega
 let region = Extent {
-    base: address_of<Obstacle::check>(),
+    base: address_of::<Obstacle::check>(),
     length: 2048
 };
 ```

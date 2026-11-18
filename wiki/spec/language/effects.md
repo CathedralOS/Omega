@@ -104,11 +104,11 @@ boundary trait Sensor<const Id: u64> {
 }
 
 machine read_sensor<const Id: u64>() -> u64 reaches Sensor<Id> crashes none {
-    Sensor<Id>::read()
+    Sensor::<Id>::read()
 }
 
 machine read_17() -> u64 reaches Sensor<17u64> crashes none {
-    Sensor<29u64>::read()    // Rejected: contributes Sensor<29u64>.
+    Sensor::<29u64>::read()    // Rejected: contributes Sensor<29u64>.
 }
 ```
 
@@ -645,7 +645,7 @@ public machine local(value: u32) -> u32 {
 }
 
 public machine example() -> u32 {
-    apply<local>(42)
+    apply::<local>(42)
 }
 ```
 

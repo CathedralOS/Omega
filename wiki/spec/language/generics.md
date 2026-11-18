@@ -223,7 +223,7 @@ it is not an already supported parser/compiler example:
 ```omega
 machine prefix_count<Count: u32>(items: &[u8]) -> u32
 requires
-    embed(Count) <= embed(items.len);
+    embed(Count) <= embed(items.len)
 {
     Count
 }
@@ -242,7 +242,7 @@ limit:
 ```omega
 data Index<Limit: u32>
 requires
-    value < Limit,
+    value < Limit
 {
     value: u32;
 }
@@ -366,7 +366,7 @@ domain<const Capacity: u64> u64::AtMost<Capacity>
 
 data TinyBytes<Length, const Capacity: u64>
 requires
-    Length == u64::AtMost<Capacity>
+    Length == u64::AtMost::<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
@@ -772,7 +772,7 @@ terminates
 public machine visit_one<T, const F: machine>(item: &mut T)
 terminates
 {
-    apply_one<T, F>(item);
+    apply_one::<T, F>(item);
 }
 ```
 
@@ -862,7 +862,7 @@ machine forward<
     ) -> Stream<Inner>,
     const Selected: machine(index: Nat) -> Rat
 >(value: Stream<Selected>) -> Stream<Selected> {
-    Schema<Selected>(value)
+    Schema::<Selected>(value)
 }
 ```
 

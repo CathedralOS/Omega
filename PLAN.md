@@ -34,6 +34,14 @@ enough to run on every change. **Decided.**
   at `0b90bdba`) is the only source of rules, except for the departures listed
   under [Where V2 departs from the spec](#where-v2-departs-from-the-spec).
   **Decided.**
+- **V2's copy of the spec is now V2's own.** Its code examples were rewritten
+  on 2026-11-18 to V2's syntax: commas between arms, `::<` for generic
+  arguments in expressions, the one `if` statement turned into a
+  `transition`, and the stray `;` and `,` after `requires` removed. That
+  is 23 files and about 60 lines, all inside code examples; `git diff 755101b
+  -- wiki/spec` shows every change against the import. The prose around the
+  examples has not been revised yet and still describes the old forms in
+  places. **Decided** (Jarod: "v2 has to change").
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context

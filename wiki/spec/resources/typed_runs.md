@@ -112,9 +112,9 @@ They need no supply-selecting wrapper.
 For example, splitting and rejoining transfers the original ownership throughout:
 
 ```omega
-let parts: RunParts<P, T> = Run::split<P, T>(run, cut);
+let parts: RunParts<P, T> = Run::split::<P, T>(run, cut);
 let whole: Run<P, T> in Live<P, T> =
-    Run::merge<P, T>(parts.left, parts.right);
+    Run::merge::<P, T>(parts.left, parts.right);
 ```
 
 At each call, the consumed inputs become unavailable. The compiler tracks the

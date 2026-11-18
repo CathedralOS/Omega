@@ -235,7 +235,7 @@ machine existence_follows<
 requires machine Step(value: A)
     requires P(value)
     ensures Q(value);
-ensures core::Squash<Witness<u,w,A,Q>>
+ensures core::Squash::<Witness<u,w,A,Q>>
 {
     // Checked squash-elimination proof described below; not an empty proof.
 }

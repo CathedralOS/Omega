@@ -124,7 +124,7 @@ machine build(builder: &mut Build) {
 
     let inputs = deployment_inputs(&mut builder.source);
     let output = builder.output.require("payments.plan");
-    suspend Build::await_provider<TopologyBuild, topology::DiagnosticTopology>(builder);
+    suspend Build::await_provider::<TopologyBuild, topology::DiagnosticTopology>(builder);
     compose_payments(inputs, output);
 }
 ```

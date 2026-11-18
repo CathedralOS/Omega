@@ -76,7 +76,7 @@ conformer describes that conformer and exposes no direct entry.
 
 ```omega
 reflect::field(Controller::status)
-reflect::field(Buffer<u32>::used)
+reflect::field(Buffer::<u32>::used)
 reflect::callable(Controller::update)
 reflect::callable(ControllerWriter::write)
 ```

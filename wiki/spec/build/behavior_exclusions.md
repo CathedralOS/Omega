@@ -60,7 +60,7 @@ wire or replacement support.
 
 ```omega
 machine configure(builder: &mut Build) {
-    Build::exclude_service<Console>(builder);
+    Build::exclude_service::<Console>(builder);
 }
 ```
 

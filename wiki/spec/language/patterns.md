@@ -21,8 +21,8 @@ creating a value or fact about it. Payload bindings require a known case shape.
 
 ```omega
 transition header {
-    Header { ok: 0, version } -> accept(version)
-    Header { ok as _, version as _ } -> reject()
+    Header { ok: 0, version } -> accept(version),
+    Header { ok as _, version as _ } -> reject(),
 }
 ```
 
@@ -55,8 +55,8 @@ data Command {
 
 machine targets_one_user(op: &Command::Operation) -> bool {
     match op {
-        Command::Operation::GetUser { user_id as _ } -> true
-        Command::Operation::CountUsers -> false
+        Command::Operation::GetUser { user_id as _ } -> true,
+        Command::Operation::CountUsers -> false,
     }
 }
 
@@ -81,14 +81,14 @@ matched as its own subject, alone or as a tuple component:
 
 ```omega
 match command.op {
-    Command::Operation::GetUser { user_id } -> lookup(user_id)
-    Command::Operation::CountUsers -> count()
+    Command::Operation::GetUser { user_id } -> lookup(user_id),
+    Command::Operation::CountUsers -> count(),
 }
 
 match (command.command_id, command.op) {
-    (0, _) -> reject()
-    (_, Command::Operation::GetUser { user_id }) -> lookup(user_id)
-    (_, Command::Operation::CountUsers) -> count()
+    (0, _) -> reject(),
+    (_, Command::Operation::GetUser { user_id }) -> lookup(user_id),
+    (_, Command::Operation::CountUsers) -> count(),
 }
 ```
 
@@ -159,8 +159,8 @@ For an existing `command: &Command`, the outer match above may instead be writte
 let Command { command_id as _, op as operation } = command;
 
 match operation {
-    Command::Operation::GetUser { user_id as _ } -> true
-    Command::Operation::CountUsers -> false
+    Command::Operation::GetUser { user_id as _ } -> true,
+    Command::Operation::CountUsers -> false,
 }
 ```
 

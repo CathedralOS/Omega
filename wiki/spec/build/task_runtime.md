@@ -133,8 +133,8 @@ The plan is selected where the activation is created, by a compile-time
 ```omega
 machine serve(request: Request) -> Reply suspends { ... }
 
-let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(runtime_authority, move first);
-let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(runtime_authority, move second);
+let a = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Fixed>(runtime_authority, move first);
+let b = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Split>(runtime_authority, move second);
 ```
 
 - The machine being run does not choose. No machine declaration, `suspends`

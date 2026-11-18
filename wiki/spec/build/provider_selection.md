@@ -93,8 +93,8 @@ Selection names an exact slot and supplies a typed static provider value, apart
 from the optional declared composition mode supplied after `builder`:
 
 ```omega
-Build::select_provider<Console, CapturedConsole>(builder);
-Build::select_provider<Console, CapturedConsole>(builder, CompositionMode::Independent);
+Build::select_provider::<Console, CapturedConsole>(builder);
+Build::select_provider::<Console, CapturedConsole>(builder, CompositionMode::Independent);
 ```
 
 Runtime-variable descriptors are ordinary capability values, not provider
@@ -242,7 +242,7 @@ requires the caller to name both the exact boundary requirement
 application and its exact named implementation:
 
 ```omega
-suspend Build::await_provider<
+suspend Build::await_provider::<
     topology_api::TopologyBuild,
     topology_impl::DiagnosticTopology
 >(builder);

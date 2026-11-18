@@ -301,10 +301,10 @@ Toolchain operations have designated product operands:
 
 ```omega
 Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
-Build::bind<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
-Build::select_provider<windows_x86_64::Console, TestConsole>(builder);
-Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
-_ = builder.tests.group<Tests::memory>();
+Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
+Build::select_provider::<windows_x86_64::Console, TestConsole>(builder);
+Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
+_ = builder.tests.group::<Tests::memory>();
 ```
 
 Only those declaration-reference operands are resolved in the product context,

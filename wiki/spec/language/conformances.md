@@ -45,9 +45,16 @@ data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: &mut Counter) {
-        if counter.value < integer::max<i32>() {
+        transition counter.value < integer::max::<i32>() {
+            true -> raise(counter),
+            false -> hold(),
+        }
+
+        machine raise(counter: &mut Counter) {
             counter.value = counter.value + 1;
         }
+
+        machine hold() {}
     }
 }
 ```
@@ -350,12 +357,12 @@ machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
     entry.at = C::now(clock);
 }
 
-stamp<NoState, WallClock>(&mut none, &mut entry);
+stamp::<NoState, WallClock>(&mut none, &mut entry);
 
 const RealClock: ClockOps<NoState> = WallClock;       // the same value, named
-stamp<NoState, RealClock>(&mut none, &mut entry);
+stamp::<NoState, RealClock>(&mut none, &mut entry);
 
-stamp<SimClock, Simulated>(&mut sim, &mut entry);     // an ordinary implementation
+stamp::<SimClock, Simulated>(&mut sim, &mut entry);     // an ordinary implementation
 ```
 
 **Which parent.** The view is of an exact ordinary-parent application that the
@@ -535,9 +542,9 @@ clear_b(&mut x);      // through B::clear
 
 machine run<const F: A::clear>(item: &mut u32) { F(item); }
 
-run<clear_a>(&mut x);                    // accepted
-run<(clear satisfies A::clear)>(&mut x); // accepted
-run<clear>(&mut x);                      // rejected: `clear` is not bound
+run::<clear_a>(&mut x);                    // accepted
+run::<(clear satisfies A::clear)>(&mut x); // accepted
+run::<clear>(&mut x);                      // rejected: `clear` is not bound
 ```
 
 **What a binding checks.** The requirement application resolves

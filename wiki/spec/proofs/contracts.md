@@ -53,7 +53,7 @@ For example, a generic algebra's commutativity requirement is:
 
 ```omega
 machine add_comm(a: T, b: T)
-ensures core::Identity<T>(add(a, b), add(b, a));
+ensures core::Identity::<T>(add(a, b), add(b, a));
 ```
 
 This law states identity of results, independently of any selected comparison.

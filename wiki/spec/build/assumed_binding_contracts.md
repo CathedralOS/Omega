@@ -25,7 +25,7 @@ implementation of another while explicitly assuming a semantic relationship
 that ordinary conformance checking has not proved:
 
 ```omega
-Build::assume_binding_contract<Required::operation, Supplied::operation>(builder);
+Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder);
 ```
 
 The first ordinary argument is the mutable Build context; namespace qualification
@@ -72,8 +72,8 @@ reaches WritableMemory
 
 machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
-    Build::select_provider<RangeSupplier, EchoSupplier>(builder);
-    Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
+    Build::select_provider::<RangeSupplier, EchoSupplier>(builder);
+    Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
 }
 ```
 

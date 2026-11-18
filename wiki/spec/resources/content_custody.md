@@ -128,7 +128,7 @@ executed or overridden by packages. For an extent's `Granted` projection to
 
 ```omega
 ensures
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         Granted::content(old(&whole)),
         separate(
             Granted::content(&result.left),

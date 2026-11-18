@@ -95,7 +95,7 @@ data Envelope<T> {
     };
 }
 
-let body: Envelope<u32>::Body = Envelope<u32>::Body::Value { value: 7 };
+let body: Envelope<u32>::Body = Envelope::<u32>::Body::Value { value: 7 };
 ```
 
 `Envelope<u32>::Body` and `Envelope<bool>::Body` are distinct types whether or
@@ -400,7 +400,7 @@ data Outcome<T, E> {
 
 machine take_value(outcome: Outcome<u32, Never>) -> u32 {
     match outcome {
-        Outcome::Ok { value } -> value
+        Outcome::Ok { value } -> value,
     }
 }
 ```

@@ -387,7 +387,7 @@ public machine apply<
     F(entry, time);
 }
 
-apply<set_time>(&mut e, 5);   // this application's frame is e.at
+apply::<set_time>(&mut e, 5);   // this application's frame is e.at
 ```
 
 **Opaque calls.** A runtime callable value and a boundary operation have no
