@@ -281,6 +281,26 @@ pub fn referent_type<'a>(
                         .filter(|declaration| declaration.id == *element),
                 )?
             }
+            (
+                PathSegment::FixedIndex(_) | PathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ByteSequence(_),
+            ) => {
+                // Byte carriers have no explicit element type ID. Use the
+                // ordinary scalar projection reader to find the unique u8
+                // declaration, preserving fixed-capacity checks. Bounds and
+                // access authority remain obligations of the actual borrow.
+                let element = terminal_semantics::borrowed_primitive_projection_declaration(
+                    declarations.clone(),
+                    current.id,
+                    std::slice::from_ref(segment),
+                    None,
+                )?;
+                unique(
+                    &mut declarations
+                        .clone()
+                        .filter(|declaration| declaration.id == element),
+                )?
+            }
             _ => return None,
         };
         current = next;
@@ -410,6 +430,69 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn byte_element_addresses_use_the_existing_scalar_declaration() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, ScalarType, ValueId};
+
+        let mut types = catalog();
+        let element = [StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(1).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        }];
+        let selected = |types: &[StructuralTypeDeclaration], root, path: &[_]| {
+            borrowed_referent_type(types.iter(), root, path, StructuralAccess::SharedBorrow)
+        };
+        // The byte carrier cannot invent a scalar declaration or select a
+        // different integer merely because that declaration is available.
+        assert_eq!(selected(&types, type_id(3), &element), None);
+        let mut byte = types[2].clone();
+        byte.id = type_id(7);
+        byte.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+        ));
+        types.push(byte);
+        assert_eq!(selected(&types, type_id(3), &element), None);
+        types.last_mut().unwrap().shape = StructuralTypeShape::PrimitiveScalar(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+        );
+        assert_eq!(selected(&types, type_id(3), &element), Some(type_id(7)));
+        assert!(super::loan_access_permitted(
+            types.iter(),
+            type_id(3),
+            &element,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow,
+        ));
+        assert!(!super::loan_access_permitted(
+            types.iter(),
+            type_id(3),
+            &element,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ));
+        assert_eq!(
+            selected(&types, type_id(2), &[StructuralPathSegment::FixedIndex(31)]),
+            Some(type_id(7))
+        );
+        assert_eq!(
+            selected(&types, type_id(2), &[StructuralPathSegment::FixedIndex(32)]),
+            None
+        );
+        assert_eq!(
+            selected(
+                &types,
+                type_id(3),
+                &[element[0].clone(), StructuralPathSegment::FixedIndex(0)],
+            ),
+            None
+        );
+        let mut duplicate = types.last().unwrap().clone();
+        duplicate.id = type_id(8);
+        types.push(duplicate);
+        assert_eq!(selected(&types, type_id(3), &element), None);
+    }
+
     #[test]
     fn stored_access_views_cross_edges_as_values_but_references_keep_addresses() {
         use super::{is_address_join_in, is_descriptor_join_in};
