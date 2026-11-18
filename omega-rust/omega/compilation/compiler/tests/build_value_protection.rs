@@ -149,7 +149,6 @@ fn constructing_a_build_is_rejected() {
         identifier: \"\",
         elf_interpreter: ElfInterpreterSelection { linux_arm64: \"\", linux_x86_64: \"\" },
         optimizations: optimizations,
-        privileged_services: PrivilegedServices { port_io: false, interrupt_table: false },
         source: BuildSource { },
         inputs: BuildInputs { },
         output: BuildOutput { },
