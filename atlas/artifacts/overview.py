@@ -396,7 +396,7 @@ def render_overview(architecture):
     parts.append('</ol></details><script type="application/json" id="overview-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script>')
     parts.append('<template id="overview-proposed-scene"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+render_scene(proposed)+'</svg></template>')
     parts.append('<script type="application/json" id="overview-proposed-model">'+json.dumps(proposed,ensure_ascii=False).replace('<','\\u003c')+'</script>')
-    parts.append('<details class="proposed-contracts"><summary>Proposed contracts and open questions</summary><p>Proposed phase boundaries are judgment, not implemented or verified behavior. <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">Open planning gates</a>.</p><dl>')
+    parts.append('<details class="proposed-contracts"><summary>Proposed contracts and open questions</summary><p>The phase boundaries are a design judgment. The <a href="foundation-backend-plan.html#implementation-checkpoint">implementation checkpoint</a> traces individual routes in the migration branch. Read the <a href="foundation-backend-plan.html#8-planning-completion-gates-before-implementation">open planning gates</a> for the evidence still needed.</p><dl>')
     for n in proposed['nodes']:
         anchor=' id="proposed-handlers"' if n['id']=='native-planning-target' else ''
         if n['id']=='binding-summarize': anchor=' id="proposed-handler-binding"'
@@ -404,7 +404,7 @@ def render_overview(architecture):
         if n['gate']:
             parts.append(f'<p>Open contract: {esc(n["gate"])}</p>')
         if n.get('evidence'):
-            parts.append('<p>Current compiler · '+' · '.join(
+            parts.append('<p>Pinned compiler source · '+' · '.join(
                 f'<a href="{esc(url)}">{esc(label)}</a>' for label,url in n['evidence'])+'</p>')
         parts.append(f'<a href="{n["page"]}.html#{n["anchor"]}">Read proposal</a> · <a href="{n["source"]}">Recorded plan</a></dd>')
     parts.append('</dl></details>')

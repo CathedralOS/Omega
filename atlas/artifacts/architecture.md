@@ -13,7 +13,11 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
-Trace **Handler round trip** to see how 03 finds the retained callbacks, how 04 measures each handler before selecting its installer’s stack guards, and how 05 checks those measurements against the finished program. In 01, each file goes straight from lexing to parsing. The next file can reuse its token buffers.
+Trace **Handler round trip** to see how 03 finds the retained callbacks, how 04 measures each handler before selecting its installer’s stack guards, and how 05 checks those measurements against the finished program.
+
+**Migration branch.** Select **01.2 Parse that file** in Proposed to see how fresh files pass straight from lexing to parsing and how package assembly reuses an exact earlier parse. Follow **02.2 Seal publication** to **03.1 Join provider selections** to see which checked body supplies each call. Stage 03 refuses a changed body. If computing a constant needed that provider, the executable records the exact plan while the source keeps its original identity. [Per-file stream][branch-stream] · [Published provider demand][branch-demand] · [Target planning][branch-target]
+
+Follow **05.2 Check + bind installations** to see where a handler’s measured stack meets its installer’s guard. **08.2 Form objects** shows what 09 receives about the actual text and executable bodies. Each operation links to the migration branch at `788ecf2489d`. The [implementation checkpoint](../plans/foundation-and-backend.md#implementation-checkpoint) records the evidence and the standalone component request that still refuses. The full cross-target migration remains *unverified*.
 
 The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
@@ -40,3 +44,7 @@ entry/adapter generation included in that route.
 The [original authored map](pipeline-map/original.html) remains a historical
 presentation. The [reviewed pipeline account](pipeline-map/map.md) corrects
 historical claims and traces current handoffs.
+
+[branch-stream]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L91-L133
+[branch-demand]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104
+[branch-target]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs#L96-L124

@@ -7,13 +7,12 @@ representations, runtimes and validators must agree before the new route replace
 the old one. Internal work has dependencies and can be divided among agents;
 partial routes are not separately rolled out.
 
-The current task is **plan first**. No compiler migration is implemented by this
-document. The six [owner rulings](../rulings.md) remain authoritative and unchanged.
-The destination below is a concrete recommendation applying them. Proposed
-boundaries and names are **judgment**; feasibility obligations are **unverified**
-until the named evidence is supplied. Those obligations must be settled in this
-plan before implementation starts. A new folder name is not evidence that a
-contract is possible.
+Implementation is underway on the compiler branch. The [implementation
+checkpoint](#implementation-checkpoint) traces which handoffs have actual
+callers and which still need acceptance runs. The plan applies the six
+[owner rulings](../rulings.md). The proposed boundaries and names are
+**judgment**. Feasibility obligations remain **unverified** until the named
+evidence is supplied.
 
 **Reading the map?** Start with [the extra-arrow repair list](#start-with-the-extra-arrows)
 and the [handler detour](#why-handlers-leave-and-return). The remaining sections
@@ -793,24 +792,62 @@ example does not establish that outcome.
 
 ### Implementation checkpoint
 
-The branch at `2ff15fbb385` contains numbered owners 00–10. Its source
-owner lexes and parses each activated file into a syntax page and recycles the
-token buffers. Retained syntax can be reused for the same bytes. A later
-lexical failure still takes precedence over a syntax failure according to the
-existing diagnostic contract. [Per-file stream][checkpoint-stream]
+The [full map](../artifacts/architecture.md) keeps its original compiler
+snapshot in **Current**. The following routes were traced in the migration
+branch at `788ecf2489d`. Select the named operations in **Proposed** to
+inspect their code.
 
-Stage 03 closes the callback roster from retained target operations. Stage 04
-orders handler dependencies and produces the physical bodies. Stage 05
-compares the complete handler demand with each installation before granting
-it authority. The ordering tests cover a shared handler, an unreachable cycle,
-a demanded cycle and a chain of 50,000 installations. [Body roster][checkpoint-roster],
-[handler order and tests][checkpoint-order], [installation checks][checkpoint-bind]
+| Route | What the compiler hands forward |
+| --- | --- |
+| 01 · Lex one file → Parse that file | Each worker lexes one file, immediately parses those tokens into its syntax page, then recycles the token storage. Package assembly reuses a discovered file’s parse only if its bytes match. If a later file has a lexical error it still takes precedence over an earlier syntax error. [Package entry point][checkpoint-parse-caller] · [Per-file stream][checkpoint-stream] · [Reuse check][checkpoint-reuse] · [Error precedence][checkpoint-lexical] |
+| 01 · Finish source choices → 02 · Seal publication | Source target preparation identifies the actual entry, follows its chosen bodies, and associates the reached native bindings with their source declarations. For an unscoped request it records the actual root machines. Stage 02 verifies the issuing judgment and target before using those finished choices. [Normal target capture][checkpoint-capture] · [Source worklist][checkpoint-logical] · [Issuer check][checkpoint-issuer] · [Publication][checkpoint-demand] |
+| 02 · Seal publication → 03 · Join provider selections | The normal compiler publishes the reached requirements, chosen checked bodies and the calls that scalar evaluation of the entry can reach. The target planner receives these records, computes calling conventions and checks the native plans against the exact bodies. Substituting a body refuses the build. [Normal compiler caller][checkpoint-settle] · [Publication][checkpoint-demand] · [Target planning][checkpoint-target] · [Calling policies][checkpoint-policies] |
+| 03 · Finish the executable entry | When a target provider contributes to a folded constant, native planning records the selected plan in a target-specific copy of the program. The original source publication keeps its identity and source evidence. A received copy must reproduce the exact dependencies for that program and target. [Executable request][checkpoint-product] · [Entry binding][checkpoint-entry] · [Derived program][checkpoint-folded] · [Independent readback][checkpoint-receive] |
+| 04 · Measure handlers → 05 · Bind installations | Physical planning measures the handler body, its bridge and its CPU state. Installation binding matches the installer’s guard to the handler at that exact placement and checks the physical instructions and frame before issuing authority. [Physical measurement][checkpoint-measure] · [Binding][checkpoint-installation] |
+| 04 · Plan entries → 06 · Encode → 09 · Place | For supported hosted entries and physical firmware entries, the driver requests a physical plan, encodes it, and supplies that result to image placement. Stage 09 joins the entry to the actual placed bodies. [Hosted planning][checkpoint-hosted] · [Physical planning and encoding][checkpoint-entry-encoding] · [Entry placement][checkpoint-placement] |
+| 08 · Form objects → 09 · Place objects | Stage 08 publishes the object plan, text placement, native layouts, body evidence and an identity receipt. Stage 09 reads this publication. A request to retain the original container carries it separately for checking. [Object publication][checkpoint-object] · [Ordinary and retained inputs][checkpoint-object-caller] · [Image reader][checkpoint-image] |
 
-The workspace and its test targets type-checked at this checkpoint. The
-whole-migration acceptance in §10 is still **unverified**, including the
-release-mode dependency graph, runtime consumers and end-to-end program runs.
+The earlier branch checkpoint at `2ff15fbb385` traced 03 closing the callback
+roster from retained target operations, 04 ordering handlers ahead of their
+installers, and 05 comparing complete handler demand with the installation.
+Its ordering tests include a shared handler, an unreachable cycle and a
+demanded cycle. [Body roster][checkpoint-roster] · [Handler order and tests][checkpoint-order] · [Installation checks][checkpoint-bind]
 
-[checkpoint-stream]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L75-L132
+**Unverified.** End-to-end independent component support remains open. The
+ordinary product request refuses a standalone component when it reaches this
+branch, and a native build that selects independent composition requires a
+verified component product. There is separate code for preparing exports and
+checking emitted component images. A successful run through the ordinary
+project route still needs evidence. The complete cross-target and release
+checks in §10 are also open. [Component request][checkpoint-component-request] ·
+[Native composition][checkpoint-component-native] · [Export emission][checkpoint-component-export]
+
+[checkpoint-parse-caller]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L1386-L1399
+[checkpoint-stream]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L91-L133
+[checkpoint-reuse]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L281-L304
+[checkpoint-lexical]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L53-L74
+[checkpoint-settle]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L145-L176
+[checkpoint-demand]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104
+[checkpoint-capture]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs#L15-L33
+[checkpoint-logical]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L61-L110
+[checkpoint-issuer]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L32-L46
+[checkpoint-measure]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/installed_handlers.rs#L55-L110
+[checkpoint-installation]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L54-L91
+[checkpoint-hosted]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L140-L178
+[checkpoint-entry-encoding]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L206-L255
+[checkpoint-placement]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132
+[checkpoint-object]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/08_object-construction/src/fragment_container.rs#L225-L251
+[checkpoint-object-caller]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L459-L476
+[checkpoint-image]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54
+[checkpoint-target]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/execution.rs#L30-L75
+[checkpoint-policies]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/provider_execution_inputs.rs#L288-L310
+[checkpoint-product]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L438-L456
+[checkpoint-entry]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs#L96-L124
+[checkpoint-folded]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/folded_entry.rs#L12-L53
+[checkpoint-receive]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_supply/realized_supply.rs#L450-L478
+[checkpoint-component-request]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L405-L426
+[checkpoint-component-native]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L349-L366
+[checkpoint-component-export]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/components.rs#L101-L141
 [checkpoint-roster]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153
 [checkpoint-order]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs
 [checkpoint-bind]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41

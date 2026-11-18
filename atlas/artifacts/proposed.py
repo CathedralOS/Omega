@@ -81,6 +81,58 @@ def annotate_handler_handoff(nodes):
         node['evidence']=evidence
 
 
+def annotate_implementation(nodes):
+    revision = '788ecf2489dabc436e00f4cf97dc5cf28b91604c'
+    code = f'https://github.com/CathedralOS/Omega/blob/{revision}/omega-rust/'
+    source = code + 'psi/compilation/pipeline/01_source-compilation/src/'
+    omega = code + 'omega/compilation/'
+    planning = omega + 'pipeline/03_native-program-planning/src/'
+    checkpoints = {
+        'source-settlement-lex': (
+            'On the migration branch, a worker lexes one file into reusable token storage. The parser reads those tokens before the worker advances to the next file.',
+            [('Per-file lex and parse', source + 'source_parsing.rs#L91-L133')]),
+        'source-settlement-parse': (
+            'Package assembly can adopt the syntax of an already discovered file when its bytes match. Fresh files use the per-file stream. A later lexical error takes precedence over an earlier syntax error.',
+            [('Package assembly', code + 'omega/packages/package-compilation/src/source/source_assembly.rs#L1386-L1399'),
+             ('Exact source reuse', source + 'source_parsing.rs#L281-L304'),
+             ('Error ordering', source + 'source_parsing.rs#L53-L74')]),
+        'seal-seal': (
+            'Stage 01 supplies the completed choices for this target and the native bindings that name their exact source declarations. Stage 02 checks their source and target, adds the boundary calls reachable during scalar evaluation of the entry, and passes the result to native planning.',
+            [('Source choices and roots', source + 'provider_supply/demand.rs#L61-L110'),
+             ('Published demand', omega + 'pipeline/02_portable-publication/src/provider_demand.rs#L73-L104'),
+             ('Normal compiler handoff', omega + 'compiler/src/execution_settlement.rs#L145-L176')]),
+        'native-planning-providers': (
+            'Native planning joins the published choices to the target. It refuses a native binding that substitutes a different checked body. When an entry depends on a provider to compute a constant, it records that provider in a target-specific copy of the code.',
+            [('Exact body comparison', planning + 'execution.rs#L53-L75'),
+             ('Folded entry plans', planning + 'selected_execution.rs#L96-L124'),
+             ('Target-specific code', planning + 'folded_entry.rs#L12-L53')]),
+        'native-planning-policies': (
+            'The target planner computes the required calling conventions from the published inputs. Its package-review result remains separate from the provider calls needed to run the entry.',
+            [('Target planner', planning + 'execution.rs#L30-L50'),
+             ('Default calling policies', planning + 'provider_execution_inputs.rs#L288-L310')]),
+        'physical-planning-generated': (
+            'The branch plans supported hosted entries and physical firmware entries before encoding. Stage 06 encodes the resulting entry plan for stage 09 to place.',
+            [('Hosted entry planning', omega + 'native-compiler/src/realization/object_emission.rs#L140-L178'),
+             ('Firmware entry planning and encoding', omega + 'native-compiler/src/realization/object_emission.rs#L206-L255')]),
+        'binding-bind': (
+            'Stage 04 measures the handler’s stack demand, bridge and CPU state from its physical body. Stage 05 compares the guard with the measurement at that installation and checks the instructions and frame before issuing authority.',
+            [('Handler measurement', omega + 'pipeline/04_physical-program-planning/src/installed_handlers.rs#L55-L110'),
+             ('Binding the finished frame', omega + 'pipeline/05_installation-binding/src/lib.rs#L54-L91')]),
+        'object-stage-container': (
+            'Stage 08 publishes the object plan, text placement, native layouts, body evidence and an identity receipt. Ordinary compilation hands this publication to image construction. A request to retain the original container carries that value separately for checking.',
+            [('Object publication', omega + 'pipeline/08_object-construction/src/fragment_container.rs#L225-L251'),
+             ('Normal and retained inputs', omega + 'native-compiler/src/pipeline.rs#L459-L476')]),
+        'image-stage-place': (
+            'The image stage reads the published text and frame-applied fragments. It joins encoded entry plans to the placed bodies and checks the resulting image.',
+            [('Image input', omega + 'pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54'),
+             ('Hosted and physical entry placement', omega + 'pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132')]),
+    }
+    for key, (description, evidence) in checkpoints.items():
+        node = nodes[key]
+        node['description'] += ' ' + description
+        node.setdefault('evidence', []).extend(evidence)
+
+
 def proposed_model():
     # Each row is an owner followed by its complete result, on the same spine.
     contracts=[
@@ -138,6 +190,7 @@ def proposed_model():
     spine=[n['id'] for n in nodes]
     by_id={n['id']:n for n in nodes}
     annotate_handler_handoff(by_id)
+    annotate_implementation(by_id)
     edges=[dict(id=f'proposed-{a}-{b}',start=a,end=b,label='',kind='data',main=True,source=by_id[b]['source'])
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
