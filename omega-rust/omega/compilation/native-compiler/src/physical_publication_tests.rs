@@ -143,6 +143,7 @@ fn emit_body_inspecting_physical<'execution>(
     let projection = crate::pipeline::encode_physical_body(bound, &observation)
         .and_then(|body| crate::pipeline::layout_encoded_body(body, &observation))
         .and_then(crate::pipeline::construct_body_object)
+        .and_then(crate::pipeline::emit_body_fragment)
         .unwrap_or_else(|error| match error {
             crate::pipeline::BodyEmissionError::Physical(error) => {
                 panic!("constant encoding: {error}")

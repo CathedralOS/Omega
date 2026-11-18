@@ -457,15 +457,16 @@ pub(crate) fn layout_encoded_body(
     Ok(LaidOutBody { text, object })
 }
 
+/// The stage 08 object and the exact imports and replay inputs that accompany it.
+pub(crate) struct ConstructedBody {
+    publication: object_file::ObjectPublication,
+    replay: Option<std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>>,
+    inputs: BodyObjectInputs,
+}
+
 pub(crate) fn construct_body_object(
     body: LaidOutBody,
-) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
-    let BodyObjectInputs {
-        private_references,
-        imports,
-        windows_internet,
-        original_target,
-    } = body.object;
+) -> Result<ConstructedBody, BodyEmissionError> {
     let container = object_file::stage_optimized_relocation_free_object_container(body.text)
         .map_err(|error| {
             BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
@@ -473,10 +474,26 @@ pub(crate) fn construct_body_object(
             ))])
         })?;
     let publication = container.publication();
-    let retain_originals = original_target.is_some() || container.retains_originals();
-    let replay = retain_originals.then(|| std::sync::Arc::new(container));
-    let mut object = native_artifact::emit_fragment_object(publication, replay, original_target)
-        .map_err(BodyEmissionError::Object)?;
+    let retain_originals = body.object.original_target.is_some() || container.retains_originals();
+    Ok(ConstructedBody {
+        publication,
+        replay: retain_originals.then(|| std::sync::Arc::new(container)),
+        inputs: body.object,
+    })
+}
+
+pub(crate) fn emit_body_fragment(
+    body: ConstructedBody,
+) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
+    let BodyObjectInputs {
+        private_references,
+        imports,
+        windows_internet,
+        original_target,
+    } = body.inputs;
+    let mut object =
+        native_artifact::emit_fragment_object(body.publication, body.replay, original_target)
+            .map_err(BodyEmissionError::Object)?;
     object = object.with_import_program(imports).map_err(|reason| {
         BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
     })?;

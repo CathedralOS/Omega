@@ -1,8 +1,7 @@
-// Compile retained Terminal (`compile`) or stop after runtime admission for
-// Terminal-only execution (`admit_runtime`). Each is one call: the request
-// already carries the completed scalar values, so preparation selects the work
-// and Omega 00 to 09 run once, in order. On any failure, the recoverable
-// `ExecutableImageEmissionRequest` is returned alongside the diagnostics.
+//! Compile a retained Terminal program to a native image, or return the
+//! provisions needed to run it in Psi. Both routes start with the completed
+//! scalar applications and admitted providers. A failure returns the image
+//! request with its original diagnostics.
 
 use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};

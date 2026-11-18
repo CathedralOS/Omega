@@ -1,13 +1,8 @@
-/*
-Native realization: validate Terminal custody, admit providers and program entry,
-emit objects and images, and capture Terminal-runtime provisions.
-
-`admit_realization` runs Omega 00 provider/entry admission and captures the
-admitted `TerminalRuntimeProvisions` before emission consumes the installation,
-so both `realize_native_artifact` and `admit_terminal_runtime` (`omega run
---engine psi`) settle the exact same providers, entry, and host
-realizations.
-*/
+//! Realize the selected providers and entry for an accepted Terminal program.
+//! Stage 03 admits the native providers and captures their runtime requirements.
+//! Native image compilation carries those requirements beside the root and private
+//! bodies through object construction and image emission. Psi execution shares
+//! admission and materializes the foreign adapters required by the interpreter.
 
 mod auxiliary_native;
 mod body_resources;

@@ -39,6 +39,8 @@ pub(super) type EncodedCallable =
     CallableProduct<pipeline::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
 pub(super) type LaidOutCallable =
     CallableProduct<pipeline::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
+pub(super) type ConstructedCallable =
+    CallableProduct<pipeline::ConstructedBody, super::auxiliary_native::ObjectForeignAdapter>;
 
 fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
@@ -122,14 +124,26 @@ impl EncodedCallable {
 }
 
 impl LaidOutCallable {
-    pub(super) fn construct_object(self) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+    pub(super) fn construct_object(self) -> Result<ConstructedCallable, Vec<Diagnostic>> {
+        Ok(CallableProduct {
+            body: pipeline::construct_body_object(self.body).map_err(callable_error)?,
+            runtime: self
+                .runtime
+                .map_adapters(super::auxiliary_native::construct),
+            custody: self.custody,
+        })
+    }
+}
+
+impl ConstructedCallable {
+    pub(super) fn emit_fragment(self) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
         let CallableCustody {
             code,
             coverage,
             observation,
             authority,
         } = self.custody;
-        let projection = pipeline::construct_body_object(self.body).map_err(callable_error)?;
+        let projection = pipeline::emit_body_fragment(self.body).map_err(callable_error)?;
         let physical_original = native_artifact::PrivatePhysicalOriginal::new(
             projection.object().psi(),
             code,
@@ -140,9 +154,7 @@ impl LaidOutCallable {
         Ok(CallableObjectProduct {
             physical_original,
             projection,
-            runtime: self
-                .runtime
-                .map_adapters(super::auxiliary_native::construct),
+            runtime: self.runtime,
             authority,
         })
     }

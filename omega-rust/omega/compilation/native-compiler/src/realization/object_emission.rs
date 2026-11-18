@@ -27,6 +27,30 @@ pub(crate) struct EmittedRealizationObject {
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
 
+/// The root and the closed private roster advance together. The next stage
+/// receives its input only after every body in the current stage succeeds.
+struct BodyRoster<Root, Private> {
+    root: Root,
+    private: Vec<Private>,
+}
+
+impl<Root, Private> BodyRoster<Root, Private> {
+    fn try_map<NextRoot, NextPrivate, Error>(
+        self,
+        root: impl FnOnce(Root) -> Result<NextRoot, Error>,
+        private: impl FnMut(Private) -> Result<NextPrivate, Error>,
+    ) -> Result<BodyRoster<NextRoot, NextPrivate>, Error> {
+        Ok(BodyRoster {
+            root: root(self.root)?,
+            private: self
+                .private
+                .into_iter()
+                .map(private)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
 fn lower_target(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
@@ -259,12 +283,14 @@ pub(crate) fn emit_realization_object(
         }
         BodyEmissionError::Object(diagnostics) => diagnostics,
     };
-    let encoded_root =
-        pipeline::encode_physical_body(physical, request.observation).map_err(root_error)?;
-    let encoded_private = private_bodies
-        .into_iter()
-        .map(|body| body.encode())
-        .collect::<Result<Vec<_>, _>>()?;
+    let encoded = BodyRoster {
+        root: physical,
+        private: private_bodies,
+    }
+    .try_map(
+        |body| pipeline::encode_physical_body(body, request.observation).map_err(root_error),
+        |body| body.encode(),
+    )?;
     let runtime_provisions =
         runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::place));
     let hosted_entry = hosted_entry
@@ -275,30 +301,34 @@ pub(crate) fn emit_realization_object(
         .map(function_layout::program_entry_placement::place_physical_program)
         .transpose()
         .map_err(|error| vec![error])?;
-    let root_layout =
-        pipeline::layout_encoded_body(encoded_root, request.observation).map_err(root_error)?;
-    let private_layouts = encoded_private
-        .into_iter()
-        .map(|body| body.layout())
-        .collect::<Result<Vec<_>, _>>()?;
+    let layouts = encoded.try_map(
+        |body| pipeline::layout_encoded_body(body, request.observation).map_err(root_error),
+        |body| body.layout(),
+    )?;
     let runtime_provisions =
         runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::construct));
     let hosted_entry =
         hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_placement);
     let physical_entry = physical_entry
         .map(object_file::program_entry_object::PhysicalProgramObject::from_placement);
-    let projection = pipeline::construct_body_object(root_layout).map_err(root_error)?;
-    let mut private_functions = Vec::with_capacity(private_layouts.len());
-    let mut private_originals = Vec::with_capacity(private_layouts.len());
-    for body in private_layouts {
-        let (object, original) = body.construct_object()?;
+    let objects = layouts.try_map(
+        |body| pipeline::construct_body_object(body).map_err(root_error),
+        |body| body.construct_object(),
+    )?;
+    let fragments = objects.try_map(
+        |body| pipeline::emit_body_fragment(body).map_err(root_error),
+        |body| body.emit_fragment(),
+    )?;
+    let mut private_functions = Vec::with_capacity(fragments.private.len());
+    let mut private_originals = Vec::with_capacity(fragments.private.len());
+    for (object, original) in fragments.private {
         private_originals.push((object.identity, original));
         private_functions.push(object);
     }
     let physical_originals = native_artifact::NativePhysicalOriginals::new(private_originals)
         .map_err(|reason| realization_error("private physical originals", reason))?;
     let object = publish_fragment_object(
-        projection,
+        fragments.root,
         FragmentObjectPublicationRequest {
             program_entry,
             physical_entry,
@@ -313,4 +343,47 @@ pub(crate) fn emit_realization_object(
         borrowed_storage_layouts: object.object.borrowed_storage_layouts().clone(),
         object,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BodyRoster;
+    use std::cell::RefCell;
+
+    #[test]
+    fn image_emission_waits_for_the_last_private_object() {
+        let bodies = ["root", "callback", "installed handler"];
+        for refused in [None, Some("installed handler")] {
+            let events = RefCell::new(Vec::new());
+            let construct = |body| {
+                events.borrow_mut().push((8, body));
+                if refused == Some(body) {
+                    Err(body)
+                } else {
+                    Ok(body)
+                }
+            };
+            let emit = |body| {
+                events.borrow_mut().push((9, body));
+                Ok(body)
+            };
+            let result = BodyRoster {
+                root: bodies[0],
+                private: bodies[1..].to_vec(),
+            }
+            .try_map(construct, construct)
+            .and_then(|objects| objects.try_map(emit, emit));
+            let mut expected = bodies.map(|body| (8, body)).to_vec();
+            match refused {
+                Some(reason) => assert_eq!(result.err(), Some(reason)),
+                None => {
+                    let fragments = result.unwrap();
+                    assert_eq!(fragments.root, bodies[0]);
+                    assert_eq!(fragments.private.as_slice(), &bodies[1..]);
+                    expected.extend(bodies.map(|body| (9, body)));
+                }
+            }
+            assert_eq!(events.into_inner(), expected);
+        }
+    }
 }

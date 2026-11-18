@@ -136,12 +136,14 @@ pub fn emit_component_exports<'input>(
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
     let artifact = inputs.component().artifact();
     let proposal = inputs.proposal();
-    let mut planned = Vec::with_capacity(inputs.exports().len());
     if executions.len() != inputs.exports().len() {
         return Err(vec![Diagnostic::error(
             "component prepared execution and export rosters differ",
         )]);
     }
+    // Every export belongs to this same component. Resolve the whole target
+    // and calling roster before measuring the first export's physical frame.
+    let mut targets = Vec::with_capacity(executions.len());
     for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
         let (input, execution) = native_program_planning::lower_native_execution(
@@ -182,8 +184,6 @@ pub fn emit_component_exports<'input>(
             artifact,
             request.retain_native_stage_inputs,
         )?;
-        let physical =
-            super::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
         let boundary = inputs
             .component()
             .module()
@@ -254,6 +254,12 @@ pub fn emit_component_exports<'input>(
                 "component export requires an independently retained private callback companion",
             ));
         }
+        targets.push((export, target, ordinals));
+    }
+    let mut planned = Vec::with_capacity(targets.len());
+    for (export, target, ordinals) in targets {
+        let physical =
+            super::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
         if !physical.body.private_references.is_empty() {
             return Err(realization_error(
                 "component export closure",
@@ -263,7 +269,7 @@ pub fn emit_component_exports<'input>(
         let entry_plan = physical_planning::callable_entry::plan_callable_entry_transport(
             &physical.body.frame,
             &physical.body.installations,
-            application.plan.plan(),
+            export.calling_application.plan.plan(),
             &ordinals,
         )
         .map_err(|error| realization_error("component entry ABI", error))?;
@@ -294,10 +300,17 @@ pub fn emit_component_exports<'input>(
             .map_err(|error| realization_error("component entry layout", error))?;
         layouts.push((export, body.layout()?, entry));
     }
-    let mut exports = Vec::with_capacity(layouts.len());
-    for (export, layout, entry_bridge) in layouts {
-        let application = export.calling_application;
-        let emitted = layout.construct_object()?;
+    let mut objects = Vec::with_capacity(layouts.len());
+    for (export, layout, entry) in layouts {
+        objects.push((
+            export,
+            layout.construct_object()?,
+            object_file::CallableEntryTransport::from_placement(entry),
+        ));
+    }
+    let mut exports = Vec::with_capacity(objects.len());
+    for (export, object, entry_bridge) in objects {
+        let emitted = object.emit_fragment()?;
         let body = emitted.projection.into_object();
         let runtime = emitted.runtime;
         let authority = emitted.authority;
@@ -305,9 +318,9 @@ pub fn emit_component_exports<'input>(
             component: inputs.component(),
             selected_provider_plans: &proposal.providers().selection,
             candidate: export.candidate,
-            calling_application: application,
+            calling_application: export.calling_application,
             body,
-            entry_bridge: object_file::CallableEntryTransport::from_placement(entry_bridge),
+            entry_bridge,
             runtime,
             authority,
         });
