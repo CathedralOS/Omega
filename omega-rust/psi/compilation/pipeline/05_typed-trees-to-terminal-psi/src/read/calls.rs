@@ -957,8 +957,42 @@ impl<'t> Program<'t> {
             call.authored_call_selection,
             call.authored_call_binding,
         )?;
+        if let Some(operation) = &call.private_layout_operation {
+            let symbols = &self.typed.symbols;
+            if !symbols.symbols().nodes().is_valid(call.target_symbol)
+                || symbols.sealed_intrinsic(symbols.get(call.target_symbol).parent)
+                    != Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::PrivateLayoutPlacement,
+                    )
+            {
+                return unserved("private placement requires its sealed core machine");
+            }
+            if self.publication != terminal_codec::TerminalPublication::LayoutPolicyInvocation {
+                let Some(&caller) = self.symbols.get(id) else {
+                    return unserved("private placement has no source caller");
+                };
+                self.exact_toolchain_sources()
+                    .map_err(str::to_owned)
+                    .and_then(|sources| {
+                        self.typed.check_private_callback_placement_owner(
+                            &operation.selected_slot,
+                            caller,
+                            sources,
+                        )
+                    })
+                    .map_err(|reason| {
+                        let mut error = refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("private callback placement"),
+                        );
+                        error.detail.push_str(": ");
+                        error.detail.push_str(&reason);
+                        error
+                    })?;
+            }
+        }
         if call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
             || call.native_code_layout.is_some()
         {
