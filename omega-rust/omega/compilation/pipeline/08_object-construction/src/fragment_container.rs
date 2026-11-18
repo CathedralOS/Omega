@@ -22,6 +22,7 @@ use function_layout::{
     RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
     validate_optimized_fixed_frame_text_section,
 };
+use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use optimization_core::{
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
@@ -186,8 +187,14 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         ObjectPublication {
             object: Arc::clone(&self.object),
             text: self.source.shared_text_section(),
+            native_layouts: self.source.shared_native_code_layouts(),
+            body: Arc::clone(self.source.placed_body()),
             custody: self.custody,
         }
+    }
+
+    pub fn retains_originals(&self) -> bool {
+        self.source.retains_originals()
     }
 
     pub const fn source(&self) -> &StagedOptimizedFixedFrameTextSection {
@@ -212,7 +219,7 @@ impl StagedOptimizedRelocationFreeObjectContainer {
 
     /// The facts the native driver carried from before instruction selection.
     pub fn emission_facts(&self) -> &physical_program::EmissionFacts {
-        self.source.source().source().facts()
+        &self.source.placed_body().facts
     }
 }
 
@@ -223,12 +230,20 @@ impl StagedOptimizedRelocationFreeObjectContainer {
 pub struct ObjectPublication {
     object: Arc<RelocationFreeObjectPlan>,
     text: Arc<machine_code::RelocationFreeTextSectionPlacement>,
+    native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
+    body: Arc<function_layout::PlacedBodyEvidence>,
     custody: StagedRelocationFreeObjectContainerCustodyReceipt,
 }
 
 impl ObjectPublication {
+    pub fn body(&self) -> &function_layout::PlacedBodyEvidence {
+        &self.body
+    }
     pub fn object(&self) -> &RelocationFreeObjectPlan {
         &self.object
+    }
+    pub fn native_code_layouts(&self) -> Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError> {
+        self.native_layouts.clone()
     }
     pub fn text(&self) -> &machine_code::RelocationFreeTextSectionPlacement {
         &self.text

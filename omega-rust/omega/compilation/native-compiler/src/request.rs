@@ -7,7 +7,7 @@
 // commit limits.
 
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
+use target::ExecutableImageEmissionRequest;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
@@ -83,7 +83,7 @@ impl NativeCompileRequest<'_> {
                 proposal.application().identifier.as_ref(),
             )
             .map_err(|error| {
-                use image_emission::ImageApplicationMetadataError;
+                use target::ImageApplicationMetadataError;
                 diagnostics::error_in_context(
                     "Terminal native proposal",
                     match error {

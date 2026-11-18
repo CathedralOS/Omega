@@ -2,14 +2,10 @@
 use crate::native_entry_bridge::NativeEntryBridgePlan;
 use calling_conventions::{CallPlan, EntryControl, IndirectPointerLocation, ValueLocation};
 use diagnostics::Diagnostic;
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PhysicalIncomingStackRequirement {
-    pub bytes_below_entry_rsp: u64,
-    pub readable_bytes_from_entry_rsp: u64,
-    pub caller_alignment: u64,
-    pub caller_rsp_bias: u64,
-}
-
+use physical_recipes::physical_stack_switch as recipes;
+use recipes::StackSwitchInstructions;
+pub use recipes::{PhysicalIncomingStackRequirement, StackTransfer};
+pub type StackSwitchPlan = recipes::StackSwitchPlan<crate::PhysicalRecipeOrigin>;
 fn invalid(reason: &str) -> Diagnostic {
     Diagnostic::error(format!("physical image entry: {reason}"))
 }
@@ -29,69 +25,6 @@ fn incoming_stack_piece(location: &ValueLocation) -> Option<(u32, u32)> {
             ..
         } => Some((stack_byte_offset, 8)),
         _ => None,
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StackTransfer {
-    pub source: u32,
-    pub destination: u32,
-    pub width: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StackSwitchPlan {
-    bridge: NativeEntryBridgePlan,
-    transfers: Vec<StackTransfer>,
-    outgoing_frame_bytes: u32,
-    incoming: PhysicalIncomingStackRequirement,
-    effects: calling_conventions::StateEffectsEvidence,
-    complete_effects: calling_conventions::StateEffectsEvidence,
-}
-
-pub struct StackSwitchInstructions {
-    pub bridge: NativeEntryBridgePlan,
-    pub transfers: Vec<StackTransfer>,
-    pub outgoing_frame_bytes: u32,
-    pub incoming: PhysicalIncomingStackRequirement,
-    pub effects: calling_conventions::StateEffectsEvidence,
-    pub complete_effects: calling_conventions::StateEffectsEvidence,
-}
-
-impl StackSwitchPlan {
-    pub fn into_instructions(self) -> StackSwitchInstructions {
-        let Self {
-            bridge,
-            transfers,
-            outgoing_frame_bytes,
-            incoming,
-            effects,
-            complete_effects,
-        } = self;
-        StackSwitchInstructions {
-            bridge,
-            transfers,
-            outgoing_frame_bytes,
-            incoming,
-            effects,
-            complete_effects,
-        }
-    }
-
-    pub fn bridge(&self) -> &NativeEntryBridgePlan {
-        &self.bridge
-    }
-    pub fn incoming(&self) -> PhysicalIncomingStackRequirement {
-        self.incoming
-    }
-    pub fn stack_overhead_bytes(&self) -> u64 {
-        u64::from(self.outgoing_frame_bytes) + 8
-    }
-    pub fn effects(&self) -> &calling_conventions::StateEffectsEvidence {
-        &self.effects
-    }
-    pub fn complete_effects(&self) -> &calling_conventions::StateEffectsEvidence {
-        &self.complete_effects
     }
 }
 
@@ -168,17 +101,20 @@ pub fn plan(bridge: NativeEntryBridgePlan) -> Result<StackSwitchPlan, Diagnostic
         .request()
         .checked_complete_effects(&effects)
         .map_err(|reason| invalid(&reason.to_string()))?;
-    Ok(StackSwitchPlan {
-        bridge,
-        transfers,
-        outgoing_frame_bytes,
-        incoming: PhysicalIncomingStackRequirement {
-            bytes_below_entry_rsp: 0,
-            readable_bytes_from_entry_rsp: u64::from(incoming_readable_bytes),
-            caller_alignment: u64::from(alignment),
-            caller_rsp_bias: 8,
+    Ok(StackSwitchPlan::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        StackSwitchInstructions {
+            bridge,
+            transfers,
+            outgoing_frame_bytes,
+            incoming: PhysicalIncomingStackRequirement {
+                bytes_below_entry_rsp: 0,
+                readable_bytes_from_entry_rsp: u64::from(incoming_readable_bytes),
+                caller_alignment: u64::from(alignment),
+                caller_rsp_bias: 8,
+            },
+            effects,
+            complete_effects,
         },
-        effects,
-        complete_effects,
-    })
+    ))
 }

@@ -39,41 +39,14 @@ x64, Linux, macOS, and UEFI targets:
 
 pub(crate) use ::wire::codec_bytes;
 
-mod model_specific_state {
-    use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence};
-    use selected_instructions::RegisterOperation;
-
-    pub fn x86_64_model_specific_register_state(
-        operation: RegisterOperation,
-        selector: Option<u32>,
-    ) -> Result<StateEffectsEvidence, &'static str> {
-        match operation {
-            RegisterOperation::ModelSpecificRead => match selector {
-                Some(0xc000_0080 | 0x277) => Ok(StateEffectsEvidence::new(
-                    RegisterSet::default(),
-                    RegisterSet::default(),
-                    MachineStateSet::new([MachineState::ControlState]),
-                    MachineStateSet::empty(),
-                )),
-                Some(_) => Err("MSR read selector has no target-defined architectural footprint"),
-                None => Err("MSR read selector is not an exact retained u32 constant"),
-            },
-            RegisterOperation::ModelSpecificWrite => {
-                Err("MSR write has no target-defined architectural footprint")
-            }
-            _ => Err("MSR architectural footprint requested for another operation"),
-        }
-    }
-}
-pub use model_specific_state::x86_64_model_specific_register_state;
+pub use target_x86_64::x86_64_model_specific_register_state;
 mod frame_protocol;
-mod generated_entry;
-pub use generated_entry::decode_x86_64_generated_entry;
-pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 5] = [0xe8, 0, 0, 0, 0];
+pub use target_x86_64::decode_x86_64_generated_entry;
+pub use target_x86_64::ORDINARY_DIRECT_CALL_BYTES;
 pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
 pub const INTERRUPT_RETURN_BYTES: [u8; 2] = [0x48, 0xcf];
 pub const CLEAR_DIRECTION_FLAG_BYTES: [u8; 1] = [0xfc];
-pub const PRIVILEGED_STOP_BYTES: [u8; 4] = [0xfa, 0xf4, 0xeb, 0xfd];
+pub use target_x86_64::PRIVILEGED_STOP_BYTES;
 mod hosted_kernel;
 mod ieee_float;
 mod machine_effects;

@@ -25,6 +25,7 @@ pub use opaque_representations::{
 pub use policy_signature::CallingPolicySignature;
 pub use policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
 pub use scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
+pub(crate) use selected_application::{NativeCallingResults, native_calling_results};
 pub use selected_application::{component_calling_applications, native_calling_applications};
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 

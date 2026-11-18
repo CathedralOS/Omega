@@ -349,14 +349,14 @@ fn validate_original(
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
     if artifact.emission_input.as_ref()
-        != &crate::object_input::ObjectEmissionInput::capture(source)?
+        != &crate::object_input::ObjectEmissionInput::from_publication(source.publication())?
     {
         return Err(Error::Mismatch(
             "body readback records differ from retained original",
         ));
     }
     let current = source.source().source().source().source();
-    source::privileged_termination::validate(
+    installation_admission::selected::verify_privileged_termination(
         current.installation_authority().installed_entry_execution(),
         current.original_physical_program().ok_or(Error::Mismatch(
             "original physical instructions were not retained (ReplayUnavailable)",
@@ -366,12 +366,7 @@ fn validate_original(
         source::retained_source_validation::admit(source, original)?;
         source::retained_source_validation::establish_geometry(source, original)?;
     }
-    if crate::prepare_privileged_termination(
-        current.installation_authority().installed_entry_execution(),
-        current.original_physical_program().ok_or(Error::Mismatch(
-            "original physical instructions were not retained (ReplayUnavailable)",
-        ))?,
-    ) != source.emission_facts().termination
+    if source.emission_facts().termination.is_err()
     {
         return Err(Error::Mismatch(
             "privileged termination obligation differs from original",
@@ -459,7 +454,7 @@ fn validate_original(
             "internal call plans differ from retained physical instructions",
         ));
     }
-    if crate::prepare_native_cpu_origins(physical.original_physical_program().ok_or(
+    if installation_admission::selected::cpu_origins::capture(physical.original_physical_program().ok_or(
         Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
     )?) != source.emission_facts().cpu
     {
@@ -467,7 +462,7 @@ fn validate_original(
             "CPU origins differ from retained physical instructions",
         ));
     }
-    if crate::prepare_native_fault_origins(physical.original_physical_program().ok_or(
+    if installation_admission::selected::fault_origins::capture(physical.original_physical_program().ok_or(
         Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
     )?) != source.emission_facts().faults
     {

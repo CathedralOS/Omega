@@ -146,7 +146,7 @@ pub(crate) fn complete_native(
             terminal_authority_policy: request.terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy: accepted_package_permissions,
             terminal_authority_permission_policy: request.terminal_authority_permission_policy,
-            image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
+            image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
             imports: &[],
             components: &components,
             scalars: scalars.as_ref(),

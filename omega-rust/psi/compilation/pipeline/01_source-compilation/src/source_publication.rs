@@ -119,23 +119,6 @@ impl SourcePublication {
             })
     }
 
-    /// Attach target-specific dependency commitments to already accepted code.
-    /// No source preparation or judgment runs here, and the shared source result
-    /// remains unchanged for other targets.
-    pub fn with_folded_constants(
-        &self,
-        folded: terminal_psi::FoldedConstantClosure,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let program = self.require_published(&self.optimizations)?;
-        let derived = program.with_folded_constants(folded)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        Ok(Self {
-            optimizations: self.optimizations.clone(),
-            program: OnceLock::from(Ok(Arc::new(derived))),
-            accepted: self.accepted.clone(),
-        })
-    }
-
     /// Publish the accepted source once, with the declaration authority admitted
     /// for this request. Consumers receive code and evidence, never a producer
     /// callback capable of replacing a failed result.
@@ -208,73 +191,6 @@ impl SourcePublication {
 mod tests {
     use super::*;
     use optimization::PsiOptimization;
-
-    #[test]
-    fn folded_dependencies_preserve_accepted_code_and_rebind_companions() {
-        let text = "machine main() {}";
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let id = sources.add_checked_instance(
-            "/publication/main.omg".into(), text, "/publication".into(), None,
-            source_admission::SourceOrigin::Toolchain, source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
-        ).source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(text).tokenize().unwrap();
-        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let mut request = crate::resolution::ResolutionRequest::new(syntax);
-        request.sources = Some(Arc::new(sources));
-        let resolved = crate::resolution::resolve(request).unwrap();
-        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
-        let entry = typed.realized_machine_named("main").unwrap().symbol;
-        let (frozen, _) = crate::preparation::prepare_typed_trees(
-            typed, &crate::preparation::PreparationRequest::settled(),
-        ).unwrap();
-        let publication = SourcePublication::judge(
-            Arc::new(frozen),
-            SourceCompilationRoster { entries: vec![entry], ..Default::default() },
-            PsiOptimizationSelections::default(),
-        ).unwrap();
-        let original = publication.publish(
-            publication.optimizations(), None, &mut crate::UnmeasuredProduction,
-        ).unwrap();
-        let original_bytes = original.artifact().to_bytes();
-        let original_view = original.artifact().view();
-        let requirement = terminal_psi::TerminalIdentityIndex(
-            original_view.module().identities.entries().iter()
-                .position(|identity| !identity.is_empty()).unwrap() as u32,
-        );
-        let folded = terminal_psi::FoldedConstantClosure {
-            target: Some("linux_x86_64".into()),
-            dependencies: vec![terminal_psi::FoldedConstantDependency {
-                target: "linux_x86_64".into(), requirement, plan: [7; 32], candidate: None,
-            }],
-        };
-        let derived_publication = publication.with_folded_constants(folded.clone()).unwrap();
-        assert!(Arc::ptr_eq(
-            &publication.accepted.as_ref().unwrap().0,
-            &derived_publication.accepted.as_ref().unwrap().0,
-        ), "dependency publication must reuse the original source judgment");
-        let derived = derived_publication.require_published(publication.optimizations()).unwrap();
-        let derived_view = derived.artifact().view();
-        assert_ne!(original_view.identity(), derived_view.identity());
-        let mut without_dependencies = derived_view.module().clone();
-        without_dependencies.folded_constants = Default::default();
-        assert_eq!(&without_dependencies, original_view.module());
-        assert_eq!(original.artifact().to_bytes(), original_bytes);
-        assert_eq!(derived.artifact().debug_bytes(), original.artifact().debug_bytes());
-        let selections = derived.source_selections().unwrap();
-        assert!(selections.questions_for(derived_view.into()).is_some());
-        assert!(selections.questions_for(original_view.into()).is_none());
-        assert!(derived.build_bindings().calls_for(derived_view.into()).is_some());
-        assert!(derived.build_bindings().calls_for(original_view.into()).is_none());
-        if let Some(evidence) = derived.evidence() {
-            assert_eq!(evidence.module, derived_view.identity());
-            assert_eq!(evidence.seals, original.evidence().unwrap().seals);
-        }
-        assert!(derived_publication.with_folded_constants(folded.clone()).is_err());
-        let mut incomplete = folded;
-        incomplete.dependencies[0].plan = [0; 32];
-        assert!(publication.with_folded_constants(incomplete).is_err());
-    }
 
     #[test]
     fn publication_keeps_its_projection_and_one_refusal_without_retry() {

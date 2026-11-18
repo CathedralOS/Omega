@@ -178,10 +178,11 @@ pub use frame_protocol::encode_function_frame;
 
 pub mod adapters;
 pub mod hosted_entry;
+pub mod hosted_program;
+pub mod physical_entry;
+pub mod callable_entry;
 pub mod imports;
 pub mod windows_internet;
 pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 pub mod physical_stack_switch;
-#[cfg(feature = "test-support")]
-pub mod test_support;

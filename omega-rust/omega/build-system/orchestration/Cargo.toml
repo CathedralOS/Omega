@@ -8,7 +8,7 @@ version.workspace = true
 execution-admission = { path = "../../../psi/foundation/execution-admission" }
 rayon = "1.10"
 native-compiler = { path = "../../compilation/native-compiler" }
-image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }
+published-object-verification = { path = "../../compilation/verification/published-objects" }
 compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 package-compilation = { path = "../../packages/package-compilation" }

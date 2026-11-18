@@ -3,29 +3,12 @@ use calling_conventions::{MachineRegister as R, StateEffectsEvidence};
 use post_allocation_machine::adapters::{AdapterOperation, Scalar32Operation};
 use target::Architecture;
 
-#[derive(Debug)]
-pub struct WindowsInternetProgram {
-    make_address: PlannedAuxiliaryExport,
-    local_address: PlannedAuxiliaryExport,
-}
-
+use physical_recipes::windows_internet as recipes;
+use recipes::WindowsInternetExports;
+pub use recipes::{Condition, PlannedAuxiliaryExport, Step};
+pub type WindowsInternetProgram = recipes::WindowsInternetProgram<crate::PhysicalRecipeOrigin>;
 #[derive(Debug)]
 struct AuxiliaryProgram(Vec<Step>);
-#[derive(Debug)]
-pub enum Step {
-    Instruction(AdapterOperation),
-    Label(usize),
-    Branch {
-        condition: Option<Condition>,
-        target: usize,
-    },
-}
-#[derive(Debug, Clone, Copy)]
-pub enum Condition {
-    UnsignedGreaterOrEqual,
-    NotEqual,
-}
-
 impl AuxiliaryProgram {
     fn scalar(&mut self, operation: Scalar32Operation) {
         self.0
@@ -153,16 +136,13 @@ pub fn plan_windows_internet_provider() -> WindowsInternetProgram {
         value: 0x0000_00ff,
     });
     host.returns();
-    WindowsInternetProgram {
-        make_address: make.finish(),
-        local_address: host.finish(),
-    }
-}
-
-#[derive(Debug)]
-pub struct PlannedAuxiliaryExport {
-    steps: Vec<Step>,
-    effects: StateEffectsEvidence,
+    WindowsInternetProgram::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        WindowsInternetExports {
+            make_address: make.finish(),
+            local_address: host.finish(),
+        },
+    )
 }
 
 impl AuxiliaryProgram {
@@ -172,16 +152,5 @@ impl AuxiliaryProgram {
             steps: self.0,
             effects,
         }
-    }
-}
-
-impl WindowsInternetProgram {
-    pub fn into_exports(self) -> (PlannedAuxiliaryExport, PlannedAuxiliaryExport) {
-        (self.make_address, self.local_address)
-    }
-}
-impl PlannedAuxiliaryExport {
-    pub fn into_parts(self) -> (Vec<Step>, StateEffectsEvidence) {
-        (self.steps, self.effects)
     }
 }

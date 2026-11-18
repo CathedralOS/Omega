@@ -21,7 +21,7 @@ mod carriers {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
         pub(crate) emission_input: std::sync::Arc<crate::object_input::ObjectEmissionInput>,
-        pub(crate) body_readback: std::sync::Arc<crate::body_readback::NativeBodyReadback>,
+        pub(crate) body_readback: std::sync::Arc<machine_code::placed_body::NativeBodyReadback>,
         pub(crate) publication: object_file::ObjectPublication,
         pub(crate) semantic: std::sync::Arc<verified_optimization_input::publication::SemanticEmissionFacts>,
         pub(crate) statistics: crate::function_fragments::reporting::FunctionPublicationStatistics,
@@ -32,9 +32,9 @@ mod carriers {
         pub(crate) imports: machine_code::import_code::EncodedImportProgram,
         pub(crate) windows_internet: Option<machine_code::WindowsInternetProviderCode>,
         pub(crate) stack_program:
-            std::sync::Arc<physical_planning::stack_demand::PhysicalStackProgram>,
+            std::sync::Arc<machine_code::physical_stack::PhysicalStackProgram>,
         pub(crate) installation_authority:
-            std::sync::Arc<installation_binding::BoundInstallationAuthority>,
+            std::sync::Arc<installation_admission::BoundInstallationAuthority>,
         pub(crate) program_contracts:
             std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
@@ -86,7 +86,7 @@ mod carriers {
     impl ObjectArtifact {
         /// Settled allocation decisions are data; inspecting them does not retain a compiler stage.
         pub fn allocation_manifest(&self) -> &register_homes::PostAllocationOptimizationManifest {
-            &self.emission_input.allocation
+            self.body_readback.allocation.record()
         }
 
         pub fn publication(&self) -> &object_file::ObjectPublication {
@@ -210,7 +210,6 @@ mod carriers {
                 .source()
                 .source();
             Some(NativeInstructionSourceRows {
-                frame_application: source.fragment_replay.as_ref()?.0.source().source(),
                 selected: current.original_physical_program()?,
                 physical: current
                     .original_physical_program()?
@@ -271,7 +270,7 @@ mod carriers {
 
         pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
             match &self.hosted_entry {
-                Some(entry) => entry.receiver.as_ref(),
+                Some(entry) => entry.context().receiver(),
                 None => None,
             }
         }
@@ -405,7 +404,6 @@ mod carriers {
     }
 
     pub struct NativeInstructionSourceRows<'a> {
-        pub frame_application: &'a function_layout::StagedFunctionFragmentFrameApplication,
         pub selected: &'a post_allocation_machine::PostAllocationMachineProgram,
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
     }
@@ -509,7 +507,7 @@ mod carriers {
         pub source_psi: TerminalPsiIdentity,
         pub function: ObjectPrivateFunctionEntry,
         pub body: std::sync::Arc<ObjectArtifact>,
-        pub entry_bridge: Option<native_encoding::native_entry_bridge::NativeEntryBridge>,
+        pub entry_bridge: Option<crate::NativeEntryBridge>,
         pub entry_effects: calling_conventions::StateEffectsEvidence,
         pub inbound: calling_conventions::BoundaryEntryPlan,
         pub inbound_ordinals: Vec<u32>,
@@ -556,7 +554,7 @@ mod carriers {
     pub struct PrivateFunctionObject {
         pub identity: function_identity::MachineFunctionIdentity,
         pub body: std::sync::Arc<ObjectArtifact>,
-        pub entry_bridge: Option<native_encoding::native_entry_bridge::NativeEntryBridge>,
+        pub entry_bridge: Option<crate::NativeEntryBridge>,
         pub entry_effects: calling_conventions::StateEffectsEvidence,
         pub inbound: calling_conventions::BoundaryEntryPlan,
         pub inbound_ordinals: Vec<u32>,
@@ -942,226 +940,8 @@ pub(crate) mod installed_stack {
     mod faults {
         use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact};
         use installation_evidence::InstalledBodyFaultPremises;
-        use selected_instructions::{
-            MachineEncodedTrapBehavior as Trap, SelectedInstructionKind as Kind,
-        };
-        use selected_instructions::{SelectedInstruction, SelectedInstructionId};
-        use semantic_vocabulary::MachineId;
-        mod ram {
-            use crate::FunctionFragmentObjectArtifactError as Error;
-            use verified_optimization_input::publication::{EmissionProgramFacts, RamSource};
-            use provider_admission::{
-                AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort,
-            };
-            use semantic_vocabulary::MachineId;
-            use target_operations::{CallSiteOwner, NativeCallTarget};
+        use selected_instructions::MachineEncodedTrapBehavior as Trap;
 
-            pub(super) fn validate(
-                source: &EmissionProgramFacts,
-                selected: &machine_code::call_origins::PhysicalCallOrigins,
-                cohort: &AdmittedInstalledInterruptCohort,
-                execution: &AdmittedInstalledEntryExecution,
-                machines: &[MachineId],
-            ) -> Result<(), Error> {
-                if source.psi != cohort.psi() || source.entry != execution.entry().entry().machine()
-                {
-                    return Err(Error::Mismatch(
-                        "installed RAM closure changed its admitted entry",
-                    ));
-                }
-                let mut bodies: Vec<_> = source.functions.iter().collect();
-                bodies.sort_unstable_by_key(|body| body.machine);
-                if bodies
-                    .windows(2)
-                    .any(|pair| pair[0].machine == pair[1].machine)
-                {
-                    return Err(Error::Mismatch("installed RAM source body is duplicated"));
-                }
-                let mut helpers: Vec<_> = cohort
-                    .helpers()
-                    .iter()
-                    .filter(|helper| {
-                        helper.installation_machine() == execution.scope().machine()
-                            && helper.installation() == execution.scope().operation()
-                            && helper.callback_application()
-                                == execution.entry().placement.application_index
-                    })
-                    .collect();
-                helpers.sort_unstable_by_key(|helper| (helper.machine(), helper.operation()));
-                if helpers.windows(2).any(|pair| {
-                    (pair[0].machine(), pair[0].operation())
-                        == (pair[1].machine(), pair[1].operation())
-                }) {
-                    return Err(Error::Mismatch(
-                        "installed RAM helper identity is duplicated",
-                    ));
-                }
-                for function in selected.functions.iter() {
-                    let body = bodies
-                        .binary_search_by_key(&function.machine, |body| body.machine)
-                        .ok()
-                        .map(|index| bodies[index])
-                        .ok_or(Error::Mismatch(
-                            "installed RAM closure has no exact original body",
-                        ))?;
-                    let mut calls: Vec<_> = function.calls.iter().collect();
-                    calls.sort_unstable_by_key(|call| call.owner);
-                    for obligation in &body.ram_obligations {
-                        let fail = |reason| Error::InstalledMemorySource {
-                            machine: body.machine,
-                            operation: obligation.operation,
-                            reason,
-                        };
-                        let owner = match obligation.source {
-                            RamSource::PlacedBacking => {
-                                return Err(fail(
-                                    "external placed backing needs its own mapped-residence proof",
-                                ));
-                            }
-                            RamSource::Boundary(operation) => {
-                                let psi_operation = &operation;
-                                if let Ok(index) = helpers.binary_search_by_key(
-                                    &(body.machine, *psi_operation),
-                                    |helper| (helper.machine(), helper.operation()),
-                                ) {
-                                    match helpers[index].kind() {
-                                        language_core::static_interrupts::StaticInterruptOperation::Context
-                                        | language_core::static_interrupts::StaticInterruptOperation::BeginCompletion
-                                        | language_core::static_interrupts::StaticInterruptOperation::FinishCompletion => continue,
-                                        language_core::static_interrupts::StaticInterruptOperation::Install => {
-                                            return Err(fail("nested installation is not a closed Context source"));
-                                        }
-                                    }
-                                }
-                                CallSiteOwner::Operation(*psi_operation)
-                            }
-                            RamSource::ExternalCompletion(psi_edge) => {
-                                CallSiteOwner::ExternalCompletion(psi_edge)
-                            }
-                        };
-                        let first = calls.partition_point(|call| call.owner < owner);
-                        let last = calls.partition_point(|call| call.owner <= owner);
-                        let [call] = &calls[first..last] else {
-                            return Err(fail(
-                                "boundary has no unique concrete RAM-preserving body call",
-                            ));
-                        };
-                        if !matches!(call.call.target, NativeCallTarget::Machine(machine)
-                            if machines.binary_search(&machine).is_ok())
-                        {
-                            return Err(fail(
-                                "boundary may introduce backing outside the installed body closure",
-                            ));
-                        }
-                    }
-                }
-                Ok(())
-            }
-        }
-
-        pub(crate) fn prepare_origins(
-            selected: &post_allocation_machine::PostAllocationMachineProgram,
-        ) -> Result<machine_code::fault_origins::PhysicalFaultOrigins, String> {
-            use machine_code::fault_origins::*;
-            let physical = &selected.machine;
-            let correlated = correlate_native_instruction_sources(
-                selected,
-                physical.functions.iter().flat_map(|function| {
-                    function
-                        .instructions()
-                        .map(move |row| (function.machine, row.instruction))
-                }),
-            )
-            .map_err(|error| error.to_string())?;
-            let mut machines: Vec<_> = selected
-                .functions
-                .iter()
-                .map(|function| function.machine)
-                .collect();
-            let mut physical_machines: Vec<_> = physical
-                .functions
-                .iter()
-                .map(|function| function.machine)
-                .collect();
-            machines.sort_unstable();
-            physical_machines.sort_unstable();
-            if machines != physical_machines || machines.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err("installed fault analysis changed its exact function roster".into());
-            }
-            let mut correlated = correlated.into_iter();
-            let mut functions = Vec::with_capacity(physical.functions.len());
-            for function in &physical.functions {
-                let mut instructions = Vec::new();
-                for row in function.instructions() {
-                    let (machine, instruction) = correlated
-                        .next()
-                        .ok_or("installed physical instruction has no exact selected source")?;
-                    if machine != function.machine {
-                        return Err("physical instruction changed its owning machine".into());
-                    }
-                    let memory = matches!(
-                        instruction.kind,
-                        Kind::CopyBytes
-                            | Kind::ZeroBytes
-                            | Kind::LoadEncodedScalar
-                            | Kind::StoreEncodedScalar
-                            | Kind::ScanByteSequence { .. }
-                            | Kind::CompareByteSequences
-                            | Kind::LoadPacked { .. }
-                            | Kind::StorePacked { .. }
-                            | Kind::Store { .. }
-                            | Kind::Load8Indexed
-                            | Kind::Load8 { .. }
-                            | Kind::Load16 { .. }
-                            | Kind::Load32 { .. }
-                            | Kind::Load64 { .. }
-                            | Kind::Store64 { .. }
-                            | Kind::AtomicAccess { .. }
-                            | Kind::ReturnUnit
-                            | Kind::ReturnScalar
-                            | Kind::ReturnAggregate { .. }
-                    );
-                    let privileged = match instruction.kind {
-                                Kind::PrivilegedCrash | Kind::PortWrite { .. } => true,
-                                Kind::RegisterAccess { operation } => matches!(operation,
-                                    terminal_psi::RegisterOperation::ProcessorHalt
-                                    | terminal_psi::RegisterOperation::InterruptControl(language_core::inline_assembly::AsmInterruptControlKind::Disable)
-                                    | terminal_psi::RegisterOperation::MemoryFence(_)
-                                    | terminal_psi::RegisterOperation::PortWrite),
-                                _ => false,
-                            };
-
-                    let operation = if let Some(target) = instruction.kind.call_target() {
-                        FaultOperation::Call(target)
-                    } else if memory {
-                        FaultOperation::MemoryOrStack
-                    } else if privileged {
-                        FaultOperation::Privileged
-                    } else {
-                        FaultOperation::Other
-                    };
-                    instructions.push(PhysicalInstructionFaultOrigin {
-                        instruction: row.instruction,
-                        operation,
-                        description: format!("{:?}", instruction.kind),
-                    });
-                }
-                functions.push(PhysicalFunctionFaultOrigins {
-                    machine: function.machine,
-                    instructions,
-                });
-            }
-            if correlated.next().is_some() {
-                return Err("installed physical closure omits a selected instruction".into());
-            }
-            Ok(PhysicalFaultOrigins {
-                psi: selected.psi,
-                entry: selected.entry,
-                target: physical.target,
-                physical_identity: physical.identity.bytes(),
-                functions,
-            })
-        }
 
         pub(super) fn derive(
             body: &ObjectArtifact,
@@ -1183,7 +963,7 @@ pub(crate) mod installed_stack {
                 ));
             }
             let current = &body.body_readback;
-            let origins = current
+            let origins = body.emission_input.emission_facts()
                 .faults
                 .as_ref()
                 .map_err(|detail| Error::PhysicalSourceObservation(detail.clone()))?;
@@ -1206,7 +986,7 @@ pub(crate) mod installed_stack {
                     "installed fault analysis changed its exact function roster",
                 ));
             }
-            ram::validate(
+            installation_admission::ram::validate(
                 &body.emission_facts().program,
                 body.call_origins(),
                 body.installation_authority.installed_interrupts(),
@@ -1220,19 +1000,18 @@ pub(crate) mod installed_stack {
             .require_without_floating_state()?;
             let mut encoded = current.encoding.rows().iter();
             for function in &origins.functions {
-                let fragment =
-                    current
-                        .fragments
-                        .function(function.machine)
-                        .ok_or(Error::Mismatch(
-                            "installed fault analysis has no exact framed function",
-                        ))?;
-                let relative_branches = function_layout::validate_current_relative_branch_rows(
-                    &current.fragments,
+                let placed = body.function_on_machine(function.machine).ok_or(Error::Mismatch(
+                    "installed fault analysis has no exact placed function",
+                ))?;
+                let function_bytes = placed.text_offset.checked_add(placed.byte_count)
+                    .and_then(|end| body.text_bytes().get(placed.text_offset..end))
+                    .ok_or(Error::Mismatch("installed function bytes exceed the object text"))?;
+                let relative_branches = encoding_admission::relative_branches::validate_published_relative_branches(
+                    &current.frame_application.fragments,
                     &current.branches,
                     &current.physical,
                     function.machine,
-                    fragment.instructions().filter(|row| row.branch.is_some()),
+                    function_bytes,
                 )
                 .map_err(|error| Error::InstalledRelativeBranches {
                     machine: function.machine,
@@ -1309,299 +1088,23 @@ pub(crate) mod installed_stack {
             }))
         }
 
-        pub(super) fn plan(
-            frame: &physical_planning::PhysicalFrameProgram,
-            facts: &physical_program::EmissionFacts,
-            authority: &physical_planning::installation_resources::PlannedInstallationResources,
-            cpu: &crate::NativeBodyCpuState,
-        ) -> Result<Option<InstalledBodyFaultPremises>, Error> {
-            let execution = authority
-                .installed_entry_execution()
-                .ok_or(Error::Mismatch(
-                    "installed body stack demand has no exact execution domain",
-                ))?;
-            if execution.scope().fatal_entries().is_empty() {
-                return Ok(None);
-            }
-            if execution.scope().interrupt_delivery_assumption().is_none() {
-                return Err(Error::Mismatch(
-                    "installed fatal closure lacks its delivery condition",
-                ));
-            }
-            if frame
-                .instructions
-                .functions
-                .iter()
-                .any(|function| !function.normalized_foreign_calls.is_empty())
-            {
-                return Err(Error::Mismatch(
-                    "installed quiet closure has an unresolved foreign or private execution dependency",
-                ));
-            }
-            let selected = &frame.instructions;
-            let physical = &selected.machine;
-            if selected.psi != facts.program.psi
-                || selected.entry != facts.program.entry
-                || physical.target != authority.program().target
-            {
-                return Err(Error::Mismatch(
-                    "installed fault analysis changed its body or target",
-                ));
-            }
-            let correlated = correlate_native_instruction_sources(
-                selected,
-                physical.functions.iter().flat_map(|function| {
-                    function
-                        .instructions()
-                        .map(move |instruction| (function.machine, instruction.instruction))
-                }),
-            )?;
-            let mut machines: Vec<_> = selected
-                .functions
-                .iter()
-                .map(|function| function.machine)
-                .collect();
-            machines.sort_unstable();
-            let mut physical_machines: Vec<_> = physical
-                .functions
-                .iter()
-                .map(|function| function.machine)
-                .collect();
-            physical_machines.sort_unstable();
-            if machines != physical_machines || machines.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err(Error::Mismatch(
-                    "installed fault analysis changed its exact function roster",
-                ));
-            }
-            ram::validate(
-                &facts.program,
-                &facts.calls,
-                authority.installed_interrupts(),
-                execution,
-                &machines,
-            )?;
-            cpu.require_without_floating_state()?;
-            let mut correlated = correlated.into_iter();
-            for function in &physical.functions {
-                for instruction in function.instructions() {
-                    let (machine, source) = correlated.next().ok_or(Error::Mismatch(
-                        "installed physical instruction has no exact selected source",
-                    ))?;
-                    let fail = |reason: &str| Error::InstalledFaultSurface {
-                        machine,
-                        instruction: instruction.instruction,
-                        detail: format!(
-                            "{reason}; selected={:?}, encoded={:?}",
-                            source.kind, instruction.alternative.encoded
-                        ),
-                    };
-                    if machine != function.machine {
-                        return Err(fail("physical instruction changed its owning machine"));
-                    }
-                    if let Some(target) = source.kind.call_target() {
-                        let Some(target) = target.machine() else {
-                            return Err(fail("dynamic call has no closed fault analysis"));
-                        };
-                        if machines.binary_search(&target).is_err() {
-                            return Err(fail("callee is outside the exact retained body closure"));
-                        }
-                    }
-                    let effects = &instruction.alternative.encoded;
-                    match effects.trap {
-                        Trap::NeverV1 => {}
-                        Trap::MayArchitecturalFaultV1 => {
-                            let memory = matches!(
-                                source.kind,
-                                Kind::CopyBytes
-                                    | Kind::ZeroBytes
-                                    | Kind::LoadEncodedScalar
-                                    | Kind::StoreEncodedScalar
-                                    | Kind::ScanByteSequence { .. }
-                                    | Kind::CompareByteSequences
-                                    | Kind::LoadPacked { .. }
-                                    | Kind::StorePacked { .. }
-                                    | Kind::Store { .. }
-                                    | Kind::Load8Indexed
-                                    | Kind::Load8 { .. }
-                                    | Kind::Load16 { .. }
-                                    | Kind::Load32 { .. }
-                                    | Kind::Load64 { .. }
-                                    | Kind::Store64 { .. }
-                                    | Kind::AtomicAccess { .. }
-                                    | Kind::ReturnUnit
-                                    | Kind::ReturnScalar
-                                    | Kind::ReturnAggregate { .. }
-                            );
-                            let privileged = match source.kind {
-                                Kind::PrivilegedCrash | Kind::PortWrite { .. } => true,
-                                Kind::RegisterAccess { operation } => matches!(operation,
-                                    terminal_psi::RegisterOperation::ProcessorHalt
-                                    | terminal_psi::RegisterOperation::InterruptControl(language_core::inline_assembly::AsmInterruptControlKind::Disable)
-                                    | terminal_psi::RegisterOperation::MemoryFence(_)
-                                    | terminal_psi::RegisterOperation::PortWrite),
-                                _ => false,
-                            };
-                            let relative = matches!(
-                                source.kind,
-                                Kind::Jump
-                                    | Kind::ConditionalBranchNonZero
-                                    | Kind::ConditionalBranchU64LessThan
-                                    | Kind::ConditionalBranchI64LessThan
-                            );
-                            if !memory
-                                && !privileged
-                                && !relative
-                                && source.kind.call_target().is_none()
-                            {
-                                return Err(fail(
-                                    "architectural fault source is not discharged by checked RAM/stack or CPL0",
-                                ));
-                            }
-                        }
-                        _ => {
-                            return Err(fail(
-                                "instruction retains an architectural trap or hosted failure route",
-                            ));
-                        }
-                    }
-                }
-            }
-            if correlated.next().is_some() {
-                return Err(Error::Mismatch(
-                    "installed physical closure omits a selected instruction",
-                ));
-            }
-            Ok(Some(InstalledBodyFaultPremises {
-                physical_program_identity: physical.identity.bytes(),
-            }))
-        }
 
-        pub fn correlate_native_instruction_sources(
-            selected: &post_allocation_machine::PostAllocationMachineProgram,
-            physical: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
-        ) -> Result<Vec<(MachineId, &SelectedInstruction)>, Error> {
-            let mut instructions: Vec<_> = selected
-                .functions
-                .iter()
-                .flat_map(|function| {
-                    function.blocks.iter().flat_map(move |block| {
-                        block
-                            .instructions
-                            .iter()
-                            .chain(std::iter::once(
-                                selected_instructions::terminator_instruction(&block.terminator),
-                            ))
-                            .map(move |instruction| {
-                                ((function.machine, instruction.id), instruction)
-                            })
-                    })
-                })
-                .collect();
-            instructions.sort_unstable_by_key(|row| row.0);
-            if instructions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-                return Err(Error::Mismatch(
-                    "installed fault analysis has duplicate selected instructions",
-                ));
-            }
-            let mut seen = vec![false; instructions.len()];
-            let mut correlated = Vec::with_capacity(instructions.len());
-            for owner in physical {
-                let index = instructions
-                    .binary_search_by_key(&owner, |row| row.0)
-                    .map_err(|_| {
-                        Error::Mismatch(
-                            "installed physical instruction has no exact selected source",
-                        )
-                    })?;
-                if std::mem::replace(&mut seen[index], true) {
-                    return Err(Error::Mismatch(
-                        "installed physical instruction is duplicated",
-                    ));
-                }
-                let ((machine, _), source) = instructions[index];
-                correlated.push((machine, source));
-            }
-            if seen.iter().any(|present| !present) {
-                return Err(Error::Mismatch(
-                    "installed physical closure omits a selected instruction",
-                ));
-            }
-            Ok(correlated)
-        }
     }
 
-    impl From<physical_planning::installed_arrival::ArrivalCompositionError> for Error {
-        fn from(error: physical_planning::installed_arrival::ArrivalCompositionError) -> Self {
+    impl From<installation_admission::arrival::ArrivalCompositionError> for Error {
+        fn from(error: installation_admission::arrival::ArrivalCompositionError) -> Self {
             match error {
-                physical_planning::installed_arrival::ArrivalCompositionError::Mismatch(reason) => {
+                installation_admission::arrival::ArrivalCompositionError::Mismatch(reason) => {
                     Self::Mismatch(reason)
                 }
-                physical_planning::installed_arrival::ArrivalCompositionError::Overflow => {
+                installation_admission::arrival::ArrivalCompositionError::Overflow => {
                     Self::Overflow
                 }
             }
         }
     }
-    pub use faults::correlate_native_instruction_sources;
-    pub(crate) use faults::prepare_origins as prepare_fault_origins;
 
-    pub fn plan_installed_interrupt_stack_requirement(
-        identity: function_identity::MachineFunctionIdentity,
-        frame: &physical_planning::PhysicalFrameProgram,
-        facts: &physical_program::EmissionFacts,
-        authority: &physical_planning::installation_resources::PlannedInstallationResources,
-        bridge: &physical_planning::native_entry_bridge::NativeEntryBridgePlan,
-        cpu: &crate::NativeBodyCpuState,
-        installation_machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-    ) -> Result<InstalledInterruptStackRequirement, Error> {
-        let placement_index = identity
-            .callback_thunk_placement_index()
-            .ok_or(Error::Mismatch(
-                "installed stack demand has no private placement",
-            ))?;
-        let program = &frame.instructions;
-        if function_identity::MachineFunctionIdentity::callback_thunk(program.psi, placement_index)
-            != Some(identity)
-            || facts.stack.psi != program.psi
-            || facts.stack.target != program.machine.target
-            || bridge.request().target != program.machine.target
-        {
-            return Err(Error::Mismatch(
-                "installed stack demand changed its original private body",
-            ));
-        }
-        let entry_plan = bridge.installed_interrupt().ok_or(Error::Mismatch(
-            "installed stack demand has no admitted arrival bridge",
-        ))?;
-        let body = physical_planning::stack_demand::derive_physical_stack_demand(
-            &facts.stack,
-            program.entry,
-            Vec::new(),
-        )
-        .map_err(|error| Error::PrivateFunctions(crate::ObjectError::from(error)))?;
-        let requirement = InstalledInterruptStackRequirement {
-            installation_machine,
-            arrival: None,
-            fault_exclusion: faults::plan(frame, facts, authority, cpu)?,
-            psi: program.psi,
-            target: program.machine.target,
-            operation,
-            placement_index,
-            entry: program.entry,
-            entry_plan,
-            body_bytes: body.ceiling_bytes().ok_or(Error::Mismatch(
-                "installed stack requires a finite demand without hosted foreign calls",
-            ))?,
-            bridge_bytes: bridge.frame_bytes(),
-            call_stack_bias: bridge.call_stack_bias(),
-            alignment: body
-                .stack_alignment()
-                .max(u32::from(bridge.request().internal.stack_alignment)),
-        };
-        requirement.required_bytes().ok_or(Error::Overflow)?;
-        Ok(requirement)
-    }
+
 
     pub fn installed_interrupt_stack_requirement(
         private: &PrivateFunctionObject,
@@ -1731,7 +1234,7 @@ pub(crate) mod installed_stack {
                         "private installation cannot borrow the application's physical entry stack",
                     ));
                 }
-                physical_planning::installed_arrival::compose(
+                installation_admission::arrival::compose(
                     scope,
                     &entries,
                     &mut actual_requirements[first..last],
@@ -1849,37 +1352,30 @@ pub(crate) mod replay {
                 {
                     return false;
                 }
-                let encoded = match target.architecture {
-                    Architecture::X86_64 => {
-                        isa_x86_64::encode_linux_write_line_literal(&custody.bytes)
-                    }
-                    Architecture::Aarch64 => {
-                        isa_aarch64::encode_linux_write_line_literal(&custody.bytes)
-                    }
+                let layout = match target.architecture {
+                    Architecture::X86_64 => target_x86_64::write_line::layout(custody.bytes.len()),
+                    Architecture::Aarch64 => target_aarch64::write_line::layout(custody.bytes.len()),
                 };
-                let Ok((encoded, data)) = encoded else {
+                let Some((data, total)) = layout else {
                     return false;
                 };
-                let exact_intervals = settlement.byte_count == encoded.len()
-                    && settlement.byte_count != 0
-                    && custody.code_offset == settlement.code_offset
-                    && custody.code_byte_count == data.start
-                    && custody.code_byte_count != 0
-                    && custody.data_offset == settlement.code_offset.saturating_add(data.start)
-                    && custody.data_byte_count == data.len()
-                    && custody.data_byte_count == custody.bytes.len().saturating_add(1)
-                    && encoded.get(data.clone()).is_some_and(|payload| {
-                        payload.strip_suffix(b"\n") == Some(custody.bytes.as_slice())
-                    });
-                if !exact_intervals {
+                if settlement.byte_count != total
+                    || custody.code_offset != settlement.code_offset
+                    || custody.code_byte_count != data.start
+                    || settlement.code_offset.checked_add(data.start) != Some(custody.data_offset)
+                    || custody.data_byte_count != data.len()
+                {
                     return false;
                 }
-                function_bytes.is_none_or(|function_bytes| {
-                    settlement
-                        .code_offset
-                        .checked_add(settlement.byte_count)
-                        .and_then(|end| function_bytes.get(settlement.code_offset..end))
-                        == Some(encoded.as_slice())
+                function_bytes.is_none_or(|function| {
+                    let Some(bytes) = settlement.code_offset.checked_add(total)
+                        .and_then(|end| function.get(settlement.code_offset..end))
+                    else { return false; };
+                    let literal = match target.architecture {
+                        Architecture::X86_64 => target_x86_64::write_line::decode(bytes),
+                        Architecture::Aarch64 => target_aarch64::write_line::decode(bytes),
+                    };
+                    literal == Some(custody.bytes.as_slice())
                 })
             }
         }
@@ -2526,12 +2022,12 @@ pub(crate) mod replay {
                 ) -> Option<MachineRegister> {
                     match target.architecture {
                         Architecture::X86_64 => {
-                            isa_x86_64::decode_x86_64_selected_hosted_exit_process_i32(
+                            target_x86_64::inspection::decode_x86_64_selected_hosted_exit_process_i32(
                                 target, bytes,
                             )
                         }
                         Architecture::Aarch64 => {
-                            isa_aarch64::decode_aarch64_selected_hosted_exit_process_i32(
+                            target_aarch64::inspection::decode_aarch64_selected_hosted_exit_process_i32(
                                 target, bytes,
                             )
                         }
@@ -2612,11 +2108,11 @@ pub(crate) mod replay {
                 bytes: &[u8],
             ) -> Option<(MachineRegister, u32)> {
                 if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
-                    isa_x86_64::decode_x86_64_selected_hosted_write_byte_i32(target, bytes)
+                    target_x86_64::inspection::decode_x86_64_selected_hosted_write_byte_i32(target, bytes)
                 } else if target == NativeTarget::linux_arm64()
                     || target == NativeTarget::macos_arm64()
                 {
-                    isa_aarch64::decode_aarch64_selected_hosted_write_byte_i32(target, bytes)
+                    target_aarch64::inspection::decode_aarch64_selected_hosted_write_byte_i32(target, bytes)
                 } else {
                     None
                 }
@@ -2736,7 +2232,7 @@ pub(crate) mod replay {
                 {
                     let Some(byte_count) =
                         u32::try_from(scratch_byte_offset).ok().and_then(|home| {
-                            isa_aarch64::aarch64_hosted_write_byte_i32_byte_count(target, home)
+                            target_aarch64::inspection::aarch64_hosted_write_byte_i32_byte_count(target, home)
                         })
                     else {
                         return false;
@@ -3541,8 +3037,8 @@ pub(crate) mod replay {
 }
 
 pub(crate) mod stack_demand {
-    pub use physical_planning::stack_demand::StackDemand;
-    use physical_planning::stack_demand::{
+    pub use machine_code::physical_stack::StackDemand;
+    use machine_code::physical_stack::{
         ForeignStackExtent, LocalStackExtent, PhysicalForeignStackCall, PhysicalStackCall,
         PhysicalStackFunction, PhysicalStackProgram, StackDemandError,
         derive_physical_stack_demand,

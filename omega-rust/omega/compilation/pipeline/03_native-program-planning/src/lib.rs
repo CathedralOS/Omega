@@ -26,10 +26,14 @@ pub use terminal_semantics::logical_providers::satisfies_plan_name;
 
 mod execution;
 mod provider_execution_inputs;
-pub use provider_execution_inputs::{ProviderExecutionOrigins, plan_provider_execution_inputs};
+pub use backend_plan::ProviderExecutionOrigins;
+pub use provider_execution_inputs::plan_provider_execution_inputs;
+mod package_review;
 mod selected_execution;
-pub mod trust;
-pub use execution::{NativeProgramPlanningError, plan_target_execution, plan_unscoped_execution};
+mod folded_entry;
+pub use folded_entry::FoldedTargetProgram;
+pub use provider_correspondence::trust;
+pub use execution::{NativeProgramPlanningError, plan_published_target_execution, plan_target_execution, plan_unscoped_execution};
 pub use selected_execution::SelectedExecution;
 
 #[cfg(feature = "test-support")]

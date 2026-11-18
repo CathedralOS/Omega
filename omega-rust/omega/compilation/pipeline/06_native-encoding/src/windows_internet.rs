@@ -1,6 +1,6 @@
 //! Encode the Windows exports from settled instructions and labels.
 use crate::adapters::encode_operation;
-use physical_planning::windows_internet::{
+use physical_recipes::windows_internet::{
     Condition, PlannedAuxiliaryExport, Step, WindowsInternetProgram,
 };
 use target::Architecture;
@@ -50,8 +50,8 @@ fn encode(
     }
     Ok(machine_code::EncodedAuxiliaryExport { bytes, effects })
 }
-pub fn encode_windows_internet_provider(
-    program: WindowsInternetProgram,
+pub fn encode_windows_internet_provider<Origin>(
+    program: WindowsInternetProgram<Origin>,
 ) -> Result<machine_code::WindowsInternetProviderCode, &'static str> {
     let (make_address, local_address) = program.into_exports();
     Ok(machine_code::WindowsInternetProviderCode {

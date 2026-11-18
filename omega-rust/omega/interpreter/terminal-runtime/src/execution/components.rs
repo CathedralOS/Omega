@@ -10,7 +10,7 @@ use terminal_interpreter::{
 };
 
 pub(super) fn prepare<'host, 'artifact>(
-    component: &'artifact native_artifact::NativeComponentProduct,
+    component: &'artifact verified_optimization_input::runtime_provisions::RuntimeComponent,
     context: &host_imports::HostContext<'host>,
     x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,

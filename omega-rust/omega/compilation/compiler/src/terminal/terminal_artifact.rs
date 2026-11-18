@@ -1,24 +1,8 @@
-/*
-We batch and reuse the published `PortableTerminalProgram` across the targets
-that share a checked source and Psi optimization projection.
+//! Each target receives the already-published source program and its own provider proposal.
+//! Targets that use the same source publication and Psi selection share that immutable input.
+//! Scalar checking and executable products read the target's effective artifact.
 
-`produce_retained_terminal_artifacts` groups requests that share a checked
-source and equal Psi production inputs (`shares_production`). Each cohort
-obtains the shared `PortableTerminalProgram` once (`produce_shared_terminal`);
-every request of the cohort then forms its own target's provider proposal from
-that artifact and its settled provider plans
-(`SelectedExecution::provider_proposal`), and the caller's request order is
-restored.
-
-This shared production retains the accepted program and its target-local
-provider proposal. Executable applications additionally settle their exact
-program entry, application roots and calling/storage plans from that same
-artifact (`product_execution`). Unsupported Build demands refuse there.
-*/
-
-use portable_publication::ProductCodeSource;
 use crate::execution_settlement::SelectedProviderCustody;
-use crate::observations::PsiStageTimings;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -31,31 +15,15 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 );
 
 pub(crate) struct TerminalProductionView<'a> {
-    source_identity: products::ProductSourceIdentity,
-    publication: &'a source_compiler::SourcePublication,
-    sources: &'a package_compilation::CheckedSourceCustody,
-    execution: &'a native_program_planning::SelectedExecution,
+    program: &'a Arc<source_compiler::PortableTerminalProgram>,
+    execution: &'a native_compiler::SelectedExecution,
     timings: &'a mut CompileTimings,
 }
 
 impl<'a> TerminalProductionView<'a> {
-    // Roots decide which machines the published Terminal program retains, so
-    // two products share a production only when they share that publication
-    // as well as checked source: a separately selected test root over the same
-    // source must not adopt the application's program.
-    fn shares_source(&self, other: &Self) -> bool {
-        self.source_identity.same_source(&other.source_identity)
-            && self.sources == other.sources
-            && std::ptr::eq(self.publication, other.publication)
-    }
-
     pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
         Self {
-            source_identity: products::ProductSourceIdentity::new(
-                selection.source_inspection.program(),
-            ),
-            publication: &selection.terminal_publication,
-            sources: &selection.sources,
+            program: &selection.source_program,
             execution: &selection.execution,
             timings: &mut selection.timings,
         }
@@ -81,6 +49,7 @@ impl<'a> TerminalProductRequest<'a> {
 
 pub(crate) struct ProducedTerminalProduct {
     pub(crate) program: Arc<source_compiler::PortableTerminalProgram>,
+    effective: Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub(crate) proposal: Option<backend_plan::TerminalTargetProviderProposal>,
 }
 
@@ -89,7 +58,7 @@ impl ProducedTerminalProduct {
         self,
         published: &products::PublishedCompilation,
     ) -> Result<Option<backend_plan::TerminalTargetProviderProposal>, Vec<Diagnostic>> {
-        if !Arc::ptr_eq(self.program.artifact(), published.program().artifact()) {
+        if !Arc::ptr_eq(&self.effective, published.program().artifact()) {
             return Err(vec![Diagnostic::error(
                 "entry planning requires this compilation's published program",
             )]);
@@ -98,7 +67,7 @@ impl ProducedTerminalProduct {
     }
 
     pub(crate) fn module(&self) -> &terminal_psi::TerminalModule {
-        self.program.artifact().view().module()
+        self.effective.semantic_module()
     }
 
     // Check the produced program's scalar conditions without inventing a
@@ -108,7 +77,7 @@ impl ProducedTerminalProduct {
         selection: &mut SelectedProviderCustody,
     ) -> Result<products::ProductScalarCompletion, Vec<Diagnostic>> {
         build_settings::scalar_completion::prepare(
-            self.program.artifact(),
+            &self.effective,
             self.proposal
                 .as_ref()
                 .map(|proposal| proposal.target.as_str()),
@@ -127,9 +96,7 @@ struct PreparedTerminalProduct<'a> {
 
 impl PreparedTerminalProduct<'_> {
     fn shares_production(&self, other: &Self) -> bool {
-        self.request.view.publication.optimizations()
-            == other.request.view.publication.optimizations()
-            && self.request.view.shares_source(&other.request.view)
+        Arc::ptr_eq(self.request.view.program, other.request.view.program)
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 }
@@ -154,7 +121,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
         let mut timings = std::mem::take(cohort[0].request.view.timings);
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
         let started = std::time::Instant::now();
-        let produced = produce_shared_terminal(&cohort[0], &mut timings);
+        let produced = shared_terminal(&cohort[0]);
         let elapsed = started.elapsed().as_micros();
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         *cohort[0].request.view.timings = timings;
@@ -166,12 +133,14 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         }
         for product in cohort {
-            let outcome = produced.clone().map(|program| ProducedTerminalProduct {
-                proposal: product.request.view.execution.provider_proposal(
-                    program.artifact().view(),
-                    product.request.selections.identity(),
-                ),
-                program,
+            let outcome = produced.clone().and_then(|program| {
+                let execution = product.request.view.execution;
+                let effective = Arc::clone(execution.effective_artifact(program.artifact())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?);
+                let proposal = execution.provider_proposal(
+                    effective.view(), product.request.selections.identity(),
+                );
+                Ok(ProducedTerminalProduct { program, effective, proposal })
             });
             outcomes.push((product.position, outcome));
         }
@@ -180,19 +149,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
     outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
-fn produce_shared_terminal(
+fn shared_terminal(
     first: &PreparedTerminalProduct<'_>,
-    timings: &mut CompileTimings,
 ) -> Result<Arc<source_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
-    let mut observer = PsiStageTimings::new(timings);
-    ProductCodeSource {
-        publication: first.request.view.publication,
-        sources: first.request.view.sources,
+    if first.request.view.program.artifact().optimization().selections() != first.request.selections.project_psi().selections() {
+        return Err(vec![Diagnostic::error(
+            "Terminal publication differs from the Product's fixed Psi optimization selection",
+        )]);
     }
-    .publish(
-        first.request.selections.project_psi().selections(),
-        &mut observer,
-    )
+    Ok(Arc::clone(first.request.view.program))
 }
 
 // Checking one selected target outside a batch: produce its accepted program

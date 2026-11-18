@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 physical-program = { path = "../../../representations/physical-program" }
-installation-binding = { path = "../../05_installation-binding" }
+installation-admission = { path = "../../../verification/installation-admission" }
 frame-admission = { path = "../../../verification/frame-admission" }
 encoding-admission = { path = "../../../verification/encoding-admission" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }

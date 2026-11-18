@@ -5,14 +5,13 @@
 use super::{Error, current_image_selections::CurrentImageSelections};
 use machine_code::PlacedImageAddress;
 use machine_code::code_layout::NativeCodeLayout;
-use function_layout::code_layout::describe_native_code_layout_from_records;
-use selected_instructions::SelectedImageAddressReference;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ObjectImageData {
     pub addresses: Vec<PlacedImageAddress>,
     pub selections: Option<CurrentImageSelections>,
-    pub native_layouts: Vec<NativeCodeLayout>,
+    pub native_layouts: Arc<[NativeCodeLayout]>,
 }
 
 impl ObjectImageData {
@@ -24,23 +23,10 @@ impl ObjectImageData {
             &placed.unresolved_image_addresses,
             &source.emission_facts().image_origins,
         )?;
-        let mut native_layouts = Vec::<NativeCodeLayout>::new();
-        for address in &placed.unresolved_image_addresses {
-            if let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-                && !native_layouts
-                    .iter()
-                    .any(|layout| layout.machine == machine)
-            {
-                native_layouts.push(
-                    describe_native_code_layout_from_records(
-                        source.text_section(),
-                        &source.frames,
-                        machine,
-                    )
-                    .map_err(Error::NativeCodeLayout)?,
-                );
-            }
-        }
+        let native_layouts = source
+            .publication()
+            .native_code_layouts()
+            .map_err(Error::NativeCodeLayout)?;
         Ok(Self {
             addresses: placed.unresolved_image_addresses.clone(),
             selections,

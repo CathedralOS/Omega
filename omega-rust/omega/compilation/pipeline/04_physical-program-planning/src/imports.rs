@@ -1,15 +1,10 @@
 //! Select every import body and its resource contract before encoding.
-use machine_code::import_code::{ImportBodyResources, ImportCodeIdentity};
+use machine_code::import_code::ImportCodeIdentity;
+use physical_recipes::imports as recipes;
+use recipes::ImportInstructions;
+pub use recipes::ImportRecipe;
 use target::{Architecture, NativeTarget, ObjectFormat};
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PhysicalImportProgram {
-    target: NativeTarget,
-    imports: Vec<ImportCodeIdentity>,
-    recipe: ImportRecipe,
-    entry_resources: machine_code::import_code::ImportBodyResources,
-    resolver_resources: Option<machine_code::import_code::ImportBodyResources>,
-}
-
+pub type PhysicalImportProgram = recipes::PhysicalImportProgram<crate::PhysicalRecipeOrigin>;
 pub fn plan_import_program(
     target: NativeTarget,
     imports: impl IntoIterator<Item = ImportCodeIdentity>,
@@ -41,13 +36,16 @@ pub fn plan_import_program(
         }
     };
     let (entry_resources, resolver_resources) = resources(recipe);
-    Ok(PhysicalImportProgram {
-        target,
-        imports: retained,
-        recipe,
-        entry_resources,
-        resolver_resources,
-    })
+    Ok(PhysicalImportProgram::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        ImportInstructions {
+            target,
+            imports: retained,
+            recipe,
+            entry_resources,
+            resolver_resources,
+        },
+    ))
 }
 
 fn resources(
@@ -95,32 +93,5 @@ fn resources(
         ),
         ImportRecipe::Aarch64MachO => (record(&[R::Aarch64X(16)], &[R::Aarch64X(16)], 0), None),
         ImportRecipe::Empty | ImportRecipe::X86Indirect => (record(&[], &[], 0), None),
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ImportRecipe {
-    Empty,
-    X86Indirect,
-    Aarch64MachO,
-    X86Elf,
-    Aarch64Elf,
-}
-
-impl PhysicalImportProgram {
-    pub fn target(&self) -> NativeTarget {
-        self.target
-    }
-    pub fn recipe(&self) -> ImportRecipe {
-        self.recipe
-    }
-    pub fn entry_resources(&self) -> &ImportBodyResources {
-        &self.entry_resources
-    }
-    pub fn resolver_resources(&self) -> Option<&ImportBodyResources> {
-        self.resolver_resources.as_ref()
-    }
-    pub fn into_imports(self) -> Vec<ImportCodeIdentity> {
-        self.imports
     }
 }

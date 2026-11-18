@@ -5,44 +5,14 @@ use frame_admission::frame_layout::{
 use frame_admission::frame_protocol::{
     FrameProtocolCodec, TargetFrameProtocolEncodingError, frame_protocol_codec,
 };
-use machine_code::{TargetFrameLayoutIdentity, TargetFrameProtocolEncodingPolicy};
+use machine_code::TargetFrameProtocolEncodingPolicy;
+use physical_recipes::frame_protocol as recipes;
+use recipes::FrameProtocolInstructions;
+pub use recipes::{FrameRecipe, PlannedFrameFunction};
 use register_environment::ValidatedTargetRegisterEnvironment;
-use target::{Architecture, NativeTarget};
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlannedTargetFrameProtocols {
-    frame_layout: TargetFrameLayoutIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    physical_register_model: register_model::PhysicalRegisterModelIdentity,
-    target: NativeTarget,
-    policy: TargetFrameProtocolEncodingPolicy,
-    functions: Vec<PlannedFrameFunction>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlannedFrameFunction {
-    machine: semantic_vocabulary::MachineId,
-    effects: calling_conventions::StateEffectsEvidence,
-    recipe: FrameRecipe,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FrameRecipe {
-    X86(target_x86_64::X86_64FrameProtocolPlan),
-    Aarch64(target_aarch64::Aarch64FrameProtocolPlan),
-}
-
-impl PlannedTargetFrameProtocols {
-    pub fn function_effects(
-        &self,
-        machine: semantic_vocabulary::MachineId,
-    ) -> Option<&calling_conventions::StateEffectsEvidence> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
-            .map(|function| &function.effects)
-    }
-}
-
+use target::Architecture;
+pub type PlannedTargetFrameProtocols =
+    recipes::PlannedTargetFrameProtocols<crate::PhysicalRecipeOrigin>;
 pub(crate) fn plan_target_frame_protocols(
     frame: &ValidatedTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -133,44 +103,19 @@ pub(crate) fn plan_target_frame_protocols(
             recipe,
         });
     }
-    Ok(PlannedTargetFrameProtocols {
-        frame_layout: frame.receipt().identity(),
-        register_environment: environment.identity(),
-        physical_register_model: environment.physical().identity(),
-        target: environment.target(),
-        policy,
-        functions,
-    })
+    Ok(PlannedTargetFrameProtocols::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        FrameProtocolInstructions {
+            frame_layout: frame.receipt().identity(),
+            register_environment: environment.identity(),
+            physical_register_model: environment.physical().identity(),
+            target: environment.target(),
+            policy,
+            functions,
+        },
+    ))
 }
 
-impl PlannedTargetFrameProtocols {
-    pub fn frame_layout(&self) -> TargetFrameLayoutIdentity {
-        self.frame_layout
-    }
-    pub fn register_environment(&self) -> register_model::TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub fn physical_register_model(&self) -> register_model::PhysicalRegisterModelIdentity {
-        self.physical_register_model
-    }
-    pub fn target(&self) -> NativeTarget {
-        self.target
-    }
-    pub fn policy(&self) -> TargetFrameProtocolEncodingPolicy {
-        self.policy
-    }
-    pub fn functions(&self) -> &[PlannedFrameFunction] {
-        &self.functions
-    }
-}
-impl PlannedFrameFunction {
-    pub fn machine(&self) -> semantic_vocabulary::MachineId {
-        self.machine
-    }
-    pub fn recipe(&self) -> &FrameRecipe {
-        &self.recipe
-    }
-}
 fn plan_frame_protocol_effects(
     function: &machine_code::FunctionTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,

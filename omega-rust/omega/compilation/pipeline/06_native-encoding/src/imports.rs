@@ -3,7 +3,7 @@ use machine_code::import_code::{
     EncodedImport, EncodedImportBody, EncodedImportProgram, ImportOperand,
     ImportOperandKind as Kind, ImportOperandTarget as Target,
 };
-use physical_planning::imports::{ImportRecipe, PhysicalImportProgram};
+use physical_recipes::imports::{ImportRecipe, PhysicalImportProgram};
 fn operand(offset: usize, kind: Kind, target: Target) -> ImportOperand {
     ImportOperand {
         offset,
@@ -16,7 +16,7 @@ fn words(words: &[u32]) -> Vec<u8> {
     words.iter().flat_map(|word| word.to_le_bytes()).collect()
 }
 
-pub fn encode_import_program(plan: PhysicalImportProgram) -> EncodedImportProgram {
+pub fn encode_import_program<Origin>(plan: PhysicalImportProgram<Origin>) -> EncodedImportProgram {
     let target = plan.target();
     let (body, resolver) = match plan.recipe() {
         ImportRecipe::X86Indirect => (

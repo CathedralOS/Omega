@@ -25,7 +25,7 @@ pub use fragment_emission::{
 };
 pub use frame_application::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
+    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity, PlacedBodyEvidence,
     StagedFunctionFragmentFrameApplication, function_fragment_frame_application_identity,
     validate_current_relative_branch_rows,
 };
@@ -46,7 +46,7 @@ pub fn place_function_text(
     layout: machine_code::OptimizedMachineLayout,
     verification: native_verification::PhysicalVerificationEvidence,
     facts: physical_program::EmissionFacts,
-    installations: std::sync::Arc<installation_binding::BoundInstallationAuthority>,
+    installations: std::sync::Arc<installation_admission::BoundInstallationAuthority>,
     fragments_entered: &std::sync::atomic::AtomicU64,
 ) -> Result<StagedOptimizedFixedFrameTextSection, FunctionTextLayoutError> {
     use FunctionTextLayoutError::*;

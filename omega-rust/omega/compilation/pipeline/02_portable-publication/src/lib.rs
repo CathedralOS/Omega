@@ -3,6 +3,9 @@
 //! Current executable code and the metadata native entry planning actually reads.
 //! Build companions, source record coordinates and source producer methods end
 //! at the publication boundary.
+mod package_review;
+pub use package_review::package_review_requirements;
+
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 
@@ -10,6 +13,12 @@ use std::sync::Arc;
 pub struct PublishedProgram {
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
+    entry: Arc<PublishedEntryMetadata>,
+    has_applications: bool,
+}
+
+#[derive(Debug)]
+pub struct PublishedEntryMetadata {
     provenance: terminal_psi::TerminalMachineProvenance,
     entry_custody: Vec<(
         terminal_psi::TerminalIdentityIndex,
@@ -48,8 +57,10 @@ impl PublishedProgram {
         Self {
             artifact,
             evidence: program.evidence().cloned(),
-            provenance: program.machine_provenance().clone(),
-            entry_custody,
+            has_applications: !program.applications().is_empty(),
+            entry: Arc::new(PublishedEntryMetadata {
+                provenance: program.machine_provenance().clone(), entry_custody,
+            }),
         }
     }
 
@@ -59,6 +70,15 @@ impl PublishedProgram {
     pub fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
         self.evidence.as_ref()
     }
+    pub fn has_applications(&self) -> bool { self.has_applications }
+    pub fn entry_metadata(&self) -> &Arc<PublishedEntryMetadata> { &self.entry }
+    pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {
+        self.entry.machine_provenance()
+    }
+    pub fn entry_schema_custody(&self, declaration: terminal_psi::TerminalIdentityIndex)
+        -> Result<DeclarationCustody,String> { self.entry.entry_schema_custody(declaration) }
+}
+impl PublishedEntryMetadata {
     pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {
         &self.provenance
     }
@@ -77,19 +97,24 @@ impl PublishedProgram {
 
 #[derive(Debug, Clone)]
 pub struct ExecutablePackageInputs {
-    dependency_closure: Option<package_compilation::PackageDependencyClosure>,
+    declaration_permissions:
+        Option<semantic_vocabulary::compiler_evaluation::ProductDeclarationScope>,
     accepted_semantic_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
 }
 
 impl ExecutablePackageInputs {
     pub fn from_checked(sources: &package_compilation::CheckedSourceCustody) -> Self {
         Self {
-            dependency_closure: sources.dependency_closure().cloned(),
+            declaration_permissions: sources
+                .dependency_closure()
+                .map(|graph| graph.declaration_permissions()),
             accepted_semantic_bindings: sources.accepted_semantic_bindings().to_vec(),
         }
     }
-    pub fn dependency_closure(&self) -> Option<&package_compilation::PackageDependencyClosure> {
-        self.dependency_closure.as_ref()
+    pub fn declaration_permissions(
+        &self,
+    ) -> Option<&semantic_vocabulary::compiler_evaluation::ProductDeclarationScope> {
+        self.declaration_permissions.as_ref()
     }
     pub fn accepted_semantic_binding(
         &self,
@@ -130,3 +155,5 @@ impl<'a> ProductCodeSource<'a> {
         self.publication.publish(selections, authority, observer)
     }
 }
+
+mod provider_demand;

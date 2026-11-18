@@ -59,6 +59,7 @@ pub use boundary_application::{
     validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
+    BoundaryOpaqueRepresentationMovementRole,
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,
 };
 pub use callback_materializations::{
@@ -91,4 +92,14 @@ pub struct NativeForeignBridgeRequest {
     pub target: target::NativeTarget, // Target platform for the foreign call adapter.
     pub foreign: ValidatedBoundaryEntryPlan, // Admitted native C boundary entry plan.
     pub scalar_parameters: Vec<Option<semantic_vocabulary::ScalarType>>, // Per-parameter scalar types for narrow sign extension.
+}
+
+/// Identifies an already published adapter for a host call. This value carries
+/// no executable memory or library bytes. Only the sponsor owns those.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublishedForeignAdapterIdentity {
+    pub bridge: NativeForeignBridgeRequest,
+    pub locator: target::NormalizedForeignLocator,
+    pub application: [u8; 32],
+    pub image_digest: [u8; 32],
 }

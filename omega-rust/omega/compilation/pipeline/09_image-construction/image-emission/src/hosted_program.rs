@@ -1,203 +1,27 @@
-//! Hosted entry contracts are joined to the physical body before encoding.
-//! Image construction only places the resulting bytes and symbolic addresses.
-
+//! Place the closed encoded entry and resolve its symbolic addresses.
 use crate::entries::{hosted_entry_storage, hosted_receiver, hosted_unit_entry};
 use diagnostics::Diagnostic;
 use machine_code::hosted_entry::{EntryFixupKind, EntrySymbol, HostedEntryMode};
 use object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord, SectionKind,
 };
-use physical_planning::hosted_entry::ReceiverStorage;
 
-pub struct HostedProgramEntryRequest<'a> {
-    pub frame: &'a physical_planning::PhysicalFrameProgram,
-    pub facts: &'a physical_program::EmissionFacts,
-    pub entry: Option<&'a verified_optimization_input::ValidatedNativeProgramEntrySettlement>,
-    pub demand: crate::StackDemand,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlannedHostedProgramEntry {
-    psi: terminal_psi::TerminalPsiIdentity,
-    entry: semantic_vocabulary::MachineId,
-    profile: Option<target::TargetProfile>,
-    program: physical_planning::hosted_entry::HostedEntryProgram,
-    imports: physical_planning::imports::PhysicalImportProgram,
-    demand: crate::StackDemand,
-    receiver: Option<hosted_receiver::HostedReceiverBinding>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EncodedHostedProgramEntry {
-    psi: terminal_psi::TerminalPsiIdentity,
-    entry: semantic_vocabulary::MachineId,
-    profile: Option<target::TargetProfile>,
-    program: machine_code::hosted_entry::EncodedHostedEntry,
-    imports: machine_code::import_code::EncodedImportProgram,
-    demand: crate::StackDemand,
-    pub(crate) receiver: Option<hosted_receiver::HostedReceiverBinding>,
-}
-
-pub fn needs_hosted_entry(
-    frame: &physical_planning::PhysicalFrameProgram,
-    facts: &physical_program::EmissionFacts,
-    entry: Option<&verified_optimization_input::ValidatedNativeProgramEntrySettlement>,
-) -> bool {
-    if let Some(entry) = entry {
-        return entry.source().target_slot().owner != target::TargetProfile::UefiX64;
-    }
-    hosted_unit_entry::unit_entry_form(frame.instructions.target).is_some()
-        && facts
-            .program
-            .functions
-            .iter()
-            .find(|function| function.machine == frame.instructions.entry)
-            .is_some_and(|function| {
-                matches!(
-                    function.result,
-                    native_vocabulary::values::AbstractFunctionResult::Unit
-                ) && function.entry_claims.is_empty()
-                    && function.parameters.is_empty()
-                    && function.structural_parameters.is_empty()
-            })
-}
-
-pub fn plan_hosted_program_entry(
-    input: HostedProgramEntryRequest<'_>,
-) -> Result<PlannedHostedProgramEntry, Diagnostic> {
-    let program = &input.frame.instructions;
-    let target = program.target;
-    let invalid = || hosted_receiver::invalid(target);
-    if !needs_hosted_entry(input.frame, input.facts, input.entry)
-        || input.demand.psi() != program.psi
-        || input.demand.target() != target
-        || input.demand.entry() != program.entry
-    {
-        return Err(invalid());
-    }
-    let receiver = if let Some(entry) = input.entry {
-        let physical = entry
-            .storage_entry()
-            .and_then(|storage| storage.physical_contract())
-            .ok_or_else(invalid)?;
-        if !hosted_receiver::physical_contract_matches(physical, target)
-            || program.contracts.profile() != Some(physical.target_slot().owner)
-            || physical.target_slot() != entry.source().target_slot()
-        {
-            return Err(invalid());
-        }
-        let function = input
-            .facts
-            .program
-            .functions
-            .iter()
-            .find(|function| function.machine == program.entry)
-            .ok_or_else(invalid)?;
-        let abi = program
-            .contracts
-            .function_abi(program.entry)
-            .ok_or_else(invalid)?;
-        hosted_receiver::validate_planned_entry_arguments(
-            hosted_receiver::ReceiverArgumentInput {
-                target,
-                admission: &input.facts.admission,
-                function,
-                abi,
-            },
-            entry.source(),
-            entry.checked_entry(),
-            entry.private_entry_ram(),
-        )?;
-        Some(hosted_receiver::HostedReceiverBinding {
-            source: entry.source().clone(),
-            checked_entry: entry.checked_entry().clone(),
-            physical: physical.clone(),
-            demand: input.demand.clone(),
-            private_entry_ram: entry.private_entry_ram().to_vec(),
-        })
-    } else {
-        None
-    };
-    let mode = if receiver.is_some() {
-        HostedEntryMode::Receiver
-    } else if input.demand.requires_host_stack() {
-        if program.contracts.profile().is_none_or(|profile| {
-            profile.program_entry_slot().schema != target::ProgramEntrySchema::HostedApplication
-        }) {
-            return Err(Diagnostic::error(
-                "hosted native entry: requires the exact free Unit hosted program entry",
-            ));
-        }
-        HostedEntryMode::LoaderStack
-    } else {
-        HostedEntryMode::OwnedStack
-    };
-    let recipes = receiver
-        .as_ref()
-        .map_or(&[][..], |binding| binding.private_entry_ram.as_slice());
-    let storage = recipes
-        .iter()
-        .map(|recipe| ReceiverStorage {
-            contents: recipe.contents().to_vec(),
-            observation_header: recipe.observation_header().to_vec(),
-            runtime_position: recipe.input().runtime_position,
-        })
-        .collect::<Vec<_>>();
-    let entry_program = physical_planning::hosted_entry::plan_hosted_entry(target, mode, &storage)
-        .map_err(Diagnostic::error)?;
-    if mode != HostedEntryMode::LoaderStack {
-        // Prove finite storage geometry now. The actual BSS origin is a later
-        // placement input; it cannot change this stack demand or helper program.
-        hosted_entry_storage::partitions(
-            target,
-            &input.demand,
-            recipes,
-            entry_program.call_overhead(),
-            0,
-        )?;
-    }
-    Ok(PlannedHostedProgramEntry {
-        psi: program.psi,
-        entry: program.entry,
-        profile: program.contracts.profile(),
-        imports: physical_planning::imports::plan_import_program(
-            target,
-            entry_program.imports().iter().cloned().map(|locator| {
-                machine_code::import_code::ImportCodeIdentity::Normalized(locator.into())
-            }),
-        )
-        .map_err(Diagnostic::error)?,
-        program: entry_program,
-        demand: input.demand,
-        receiver,
-    })
-}
-
-pub fn encode_hosted_program_entry(
-    plan: PlannedHostedProgramEntry,
-) -> Result<EncodedHostedProgramEntry, Diagnostic> {
-    Ok(EncodedHostedProgramEntry {
-        psi: plan.psi,
-        entry: plan.entry,
-        profile: plan.profile,
-        imports: native_encoding::imports::encode_import_program(plan.imports),
-        program: native_encoding::hosted_entry::encode_hosted_entry(plan.program)
-            .map_err(Diagnostic::error)?,
-        demand: plan.demand,
-        receiver: plan.receiver,
-    })
-}
-
+pub type EncodedHostedProgramEntry = native_encoding::hosted_program::EncodedHostedProgramEntry<
+    physical_planning::PhysicalRecipeOrigin,
+    physical_planning::hosted_program::HostedProgramContext<
+        verified_optimization_input::hosted_receiver::AdmittedHostedReceiver,
+    >,
+>;
 pub fn bind_hosted_program_entry(
     artifact: &mut crate::ObjectArtifact,
     encoded: EncodedHostedProgramEntry,
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_entry.is_some()
         || artifact.physical_entry.is_some()
-        || artifact.psi != encoded.psi
-        || artifact.entry != encoded.entry
-        || artifact.target != encoded.program.target
-        || artifact.profile != encoded.profile
+        || artifact.psi != encoded.context().psi()
+        || artifact.entry != encoded.context().entry()
+        || artifact.target != encoded.program().target
+        || artifact.profile != encoded.context().profile()
     {
         return Err(Diagnostic::error(
             "hosted entry program belongs to another body, target or arrival binding",
@@ -205,7 +29,7 @@ pub fn bind_hosted_program_entry(
     }
     artifact
         .imports
-        .join(&encoded.imports)
+        .join(encoded.imports())
         .map_err(Diagnostic::error)?;
     artifact.hosted_entry = Some(encoded);
     Ok(())
@@ -217,18 +41,18 @@ pub(crate) fn prepare(
     let Some(binding) = &artifact.hosted_entry else {
         return Ok(None);
     };
-    let code = &binding.program;
+    let code = binding.program();
     let invalid = || hosted_receiver::invalid(artifact.target);
     let recipes = binding
-        .receiver
-        .as_ref()
-        .map_or(&[][..], |receiver| receiver.private_entry_ram.as_slice());
+        .context()
+        .receiver()
+        .map_or(&[][..], |receiver| receiver.private_entry_ram());
     let (mut object, placed) = if code.mode == HostedEntryMode::LoaderStack {
         (artifact.object.clone(), None)
     } else {
         let (object, partitions, storage) = hosted_entry_storage::provision(
             artifact,
-            &binding.demand,
+            binding.context().demand(),
             recipes,
             code.call_overhead,
         )?;
@@ -377,7 +201,10 @@ pub(crate) fn prepare(
     }
     let mut shim = surface.shim(symbol, offset);
     if code.mode == HostedEntryMode::OwnedStack {
-        shim = shim.with_stack(binding.demand.clone(), placed.ok_or_else(invalid)?.0);
+        shim = shim.with_stack(
+            binding.context().demand().clone(),
+            placed.ok_or_else(invalid)?.0,
+        );
     }
     Ok(Some(hosted_unit_entry::PreparedEntry {
         object,

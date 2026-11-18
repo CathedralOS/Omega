@@ -35,7 +35,7 @@ pub(super) fn plan(
 }
 
 pub(crate) struct EncodedForeignAdapter {
-    bridge: native_encoding::native_foreign_bridge::NativeForeignBridge,
+    bridge: image_emission::NativeForeignBridge,
     imports: machine_code::import_code::EncodedImportProgram,
     locator: target::NormalizedForeignLocator,
     application: [u8; 32],

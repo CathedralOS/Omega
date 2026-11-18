@@ -84,7 +84,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         .expect("a completed native report");
     let artifact = report.retained_native_artifact().expect("a native product");
     let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: Some(artifact),
+        native_image: Some(artifact.inspect_for_runtime()),
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),

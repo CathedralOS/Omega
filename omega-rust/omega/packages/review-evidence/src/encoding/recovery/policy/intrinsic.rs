@@ -5,7 +5,7 @@ use crate::encoding::intrinsic_tags::IntrinsicTag;
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::{arithmetic::ArithmeticDomain};
 use numeric_literals::FloatFormat;
-use native_program_planning::{
+use effects::{
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };

@@ -12,9 +12,11 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+sha2 = "0.10.9"
+physical-recipes = { path = "../../../representations/physical-recipes" }
 physical-program = { path = "../../../representations/physical-program" }
 native-verification = { path = "../../../verification/native-verification" }
-installation-binding = { path = "../../05_installation-binding" }
+installation-admission = { path = "../../../verification/installation-admission" }
 native-encoding = { path = "../../06_native-encoding" }
 physical-planning = { path = "../../04_physical-program-planning" }
 register-homes = { path = "../../../representations/register-homes" }
@@ -26,7 +28,7 @@ language-core = { path = "../../../../../psi/compilation/representations/source-
 provider-admission = { path = "../../../verification/provider-admission" }
 register-model = { path = "../../../target-description/register-model" }
 post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
-function-layout = { path = "../../07_native-layout/function-layout" }
+encoding-admission = { path = "../../../verification/encoding-admission" }
 runtime-abi = { path = "../../../target-description/runtime-abi" }
 arena = { path = "../../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../representations/optimization-contracts" }
@@ -45,7 +47,6 @@ image-macho = { path = "../image-macho" }
 image-pe = { path = "../image-pe" }
 object-file = { path = "../../08_object-construction" }
 target = { path = "../../../target-description/target" }
-x86_64-encoding = { path = "../../06_native-encoding/x86_64-encoding" }
 machine-code = { path = "../../../representations/machine-code" }
 function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
@@ -53,8 +54,8 @@ boundary-applications = { path = "../../../representations/boundary-applications
 target-operations = { path = "../../../representations/target-operations" }
 native-program-planning = { path = "../../03_native-program-planning" }
 task-plans = { path = "../../../representations/task-plans" }
-isa-aarch64 = { path = "../../06_native-encoding/isa-aarch64" }
-isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
 semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
@@ -64,7 +65,8 @@ terminal-work = { path = "../../../../../psi/compilation/representations/termina
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
-native-encoding = { path = "../../06_native-encoding", features = ["test-support"] }
+isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 native-program-planning = { path = "../../03_native-program-planning" }
 compiler = { path = "../../../compiler" }

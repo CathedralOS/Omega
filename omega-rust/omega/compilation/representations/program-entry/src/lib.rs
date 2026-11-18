@@ -17,6 +17,8 @@ plans to native realization and image emission.
 */
 
 #![forbid(unsafe_code)]
+pub mod hosted_receiver;
+pub mod physical_selection;
 
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;

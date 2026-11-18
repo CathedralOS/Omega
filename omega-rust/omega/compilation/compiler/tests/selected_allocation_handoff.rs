@@ -132,7 +132,7 @@ fn identity_input_allocates_with_and_without_pressure() {
             check_pressure(&manifest, 0, pressure);
             assert!(
                 matches!(
-                    image_emission::verify_retained_selected_optimization(object),
+                    published_object_verification::verify_retained_selected_optimization(object),
                     Ok(false)
                 ),
                 "no Omega 04 run produced an identity program"
@@ -186,7 +186,7 @@ fn pre_allocation_output_allocates_with_and_without_pressure() {
             );
             check_pressure(&manifest, record.transformations.len(), pressure);
             assert!(matches!(
-                image_emission::verify_retained_selected_optimization(object),
+                published_object_verification::verify_retained_selected_optimization(object),
                 Ok(true)
             ));
         });
@@ -215,7 +215,7 @@ fn selected_lowering_output_allocates_through_the_same_entrance() {
         );
         check_pressure(&manifest, record.transformations.len(), false);
         assert!(matches!(
-            image_emission::verify_retained_selected_optimization(object),
+            published_object_verification::verify_retained_selected_optimization(object),
             Ok(true)
         ));
     });
@@ -237,7 +237,7 @@ fn a_default_compile_keeps_no_omega_04_run() {
             "ordinary images cannot recover a selected instruction graph"
         );
         assert!(manifest(object).pre_allocation_completion.is_some());
-        let error = image_emission::verify_retained_selected_optimization(object)
+        let error = published_object_verification::verify_retained_selected_optimization(object)
             .expect_err("a default compile retains nothing to replay");
         assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
     });

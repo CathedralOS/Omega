@@ -529,6 +529,7 @@ pub mod cpu_origins;
 pub mod fault_origins;
 
 pub mod frame_branch_origins;
+pub mod placed_body;
 
 pub mod frame_demands;
 

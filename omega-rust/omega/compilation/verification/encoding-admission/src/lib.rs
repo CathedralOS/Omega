@@ -13,6 +13,7 @@ pub mod frame_address;
 pub mod layout;
 pub mod layout_requirements;
 pub mod relaxation;
+pub mod relative_branches;
 mod validation;
 use OptimizedSelectedFormEncodingError as Error;
 use isa_aarch64::{

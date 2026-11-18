@@ -213,13 +213,44 @@ pub fn native_calling_applications(
     program: &super::CallingProgram,
     bindings: &[crate::target_supply::NormalizedNativeSupply],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
-    if bindings.is_empty() {
-        return Ok(Vec::new());
+    Ok(native_calling_results(profile, program, bindings, None)?.applications)
+}
+
+/// A row may be needed both for execution and for package review. Reuse only
+/// the default ABI computed from this exact artifact, target and binding receipt.
+pub(crate) struct NativeCallingResults {
+    target: target::TargetProfile,
+    artifact: [u8; 32],
+    by_binding: std::collections::BTreeMap<(semantic_vocabulary::BoundaryMachineId, [u8; 32]), usize>,
+    pub(crate) applications: Vec<calling_conventions::BoundaryCallingApplication>,
+}
+
+pub(crate) fn native_calling_results(
+    profile: target::TargetProfile,
+    program: &super::CallingProgram,
+    bindings: &[crate::target_supply::NormalizedNativeSupply],
+    retained: Option<&NativeCallingResults>,
+) -> Result<NativeCallingResults, Vec<Diagnostic>> {
+    let artifact = *program.artifact.manifest().identity().as_bytes();
+    let failure = |reason: String| vec![Diagnostic::error(reason)];
+    if retained.is_some_and(|prior| prior.target != profile || prior.artifact != artifact) {
+        return Err(failure("retained default calling plans name another program or deployment".into()));
     }
     let module = program.artifact.semantic_module();
-    let failure = |reason: String| vec![Diagnostic::error(reason)];
-    let mut applications = Vec::new();
+    let mut result = NativeCallingResults {
+        target: profile,
+        artifact,
+        by_binding: Default::default(),
+        applications: Vec::with_capacity(bindings.len()),
+    };
     for supplied in bindings {
+        let origin = (supplied.boundary, supplied.binding.receipt().identity_digest());
+        if let Some(application) = retained.and_then(|prior| {
+            prior.by_binding.get(&origin).map(|&index| &prior.applications[index])
+        }) {
+            result.retain(origin, application.clone());
+            continue;
+        }
         if supplied.binding.target() != profile {
             return Err(failure(
                 "native calling application has another target".into(),
@@ -295,12 +326,25 @@ pub fn native_calling_applications(
                 "cannot prepare native calling plan for `{name}`: {reason}"
             ))
         })? {
-            if !applications.contains(&application) {
-                applications.push(application);
-            }
+            result.retain(origin, application);
         }
     }
-    Ok(applications)
+    Ok(result)
+}
+
+impl NativeCallingResults {
+    fn retain(
+        &mut self,
+        origin: (semantic_vocabulary::BoundaryMachineId, [u8; 32]),
+        application: calling_conventions::BoundaryCallingApplication,
+    ) {
+        let index = self.applications.iter().position(|prior| prior == &application)
+            .unwrap_or_else(|| {
+                self.applications.push(application);
+                self.applications.len() - 1
+            });
+        self.by_binding.insert(origin, index);
+    }
 }
 
 pub(crate) struct SelectedCallingApplications {

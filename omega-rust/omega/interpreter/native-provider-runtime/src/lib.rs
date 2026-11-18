@@ -41,9 +41,16 @@ mod wire;
 mod worker;
 pub use native_provider_runtime::{
     NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage, NativeProviderError,
-    NativeProviderProcess,
+    NativeProviderCommand, NativeProviderInstallation, NativeProviderProcess,
 };
 pub use worker::run_worker_if_requested;
 
 #[cfg(test)]
 mod physical_tests;
+
+/// Host IPC primitives for the sponsor that launches its own private worker.
+pub mod transport {
+    pub use crate::channel::prepare;
+    pub use crate::wire::{Duplex, Packet, exchange};
+    pub use crate::worker::{CHANNEL_ENV, PARENT_ENV, ROOT_ENV, TIMEOUT_ENV};
+}

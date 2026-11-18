@@ -7,7 +7,7 @@ use std::{fmt::Write, path::PathBuf, process::Command};
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use native_encoding::test_support::emit_native_foreign_bridge;
+use image_fixtures::emit_native_foreign_bridge;
 use native_verification::bridges::validate_native_foreign_bridge;
 use physical_planning::native_foreign_bridge::{
     NativeForeignBridgeError, NativeForeignBridgeRequest,

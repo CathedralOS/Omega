@@ -210,12 +210,12 @@ impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError 
 #[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
     realization: StagedFixedFrameFunctionRelativeRealization,
-    facts: physical_program::EmissionFacts,
-    installation_authority: Arc<installation_binding::BoundInstallationAuthority>,
+    facts: Arc<physical_program::EmissionFacts>,
+    installation_authority: Arc<installation_admission::BoundInstallationAuthority>,
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
-    pub fn installation_authority(&self) -> &Arc<installation_binding::BoundInstallationAuthority> {
+    pub fn installation_authority(&self) -> &Arc<installation_admission::BoundInstallationAuthority> {
         &self.installation_authority
     }
 
@@ -270,6 +270,10 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.facts
     }
 
+    pub(crate) fn shared_facts(&self) -> Arc<physical_program::EmissionFacts> {
+        Arc::clone(&self.facts)
+    }
+
     pub fn has_original_replay(&self) -> bool {
         self.realization.has_original_replay()
     }
@@ -319,7 +323,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn new(
         realization: StagedFixedFrameFunctionRelativeRealization,
         facts: physical_program::EmissionFacts,
-        installation_authority: Arc<installation_binding::BoundInstallationAuthority>,
+        installation_authority: Arc<installation_admission::BoundInstallationAuthority>,
     ) -> Result<Self, FunctionFragmentEmissionError> {
         if !installation_authority.matches_admission(
             facts.admission.installed_interrupts(),
@@ -329,7 +333,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         }
         let source = Self {
             realization,
-            facts,
+            facts: Arc::new(facts),
             installation_authority,
         };
         source.validate_facts()?;
@@ -347,6 +351,10 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         if installation_program.psi != physical.psi
             || installation_program.target != physical.target
             || installation_program.machine != physical.entry
+            || !self.installation_authority().matches_frame(
+                physical.identity,
+                self.program().frame_identity,
+            )
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }

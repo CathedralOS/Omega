@@ -11,7 +11,6 @@ use component_description::component_description::StackDemandFacts;
 use provider_admission::provider_admission::AdmittedNativeCallableAuthority;
 use std::path::PathBuf;
 use std::sync::Arc;
-use task_plans::SameStackProviderPlanCommitment;
 use verified_optimization_input::AdmittedNativeComponentCall;
 
 pub struct NativeComponentProduct {
@@ -23,9 +22,7 @@ pub struct NativeComponentProduct {
     runtime: crate::TerminalCallableRuntimeProvisions,
     authority: AdmittedNativeCallableAuthority,
     locator: target::NormalizedComponentLocator,
-    provider_plan: effects::provider_plan::ProviderPlanDigest,
-    stack_bytes: u64,
-    stack_alignment: u32,
+    runtime_record: Arc<verified_optimization_input::runtime_provisions::RuntimeComponent>,
 }
 impl std::fmt::Debug for NativeComponentProduct {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -97,6 +94,10 @@ impl NativeComponentProduct {
             },
         )
         .map_err(|error| format!("native component description publication: {error}"))?;
+        let runtime_record = verified_optimization_input::runtime_provisions::RuntimeComponent::admit(
+            call, runtime.clone().map_adapters(|adapter| Ok(Arc::new(adapter.runtime_identity()))),
+            authority.clone(), locator.clone(), stack_bytes, demand.stack_alignment(),
+        )?;
         Ok(Self {
             image,
             description,
@@ -106,9 +107,7 @@ impl NativeComponentProduct {
             runtime,
             authority,
             locator,
-            provider_plan: *call.plan_digest(),
-            stack_bytes,
-            stack_alignment: demand.stack_alignment(),
+            runtime_record: Arc::new(runtime_record),
         })
     }
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
@@ -144,20 +143,11 @@ impl NativeComponentProduct {
     pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.authority
     }
-    pub fn validate_same_stack(
-        &self,
-        contribution: &task_plans::AdmittedSameStackContribution,
-    ) -> Result<(), &'static str> {
-        if contribution.provider_plan_commitment()
-            != SameStackProviderPlanCommitment::from_digest(*self.provider_plan.as_bytes())
-            || contribution.bytes() != self.stack_bytes
-            || contribution.alignment() != u64::from(self.stack_alignment)
-        {
-            return Err(
-                "component same-stack contribution differs from its actual image demand or exact provider plan",
-            );
-        }
-        Ok(())
+    pub(crate) fn runtime_record(&self) -> &Arc<verified_optimization_input::runtime_provisions::RuntimeComponent> {
+        &self.runtime_record
+    }
+    pub fn validate_same_stack(&self, contribution: &task_plans::AdmittedSameStackContribution) -> Result<(), &'static str> {
+        self.runtime_record.validate_same_stack(contribution)
     }
 
     pub fn verify_contents(&self, contents: &[u8]) -> Result<(), &'static str> {

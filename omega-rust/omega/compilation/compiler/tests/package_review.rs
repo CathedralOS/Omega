@@ -906,6 +906,38 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let retained = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("native proposal");
+    // The executable route commits its provider choices to target code. The
+    // original checked program and its Build/source companions keep one identity.
+    let (mut session, build, _) = captured_package_build(
+        &project, &workspace.path().join("checked"), target::TargetProfile::LinuxX64,
+        Some(historical_constant_snapshot()),
+    );
+    let checked = session.compiler().check_package_build(build).expect("accepted scalar source");
+    let publication = checked.terminal_publication();
+    let source = publication.require_published(publication.optimizations()).unwrap();
+    let original = source.artifact().view();
+    let original_bytes = source.artifact().to_bytes();
+    assert!(original.module().folded_constants.dependencies.is_empty());
+    let mut selected = checked.execution().clone();
+    selected.bind_folded_entry(
+        source.artifact(), source.evidence().map(std::sync::Arc::as_ref),
+    ).expect("normal target planner binds the exact reached providers");
+    let folded = selected.effective_artifact(source.artifact()).unwrap();
+    assert_eq!(folded.view().identity(), retained.artifact().view().identity());
+    assert_ne!(folded.view().identity(), original.identity());
+    let mut without_dependencies = folded.semantic_module().clone();
+    without_dependencies.folded_constants = Default::default();
+    assert_eq!(&without_dependencies, original.module());
+    assert_eq!(folded.debug_bytes(), source.artifact().debug_bytes());
+    assert_eq!(source.artifact().to_bytes(), original_bytes);
+    assert!(std::sync::Arc::ptr_eq(&source, &publication.require_published(publication.optimizations()).unwrap()));
+    assert!(source.build_bindings().calls_for(original.into()).is_some());
+    assert!(source.build_bindings().calls_for(folded.view().into()).is_none());
+    assert_eq!(checked.execution().realization().program(), original.identity());
+    checked.execution().with_folded_program(folded.view()).expect("receive the same exact dependency table");
+    assert!(selected.bind_folded_entry(
+        source.artifact(), source.evidence().map(std::sync::Arc::as_ref),
+    ).is_err());
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
@@ -964,6 +996,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let alternate = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("alternate native proposal");
+    assert!(checked.execution().with_folded_program(alternate.artifact().view()).is_err());
     let alternate_plans = alternate
         .native_realization_proposal()
         .unwrap()
@@ -1698,6 +1731,9 @@ machine build(builder: &mut Build) {
 
 #[test]
 fn review_recovery_retains_native_build_intents_without_runtime_demand() {
+    use review_evidence::{project_checked_package_policy, record::PackagePolicyBaseline};
+    use std::sync::Arc;
+
     let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-unused-native-binding",
@@ -1721,7 +1757,24 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
 
     // The two original Build choices execute even though this entry never
     // calls Probe. Review retains the binding for the requested profile.
-    let policy = reviewed_and_recovered(&root, "linux_x86_64");
+    let target = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
+    let (mut session, build, inputs) =
+        captured_package_build(&root, &workspace.path().join("session"), target, None);
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .expect("idle entry");
+    assert!(
+        checked
+            .execution()
+            .realization()
+            .evaluated_native_bindings()
+            .is_empty()
+    );
+    let policy = project_checked_package_policy(&checked, target, inputs.root()).unwrap();
+    let bytes = policy.canonical_bytes().unwrap();
+    let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    assert_eq!(policy.canonical_bytes().unwrap(), bytes);
     let [binding] = policy.native_bindings() else {
         panic!("one evaluated binding for the reviewed target");
     };
@@ -1739,6 +1792,51 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
     assert_eq!(
         application.physical().policy(),
         calling_conventions::CallingPolicy::SystemVAMD64
+    );
+
+    // The original settled target cannot vouch for a different Build receipt
+    // or for a fresh judgment that has yet to publish the calling program.
+    let publication = Arc::new(
+        source_compiler::SourcePublication::judge(
+            Arc::clone(checked.source_inspection().program()),
+            checked.terminal_publication().roster().unwrap().clone(),
+            checked.terminal_publication().optimizations().clone(),
+        )
+        .unwrap(),
+    );
+    let inspection = Arc::new(products::SelectedProviderSource::new(
+        Arc::clone(checked.source_inspection().inventory()),
+        Arc::clone(checked.execution().shared_plans()),
+    ));
+    let inspect = |build| {
+        let review = products::CheckedCompilation::from_settled_execution(
+            products::CheckedCompilationInputs {
+                settled: checked.execution().clone(),
+                source_inspection: Arc::clone(&inspection),
+                build: Arc::new(build),
+                build_admission: checked.build_admission().clone(),
+            },
+            Arc::new(checked.sources().clone()),
+            Default::default(),
+            Arc::clone(&publication),
+        )
+        .unwrap();
+        let refusal = project_checked_package_policy(&review, target, inputs.root()).unwrap_err();
+        diagnostics::join_messages(&refusal)
+    };
+    let mut changed = checked.build().clone();
+    let authored = changed.config.native_bindings.iter_mut()
+        .find(|supply| supply.selection.target.canonical_name() == target.target_name())
+        .unwrap();
+    authored.selection.source_occurrence_digest[0] ^= 1;
+    assert!(inspect(changed).contains("the complete selected native supply custody"));
+    let mut missing = checked.build().clone();
+    missing.config.native_bindings.retain(|binding| {
+        binding.selection.target.canonical_name() != target.target_name()
+    });
+    assert!(inspect(missing).contains("the complete selected native supply custody"));
+    assert!(
+        inspect(checked.build().clone()).contains("the checked program for native calling policy")
     );
 }
 

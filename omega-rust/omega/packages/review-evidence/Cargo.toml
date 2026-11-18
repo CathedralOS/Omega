@@ -22,7 +22,6 @@ products = { path = "../../compilation/products" }
 source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 package-compilation = { path = "../package-compilation" }
-native-program-planning = { path = "../../compilation/pipeline/03_native-program-planning" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
 effects = { path = "../../compilation/representations/native-effects" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

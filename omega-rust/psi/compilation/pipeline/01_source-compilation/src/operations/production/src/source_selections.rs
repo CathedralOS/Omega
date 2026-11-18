@@ -54,20 +54,6 @@ impl TerminalSourceSelections {
         }
     }
 
-    pub(crate) fn for_derived_program(
-        &self,
-        original: TerminalExecutionView<'_>,
-        derived: TerminalExecutionView<'_>,
-    ) -> Result<Self, String> {
-        self.questions_for(original)
-            .ok_or("source selections belong to another program")?;
-        Ok(Self {
-            identity: derived.custody_identity(),
-            questions: Arc::clone(&self.questions),
-            invocation_consent: self.invocation_consent.clone(),
-        })
-    }
-
     pub fn questions_for(
         &self,
         artifact: TerminalExecutionView<'_>,

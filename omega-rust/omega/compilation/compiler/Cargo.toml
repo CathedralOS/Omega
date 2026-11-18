@@ -37,7 +37,6 @@ build-declarations = { path = "../../packages/build-declarations" }
 build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }
 package-compilation = { path = "../../packages/package-compilation" }
-native-program-planning = { path = "../pipeline/03_native-program-planning" }
 program-entry-plan = { path = "../representations/program-entry" }
 boundary-applications = { path = "../representations/boundary-applications" }
 calling-conventions = { path = "../target-description/calling-conventions" }
@@ -62,11 +61,14 @@ proof-admission = { path = "../../../psi/compilation/proof-admission" }
 wire = { path = "../../../psi/foundation/wire" }
 
 [dev-dependencies]
+installation-admission = { path = "../verification/installation-admission" }
+image-fixtures = { path = "../../../test-support/image-fixtures" }
+published-object-verification = { path = "../verification/published-objects" }
 native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }
 physical-planning = { path = "../pipeline/04_physical-program-planning" }
-native-encoding = { path = "../pipeline/06_native-encoding", features = ["test-support"] }
+native-encoding = { path = "../pipeline/06_native-encoding" }
 native-program-planning = { path = "../pipeline/03_native-program-planning", features = ["test-support"] }
 abstract-operations = { path = "../representations/abstract-operations" }
 image = { path = "../pipeline/09_image-construction/image" }

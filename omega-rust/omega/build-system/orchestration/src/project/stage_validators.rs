@@ -253,13 +253,13 @@ impl StageValidator {
                 };
                 let checked = match self {
                     Self::TargetOperationCorrespondence => {
-                        image_emission::verify_retained_target_operations(object)
+                        published_object_verification::verify_retained_target_operations(object)
                     }
                     Self::FixedFrameCorrespondence => {
-                        image_emission::verify_retained_fixed_frame(object)
+                        published_object_verification::verify_retained_fixed_frame(object)
                     }
                     Self::SelectedInstructionRewriteReplay => {
-                        match image_emission::verify_retained_selected_optimization(object) {
+                        match published_object_verification::verify_retained_selected_optimization(object) {
                             Ok(true) => Ok(()),
                             Ok(false) => {
                                 return StageValidationResult::Inapplicable(

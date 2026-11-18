@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+runtime-abi = { path = "../../../target-description/runtime-abi" }
 native-vocabulary = { path = "../../native-vocabulary" }
 declaration-contracts = { path = "../../../../../psi/compilation/representations/declaration-contracts" }
 application-identity = { path = "../../../../../psi/compilation/representations/application-identity" }

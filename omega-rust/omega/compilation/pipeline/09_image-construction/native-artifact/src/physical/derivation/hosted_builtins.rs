@@ -50,14 +50,7 @@ enum HostedScalarArgumentForm {
 
 enum HostedResultForm {
     Unit,
-    Structural {
-        bind: fn(
-            crate::physical::PhysicalEvidencePass,
-            &machine_code::BoundaryStructuralResultRecord,
-            &OptimizedBoundaryOccurrence,
-            NativeTarget,
-        ) -> Result<Option<Vec<u8>>, &'static str>,
-    },
+    ReadByte,
 }
 
 pub(crate) struct HostedBuiltinSettlement {
@@ -99,9 +92,7 @@ const HOSTED_BUILTIN_SETTLEMENTS: &[HostedBuiltinSettlement] = &[
         realization: BoundaryRealization::HostedReadByte(HostedReadByteRealization),
         supports_target: HostedReadByteRealization::supports_target,
         scalar_forms: &[HostedScalarArgumentForm::Absent],
-        result: HostedResultForm::Structural {
-            bind: read_byte_result_bytes,
-        },
+        result: HostedResultForm::ReadByte,
         identity_tags: [3, 3],
     },
 ];
@@ -138,12 +129,17 @@ fn selected_process_exit_i32_source(source: &InternalUnitScalarArgumentSourceRec
     )
 }
 
-fn read_byte_result_bytes(
+struct ReadByteResult {
+    home: u32,
+    byte_count: usize,
+}
+
+fn read_byte_result(
     pass: crate::physical::PhysicalEvidencePass,
     result: &machine_code::BoundaryStructuralResultRecord,
     occurrence: &OptimizedBoundaryOccurrence,
     target: NativeTarget,
-) -> Result<Option<Vec<u8>>, &'static str> {
+) -> Result<Option<ReadByteResult>, &'static str> {
     if Some(result.defining_operation) != occurrence.operation()
         || result.layout.tag_byte_offset != 0
         || result.layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
@@ -167,25 +163,31 @@ fn read_byte_result_bytes(
     if !pass.is_receiver() {
         return Ok(None);
     }
-    match target.architecture {
-        Architecture::X86_64 if target == NativeTarget::macos_x64() => {
-            isa_x86_64::encode_darwin_read_byte_to_stack(result.home_byte_offset, payload_offset)
-                .map_err(|_| "macOS read-byte x86-64 encoding is not reproducible")
-        }
-        Architecture::X86_64 => {
-            isa_x86_64::encode_linux_read_byte_to_stack(result.home_byte_offset, payload_offset)
-                .map_err(|_| "Linux read-byte x86-64 encoding is not reproducible")
-        }
-        Architecture::Aarch64 if target == NativeTarget::macos_arm64() => {
-            isa_aarch64::encode_macos_read_byte_to_stack(result.home_byte_offset, payload_offset)
-                .map_err(|_| "macOS read-byte AArch64 encoding is not reproducible")
-        }
+    let byte_count = match target.architecture {
+        Architecture::X86_64 => usize::from(
+            target_x86_64::form_effects::hosted_read_byte::leaf_bytes(target),
+        ),
         Architecture::Aarch64 => {
-            isa_aarch64::encode_linux_read_byte_to_stack(result.home_byte_offset, payload_offset)
-                .map_err(|_| "Linux read-byte AArch64 encoding is not reproducible")
+            if !result.home_byte_offset.is_multiple_of(4) {
+                return Err(if target == NativeTarget::macos_arm64() {
+                    "macOS read-byte AArch64 encoding is not reproducible"
+                } else {
+                    "Linux read-byte AArch64 encoding is not reproducible"
+                });
+            }
+            let reach = target_aarch64::form_effects::address_word_count(u64::from(payload_offset))
+                as usize;
+            if target == NativeTarget::macos_arm64() {
+                (14 + 2 * reach) * 4
+            } else {
+                (13 + reach) * 4
+            }
         }
-    }
-    .map(Some)
+    };
+    Ok(Some(ReadByteResult {
+        home: result.home_byte_offset,
+        byte_count,
+    }))
 }
 
 fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarType) -> bool {
@@ -279,13 +281,13 @@ pub(crate) fn derive_hosted_builtin_child(
         HostedResultForm::Unit => {
             return Err("hosted builtin settlement changed its declared unit result");
         }
-        HostedResultForm::Structural { bind } => {
+        HostedResultForm::ReadByte => {
             let Some(result) = settlement.native_result.structural() else {
                 return Err("hosted builtin settlement lacks its structural result custody");
             };
             (
                 CompilerBuiltinResult::Structural(result.clone()),
-                bind(pass, result, occurrence, target)?,
+                read_byte_result(pass, result, occurrence, target)?,
             )
         }
     };
@@ -302,7 +304,7 @@ pub(crate) fn derive_hosted_builtin_child(
     if installed.text_offset != expected_object_offset
         || expected
             .as_ref()
-            .is_some_and(|expected| expected.len() != settlement.byte_count)
+            .is_some_and(|expected| expected.byte_count != settlement.byte_count)
     {
         return Err("hosted builtin physical child object span is detached");
     }
@@ -315,7 +317,23 @@ pub(crate) fn derive_hosted_builtin_child(
     if pass.is_receiver()
         && (machine_bytes != object_bytes
             || object_bytes != final_image_bytes
-            || expected.is_some_and(|expected| machine_bytes != expected.as_slice()))
+            || expected.is_some_and(|expected| {
+                let home = match target.architecture {
+                    Architecture::X86_64 => {
+                        target_x86_64::inspection::decode_hosted_read_byte_operand(
+                            target,
+                            machine_bytes,
+                        )
+                    }
+                    Architecture::Aarch64 => {
+                        target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(
+                            target,
+                            machine_bytes,
+                        )
+                    }
+                };
+                home != Some(expected.home)
+            }))
     {
         return Err("hosted builtin physical child bytes changed across physical custody");
     }

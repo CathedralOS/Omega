@@ -12,7 +12,7 @@ pub(crate) mod component_object {
     use image::{
         FinalImage, FinalImageInput, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
-    use native_encoding::native_entry_bridge::NativeEntryBridge;
+    use crate::NativeEntryBridge;
     use object_file::{RelocationKind, SymbolKind};
 
     pub struct ComponentFunctionImage {
@@ -50,8 +50,8 @@ pub(crate) mod component_object {
         }
         crate::entries::callable_entry_transport::validate_callable_transport(&body, &transport)
             .map_err(|error| invalid(&error.to_string()))?;
-        let entry_bridge = transport.bridge;
-        let entry_effects = transport.effects;
+        let (context, entry_bridge) = transport.into_parts();
+        let entry_effects = context.effects;
         let mut image = image::build_final_image(FinalImageInput {
             target: body.target(),
             import_program: &body.imports,
@@ -80,7 +80,7 @@ pub(crate) mod component_object {
                         "entry bridge belongs to a different ordinary body ABI",
                     ));
                 }
-                native_verification::bridges::validate_native_entry_bridge(bridge)
+                bridge.validate_published_code(bridge.bytes())
                     .map_err(|error| invalid(&error.to_string()))?;
                 let offset = image
                     .memory
@@ -159,7 +159,7 @@ pub(crate) mod component_object {
 
 pub(crate) mod component_shared_image {
     use diagnostics::Diagnostic;
-    use native_encoding::native_entry_bridge::NativeEntryBridge;
+    use crate::NativeEntryBridge;
 
     #[derive(Debug)]
     pub enum ComponentSharedContainer {

@@ -348,7 +348,7 @@ impl ComputedBuildConfig {
                 .provider_selections
                 .iter()
                 .filter(|selection| {
-                    selection.composition_mode == native_program_planning::CompositionMode::Independent
+                    selection.composition_mode == declaration_contracts::selection::CompositionMode::Independent
                 })
                 .map(|selection| IndependentComponentSelection {
                     selection: selection.clone(),

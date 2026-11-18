@@ -42,7 +42,7 @@ pub fn plan_callable(
     );
     let callable_entry = admitted.input.plan().entry;
     let authority = admitted.providers.callable_authority().clone();
-    let host = native_runtime_provisions::TerminalRuntimeHostProvisions::capture_native_admission(
+    let host = native_runtime_provisions::plan_host_provisions(
         admitted
             .providers
             .installation
@@ -66,7 +66,7 @@ pub fn plan_callable(
         },
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let runtime = native_runtime_provisions::TerminalCallableRuntimeProvisions::capture_native_admission(
+    let runtime = native_runtime_provisions::TerminalCallableRuntimeProvisions::admit(
         artifact.view(),
         admitted.input.optimization_input().runtime_input(),
         callable_entry,

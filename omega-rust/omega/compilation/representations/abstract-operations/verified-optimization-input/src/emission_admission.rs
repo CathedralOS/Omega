@@ -109,3 +109,39 @@ impl EmissionAdmission {
         Ok(Some(scope))
     }
 }
+
+/// The final body and the selected physical adapter must be the same terminal
+/// machine. Keep just its ordinary entry, semantic entry and inbound formals.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedPhysicalEntry(program_entry_plan::physical_selection::PhysicalEntrySelection);
+impl AsRef<program_entry_plan::physical_selection::PhysicalEntrySelection>
+    for AdmittedPhysicalEntry
+{
+    fn as_ref(&self) -> &program_entry_plan::physical_selection::PhysicalEntrySelection {
+        &self.0
+    }
+}
+impl EmissionAdmission {
+    pub fn physical_entry(
+        &self,
+        entry: &crate::ValidatedNativeProgramEntrySettlement,
+    ) -> Result<AdmittedPhysicalEntry, &'static str> {
+        let adapter = entry.physical_adapter().ok_or("physical entry has no selected adapter")?;
+        let checked = entry.checked_entry();
+        if entry.source().target_slot().owner != target::TargetProfile::UefiX64
+            || adapter.terminal() != self.terminal()
+            || checked.terminal_psi_identity() != self.terminal()
+            || adapter.machine() != self.entry()
+        {
+            return Err("physical entry changed its selected UEFI contract");
+        }
+        Ok(AdmittedPhysicalEntry(
+            program_entry_plan::physical_selection::PhysicalEntrySelection {
+                psi: self.terminal(),
+                adapter: adapter.machine(),
+                semantic_entry: checked.terminal_entry(),
+                inbound_ordinals: adapter.parameter_formals().to_vec(),
+            },
+        ))
+    }
+}

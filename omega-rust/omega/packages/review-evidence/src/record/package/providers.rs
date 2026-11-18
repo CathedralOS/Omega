@@ -37,17 +37,17 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
-        operation: native_program_planning::CompilerPrimitiveFloatBinaryOperation,
+        operation: effects::CompilerPrimitiveFloatBinaryOperation,
         format: numeric_literals::FloatFormat,
     },
     PrimitiveIntegerComparison {
-        operation: native_program_planning::CompilerPrimitiveIntegerComparisonOperation,
-        integer_type: native_program_planning::CompilerNumericType,
+        operation: effects::CompilerPrimitiveIntegerComparisonOperation,
+        integer_type: effects::CompilerNumericType,
     },
     NamedFloatNegation(numeric_literals::FloatFormat),
     NamedFloatConversion {
-        source: native_program_planning::CompilerNumericType,
-        target: native_program_planning::CompilerNumericType,
+        source: effects::CompilerNumericType,
+        target: effects::CompilerNumericType,
         domain: numerics::arithmetic::ArithmeticDomain,
     },
 }

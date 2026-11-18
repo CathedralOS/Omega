@@ -6,8 +6,6 @@ pub(crate) use portable_publication::ProductCodeSource;
 mod provider_execution;
 pub use provider_execution::prepare_provider_execution_inputs;
 mod program_entry;
-mod entry_planning;
-pub(crate) use entry_planning::program_entry_with_calling_plans;
 mod terminal_artifact;
 
 pub(crate) use program_entry::bind_folded_entry_dependencies;

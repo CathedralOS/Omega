@@ -137,22 +137,45 @@ pub(crate) fn emit_realization_object(
         BodyEmissionError::Object(diagnostics) => diagnostics,
     })?;
     let private_bodies = prepared_callbacks.finish_physical()?;
-    let hosted_entry =
-        if image_emission::needs_hosted_entry(&physical.frame, &physical.facts, program_entry) {
-            Some(
-                image_emission::plan_hosted_program_entry(
-                    image_emission::HostedProgramEntryRequest {
-                        frame: &physical.frame,
-                        facts: &physical.facts,
-                        entry: program_entry,
-                        demand: super::body_resources::plan(&physical, &private_bodies)?,
-                    },
+    let hosted_entry = if physical_planning::hosted_program::needs_hosted_entry(
+        &physical.frame,
+        &physical.facts.program,
+        program_entry.map(|entry| entry.source().target_slot().owner),
+    ) {
+        let demand = super::body_resources::plan(&physical, &private_bodies)?;
+        let program = &physical.frame.instructions;
+        let receiver = program_entry
+            .map(|entry| {
+                verified_optimization_input::hosted_receiver::AdmittedHostedReceiver::admit(
+                    program.target,
+                    program.contracts.profile(),
+                    &physical.facts.admission,
+                    physical
+                        .facts
+                        .program
+                        .functions
+                        .iter()
+                        .find(|function| function.machine == program.entry),
+                    program.contracts.function_abi(program.entry),
+                    entry,
                 )
-                .map_err(|error| vec![error])?,
+            })
+            .transpose()
+            .map_err(|error| vec![error])?;
+        Some(
+            physical_planning::hosted_program::plan_hosted_program_entry(
+                physical_planning::hosted_program::HostedProgramEntryRequest {
+                    frame: &physical.frame,
+                    program: &physical.facts.program,
+                    receiver,
+                    demand,
+                },
             )
-        } else {
-            None
-        };
+            .map_err(|error| vec![error])?,
+        )
+    } else {
+        None
+    };
     let physical_entry = program_entry
         .filter(|entry| entry.source().target_slot().owner == target::TargetProfile::UefiX64)
         .map(|entry| {
@@ -182,24 +205,30 @@ pub(crate) fn emit_realization_object(
                 })?;
             let private_entries = private_bodies
                 .iter()
-                .map(|body| image_emission::PrivatePhysicalEntry {
-                    psi: body.callable.body.frame.instructions.psi,
-                    target: body.callable.body.frame.instructions.target,
-                    authority: &body.callable.body.installations,
-                    entry: &body.entry,
-                })
+                .map(
+                    |body| physical_planning::physical_entry::PrivatePhysicalEntry {
+                        psi: body.callable.body.frame.instructions.psi,
+                        target: body.callable.body.frame.instructions.target,
+                        authority: &body.callable.body.installations,
+                        entry: &body.entry,
+                    },
+                )
                 .collect::<Vec<_>>();
-            image_emission::plan_physical_entry(image_emission::PhysicalEntryPlanningRequest {
-                frame: &physical.frame,
-                admission: &physical.facts.admission,
-                authority: &physical.installations,
-                private_entries: &private_entries,
-                semantic_entry: entry.checked_entry().terminal_entry(),
-                physical: calling.plan(),
-                inbound_ordinals: adapter.parameter_formals(),
-                contract,
-                demand: super::body_resources::plan(&physical, &private_bodies)?,
-            })
+            physical_planning::physical_entry::plan_physical_entry(
+                physical_planning::physical_entry::PhysicalEntryPlanningRequest {
+                    frame: &physical.frame,
+                    selection: physical
+                        .facts
+                        .admission
+                        .physical_entry(entry)
+                        .map_err(|reason| realization_error("physical image entry", reason))?,
+                    authority: &physical.installations,
+                    private_entries: &private_entries,
+                    physical: calling.plan(),
+                    contract,
+                    demand: super::body_resources::plan(&physical, &private_bodies)?,
+                },
+            )
             .map_err(|error| vec![error])
         })
         .transpose()?;
@@ -217,11 +246,11 @@ pub(crate) fn emit_realization_object(
     let runtime_provisions =
         runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::encode));
     let hosted_entry = hosted_entry
-        .map(image_emission::encode_hosted_program_entry)
+        .map(native_encoding::hosted_program::encode_hosted_program_entry)
         .transpose()
         .map_err(|error| vec![error])?;
     let physical_entry = physical_entry
-        .map(image_emission::encode_physical_entry)
+        .map(native_encoding::physical_entry::encode_physical_entry)
         .transpose()
         .map_err(|error| vec![error])?;
     let root_error = |error| match error {

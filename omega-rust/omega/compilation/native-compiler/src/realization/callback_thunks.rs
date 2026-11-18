@@ -31,7 +31,8 @@ pub(crate) struct PreparedCallbackBodies<'a> {
 pub(crate) struct PlannedPrivateBody {
     pub identity: function_identity::MachineFunctionIdentity,
     pub callable: super::callable_objects::CallablePhysicalProduct,
-    pub entry: image_emission::PlannedPrivateEntry,
+    pub entry: physical_planning::callable_entry::PlannedPrivateEntry,
+    measurement: std::sync::OnceLock<Result<physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>>,
 }
 
 pub(super) struct PrivateBody<Callable> {
@@ -41,9 +42,34 @@ pub(super) struct PrivateBody<Callable> {
 
 pub(super) struct BoundPrivateBody {
     callable: super::callable_objects::BoundCallable,
-    entry: image_emission::PlannedPrivateEntry,
+    entry: physical_planning::callable_entry::PlannedPrivateEntry,
 }
 impl PlannedPrivateBody {
+    fn measured_handler(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    ) -> Result<&physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>> {
+        let measured = self.measurement.get_or_init(|| {
+            let bridge = self.entry.bridge().ok_or_else(|| {
+                realization_error("installed handler stack", "installed handler has no arrival bridge")
+            })?;
+            physical_planning::installed_handlers::measure_installed_handler(
+                self.identity,
+                &self.callable.body.frame,
+                &self.callable.body.facts,
+                &self.callable.body.installations,
+                bridge,
+                self.entry.cpu_state(),
+            ).map_err(|error| realization_error("installed handler stack", error))
+        }).as_ref().map_err(Clone::clone)?;
+        let row = measured.requirement();
+        if (row.installation_machine, row.operation) != (machine, operation) {
+            return Err(realization_error("installed handler stack", "installed stack guard has no retained physical handler"));
+        }
+        Ok(measured)
+    }
+
     pub(super) fn bind(
         self,
         handlers: &installation_binding::RetainedHandlerMeasurements,
@@ -59,8 +85,13 @@ impl BoundPrivateBody {
         self,
     ) -> Result<PrivateBody<super::callable_objects::EncodedCallable>, Vec<Diagnostic>> {
         let callable = self.callable.encode()?;
-        let entry = image_emission::encode_private_function_entry(self.entry)
-            .map_err(|error| realization_error("callback entry ABI", error))?;
+        let entry = native_encoding::callable_entry::encode_private_function_entry(self.entry)
+            .map_err(|error| {
+                realization_error(
+                    "callback entry ABI",
+                    format!("native entry transport: {error}"),
+                )
+            })?;
         Ok(PrivateBody { callable, entry })
     }
 }
@@ -87,10 +118,11 @@ impl PrivateBody<super::callable_objects::LaidOutCallable> {
         Vec<Diagnostic>,
     > {
         let emitted = self.callable.construct_object()?;
-        let object = self
-            .entry
-            .bind(Arc::new(emitted.projection.into_object()))
-            .map_err(|error| realization_error("callback entry ABI", error))?;
+        let object = image_emission::bind_private_function_entry(
+            self.entry,
+            Arc::new(emitted.projection.into_object()),
+        )
+        .map_err(|error| realization_error("callback entry ABI", error))?;
         Ok((object, emitted.physical_original))
     }
 }
@@ -185,25 +217,7 @@ pub(super) fn retained_handler_measurements(
                 "installed stack guard has no retained physical handler",
             )
         })?;
-        let bridge = body.entry.bridge().ok_or_else(|| {
-            realization_error(
-                "installed handler stack",
-                "installed handler has no arrival bridge",
-            )
-        })?;
-        measured.push(
-            image_emission::plan_installed_interrupt_stack_requirement(
-                body.identity,
-                &body.callable.body.frame,
-                &body.callable.body.facts,
-                &body.callable.body.installations,
-                bridge,
-                body.entry.cpu_state(),
-                machine,
-                operation,
-            )
-            .map_err(|error| realization_error("installed handler stack", error))?,
-        );
+        measured.push(body.measured_handler(machine, operation)?.clone());
     }
     installation_binding::RetainedHandlerMeasurements::new(measured)
         .map_err(|reason| realization_error("installed handler stack", reason))
@@ -284,26 +298,10 @@ pub(crate) fn prepare_installed_callbacks(
                         "arrival has no matching retained physical handler",
                     )
                 })?;
-            let bridge = body.entry.bridge().ok_or_else(|| {
-                realization_error(
-                    "installed handler stack",
-                    "installed stack demand has no admitted arrival bridge",
-                )
-            })?;
-            let requirement = image_emission::plan_installed_interrupt_stack_requirement(
-                body.identity,
-                &body.callable.body.frame,
-                &body.callable.body.facts,
-                &body.callable.body.installations,
-                bridge,
-                body.entry.cpu_state(),
-                entry.machine,
-                entry.operation,
-            )
-            .map_err(|error| realization_error("installed handler stack", error))?;
-            requirements.push(requirement);
+            let measured = body.measured_handler(entry.machine, entry.operation)?;
+            requirements.push(measured.requirement().clone());
         }
-        physical_planning::installed_arrival::compose(
+        installation_admission::arrival::compose(
             scope,
             &entries,
             &mut requirements[first_requirement..],
@@ -399,7 +397,7 @@ fn plan_physical_callback(
             Ok(parameter.application.native_ordinal)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let entry = image_emission::plan_private_function_entry(
+    let entry = physical_planning::callable_entry::plan_private_function_entry(
         settlement.callback_function,
         &callable.body.frame,
         &callable.body.installations,
@@ -409,6 +407,7 @@ fn plan_physical_callback(
     )
     .map_err(|error| realization_error("callback entry ABI", error))?;
     Ok(PlannedPrivateBody {
+        measurement: std::sync::OnceLock::new(),
         identity: settlement.callback_function,
         callable,
         entry,

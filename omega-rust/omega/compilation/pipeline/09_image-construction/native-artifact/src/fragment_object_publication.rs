@@ -135,19 +135,16 @@ pub fn publish_fragment_object(
     Ok(PublishedFragmentObject { object })
 }
 
-/// Construct an object from fully placed text. The optional original is held
-/// for verification of the object against its admitted target input.
+/// Project the completed object and its optional original for receiver verification.
 pub fn emit_fragment_object(
-    text: function_layout::StagedOptimizedFixedFrameTextSection,
+    publication: object_file::ObjectPublication,
+    replay: Option<std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>>,
     original_target: Option<image_emission::RetainedTargetOperations>,
 ) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
-    let source = std::sync::Arc::new(
-        object_file::stage_optimized_relocation_free_object_container(text)
-            .map_err(|error| native_artifact_error("fragment object placement", error))?,
-    );
     let object = image_emission::build_function_fragment_object_artifact(
         image_emission::FunctionFragmentObjectArtifactRequest {
-            replay: std::sync::Arc::clone(&source),
+            publication,
+            replay,
             original_target,
         },
     )

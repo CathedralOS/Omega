@@ -16,6 +16,8 @@ range (`validate_fragment_text_section`), and checks the manifest statistics and
 custody receipt.
 */
 
+use crate::code_layout::requested_native_code_layouts;
+use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use crate::fragment_emission::FunctionFragmentEmissionError;
 use crate::frame_application::{
     FunctionFragmentFrameApplicationError, StagedFunctionFragmentFrameApplication,
@@ -53,10 +55,12 @@ pub fn stage_optimized_fixed_frame_text_section(
     source: StagedFunctionFragmentFrameApplication,
 ) -> Result<StagedOptimizedFixedFrameTextSection, RelocationFreeTextSectionPlacementError> {
     let (text_section, manifest) = compute_fixed_frame(&source)?;
+    let native_layouts = requested_native_code_layouts(&text_section, &source.application().functions);
     let custody = fixed_frame_receipt(&source, &manifest, &text_section);
     Ok(StagedOptimizedFixedFrameTextSection {
         source,
         text_section: Arc::new(text_section),
+        native_layouts,
         manifest,
         custody,
     })
@@ -79,6 +83,11 @@ pub fn validate_optimized_fixed_frame_text_section(
         staged.source.fragments(),
         staged.manifest.record(),
     )?;
+    if staged.native_layouts
+        != requested_native_code_layouts(&staged.text_section, &staged.source.application().functions)
+    {
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
+    }
     let expected_receipt =
         fixed_frame_receipt(&staged.source, &staged.manifest, &staged.text_section);
     if staged.custody != expected_receipt {
@@ -103,6 +112,7 @@ impl ValidatedFunctionFragmentTextSectionManifest {
 pub struct StagedOptimizedFixedFrameTextSection {
     source: StagedFunctionFragmentFrameApplication, // Admitted frame-applied function-fragment stage.
     text_section: Arc<RelocationFreeTextSectionPlacement>, // Placed dense text section with resolved internal calls.
+    native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
     manifest: ValidatedFunctionFragmentTextSectionManifest, // Sealed text-section manifest.
     custody: StagedFixedFrameTextSectionCustodyReceipt, // Custody receipt binding frame application, section, and manifest.
 }
@@ -116,8 +126,22 @@ impl StagedOptimizedFixedFrameTextSection {
         self.text_section.as_ref()
     }
 
+    pub fn placed_body(&self) -> &Arc<crate::PlacedBodyEvidence> {
+        &self.source.placed_body
+    }
+
+    pub fn retains_originals(&self) -> bool {
+        self.source.retains_originals
+    }
+
     pub fn shared_text_section(&self) -> Arc<RelocationFreeTextSectionPlacement> {
         Arc::clone(&self.text_section)
+    }
+
+    /// Attributions in first-request order. A missing realization is reported when
+    /// the image requests its layout, just as it is for an individual layout query.
+    pub fn shared_native_code_layouts(&self) -> Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError> {
+        self.native_layouts.clone()
     }
 
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {

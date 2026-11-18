@@ -39,7 +39,7 @@ use crate::physical::{
     derive_physical_evidence,
 };
 use crate::publication::publication_digest;
-pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity};
+pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, RetainedDynamicElfArtifact};
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
     foreign_call_custody_digest,
@@ -273,7 +273,11 @@ fn with_emitted_image<Image, EmittedImage>(
 
 #[derive(Debug)]
 #[must_use = "a native artifact owns the canonical semantic and target artifact join"]
-pub struct NativeArtifact {
+pub struct NativeArtifact(RetainedNativeArtifact);
+
+/// The sealed image, its replay evidence, and its read-only inspection operations.
+#[derive(Debug)]
+pub struct RetainedNativeArtifact {
     parts: NativeArtifactParts,
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: NativeArtifactIdentity,
@@ -508,6 +512,14 @@ impl<Image> NativeArtifactParts<Image> {
     }
 }
 
+impl std::ops::Deref for NativeArtifact {
+    type Target = RetainedNativeArtifact;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl NativeArtifact {
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
         if parts.image.foreign_calls() != parts.object.foreign_calls() {
@@ -554,15 +566,25 @@ impl NativeArtifact {
         parts: NativeArtifactParts,
         physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     ) -> Self {
-        let mut artifact = Self {
+        let mut artifact = RetainedNativeArtifact {
             parts,
             physical_evidence_gap,
             identity: NativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
-        artifact
+        Self(artifact)
     }
 
+    pub fn into_retained(self) -> RetainedNativeArtifact {
+        self.0
+    }
+
+    pub fn into_parts(self) -> NativeArtifactParts {
+        self.0.parts
+    }
+}
+
+impl RetainedNativeArtifact {
     pub fn validate(&self) -> Result<(), NativeArtifactValidationError> {
         let semantic = self.parts.psi_artifact.manifest().semantic();
         if self.parts.object.psi() != semantic || self.parts.image.psi() != semantic {
@@ -673,6 +695,21 @@ impl NativeArtifact {
         image_emission::inspect_native_code_layouts(&self.parts.object, &self.parts.image)
     }
 
+    /// Inspect the completed product while the object and image are still
+    /// together. Private function indexes belong to their own semantic root.
+    pub fn inspect_for_runtime(&self) -> verified_optimization_input::runtime_provisions::RuntimeImageInspection {
+        use verified_optimization_input::runtime_provisions::{RuntimeImageInspection, RuntimeImageSections};
+        let artifact = self.psi_artifact();
+        let descriptors = self.inspect_native_code_layouts().map(|rows| rows.into_iter()
+            .filter(|row| row.private_function.is_none() && row.terminal_psi == artifact.view().identity())
+            .map(|row| (row.machine, row.data_section_offset))).map_err(|error| error.to_string());
+        let output = self.image().output();
+        RuntimeImageInspection::read(artifact, self.target(), *self.identity().as_bytes(), RuntimeImageSections {
+            text_address: output.final_image_layout.text_address, text: &output.final_text_bytes,
+            data_address: output.final_image_layout.data_address, data: &output.final_data_bytes,
+        }, descriptors)
+    }
+
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
         self.parts.selected_provider_closure_report_identity
     }
@@ -727,9 +764,6 @@ impl NativeArtifact {
         self.physical_evidence_gap.as_ref()
     }
 
-    pub fn into_parts(self) -> NativeArtifactParts {
-        self.parts
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -5,7 +5,7 @@ and vector register reads and writes, stack touches, flag writes, and terminal
 control transfers directly from the emitted byte stream.
 */
 
-use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_one};
+use crate::instruction_bytes::{DecodedInstruction, decode_one};
 use calling_conventions::{
     GeneratedEntryControl as Control, GeneratedEntryEvidence, GeneratedEntryInstruction,
     MachineRegister as Register, MachineState as State, MachineStateSet, RegisterSet,

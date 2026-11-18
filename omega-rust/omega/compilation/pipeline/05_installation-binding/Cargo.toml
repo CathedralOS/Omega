@@ -5,8 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+installation-admission = { path = "../../verification/installation-admission" }
 physical-planning = { path = "../04_physical-program-planning" }
-bound-installations = { path = "../../representations/bound-installations" }
 installation-evidence = { path = "../../representations/installation-evidence" }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 

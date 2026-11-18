@@ -19,7 +19,7 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, St
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
-    process::Command,
+
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
@@ -35,7 +35,7 @@ pub(in super::super) fn rejection(reason: impl Into<String>) -> TerminalEffectRe
 }
 
 pub(super) struct Sponsor {
-    command: Option<Command>,
+    command: Option<native_provider_runtime::NativeProviderCommand>,
     process: Option<NativeProviderProcess>,
     failure: Option<String>,
 }
@@ -53,7 +53,7 @@ impl Sponsor {
                 .command
                 .take()
                 .ok_or_else(|| rejection("no explicit native provider sponsor"))?;
-            match NativeProviderProcess::launch(command, Duration::from_secs(30)) {
+            match command.start(Duration::from_secs(30)) {
                 Ok(process) => self.process = Some(process),
                 Err(error) => {
                     self.failure = Some(error.to_string());
@@ -158,7 +158,7 @@ impl TerminalScalarBacking for Resident {
 
 impl NativeContext {
     pub fn new(
-        command: Option<Command>,
+        command: Option<native_provider_runtime::NativeProviderCommand>,
         services: crate::execution::TerminalNativeServiceDelegation,
         addresses: Arc<Mutex<super::super::allocation::AllocationValues>>,
     ) -> Self {

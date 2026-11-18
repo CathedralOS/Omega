@@ -32,6 +32,8 @@ pub(crate) use ::wire::digest_encoder;
 pub mod compatibility_fingerprint;
 mod component_locator;
 mod elf_loader;
+mod image_request;
+pub use image_request::{ExecutableImageEmissionRequest, ImageApplicationMetadataError};
 mod explicit_target_set;
 mod float_realization;
 mod foreign_locator;

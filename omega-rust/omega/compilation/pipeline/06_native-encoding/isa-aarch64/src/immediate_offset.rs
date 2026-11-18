@@ -137,36 +137,7 @@ pub(crate) use target_aarch64::form_effects::address_word_count;
 use target_aarch64::form_effects::MAX_ADDRESS_BYTES;
 
 
-pub(crate) fn decode_address_words(words: &[u32], destination: u8, base: u8) -> Option<u64> {
-    let mut offset = 0_u64;
-    let mut previous_pages = None;
-    let mut remainder_seen = false;
-    for (position, word) in words.iter().copied().enumerate() {
-        let source = if position == 0 { base } else { destination };
-        if word & 0xff80_0000 != ADD_IMMEDIATE
-            || word & 31 != u32::from(destination)
-            || (word >> 5) & 31 != u32::from(source)
-            || remainder_seen
-        {
-            return None;
-        }
-        let immediate = u64::from((word >> 10) & 4095);
-        if word & SHIFT_TWELVE != 0 {
-            if immediate == 0 || previous_pages.is_some_and(|pages| pages != IMMEDIATE_LIMIT) {
-                return None;
-            }
-            previous_pages = Some(immediate);
-            offset += immediate << 12;
-        } else {
-            if immediate == 0 && position != 0 {
-                return None;
-            }
-            remainder_seen = true;
-            offset += immediate;
-        }
-    }
-    (!words.is_empty()).then_some(offset)
-}
+pub(crate) use target_aarch64::inspection::decode_address_words;
 
 #[cfg(test)]
 mod tests {

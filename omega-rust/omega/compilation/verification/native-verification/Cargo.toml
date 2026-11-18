@@ -20,8 +20,8 @@ semantic-vocabulary = { path = "../../../../psi/compilation/representations/sema
 native-layout = { path = "../../pipeline/07_native-layout" }
 
 [dev-dependencies]
+image-fixtures = { path = "../../../../test-support/image-fixtures" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
-native-encoding = { path = "../../pipeline/06_native-encoding", features = ["test-support"] }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 target = { path = "../../target-description/target" }
 isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }

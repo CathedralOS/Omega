@@ -1835,7 +1835,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
                     .id;
                 let observation =
                     terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-                        native_image: report.retained_native_artifact(),
+                        native_image: report.retained_native_artifact().map(|image| image.inspect_for_runtime()),
                         entry: None,
                         filesystem: Default::default(),
                         native_services: Default::default(),

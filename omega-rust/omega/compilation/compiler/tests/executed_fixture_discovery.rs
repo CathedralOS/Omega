@@ -277,7 +277,7 @@ fn target_audit_rejoins_compiled_foreign_operands() {
         1,
         "the kept source reaches its native process-ID binding"
     );
-    image_emission::verify_retained_target_operations(artifact.object())
+    published_object_verification::verify_retained_target_operations(artifact.object())
         .unwrap_or_else(|error| panic!("process-ID target audit: {error:?}"));
 }
 

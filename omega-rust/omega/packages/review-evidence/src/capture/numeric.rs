@@ -1,5 +1,4 @@
-//! Review canonical numeric calls through the same declaration and target
-//! realization checks as native production. They are not authored Build
+//! Review canonical numeric calls through the target plans retained for this package. They are not authored Build
 //! selections. The intrinsic execution retains their complete catalog meaning;
 //! source custody and the full checked contract must agree before projection.
 
@@ -13,11 +12,11 @@ use crate::record::{
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, TargetMachineCallable};
-use target::TargetProfile;
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use source_compiler::source_state::declarations::intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind,
 };
+use target::TargetProfile;
 
 pub(super) struct Projection {
     pub boundary: BoundaryMachineId,
@@ -67,7 +66,7 @@ pub(super) fn project(
     input: &PackageReviewInput<'_>,
     accepted: &source_compiler::AcceptedTerminalSource,
     target: TargetProfile,
-    roots: impl IntoIterator<Item = MachineId>,
+    provider_bodies: impl IntoIterator<Item = MachineId>,
 ) -> Result<Vec<Projection>, Vec<Diagnostic>> {
     let module = accepted.module();
     let numeric = module
@@ -79,63 +78,22 @@ pub(super) fn project(
             })
         })
         .collect::<Vec<_>>();
-    if numeric.is_empty() {
-        return Ok(Vec::new());
-    }
-    // Declaration checking does not deploy a reusable library's unused bodies.
-    // The existing call closure includes normal and tail calls. If an indirect
-    // route prevents an exact closure, retain every numeric demand conservatively.
-    let roots = roots.into_iter().collect::<Vec<_>>();
-    let reached = if roots.is_empty() {
-        Some(Vec::new())
+    // Bind the review roster back to the exact entry and provider bodies the
+    // package owns. No provider choice or ABI plan is made during inspection.
+    let demanded = if numeric.is_empty() {
+        Vec::new()
     } else {
-        accepted.closure().elaboration.call_closure(roots)
+        accepted
+            .retained_package_review_numeric_requirements(provider_bodies)
+            .map_err(unavailable)?
     };
-    let demanded = reached
-        .map(|machines| {
-            let mut boundaries = Vec::new();
-            for machine in machines {
-                let tables = accepted
-                    .closure()
-                    .elaboration
-                    .tables
-                    .machines
-                    .get(machine)
-                    .ok_or_else(|| unavailable("the reached machine's checked call inventory"))?;
-                for call in tables.invocations.values() {
-                    if let terminal_check_tables::edges::Callee::Declared(
-                        TargetMachineCallable::Boundary(boundary),
-                    ) = call.callee
-                    {
-                        boundaries.push(boundary);
-                    }
-                }
-            }
-            boundaries.sort_unstable();
-            boundaries.dedup();
-            Ok::<_, Vec<Diagnostic>>(boundaries)
-        })
-        .transpose()?;
-    let schemas = native_program_planning::compiler_primitive_schemas(module)
-        .map_err(|reason| unavailable(&reason))?;
-    let mut leaves = native_program_planning::direct_compiler_primitive_leaves(
-        module,
-        &schemas,
-        target.target_name(),
-        numeric
-            .iter()
-            .filter(|boundary| {
-                demanded
-                    .as_ref()
-                    .is_none_or(|demanded| demanded.binary_search(&boundary.id).is_ok())
-            })
-            .map(|boundary| boundary.id),
-    )?;
-    leaves.sort_unstable_by(|left, right| left.callable_identity.cmp(&right.callable_identity));
-    if leaves
-        .windows(2)
-        .any(|pair| pair[0].callable_identity == pair[1].callable_identity)
-    {
+    let leaves: &[backend_plan::DirectBoundaryLeaf] =
+        match input.compilation().execution().package_review() {
+            Some(reviewed) => reviewed.numeric.as_ref().map_err(Clone::clone)?,
+            None if demanded.is_empty() => &[],
+            None => return Err(unavailable("the numeric declaration's target realization")),
+        };
+    if leaves.len() != demanded.len() {
         return Err(unavailable("one exact numeric target realization"));
     }
     let typed = input.typed();
@@ -211,10 +169,7 @@ pub(super) fn project(
             exposure: crate::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
             kind: crate::record::PackageReviewSemanticDependencyKind::NominalIdentity,
         };
-        if demanded
-            .as_ref()
-            .is_some_and(|demanded| demanded.binary_search(&boundary.id).is_err())
-        {
+        if demanded.binary_search(&boundary.id).is_err() {
             projected.push(Projection {
                 boundary: boundary.id,
                 dependency,
@@ -226,8 +181,15 @@ pub(super) fn project(
             .binary_search_by(|leaf| leaf.callable_identity.as_str().cmp(identity))
             .map_err(|_| unavailable("the numeric declaration's target realization"))?;
         let leaf = &leaves[index];
-        leaf.validate_bound_calling_custody(module)
-            .map_err(|reason| unavailable(&reason))?;
+        if leaf.plan.target != target.target_name()
+            || leaf
+                .bound_calling_declaration(module)
+                .map_err(|reason| unavailable(&reason))?
+                .id
+                != boundary.id
+        {
+            return Err(unavailable("the numeric declaration's target realization"));
+        }
         let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
         else {
             return Err(unavailable(

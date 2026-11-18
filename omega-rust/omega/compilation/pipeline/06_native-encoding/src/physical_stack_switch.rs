@@ -2,7 +2,7 @@
 use crate::native_entry_bridge::{NativeEntryBridge, encode_native_entry_bridge};
 use arena::Arena;
 use diagnostics::Diagnostic;
-use physical_planning::physical_stack_switch::{
+use physical_recipes::physical_stack_switch::{
     PhysicalIncomingStackRequirement, StackSwitchInstructions, StackSwitchPlan, StackTransfer,
 };
 fn invalid(reason: &str) -> Diagnostic {
@@ -42,7 +42,9 @@ impl StackSwitch {
     }
 }
 
-pub fn encode(plan: StackSwitchPlan) -> Result<(NativeEntryBridge, StackSwitch), Diagnostic> {
+pub fn encode<Origin>(
+    plan: StackSwitchPlan<Origin>,
+) -> Result<(NativeEntryBridge<Origin>, StackSwitch), Diagnostic> {
     let StackSwitchInstructions {
         bridge,
         transfers,

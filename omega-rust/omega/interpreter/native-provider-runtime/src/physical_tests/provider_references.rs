@@ -9,7 +9,7 @@ use crate::{
 use calling_conventions::{
     CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use native_encoding::test_support::emit_native_foreign_bridge;
+use image_fixtures::emit_native_foreign_bridge;
 use std::path::{Path, PathBuf};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 

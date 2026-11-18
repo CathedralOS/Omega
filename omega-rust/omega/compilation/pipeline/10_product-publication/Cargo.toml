@@ -7,6 +7,13 @@ version.workspace = true
 [dependencies]
 image-emission = { path = "../09_image-construction/image-emission" }
 native-artifact = { path = "../09_image-construction/native-artifact" }
+optimization-requests = { path = "../../products/optimization-requests" }
 platform-custody = { path = "../../../host-support/platform-custody" }
 target = { path = "../../target-description/target" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+
+[dev-dependencies]
+image = { path = "../09_image-construction/image" }
+image-macho = { path = "../09_image-construction/image-macho" }
+object-file = { path = "../08_object-construction" }

@@ -8,7 +8,7 @@ use native_artifact::{
     NativePublicationEvidenceDigest, NativePublicationInputsDigest, PackagePublicationComponent,
     executable_container_digest, publish_macos_application_package,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 struct PublicationDirectory(PathBuf);
 
@@ -66,18 +66,17 @@ fn report(
     application: NativeApplicationMetadata,
     executable: ExecutablePublicationReceipt,
     package: NativePackagePublicationReceipt,
-) -> CompileReport {
-    CompileReport::shell(
-        PathBuf::from("main.omg"),
-        1,
-        CompileProduct::NativeExecutable(PublishedNativeProduct {
+) -> CompletedProduct {
+    CompletedProduct {
+        product: CompileProduct::NativeExecutable(PublishedNativeProduct {
             runtime_provisions: None,
             executable,
             package: Some(package),
             optimization_rollback: None,
             application,
         }),
-    )
+        wrote_output: true,
+    }
 }
 
 fn rebuilt(

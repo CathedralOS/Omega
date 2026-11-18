@@ -35,3 +35,6 @@ pub fn encode_locator_import(
     .expect("foreign adapter has an admitted import target");
     native_encoding::imports::encode_import_program(plan)
 }
+
+mod bridges;
+pub use bridges::{emit_native_entry_bridge, emit_native_foreign_bridge};

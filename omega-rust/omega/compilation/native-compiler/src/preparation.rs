@@ -8,7 +8,7 @@
 
 use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
+use target::ExecutableImageEmissionRequest;
 use installation_evidence::InstallationEnvironmentAssumption;
 use terminal_installation::admit_target_layouts;
 use native_program_planning::{PreparedNativeExecution, RetainedTerminalArtifact};

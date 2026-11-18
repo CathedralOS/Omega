@@ -1,54 +1,22 @@
 //! Select and allocate the operations of a native foreign-call adapter.
 use calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, MachineRegister, ValidatedBoundaryEntryPlan,
+    CallSignature, CallingPolicy, EntryControl, MachineRegister,
     ValueLocation, ValueShape, evaluate_call_plan,
 };
 use post_allocation_machine::adapters::{AdapterInstructions, AdapterOperation};
 use register_model::validate_physical_register_model;
-use semantic_vocabulary::{ClosedScalarType, IntegerSign, ScalarType};
-use target::{Architecture, NativeTarget};
+use semantic_vocabulary::{ClosedScalarType, IntegerSign};
+use target::Architecture;
 
 use crate::bridge_values::{
     AlignedHome, Encoding, NativeBridgeEncodingError, ValueStorage, WordLocation, allocate_home,
     allocate_word, is_borrowed, value_storage,
 };
 
-pub use calling_conventions::NativeForeignBridgeRequest;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeForeignBridgePlan {
-    request: NativeForeignBridgeRequest,
-    instructions: AdapterInstructions,
-    frame_bytes: u32,
-}
-
-impl NativeForeignBridgePlan {
-    pub fn instructions(&self) -> &AdapterInstructions {
-        &self.instructions
-    }
-    pub fn into_request(self) -> NativeForeignBridgeRequest {
-        self.request
-    }
-
-    pub fn frame_bytes(&self) -> u32 {
-        self.frame_bytes
-    }
-    pub fn request(&self) -> &NativeForeignBridgeRequest {
-        &self.request
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeForeignBridgeError {
-    IncompatiblePlan,
-    ScalarParameterMismatch,
-    UnsupportedValueTransport,
-    FrameOverflow,
-    Encoding,
-    ReplayMismatch,
-}
-diagnostics::failed_display!(NativeForeignBridgeError, "native foreign bridge failed");
-impl std::error::Error for NativeForeignBridgeError {}
+use physical_recipes::native_foreign_bridge as recipes;
+use recipes::NativeForeignInstructions;
+pub use recipes::{NativeForeignBridgeError, NativeForeignBridgeRequest};
+pub type NativeForeignBridgePlan = recipes::NativeForeignBridgePlan<crate::PhysicalRecipeOrigin>;
 type Error = NativeForeignBridgeError;
 
 impl From<NativeBridgeEncodingError> for Error {
@@ -330,11 +298,14 @@ pub fn plan_native_foreign_bridge(
     }
     bytes.frame(frame_bytes, interval, touches, false);
     bytes.push(AdapterOperation::Return);
-    Ok(NativeForeignBridgePlan {
-        request,
-        instructions: bytes,
-        frame_bytes,
-    })
+    Ok(NativeForeignBridgePlan::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        NativeForeignInstructions {
+            request,
+            instructions: bytes,
+            frame_bytes,
+        },
+    ))
 }
 
 fn extend_signed_scalar(

@@ -5,7 +5,6 @@ register writes, stack touches, vector touches, and terminal branch targets from
 the emitted 32-bit A64 words without trusting producer summaries.
 */
 
-use crate::selected_form_encoding::decoding::{DecodedWord, decode_words};
 use calling_conventions::{
     GeneratedEntryControl as Control, GeneratedEntryEvidence, GeneratedEntryInstruction,
     MachineRegister as Register, MachineState as State, MachineStateSet, RegisterSet,
@@ -53,7 +52,7 @@ fn instruction(word: u32, offset: u32) -> Result<(Effects, Control), String> {
     let mut control = Control::FallThrough;
     let source = ((word >> 5) & 31) as u8;
     let destination = (word & 31) as u8;
-    if decode_words(&word.to_le_bytes()).is_ok_and(|rows| rows == [DecodedWord::Return]) {
+    if word.to_le_bytes() == crate::ORDINARY_RETURN_BYTES {
         effects.read(30, false, false);
         effects.clobbered.push(State::InstructionPointer);
         control = Control::Return;

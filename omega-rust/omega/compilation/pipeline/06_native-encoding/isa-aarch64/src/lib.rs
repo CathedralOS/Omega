@@ -40,8 +40,7 @@ emission:
 pub(crate) use ::wire::codec_bytes;
 mod floating_control;
 mod frame_protocol;
-mod generated_entry;
-pub use generated_entry::decode_aarch64_generated_entry;
+pub use target_aarch64::decode_aarch64_generated_entry;
 mod hosted_sequences;
 mod immediate_offset;
 mod machine_effects;
@@ -119,8 +118,8 @@ pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
 };
 mod selected_form_encoding;
-pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 4] = 0x9400_0000_u32.to_le_bytes();
-pub const ORDINARY_RETURN_BYTES: [u8; 4] = 0xd65f_03c0_u32.to_le_bytes();
+pub use target_aarch64::ORDINARY_DIRECT_CALL_BYTES;
+pub use target_aarch64::ORDINARY_RETURN_BYTES;
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
 };

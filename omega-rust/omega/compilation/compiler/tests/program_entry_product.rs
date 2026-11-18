@@ -271,6 +271,20 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .is_err()
             );
 
+            // Keep the entry and all bindings identical, but give the program a
+            // different canonical identity. Its native provider selection belongs
+            // to the original publication.
+            let mut other = module.clone();
+            let mut identities = other.identities.into_builder();
+            identities.intern("test::distinct-publication");
+            other.identities = identities.build();
+            let other = std::sync::Arc::new(terminal_codec::CanonicalTerminalArtifact::from_parts(
+                other, program.artifact().optimization().clone(), None,
+            ).unwrap());
+            let refusal = native_compiler::PublishedEntrySelection::select(&other, checked.execution())
+                .err().expect("a different program cannot borrow this target selection");
+            assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
+
             // A portable body with the same entry ID is insufficient when its
             // declaration or arrival signature is absent.
             let mut malformed = module.clone();

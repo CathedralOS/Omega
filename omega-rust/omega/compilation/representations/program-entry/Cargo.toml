@@ -9,6 +9,7 @@ name = "program_entry_plan"
 path = "src/lib.rs"
 
 [dependencies]
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
 declaration-contracts = { path = "../../../../psi/compilation/representations/declaration-contracts" }
 wire = { path = "../../../../psi/foundation/wire" }
 optimization-core = { path = "../optimization-contracts" }

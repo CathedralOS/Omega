@@ -3,7 +3,7 @@
 use machine_code::cpu_origins::*;
 use selected_instructions::{RegisterOperation, SelectedInstructionKind};
 
-pub fn prepare_native_cpu_origins(
+pub fn capture(
     program: &post_allocation_machine::PostAllocationMachineProgram,
 ) -> PhysicalCpuOrigins {
     PhysicalCpuOrigins {
@@ -63,12 +63,8 @@ pub fn prepare_native_cpu_origins(
                         .push(ModelSpecificRegisterSource {
                             instruction: instruction.id,
                             access,
-                            selector: crate::function_fragments::planned_constant_operand(
-                                function,
-                                instruction.id,
-                                0,
-                            )
-                            .map_err(|error| error.to_string()),
+                            selector: super::selected_constant_operand(function, instruction.id, 0)
+                                .map_err(|error| error.to_string()),
                         });
                 }
                 result

@@ -32,6 +32,13 @@ pub struct ClosedLogicalProviderReach {
 }
 
 impl ClosedLogicalProviderReach {
+    pub fn into_parts(self) -> (
+        terminal_semantics::logical_providers::ClosedLogicalProviders,
+        Vec<crate::CallableBoundaryImplementation>,
+    ) {
+        (self.selection, self.bindings)
+    }
+
     pub fn requirements(&self) -> &[BoundaryMachineId] { self.selection.requirements() }
     pub fn selection(&self) -> &terminal_semantics::logical_providers::ClosedLogicalProviders { &self.selection }
     pub fn bindings(&self) -> &[crate::CallableBoundaryImplementation] { &self.bindings }

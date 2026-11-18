@@ -5,7 +5,7 @@ digest domain. Both receipts bind the output path at installation.
 */
 
 use crate::digest_encoder::DomainDigestEncoder;
-use crate::{DynamicElfNativeArtifact, NativeArtifact};
+use crate::{RetainedDynamicElfArtifact, RetainedNativeArtifact};
 use std::path::{Path, PathBuf};
 
 macro_rules! publication_digest {
@@ -224,12 +224,12 @@ impl ExecutablePublicationReceipt {
 }
 
 pub struct PreparedExecutablePublication<'artifact> {
-    artifact: &'artifact NativeArtifact,
+    artifact: &'artifact RetainedNativeArtifact,
     container_digest: ExecutableContainerDigest,
 }
 
 impl<'artifact> PreparedExecutablePublication<'artifact> {
-    pub fn new(artifact: &'artifact NativeArtifact) -> Result<Self, String> {
+    pub fn new(artifact: &'artifact RetainedNativeArtifact) -> Result<Self, String> {
         let output = artifact.image().output();
         if Path::new(&output.file_name).components().count() != 1 {
             return Err("native artifact supplied a non-local output filename".to_owned());
@@ -300,12 +300,12 @@ impl<'artifact> PreparedExecutablePublication<'artifact> {
 }
 
 pub struct PreparedDynamicElfPublication<'artifact> {
-    artifact: &'artifact DynamicElfNativeArtifact,
+    artifact: &'artifact RetainedDynamicElfArtifact,
     container_digest: ExecutableContainerDigest,
 }
 
 impl<'artifact> PreparedDynamicElfPublication<'artifact> {
-    pub fn new(artifact: &'artifact DynamicElfNativeArtifact) -> Result<Self, String> {
+    pub fn new(artifact: &'artifact RetainedDynamicElfArtifact) -> Result<Self, String> {
         let output = artifact.image().output();
         if Path::new(&output.file_name).components().count() != 1 {
             return Err("dynamic ELF artifact supplied a non-local output filename".to_owned());

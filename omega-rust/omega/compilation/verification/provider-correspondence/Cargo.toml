@@ -17,3 +17,6 @@ target = { path = "../../target-description/target" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 
+symbols = { path = "../../../../psi/compilation/representations/declaration-identity" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+wire = { path = "../../../../psi/foundation/wire" }

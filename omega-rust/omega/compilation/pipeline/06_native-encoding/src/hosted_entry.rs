@@ -1,11 +1,13 @@
 //! Encode hosted entry operations and emit symbolic placement fields.
 use calling_conventions::MachineRegister as R;
 use machine_code::hosted_entry::{EncodedHostedEntry, EntryFixup, EntryFixupKind, EntrySymbol};
-use physical_planning::hosted_entry::{
+use physical_recipes::hosted_entry::{
     A64Template, FailureCondition, HostedEntryProgram, Operation, X86Reference, X86Template,
 };
 use target::Architecture;
-pub fn encode_hosted_entry(plan: HostedEntryProgram) -> Result<EncodedHostedEntry, &'static str> {
+pub fn encode_hosted_entry<Origin>(
+    plan: HostedEntryProgram<Origin>,
+) -> Result<EncodedHostedEntry, &'static str> {
     let (contract, operations) = plan.into_parts();
     let mut bytes = Vec::new();
     let mut fixups = Vec::new();

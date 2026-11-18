@@ -3,19 +3,18 @@
 // numbers are local to their own semantic artifacts, so we filter to layouts
 // matching this root's `TerminalPsiIdentity` without private function indirection.
 
-use super::{TerminalRuntimeError, TerminalRuntimeRequest};
+use super::TerminalRuntimeError;
+use verified_optimization_input::runtime_provisions::RuntimeImageInspection;
 use terminal_interpreter::{
     TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
 };
 
 pub(super) fn inspect(
-    request: &TerminalRuntimeRequest<'_>,
-    semantic: terminal_psi::TerminalPsiIdentity,
+    image: Option<RuntimeImageInspection>,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
     execution_target: Option<&str>,
 ) -> Result<Option<TerminalNativeCodeLayoutEnvironment>, TerminalRuntimeError> {
-    let Some(image) = request.native_image else {
-        return Ok(None);
-    };
+    let Some(image) = image else { return Ok(None); };
     let Some(target) = execution_target else {
         return Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection requires the completed image's target",
@@ -23,34 +22,28 @@ pub(super) fn inspect(
     };
     let selected_target =
         require_valid_inspection(target::NativeTarget::from_omega_target_name(Some(target)))?;
-    if image.psi_artifact().manifest().identity() != request.artifact.manifest().identity()
-        || image.target() != selected_target
-    {
+    if !image.matches(artifact, selected_target) {
         return Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target",
         ));
     }
-    let descriptions = require_valid_inspection(image.inspect_native_code_layouts())?;
+    let (identity, descriptions) = require_valid_inspection(image.into_layouts())?;
     let layouts = descriptions
         .into_iter()
-        .filter(|layout| layout.private_function.is_none() && layout.terminal_psi == semantic)
         .map(|layout| TerminalNativeCodeLayout {
             machine: layout.machine,
             entry: layout.entry,
             regions: layout
                 .regions
                 .into_iter()
-                .map(|region| TerminalNativeCodeRegion {
-                    base: region.base,
-                    length: region.length,
-                })
+                .map(|(base, length)| TerminalNativeCodeRegion { base, length })
                 .collect(),
         })
         .collect();
     require_valid_inspection(TerminalNativeCodeLayoutEnvironment::linked_image(
-        semantic,
+        artifact.view().identity(),
         target,
-        *image.identity().as_bytes(),
+        identity,
         layouts,
     ))
     .map(Some)

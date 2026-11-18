@@ -3678,7 +3678,7 @@ mod port_effects {
 
         fn span(instruction: &SelectedInstruction, offset: u64) -> FunctionFragmentInstructionSpan {
             let physical = register_model::validate_physical_register_model(
-                isa_x86_64::x86_64_physical_register_model(),
+                target_x86_64::x86_64_physical_register_model(),
             )
             .unwrap();
             let alternative = MachineAlternativeKey {
@@ -4048,7 +4048,8 @@ mod production {
     pub(crate) struct ProjectedObject(());
 
     pub struct FunctionFragmentObjectArtifactRequest {
-        pub replay: Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
+        pub publication: object_file::ObjectPublication,
+        pub replay: Option<Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>>,
         /// Stage 02's output, present only when the compile requested an
         /// explicit correspondence audit. Building the object never reads it.
         pub original_target: Option<crate::RetainedTargetOperations>,
@@ -4058,17 +4059,17 @@ mod production {
         request: FunctionFragmentObjectArtifactRequest,
     ) -> Result<ObjectArtifact, Error> {
         let FunctionFragmentObjectArtifactRequest {
+            publication,
             replay,
             original_target,
         } = request;
-        let keep_originals = original_target.is_some()
-            || replay
-                .source()
-                .source()
-                .source()
-                .source()
-                .has_original_replay();
-        let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::capture(&replay)?);
+        if original_target.is_some() && replay.is_none() {
+            return Err(Error::Mismatch("retained target operations require a retained object"));
+        }
+        if replay.as_ref().is_some_and(|original| original.publication() != publication) {
+            return Err(Error::Mismatch("retained object belongs to another publication"));
+        }
+        let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(publication)?);
         let source = emission_input.as_ref();
         if let Some(original) = &original_target {
             let projection = &source.emission_facts().projection;
@@ -4339,8 +4340,7 @@ mod production {
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: keep_originals
-                .then(|| super::replay::FragmentReplay(Arc::clone(&replay), original_target)),
+            fragment_replay: replay.map(|object| super::replay::FragmentReplay(object, original_target)),
             composition_source: None,
             psi: text.psi,
             target: text.target,
@@ -4365,13 +4365,7 @@ mod production {
 }
 
 pub(crate) mod replay {
-    mod validation;
-
     use std::sync::Arc;
-    pub use validation::{
-        verify_retained_fixed_frame, verify_retained_selected_optimization,
-        verify_retained_target_operations,
-    };
 
     use native_program_planning::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
@@ -4396,10 +4390,29 @@ pub(crate) mod replay {
     /// The emitted object's current producer chain, plus stage 02's output
     /// when an audit asked for it.
     #[derive(Debug, Clone)]
-    pub(crate) struct FragmentReplay(
+    pub struct FragmentReplay(
         pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>,
         pub(crate) Option<RetainedTargetOperations>,
     );
+
+    impl FragmentReplay {
+        pub fn fragment_source(&self) -> &StagedOptimizedRelocationFreeObjectContainer {
+            &self.0
+        }
+
+        pub fn target_source(&self) -> Option<&RetainedTargetOperations> {
+            self.1.as_ref()
+        }
+
+
+    }
+
+    impl crate::ObjectArtifact {
+        /// The exact inputs intentionally retained for this body, if requested.
+        pub fn fragment_replay(&self) -> Option<&FragmentReplay> {
+            self.fragment_replay.as_ref()
+        }
+    }
 
     impl PartialEq for FragmentReplay {
         fn eq(&self, other: &Self) -> bool {
@@ -4442,12 +4455,11 @@ pub(crate) mod reporting {
     }
 
     impl FunctionPublicationStatistics {
-        pub(crate) fn from_source(
-            source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+        pub(crate) fn from_current(
+            code: &machine_code::placed_body::NativeBodyReadback,
         ) -> Result<Self, Diagnostic> {
-            let applied = source.source().source();
-            let manifest = applied.source().manifest().record();
-            let frame = applied.application();
+            let frame = &code.frame_application;
+            let stats = code.fragment_statistics;
             let mut prologue_bytes = 0usize;
             let mut epilogue_bytes = 0usize;
             for function in &frame.functions {
@@ -4461,14 +4473,14 @@ pub(crate) mod reporting {
                 }
             }
             Ok(Self {
-                function_count: host(manifest.statistics.functions)?,
-                instruction_count: host(manifest.statistics.instruction_spans)?,
+                function_count: host(stats.functions)?,
+                instruction_count: host(stats.instruction_spans)?,
                 zero_width_instruction_count: host(
-                    manifest.statistics.zero_byte_instruction_spans,
+                    stats.zero_byte_instruction_spans,
                 )?,
                 frame_prologue_byte_count: prologue_bytes,
                 frame_epilogue_byte_count: epilogue_bytes,
-                fragment_manifest_report_fingerprint: compact(manifest.identity.bytes()),
+                fragment_manifest_report_fingerprint: compact(frame.source_fragment_manifest.bytes()),
                 frame_application_report_fingerprint: compact(frame.identity.bytes()),
             })
         }
@@ -5385,1726 +5397,10 @@ mod source {
         use target_operations::{
             CallSiteOwner, InstallationCallRole, TargetFunction, TargetUnitOperation,
         };
-        mod control {
-            use super::Error;
-            use super::expressions::{Binary, Expr, Expressions};
-            use selected_instructions::{
-                SelectedBlockId, SelectedFunction, SelectedInstructionId,
-                SelectedInstructionKind as Kind, SelectedTerminator,
-            };
+        use installation_admission::selected::control;
 
-            pub(super) struct Graph<'a> {
-                function: &'a SelectedFunction,
-                operation: semantic_vocabulary::OperationId,
-                positions: Vec<(SelectedInstructionId, (usize, usize))>,
-                successors: Vec<Vec<usize>>,
-                dominators: Vec<Vec<bool>>,
-                reachable: Vec<bool>,
-            }
-            impl<'a> Graph<'a> {
-                pub(super) fn new(
-                    function: &'a SelectedFunction,
-                    operation: semantic_vocabulary::OperationId,
-                ) -> Result<Self, Error> {
-                    let count = function.blocks.len();
-                    let mut positions = Vec::new();
-                    let mut successors = vec![Vec::new(); count];
-                    for (index, block) in function.blocks.iter().enumerate() {
-                        if block.id.0 as usize != index {
-                            return Err(Error::Mismatch(
-                                "installation replay requires the selected block arena",
-                            ));
-                        }
-                        for (position, row) in block
-                            .instructions
-                            .iter()
-                            .chain(std::iter::once(
-                                selected_instructions::terminator_instruction(&block.terminator),
-                            ))
-                            .enumerate()
-                        {
-                            positions.push((row.id, (index, position)));
-                        }
-                        for edge in selected_instructions::terminator_successors(&block.terminator)
-                        {
-                            if edge.block.0 as usize >= count {
-                                return Err(Error::Mismatch(
-                                    "installation branch leaves its function",
-                                ));
-                            }
-                            successors[index].push(edge.block.0 as usize);
-                        }
-                    }
-                    positions.sort_unstable_by_key(|row| row.0);
-                    if positions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-                        return Err(Error::Mismatch(
-                            "installation has duplicated selected instruction IDs",
-                        ));
-                    }
-                    let entry = function.entry_block.0 as usize;
-                    if entry >= count {
-                        return Err(Error::Mismatch("installation function has no entry"));
-                    }
-                    let mut reachable = vec![false; count];
-                    let mut pending = vec![entry];
-                    while let Some(block) = pending.pop() {
-                        if reachable[block] {
-                            continue;
-                        }
-                        reachable[block] = true;
-                        pending.extend(successors[block].iter().copied());
-                    }
-                    let mut predecessors = vec![Vec::new(); count];
-                    for (from, edges) in successors.iter().enumerate() {
-                        for &to in edges {
-                            predecessors[to].push(from);
-                        }
-                    }
-                    let mut dominators = vec![reachable.clone(); count];
-                    dominators[entry].fill(false);
-                    dominators[entry][entry] = true;
-                    loop {
-                        let mut changed = false;
-                        for block in 0..count {
-                            if block == entry || !reachable[block] {
-                                continue;
-                            }
-                            let mut next = reachable.clone();
-                            for &predecessor in &predecessors[block] {
-                                if reachable[predecessor] {
-                                    for (value, previous) in
-                                        next.iter_mut().zip(&dominators[predecessor])
-                                    {
-                                        *value &= *previous;
-                                    }
-                                }
-                            }
-                            next[block] = true;
-                            if next != dominators[block] {
-                                dominators[block] = next;
-                                changed = true;
-                            }
-                        }
-                        if !changed {
-                            break;
-                        }
-                    }
-                    Ok(Self {
-                        function,
-                        operation,
-                        positions,
-                        successors,
-                        dominators,
-                        reachable,
-                    })
-                }
-                pub(super) fn position(
-                    &self,
-                    id: SelectedInstructionId,
-                ) -> Result<(usize, usize), Error> {
-                    self.positions
-                        .binary_search_by_key(&id, |row| row.0)
-                        .ok()
-                        .map(|index| self.positions[index].1)
-                        .ok_or(Error::Mismatch(
-                            "installation instruction is outside its CFG",
-                        ))
-                }
-                pub(super) fn require_owned_observation(
-                    &self,
-                    id: SelectedInstructionId,
-                ) -> Result<(), Error> {
-                    let (block, position) = self.position(id)?;
-                    let row = self.function.blocks[block]
-                        .instructions
-                        .get(position)
-                        .ok_or(Error::Mismatch(
-                            "installation address observation is not an instruction",
-                        ))?;
-                    if row.provenance.operations.as_slice() != [self.operation]
-                        || !row.provenance.edges.is_empty()
-                    {
-                        return Err(Error::Mismatch(
-                            "installation address belongs to a different operation",
-                        ));
-                    }
-                    Ok(())
-                }
-                pub(super) fn precedes(
-                    &self,
-                    first: SelectedInstructionId,
-                    last: SelectedInstructionId,
-                ) -> Result<bool, Error> {
-                    let (a, ai) = self.position(first)?;
-                    let (b, bi) = self.position(last)?;
-                    if !self.reachable[a] || !self.reachable[b] {
-                        return Ok(false);
-                    }
-                    Ok(if a == b {
-                        ai < bi
-                    } else {
-                        self.dominators[b][a]
-                    })
-                }
-                pub(super) fn pair_capture_error(&self, detail: String) -> Error {
-                    Error::InstallationPairCapture {
-                        machine: self.function.machine,
-                        operation: self.operation,
-                        detail,
-                    }
-                }
 
-                pub(super) fn block_dominates(
-                    &self,
-                    block: SelectedBlockId,
-                    instruction: SelectedInstructionId,
-                ) -> Result<bool, Error> {
-                    let source = block.0 as usize;
-                    let (destination, _) = self.position(instruction)?;
-                    Ok(self.reachable.get(source).copied().unwrap_or(false)
-                        && self.reachable[destination]
-                        && self.dominators[destination][source])
-                }
-                pub(super) fn header_instruction(&self, header: usize) -> SelectedInstructionId {
-                    selected_instructions::terminator_instruction(
-                        &self.function.blocks[header].terminator,
-                    )
-                    .id
-                }
-                pub(super) fn require_loop_exit(
-                    &self,
-                    header: usize,
-                    before: SelectedInstructionId,
-                    expressions: &mut Expressions<'_>,
-                ) -> Result<(), Error> {
-                    let (_, _, exit) = self
-                        .predicate(header, expressions)?
-                        .ok_or(Error::Mismatch("installation loop lost its exit"))?;
-                    let (sink, _) = self.position(before)?;
-                    if !self.precedes(self.header_instruction(header), before)?
-                        || self.reachable_without(sink, (header, exit))
-                    {
-                        return Err(Error::Mismatch(
-                            "installation uses a loop result before completing every iteration",
-                        ));
-                    }
-                    Ok(())
-                }
-                pub(super) fn bounded_region(
-                    &self,
-                    start: SelectedInstructionId,
-                    work: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                    counted: &[(SelectedInstructionId, usize)],
-                ) -> Result<(), Error> {
-                    let (start, _) = self.position(start)?;
-                    let (work, _) = self.position(work)?;
-                    let removed = counted
-                        .iter()
-                        .map(|(advance, header)| {
-                            self.position(*advance).map(|(block, _)| (block, *header))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let mut colors = vec![0u8; self.successors.len()];
-                    let mut pending = vec![(start, false)];
-                    while let Some((block, exit)) = pending.pop() {
-                        if block == work || block == refusal.0 as usize {
-                            continue;
-                        }
-                        if exit {
-                            colors[block] = 2;
-                            continue;
-                        }
-                        if colors[block] == 1 {
-                            return Err(Error::Mismatch(
-                                "installation has an unbounded internal cycle",
-                            ));
-                        }
-                        if colors[block] == 2 {
-                            continue;
-                        }
-                        colors[block] = 1;
-                        pending.push((block, true));
-                        if self.successors[block].is_empty() {
-                            return Err(Error::Mismatch(
-                                "installation exits without refusal or retained work",
-                            ));
-                        }
-                        for &next in &self.successors[block] {
-                            if !removed.contains(&(block, next)) {
-                                pending.push((next, false));
-                            }
-                        }
-                    }
-                    Ok(())
-                }
-                pub(super) fn protected_interval(
-                    &self,
-                    start: SelectedInstructionId,
-                    work: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                    expressions: &mut Expressions<'_>,
-                ) -> Result<(), Error> {
-                    let (start_block, start_position) = self.position(start)?;
-                    let (work_block, work_position) = self.position(work)?;
-                    let mut seen = vec![false; self.successors.len()];
-                    let mut pending = vec![(start_block, start_position)];
-                    let mut reached_work = false;
-                    let mut interruption_count = 0usize;
-                    let mut interruptions = Vec::new();
-                    while let Some((block, first)) = pending.pop() {
-                        if block == refusal.0 as usize || seen[block] {
-                            continue;
-                        }
-                        seen[block] = true;
-                        let source = &self.function.blocks[block];
-                        for (position, row) in source
-                            .instructions
-                            .iter()
-                            .chain(std::iter::once(
-                                selected_instructions::terminator_instruction(&source.terminator),
-                            ))
-                            .enumerate()
-                            .skip(first)
-                        {
-                            if row.provenance.operations.as_slice() != [self.operation]
-                                || !row.provenance.edges.is_empty()
-                            {
-                                let bookkeeping = if row.provenance == Default::default() {
-                                    expressions.allocation_transport(row)
-                                } else {
-                                    Ok(false)
-                                };
-                                if matches!(&bookkeeping, Ok(true)) {
-                                    continue;
-                                }
-                                interruption_count += 1;
-                                if interruptions.len() < 12 {
-                                    interruptions.push(format!(
-                                        "block={:?}, position={position}, block origin={:?}, instruction={:?}, kind={:?}, provenance={:?}, operands={:?}, registers={:?}, allocation transport check={bookkeeping:?}",
-                                        source.id, source.origin, row.id, row.kind, row.provenance,
-                                        row.operands, row.operands.iter().map(|operand|
-                                            self.function.virtual_register(operand.virtual_register)).collect::<Vec<_>>(),
-                                    ));
-                                }
-                            }
-                            if block == work_block && position == work_position {
-                                reached_work = true;
-                                break;
-                            }
-                        }
-                        if block != work_block {
-                            pending.extend(self.successors[block].iter().map(|next| (*next, 0)));
-                        }
-                    }
-                    if interruption_count != 0 {
-                        return Err(Error::InstallationInterval {
-                            machine: self.function.machine,
-                            operation: self.operation,
-                            detail: format!(
-                                "offending rows={interruption_count}; Validate={start:?}, Work={work:?}, refusal={refusal:?}; {}",
-                                interruptions.join("; ")
-                            ),
-                        });
-                    }
-                    if !reached_work {
-                        return Err(Error::Mismatch(
-                            "installation validation cannot reach its work call",
-                        ));
-                    }
-                    Ok(())
-                }
-                fn reachable_without(&self, destination: usize, removed: (usize, usize)) -> bool {
-                    let mut seen = vec![false; self.successors.len()];
-                    let mut pending = vec![self.function.entry_block.0 as usize];
-                    while let Some(block) = pending.pop() {
-                        if seen[block] {
-                            continue;
-                        }
-                        if block == destination {
-                            return true;
-                        }
-                        seen[block] = true;
-                        for &next in &self.successors[block] {
-                            if (block, next) != removed {
-                                pending.push(next);
-                            }
-                        }
-                    }
-                    false
-                }
-                pub(super) fn predicate(
-                    &self,
-                    block: usize,
-                    expressions: &mut Expressions<'_>,
-                ) -> Result<Option<(Expr, usize, usize)>, Error> {
-                    let row = &self.function.blocks[block];
-                    if !selected_instructions::terminator_instruction(&row.terminator)
-                        .provenance
-                        .operations
-                        .contains(&self.operation)
-                    {
-                        return Ok(None);
-                    }
-                    match &row.terminator {
-                        SelectedTerminator::ConditionalBranch {
-                            when_nonzero,
-                            when_zero,
-                            ..
-                        } => {
-                            let compare = row
-                                .instructions
-                                .last()
-                                .ok_or(Error::Mismatch("installation branch has no predicate"))?;
-                            if compare.kind != Kind::CompareI64Zero {
-                                return Err(Error::Mismatch(
-                                    "installation branch does not test its recorded Boolean",
-                                ));
-                            }
-                            Ok(Some((
-                                expressions.input(compare, 0)?,
-                                when_nonzero.block.0 as usize,
-                                when_zero.block.0 as usize,
-                            )))
-                        }
-                        SelectedTerminator::ConditionalBranchU64LessThan {
-                            when_less,
-                            when_not_less,
-                            ..
-                        } => {
-                            let compare = row.instructions.last().ok_or(Error::Mismatch(
-                                "installation ordered branch has no comparison",
-                            ))?;
-                            if compare.kind != Kind::CompareI64 {
-                                return Err(Error::Mismatch(
-                                    "installation ordered branch lost its operands",
-                                ));
-                            }
-                            Ok(Some((
-                                Expr::binary(
-                                    Binary::Less,
-                                    expressions.input(compare, 0)?,
-                                    expressions.input(compare, 1)?,
-                                ),
-                                when_less.block.0 as usize,
-                                when_not_less.block.0 as usize,
-                            )))
-                        }
-                        _ => Ok(None),
-                    }
-                }
-                pub(super) fn require_guard(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    expected: &Expr,
-                    before: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                ) -> Result<Expr, Error> {
-                    if *expected == Expr::constant(1) {
-                        return Ok(expected.clone());
-                    }
-                    let (sink, _) = self.position(before)?;
-                    for (index, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, success, failure)) =
-                            self.predicate(index, expressions)?
-                        else {
-                            continue;
-                        };
-                        if predicate == *expected
-                            && self.continuation(SelectedBlockId(failure as u32))? == refusal
-                            && self.precedes(
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                                before,
-                            )?
-                            && !self.reachable_without(sink, (index, success))
-                        {
-                            return Ok(predicate);
-                        }
-                    }
-                    let mut count = 0usize;
-                    let mut candidates = Vec::new();
-                    for (index, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, success, failure)) =
-                            self.predicate(index, expressions)?
-                        else {
-                            continue;
-                        };
-                        count += 1;
-                        if candidates.len() < 48 {
-                            let branch =
-                                selected_instructions::terminator_instruction(&block.terminator).id;
-                            candidates.push(format!(
-                                "block={index}, branch={branch:?}, success={success}, failure={failure}, continuation={:?}, expression_matches={}, precedes={}, bypass={}, predicate={predicate:?}",
-                                self.continuation(SelectedBlockId(failure as u32))?,
-                                predicate == *expected,
-                                self.precedes(branch, before)?,
-                                self.reachable_without(sink, (index, success)),
-                            ));
-                            if predicate == *expected {
-                                let destination = &self.function.blocks[failure];
-                                candidates.push(format!(
-                                    "matching failure block: origin={:?}, instructions={}, first instructions={:?}, terminator={:?}",
-                                    destination.origin, destination.instructions.len(),
-                                    &destination.instructions[..destination.instructions.len().min(8)],
-                                    destination.terminator,
-                                ));
-                            }
-                        }
-                    }
-                    Err(Error::InstallationGuard {
-                        machine: self.function.machine,
-                        operation: self.operation,
-                        detail: format!(
-                            "before={before:?}, refusal={refusal:?}, expected={expected:?}, predicates={count}; {}",
-                            candidates.join("; ")
-                        ),
-                    })
-                }
-                pub(super) fn continuation(
-                    &self,
-                    mut block: SelectedBlockId,
-                ) -> Result<SelectedBlockId, Error> {
-                    let instruction_pointer =
-                        &isa_x86_64::validated_x86_64_physical_register_model()
-                            .model()
-                            .view_named("rip")
-                            .ok_or(Error::Mismatch(
-                                "installation target has no instruction-pointer view",
-                            ))?
-                            .units;
-                    let mut seen = vec![false; self.function.blocks.len()];
-                    loop {
-                        let source =
-                            self.function
-                                .blocks
-                                .get(block.0 as usize)
-                                .ok_or(Error::Mismatch(
-                                    "installation continuation leaves its function",
-                                ))?;
-                        if std::mem::replace(&mut seen[block.0 as usize], true) {
-                            return Err(Error::Mismatch(
-                                "installation continuation contains a cycle",
-                            ));
-                        }
-                        let SelectedTerminator::Jump {
-                            instruction,
-                            successor,
-                        } = &source.terminator
-                        else {
-                            return Ok(block);
-                        };
-                        if !source.instructions.is_empty()
-                            || !matches!(source.origin, selected_instructions::SelectedBlockOrigin::Operation { source, operation }
-                                if operation == self.operation && source == successor.source_target)
-                            || instruction.kind != Kind::Jump
-                            || !instruction.operands.is_empty()
-                            || instruction.implicit_uses != *instruction_pointer
-                            || instruction.implicit_defs != *instruction_pointer
-                            || !instruction.clobbers.is_empty()
-                            || instruction.provenance.operations.as_slice() != [self.operation]
-                            || !instruction.provenance.values.is_empty()
-                            || !instruction.provenance.edges.is_empty()
-                            || !instruction.provenance.obligations.is_empty()
-                            || !instruction.provenance.work.is_empty()
-                            || successor.role
-                                != (selected_instructions::SelectedSuccessorRole::OperationContinuation {
-                                    operation: self.operation,
-                                })
-                            || successor.psi_edge.is_some()
-                            || !successor.bindings.is_empty()
-                            || !successor.structural_bindings.is_empty()
-                            || successor.structural_case.is_some()
-                            || !successor.work.is_empty()
-                        {
-                            return Ok(block);
-                        }
-                        block = successor.block;
-                    }
-                }
-                pub(super) fn only_success_path(
-                    &self,
-                    first: SelectedInstructionId,
-                    last: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                ) -> Result<(), Error> {
-                    let (start, _) = self.position(first)?;
-                    let (end, _) = self.position(last)?;
-                    let mut seen = vec![false; self.successors.len()];
-                    let mut block = start;
-                    while block != end {
-                        if std::mem::replace(&mut seen[block], true) {
-                            return Err(Error::Mismatch(
-                                "installation cycles after publication without reaching its retained work",
-                            ));
-                        }
-                        if block == refusal.0 as usize || self.successors[block].len() != 1 {
-                            return Err(Error::Mismatch(
-                                "installation can refuse or branch after publication begins",
-                            ));
-                        }
-                        block = self.successors[block][0];
-                    }
-                    if !self.precedes(first, last)? {
-                        return Err(Error::Mismatch(
-                            "installation publication does not reach its retained work",
-                        ));
-                    }
-                    Ok(())
-                }
-            }
-
-            impl Graph<'_> {
-                pub(super) fn counted_loop(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    condition: &Expr,
-                    initialize: SelectedInstructionId,
-                    advance: SelectedInstructionId,
-                    publication: SelectedInstructionId,
-                ) -> Result<usize, Error> {
-                    let (advance_block, _) = self.position(advance)?;
-                    let (publication_block, _) = self.position(publication)?;
-                    for (header, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, body, exit)) = self.predicate(header, expressions)?
-                        else {
-                            continue;
-                        };
-                        if predicate != *condition {
-                            continue;
-                        }
-                        let super::Word::Binary(Binary::Less, expected_counter, _) =
-                            condition.word()
-                        else {
-                            return Err(Error::Mismatch(
-                                "installation loop condition is not an ordered bound",
-                            ));
-                        };
-                        let super::Word::Binary(Binary::Less, actual_counter, _) = predicate.word()
-                        else {
-                            continue;
-                        };
-                        let super::Word::Load {
-                            instruction: Some(observed),
-                            ..
-                        } = actual_counter.word()
-                        else {
-                            continue;
-                        };
-                        if actual_counter != expected_counter
-                            || self.position(*observed)?.0 != header
-                        {
-                            continue;
-                        }
-                        let SelectedTerminator::Jump { successor, .. } =
-                            &self.function.blocks[advance_block].terminator
-                        else {
-                            continue;
-                        };
-                        if successor.block.0 as usize != header
-                            || !self.precedes(
-                                initialize,
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                            )?
-                            || !self.precedes(
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                                advance,
-                            )?
-                            || self.reachable_without(advance_block, (header, body))
-                            || self.reachable_without(publication_block, (header, exit))
-                        {
-                            continue;
-                        }
-                        let predecessors = self
-                            .successors
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, edges)| edges.contains(&header))
-                            .map(|(index, _)| index)
-                            .collect::<Vec<_>>();
-                        let (initial_block, _) = self.position(initialize)?;
-                        if predecessors.len() != 2
-                            || !predecessors.contains(&advance_block)
-                            || !predecessors.contains(&initial_block)
-                        {
-                            continue;
-                        }
-                        return Ok(header);
-                    }
-                    Err(Error::Mismatch(
-                        "installation loop changed its zero-entry, condition, update or publication exit",
-                    ))
-                }
-                fn reaches_before(
-                    &self,
-                    start: usize,
-                    target: usize,
-                    stop: usize,
-                    removed: Option<usize>,
-                ) -> bool {
-                    let mut seen = vec![false; self.successors.len()];
-                    let mut pending = vec![start];
-                    while let Some(block) = pending.pop() {
-                        if block == stop || Some(block) == removed || seen[block] {
-                            continue;
-                        }
-                        if block == target {
-                            return true;
-                        }
-                        seen[block] = true;
-                        pending.extend(self.successors[block].iter().copied());
-                    }
-                    false
-                }
-                pub(super) fn selected_iteration(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    predicate: &Expr,
-                    header: usize,
-                    write: SelectedInstructionId,
-                    advance: SelectedInstructionId,
-                ) -> Result<Expr, Error> {
-                    let (write_block, _) = self.position(write)?;
-                    let (advance_block, _) = self.position(advance)?;
-                    let mut found = None;
-                    for (branch, block) in self.function.blocks.iter().enumerate() {
-                        let Some((actual, yes, no)) = self.predicate(branch, expressions)? else {
-                            continue;
-                        };
-                        if actual != *predicate
-                            || !self.block_dominates(
-                                SelectedBlockId(header as u32),
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                            )?
-                            || !self.precedes(
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                                write,
-                            )?
-                        {
-                            continue;
-                        }
-                        if self.reaches_before(yes, advance_block, header, Some(write_block))
-                            || self.reaches_before(no, write_block, header, None)
-                            || !self.reaches_before(yes, write_block, header, None)
-                        {
-                            continue;
-                        }
-                        if found.replace(actual).is_some() {
-                            return Err(Error::Mismatch(
-                                "installation iteration has multiple matching selectors",
-                            ));
-                        }
-                    }
-                    found.ok_or(Error::Mismatch(
-                        "installation stack publication is not confined to the exact matching iteration",
-                    ))
-                }
-            }
-
-            impl Graph<'_> {
-                pub(super) fn require_edge(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    expected: &Expr,
-                    before: SelectedInstructionId,
-                ) -> Result<usize, Error> {
-                    let (sink, _) = self.position(before)?;
-                    for (index, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, success, _)) = self.predicate(index, expressions)?
-                        else {
-                            continue;
-                        };
-                        if predicate == *expected
-                            && self.precedes(
-                                selected_instructions::terminator_instruction(&block.terminator).id,
-                                before,
-                            )?
-                            && !self.reachable_without(sink, (index, success))
-                        {
-                            return Ok(index);
-                        }
-                    }
-                    Err(Error::Mismatch(
-                        "installation read is not dominated by its actual index bound",
-                    ))
-                }
-            }
-
-            impl Graph<'_> {
-                pub(super) fn require_guard_between(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    expected: &Expr,
-                    after: SelectedInstructionId,
-                    before: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                ) -> Result<Expr, Error> {
-                    let (sink, _) = self.position(before)?;
-                    let mut found = None;
-                    for (index, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, success, failure)) =
-                            self.predicate(index, expressions)?
-                        else {
-                            continue;
-                        };
-                        let branch =
-                            selected_instructions::terminator_instruction(&block.terminator).id;
-                        if predicate == *expected
-                            && self.precedes(after, branch)?
-                            && self.precedes(branch, before)?
-                            && self.continuation(SelectedBlockId(failure as u32))? == refusal
-                            && !self.reachable_without(sink, (index, success))
-                            && found.replace(predicate).is_some()
-                        {
-                            return Err(Error::Mismatch(
-                                "installation phase has multiple matching guards",
-                            ));
-                        }
-                    }
-                    found.ok_or(Error::Mismatch(
-                        "installation phase has no exact guard before its next counter reset",
-                    ))
-                }
-
-                pub(super) fn require_iteration_guard(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    expected: &Expr,
-                    header: usize,
-                    matched: SelectedInstructionId,
-                    advance: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                ) -> Result<Expr, Error> {
-                    self.require_iteration_guard_with_site(
-                        expressions,
-                        expected,
-                        header,
-                        matched,
-                        advance,
-                        refusal,
-                    )
-                    .map(|(predicate, _)| predicate)
-                }
-
-                pub(super) fn require_iteration_guard_with_site(
-                    &self,
-                    expressions: &mut Expressions<'_>,
-                    expected: &Expr,
-                    header: usize,
-                    matched: SelectedInstructionId,
-                    advance: SelectedInstructionId,
-                    refusal: SelectedBlockId,
-                ) -> Result<(Expr, SelectedInstructionId), Error> {
-                    let (start, _) = self.position(matched)?;
-                    let (sink, _) = self.position(advance)?;
-                    let mut found = None;
-                    for (index, block) in self.function.blocks.iter().enumerate() {
-                        let Some((predicate, success, failure)) =
-                            self.predicate(index, expressions)?
-                        else {
-                            continue;
-                        };
-                        let branch =
-                            selected_instructions::terminator_instruction(&block.terminator).id;
-                        if predicate != *expected
-                            || !self.precedes(matched, branch)?
-                            || self.continuation(SelectedBlockId(failure as u32))? != refusal
-                            || !self.reaches_before(start, index, header, None)
-                            || self.reaches_before(start, sink, header, Some(index))
-                            || !self.reaches_before(success, sink, header, None)
-                            || self.reaches_before(failure, sink, header, None)
-                        {
-                            continue;
-                        }
-                        if found.replace((predicate, branch)).is_some() {
-                            return Err(Error::Mismatch(
-                                "installation matched iteration has ambiguous guards",
-                            ));
-                        }
-                    }
-                    found.ok_or(Error::Mismatch(
-                        "installation matched iteration can bypass its required guard",
-                    ))
-                }
-            }
-        }
-
-        #[cfg(test)]
-        mod control_tests {
-            use super::control::Graph;
-            use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-            use selected_instructions::{
-                SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-                SelectedInstruction, SelectedInstructionId, SelectedInstructionKind as Kind,
-                SelectedInstructionProvenance, SelectedSuccessor, SelectedSuccessorRole,
-                SelectedTerminator,
-            };
-            use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
-            fn operation() -> OperationId {
-                OperationId::new(1).unwrap()
-            }
-            fn instruction(id: u32, kind: Kind) -> SelectedInstruction {
-                SelectedInstruction {
-                    id: SelectedInstructionId(id),
-                    kind,
-                    constraint: RegisterConstraintKey {
-                        family: RegisterConstraintFamily::Instruction,
-                        variant: 0,
-                    },
-                    operands: vec![],
-                    implicit_uses: vec![],
-                    implicit_defs: vec![],
-                    clobbers: vec![],
-                    provenance: SelectedInstructionProvenance {
-                        operations: vec![operation()],
-                        ..Default::default()
-                    },
-                }
-            }
-            fn function(destinations: &[Option<u32>]) -> SelectedFunction {
-                let blocks = destinations
-                    .iter()
-                    .enumerate()
-                    .map(|(index, next)| {
-                        let id = index as u32;
-                        let row = instruction(
-                            id * 2 + 1,
-                            if next.is_some() {
-                                Kind::Jump
-                            } else {
-                                Kind::ReturnUnit
-                            },
-                        );
-                        let terminator = match next {
-                            Some(next) => SelectedTerminator::Jump {
-                                instruction: row,
-                                successor: SelectedSuccessor {
-                                    role: SelectedSuccessorRole::OperationContinuation {
-                                        operation: operation(),
-                                    },
-                                    psi_edge: None,
-                                    block: SelectedBlockId(*next),
-                                    source_target: BlockId::new(1).unwrap(),
-                                    bindings: vec![],
-                                    structural_bindings: vec![],
-                                    structural_case: None,
-                                    work: vec![],
-                                },
-                            },
-                            None => SelectedTerminator::Return {
-                                instruction: row,
-                                psi_return_edge: EdgeId::new(1).unwrap(),
-                            },
-                        };
-                        SelectedBlock {
-                            id: SelectedBlockId(id),
-                            origin: SelectedBlockOrigin::Operation {
-                                source: BlockId::new(1).unwrap(),
-                                operation: operation(),
-                            },
-                            instructions: vec![instruction(
-                                id * 2,
-                                Kind::MaterializeI64 {
-                                    value: semantic_vocabulary::IntegerValue::Unsigned(1),
-                                },
-                            )],
-                            terminator,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                SelectedFunction {
-                    contracts: std::sync::Arc::new(
-                        selected_instructions::SelectedFunctionContracts {
-                            structural_block_parameters: Vec::new(),
-                            machine: MachineId::new(1).unwrap(),
-                            attachment: None,
-                            provenance: Default::default(),
-                            structural: None,
-                            local_storage_slots: vec![],
-                            outgoing_arguments: vec![],
-                            calls: vec![],
-                            normalized_foreign_calls: vec![],
-                            memory_accesses: vec![],
-                            boundary_settlements: vec![],
-                            virtual_registers: vec![],
-                        },
-                    ),
-                    entry_block: SelectedBlockId(0),
-                    blocks: blocks.into(),
-                }
-            }
-            #[test]
-            fn installed_publication_must_reach_work_without_a_cycle_or_refusal() {
-                let valid = function(&[Some(1), Some(2), None, None]);
-                let graph = Graph::new(&valid, operation()).unwrap();
-                assert!(
-                    graph
-                        .only_success_path(
-                            SelectedInstructionId(0),
-                            SelectedInstructionId(4),
-                            SelectedBlockId(3)
-                        )
-                        .is_ok()
-                );
-                let unreachable = function(&[Some(1), None, None, None]);
-                let graph = Graph::new(&unreachable, operation()).unwrap();
-                assert!(
-                    !graph
-                        .precedes(SelectedInstructionId(0), SelectedInstructionId(4))
-                        .unwrap()
-                );
-                assert!(
-                    graph
-                        .only_success_path(
-                            SelectedInstructionId(0),
-                            SelectedInstructionId(4),
-                            SelectedBlockId(3)
-                        )
-                        .is_err()
-                );
-                let cycle = function(&[Some(1), Some(0), None, None]);
-                assert!(
-                    Graph::new(&cycle, operation())
-                        .unwrap()
-                        .only_success_path(
-                            SelectedInstructionId(0),
-                            SelectedInstructionId(4),
-                            SelectedBlockId(3)
-                        )
-                        .is_err()
-                );
-                let refusal = function(&[Some(3), Some(2), None, None]);
-                assert!(
-                    Graph::new(&refusal, operation())
-                        .unwrap()
-                        .only_success_path(
-                            SelectedInstructionId(0),
-                            SelectedInstructionId(4),
-                            SelectedBlockId(3)
-                        )
-                        .is_err()
-                );
-            }
-
-            fn matched_guard(bypass: bool) -> SelectedFunction {
-                use register_model::{RegisterClassId, RegisterOperandAccess};
-                use selected_instructions::{
-                    SelectedOperand, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-                };
-                let mut value =
-                    function(&[Some(1), Some(2), Some(3), Some(5), None, Some(1), None]);
-                let operand = |register, access| SelectedOperand {
-                    operand: 0,
-                    virtual_register: VirtualRegisterId(register),
-                    access,
-                    class: RegisterClassId(0),
-                    fixed_view: None,
-                    tied_to: None,
-                    early_clobber: false,
-                };
-                for (register, block) in [(0, 0), (1, 3)] {
-                    value.blocks[block].instructions[0].operands =
-                        vec![operand(register, RegisterOperandAccess::Def)];
-                    value.virtual_registers.push(VirtualRegister {
-                        id: VirtualRegisterId(register),
-                        scalar_type: semantic_vocabulary::ScalarType::Integer(
-                            semantic_vocabulary::IntegerType::new(
-                                semantic_vocabulary::IntegerSign::Unsigned,
-                                64,
-                            )
-                            .unwrap(),
-                        ),
-                        class: RegisterClassId(0),
-                        origin: VirtualRegisterOrigin::InstructionScratch {
-                            instruction: SelectedInstructionId(block as u32 * 2),
-                            operand: 0,
-                        },
-                        definition_site: None,
-                        entry_fixed_view: None,
-                    });
-                }
-                for (block, register, yes, no) in [(1, 0, 2, 5), (3, 1, 5, 6)]
-                    .into_iter()
-                    .chain(bypass.then_some((2, 0, 3, 5)))
-                {
-                    let successor = |destination| SelectedSuccessor {
-                        role: SelectedSuccessorRole::OperationContinuation {
-                            operation: operation(),
-                        },
-                        psi_edge: None,
-                        block: SelectedBlockId(destination),
-                        source_target: BlockId::new(1).unwrap(),
-                        bindings: vec![],
-                        structural_bindings: vec![],
-                        structural_case: None,
-                        work: vec![],
-                    };
-                    let mut compare = instruction(1000 + block as u32, Kind::CompareI64Zero);
-                    compare.operands = vec![operand(register, RegisterOperandAccess::Use)];
-                    value.blocks[block].instructions.push(compare);
-                    value.blocks[block].terminator = SelectedTerminator::ConditionalBranch {
-                        instruction: instruction(
-                            block as u32 * 2 + 1,
-                            Kind::ConditionalBranchNonZero,
-                        ),
-                        when_nonzero: successor(yes),
-                        when_zero: successor(no),
-                    };
-                }
-                value
-            }
-
-            #[test]
-            fn matched_capture_uses_its_guard_before_the_shared_advance() {
-                use super::expressions::{Expr, Expressions};
-                let function = matched_guard(false);
-                let graph = Graph::new(&function, operation()).unwrap();
-                let mut expressions = Expressions::new(&function, &graph).unwrap();
-                let (actual, guard) = graph
-                    .require_iteration_guard_with_site(
-                        &mut expressions,
-                        &Expr::constant(1),
-                        1,
-                        SelectedInstructionId(4),
-                        SelectedInstructionId(10),
-                        SelectedBlockId(6),
-                    )
-                    .unwrap();
-                assert_eq!(actual, Expr::constant(1));
-                assert_eq!(guard, SelectedInstructionId(7));
-                assert!(
-                    graph
-                        .precedes(SelectedInstructionId(0), SelectedInstructionId(6))
-                        .unwrap()
-                );
-                assert!(graph.precedes(SelectedInstructionId(6), guard).unwrap());
-                assert!(
-                    !graph
-                        .precedes(SelectedInstructionId(6), SelectedInstructionId(10))
-                        .unwrap()
-                );
-                assert!(
-                    !graph
-                        .precedes(SelectedInstructionId(4), SelectedInstructionId(0))
-                        .unwrap()
-                );
-                assert!(
-                    !graph
-                        .precedes(SelectedInstructionId(6), SelectedInstructionId(9))
-                        .unwrap()
-                );
-                assert!(
-                    graph
-                        .precedes(SelectedInstructionId(u32::MAX), guard)
-                        .is_err()
-                );
-            }
-
-            #[test]
-            fn matched_iteration_still_cannot_bypass_its_guard() {
-                use super::expressions::{Expr, Expressions};
-                let function = matched_guard(true);
-                let graph = Graph::new(&function, operation()).unwrap();
-                let mut expressions = Expressions::new(&function, &graph).unwrap();
-                assert!(
-                    graph
-                        .require_iteration_guard_with_site(
-                            &mut expressions,
-                            &Expr::constant(1),
-                            1,
-                            SelectedInstructionId(4),
-                            SelectedInstructionId(10),
-                            SelectedBlockId(6),
-                        )
-                        .is_err()
-                );
-            }
-        }
-
-        mod expressions {
-            use super::Error;
-            use register_model::RegisterOperandAccess;
-            use selected_instructions::{
-                FrameStorageSlotId, SelectedFunction, SelectedImageAddressReference,
-                SelectedInstruction, SelectedInstructionId, SelectedInstructionKind as Kind,
-                VirtualRegisterId, VirtualRegisterOrigin,
-            };
-            use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
-            use std::sync::Arc;
-            mod copies {
-                use super::{Error, Expressions, RegisterOperandAccess, SelectedInstruction};
-
-                impl Expressions<'_> {
-                    pub(super) fn register_copy(
-                        &self,
-                        row: &SelectedInstruction,
-                    ) -> Result<bool, Error> {
-                        let [source, destination] = row.operands.as_slice() else {
-                            return Ok(false);
-                        };
-                        if source.operand != 0
-                            || source.access != RegisterOperandAccess::Use
-                            || destination.operand != 1
-                            || destination.access != RegisterOperandAccess::Def
-                            || !row.implicit_uses.is_empty()
-                            || !row.implicit_defs.is_empty()
-                            || !row.clobbers.is_empty()
-                        {
-                            return Ok(false);
-                        }
-                        let (Some(from), Some(to)) = (
-                            self.function.virtual_register(source.virtual_register),
-                            self.function.virtual_register(destination.virtual_register),
-                        ) else {
-                            return Ok(false);
-                        };
-                        if from.scalar_type != to.scalar_type
-                            || from.class != to.class
-                            || source.class != from.class
-                            || destination.class != to.class
-                            || self.defining_instruction(to.id)? != row.id
-                        {
-                            return Ok(false);
-                        }
-                        self.require_available(from.id, row.id)?;
-                        Ok(true)
-                    }
-                }
-            }
-
-            #[derive(Clone, Debug)]
-            pub(super) struct Expr(Arc<Word>);
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub(super) enum RootBoundary {
-                RetainedStart,
-                ActivationBase,
-            }
-            #[derive(Debug, PartialEq, Eq)]
-            pub(super) enum Word {
-                Constant(u64),
-                Parameter(PlaceId),
-                Value(ValueId),
-                Frame(FrameStorageSlotId),
-                Image(SelectedImageAddressReference),
-                RootBoundary {
-                    kind: RootBoundary,
-                    instruction: Option<SelectedInstructionId>,
-                },
-                Load {
-                    address: Expr,
-                    bytes: u8,
-                    instruction: Option<SelectedInstructionId>,
-                },
-                Binary(Binary, Expr, Expr),
-                Cpu {
-                    gdt: Expr,
-                    task: Expr,
-                    scratch: Expr,
-                    bytes: u32,
-                },
-                Call(SelectedInstructionId),
-            }
-            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-            pub(super) enum Binary {
-                Add,
-                Subtract,
-                Multiply,
-                And,
-                Or,
-                Xor,
-                Left,
-                Right,
-                Equal,
-                Less,
-                AtMost,
-            }
-            impl PartialEq for Expr {
-                fn eq(&self, other: &Self) -> bool {
-                    match (self.word(), other.word()) {
-                        (
-                            Word::RootBoundary { kind: a, .. },
-                            Word::RootBoundary { kind: b, .. },
-                        ) => a == b,
-                        (
-                            Word::Load {
-                                address: a,
-                                bytes: aw,
-                                ..
-                            },
-                            Word::Load {
-                                address: b,
-                                bytes: bw,
-                                ..
-                            },
-                        ) => a == b && aw == bw,
-                        (a, b) => a == b,
-                    }
-                }
-            }
-            impl Eq for Expr {}
-            impl Expr {
-                pub(super) fn new(word: Word) -> Self {
-                    Self(Arc::new(word))
-                }
-                pub(super) fn word(&self) -> &Word {
-                    &self.0
-                }
-                pub(super) fn visit_loads(
-                    &self,
-                    visit: &mut impl FnMut(
-                        &Expr,
-                        u8,
-                        Option<SelectedInstructionId>,
-                    ) -> Result<(), Error>,
-                ) -> Result<(), Error> {
-                    match self.word() {
-                        Word::Load {
-                            address,
-                            bytes,
-                            instruction,
-                        } => {
-                            visit(address, *bytes, *instruction)?;
-                            address.visit_loads(visit)?;
-                        }
-                        Word::Binary(_, left, right) => {
-                            left.visit_loads(visit)?;
-                            right.visit_loads(visit)?;
-                        }
-                        Word::Cpu {
-                            gdt, task, scratch, ..
-                        } => {
-                            gdt.visit_loads(visit)?;
-                            task.visit_loads(visit)?;
-                            scratch.visit_loads(visit)?;
-                        }
-                        _ => {}
-                    }
-                    Ok(())
-                }
-                pub(super) fn constant(value: u64) -> Self {
-                    Self::new(Word::Constant(value))
-                }
-                pub(super) fn binary(kind: Binary, left: Self, right: Self) -> Self {
-                    if let (Word::Constant(a), Word::Constant(b)) = (left.word(), right.word()) {
-                        let value = match kind {
-                            Binary::Add => a.wrapping_add(*b),
-                            Binary::Subtract => a.wrapping_sub(*b),
-                            Binary::Multiply => a.wrapping_mul(*b),
-                            Binary::And => a & b,
-                            Binary::Or => a | b,
-                            Binary::Xor => a ^ b,
-                            Binary::Left => a.wrapping_shl(*b as u32),
-                            Binary::Right => a.wrapping_shr(*b as u32),
-                            Binary::Equal => u64::from(a == b),
-                            Binary::Less => u64::from(a < b),
-                            Binary::AtMost => u64::from(a <= b),
-                        };
-                        return Self::constant(value);
-                    }
-                    if kind == Binary::Add {
-                        if let (Word::Binary(Binary::Add, base, previous), Word::Constant(extra)) =
-                            (left.word(), right.word())
-                            && let Word::Constant(offset) = previous.word()
-                        {
-                            return Self::binary(
-                                Binary::Add,
-                                base.clone(),
-                                Self::constant(offset.wrapping_add(*extra)),
-                            );
-                        }
-                        if matches!(left.word(), Word::Constant(_))
-                            && !matches!(right.word(), Word::Constant(_))
-                        {
-                            return Self::binary(kind, right, left);
-                        }
-                    }
-                    if matches!(kind, Binary::Add | Binary::Or | Binary::Xor)
-                        && right == Self::constant(0)
-                    {
-                        return left;
-                    }
-                    if matches!(kind, Binary::Add | Binary::Or | Binary::Xor)
-                        && left == Self::constant(0)
-                    {
-                        return right;
-                    }
-                    if kind == Binary::Multiply && right == Self::constant(1) {
-                        return left;
-                    }
-                    if kind == Binary::And && right == Self::constant(u64::MAX) {
-                        return left;
-                    }
-                    Self::new(Word::Binary(kind, left, right))
-                }
-                pub(super) fn offset(self, offset: u32) -> Self {
-                    Self::binary(Binary::Add, self, Self::constant(u64::from(offset)))
-                }
-                pub(super) fn load(self, bytes: u8) -> Self {
-                    Self::new(Word::Load {
-                        address: self,
-                        bytes,
-                        instruction: None,
-                    })
-                }
-            }
-
-            pub(super) fn operand(
-                row: &SelectedInstruction,
-                index: u16,
-            ) -> Result<VirtualRegisterId, Error> {
-                let mut found = row.operands.iter().filter(|value| value.operand == index);
-                match (found.next(), found.next()) {
-                    (Some(value), None) => Ok(value.virtual_register),
-                    _ => Err(Error::Mismatch(
-                        "installation instruction has missing or duplicate operand",
-                    )),
-                }
-            }
-
-            pub(super) struct Expressions<'a> {
-                function: &'a SelectedFunction,
-                graph: &'a super::Graph<'a>,
-                definitions: Vec<Option<&'a SelectedInstruction>>,
-                preceding: Vec<(SelectedInstructionId, Option<&'a SelectedInstruction>)>,
-                memo: Vec<Option<Expr>>,
-                active: Vec<bool>,
-                spills: super::super::spill_values::SpillValues<'a>,
-            }
-            impl<'a> Expressions<'a> {
-                pub(super) fn new(
-                    function: &'a SelectedFunction,
-                    graph: &'a super::Graph<'a>,
-                ) -> Result<Self, Error> {
-                    let mut definitions = vec![None; function.virtual_registers.len()];
-                    let mut preceding = Vec::new();
-                    for block in &function.blocks {
-                        let mut previous = None;
-                        for row in block.instructions.iter().chain(std::iter::once(
-                            selected_instructions::terminator_instruction(&block.terminator),
-                        )) {
-                            preceding.push((row.id, previous));
-                            previous = Some(row);
-                            for value in &row.operands {
-                                if matches!(
-                                    value.access,
-                                    RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                                ) {
-                                    let slot = definitions
-                                        .get_mut(value.virtual_register.0 as usize)
-                                        .ok_or(Error::Mismatch(
-                                            "installation definition has no register",
-                                        ))?;
-                                    if slot.replace(row).is_some() {
-                                        return Err(Error::Mismatch(
-                                            "installation replay requires a unique register definition",
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    preceding.sort_unstable_by_key(|row| row.0);
-                    let count = definitions.len();
-                    Ok(Self {
-                        function,
-                        graph,
-                        definitions,
-                        preceding,
-                        memo: vec![None; count],
-                        active: vec![false; count],
-                        spills: super::super::spill_values::SpillValues::new(function)
-                            .map_err(Error::Mismatch)?,
-                    })
-                }
-                pub(super) fn input(
-                    &mut self,
-                    row: &SelectedInstruction,
-                    index: u16,
-                ) -> Result<Expr, Error> {
-                    let register = operand(row, index)?;
-                    self.require_available(register, row.id)?;
-                    self.value(register)
-                }
-                pub(super) fn private_store(&self, row: &SelectedInstruction) -> bool {
-                    self.spills.private_store(row)
-                }
-                pub(super) fn allocation_transport(
-                    &mut self,
-                    row: &SelectedInstruction,
-                ) -> Result<bool, Error> {
-                    if self.spills.private_store(row) || self.spills.private_address(row) {
-                        return Ok(true);
-                    }
-                    if row.kind == Kind::CopyI64 {
-                        return self.register_copy(row);
-                    }
-                    self.private_reload(row)
-                }
-                pub(super) fn private_reload(
-                    &mut self,
-                    row: &SelectedInstruction,
-                ) -> Result<bool, Error> {
-                    if row.kind != (Kind::Load64 { byte_offset: 0 }) {
-                        return Ok(false);
-                    }
-                    let address = self.input(row, 0)?;
-                    if let Word::Frame(FrameStorageSlotId::Local(
-                        home @ selected_instructions::LocalStorageSlotId::Spill { .. },
-                    )) = address.word()
-                    {
-                        let writer = self.spills.writer(row.id, *home).map_err(Error::Mismatch)?;
-                        self.input(writer, 0)?;
-                        return Ok(true);
-                    }
-                    Ok(false)
-                }
-                fn loaded(
-                    &mut self,
-                    row: &SelectedInstruction,
-                    offset: u32,
-                    bytes: u8,
-                ) -> Result<Expr, Error> {
-                    let address = self.input(row, 0)?;
-                    if let Word::Frame(FrameStorageSlotId::Local(
-                        home @ selected_instructions::LocalStorageSlotId::Spill { .. },
-                    )) = address.word()
-                    {
-                        if bytes != 8 || offset != 0 {
-                            return Err(Error::Mismatch(
-                                "spill reload changes the stored word width or offset",
-                            ));
-                        }
-                        let writer = self.spills.writer(row.id, *home).map_err(Error::Mismatch)?;
-                        return self.input(writer, 0);
-                    }
-                    Ok(Expr::new(Word::Load {
-                        address: address.offset(offset),
-                        bytes,
-                        instruction: Some(row.id),
-                    }))
-                }
-                fn require_available(
-                    &self,
-                    register: VirtualRegisterId,
-                    use_at: SelectedInstructionId,
-                ) -> Result<(), Error> {
-                    let definition = self
-                        .definitions
-                        .get(register.0 as usize)
-                        .ok_or(Error::Mismatch("installation use names a missing register"))?;
-                    if let Some(definition) = definition {
-                        if !self.graph.precedes(definition.id, use_at)? {
-                            return Err(Error::Mismatch(
-                                "installation uses a value before its definition on this path",
-                            ));
-                        }
-                    } else {
-                        let register = self
-                            .function
-                            .virtual_register(register)
-                            .ok_or(Error::Mismatch("installation input register is missing"))?;
-                        if let VirtualRegisterOrigin::BlockParameter { block, .. } = register.origin
-                        {
-                            if !self.graph.block_dominates(block, use_at)? {
-                                return Err(Error::Mismatch(
-                                    "installation uses a block parameter outside its incoming scope",
-                                ));
-                            }
-                        } else if !self.function.is_entry_register(register) {
-                            return Err(Error::Mismatch(
-                                "installation input has no definition or entry supply",
-                            ));
-                        }
-                    }
-                    Ok(())
-                }
-                pub(super) fn defining_instruction(
-                    &self,
-                    register: VirtualRegisterId,
-                ) -> Result<SelectedInstructionId, Error> {
-                    self.definitions
-                        .get(register.0 as usize)
-                        .and_then(|row| *row)
-                        .map(|row| row.id)
-                        .ok_or(Error::Mismatch(
-                            "installation result register has no actual defining instruction",
-                        ))
-                }
-                pub(super) fn value(&mut self, register: VirtualRegisterId) -> Result<Expr, Error> {
-                    let index = register.0 as usize;
-                    if let Some(value) = self.memo.get(index).and_then(|value| value.clone()) {
-                        return Ok(value);
-                    }
-                    let active = self.active.get_mut(index).ok_or(Error::Mismatch(
-                        "installation expression references missing register",
-                    ))?;
-                    if *active {
-                        return Err(Error::Mismatch(
-                            "installation expression has cyclic definitions",
-                        ));
-                    }
-                    *active = true;
-                    let row = self.definitions[index];
-                    let value = if let Some(row) = row {
-                        self.definition(row, register)?
-                    } else {
-                        match self
-                            .function
-                            .virtual_register(register)
-                            .ok_or(Error::Mismatch("installation input register is missing"))?
-                            .origin
-                        {
-                            VirtualRegisterOrigin::StructuralParameter {
-                                place,
-                                parameter_index,
-                            } => {
-                                let parameter = self
-                                    .function
-                                    .structural
-                                    .as_ref()
-                                    .and_then(|row| row.parameters.get(parameter_index))
-                                    .ok_or(Error::Mismatch(
-                                        "installation parameter lost its structural declaration",
-                                    ))?;
-                                if parameter.semantic.place != place {
-                                    return Err(Error::Mismatch(
-                                        "installation parameter names different source storage",
-                                    ));
-                                }
-                                Expr::new(Word::Parameter(place))
-                            }
-                            VirtualRegisterOrigin::EntryParameter { source_value, .. }
-                            | VirtualRegisterOrigin::BlockParameter { source_value, .. } => {
-                                Expr::new(Word::Value(source_value))
-                            }
-                            _ => {
-                                return Err(Error::Mismatch(
-                                    "installation expression has no definition or admitted input",
-                                ));
-                            }
-                        }
-                    };
-                    self.active[index] = false;
-                    self.memo[index] = Some(value.clone());
-                    Ok(value)
-                }
-                fn definition(
-                    &mut self,
-                    row: &SelectedInstruction,
-                    register: VirtualRegisterId,
-                ) -> Result<Expr, Error> {
-                    Ok(match &row.kind {
-                        Kind::MaterializeI64 { value } => Expr::constant(match value {
-                            IntegerValue::Unsigned(value) => {
-                                u64::try_from(*value).map_err(|_| {
-                                    Error::Mismatch("installation constant exceeds machine word")
-                                })?
-                            }
-                            IntegerValue::Signed(value) => i64::try_from(*value).map_err(|_| {
-                                Error::Mismatch("installation signed constant exceeds machine word")
-                            })? as u64,
-                        }),
-                        Kind::CopyI64 => self.input(row, 0)?,
-                        Kind::FrameAddress {
-                            slot: FrameStorageSlotId::ActivationBase,
-                            byte_offset,
-                        } => {
-                            if *byte_offset != 0 {
-                                return Err(Error::Mismatch(
-                                    "activation base observation has a displacement",
-                                ));
-                            }
-                            Expr::new(Word::RootBoundary {
-                                kind: RootBoundary::ActivationBase,
-                                instruction: Some(row.id),
-                            })
-                        }
-                        Kind::ImageAddress {
-                            reference: SelectedImageAddressReference::RetainedEntryStorageStart,
-                        } => Expr::new(Word::RootBoundary {
-                            kind: RootBoundary::RetainedStart,
-                            instruction: Some(row.id),
-                        }),
-                        Kind::FrameAddress { slot, byte_offset } => {
-                            Expr::new(Word::Frame(*slot)).offset(*byte_offset)
-                        }
-                        Kind::ImageAddress { reference } => Expr::new(Word::Image(*reference)),
-                        Kind::AddressOffset { byte_offset } => {
-                            self.input(row, 0)?.offset(*byte_offset)
-                        }
-                        Kind::Load8 { byte_offset } => self.loaded(row, *byte_offset, 1)?,
-                        Kind::Load16 { byte_offset } => self.loaded(row, *byte_offset, 2)?,
-                        Kind::Load32 { byte_offset } => self.loaded(row, *byte_offset, 4)?,
-                        Kind::Load64 { byte_offset } => self.loaded(row, *byte_offset, 8)?,
-                        Kind::WrappingAddI64 | Kind::ByteViewAddress => {
-                            self.binary(row, Binary::Add)?
-                        }
-                        Kind::WrappingSubtractI64 => self.binary(row, Binary::Subtract)?,
-                        Kind::WrappingMultiplyI64 => self.binary(row, Binary::Multiply)?,
-                        Kind::BitwiseAndI64 => self.binary(row, Binary::And)?,
-                        Kind::BitwiseOrI64 => self.binary(row, Binary::Or)?,
-                        Kind::BitwiseXorI64 => self.binary(row, Binary::Xor)?,
-                        Kind::WrappingShiftLeftI64 => self.binary(row, Binary::Left)?,
-                        Kind::WrappingShiftRightU64 => self.binary(row, Binary::Right)?,
-                        Kind::MaterializeBooleanEqual
-                        | Kind::MaterializeBooleanU64LessThan
-                        | Kind::MaterializeBooleanU64LessOrEqual => {
-                            let compare = self
-                                .preceding
-                                .binary_search_by_key(&row.id, |entry| entry.0)
-                                .ok()
-                                .and_then(|index| self.preceding[index].1)
-                                .ok_or(Error::Mismatch("installation Boolean has no comparison"))?;
-                            if compare.kind != Kind::CompareI64 {
-                                return Err(Error::Mismatch(
-                                    "installation Boolean does not read the expected comparison flags",
-                                ));
-                            }
-                            let kind = match row.kind {
-                                Kind::MaterializeBooleanEqual => Binary::Equal,
-                                Kind::MaterializeBooleanU64LessThan => Binary::Less,
-                                _ => Binary::AtMost,
-                            };
-                            self.binary(compare, kind)?
-                        }
-                        Kind::InstalledInterruptCpuCheck { gdt_bytes } => {
-                            if operand(row, 3)? != register {
-                                return Err(Error::Mismatch(
-                                    "CPU check scratch is not its Boolean result",
-                                ));
-                            }
-                            Expr::new(Word::Cpu {
-                                gdt: self.input(row, 0)?,
-                                task: self.input(row, 1)?,
-                                scratch: self.input(row, 2)?,
-                                bytes: *gdt_bytes,
-                            })
-                        }
-                        Kind::CallScalar { .. } => {
-                            if row.operands.last().map(|value| value.virtual_register)
-                                != Some(register)
-                            {
-                                return Err(Error::Mismatch(
-                                    "installation call scratch is not its result",
-                                ));
-                            }
-                            Expr::new(Word::Call(row.id))
-                        }
-                        _ => {
-                            return Err(Error::Mismatch(
-                                "installation expression uses an unsupported selected definition",
-                            ));
-                        }
-                    })
-                }
-                fn binary(
-                    &mut self,
-                    row: &SelectedInstruction,
-                    kind: Binary,
-                ) -> Result<Expr, Error> {
-                    Ok(Expr::binary(kind, self.input(row, 0)?, self.input(row, 1)?))
-                }
-            }
-        }
+        use installation_admission::selected::expressions;
 
         mod guards {
             use super::Error;
@@ -8117,7 +6413,7 @@ mod source {
                                 "simultaneous right range has no left scan",
                             ))?;
                             let mut observed = [false; 2];
-                            actual.visit_loads(&mut |address, bytes, instruction| {
+                            actual.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                                 for (index, offset) in [112, 120].into_iter().enumerate() {
                                     if bytes == 8 && *address == contract.home.clone().offset(offset) {
                                         let load = instruction.ok_or(Error::Mismatch(
@@ -8144,7 +6440,7 @@ mod source {
                                                 graph.position(load)?,
                                                 scan.advance, graph.position(scan.advance)?,
                                                 graph.position(guard)?,
-                                            )));
+                                            )).into());
                                         }
                                         observed[index] = true;
                                     }
@@ -8164,7 +6460,7 @@ mod source {
                             next,
                             refusal,
                         )?;
-                        count.visit_loads(&mut |address, bytes, instruction| {
+                        count.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                             if bytes == 8 && *address == contract.home.clone().offset(88) {
                                 graph.require_loop_exit(
                                     header,
@@ -8496,7 +6792,7 @@ mod source {
                                     "installation loop has no counter home",
                                 ));
                             };
-                            address.visit_loads(&mut |address, bytes, instruction| {
+                            address.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                                 if address == cell && bytes == 8 {
                                     let load = instruction
                                         .ok_or(Error::Mismatch("installation index has no observation"))?;
@@ -9203,44 +7499,7 @@ mod source {
         use inputs::Inputs;
         use writes::Writes;
 
-        pub(super) fn selected_constant_operand(
-            function: &SelectedFunction,
-            instruction: SelectedInstructionId,
-            operand: u16,
-        ) -> Result<Option<u64>, Error> {
-            let row = unique(
-                function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| {
-                        block.instructions.iter().chain(std::iter::once(
-                            selected_instructions::terminator_instruction(&block.terminator),
-                        ))
-                    })
-                    .filter(|row| row.id == instruction),
-                "constant operand has no unique function-local instruction",
-            )?;
-            let [operation] = row.provenance.operations.as_slice() else {
-                return Err(Error::Mismatch(
-                    "constant operand lost its exact source operation",
-                ));
-            };
-            if row
-                .operand(operand)
-                .is_none_or(|value| value.access != register_model::RegisterOperandAccess::Use)
-            {
-                return Err(Error::Mismatch(
-                    "constant query does not name a selected input operand",
-                ));
-            }
-            let graph = Graph::new(function, *operation)?;
-            let mut values = expressions::Expressions::new(function, &graph)?;
-            let expression = values.input(row, operand)?;
-            Ok(match expression.word() {
-                Word::Constant(value) => Some(*value),
-                _ => None,
-            })
-        }
+        pub(super) use installation_admission::selected::selected_constant_operand;
 
         fn unique<'a, T>(
             mut rows: impl Iterator<Item = &'a T>,
@@ -9834,7 +8093,7 @@ mod source {
                     next,
                     refusal,
                 )?;
-                actual.visit_loads(&mut |address, bytes, instruction| {
+                actual.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                     if *address == contract.home.clone().offset(88) && bytes == 8 {
                         graph.require_loop_exit(
                             header,
@@ -9916,7 +8175,7 @@ mod source {
             for store in &stores.rows {
                 store
                     .address
-                    .visit_loads(&mut |address, bytes, instruction| {
+                    .visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                         if *address == contract.home.clone().offset(96) && bytes == 8 {
                             graph.require_loop_exit(
                                 header,
@@ -9929,7 +8188,7 @@ mod source {
                         Ok(())
                     })?;
             }
-            graph.bounded_region(validate, work, refusal, &backedges)
+            graph.bounded_region(validate, work, refusal, &backedges).map_err(Into::into)
         }
 
         fn iteration_observations(
@@ -9938,7 +8197,7 @@ mod source {
             header: usize,
             graph: &Graph<'_>,
         ) -> Result<(), Error> {
-            value.visit_loads(&mut |address, bytes, instruction| {
+            value.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                 if bytes == 8
                     && [64, 72, 80, 88]
                         .iter()
@@ -9967,7 +8226,7 @@ mod source {
             graph: &Graph<'_>,
         ) -> Result<(), Error> {
             let mut observations = 0;
-            value.visit_loads(&mut |address, bytes, instruction| {
+            value.visit_loads(&mut |address, bytes, instruction| -> Result<(), Error> {
                 if address == counter && bytes == 8 {
                     let load = instruction.ok_or(Error::Mismatch(
                         "installation counter update has no observation",
@@ -9993,62 +8252,6 @@ mod source {
         }
     }
 
-    pub(super) mod privileged_termination {
-        use crate::FunctionFragmentObjectArtifactError as Error;
-        use provider_admission::AdmittedInstalledEntryExecution;
-        use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
-
-        pub(crate) fn validate(
-            execution: Option<&AdmittedInstalledEntryExecution>,
-            selected: &post_allocation_machine::PostAllocationMachineProgram,
-        ) -> Result<(), Error> {
-            if let Some(execution) = execution {
-                let entry = execution.entry().entry();
-                if entry.psi() != selected.psi
-                    || entry.target() != selected.target
-                    || entry.machine() != selected.entry
-                    || execution.scope().bootstrap_assumption().is_none()
-                {
-                    return Err(Error::Mismatch(
-                        "privileged termination changed its installed object domain",
-                    ));
-                }
-            }
-            for function in selected.functions.iter() {
-                for block in &function.blocks {
-                    if block
-                        .instructions
-                        .iter()
-                        .any(|instruction| instruction.kind == Kind::PrivilegedCrash)
-                    {
-                        return Err(Error::Mismatch(
-                            "privileged stop is not an exact nonreturning terminator",
-                        ));
-                    }
-                    let terminal = selected_instructions::terminator_instruction(&block.terminator);
-                    let trap = matches!(
-                        block.terminator,
-                        SelectedTerminator::EliminateEmpty { .. }
-                            | SelectedTerminator::Crash { .. }
-                            | SelectedTerminator::OperationTrap { .. }
-                    );
-                    let expected = if execution.is_some() {
-                        Kind::PrivilegedCrash
-                    } else {
-                        Kind::Crash
-                    };
-                    if trap && terminal.kind != expected
-                        || !trap && terminal.kind == Kind::PrivilegedCrash
-                    {
-                        return Err(Error::Mismatch(
-                            "trap realization differs from its admitted execution domain",
-                        ));
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
 
     mod static_interrupts {
         pub(super) struct PreparedHelperReplay<'a> {
@@ -10334,13 +8537,6 @@ mod source {
         }
     }
 
-    pub(crate) fn planned_constant_operand(
-        function: &selected_instructions::SelectedFunction,
-        instruction: selected_instructions::SelectedInstructionId,
-        operand: u16,
-    ) -> Result<Option<u64>, super::Error> {
-        installed_interrupts::selected_constant_operand(function, instruction, operand)
-    }
 
     pub(crate) fn selected_constant_operand(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
@@ -10361,7 +8557,7 @@ mod source {
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
             ))?;
-        installed_interrupts::selected_constant_operand(function, instruction, operand)
+        installed_interrupts::selected_constant_operand(function, instruction, operand).map_err(Into::into)
     }
 
     use super::Error;
@@ -15516,373 +13712,7 @@ mod source {
         }
     }
 
-    mod spill_values {
-        use selected_instructions::{
-            BlockSlotEvent, FrameStorageSlotId, LocalStorageSlotId, SelectedFunction,
-            SelectedInstruction, SelectedInstructionId, SelectedInstructionKind as Kind,
-        };
-
-        mod flow {
-            use selected_instructions::SelectedInstructionId;
-
-            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-            pub(super) enum Writer {
-                Unreachable,
-                Missing,
-                Store(SelectedInstructionId),
-                Different,
-            }
-            impl Writer {
-                fn merge(self, incoming: Self) -> Self {
-                    if self == incoming || incoming == Self::Unreachable {
-                        self
-                    } else if self == Self::Unreachable {
-                        incoming
-                    } else {
-                        Self::Different
-                    }
-                }
-            }
-            pub(super) fn entries(
-                entry: usize,
-                last: &[Option<SelectedInstructionId>],
-                successors: &[Vec<usize>],
-            ) -> Vec<Writer> {
-                let mut entries = vec![Writer::Unreachable; successors.len()];
-                entries[entry] = Writer::Missing;
-                let mut pending = std::collections::VecDeque::from([entry]);
-                let mut queued = vec![false; entries.len()];
-                queued[entry] = true;
-                while let Some(block) = pending.pop_front() {
-                    queued[block] = false;
-                    let outgoing = last[block].map_or(entries[block], Writer::Store);
-                    for &next in &successors[block] {
-                        let merged = entries[next].merge(outgoing);
-                        if merged != entries[next] {
-                            entries[next] = merged;
-                            if !queued[next] {
-                                queued[next] = true;
-                                pending.push_back(next);
-                            }
-                        }
-                    }
-                }
-                entries
-            }
-
-            #[cfg(test)]
-            mod tests {
-                use super::*;
-                const A: SelectedInstructionId = SelectedInstructionId(10);
-                const B: SelectedInstructionId = SelectedInstructionId(20);
-                #[test]
-                fn initialized_word_reaches_straight_line_and_loop_reads() {
-                    let result = entries(
-                        0,
-                        &[Some(A), None, None, None],
-                        &[vec![1], vec![2, 3], vec![1], vec![]],
-                    );
-                    assert_eq!(
-                        result,
-                        vec![
-                            Writer::Missing,
-                            Writer::Store(A),
-                            Writer::Store(A),
-                            Writer::Store(A)
-                        ]
-                    );
-                }
-                #[test]
-                fn a_branch_without_initialization_does_not_inherit_its_sibling_store() {
-                    let result = entries(
-                        0,
-                        &[None, Some(A), None, None],
-                        &[vec![1, 2], vec![3], vec![3], vec![]],
-                    );
-                    assert_eq!(result[3], Writer::Different);
-                }
-                #[test]
-                fn different_branch_writers_remain_distinct() {
-                    let result = entries(
-                        0,
-                        &[None, Some(A), Some(B), None],
-                        &[vec![1, 2], vec![3], vec![3], vec![]],
-                    );
-                    assert_eq!(result[3], Writer::Different);
-                }
-                #[test]
-                fn a_backedge_store_does_not_initialize_the_first_iteration() {
-                    let result = entries(0, &[None, None, Some(A)], &[vec![1], vec![2], vec![1]]);
-                    assert_eq!(result[1], Writer::Different);
-                }
-                #[test]
-                fn unreachable_stores_do_not_publish_values() {
-                    let result = entries(0, &[None, Some(A), None], &[vec![], vec![2], vec![]]);
-                    assert_eq!(result[1], Writer::Unreachable);
-                    assert_eq!(result[2], Writer::Unreachable);
-                }
-                #[test]
-                fn reentered_definition_cannot_bypass_its_store_before_a_reload() {
-                    let result = entries(
-                        0,
-                        &[None, None, Some(A), None],
-                        &[vec![1], vec![2, 3], vec![1], vec![]],
-                    );
-                    assert_eq!(result[3], Writer::Different);
-                }
-            }
-        }
-
-        use flow::Writer;
-        struct Slot {
-            valid: bool,
-            stores: Vec<Vec<(usize, SelectedInstructionId)>>,
-            entries: Option<Vec<Writer>>,
-        }
-        pub(super) struct SpillValues<'a> {
-            function: &'a SelectedFunction,
-            slots: Vec<Option<Slot>>,
-            instructions: Vec<(SelectedInstructionId, usize, usize, &'a SelectedInstruction)>,
-            successors: Vec<Vec<usize>>,
-        }
-        impl<'a> SpillValues<'a> {
-            pub(super) fn new(function: &'a SelectedFunction) -> Result<Self, &'static str> {
-                let mut slots: Vec<Option<Slot>> = (0..function.virtual_registers.len())
-                    .map(|_| None)
-                    .collect();
-                for home in &function.local_storage_slots {
-                    let LocalStorageSlotId::Spill { register } = home.id else {
-                        continue;
-                    };
-                    let entry = slots
-                        .get_mut(register.0 as usize)
-                        .ok_or("spill slot names a missing register")?;
-                    if entry.is_some() {
-                        return Err("spill slot has multiple allocations");
-                    }
-                    *entry = Some(Slot {
-                        valid: home.byte_size == 8 && home.alignment >= 8,
-                        stores: vec![Vec::new(); function.blocks.len()],
-                        entries: None,
-                    });
-                }
-                let mut instructions = Vec::new();
-                let mut successors = vec![Vec::new(); function.blocks.len()];
-                let mut address_slots = vec![None; function.virtual_registers.len()];
-                let mut definition_counts = vec![0usize; function.virtual_registers.len()];
-                let mut non_load_bits: Vec<u64> = Vec::new();
-                for (block_index, block) in function.blocks.iter().enumerate() {
-                    if block.id.0 as usize != block_index {
-                        return Err("spill flow has noncanonical blocks");
-                    }
-                    for (position, row) in block
-                        .instructions
-                        .iter()
-                        .chain(std::iter::once(
-                            selected_instructions::terminator_instruction(&block.terminator),
-                        ))
-                        .enumerate()
-                    {
-                        instructions.push((row.id, block_index, position, row));
-                        for operand in &row.operands {
-                            if operand.access != register_model::RegisterOperandAccess::Use {
-                                let count = definition_counts
-                                    .get_mut(operand.virtual_register.0 as usize)
-                                    .ok_or("spill instruction defines a missing register")?;
-                                *count += 1;
-                            }
-                        }
-                        if let Kind::SaveFloatingControl { slot }
-                        | Kind::RestoreFloatingControl { slot } = row.kind
-                        {
-                            invalidate(&mut slots, slot);
-                        }
-                    }
-                    for edge in selected_instructions::terminator_successors(&block.terminator) {
-                        if edge.block.0 as usize >= function.blocks.len() {
-                            return Err("spill edge leaves its function");
-                        }
-                        successors[block_index].push(edge.block.0 as usize);
-                    }
-                    let summary = function
-                        .blocks
-                        .block_slot_summary(block_index)
-                        .ok_or("spill block has no access roster")?;
-                    non_load_bits.resize(
-                        non_load_bits
-                            .len()
-                            .max(summary.non_load_register_bits().len()),
-                        0,
-                    );
-                    for (all, block) in non_load_bits
-                        .iter_mut()
-                        .zip(summary.non_load_register_bits())
-                    {
-                        *all |= block;
-                    }
-                    for event in &summary.events {
-                        match *event {
-                            BlockSlotEvent::Invalidate { slot } => invalidate(&mut slots, slot),
-                            BlockSlotEvent::Store {
-                                slot: LocalStorageSlotId::Spill { register },
-                                index,
-                            } => {
-                                if let Some(slot) =
-                                    slots.get_mut(register.0 as usize).and_then(Option::as_mut)
-                                {
-                                    let row = block
-                                        .instructions
-                                        .get(index)
-                                        .ok_or("spill store is outside its block")?;
-                                    if row
-                                        .operands
-                                        .iter()
-                                        .filter(|operand| operand.operand == 0)
-                                        .count()
-                                        != 1
-                                        || row.operands.iter().any(|operand| {
-                                            operand.access
-                                                != if operand.operand == 0 {
-                                                    register_model::RegisterOperandAccess::Use
-                                                } else {
-                                                    register_model::RegisterOperandAccess::Def
-                                                }
-                                        })
-                                    {
-                                        slot.valid = false;
-                                    }
-                                    slot.stores[block_index].push((index, row.id));
-                                }
-                            }
-                            BlockSlotEvent::FrameAddress {
-                                slot: LocalStorageSlotId::Spill { register: slot },
-                                register,
-                            } => {
-                                let owner = address_slots
-                                    .get_mut(register.0 as usize)
-                                    .ok_or("spill address register is missing")?;
-                                if let Some(prior) = owner.replace(slot) {
-                                    invalidate(
-                                        &mut slots,
-                                        LocalStorageSlotId::Spill { register: prior },
-                                    );
-                                    invalidate(
-                                        &mut slots,
-                                        LocalStorageSlotId::Spill { register: slot },
-                                    );
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                for (register, owner) in address_slots.into_iter().enumerate() {
-                    let Some(slot) = owner else { continue };
-                    if definition_counts[register] != 1
-                        || non_load_bits
-                            .get(register / 64)
-                            .is_some_and(|bits| bits & (1u64 << (register % 64)) != 0)
-                    {
-                        invalidate(&mut slots, LocalStorageSlotId::Spill { register: slot });
-                    }
-                }
-                instructions.sort_unstable_by_key(|row| row.0);
-                if instructions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-                    return Err("spill flow has duplicate instruction identities");
-                }
-                Ok(Self {
-                    function,
-                    slots,
-                    instructions,
-                    successors,
-                })
-            }
-            pub(super) fn private_store(&self, row: &SelectedInstruction) -> bool {
-                match row.kind {
-                    Kind::Store64 {
-                        slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register }),
-                        byte_offset: 0,
-                    } => self
-                        .slots
-                        .get(register.0 as usize)
-                        .and_then(Option::as_ref)
-                        .is_some_and(|slot| slot.valid),
-                    _ => false,
-                }
-            }
-            pub(super) fn private_address(&self, row: &SelectedInstruction) -> bool {
-                match row.kind {
-                    Kind::FrameAddress {
-                        slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register }),
-                        byte_offset: 0,
-                    } => self
-                        .slots
-                        .get(register.0 as usize)
-                        .and_then(Option::as_ref)
-                        .is_some_and(|slot| slot.valid),
-                    _ => false,
-                }
-            }
-            pub(super) fn writer(
-                &mut self,
-                load: SelectedInstructionId,
-                home: LocalStorageSlotId,
-            ) -> Result<&'a SelectedInstruction, &'static str> {
-                let LocalStorageSlotId::Spill { register } = home else {
-                    return Err("word reload is not a private spill");
-                };
-                let at = self
-                    .instructions
-                    .binary_search_by_key(&load, |row| row.0)
-                    .map_err(|_| "spill reload is outside its function")?;
-                let (_, block, position, row) = self.instructions[at];
-                if row.kind != (Kind::Load64 { byte_offset: 0 }) {
-                    return Err("spill reload changes its width or offset");
-                }
-                let slot = self
-                    .slots
-                    .get_mut(register.0 as usize)
-                    .and_then(Option::as_mut)
-                    .filter(|slot| slot.valid)
-                    .ok_or("spill storage escapes or has incompatible accesses")?;
-                let entry = self.function.entry_block.0 as usize;
-                if entry >= self.function.blocks.len() {
-                    return Err("spill flow has no entry block");
-                }
-                let entries = slot.entries.get_or_insert_with(|| {
-                    let last = slot
-                        .stores
-                        .iter()
-                        .map(|stores| stores.last().map(|row| row.1))
-                        .collect::<Vec<_>>();
-                    flow::entries(entry, &last, &self.successors)
-                });
-                if entries[block] == Writer::Unreachable {
-                    return Err("spill reload is unreachable from function entry");
-                }
-                let stores = &slot.stores[block];
-                let before = stores.partition_point(|row| row.0 < position);
-                let reaching = before
-                    .checked_sub(1)
-                    .map_or(entries[block], |index| Writer::Store(stores[index].1));
-                let Writer::Store(store) = reaching else {
-                    return Err("spill reload has no single initialized writer on every path");
-                };
-                let index = self
-                    .instructions
-                    .binary_search_by_key(&store, |row| row.0)
-                    .map_err(|_| "spill writer is outside its function")?;
-                Ok(self.instructions[index].3)
-            }
-        }
-        fn invalidate(slots: &mut [Option<Slot>], home: LocalStorageSlotId) {
-            if let LocalStorageSlotId::Spill { register } = home
-                && let Some(slot) = slots.get_mut(register.0 as usize).and_then(Option::as_mut)
-            {
-                slot.valid = false;
-            }
-        }
-    }
+    use installation_admission::selected::spill_values;
 
     mod stack_calls {
         use super::{Error, MachineId};
@@ -21116,7 +18946,7 @@ mod source {
         source: &crate::object_input::ObjectEmissionInput,
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
         let mut peaks = std::collections::BTreeMap::new();
-        for function in &source.readback.cpu.functions {
+        for function in &source.emission_facts().cpu.functions {
             if peaks.insert(function.machine, 0).is_some() {
                 return Err(Error::Mismatch(
                     "encoding instruction roster changed for temporary stack replay",
@@ -21125,7 +18955,7 @@ mod source {
         }
         let mut rows = source.readback.encoding.rows().iter();
         let mut seen = std::collections::BTreeSet::new();
-        for &(machine, instruction) in &source.readback.cpu.instruction_roster {
+        for &(machine, instruction) in &source.emission_facts().cpu.instruction_roster {
             let row = rows.next().ok_or(Error::Mismatch(
                 "missing encoding row for temporary stack replay",
             ))?;
@@ -22014,7 +19844,7 @@ mod source {
     }
 }
 
-pub(crate) use source::{planned_constant_operand, selected_constant_operand};
+pub(crate) use source::selected_constant_operand;
 #[path = "function_fragments/internal_calls.rs"]
 mod internal_calls;
 mod structural {
@@ -22038,10 +19868,10 @@ mod structural {
             }
             match target.architecture {
                 Architecture::X86_64 => {
-                    isa_x86_64::decode_x86_64_selected_hosted_read_byte(target, bytes)
+                    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(target, bytes)
                 }
                 Architecture::Aarch64 => {
-                    isa_aarch64::decode_aarch64_selected_hosted_read_byte(target, bytes)
+                    target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte(target, bytes)
                 }
             }
         }
@@ -24559,7 +22389,7 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     InstalledRelativeBranches {
         machine: semantic_vocabulary::MachineId,
-        source: function_layout::FunctionFragmentFrameApplicationError,
+        source: encoding_admission::relative_branches::RelativeBranchError,
     },
     InstalledFaultSurface {
         machine: semantic_vocabulary::MachineId,
@@ -24751,6 +22581,28 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
         }
     }
 }
+impl From<installation_admission::cpu::Error> for FunctionFragmentObjectArtifactError {
+    fn from(error: installation_admission::cpu::Error) -> Self {
+        use installation_admission::cpu::Error as Source;
+        match error {
+            Source::Mismatch(reason) => Self::Mismatch(reason),
+            Source::Unsupported(reason) => Self::Unsupported(reason),
+            Source::SelectedOperand(reason) => reason.into(),
+        }
+    }
+}
+
+impl From<installation_admission::selected::Error> for FunctionFragmentObjectArtifactError {
+    fn from(error: installation_admission::selected::Error) -> Self {
+        use installation_admission::selected::Error as Source;
+        match error {
+            Source::Mismatch(reason) => Self::Mismatch(reason),
+            Source::InstallationInterval { machine, operation, detail } => Self::InstallationInterval { machine, operation, detail },
+            Source::InstallationGuard { machine, operation, detail } => Self::InstallationGuard { machine, operation, detail },
+            Source::InstallationPairCapture { machine, operation, detail } => Self::InstallationPairCapture { machine, operation, detail },
+        }
+    }
+}
 impl std::error::Error for FunctionFragmentObjectArtifactError {}
 
 use FunctionFragmentObjectArtifactError as Error;
@@ -24770,21 +22622,14 @@ pub(crate) fn refuse_symbol_collision(
     Ok(())
 }
 
-pub(crate) fn capture_privileged_termination(
-    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-) -> Result<(), Error> {
-    source
-        .emission_facts()
-        .termination
-        .clone()
-        .map_err(Error::PhysicalSourceObservation)
-}
-
 pub(crate) use validation::validate_available as validate_available_object;
 
-pub(crate) fn prepare_privileged_termination(
-    execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    program: &post_allocation_machine::PostAllocationMachineProgram,
-) -> Result<(), String> {
-    source::privileged_termination::validate(execution, program).map_err(|error| error.to_string())
+
+impl From<installation_admission::ram::Error> for FunctionFragmentObjectArtifactError {
+    fn from(error: installation_admission::ram::Error) -> Self {
+        match error {
+            installation_admission::ram::Error::Mismatch(reason) => Self::Mismatch(reason),
+            installation_admission::ram::Error::InstalledMemorySource { machine, operation, reason } => Self::InstalledMemorySource { machine, operation, reason },
+        }
+    }
 }

@@ -10,3 +10,6 @@ use accepted_machine_grants::{NonProviderTrustGrant, resolve_non_provider_trust_
 use effects::provider_grants::resolve_authored_selected_provider_grants;
 pub use admission_settlement::{RootTrustPolicy, reconstruct_trust_obligations};
 pub use trust_admission::{TrustAdmission, TrustAdmissionDigest};
+
+mod selected;
+pub use selected::SelectedTrustEvidence;

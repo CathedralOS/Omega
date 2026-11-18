@@ -48,3 +48,6 @@ pub struct PhysicalStackProgram {
     pub target: NativeTarget,
     pub functions: Vec<PhysicalStackFunction>,
 }
+
+mod demand;
+pub use demand::{StackDemand, StackDemandError, derive_physical_stack_demand};

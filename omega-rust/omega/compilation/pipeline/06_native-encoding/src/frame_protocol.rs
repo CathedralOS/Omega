@@ -4,14 +4,13 @@ use machine_code::{
     FrameProtocolByteSpan, FramedMachineProgram, FunctionTargetFrameProtocolEncoding,
     TargetFrameProtocolEncodingPlan,
 };
-use physical_planning::{
-    PhysicalFrameProgram,
-    frame_protocol::{FrameRecipe, PlannedTargetFrameProtocols},
+use physical_recipes::frame_protocol::{
+    FrameRecipe, PhysicalFrameProgram, PlannedTargetFrameProtocols,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
 use std::sync::Arc;
-pub(crate) fn encode_target_frame_protocols(
-    prepared: PlannedTargetFrameProtocols,
+pub(crate) fn encode_target_frame_protocols<Origin>(
+    prepared: PlannedTargetFrameProtocols<Origin>,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingError> {
     if prepared.target() != environment.target()
@@ -70,8 +69,8 @@ fn append(
     Ok(FrameProtocolByteSpan { offset, length })
 }
 
-pub fn encode_function_frame(
-    planned: PhysicalFrameProgram,
+pub fn encode_function_frame<Origin>(
+    planned: PhysicalFrameProgram<Origin>,
 ) -> Result<FramedMachineProgram, TargetFrameProtocolEncodingError> {
     let PhysicalFrameProgram {
         instructions: program,

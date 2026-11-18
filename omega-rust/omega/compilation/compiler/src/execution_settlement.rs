@@ -7,7 +7,7 @@ use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use native_program_planning::SelectedExecution;
+use native_compiler::SelectedExecution;
 use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
@@ -17,6 +17,8 @@ use std::sync::Arc;
 pub(crate) struct SelectedProviderCustody {
     pub(crate) optimizations: optimization_core::OptimizationSelections,
     pub(crate) terminal_publication: Arc<source_compiler::SourcePublication>,
+    pub(crate) source_program: Arc<source_compiler::PortableTerminalProgram>,
+    published_program: Arc<portable_publication::PublishedProgram>,
     pub(crate) source_completion_accounting:
         source_compiler::evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
@@ -38,7 +40,13 @@ impl SelectedProductTarget {
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
         let PreparedProductTarget { profile, entry } = prepared;
-        let execution = settle_execution(source, profile, entry)?;
+        // Retain the original census or its refusal before native selection. Grant
+        // admission consumes it only when the requested product needs that evidence.
+        if !source.computed_build_config.config.grants.is_empty() {
+            let _ = source.provider_inventory.trust_declarations();
+        }
+        let mut timings = source.timings.clone();
+        let (source_program, published_program, execution) = settle_execution(source, profile, entry, &mut timings)?;
         Ok(Self {
             runtime_policy: Arc::new(
                 review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
@@ -46,6 +54,8 @@ impl SelectedProductTarget {
             custody: SelectedProviderCustody {
                 optimizations: source.optimizations.clone(),
                 terminal_publication: Arc::clone(&source.terminal_publication),
+                source_program,
+                published_program,
                 source_completion_accounting: source.source_completion_accounting.clone(),
                 source_inspection: Arc::new(products::SelectedProviderSource::new(
                     Arc::clone(&source.provider_inventory),
@@ -55,7 +65,7 @@ impl SelectedProductTarget {
                 build: Arc::clone(&source.computed_build_config),
                 build_admission: source.admission.clone(),
                 sources: Arc::clone(&source.sources),
-                timings: source.timings.clone(),
+                timings,
             },
         })
     }
@@ -103,6 +113,8 @@ impl SelectedProductTarget {
         let SelectedProviderCustody {
             optimizations: _,
             terminal_publication,
+            source_program: _,
+            published_program,
             source_completion_accounting,
             execution,
             source_inspection,
@@ -122,6 +134,7 @@ impl SelectedProductTarget {
             timings,
             terminal_publication,
         )
+        .and_then(|checked| checked.with_published_program(published_program))
         .map_err(|diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         })
@@ -133,95 +146,21 @@ fn settle_execution(
     source: &CheckedProductSource,
     profile: Option<target::TargetProfile>,
     entry: Option<semantic_vocabulary::MachineId>,
-) -> Result<SelectedExecution, Vec<Diagnostic>> {
-    use native_program_planning::NativeProgramPlanningError;
-    use native_program_planning::target_supply::TargetSupplyRealizationError;
-    let accepted = source.terminal_publication.accepted()?;
-    let declared = accepted
-        .boundary_requirements_declared()
-        .map_err(|error| vec![error])?
-        .into_iter()
-        .map(
-            |row| source_compiler::provider_supply::ReachedBoundaryRequirement {
-                boundary: row.boundary,
-                requirement: row.requirement,
-                slot: row.slot,
-                name: row.name,
-            },
-        )
-        .collect::<Vec<_>>();
-    let selected_requirements = source_compiler::provider_supply::explicit_build_requirements(
-        &declared,
-        &source.computed_build_config.config.provider_selections,
-        profile.map(|profile| profile.target_name()),
-    );
-    let Some(target) = profile else {
-        if !selected_requirements.is_empty() {
-            return Err(declared
-                .iter()
-                .filter(|row| selected_requirements.binary_search(&row.boundary).is_ok())
-                .map(|row| {
-                    Diagnostic::error(format!(
-                        "boundary requirement `{}` requires an explicit deployment target",
-                        row.name,
-                    ))
-                })
-                .collect());
-        }
-        let roots = source
-            .terminal_publication
-            .roster()?
-            .entries
-            .iter()
-            .map(|symbol| {
-                accepted.machine_of(*symbol).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "unscoped source lost its actual invocation root",
-                    )]
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        return native_program_planning::plan_unscoped_execution(accepted.module(), &roots);
-    };
-    let closed = accepted.close_logical_provider_reach(
-        target.target_name(),
+    timings: &mut CompileTimings,
+) -> Result<(Arc<source_compiler::PortableTerminalProgram>, Arc<portable_publication::PublishedProgram>, SelectedExecution), Vec<Diagnostic>> {
+    let demand = portable_publication::ProductCodeSource {
+        publication: &source.terminal_publication,
+        sources: &source.sources,
+    }.publish_provider_demand(
+        profile,
         entry,
-        &selected_requirements,
-    )?;
-    let reached = closed.requirements();
-    let mut timings = source.timings.clone();
-    let inputs = crate::terminal::prepare_provider_execution_inputs(
-        &source.terminal_publication,
-        &source.sources,
+        &source.computed_build_config.config.provider_selections,
         &source.computed_build_config.config.native_bindings,
-        target,
-        reached,
-        &mut crate::observations::PsiStageTimings::new(&mut timings),
+        &mut crate::observations::PsiStageTimings::new(timings),
     )?;
-    native_program_planning::plan_target_execution(
-        accepted.module(), target, closed.selection(), closed.bindings(), inputs,
-    ).map_err(|error| match error {
-            NativeProgramPlanningError::Supply(TargetSupplyRealizationError::MissingSupplies { target, boundaries }) => {
-                let mut labels = declared.iter().collect::<Vec<_>>();
-                labels.sort_unstable_by_key(|row| row.boundary);
-                boundaries.iter().map(|boundary| {
-                    let message = match labels.binary_search_by_key(boundary, |row| row.boundary) {
-                        Ok(label_position) => format!(
-                            "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
-                            labels[label_position].name,
-                        ),
-                        Err(_) => format!(
-                            "reached boundary {} has no normalized chosen provider or exact native leaf on target `{target}`",
-                            boundary.get(),
-                        ),
-                    };
-                    Diagnostic::error(message)
-                })
-                .collect()
-            },
-            NativeProgramPlanningError::Supply(error) => vec![Diagnostic::error(error.diagnostic(accepted.module()))],
-            NativeProgramPlanningError::Admission(diagnostics) => diagnostics,
-        })
+    let program = source.terminal_publication.require_published(source.terminal_publication.optimizations())?;
+    let published = Arc::new(portable_publication::PublishedProgram::from_source(&program));
+    Ok((program, published, native_compiler::select_published_providers(demand)?))
 }
 
 pub(crate) struct SelectedCompileOutcome {

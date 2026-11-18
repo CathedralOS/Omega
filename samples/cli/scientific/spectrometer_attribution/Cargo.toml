@@ -26,7 +26,7 @@ diagnostics = { path = "../../../../omega-rust/psi/foundation/diagnostics" }
 target = { path = "../../../../omega-rust/omega/compilation/target-description/target" }
 terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter" }
 terminal-psi = { path = "../../../../omega-rust/psi/compilation/representations/terminal-psi" }
-image-emission = { path = "../../../../omega-rust/omega/compilation/pipeline/09_image-construction/image-emission" }
+published-object-verification = { path = "../../../../omega-rust/omega/compilation/verification/published-objects" }
 effects = { path = "../../../../omega-rust/omega/compilation/representations/native-effects" }
 symbols = { path = "../../../../omega-rust/psi/compilation/representations/declaration-identity" }
 mimalloc = { version = "0.1", default-features = false }

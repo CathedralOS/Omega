@@ -8,7 +8,10 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
+    folded_reach: Option<Result<backend_plan::FoldedEntryReach, String>>,
+    folded: Option<Arc<crate::FoldedTargetProgram>>,
     realization: Arc<crate::target_supply::RealizedTargetSupply>,
+    package_review: Option<Arc<backend_plan::package_review::PackageTargetReview>>,
 }
 
 impl SelectedExecution {
@@ -25,7 +28,27 @@ impl SelectedExecution {
         Ok(Self {
             target_profile,
             realization: Arc::new(realization),
+            package_review: None,
+            folded_reach: None,
+            folded: None,
         })
+    }
+
+    /// Capture a package's independent review inventory for this deployment.
+    /// A refusal belongs to the requested review and cannot change execution.
+    pub(super) fn with_package_review(
+        mut self,
+        module: &terminal_psi::TerminalModule,
+        review: crate::package_review::PreparedReview,
+    ) -> Self {
+        if let Some(target) = self.target_profile {
+            self.package_review = Some(Arc::new(review.finish(module, target, &self.realization)));
+        }
+        self
+    }
+
+    pub fn package_review(&self) -> Option<&backend_plan::package_review::PackageTargetReview> {
+        self.package_review.as_deref()
     }
 
     pub fn realization(&self) -> &crate::target_supply::RealizedTargetSupply {
@@ -43,65 +66,17 @@ impl SelectedExecution {
             .map(target::TargetProfile::native_target)
     }
 
-    pub fn admit_root_grants(
-        &self,
-        declarations: &declaration_contracts::trust_declarations::TrustDeclarations,
-        grants: &[declaration_contracts::selection::AuthoredRootGrant],
-        policy: crate::trust::RootTrustPolicy,
-        module: Option<&terminal_psi::TerminalModule>,
-    ) -> Result<Vec<crate::trust::TrustAdmission>, Vec<Diagnostic>> {
-        let plans = self.plans();
-        let native = self.native_grant_evidence(grants, module)?;
-        crate::trust::reconstruct_trust_obligations(
-            declarations, grants, &plans.plans().iter().collect::<Vec<_>>(),
-            plans, &native, policy,
-        )
-    }
-
-    fn native_grant_evidence(
-        &self,
-        grants: &[declaration_contracts::selection::AuthoredRootGrant],
-        module: Option<&terminal_psi::TerminalModule>,
-    ) -> Result<Vec<Result<backend_plan::NativeRequirementTrust, String>>, Vec<Diagnostic>> {
-        use declaration_contracts::selection::RootGrantSubject;
-        let requests = grants
-            .iter()
-            .filter_map(|grant| {
-                let RootGrantSubject::BoundaryRequirement {
-                    declaration,
-                    callable,
-                } = &grant.subject
-                else {
-                    return None;
-                };
-                Some((grant, (declaration.as_str(), callable.as_str())))
-            })
-            .collect::<Vec<_>>();
-        if requests.is_empty() {
-            return Ok(Vec::new());
+    /// The evidence settled for this exact program and target. Grant checking reads it independently.
+    pub fn trust_evidence(&self) -> provider_correspondence::trust::SelectedTrustEvidence<'_> {
+        let realized = self.realization();
+        provider_correspondence::trust::SelectedTrustEvidence {
+            program: realized.program(),
+            target: realized.target(),
+            plans: realized.plans(),
+            leaves: realized.direct_boundary_leaves(),
+            bindings: realized.evaluated_native_bindings(),
+            identities: realized.evaluated_binding_identities(),
         }
-        let realization = self.realization();
-        let mut leaves = realization
-            .direct_boundary_leaves()
-            .iter()
-            .collect::<Vec<_>>();
-        fn key(leaf: &backend_plan::DirectBoundaryLeaf) -> (&str, &str) {
-            (&leaf.declaration_identity, &leaf.callable_identity)
-        }
-        leaves.sort_unstable_by(|left, right| key(left).cmp(&key(right)));
-        let module = module.ok_or_else(|| vec![Diagnostic::error("native grant has no accepted program")])?;
-        Ok(requests.into_iter().map(|(grant, selected)| {
-            let first = leaves.partition_point(|leaf| key(leaf) < selected);
-            let last = leaves.partition_point(|leaf| key(leaf) <= selected);
-            let [leaf] = &leaves[first..last] else {
-                return Err(format!(
-                    "root grant `{}` has no unique selected native requirement with its exact declaration and callable application",
-                    grant.selector
-                ));
-            };
-            leaf.prepare_native_trust(grant, realization.target(), module,
-                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
-        }).collect())
     }
 
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
@@ -112,6 +87,55 @@ impl SelectedExecution {
         self.realization.shared_plans()
     }
 
+    pub(super) fn with_folded_entry_reach(
+        mut self,
+        reach: Result<backend_plan::FoldedEntryReach, String>,
+    ) -> Self {
+        self.folded_reach = Some(reach);
+        self
+    }
+
+    pub fn folded_program(&self) -> Option<&crate::FoldedTargetProgram> {
+        self.folded.as_deref()
+    }
+
+    /// Return the exact executable code selected for a published source artifact.
+    pub fn effective_artifact<'a>(
+        &'a self,
+        original: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
+    ) -> Result<&'a Arc<terminal_codec::CanonicalTerminalArtifact>, String> {
+        if let Some(folded) = self.folded_program() {
+            if folded.original() != original.view().identity() {
+                return Err("folded constant product belongs to another accepted program".into());
+            }
+            Ok(folded.artifact())
+        } else {
+            self.realization.require_program(original.view().identity())?;
+            Ok(original)
+        }
+    }
+
+    /// Target commitments depend on the admitted native calling contracts. Only
+    /// the closed portable reach may request them, and the source artifact is immutable.
+    pub fn bind_folded_entry(
+        &mut self,
+        original: &terminal_codec::CanonicalTerminalArtifact,
+        accepted_evidence: Option<&terminal_codec::EvidenceSeals>,
+    ) -> Result<(), String> {
+        let profile = self.target_profile.ok_or("executable entry metadata requires an explicit deployment target")?;
+        self.realization.require_program(original.view().identity())?;
+        let reach = self.folded_reach.as_ref()
+            .ok_or("executable entry has no published scalar provider reach")?
+            .as_ref().map_err(Clone::clone)?;
+        let closure = reach.bind(original.view(), profile.target_name(), self.plans().plans())?;
+        if closure.dependencies.is_empty() { return Ok(()); }
+        let folded = crate::FoldedTargetProgram::close(original, accepted_evidence, closure)?;
+        self.realization = Arc::new(self.realization.bind_folded_artifact(&folded)?);
+        self.folded = Some(Arc::new(folded));
+        self.folded_reach = None;
+        Ok(())
+    }
+
     pub fn with_folded_program(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
@@ -119,6 +143,9 @@ impl SelectedExecution {
         Ok(Self {
             target_profile: self.target_profile,
             realization: Arc::new(self.realization.with_folded_program(artifact)?),
+            package_review: self.package_review.clone(),
+            folded_reach: None,
+            folded: None,
         })
     }
 

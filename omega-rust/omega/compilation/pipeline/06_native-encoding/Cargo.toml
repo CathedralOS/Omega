@@ -9,12 +9,13 @@ name = "native_encoding"
 path = "src/lib.rs"
 
 [dependencies]
+function-identity = { path = "../../representations/function-identity" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 arena = { path = "../../../../psi/foundation/arena" }
 runtime-abi = { path = "../../target-description/runtime-abi" }
 register-environment = { path = "../../target-description/register-environment" }
 frame-admission = { path = "../../verification/frame-admission" }
-physical-planning = { path = "../04_physical-program-planning" }
+physical-recipes = { path = "../../representations/physical-recipes" }
 encoding-admission = { path = "../../verification/encoding-admission" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../target-description/calling-conventions" }
@@ -28,7 +29,5 @@ target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
 
 [dev-dependencies]
+physical-planning = { path = "../04_physical-program-planning" }
 register-homes = { path = "../../representations/register-homes" }
-
-[features]
-test-support = []

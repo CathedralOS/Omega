@@ -241,15 +241,10 @@ impl PackageReviewInput<'_> {
         // Canonical numeric declarations obtain execution from the target,
         // independently of the Build's authored provider selections.
         let mut numeric_applications = Vec::new();
-        let roots = accepted
-            .entry()
-            .into_iter()
-            .chain(provider_rows.iter().flat_map(|row| {
-                row.candidates
-                    .iter()
-                    .map(|candidate| candidate.conformance.candidate)
-            }));
-        for numeric in super::numeric::project(self, accepted, target, roots)? {
+        let provider_bodies = provider_rows.iter().flat_map(|row| {
+            row.candidates.iter().map(|candidate| candidate.conformance.candidate)
+        });
+        for numeric in super::numeric::project(self, accepted, target, provider_bodies)? {
             review.boundaries.push(numeric.boundary);
             review.semantic_dependencies.push(numeric.dependency);
             if let Some((plan, application)) = numeric.realization {

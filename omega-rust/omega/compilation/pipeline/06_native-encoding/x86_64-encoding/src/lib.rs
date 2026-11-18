@@ -27,7 +27,7 @@ for representative port-write (PIC EOI `0x20`) and zero-extended port-read
 */
 
 pub use target_x86_64::form_effects::port_write::IMMEDIATE_PORT_WRITE_WIDTH;
-pub const IMMEDIATE_PORT_READ_U8_WIDTH: usize = 16;
+pub use target_x86_64::inspection::IMMEDIATE_PORT_READ_U8_WIDTH;
 
 pub fn encode_immediate_port_write(port: u16, value: u8) -> [u8; IMMEDIATE_PORT_WRITE_WIDTH] {
     let mut bytes = [0_u8; IMMEDIATE_PORT_WRITE_WIDTH];
@@ -74,5 +74,30 @@ mod tests {
                 0x49, 0xba, 0x64, 0, 0, 0, 0, 0, 0, 0, 0x44, 0x89, 0xd2, 0x31, 0xc0, 0xec,
             ]
         );
+    }
+
+    #[test]
+    fn receipt_decodes_port_and_value_from_each_emitted_instruction() {
+        use target_x86_64::inspection::{
+            decode_immediate_port_read_u8, decode_immediate_port_write,
+        };
+        for (port, value) in [(0, 0), (0x1234, 0x56), (u16::MAX, u8::MAX)] {
+            let read = encode_immediate_port_read_u8(port);
+            assert_eq!(decode_immediate_port_read_u8(&read), Some(port));
+            for bit in 0..read.len() * 8 {
+                let mut changed = read;
+                changed[bit / 8] ^= 1 << (bit % 8);
+                assert_ne!(decode_immediate_port_read_u8(&changed), Some(port));
+            }
+            let write = encode_immediate_port_write(port, value);
+            assert_eq!(decode_immediate_port_write(&write), Some((port, value)));
+            for bit in 0..write.len() * 8 {
+                let mut changed = write;
+                changed[bit / 8] ^= 1 << (bit % 8);
+                assert_ne!(decode_immediate_port_write(&changed), Some((port, value)));
+            }
+            assert_eq!(decode_immediate_port_write(&read), None);
+            assert_eq!(decode_immediate_port_read_u8(&write), None);
+        }
     }
 }

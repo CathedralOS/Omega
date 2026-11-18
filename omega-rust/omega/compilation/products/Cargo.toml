@@ -20,7 +20,7 @@ build-output = { path = "../../packages/build-output" }
 calling-conventions = { path = "../target-description/calling-conventions" }
 runtime-abi = { path = "../target-description/runtime-abi" }
 effects = { path = "../representations/native-effects" }
-native-program-planning = { path = "../pipeline/03_native-program-planning" }
+native-compiler = { path = "../native-compiler" }
 provider-correspondence = { path = "../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
@@ -29,7 +29,6 @@ task-plans = { path = "../representations/task-plans" }
 artifacts = { path = "measurements" }
 backend-plan = { path = "../representations/provider-plans" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
 optimization-core = { path = "../representations/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }
 platform-custody = { path = "../../host-support/platform-custody" }
@@ -43,8 +42,3 @@ verified-optimization-input = { path = "../representations/abstract-operations/v
 provider-admission = { path = "../verification/provider-admission" }
 installation-evidence = { path = "../representations/installation-evidence" }
 boundary-applications = { path = "../representations/boundary-applications" }
-
-[dev-dependencies]
-image = { path = "../pipeline/09_image-construction/image" }
-image-macho = { path = "../pipeline/09_image-construction/image-macho" }
-object-file = { path = "../pipeline/08_object-construction" }

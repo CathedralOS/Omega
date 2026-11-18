@@ -27,3 +27,5 @@ pub use bodies::{
 pub use boundary::{
     BoundaryProviderAdmission, CompilerIntrinsicPlanProvenance, select_boundary_applications,
 };
+
+pub mod trust;

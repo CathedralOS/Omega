@@ -1,7 +1,9 @@
 //! Compare supplied adapter bytes and effects with the exact canonical request.
 use diagnostics::Diagnostic;
-use native_encoding::native_entry_bridge::{NativeEntryBridge, encode_native_entry_bridge};
-use native_encoding::native_foreign_bridge::{NativeForeignBridge, encode_native_foreign_bridge};
+use native_encoding::native_entry_bridge::encode_native_entry_bridge;
+type NativeEntryBridge = native_encoding::native_entry_bridge::NativeEntryBridge<physical_planning::PhysicalRecipeOrigin>;
+use native_encoding::native_foreign_bridge::encode_native_foreign_bridge;
+type NativeForeignBridge = native_encoding::native_foreign_bridge::NativeForeignBridge<physical_planning::PhysicalRecipeOrigin>;
 use physical_planning::native_entry_bridge::{
     NativeEntryBridgeError as Error, plan_installed_interrupt_entry_bridge,
     plan_native_entry_bridge,
@@ -67,7 +69,7 @@ mod entry_tests {
         EntryControl, MachineRegister, MachineState, MachineStateSet, RegisterSet,
         StateEffectsEvidence, StateFootprintEvidence, ValueShape,
     };
-    use native_encoding::test_support::emit_native_entry_bridge;
+    use image_fixtures::emit_native_entry_bridge;
     use physical_planning::native_entry_bridge::{NativeEntryBridgeRequest, NativeEntryParameter};
     use target::{Architecture, NativeTarget};
 

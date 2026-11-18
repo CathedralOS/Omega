@@ -140,9 +140,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
 
 fn encode_primitive_float_binary_operation(
     encoder: &mut Encoder,
-    operation: native_program_planning::CompilerPrimitiveFloatBinaryOperation,
+    operation: effects::CompilerPrimitiveFloatBinaryOperation,
 ) {
-    use native_program_planning::CompilerPrimitiveFloatBinaryOperation;
+    use effects::CompilerPrimitiveFloatBinaryOperation;
 
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => encoder.tag("add", 0),
@@ -160,9 +160,9 @@ fn encode_primitive_float_binary_operation(
 
 fn encode_primitive_integer_comparison_operation(
     encoder: &mut Encoder,
-    operation: native_program_planning::CompilerPrimitiveIntegerComparisonOperation,
+    operation: effects::CompilerPrimitiveIntegerComparisonOperation,
 ) {
-    use native_program_planning::CompilerPrimitiveIntegerComparisonOperation;
+    use effects::CompilerPrimitiveIntegerComparisonOperation;
 
     match operation {
         CompilerPrimitiveIntegerComparisonOperation::Equal => encoder.tag("equal", 0),
@@ -185,7 +185,7 @@ fn encode_float_format(encoder: &mut Encoder, format: numeric_literals::FloatFor
 
 fn encode_compiler_numeric_type(
     encoder: &mut Encoder,
-    numeric_type: native_program_planning::CompilerNumericType,
+    numeric_type: effects::CompilerNumericType,
 ) {
     encoder.fixed_bytes(&numeric_type.canonical_encoding());
 }

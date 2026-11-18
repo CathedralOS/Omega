@@ -1,9 +1,7 @@
 //! Plan the physical adapter from the external arrival ABI to the body ABI.
-use arena::Arena;
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, EntryControl, EntryStack, MachineRegister, MachineState,
-    MachineStateSet, Preemption, RegisterSet, StateEffectsEvidence, ValueClass, ValuePlacement,
-    ValueShape,
+    EntryControl, EntryStack, MachineRegister, MachineState, MachineStateSet, Preemption,
+    RegisterSet, StateEffectsEvidence, ValueClass, ValuePlacement, ValueShape,
 };
 use post_allocation_machine::adapters::{
     AdapterInstructions, AdapterOperation as Op, X86AdapterTemplate as Template,
@@ -11,157 +9,22 @@ use post_allocation_machine::adapters::{
 use register_model::validate_physical_register_model;
 pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
 use runtime_abi::static_interrupts::{InstalledInterruptProtocol, acknowledgement as ack, root};
-use target::{Architecture, NativeTarget};
+use target::Architecture;
+#[cfg(test)]
+use target::NativeTarget;
 
 use crate::bridge_values::{
     AlignedHome, Encoding, NativeBridgeEncodingError, ValueStorage, WordLocation, allocate_home,
     allocate_value, allocate_word, is_borrowed, value_storage,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NativeEntryParameter {
-    pub inbound_ordinal: u32,
-    pub scalar_codec: u64, // Zero means no descriptor conversion; nonzero is a closed scalar codec.
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeEntryBridgeRequest {
-    pub target: NativeTarget,
-    pub internal: CallPlan,
-    pub inbound: BoundaryEntryPlan, // Owns both argument placement and interrupted-state obligations.
-    pub body_footprint: Option<StateEffectsEvidence>, // Checked body closure required for asynchronous entry ceilings.
-    pub parameters: Arena<NativeEntryParameter>, // Internal scalar-then-structural order joined through nominal origins.
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeEntryBridgePlan {
-    request: NativeEntryBridgeRequest,
-    instructions: AdapterInstructions,
-    effects: StateEffectsEvidence,
-    complete_effects: StateEffectsEvidence,
-    frame_bytes: u32,
-    installed_interrupt: Option<InstalledInterruptEntryPlan>,
-}
-
-impl NativeEntryBridgePlan {
-    pub fn instructions(&self) -> &AdapterInstructions {
-        &self.instructions
-    }
-    pub fn into_contract(
-        self,
-    ) -> (
-        NativeEntryBridgeRequest,
-        StateEffectsEvidence,
-        StateEffectsEvidence,
-    ) {
-        (self.request, self.effects, self.complete_effects)
-    }
-
-    pub fn effects(&self) -> &StateEffectsEvidence {
-        &self.effects
-    }
-    pub fn complete_effects(&self) -> &StateEffectsEvidence {
-        &self.complete_effects
-    }
-    pub fn request(&self) -> &NativeEntryBridgeRequest {
-        &self.request
-    }
-    pub fn frame_bytes(&self) -> u32 {
-        self.frame_bytes
-    }
-    pub fn call_stack_bias(&self) -> u32 {
-        call_stack_bias(self.request.target.architecture)
-    }
-    pub fn installed_interrupt(&self) -> Option<InstalledInterruptEntryPlan> {
-        self.installed_interrupt
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeEntryBridgeError {
-    IncompatiblePlan,
-    UnsupportedEntryControl,
-    UnsupportedInstalledInterruptSignature,
-    UnsupportedFatalInterruptSignature,
-    UnsupportedFatalInterruptPreservation,
-    InvalidInstalledInterruptGeometry,
-    UnsupportedInterruptState,
-    MissingInterruptBodyFootprint,
-    InterruptBodyStateExceedsPlan,
-    FatalInterruptBodyStateExceedsPlan,
-    InvalidParameterJoin,
-    UnsupportedValueTransport,
-    MissingScalarCodec,
-    NoUnoccupiedScratch,
-    FrameOverflow,
-    Encoding,
-    ReplayMismatch,
-    GeneratedEntryEffects(String),
-}
-
-impl std::fmt::Display for NativeEntryBridgeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let reason = match self {
-            Self::GeneratedEntryEffects(reason) => {
-                return write!(formatter, "native entry bridge failed: {reason}");
-            }
-            Self::UnsupportedInstalledInterruptSignature => {
-                "installed timer arrival requires exactly one owned 40-byte acknowledgement and no result"
-            }
-            Self::UnsupportedFatalInterruptSignature => {
-                "installed fatal arrival requires exactly one shared context reference and no result"
-            }
-            Self::UnsupportedFatalInterruptPreservation => {
-                "nonreturning fatal entry cannot promise to preserve or restore an interrupted continuation"
-            }
-            Self::InvalidInstalledInterruptGeometry => {
-                "installed interrupt entry changed its root, gate or hardware-frame geometry"
-            }
-            Self::UnsupportedEntryControl => "this target cannot emit the requested entry return",
-            Self::UnsupportedInterruptState => {
-                "interrupt entry requires the supported x86-64 integer-register save/restore plan and 16-byte stack alignment"
-            }
-            Self::MissingInterruptBodyFootprint => {
-                "interrupt entry lacks the checked handler's machine-state effects"
-            }
-            Self::InterruptBodyStateExceedsPlan => {
-                "interrupt handler uses machine state its entry does not permit, save and restore"
-            }
-            Self::FatalInterruptBodyStateExceedsPlan => {
-                "fatal interrupt handler exceeds its entry's machine-state ceiling"
-            }
-            _ => return write!(formatter, "native entry bridge failed: {self:?}"),
-        };
-        write!(formatter, "native entry bridge failed: {reason}")
-    }
-}
-
-impl std::error::Error for NativeEntryBridgeError {}
+use physical_recipes::native_entry_bridge as recipes;
+use recipes::NativeEntryInstructions;
+pub use recipes::{
+    NativeEntryBridgeError, NativeEntryBridgeRequest, NativeEntryParameter, call_stack_bias,
+};
+pub type NativeEntryBridgePlan = recipes::NativeEntryBridgePlan<crate::PhysicalRecipeOrigin>;
 type Error = NativeEntryBridgeError;
-
-impl NativeEntryBridgeRequest {
-    pub fn checked_complete_effects(
-        &self,
-        adapter: &StateEffectsEvidence,
-    ) -> Result<StateEffectsEvidence, Error> {
-        let body = self
-            .body_footprint
-            .as_ref()
-            .ok_or(Error::MissingInterruptBodyFootprint)?;
-        let complete = adapter.compose(body);
-        complete.validate(&self.inbound.state).map_err(|reason| {
-            Error::GeneratedEntryEffects(format!(
-                "{reason}: used {:?}, permitted {:?}, clobbered {:?}, saved {:?}",
-                complete.machine_state(),
-                self.inbound.state.permitted_transitive_use,
-                complete.clobbered_state(),
-                self.inbound.state.saved_state
-            ))
-        })?;
-        Ok(complete)
-    }
-}
-
 fn finish_native_entry(
     request: NativeEntryBridgeRequest,
     instructions: AdapterInstructions,
@@ -170,14 +33,17 @@ fn finish_native_entry(
 ) -> Result<NativeEntryBridgePlan, Error> {
     let effects = instructions.effects();
     let complete_effects = request.checked_complete_effects(&effects)?;
-    Ok(NativeEntryBridgePlan {
-        request,
-        instructions,
-        effects,
-        complete_effects,
-        frame_bytes,
-        installed_interrupt,
-    })
+    Ok(NativeEntryBridgePlan::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        NativeEntryInstructions {
+            request,
+            instructions,
+            effects,
+            complete_effects,
+            frame_bytes,
+            installed_interrupt,
+        },
+    ))
 }
 
 impl From<NativeBridgeEncodingError> for NativeEntryBridgeError {
@@ -348,10 +214,6 @@ fn interrupt_body_footprint(
         return Err(Error::InterruptBodyStateExceedsPlan);
     }
     Ok(footprint)
-}
-
-pub fn call_stack_bias(architecture: Architecture) -> u32 {
-    u32::from(architecture == Architecture::X86_64) * 8
 }
 
 fn value_transport(
@@ -1209,14 +1071,43 @@ mod value_tests {
     fn darwin_record_uses_its_inbound_stack_slot_and_internal_scalar_slot() {
         let policy = CallingPolicy::native_for_target(NativeTarget::macos_arm64());
         let mut parameters = vec![ValueShape::integer(8, 8); 8];
-        parameters.extend([ValueShape::integer(1, 1), ValueShape::integer(4, 2), ValueShape::integer(1, 1)]);
-        let internal = evaluate_call_plan(policy, &CallSignature { parameters: parameters.clone(), result: None }).unwrap();
+        parameters.extend([
+            ValueShape::integer(1, 1),
+            ValueShape::integer(4, 2),
+            ValueShape::integer(1, 1),
+        ]);
+        let internal = evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: parameters.clone(),
+                result: None,
+            },
+        )
+        .unwrap();
         parameters[9] = ValueShape::integer_aggregate(4, 2);
-        let inbound = calling_conventions::evaluate_ordinary_boundary_entry_plan(policy, &CallSignature { parameters, result: None }).unwrap();
-        let transport = value_transport(&inbound.plan().call.parameters[9], &internal.parameters[9], 0).unwrap();
+        let inbound = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            policy,
+            &CallSignature {
+                parameters,
+                result: None,
+            },
+        )
+        .unwrap();
+        let transport = value_transport(
+            &inbound.plan().call.parameters[9],
+            &internal.parameters[9],
+            0,
+        )
+        .unwrap();
         assert_eq!(transport.byte_size, 4);
-        assert!(matches!(transport.source.pieces()[0].location, WordLocation::Stack(8)));
-        assert!(matches!(transport.destination.pieces()[0].location, WordLocation::Stack(2)));
+        assert!(matches!(
+            transport.source.pieces()[0].location,
+            WordLocation::Stack(8)
+        ));
+        assert!(matches!(
+            transport.destination.pieces()[0].location,
+            WordLocation::Stack(2)
+        ));
     }
 
     #[test]

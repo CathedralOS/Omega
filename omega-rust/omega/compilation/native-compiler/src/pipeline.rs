@@ -76,25 +76,19 @@ pub(crate) fn plan_installations(
     std::sync::Arc<physical_planning::installation_resources::PlannedInstallationResources>,
     &'static str,
 > {
-    let plan = target.execution_plan().plan();
     physical_planning::installation_resources::plan_installation_resources(
-        bound_installations::BoundInstalledEntry {
-            psi: plan.psi,
-            target: plan.target,
-            machine: plan.entry,
-        },
+        target.execution_plan(),
         target.facts.admission.installed_interrupts(),
         target.facts.admission.native_callbacks(),
         execution,
         requirements,
-        &plan.installation_operations,
     )
     .map(std::sync::Arc::new)
 }
 
 pub(crate) type PreparedPhysicalBody =
     PhysicalBody<physical_planning::installation_resources::PlannedInstallationResources>;
-pub(crate) type BoundPhysicalBody = PhysicalBody<installation_binding::BoundInstallationAuthority>;
+pub(crate) type BoundPhysicalBody = PhysicalBody<installation_admission::BoundInstallationAuthority>;
 
 pub(crate) struct PhysicalBody<Resources> {
     pub frame: physical_planning::PhysicalFrameProgram,
@@ -123,7 +117,7 @@ impl PreparedPhysicalBody {
             original_target,
             originals,
         } = self;
-        let authority = installation_binding::BoundInstallationAuthority::bind(
+        let authority = installation_binding::bind(
             &frame,
             installations,
             handlers,
@@ -230,15 +224,11 @@ pub(crate) fn prepare_physical_body(
         frame.frame.plan(),
         &facts.program,
     );
-    let cpu = image_emission::prepare_native_cpu_origins(&frame.instructions);
-    let faults = image_emission::prepare_native_fault_origins(&frame.instructions);
+    let origins = physical_planning::installed_handlers::capture_execution_origins(&frame.instructions, &installations);
     let facts = physical_program::EmissionFacts {
-        termination: image_emission::prepare_privileged_termination(
-            installations.installed_entry_execution(),
-            &frame.instructions,
-        ),
-        faults,
-        cpu,
+        termination: origins.termination,
+        faults: origins.faults,
+        cpu: origins.cpu,
         internal_calls,
         boundary_settlements,
         semantic: facts,
@@ -342,7 +332,7 @@ struct BodyObjectInputs {
 
 pub(crate) struct EncodedBody {
     facts: physical_program::EmissionFacts,
-    installations: std::sync::Arc<installation_binding::BoundInstallationAuthority>,
+    installations: std::sync::Arc<installation_admission::BoundInstallationAuthority>,
     program: machine_code::EncodedMachineProgram,
     object: BodyObjectInputs,
     originals: Option<(
@@ -472,7 +462,14 @@ pub(crate) fn construct_body_object(
         windows_internet,
         original_target,
     } = body.object;
-    let mut object = native_artifact::emit_fragment_object(body.text, original_target)
+    let container = object_file::stage_optimized_relocation_free_object_container(body.text)
+        .map_err(|error| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+            "native artifact fragment object placement failed: {error}"
+        ))]))?;
+    let publication = container.publication();
+    let retain_originals = original_target.is_some() || container.retains_originals();
+    let replay = retain_originals.then(|| std::sync::Arc::new(container));
+    let mut object = native_artifact::emit_fragment_object(publication, replay, original_target)
         .map_err(BodyEmissionError::Object)?;
     object = object.with_import_program(imports).map_err(|reason| {
         BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])

@@ -53,3 +53,9 @@ pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
     retain_native_derivation_inputs,
 };
+
+mod provider_selection;
+pub use provider_selection::{SelectedExecution, select_published_providers};
+
+// Published native entry selection and explicitly requested provider-input inspection.
+pub use native_program_planning::{plan_provider_execution_inputs, program_entry::PublishedEntrySelection, target_supply::TargetSupplyExecutionInputs};

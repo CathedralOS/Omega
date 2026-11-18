@@ -733,6 +733,7 @@ pub(crate) mod final_image_validation {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct LinkedNativeCodeLayout {
             pub private_function: Option<function_identity::MachineFunctionIdentity>,
+            pub data_section_offset: usize,
             pub terminal_psi: terminal_psi::TerminalPsiIdentity,
             pub machine: semantic_vocabulary::MachineId,
             pub entry: u64,
@@ -789,6 +790,7 @@ pub(crate) mod final_image_validation {
                         .collect::<Result<Vec<_>, Diagnostic>>()?;
                     descriptions.push(LinkedNativeCodeLayout {
                         private_function: namespace.private_function,
+                        data_section_offset: namespace.data_offset(descriptor.data_offset)?,
                         terminal_psi: namespace.artifact.psi(),
                         machine: descriptor.layout.machine,
                         entry: address(descriptor.layout.entry_section_offset)?,
@@ -1629,75 +1631,7 @@ pub(crate) mod final_image_validation {
 }
 
 pub(crate) mod image_output {
-    mod application_metadata {
-        use super::ExecutableImageEmissionRequest;
-        use target::{ApplicationIdentifier, HostedApplicationIntent, NativeTarget, ObjectFormat};
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum ImageApplicationMetadataError {
-            SubsystemMismatch,
-            IdentifierMismatch,
-            MissingGuiIdentifier,
-        }
-
-        impl std::fmt::Display for ImageApplicationMetadataError {
-            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str(match self {
-                    Self::SubsystemMismatch => {
-                        "image request subsystem differs from application metadata"
-                    }
-                    Self::IdentifierMismatch => {
-                        "image request code signature identifier differs from application metadata"
-                    }
-                    Self::MissingGuiIdentifier => {
-                        "signed macOS GUI image emission requires an application identifier"
-                    }
-                })
-            }
-        }
-
-        impl std::error::Error for ImageApplicationMetadataError {}
-
-        impl ExecutableImageEmissionRequest {
-            pub fn settle_application_metadata(
-                &mut self,
-                target: NativeTarget,
-                intent: Option<HostedApplicationIntent>,
-                subsystem: u16,
-                identifier: Option<&ApplicationIdentifier>,
-            ) -> Result<(), ImageApplicationMetadataError> {
-                if let Self::Direct {
-                    subsystem: requested_subsystem,
-                    code_signature_identifier,
-                } = self
-                {
-                    if *requested_subsystem != subsystem {
-                        return Err(ImageApplicationMetadataError::SubsystemMismatch);
-                    }
-                    if let (Some(authored), Some(requested)) =
-                        (identifier, code_signature_identifier.as_deref())
-                        && requested != authored.as_str()
-                    {
-                        return Err(ImageApplicationMetadataError::IdentifierMismatch);
-                    }
-                    if let Some(authored) = identifier
-                        && code_signature_identifier.is_none()
-                    {
-                        *code_signature_identifier = Some(authored.as_str().to_owned());
-                    }
-                }
-                if target.object_format == ObjectFormat::MachO
-                    && intent == Some(HostedApplicationIntent::Gui)
-                    && self.code_signature_identifier().is_none()
-                {
-                    return Err(ImageApplicationMetadataError::MissingGuiIdentifier);
-                }
-                Ok(())
-            }
-        }
-    }
-
-    pub use application_metadata::ImageApplicationMetadataError;
+    pub use target::{ExecutableImageEmissionRequest, ImageApplicationMetadataError};
 
     use diagnostics::Diagnostic;
     use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
@@ -1714,53 +1648,21 @@ pub(crate) mod image_output {
         ObjectCompilerPrivateFunction, ObjectFunction, ObjectPortEffect,
     };
 
-    #[derive(Debug, Clone)]
-    pub enum ExecutableImageEmissionRequest {
-        Direct {
-            subsystem: u16,
-            code_signature_identifier: Option<String>,
-        },
-        DynamicElf {
-            interpreter: NormalizedElfInterpreterPlan,
-        },
-    }
-
-    impl ExecutableImageEmissionRequest {
-        pub const fn direct(subsystem: u16) -> Self {
-            Self::Direct {
-                subsystem,
-                code_signature_identifier: None,
-            }
-        }
-
-        pub fn code_signature_identifier(&self) -> Option<&str> {
-            match self {
-                Self::Direct {
-                    code_signature_identifier,
-                    ..
-                } => code_signature_identifier.as_deref(),
-                Self::DynamicElf { .. } => None,
-            }
-        }
-
-        pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
-            Self::DynamicElf { interpreter }
-        }
-
+    impl ObjectArtifact {
         pub fn settle_elf_loader(
-            self,
-            artifact: &ObjectArtifact,
+            &self,
+            request: ExecutableImageEmissionRequest,
             elf_interpreter: Option<&NormalizedElfInterpreterPlan>,
-        ) -> Result<Self, Box<RequestedExecutableImageError>> {
-            if !requires_dynamic_elf(artifact) {
-                return Ok(self);
+        ) -> Result<ExecutableImageEmissionRequest, Box<RequestedExecutableImageError>> {
+            if !requires_dynamic_elf(self) {
+                return Ok(request);
             }
-            let Self::Direct { subsystem, .. } = self else {
-                return Ok(self);
+            let ExecutableImageEmissionRequest::Direct { subsystem, .. } = request else {
+                return Ok(request);
             };
             match elf_interpreter {
-                Some(interpreter) if interpreter.target().native_target() == artifact.target() => {
-                    Ok(Self::dynamic_elf(interpreter.clone()))
+                Some(interpreter) if interpreter.target().native_target() == self.target() => {
+                    Ok(ExecutableImageEmissionRequest::dynamic_elf(interpreter.clone()))
                 }
                 Some(interpreter) => Err(Box::new(
                     RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
@@ -1768,13 +1670,13 @@ pub(crate) mod image_output {
                         diagnostic: Diagnostic::error(format!(
                             "ELF interpreter selected for target `{}` cannot load an object emitted for {:?}",
                             interpreter.target().target_name(),
-                            artifact.target(),
+                            self.target(),
                         )),
                     },
                 )),
                 None => Err(Box::new(
                     RequestedExecutableImageError::MissingDynamicElfInterpreter {
-                        target: artifact.target(),
+                        target: self.target(),
                         subsystem,
                         diagnostic: Diagnostic::error(
                             "missing output configuration: dynamically linked ELF output requires an interpreter pathname; select `Build.elf_interpreter` for the target, whose environment declares no default",

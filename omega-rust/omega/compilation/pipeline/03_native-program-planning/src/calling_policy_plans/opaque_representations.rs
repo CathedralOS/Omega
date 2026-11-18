@@ -1,13 +1,6 @@
 //! Carried physical movement paths for canonical opaque applications.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BoundaryOpaqueRepresentationMovementRole {
-    Parameter {
-        formal_ordinal: u32,
-        native_ordinal: u32,
-    },
-    Result,
-}
+pub use calling_conventions::BoundaryOpaqueRepresentationMovementRole;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryOpaqueRepresentationPathElement {

@@ -16,8 +16,9 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };
 
+pub mod hosted_receiver;
 mod emission_admission;
-pub use emission_admission::EmissionAdmission;
+pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
 pub mod publication;
 
 mod native_execution_scope;
@@ -34,6 +35,7 @@ pub use component_inputs::{
 };
 mod native_execution;
 mod runtime_input;
+pub mod runtime_provisions;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,

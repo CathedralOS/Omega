@@ -64,7 +64,7 @@ fn admit_realization<'request>(
     let runtime_provisions = entry
         .checked_entry
         .map(|_| {
-            native_runtime_provisions::NativeRuntimePlan::capture_native_admission(
+            native_runtime_provisions::plan_root_provisions(
                 entry,
                 input.optimization_input().runtime_input(),
                 providers
@@ -131,10 +131,8 @@ pub(crate) fn realize_native_artifact(
     });
     let physical_originals = emitted.physical_originals;
     let emitted = emitted.object;
-    let image_request = request
-        .image_request
-        .clone()
-        .settle_elf_loader(&emitted.object, request.elf_interpreter)
+    let image_request = emitted.object
+        .settle_elf_loader(request.image_request.clone(), request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
     let artifact = {
         request

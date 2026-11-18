@@ -19,7 +19,7 @@ separate checked semantic identity: `PartialEq` compares only `execution` and
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use native_program_planning::SelectedExecution;
+use native_compiler::SelectedExecution;
 use package_compilation::CheckedSourceCustody;
 use source_compiler::source_state::FrozenTypedTrees;
 use std::sync::Arc;
@@ -47,11 +47,12 @@ pub struct CheckedCompilationInputs {
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
-    root_grants: Result<Arc<[native_program_planning::trust::TrustAdmission]>, Vec<Diagnostic>>,
+    root_grants: Result<Arc<[provider_correspondence::trust::TrustAdmission]>, Vec<Diagnostic>>,
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
     terminal_publication: Arc<source_compiler::SourcePublication>,
+    published_program: Option<Arc<crate::PublishedProgram>>,
 }
 
 impl PartialEq for CheckedCompilation {
@@ -82,22 +83,24 @@ impl CheckedCompilation {
             execution
                 .source_inspection
                 .inventory()
-                .trust_declarations()
+                .published_trust_declarations()
                 .map_err(|error| vec![error])
                 .and_then(|declarations| {
                     let policy = match sources.package_subject() {
-                        None => native_program_planning::trust::RootTrustPolicy::Unpackaged,
+                        None => provider_correspondence::trust::RootTrustPolicy::Unpackaged,
                         Some(subject) if subject.root_role() == build_declarations::BuildDeclarationKind::Application =>
-                            native_program_planning::trust::RootTrustPolicy::Application(subject.root().digest()),
-                        Some(_) => native_program_planning::trust::RootTrustPolicy::PackageReview,
+                            provider_correspondence::trust::RootTrustPolicy::Application(subject.root().digest()),
+                        Some(_) => provider_correspondence::trust::RootTrustPolicy::PackageReview,
                     };
                     let needs_module = grants.iter().any(|grant| matches!(
                         grant.subject, declaration_contracts::selection::RootGrantSubject::BoundaryRequirement { .. }
                     ));
-                    let module = if needs_module {
-                        Some(&terminal_publication.accepted()?.closure().elaboration.module)
-                    } else { None };
-                    execution.settled.admit_root_grants(declarations, grants, policy, module)
+                    let program = needs_module.then(|| terminal_publication.require_published(terminal_publication.optimizations())).transpose()?;
+                    let artifact = program.as_ref()
+                        .map(|program| execution.settled.effective_artifact(program.artifact()))
+                        .transpose().map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    execution.settled.trust_evidence().admit_root_grants(declarations, grants, policy,
+                        artifact.map(|artifact| artifact.view()))
 
                 })
                 .map(Arc::from)
@@ -109,16 +112,33 @@ impl CheckedCompilation {
             sources,
             timings,
             terminal_publication,
+            published_program: None,
         })
+    }
+
+    /// Retain the source-free publication projected before provider planning.
+    pub fn with_published_program(mut self, published: Arc<crate::PublishedProgram>) -> Result<Self, Vec<Diagnostic>> {
+        let source = self.terminal_publication.require_published(self.terminal_publication.optimizations())?;
+        if !Arc::ptr_eq(source.artifact(), published.artifact()) {
+            return Err(vec![Diagnostic::error("published code belongs to another checked source")]);
+        }
+        self.published_program = Some(published);
+        Ok(self)
     }
 
     /// Consume source custody at the executable-planning boundary. Only
     /// the published code and immutable inputs needed by that phase survive.
     /// Checking/review callers retain source explicitly in CheckedCompilation.
     pub fn into_published(self) -> Result<crate::PublishedCompilation, Vec<Diagnostic>> {
-        let program = self
-            .terminal_publication
-            .require_published(self.terminal_publication.optimizations())?;
+        let source = match &self.published_program {
+            Some(source) => Arc::clone(source),
+            None => {
+                let program = self.terminal_publication.require_published(self.terminal_publication.optimizations())?;
+                Arc::new(crate::PublishedProgram::from_source(&program))
+            }
+        };
+        let program = crate::PublishedExecutableProgram::for_execution(&source, &self.execution.settled)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let application = self.native_application_metadata();
         let behavior_exclusions = self.build().config.behavior_exclusions.clone();
         let x86_deployment_claim = self.build().config.settings.x86_deployment_claim;
@@ -126,7 +146,7 @@ impl CheckedCompilation {
             execution: self.execution.settled,
             root_grants: self.root_grants?,
             package_inputs: crate::ExecutablePackageInputs::from_checked(&self.sources),
-            program: Arc::new(crate::PublishedProgram::from_source(&program)),
+            program: Arc::new(program),
             application,
             behavior_exclusions,
             x86_deployment_claim,

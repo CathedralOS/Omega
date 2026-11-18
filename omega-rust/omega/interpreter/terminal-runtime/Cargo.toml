@@ -25,7 +25,7 @@ terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/
 terminal-interpreter = { path = "../../../psi/interpreter" }
 target-operations = { path = "../../compilation/representations/target-operations" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
-native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }
+verified-optimization-input = { path = "../../compilation/representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 
 [dev-dependencies]

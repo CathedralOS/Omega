@@ -8,6 +8,11 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+physical-program = { path = "../../representations/physical-program" }
+program-entry-plan = { path = "../../representations/program-entry" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+physical-recipes = { path = "../../representations/physical-recipes" }
+installation-admission = { path = "../../verification/installation-admission" }
 function-identity = { path = "../../representations/function-identity" }
 task-plans = { path = "../../representations/task-plans" }
 target-operations = { path = "../../representations/target-operations" }

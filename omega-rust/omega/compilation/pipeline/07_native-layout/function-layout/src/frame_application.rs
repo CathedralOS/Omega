@@ -22,22 +22,11 @@ use encoding_admission::frame_protocol::{
     FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     target_frame_protocol_encoding_identity,
 };
-use isa_aarch64::{
-    Aarch64ConditionalBranchForm,
-    validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    validate_aarch64_selected_conditional_branch_form,
-};
-use isa_x86_64::{
-    validate_x86_64_selected_i64_less_than_branch_form,
-    validate_x86_64_selected_nonzero_branch_form,
-    validate_x86_64_selected_short_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form,
-};
+use encoding_admission::relative_branches::{self, RelativeBranchError, validate_branch_row};
 pub use machine_code::function_fragment_frame_application_identity;
 use machine_code::{
     EncodedControlIndex, FunctionFragment, FunctionFragmentBranchEvidence,
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
     FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
     TargetFrameProtocolEncodingIdentity,
 };
@@ -80,12 +69,16 @@ pub fn stage_function_fragment_frame_application(
         )
         .map_err(FunctionFragmentFrameApplicationError::from)?
     };
-    let branch_origins = prepare_branch_origins(source.fragments());
+    let branch_origins = prepare_branch_origins(source.fragments()).into();
+    let application = Arc::new(application);
     let receipt = seal(&application);
+    let placed_body = Arc::new(PlacedBodyEvidence::capture(&source, &application, branch_origins));
+    let retains_originals = source.source().has_original_replay();
     Ok(StagedFunctionFragmentFrameApplication {
-        branch_origins,
+        placed_body,
+        retains_originals,
         source,
-        application: Arc::new(application),
+        application,
         receipt,
     })
 }
@@ -95,7 +88,10 @@ pub(crate) fn validate_function_fragment_frame_application(
 ) -> Result<FunctionFragmentFrameApplicationReceipt, FunctionFragmentFrameApplicationError> {
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
-    if staged.branch_origins != prepare_branch_origins(staged.source.fragments()) {
+    let expected = PlacedBodyEvidence::capture(
+        &staged.source, &staged.application, prepare_branch_origins(staged.source.fragments()).into(),
+    );
+    if *staged.placed_body != expected || staged.retains_originals != staged.source.source().has_original_replay() {
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
     }
     let protocol = staged.source.source().frame_protocol();
@@ -116,10 +112,46 @@ pub(crate) fn validate_function_fragment_frame_application(
     Ok(receipt)
 }
 
+/// Current layout output and obligations carried with the placed code. It contains
+/// no compiler stage, original instruction graph or capability to run a producer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedBodyEvidence {
+    pub code: Arc<machine_code::placed_body::NativeBodyReadback>,
+    pub facts: Arc<physical_program::EmissionFacts>,
+    pub authority: Arc<installation_admission::BoundInstallationAuthority>,
+}
+
+impl PlacedBodyEvidence {
+    fn capture(
+        fragments: &StagedOptimizedFunctionFragmentEmission,
+        application: &Arc<FunctionFragmentFrameApplication>,
+        branches: Arc<[machine_code::frame_branch_origins::FunctionFrameBranchOrigins]>,
+    ) -> Self {
+        let current = fragments.source();
+        let program = current.program();
+        Self {
+            code: Arc::new(machine_code::placed_body::NativeBodyReadback {
+                physical: current.register_environment().physical().clone(),
+                encoding: Arc::clone(&program.encoding),
+                layout: Arc::clone(&program.layout),
+                frame: Arc::clone(&program.frame),
+                protocol: Arc::clone(&program.protocol),
+                frame_application: Arc::clone(application),
+                branches,
+                allocation: Arc::clone(&program.context.publication),
+                fragment_statistics: fragments.manifest().record().statistics,
+            }),
+            facts: current.shared_facts(),
+            authority: Arc::clone(current.installation_authority()),
+        }
+    }
+}
+
 #[derive(Debug)]
 #[must_use = "frame-applied fragments retain both selected-fragment and target-protocol custody"]
 pub struct StagedFunctionFragmentFrameApplication {
-    branch_origins: Vec<machine_code::frame_branch_origins::FunctionFrameBranchOrigins>,
+    pub(crate) placed_body: Arc<PlacedBodyEvidence>,
+    pub(crate) retains_originals: bool,
     source: StagedOptimizedFunctionFragmentEmission, // Admitted unplaced function-fragment stage.
     application: Arc<FunctionFragmentFrameApplication>, // Frame-applied function fragments and epilogue spans.
     receipt: FunctionFragmentFrameApplicationReceipt,   // Sealed frame-application custody receipt.
@@ -145,7 +177,7 @@ impl StagedFunctionFragmentFrameApplication {
     pub fn branch_origins(
         &self,
     ) -> &[machine_code::frame_branch_origins::FunctionFrameBranchOrigins] {
-        &self.branch_origins
+        &self.placed_body.code.branches
     }
 
     pub fn validate_relative_branch_rows<'a>(
@@ -155,7 +187,7 @@ impl StagedFunctionFragmentFrameApplication {
     ) -> Result<Vec<SelectedInstructionId>, FunctionFragmentFrameApplicationError> {
         validate_current_relative_branch_rows(
             self.fragments(),
-            &self.branch_origins,
+            self.branch_origins(),
             self.source().source().register_environment().physical(),
             machine,
             candidates,
@@ -172,96 +204,8 @@ pub fn validate_current_relative_branch_rows<'a>(
     machine: MachineId,
     candidates: impl IntoIterator<Item = &'a FunctionFragmentInstructionSpan>,
 ) -> Result<Vec<SelectedInstructionId>, FunctionFragmentFrameApplicationError> {
-    use FunctionFragmentFrameApplicationError as Error;
-    let mut source = origins
-        .iter()
-        .filter(|function| function.machine == machine);
-    let source_function = source.next().ok_or(Error::MissingFunction(machine))?;
-    if source.next().is_some() {
-        return Err(Error::SourceShapeMismatch(machine));
-    }
-    let mut functions = fragments
-        .functions
-        .iter()
-        .filter(|function| function.machine == machine);
-    let current = functions.next().ok_or(Error::MissingFunction(machine))?;
-    if functions.next().is_some() {
-        return Err(Error::SourceShapeMismatch(machine));
-    }
-    let mut offsets: Vec<_> = current
-        .blocks
-        .iter()
-        .map(|block| (block.block, block.offset))
-        .collect();
-    offsets.sort_unstable_by_key(|row| row.0);
-    if offsets.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(Error::SourceShapeMismatch(machine));
-    }
-    let mut identities: Vec<_> = source_function
-        .branches
-        .iter()
-        .map(|row| row.instruction)
-        .collect();
-    identities.sort_unstable();
-    if identities.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(Error::SourceShapeMismatch(machine));
-    }
-    let mut source_rows = source_function.branches.iter();
-    let mut candidates = candidates.into_iter();
-    let mut checked = Vec::new();
-    for retained in current.instructions().filter(|row| row.branch.is_some()) {
-        let candidate = candidates
-            .next()
-            .ok_or(Error::SourceShapeMismatch(machine))?;
-        if candidate.instruction != retained.instruction
-            || candidate.alternative != retained.alternative
-            || candidate.offset != retained.offset
-            || candidate.bytes.len() != retained.bytes.len()
-            || candidate.provenance != retained.provenance
-            || candidate.control != retained.control
-            || candidate.internal_machine_fixup != retained.internal_machine_fixup
-            || candidate.normalized_foreign_call_fixup != retained.normalized_foreign_call_fixup
-            || candidate.image_address_fixup != retained.image_address_fixup
-        {
-            return Err(Error::ArtifactMismatch);
-        }
-        let source_row = source_rows
-            .next()
-            .ok_or(Error::SourceShapeMismatch(machine))?;
-        if source_row.instruction != retained.instruction {
-            return Err(Error::SourceShapeMismatch(machine));
-        }
-        let branch = candidate.branch.as_deref().ok_or(Error::ArtifactMismatch)?;
-        let inside = |offset| offset < current.byte_count;
-        let targets_inside = match branch {
-            FunctionFragmentBranchEvidence::Jump(row) => inside(row.target_offset),
-            FunctionFragmentBranchEvidence::Conditional(row) => {
-                inside(row.when_taken_offset) && inside(row.when_fallthrough_offset)
-            }
-        };
-        if !targets_inside {
-            return Err(Error::ArtifactMismatch);
-        }
-        validate_branch_row(
-            &source_row.branch,
-            candidate,
-            fragments.target.architecture,
-            physical,
-            |block| {
-                offsets
-                    .binary_search_by_key(&block, |row| row.0)
-                    .ok()
-                    .map(|index| offsets[index].1)
-            },
-        )
-        .map_err(Error::from)?;
-        checked.push(candidate.instruction);
-    }
-    if candidates.next().is_some() || source_rows.next().is_some() {
-        return Err(Error::SourceShapeMismatch(machine));
-    }
-    checked.sort_unstable();
-    Ok(checked)
+    relative_branches::validate_current_relative_branch_rows(fragments, origins, physical, machine, candidates)
+        .map_err(|error| FrameApplicationError::from(error).into())
 }
 
 fn prepare_branch_origins(
@@ -411,6 +355,23 @@ impl From<FrameApplicationError> for FunctionFragmentFrameApplicationError {
     }
 }
 
+impl From<RelativeBranchError> for FrameApplicationError {
+    fn from(error: RelativeBranchError) -> Self {
+        use RelativeBranchError as Source;
+        match error {
+            Source::MissingFunction(machine) => Self::MissingFunction(machine),
+            Source::SourceShapeMismatch(machine) => Self::SourceShapeMismatch(machine),
+            Source::MissingTargetBlock(block) => Self::MissingTargetBlock(block),
+            Source::BranchFallthroughMismatch(instruction) => Self::BranchFallthroughMismatch(instruction),
+            Source::BranchEffectsMismatch(instruction) => Self::BranchEffectsMismatch(instruction),
+            Source::X86_64Branch(instruction, error) => Self::X86_64Branch(instruction, error),
+            Source::Aarch64Branch(instruction, error) => Self::Aarch64Branch(instruction, error),
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FrameApplicationError {
     RootMismatch,
@@ -442,22 +403,6 @@ diagnostics::failed_display!(
 );
 
 impl std::error::Error for FrameApplicationError {}
-
-const fn conditional_branch_family(
-    predicate: FunctionFragmentConditionalBranchPredicate,
-) -> MachineAlternativeFamily {
-    match predicate {
-        FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
-            MachineAlternativeFamily::ConditionalBranchNonZero
-        }
-        FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
-            MachineAlternativeFamily::ConditionalBranchU64LessThan
-        }
-        FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
-            MachineAlternativeFamily::ConditionalBranchI64LessThan
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ShortConditionalForm {
@@ -499,15 +444,6 @@ fn short_conditional_form(
                 })
         }
     }
-}
-
-fn holds_long_form(
-    architecture: Architecture,
-    branch: &FunctionFragmentConditionalBranchEvidence,
-    row_width: usize,
-) -> bool {
-    short_conditional_form(architecture, branch)
-        .is_some_and(|form| u64::try_from(row_width).ok() != Some(form.width))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1300,7 +1236,7 @@ fn validate_function(
             }
             check_bytes(&candidate.bytes, cursor, &candidate_row.bytes)?;
             if let Some(branch) = source_row.branch.as_deref() {
-                validate_branch_row(branch, candidate_row, architecture, physical, |block| {
+                validate_branch_row(branch, candidate_row, &candidate_row.bytes, architecture, physical, |block| {
                     block_offsets.get(&block).copied()
                 })?;
             } else if candidate_row.branch.is_some() || candidate_row.bytes != source_row.bytes {
@@ -1509,229 +1445,11 @@ fn same_or_widened_alternative(
     candidate.alternative == expected
 }
 
-fn validate_branch_row(
-    source_branch: &FunctionFragmentBranchEvidence,
-    candidate: &FunctionFragmentInstructionSpan,
-    architecture: Architecture,
-    physical: &ValidatedPhysicalRegisterModel,
-    block_offset: impl Fn(SelectedBlockId) -> Option<u64>,
-) -> Result<(), FrameApplicationError> {
-    use FunctionFragmentBranchEvidence as Branch;
-    let Some(branch) = candidate.branch.as_deref() else {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    };
-    if let (Branch::Jump(source_branch), Branch::Jump(branch)) = (source_branch, branch) {
-        if source_branch.source_block != branch.source_block
-            || source_branch.target_edge != branch.target_edge
-            || source_branch.target_block != branch.target_block
-            || source_branch.decoded_effects != branch.decoded_effects
-        {
-            return Err(FrameApplicationError::ArtifactMismatch);
-        }
-        let target = block_offset(branch.target_block).ok_or(
-            FrameApplicationError::MissingTargetBlock(branch.target_block),
-        )?;
-        let reference = match architecture {
-            Architecture::X86_64 => candidate
-                .offset
-                .checked_add(candidate.bytes.len() as u64)
-                .ok_or(FrameApplicationError::OffsetOverflow)?,
-            Architecture::Aarch64 => candidate.offset,
-        };
-        let displacement = i64::try_from(i128::from(target) - i128::from(reference))
-            .map_err(|_| FrameApplicationError::OffsetOverflow)?;
-        if branch.target_offset != target || branch.byte_displacement != displacement {
-            return Err(FrameApplicationError::ArtifactMismatch);
-        }
-        let effects = match architecture {
-            Architecture::X86_64 => isa_x86_64::validate_x86_64_selected_jump_form(
-                physical,
-                candidate.alternative,
-                displacement,
-                &candidate.bytes,
-            )
-            .map_err(|error| FrameApplicationError::X86_64Branch(candidate.instruction, error))?
-            .footprint()
-            .encoded
-            .clone(),
-            Architecture::Aarch64 => isa_aarch64::validate_aarch64_selected_jump_form(
-                physical,
-                candidate.alternative,
-                displacement,
-                &candidate.bytes,
-            )
-            .map_err(|error| FrameApplicationError::Aarch64Branch(candidate.instruction, error))?
-            .footprint()
-            .encoded
-            .clone(),
-        };
-        return if effects == branch.decoded_effects {
-            Ok(())
-        } else {
-            Err(FrameApplicationError::BranchEffectsMismatch(
-                candidate.instruction,
-            ))
-        };
-    }
-    let (Branch::Conditional(source_branch), Branch::Conditional(branch)) = (source_branch, branch)
-    else {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    };
-    if source_branch.predicate != branch.predicate
-        || source_branch.source_block != branch.source_block
-        || source_branch.when_taken_edge != branch.when_taken_edge
-        || source_branch.when_taken_block != branch.when_taken_block
-        || source_branch.when_fallthrough_edge != branch.when_fallthrough_edge
-        || source_branch.when_fallthrough_block != branch.when_fallthrough_block
-        || source_branch.decoded_register_reads != branch.decoded_register_reads
-        || source_branch.decoded_effects != branch.decoded_effects
-    {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    }
-    let taken = block_offset(branch.when_taken_block).ok_or(
-        FrameApplicationError::MissingTargetBlock(branch.when_taken_block),
-    )?;
-    let fallthrough = block_offset(branch.when_fallthrough_block).ok_or(
-        FrameApplicationError::MissingTargetBlock(branch.when_fallthrough_block),
-    )?;
-    let end = candidate
-        .offset
-        .checked_add(
-            u64::try_from(candidate.bytes.len())
-                .map_err(|_| FrameApplicationError::OffsetOverflow)?,
-        )
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    if fallthrough != end {
-        return Err(FrameApplicationError::BranchFallthroughMismatch(
-            candidate.instruction,
-        ));
-    }
-    let reference = match architecture {
-        Architecture::X86_64 => end,
-        Architecture::Aarch64 => candidate.offset,
-    };
-    let displacement = i64::try_from(i128::from(taken) - i128::from(reference))
-        .map_err(|_| FrameApplicationError::OffsetOverflow)?;
-    if branch.when_taken_offset != taken
-        || branch.when_fallthrough_offset != fallthrough
-        || branch.byte_displacement != displacement
-    {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    }
-    let (reads, effects) = decode_branch_row(candidate, branch.predicate, architecture, physical)?;
-    if reads != branch.decoded_register_reads || effects != branch.decoded_effects {
-        return Err(FrameApplicationError::BranchEffectsMismatch(
-            candidate.instruction,
-        ));
-    }
-    Ok(())
-}
-
-fn decode_branch_row(
-    row: &FunctionFragmentInstructionSpan,
-    predicate: FunctionFragmentConditionalBranchPredicate,
-    architecture: Architecture,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> Result<
-    (
-        Vec<register_model::RegisterViewId>,
-        selected_instructions::MachineEncodedEffects,
-    ),
-    FrameApplicationError,
-> {
-    let instruction = row.instruction;
-    let Some(FunctionFragmentBranchEvidence::Conditional(branch)) = row.branch.as_deref() else {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    };
-    macro_rules! footprint {
-        ($encoded:expr) => {{
-            let encoded = $encoded;
-            (
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            )
-        }};
-    }
-    let long = holds_long_form(architecture, branch, row.bytes.len());
-    let decoded = match architecture {
-        Architecture::X86_64 => {
-            let decoded = match predicate {
-                FunctionFragmentConditionalBranchPredicate::NonZeroV1 => {
-                    if long {
-                        validate_x86_64_selected_nonzero_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                            &row.bytes,
-                        )
-                    } else {
-                        validate_x86_64_selected_short_nonzero_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                            &row.bytes,
-                        )
-                    }
-                }
-                FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => {
-                    validate_x86_64_selected_u64_less_than_branch_form(
-                        physical,
-                        row.alternative,
-                        branch.byte_displacement,
-                        &row.bytes,
-                    )
-                }
-                FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => {
-                    validate_x86_64_selected_i64_less_than_branch_form(
-                        physical,
-                        row.alternative,
-                        branch.byte_displacement,
-                        &row.bytes,
-                    )
-                }
-            }
-            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        Architecture::Aarch64
-            if predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1
-                && branch.decoded_register_reads.len() == 1 =>
-        {
-            let decoded = validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                physical,
-                branch.decoded_register_reads[0],
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-        Architecture::Aarch64 => {
-            let form = if long {
-                Aarch64ConditionalBranchForm::WidenedPairV1
-            } else {
-                Aarch64ConditionalBranchForm::CanonicalWordV1
-            };
-            let decoded = validate_aarch64_selected_conditional_branch_form(
-                physical,
-                row.alternative,
-                conditional_branch_family(predicate),
-                form,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
-            footprint!(decoded)
-        }
-    };
-    Ok(decoded)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         FrameApplicationError, FunctionFragment, FunctionFragmentBranchEvidence,
-        FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
+        FunctionFragmentConditionalBranchEvidence,
         FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
         FunctionFragmentFrameApplication, FunctionFragmentInstructionSpan,
         FunctionFragmentInternalMachineFixup, TargetFrameProtocolEncodingPlan,
@@ -1743,7 +1461,7 @@ mod tests {
     };
     use isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH;
     use machine_code::{
-        FunctionFragmentBlockSpan, FunctionFragmentInternalMachineFixupKind,
+        FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchPredicate, FunctionFragmentInternalMachineFixupKind,
         FunctionFragmentInternalMachineFixupState, TargetFrameLayoutIdentity,
     };
     use optimization_core::{
@@ -2748,6 +2466,22 @@ mod tests {
                 )
             };
         assert!(check(&origins, original).is_ok());
+        let published = |bytes: &[u8]| {
+            encoding_admission::relative_branches::validate_published_relative_branches(
+                fragments, &origins, physical, source.entry, bytes,
+            )
+        };
+        let mut bytes = fragments.functions[0].bytes.clone();
+        assert_eq!(published(&bytes).unwrap(), [original.instruction]);
+        assert!(published(&bytes[..bytes.len() - 1]).is_err());
+        let offset = usize::try_from(original.offset).unwrap();
+        for index in offset..offset + original.bytes.len() {
+            for bit in 0..8 {
+                bytes[index] ^= 1 << bit;
+                assert!(published(&bytes).is_err(), "published byte {index}, bit {bit}");
+                bytes[index] ^= 1 << bit;
+            }
+        }
         let mut changed = original.clone();
         changed.bytes[0] ^= 0x20;
         assert!(check(&origins, &changed).is_err());

@@ -77,31 +77,9 @@ pub fn encode_darwin_read_byte_to_stack(
 
 
 
-pub(crate) fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
-    if bytes.len() != DARWIN_READ_BYTE_LEAF_BYTES {
-        return None;
-    }
-    let word = |start: usize| -> Option<u32> { crate::codec_bytes::u32_at(bytes, start) };
-    let home = word(5)?;
-    let payload = home.checked_add(4)?;
-    if !home.is_multiple_of(4)
-        || home > 2147483640
-        || bytes[..5] != [0x31, 0xc0, 0x89, 0x84, 0x24]
-        || bytes[9..12] != [0x89, 0x84, 0x24]
-        || word(12)? != payload
-        || bytes[16..22] != [0x31, 0xff, 0x48, 0x8d, 0xb4, 0x24]
-        || word(22)? != payload
-        || bytes[26..55]
-            != [
-                0xba, 1, 0, 0, 0, 0xb8, 3, 0, 0, 2, 0x0f, 0x05, 0x72, 25, 0x48, 0x83, 0xf8, 0,
-                0x74, 21, 0x48, 0x83, 0xf8, 1, 0x75, 13, 0xc7, 0x84, 0x24,
-            ]
-        || word(55)? != home
-        || bytes[59..] != [1, 0, 0, 0, 0xeb, 2, 0x0f, 0x0b]
-    {
-        return None;
-    }
-    Some(home)
+#[cfg(test)]
+fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
+    target_x86_64::inspection::decode_x86_64_selected_hosted_read_byte(NativeTarget::macos_x64(), bytes)
 }
 
 #[cfg(test)]

@@ -152,6 +152,7 @@ pub use crate::production::{
 };
 
 /// Logical provider closure; native planning consumes only its accepted result.
+mod package_review;
 pub mod provider_supply;
 
 pub mod source_provider_choices;

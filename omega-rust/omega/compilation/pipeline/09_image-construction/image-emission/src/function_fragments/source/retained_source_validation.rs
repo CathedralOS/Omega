@@ -116,7 +116,7 @@ fn validate_image_selection_origins(
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
     use selected_instructions::SelectedImageAddressReference as Reference;
-    let current_input = crate::object_input::ObjectEmissionInput::capture(source)?;
+    let current_input = crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
     let catalogs = super::code_catalogs(&current_input);
     for address in &source.source().text_section().unresolved_image_addresses {
         if !matches!(
@@ -279,7 +279,7 @@ pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
-    let current_input = crate::object_input::ObjectEmissionInput::capture(source)?;
+    let current_input = crate::object_input::ObjectEmissionInput::from_publication(source.publication())?;
     let fragments = fragments(&current_input);
     if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8
@@ -911,5 +911,15 @@ mod current_contract_tests {
                 ))
             ));
         }
+    }
+}
+
+impl crate::FragmentReplay {
+    pub fn verify_access_geometry(&self) -> Result<(), diagnostics::Diagnostic> {
+        let original = self.target_source().ok_or_else(|| diagnostics::Diagnostic::error(
+            "target-operation audit requires retained target operations",
+        ))?;
+        establish_geometry(self.fragment_source(), original)
+            .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
     }
 }

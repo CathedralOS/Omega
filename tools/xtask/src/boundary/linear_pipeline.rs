@@ -5,6 +5,8 @@ use super::{Metadata, normalize_relative, production_edges, under};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
+pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
+
 pub(super) const STAGES: [&str; 11] = [
     "omega-rust/omega/compilation/pipeline/00_compilation-inputs",
     "omega-rust/psi/compilation/pipeline/01_source-compilation",
@@ -60,10 +62,16 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         );
     }
     let mut adjacency = BTreeMap::<String, Vec<String>>::new();
-    for (_, owner, dependency) in production_edges(metadata)? {
+    let mut errors = Vec::new();
+    for (package, owner, dependency) in production_edges(metadata)? {
+        if under(&dependency, &[TEST_SUPPORT]) && !under(&owner, &[TEST_SUPPORT]) {
+            errors.push(format!(
+                "production dependency on a test fixture: {} -> {dependency}",
+                package.name
+            ));
+        }
         adjacency.entry(owner).or_default().push(dependency);
     }
-    let mut errors = Vec::new();
     for root in STAGES {
         if !names.keys().any(|path| under(path, &[root])) {
             errors.push(format!("numbered pipeline owner has no package: {root}"));
@@ -124,10 +132,12 @@ mod tests {
         const SHARED: &str = "shared";
         const ENCODER: &str =
             "omega-rust/omega/compilation/pipeline/06_native-encoding/test-encoder";
-        let paths = STAGES
-            .into_iter()
-            .chain(FRONTEND)
-            .chain([TEXT_READER, SHARED, ENCODER]);
+        const FIXTURE: &str = "omega-rust/test-support/image-fixtures";
+        let paths =
+            STAGES
+                .into_iter()
+                .chain(FRONTEND)
+                .chain([TEXT_READER, SHARED, ENCODER, FIXTURE]);
         let mut packages: Vec<_> = paths
             .map(|path| Package {
                 name: path.rsplit('/').next().unwrap().to_string(),
@@ -147,6 +157,8 @@ mod tests {
                 kind: kind.map(str::to_owned),
             });
         };
+        edge(SHARED, FIXTURE, None);
+        edge(STAGES[1], FIXTURE, Some("dev"));
         edge(TEXT_READER, SHARED, None);
         edge(STAGES[4], SHARED, None);
         edge(FRONTEND[0], FRONTEND[1], Some("dev"));
@@ -169,6 +181,12 @@ mod tests {
                 .iter()
                 .any(|v| v.contains("parsing -> shared -> lexing"))
         );
+        let fixture_errors: Vec<_> = errors
+            .iter()
+            .filter(|v| v.contains("production dependency on a test fixture"))
+            .collect();
+        assert_eq!(fixture_errors.len(), 1);
+        assert!(fixture_errors[0].contains("shared -> omega-rust/test-support/image-fixtures"));
         assert!(!errors.iter().any(|v| v.contains("lexing -> parsing")));
         assert!(
             errors

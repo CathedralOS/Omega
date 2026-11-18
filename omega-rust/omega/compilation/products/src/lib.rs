@@ -18,19 +18,18 @@ obligations through `trust_model`.
 */
 
 /*
-`CompileReport` records which payload a compilation produced and validates its
-custody joins over payload-specific variants rather than optional fields. Report
-construction belongs to `CompileReportSettlement`, while output path selection
-and atomic filesystem installation belong exclusively to
-`publication::publish_compilation`. Native evidence and image receipt
-construction remain with `native_artifact`, and filesystem staging mechanics
-remain with `platform_custody`.
+CompileReportSettlement joins a finished product to the source accounting,
+timings, and completed Build outputs of the admitted compilation. Phase 10 owns
+the direct and dynamically linked product states, checks receipts against those
+products, and installs their files. The report publishes Build-output
+companions after phase 10 completes the primary product.
 */
 
 pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
+pub use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions;
 pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
     recover_native_derivation_inputs,
@@ -39,7 +38,7 @@ pub use verified_optimization_input::{
 mod checked_compilation;
 mod published_compilation;
 pub use portable_publication::{ExecutablePackageInputs, PublishedProgram};
-pub use published_compilation::PublishedCompilation;
+pub use published_compilation::{PublishedCompilation, PublishedExecutableProgram};
 mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
@@ -83,14 +82,14 @@ pub use evaluated_build::{
     ServiceAuditRegistration,
 };
 pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
-pub use native_artifact::NativeArtifact as RetainedNativeArtifact;
-pub use native_artifact::{
+pub use product_publication::RetainedNativeArtifact;
+pub use product_publication::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationEvidenceDigest, NativePublicationInputsDigest,
     executable_installation_evidence_digest,
 };
-pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
-pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
+pub use product_publication::{NativePackagePublicationReceipt, PackagePublicationComponent};
+pub use product_publication::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use optimization_requests::OptimizationRollbackReceipt;
 pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;

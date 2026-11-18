@@ -19,6 +19,7 @@ use optimization_requests::{
     OptimizationRollback, OptimizationRollbackReceipt, OptimizationRollbackSettlement,
 };
 use package_compilation::BuildObservationIdentity;
+use product_publication::{CompletedProduct, FinishedNativeImage};
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 
@@ -207,20 +208,15 @@ impl CompileReportSettlement {
         artifact: RetainedTerminalArtifact,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let report = CompileReport::from_retained_terminal_artifact(
-            self.root_path.clone(),
-            self.source_file_count,
-            artifact,
-        )
-        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .map_err(diagnostics)?;
-        self.finish(report)
+        let product =
+            CompletedProduct::from_terminal(artifact, None, rollback).map_err(diagnostics)?;
+        self.finish_product(product)
     }
 
     pub fn finish_terminal_runtime(
         mut self,
         artifact: RetainedTerminalArtifact,
-        provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+        provisions: Option<crate::TerminalRuntimeProvisions>,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         if self.expected_kind != CompileOutputKind::RetainedNativeArtifact {
@@ -229,30 +225,30 @@ impl CompileReportSettlement {
             ));
         }
         self.expected_kind = CompileOutputKind::TerminalArtifact;
-        let report = CompileReport::from_retained_terminal_artifact(
-            self.root_path.clone(),
-            self.source_file_count,
-            artifact,
-        )
-        .and_then(|report| report.with_terminal_runtime_provisions(provisions))
-        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .map_err(diagnostics)?;
-        self.finish(report)
+        let product =
+            CompletedProduct::from_terminal(artifact, provisions, rollback).map_err(diagnostics)?;
+        self.finish_product(product)
     }
 
     pub fn finish_native(
         self,
-        artifact: native_artifact::RequestedNativeArtifact,
+        artifact: impl Into<FinishedNativeImage>,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let report = CompileReport::from_requested_native_artifact(
-            self.root_path.clone(),
+        let product =
+            CompletedProduct::from_native(artifact.into(), rollback, self.application.clone());
+        self.finish_product(product)
+    }
+
+    fn finish_product(
+        mut self,
+        product: CompletedProduct,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        let report = CompileReport::from_completed_product(
+            std::mem::take(&mut self.root_path),
             self.source_file_count,
-            artifact,
-            rollback,
-        )
-        .and_then(|report| report.with_application_metadata(self.application.clone()))
-        .map_err(diagnostics)?;
+            product,
+        );
         self.finish(report)
     }
 

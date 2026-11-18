@@ -2,7 +2,7 @@
 // installed private-RAM recipes (`CheckedPrivateEntryRamRecipe`). No ordinary
 // reference receives zeroed backing inferred solely from its parameter signature.
 
-use native_artifact::TerminalRuntimeProvisions;
+use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalEstablishedErasedField, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,
@@ -40,7 +40,7 @@ pub(super) fn establish(
         .entry_installed(installation)
         .map_err(TerminalRuntimeError::Requirements)?;
     let recipes = provisions
-        .map(TerminalRuntimeProvisions::private_entry_ram)
+        .map(|provisions| provisions.private_entry_ram())
         .unwrap_or_default();
     if !entry.scalar_parameters.is_empty() || entry.access_view_inputs().count() != recipes.len() {
         return Err(TerminalRuntimeError::missing(

@@ -455,6 +455,13 @@ impl RealizedTargetSupply {
         Ok(derived)
     }
 
+    pub(crate) fn bind_folded_artifact(&self, folded: &crate::FoldedTargetProgram) -> Result<Self, String> {
+        self.require_program(folded.original())?;
+        let mut derived = self.clone();
+        derived.program = folded.artifact().view().identity();
+        Ok(derived)
+    }
+
     pub fn program(&self) -> terminal_psi::TerminalPsiIdentity { self.program }
 
     pub fn require_program(&self, program: terminal_psi::TerminalPsiIdentity) -> Result<(), String> {

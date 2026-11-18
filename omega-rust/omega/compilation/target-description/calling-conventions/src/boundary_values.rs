@@ -10,6 +10,16 @@ declarations or provider selection.
 
 use crate::{CallingPolicy, SystemVEightbyteClass, ValueClass, ValueShape};
 
+/// The ABI position of an opaque value in the published movement plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BoundaryOpaqueRepresentationMovementRole {
+    Parameter {
+        formal_ordinal: u32,
+        native_ordinal: u32,
+    },
+    Result,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BoundaryValueClass {
     Integer,

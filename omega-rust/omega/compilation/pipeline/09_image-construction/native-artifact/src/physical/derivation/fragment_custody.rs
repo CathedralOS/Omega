@@ -156,24 +156,24 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 if record.call.binding.table_dispatch().is_some() {
                     match section.target.architecture {
                         target::Architecture::X86_64 => {
-                            isa_x86_64::validate_x86_64_selected_table_call_form(
+                            target_x86_64::inspection::selected_table_call_effects(
                                 record,
                                 span.alternative,
                                 &views,
                                 accesses,
                                 bytes,
                             )
-                            .map_err(|_| "table entry bytes disagree with its selected binding")?;
+                            .ok_or("table entry bytes disagree with its selected binding")?;
                         }
                         target::Architecture::Aarch64 => {
-                            isa_aarch64::validate_aarch64_selected_table_call_form(
+                            target_aarch64::inspection::selected_table_call_effects(
                                 record,
                                 span.alternative,
                                 &views,
                                 accesses,
                                 bytes,
                             )
-                            .map_err(|_| "table entry bytes disagree with its selected binding")?;
+                            .ok_or("table entry bytes disagree with its selected binding")?;
                         }
                     }
                 } else {
@@ -184,9 +184,9 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                         .ok_or("normalized external entry mechanism is absent")?;
                     match section.target.architecture {
                         target::Architecture::X86_64 => {
-                            isa_x86_64::validate_x86_64_selected_system_call_form(
+                            target_x86_64::inspection::selected_system_call_effects(
                                 section.target,
-                                isa_x86_64::validated_x86_64_physical_register_model(),
+                                target_x86_64::validated_x86_64_physical_register_model(),
                                 instruction_kind,
                                 span.alternative,
                                 &views,
@@ -194,12 +194,12 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                                 kernel.number,
                                 bytes,
                             )
-                            .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                            .ok_or("kernel entry bytes disagree with its selected binding")?;
                         }
                         target::Architecture::Aarch64 => {
-                            isa_aarch64::validate_aarch64_selected_system_call_form(
+                            target_aarch64::inspection::selected_system_call_effects(
                                 section.target,
-                                isa_aarch64::validated_aarch64_physical_register_model(),
+                                target_aarch64::validated_aarch64_physical_register_model(),
                                 instruction_kind,
                                 span.alternative,
                                 &views,
@@ -207,7 +207,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                                 kernel.number,
                                 bytes,
                             )
-                            .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                            .ok_or("kernel entry bytes disagree with its selected binding")?;
                         }
                     }
                 }

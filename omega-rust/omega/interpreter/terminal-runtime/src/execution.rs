@@ -57,7 +57,7 @@ pub enum TerminalNativeServiceDelegation {
     MatchingHost,
 }
 
-use native_artifact::TerminalRuntimeProvisions;
+use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
     TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,
@@ -65,9 +65,9 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
-    pub native_image: Option<&'program native_artifact::NativeArtifact>, // Optional completed image for code-layout metadata inspection.
+    pub native_image: Option<verified_optimization_input::runtime_provisions::RuntimeImageInspection>, // Optional completed image for code-layout metadata inspection.
     pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
-    pub native_provider: Option<std::process::Command>, // Optional isolated native sponsor worker command.
+    pub native_provider: Option<native_provider_runtime::NativeProviderCommand>, // Optional isolated native sponsor worker command.
     pub native_services: TerminalNativeServiceDelegation,
     pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
@@ -178,7 +178,7 @@ pub fn execute(
 }
 
 pub fn execute_sliced(
-    request: TerminalRuntimeRequest<'_>,
+    mut request: TerminalRuntimeRequest<'_>,
     quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = request.artifact.view();
@@ -283,7 +283,7 @@ pub fn execute_sliced(
         }
     }
     let native_code_layouts =
-        native_code_layouts::inspect(&request, program.terminal_psi(), execution_target)?;
+        native_code_layouts::inspect(request.native_image.take(), request.artifact, execution_target)?;
     let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: native_code_layouts.as_ref(),
@@ -292,7 +292,7 @@ pub fn execute_sliced(
             entry: request
                 .entry
                 .map(|entry| entry.terminal_entry())
-                .or_else(|| request.provisions.map(TerminalRuntimeProvisions::entry))
+                .or_else(|| request.provisions.map(|provisions| provisions.entry()))
                 .map(terminal_psi::TargetMachineCallable::Machine),
             installation: checked_installation,
             host_imports: &host_imports,
@@ -301,6 +301,7 @@ pub fn execute_sliced(
         })
         .map_err(TerminalRuntimeError::Requirements)?;
     if let Some(provisions) = request.provisions {
+        provisions.validate_component_product_roster().map_err(TerminalRuntimeError::InvalidProvision)?;
         for component in provisions.component_products() {
             installation = installation
                 .with_component_provider(component.selection())
@@ -323,7 +324,7 @@ pub fn execute_sliced(
             Some(&installation),
             request
                 .provisions
-                .map(TerminalRuntimeProvisions::private_entry_ram)
+                .map(|provisions| provisions.private_entry_ram())
                 .unwrap_or_default(),
         )
         .map_err(TerminalRuntimeError::Requirements)?;
@@ -356,7 +357,7 @@ pub fn execute_sliced(
             installation: Some(&installation),
             scalar_admission: request
                 .provisions
-                .and_then(TerminalRuntimeProvisions::scalar_applications),
+                .and_then(|provisions| provisions.scalar_applications()),
             ..Default::default()
         })
         .map_err(TerminalRuntimeError::Artifact)?;
@@ -388,7 +389,7 @@ pub fn execute_sliced(
         &mut instance,
         request
             .provisions
-            .map(TerminalRuntimeProvisions::host_provisions),
+            .map(|provisions| provisions.host_provisions()),
         &imports,
         &host,
     )?;

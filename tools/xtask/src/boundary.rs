@@ -232,7 +232,10 @@ pub fn forbidden_rules() -> Vec<Rule> {
             vec![STAGES[stage]],
             "only the native driver and the neighboring phase may consume native stage APIs",
         );
+        // These harnesses exercise multiple stages. The production-edge walk
+        // rejects every non-test-support dependency into the harness tree.
         external.except_owners.extend([
+            linear_pipeline::TEST_SUPPORT,
             NATIVE_ROOT,
             STAGES[stage],
             STAGES[stage + 1],
@@ -642,7 +645,7 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/preparation/",
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
+    "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
 ];
 
 /// Stage 02's accessor for its working program.
@@ -658,6 +661,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/",
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
@@ -665,7 +669,6 @@ const WORKING_PROGRAM_READERS: &[&str] = &[
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
     "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/validation.rs",
 ];
@@ -897,7 +900,7 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         "omega-rust/omega/compilation/pipeline/09_image-construction",
         &["execution_plan", "pre_physical_manifest("],
         &[
-            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/replay/validation.rs",
+            "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
             "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
@@ -1436,6 +1439,7 @@ mod tests {
         let image =
             "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
         let files = [
+            ("omega-rust/omega/compilation/verification/published-objects/src/lib.rs".to_owned(), "current.working_program_for_validation();\ncurrent.execution_plan();\n"),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
                 format!("{image}/function_fragments.rs"),
@@ -1483,10 +1487,10 @@ mod tests {
         let raw_accessor_violations = working_program_read_violations(&root);
         let execution_plan_violations = backend_execution_plan_read_violations(&root);
         std::fs::remove_dir_all(&root).unwrap();
-        assert_eq!(violations.len(), 5, "{violations:?}");
+        assert_eq!(violations.len(), 6, "{violations:?}");
         assert_eq!(
             execution_plan_violations.len(),
-            3,
+            5,
             "{execution_plan_violations:?}"
         );
         assert!(
@@ -1516,6 +1520,7 @@ mod tests {
             1,
             "{raw_accessor_violations:?}"
         );
+        assert!(violations.iter().any(|row| row.contains("function_fragments/replay/validation.rs:1:")));
         assert!(raw_accessor_violations[0].contains("production.rs:3:"));
     }
 

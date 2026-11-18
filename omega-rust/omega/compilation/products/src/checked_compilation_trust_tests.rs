@@ -1,5 +1,5 @@
 use declaration_contracts::trust_declarations::{AcceptedContractDeclaration, AcceptedMachineDeclaration, TrustDeclarations};
-use native_program_planning::trust::{RootTrustPolicy, reconstruct_trust_obligations};
+use provider_correspondence::trust::{RootTrustPolicy, reconstruct_trust_obligations};
 
 fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
     AcceptedMachineDeclaration {

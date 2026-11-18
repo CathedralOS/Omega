@@ -59,7 +59,7 @@ fn trust_admission_digest(
     commitment: &str,
     underlying: &[u8; 32],
 ) -> TrustAdmissionDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.trust-admission.v1\0");
+    let mut digest = wire::digest_encoder::DomainDigestEncoder::new(b"omega.trust-admission.v1\0");
     digest.bytes(subject.domain());
     digest.string(commitment);
     digest.raw(underlying);
@@ -121,7 +121,7 @@ impl TrustAdmission {
         if *contract == [0; 32] {
             return Err("native trust requires the complete checked requirement contract");
         }
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        let mut digest = wire::digest_encoder::DomainDigestEncoder::new(
             b"omega.native-requirement-admission.v1\0",
         );
         digest.raw(contract);

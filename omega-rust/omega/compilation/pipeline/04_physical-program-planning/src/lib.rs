@@ -26,11 +26,11 @@ mod frame_layout;
 pub mod frame_protocol;
 use frame_admission::frame_layout::{
     NonAuthoritativeCalleeSaveStorageError, NonAuthoritativeCalleeSaveStoragePolicy,
-    TargetFrameLayoutError, TargetFrameLayoutPolicy, ValidatedTargetFrameLayout,
+    TargetFrameLayoutError, TargetFrameLayoutPolicy,
 };
 use frame_admission::frame_protocol::TargetFrameProtocolEncodingError;
 use frame_layout::{stage_non_authoritative_callee_save_storage, stage_target_frame_layout};
-use frame_protocol::{PlannedTargetFrameProtocols, plan_target_frame_protocols};
+use frame_protocol::plan_target_frame_protocols;
 use machine_code::TargetFrameProtocolEncodingPolicy;
 use post_allocation_machine::PostAllocationMachineProgram;
 use std::sync::Arc;
@@ -43,15 +43,7 @@ pub enum PhysicalFrameError {
 }
 diagnostics::failed_display!(PhysicalFrameError, "physical frame planning failed");
 impl std::error::Error for PhysicalFrameError {}
-/// Complete physical instructions and stack geometry before any frame bytes
-/// are encoded. Resource binding can inspect this form without emitting code.
-#[derive(Debug)]
-pub struct PhysicalFrameProgram {
-    pub instructions: PostAllocationMachineProgram,
-    pub storage: Arc<machine_code::NonAuthoritativeCalleeSaveStoragePlan>,
-    pub frame: ValidatedTargetFrameLayout,
-    pub protocols: PlannedTargetFrameProtocols,
-}
+pub type PhysicalFrameProgram = physical_recipes::frame_protocol::PhysicalFrameProgram<PhysicalRecipeOrigin>;
 
 fn plan_function_frame(
     program: PostAllocationMachineProgram,
@@ -181,12 +173,31 @@ pub fn plan_physical_program(
     Ok(PlannedPhysicalProgram { frame, originals })
 }
 
+/// Identifies recipes produced by physical planning. Its constructor stays
+/// private to the planner; the encoder retains the identity on executable bridges.
+///
+/// An existing recipe cannot be reused as the key to issue different instructions.
+///
+/// ```compile_fail,E0308
+/// use physical_planning::native_foreign_bridge::NativeForeignBridgePlan;
+/// use physical_recipes::native_foreign_bridge::NativeForeignInstructions;
+/// fn replace(original: NativeForeignBridgePlan, other: NativeForeignInstructions) -> NativeForeignBridgePlan {
+///     NativeForeignBridgePlan::from_planner(original.clone(), other)
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalRecipeOrigin(());
+
 mod bridge_values;
 pub mod hosted_entry;
+pub mod hosted_program;
+pub mod physical_entry;
+pub mod callable_entry;
 pub mod imports;
 pub mod handler_order;
+pub mod body_cpu;
 pub mod installation_resources;
-pub mod installed_arrival;
+pub mod installed_handlers;
 pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 pub mod physical_stack_switch;

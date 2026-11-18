@@ -55,7 +55,7 @@ mod scalar_codec;
 mod scalar_record;
 mod standard_input;
 
-use native_artifact::TerminalRuntimeHostProvisions;
+use verified_optimization_input::runtime_provisions::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
@@ -69,7 +69,7 @@ use super::TerminalRuntimeError;
 
 pub(super) fn executes_internally(
     program: &TerminalProgram,
-    provision: &native_artifact::TerminalRuntimeHostProvision,
+    provision: &verified_optimization_input::runtime_provisions::TerminalRuntimeHostProvision,
 ) -> bool {
     program.executes_boundary_internally(provision.boundary)
         || matches!(
@@ -261,7 +261,7 @@ impl<'host> HostContext<'host> {
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockEnvironment>,
-        native_provider: Option<std::process::Command>,
+        native_provider: Option<native_provider_runtime::NativeProviderCommand>,
         native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {
@@ -269,7 +269,7 @@ impl<'host> HostContext<'host> {
         // rooted namespace starts it in that root as well.
         let native_provider = native_provider.map(|mut command| {
             if let super::TerminalFilesystemDelegation::HostDirectory(root) = &filesystem {
-                command.current_dir(root);
+                command.command.current_dir(root);
             }
             command
         });

@@ -539,7 +539,7 @@ fn check_callback_publication(retain_body_source: bool) {
         |_| {},
         |physical| {
             planned_entry = Some(
-                image_emission::plan_private_function_entry(
+                physical_planning::callable_entry::plan_private_function_entry(
                     fixture.occurrences[0].callback_thunk_identity(),
                     &physical.frame,
                     &physical.installations,
@@ -565,11 +565,11 @@ fn check_callback_publication(retain_body_source: bool) {
         Vec::new()
     };
     let physical_originals = native_artifact::NativePhysicalOriginals::new(originals).unwrap();
-    let private = image_emission::encode_private_function_entry(
+    let entry = native_encoding::callable_entry::encode_private_function_entry(
         planned_entry.expect("complete callback entry plan"),
     )
-    .expect("encode the closed callback entry plan")
-    .bind(Arc::new(body.into_object()))
+    .expect("encode the closed callback entry plan");
+    let private = image_emission::bind_private_function_entry(entry, Arc::new(body.into_object()))
     .expect("bind the encoded entry to its body");
     let published = native_artifact::publish_fragment_object(
         root,

@@ -118,7 +118,7 @@ pub(crate) fn metadata_port_effect_custody(
         .provenance
         .operations
         .contains(&effect.psi_operation)
-        || effect.byte_count != x86_64_encoding::IMMEDIATE_PORT_WRITE_WIDTH
+        || effect.byte_count != target_x86_64::form_effects::port_write::IMMEDIATE_PORT_WRITE_WIDTH
     {
         return Err("metadata port D41 effect left its function provenance or width");
     }
@@ -135,8 +135,8 @@ pub(crate) fn metadata_port_effect_custody(
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(image, object_span)?;
     if pass.is_receiver()
-        && (machine_bytes
-            != x86_64_encoding::encode_immediate_port_write(effect.port, effect.value).as_slice()
+        && (target_x86_64::inspection::decode_immediate_port_write(machine_bytes)
+            != Some((effect.port, effect.value))
             || machine_bytes != object_bytes
             || object_bytes != final_image_bytes)
     {
@@ -175,7 +175,7 @@ pub(crate) fn direct_port_read_custody(
         || !settlement.scalar_arguments.is_empty()
         || !settlement.runtime_scalar_arguments.is_empty()
         || !settlement.byte_sequence_arguments.is_empty()
-        || settlement.byte_count != x86_64_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
+        || settlement.byte_count != target_x86_64::inspection::IMMEDIATE_PORT_READ_U8_WIDTH
         || result.scalar_type != u8_type
         || result.placement.shape != calling_conventions::ValueShape::integer(1, 1)
         || result.placement.locations.as_slice()
@@ -239,7 +239,8 @@ pub(crate) fn direct_port_read_custody(
         return Err("direct port-read D41 return moved away from its custody");
     }
     if pass.is_receiver()
-        && (bytes != x86_64_encoding::encode_immediate_port_read_u8(realization.port).as_slice()
+        && (target_x86_64::inspection::decode_immediate_port_read_u8(bytes)
+            != Some(realization.port)
             || function.bytes(object).get(return_offset) != Some(&0xc3)
             || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
             || image.get(return_attribution.text_offset) != Some(&0xc3))

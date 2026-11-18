@@ -93,7 +93,22 @@ fn emit_body_inspecting_physical<'execution>(
         }
     });
     inspect_physical(&physical);
-    let planned_cpu = image_emission::plan_native_body_cpu_state(
+    let mut other_physical = physical.frame.instructions.clone();
+    let mut machine_identity = other_physical.machine.identity.bytes();
+    machine_identity[0] ^= 1;
+    Arc::make_mut(&mut other_physical.machine).identity =
+        post_allocation_machine::PostAllocationMachineIdentity::from_bytes(machine_identity);
+    assert_eq!(
+        installation_admission::BoundInstallationAuthority::verify(
+            &other_physical,
+            &physical.frame.frame,
+            Arc::clone(&physical.installations),
+            Vec::new(),
+            None,
+        ),
+        Err("installation resources differ from the final physical program, target or entry"),
+    );
+    let planned_cpu = physical_planning::body_cpu::plan(
         &physical.frame,
         physical.frame.instructions.entry,
         calling_conventions::Preemption::NotApplicable,
@@ -104,6 +119,17 @@ fn emit_body_inspecting_physical<'execution>(
             None,
         )
         .unwrap();
+    let mut other_program = bound.frame.instructions.identity;
+    other_program[0] ^= 1;
+    let frame_identity = bound.frame.frame.receipt().identity();
+    assert!(bound.installations.matches_frame(bound.frame.instructions.identity, frame_identity));
+    assert!(!bound.installations.matches_frame(other_program, frame_identity));
+    let mut other_frame = frame_identity.bytes();
+    other_frame[0] ^= 1;
+    assert!(!bound.installations.matches_frame(
+        bound.frame.instructions.identity,
+        machine_code::TargetFrameLayoutIdentity::from_bytes(other_frame),
+    ));
     let projection = crate::pipeline::encode_physical_body(bound, &observation)
         .and_then(|body| crate::pipeline::layout_encoded_body(body, &observation))
         .and_then(crate::pipeline::construct_body_object)
@@ -121,7 +147,7 @@ fn emit_body_inspecting_physical<'execution>(
     );
     match (planned_cpu, decoded_cpu) {
         (Ok(planned), Ok(decoded)) => assert_eq!(
-            planned, decoded,
+            planned.observations(), decoded.observations(),
             "physical CPU facts must agree with independent encoded readback"
         ),
         (Err(planned), Err(decoded)) => assert_eq!(
@@ -723,7 +749,7 @@ fn check_publication(
         runtime_input.boundary_machines(),
         admitted.input.plan().boundary_machines.as_slice(),
     ));
-    let runtime_host = native_runtime_provisions::TerminalRuntimeHostProvisions::capture_native_admission(
+    let runtime_host = native_runtime_provisions::plan_host_provisions(
         admitted
             .providers
             .installation
@@ -740,7 +766,7 @@ fn check_publication(
     )
     .expect("runtime capture borrows the same admitted boundary roster");
     let capture_runtime = |artifact: &CanonicalTerminalArtifact, profile| {
-        native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
+        native_artifact::TerminalCallableRuntimeProvisions::admit(
             artifact.view(),
             runtime_input,
             bootstrap_entry,
@@ -801,8 +827,8 @@ fn check_publication(
         retain_native_stage_inputs,
         "ordinary image publication has no instruction graph lookup capability"
     );
-    let target_audit = image_emission::verify_retained_target_operations(&published.object);
-    let audit = image_emission::verify_retained_fixed_frame(&published.object);
+    let target_audit = published_object_verification::verify_retained_target_operations(&published.object);
+    let audit = published_object_verification::verify_retained_fixed_frame(&published.object);
     if retain_native_stage_inputs {
         target_audit.expect("independent target audit accepts the retained stage 02 output");
         audit.expect("explicitly retained originals admit the fixed-frame correspondence audit");

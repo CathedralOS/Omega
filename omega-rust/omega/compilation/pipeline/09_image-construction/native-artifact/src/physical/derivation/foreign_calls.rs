@@ -1441,20 +1441,14 @@ pub(super) mod floating_control {
         if !pass.is_receiver() {
             return Some(());
         }
-        let exact = match target.architecture {
+        let slots = match target.architecture {
             Architecture::Aarch64 => {
-                saved_bytes
-                    == isa_aarch64::encode_save_fpcr_to_sp_displacement(displacement).ok()?
-                    && restored_bytes
-                        == isa_aarch64::encode_restore_fpcr_from_sp_displacement(displacement)
-                            .ok()?
+                target_aarch64::inspection::floating_control_slots(saved_bytes, restored_bytes)
             }
             Architecture::X86_64 => {
-                saved_bytes == isa_x86_64::encode_stmxcsr_rsp_displacement(displacement).ok()?
-                    && restored_bytes
-                        == isa_x86_64::encode_ldmxcsr_rsp_displacement(displacement).ok()?
+                target_x86_64::inspection::floating_control_slots(saved_bytes, restored_bytes)
             }
         };
-        exact.then_some(())
+        (slots == Some((displacement, displacement))).then_some(())
     }
 }

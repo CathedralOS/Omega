@@ -27,6 +27,29 @@ pub fn plan_unscoped_execution(
     SelectedExecution::from_realization(None, realization)
 }
 
+/// Select the concrete providers from a portable handoff. Package review reads
+/// its own completed inventory; its refusals never enlarge execution demand.
+pub fn plan_published_target_execution(
+    origins: backend_plan::ProviderExecutionOrigins,
+    target: target::TargetProfile,
+    logical: &ClosedLogicalProviders,
+    bindings: &[CallableBoundaryImplementation],
+    review: Option<backend_plan::package_review::PackageReviewRequirements>,
+    folded_entry: Result<backend_plan::FoldedEntryReach, String>,
+) -> Result<SelectedExecution, NativeProgramPlanningError> {
+    let artifact = std::sync::Arc::clone(&origins.artifact);
+    let module = artifact.semantic_module();
+    let (inputs, review) = crate::provider_execution_inputs::plan_inputs_and_review(
+        origins, target, logical.requirements(), review,
+    ).map_err(NativeProgramPlanningError::Admission)?;
+    let selected = plan_target_execution(module, target, logical, bindings, inputs)?
+        .with_folded_entry_reach(folded_entry);
+    Ok(match review {
+        Some(review) => selected.with_package_review(module, review),
+        None => selected,
+    })
+}
+
 /// Admit the complete target supply before issuing a selected execution. A
 /// native provider must implement precisely the bodies named by logical reach.
 pub fn plan_target_execution(

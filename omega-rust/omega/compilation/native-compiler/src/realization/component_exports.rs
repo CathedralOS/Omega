@@ -260,7 +260,7 @@ pub fn emit_component_exports<'input>(
                 "component export retains private callback bodies requiring their own publication custody",
             ));
         }
-        let entry_plan = image_emission::plan_callable_entry_transport(
+        let entry_plan = physical_planning::callable_entry::plan_callable_entry_transport(
             &physical.body.frame,
             &physical.body.installations,
             application.plan.plan(),
@@ -279,8 +279,13 @@ pub fn emit_component_exports<'input>(
     let mut encoded = Vec::with_capacity(bound.len());
     for (export, physical, entry_plan) in bound {
         let body = physical.encode()?;
-        let entry = image_emission::encode_callable_entry_transport(entry_plan)
-            .map_err(|error| realization_error("component entry ABI", error))?;
+        let entry = native_encoding::callable_entry::encode_callable_entry_transport(entry_plan)
+            .map_err(|error| {
+                realization_error(
+                    "component entry ABI",
+                    format!("native entry transport: {error}"),
+                )
+            })?;
         encoded.push((export, body, entry));
     }
     let mut layouts = Vec::with_capacity(encoded.len());

@@ -6786,11 +6786,10 @@ pub(crate) mod hosted_exit_process {
         ValidatedAarch64SelectedFormEncoding,
     };
     use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use register_model::RegisterConstraintKey;
     use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration, MachineEncodedEffects, SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
     };
     use target::NativeTarget;
 
@@ -6884,47 +6883,9 @@ pub(crate) mod hosted_exit_process {
         })
     }
 
-    fn decode(target: NativeTarget, bytes: &[u8]) -> Option<u8> {
-        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
-            || bytes.len() != 16
-        {
-            return None;
-        }
-        let words = [
-            crate::codec_bytes::u32_at(bytes, 0)?,
-            crate::codec_bytes::u32_at(bytes, 4)?,
-            crate::codec_bytes::u32_at(bytes, 8)?,
-            crate::codec_bytes::u32_at(bytes, 12)?,
-        ];
-        let register = ((words[0] >> 16) & 31) as u8;
-        if words[0] & !0x001f_0000 != 0x2a00_03e0
-            || register == 31
-            || words[1]
-                != if target == NativeTarget::macos_arm64() {
-                    0xd280_0030
-                } else {
-                    0xd280_0bc8
-                }
-            || words[2]
-                != if target == NativeTarget::macos_arm64() {
-                    0xd400_1001
-                } else {
-                    0xd400_0001
-                }
-            || words[3] != 0xd420_0000
-        {
-            return None;
-        }
-        Some(register)
-    }
+    use target_aarch64::inspection::decode_hosted_exit_process_register as decode;
 
-    pub fn decode_aarch64_selected_hosted_exit_process_i32(
-        target: NativeTarget,
-        bytes: &[u8],
-    ) -> Option<calling_conventions::MachineRegister> {
-        let register = decode(target, bytes)?;
-        Some(calling_conventions::MachineRegister::Aarch64X(register))
-    }
+    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_exit_process_i32;
 
     #[cfg(test)]
     mod tests {
@@ -7114,68 +7075,7 @@ pub(crate) mod hosted_read_byte {
         })
     }
 
-    pub fn decode_aarch64_selected_hosted_read_byte(
-        target: NativeTarget,
-        bytes: &[u8],
-    ) -> Option<u32> {
-        let words = super::word_stream(bytes)?;
-        let reach = words
-            .iter()
-            .take_while(|word| *word & 0xff80_001f == 0x9100_0001)
-            .count();
-        let address = &words[..reach];
-        let payload = u32::try_from(crate::immediate_offset::decode_address_words(
-            address, 1, 31,
-        )?)
-        .ok()?;
-        if !payload.is_multiple_of(4)
-            || payload < 4
-            || crate::hosted_sequences::read_byte_payload_address(payload).as_slice() != address
-        {
-            return None;
-        }
-        let reach = u32::try_from(reach).ok()?;
-        let (calls, readdress): (&[u32], bool) = if target == NativeTarget::linux_arm64() {
-            (
-                &[
-                    0xd280_0000,
-                    0xd280_0022,
-                    0xd280_07e8,
-                    0xd400_0001,
-                    0xb400_00e0,
-                    0xf100_041f,
-                    0x5400_0081,
-                    0x5280_0029,
-                ],
-                false,
-            )
-        } else if target == NativeTarget::macos_arm64() {
-            (
-                &[
-                    0xd280_0000,
-                    0xd280_0022,
-                    0xd280_0070,
-                    0xd400_1001,
-                    0x5400_0002 | ((7 + reach) << 5),
-                    0xb400_0000 | ((7 + reach) << 5),
-                    0xf100_041f,
-                    0x5400_0001 | ((4 + reach) << 5),
-                    0x5280_0029,
-                ],
-                true,
-            )
-        } else {
-            return None;
-        };
-        let mut expected = address.to_vec();
-        expected.extend([0xb81f_c03f, 0xb900_003f]);
-        expected.extend_from_slice(calls);
-        if readdress {
-            expected.extend_from_slice(address);
-        }
-        expected.extend([0xb81f_c029, 0x1400_0002, 0xd420_0000]);
-        (words == expected).then_some(payload - 4)
-    }
+    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte;
 
     #[cfg(test)]
     mod tests {
@@ -7497,7 +7397,7 @@ pub(crate) mod hosted_write_byte {
         Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
         ValidatedAarch64SelectedFormEncoding,
     };
-    use crate::immediate_offset::{address_words, decode_address_words};
+    use crate::immediate_offset::address_words;
     use crate::selected_form_encoding::selected_forms::resolve_registers;
 
     use register_model::RegisterViewId;
@@ -7636,48 +7536,11 @@ pub(crate) mod hosted_write_byte {
         }
     }
 
-    pub fn aarch64_hosted_write_byte_i32_byte_count(
-        target: NativeTarget,
-        displacement: u32,
-    ) -> Option<usize> {
-        Some((store_and_buffer_words(0, displacement).len() + system_call_words(target)?.len()) * 4)
-    }
+    pub use target_aarch64::inspection::aarch64_hosted_write_byte_i32_byte_count;
 
-    fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
-        let system_call = system_call_words(target)?;
-        let words = super::word_stream(bytes)?;
-        let first = *words.first()?;
-        let (register, displacement) = if first & 0xffc0_03e0 == 0x3900_03e0 {
-            (first & 31, (first >> 10) & 4095)
-        } else if first & 0xffe0_ffff == 0x2a00_03e2 {
-            let reach = words[1..]
-                .iter()
-                .take_while(|word| *word & 0xff80_001f == 0x9100_0001)
-                .count();
-            let displacement = decode_address_words(&words[1..=reach], 1, 31)?;
-            ((first >> 16) & 31, u32::try_from(displacement).ok()?)
-        } else {
-            return None;
-        };
-        if register == 31 {
-            return None;
-        }
-        let register = register as u8;
-        let mut expected = store_and_buffer_words(register, displacement);
-        expected.extend_from_slice(system_call);
-        (words == expected).then_some((register, displacement))
-    }
+    use target_aarch64::inspection::decode_hosted_write_byte_register as decode;
 
-    pub fn decode_aarch64_selected_hosted_write_byte_i32(
-        target: NativeTarget,
-        bytes: &[u8],
-    ) -> Option<(calling_conventions::MachineRegister, u32)> {
-        let (register, displacement) = decode(target, bytes)?;
-        Some((
-            calling_conventions::MachineRegister::Aarch64X(register),
-            displacement,
-        ))
-    }
+    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_write_byte_i32;
 
     #[cfg(test)]
     mod tests {
@@ -15231,7 +15094,7 @@ pub(crate) mod system_call {
         RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
     };
     use selected_instructions::{
-        MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+        MachineAlternativeKey, SelectedInstructionKind,
     };
     use target::NativeTarget;
 
@@ -15278,39 +15141,9 @@ pub(crate) mod system_call {
         number: i64,
         bytes: &[u8],
     ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        if target != NativeTarget::linux_arm64()
-            || number < 0
-            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || !matches!(kind, SelectedInstructionKind::NormalizedForeignCall { .. })
-            || alternative != kind.call_alternative_key()
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        if bytes.len() != 20 {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let mut decoded_number = 0u64;
-        for (halfword, chunk) in bytes[..16].as_chunks::<4>().0.iter().enumerate() {
-            let word = u32::from_le_bytes(*chunk);
-            let opcode = if halfword == 0 {
-                0xd280_0000
-            } else {
-                0xf280_0000
-            };
-            if word & !0x001f_ffe0 != opcode | ((halfword as u32) << 21) | 8 {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            decoded_number |= u64::from((word >> 5) & 0xffff) << (halfword * 16);
-        }
-        if bytes[16..] != [0x01, 0x00, 0x00, 0xd4] || decoded_number != number as u64 {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let catalog = crate::aarch64_register_constraint_catalog(physical);
-        let keys = crate::aarch64_linux_system_call_keys();
-        let row = catalog
-            .row_matching(&keys, operand_views, operand_accesses)
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let effects = MachineEncodedEffects::supervisor_call_v1(row);
+        let effects = target_aarch64::inspection::selected_system_call_effects(
+            target, physical, kind, alternative, operand_views, operand_accesses, number, bytes,
+        ).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
         let views_for = |access| views_with_access(operand_views, operand_accesses, access);
         Ok(ValidatedAarch64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -15433,48 +15266,9 @@ pub(crate) mod table_call {
         accesses: &[RegisterOperandAccess],
         bytes: &[u8],
     ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let invalid = || Aarch64SelectedFormEncodingError::EncodedFormMismatch;
-        let (base, offset) = table_address(record).ok_or_else(invalid)?;
-        let words = bytes
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .map(|word| u32::from_le_bytes(*word))
-            .collect::<Vec<_>>();
-        let [low, high, add, load, call] = words.as_slice() else {
-            return Err(invalid());
-        };
-        if bytes.len() != 20
-            || low & 0xffe0_001f != 0xd280_0011
-            || high & 0xffe0_001f != 0xf2a0_0011
-            || ((low >> 5) & 0xffff) != offset & 0xffff
-            || ((high >> 5) & 0xffff) != offset >> 16
-            || *add != 0x8b11_0011 | (u32::from(base) << 5)
-            || *load != 0xf940_0231
-            || *call != 0xd63f_0220
-        {
-            return Err(invalid());
-        }
-        let row =
-            crate::machine_effects::normalized_foreign_constraint(record).ok_or_else(invalid)?;
-        if views.len() != row.operands.len()
-            || accesses.len() != row.operands.len()
-            || row.operands.iter().zip(views.iter().zip(accesses)).any(
-                |(operand, (view, access))| {
-                    operand.fixed_view != Some(*view) || operand.access != *access
-                },
-            )
-        {
-            return Err(invalid());
-        }
-        let declaration =
-            crate::aarch64_normalized_foreign_call_declaration(record, &row).ok_or_else(invalid)?;
-        let [form] = declaration.alternatives.as_slice() else {
-            return Err(invalid());
-        };
-        if form.key != alternative {
-            return Err(invalid());
-        }
+        let effects = target_aarch64::inspection::selected_table_call_effects(
+            record, alternative, views, accesses, bytes,
+        ).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
         let registers = |access| views_with_access(views, accesses, access);
         Ok(ValidatedAarch64SelectedFormEncoding {
             bytes: bytes.to_vec(),
@@ -15482,7 +15276,7 @@ pub(crate) mod table_call {
                 register_reads: registers(RegisterOperandAccess::Use),
                 register_writes: registers(RegisterOperandAccess::Def),
                 writes_nzcv: true,
-                encoded: form.encoded.clone(),
+                encoded: effects,
             },
         })
     }

@@ -34,7 +34,7 @@ use calling_conventions::{
     BoundaryCallingApplication, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, ValueClass,
 };
-use native_artifact::TerminalRuntimeHostProvisions;
+use verified_optimization_input::runtime_provisions::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use native_provider_runtime::{
     NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage,
 };
@@ -243,9 +243,9 @@ impl<'host> NativeImport<'host> {
         if application.target != locator.target().native_target()
             || application.plan.plan() != &binding.boundary_entry_plan
             || application.commitment == [0; 32]
-            || *product.application() != application.commitment
-            || product.locator() != locator
-            || product.bridge().request().foreign != application.plan
+            || product.application != application.commitment
+            || &product.locator != locator
+            || product.bridge.foreign != application.plan
             || !application.opaque_applications.is_empty()
             || !application
                 .plan
@@ -359,7 +359,7 @@ impl<'host> NativeImport<'host> {
         let adapter = native
             .sponsor
             .borrow_mut()
-            .with(|process| process.install(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
+            .with(|process| process.install_published(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
             .map_err(|error| missing(error.reason))?;
         let references = reference_outputs::ReferenceOutputs::admit(program, declaration, layouts);
         Ok(Some(Self {

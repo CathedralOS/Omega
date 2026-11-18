@@ -47,6 +47,7 @@ pub use image_emission::NativeForeignAdapterImage;
 pub use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, NativeArtifact,
     NativeArtifactIdentity, NativeArtifactValidationError, RequestedNativeArtifact,
+    RetainedDynamicElfArtifact, RetainedNativeArtifact,
 };
 pub(crate) use native_artifact::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,

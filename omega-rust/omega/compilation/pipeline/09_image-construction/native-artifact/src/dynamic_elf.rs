@@ -44,7 +44,11 @@ impl std::fmt::Display for DynamicElfNativeArtifactIdentity {
 
 #[derive(Debug)]
 #[must_use = "dynamic ELF native custody is non-installable and must be replayed"]
-pub struct DynamicElfNativeArtifact {
+pub struct DynamicElfNativeArtifact(RetainedDynamicElfArtifact);
+
+/// The sealed image, its replay evidence, and its read-only inspection operations.
+#[derive(Debug)]
+pub struct RetainedDynamicElfArtifact {
     parts: DynamicElfNativeArtifactParts,
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: DynamicElfNativeArtifactIdentity,
@@ -55,6 +59,14 @@ pub type DynamicElfNativeArtifactParts =
 
 pub(crate) type DynamicElfNativeArtifactEmissionParts =
     super::NativeArtifactEmissionParts<image_emission::RequestedDynamicElfImage>;
+
+impl std::ops::Deref for DynamicElfNativeArtifact {
+    type Target = RetainedDynamicElfArtifact;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl DynamicElfNativeArtifact {
     pub(crate) fn from_emitted_parts(
@@ -101,15 +113,25 @@ impl DynamicElfNativeArtifact {
         parts: DynamicElfNativeArtifactParts,
         physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     ) -> Self {
-        let mut artifact = Self {
+        let mut artifact = RetainedDynamicElfArtifact {
             parts,
             physical_evidence_gap,
             identity: DynamicElfNativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
-        artifact
+        Self(artifact)
     }
 
+    pub fn into_retained(self) -> RetainedDynamicElfArtifact {
+        self.0
+    }
+
+    pub fn into_parts(self) -> DynamicElfNativeArtifactParts {
+        self.0.parts
+    }
+}
+
+impl RetainedDynamicElfArtifact {
     pub fn validate(&self) -> Result<(), &'static str> {
         let semantic = self.parts.psi_artifact.manifest().semantic();
         if self.parts.object.psi() != semantic {
@@ -242,7 +264,4 @@ impl DynamicElfNativeArtifact {
         self.physical_evidence_gap.as_ref()
     }
 
-    pub fn into_parts(self) -> DynamicElfNativeArtifactParts {
-        self.parts
-    }
 }

@@ -4,9 +4,10 @@
 use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::TargetSupplyExecutionInputs;
 use diagnostics::Diagnostic;
+use backend_plan::ProviderExecutionOrigins;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::compiler_evaluation::{
-    DeclarationSelectionAuthority, ProductDeclarationScope,
+    DeclarationSelectionAuthority,
 };
 use std::sync::Arc;
 
@@ -59,34 +60,21 @@ fn require_unselected_calling_policy(
     Ok(())
 }
 
-pub struct ProviderExecutionOrigins {
-    pub artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    pub bindings: Vec<
-        Result<
-            (
-                BoundaryMachineId,
-                evaluation_receipts::NativeBindingMaterialization,
-            ),
-            String,
-        >,
-    >,
-    pub schema_custody:
-        Result<terminal_installation::selection_questions::ProductSchemaCustody, String>,
-    pub package_permissions: Option<ProductDeclarationScope>,
-    pub authority_permissions: Result<
-        (
-            terminal_psi::TerminalIdentityTable,
-            Vec<effects::ServiceTerminalAuthorityPermission>,
-        ),
-        String,
-    >,
-}
 
 pub fn plan_provider_execution_inputs(
     origins: ProviderExecutionOrigins,
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
 ) -> Result<TargetSupplyExecutionInputs, Vec<Diagnostic>> {
+    plan_inputs_and_review(origins, profile, reached, None).map(|(inputs, _)| inputs)
+}
+
+pub(crate) fn plan_inputs_and_review(
+    origins: ProviderExecutionOrigins,
+    profile: target::TargetProfile,
+    reached: &[BoundaryMachineId],
+    review: Option<backend_plan::package_review::PackageReviewRequirements>,
+) -> Result<(TargetSupplyExecutionInputs, Option<crate::package_review::PreparedReview>), Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let ProviderExecutionOrigins {
         artifact,
@@ -313,13 +301,13 @@ pub fn plan_provider_execution_inputs(
             .map_err(refuse)?;
         default_bindings.push(supply.clone());
     }
-    calling_applications.extend(
-        crate::calling_policy_plans::native_calling_applications(
-            profile,
-            &calling,
-            &default_bindings,
-        )?,
-    );
+    let defaults = crate::calling_policy_plans::native_calling_results(
+        profile, &calling, &default_bindings, None,
+    )?;
+    let review = review.map(|requirements| {
+        crate::package_review::prepare(&calling, profile, requirements, &defaults)
+    });
+    calling_applications.extend(defaults.applications);
     let mut external_bindings = Vec::with_capacity(native_bindings.len());
     let mut evaluated_native_bindings = Vec::with_capacity(native_bindings.len());
     for supply in native_bindings {
@@ -412,14 +400,14 @@ pub fn plan_provider_execution_inputs(
             }
         }
     }
-    Ok(TargetSupplyExecutionInputs {
+    Ok((TargetSupplyExecutionInputs {
         calling_applications,
         external_bindings,
         evaluated_native_bindings,
         evaluated_binding_identities: binding_identities.build(),
         terminal_authority_permissions: permissions,
         terminal_authority_permission_identities: identities.build(),
-    })
+    }, review))
 }
 
 #[cfg(test)]

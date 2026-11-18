@@ -9,6 +9,7 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+installation-evidence = { path = "../installation-evidence" }
 register-environment = { path = "../../target-description/register-environment" }
 compiler-storage = { path = "../../../../psi/foundation/compiler-storage" }
 wire = { path = "../../../../psi/foundation/wire" }

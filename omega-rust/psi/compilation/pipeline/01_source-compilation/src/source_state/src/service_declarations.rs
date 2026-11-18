@@ -237,6 +237,11 @@ pub mod provider_declarations {
             Ok(())
         }
 
+        /// Read the source census captured for this invocation before provider selection.
+        pub fn published_trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
+            self.trust.get().ok_or_else(|| Diagnostic::error("root grants have no published source declarations"))?.as_ref().map_err(Clone::clone)
+        }
+
         /// Retain every authored claim, including claims the program never uses.
         /// Missing checked receipts remain explicit; only a requested claim
         /// asks trust settlement to consume its template or contract evidence.
@@ -365,7 +370,9 @@ pub mod provider_declarations {
                 &inventory.retained_service_catalog(),
                 &inventory.retained_service_catalog()
             ));
+            assert!(inventory.published_trust_declarations().is_err());
             let trust = inventory.trust_declarations().unwrap();
+            assert!(std::ptr::eq(trust, inventory.published_trust_declarations().unwrap()));
             assert!(trust.machines.is_empty());
             assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
         }

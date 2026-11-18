@@ -13,6 +13,7 @@ pub struct AcceptedTerminalSource {
     closure: Box<AcceptedClosure>,
     correspondence: crate::lowering::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
+    pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
     /// What the route says about the accepted source without refusing it
     /// (`advisories`), in the order the parts were judged.
     advisories: Vec<Diagnostic>,
@@ -71,6 +72,7 @@ impl AcceptedTerminalSource {
             closure,
             correspondence: prepared.source,
             publication,
+            package_review_numeric: Default::default(),
             advisories,
         })
     }

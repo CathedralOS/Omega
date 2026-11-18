@@ -108,6 +108,7 @@ dependencies = [
  "declaration-contracts",
  "diagnostics",
  "effects",
+ "evaluation-receipts",
  "function-identity",
  "language-core",
  "optimization-core",
@@ -378,6 +379,8 @@ dependencies = [
  "function-layout",
  "image",
  "image-emission",
+ "image-fixtures",
+ "installation-admission",
  "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
@@ -410,6 +413,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "published-object-verification",
  "register-homes",
  "register-model",
  "review-evidence",
@@ -739,7 +743,7 @@ dependencies = [
  "encoding-admission",
  "frame-admission",
  "function-identity",
- "installation-binding",
+ "installation-admission",
  "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
@@ -844,18 +848,18 @@ dependencies = [
  "calling-conventions",
  "compiler",
  "diagnostics",
+ "encoding-admission",
  "extents",
  "function-identity",
- "function-layout",
  "iced-x86",
  "image",
  "image-elf",
  "image-emission",
+ "image-fixtures",
  "image-macho",
  "image-pe",
- "installation-binding",
+ "installation-admission",
  "installation-evidence",
- "isa-aarch64",
  "isa-x86_64",
  "language-core",
  "layout-plans",
@@ -871,6 +875,7 @@ dependencies = [
  "optimization-unit-semantics",
  "physical-planning",
  "physical-program",
+ "physical-recipes",
  "post-allocation-machine",
  "program-entry-plan",
  "provider-admission",
@@ -879,10 +884,13 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
+ "sha2",
  "source-compiler",
  "target",
+ "target-aarch64",
  "target-operations",
  "target-vocabulary",
+ "target-x86_64",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
@@ -891,7 +899,6 @@ dependencies = [
  "terminal-work",
  "verified-optimization-input",
  "wire",
- "x86_64-encoding",
 ]
 
 [[package]]
@@ -956,7 +963,6 @@ dependencies = [
  "compiler",
  "diagnostics",
  "effects",
- "image-emission",
  "mimalloc",
  "native-program-planning",
  "optimization-core",
@@ -964,6 +970,7 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "products",
+ "published-object-verification",
  "review-evidence",
  "semantic-vocabulary",
  "source-acquisition",
@@ -977,10 +984,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "installation-binding"
+name = "installation-admission"
 version = "0.1.0"
 dependencies = [
  "bound-installations",
+ "calling-conventions",
+ "frame-admission",
+ "installation-evidence",
+ "language-core",
+ "machine-code",
+ "native-vocabulary",
+ "post-allocation-machine",
+ "provider-admission",
+ "register-model",
+ "runtime-abi",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-vocabulary",
+ "target-x86_64",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "installation-binding"
+version = "0.1.0"
+dependencies = [
+ "installation-admission",
  "installation-evidence",
  "physical-planning",
  "runtime-abi",
@@ -1267,16 +1298,12 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
- "function-layout",
  "image",
  "image-emission",
  "image-macho",
  "installation-evidence",
- "isa-aarch64",
- "isa-x86_64",
  "legalized-operations",
  "machine-code",
- "native-runtime-provisions",
  "object-file",
  "optimization-core",
  "platform-custody",
@@ -1289,7 +1316,9 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
+ "target-aarch64",
  "target-operations",
+ "target-x86_64",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
@@ -1297,7 +1326,6 @@ dependencies = [
  "terminal-semantics",
  "verified-optimization-input",
  "wire",
- "x86_64-encoding",
 ]
 
 [[package]]
@@ -1317,6 +1345,7 @@ dependencies = [
  "function-layout",
  "image-emission",
  "image-fixtures",
+ "installation-admission",
  "installation-binding",
  "installation-evidence",
  "legalized-operations",
@@ -1327,12 +1356,14 @@ dependencies = [
  "native-program-planning",
  "native-runtime-provisions",
  "native-verification",
+ "object-file",
  "optimization-core",
  "optimization-unit",
  "physical-planning",
  "physical-program",
  "post-allocation-machine",
  "provider-admission",
+ "published-object-verification",
  "register-environment",
  "register-homes",
  "runtime-abi",
@@ -1358,10 +1389,12 @@ dependencies = [
  "diagnostics",
  "encoding-admission",
  "frame-admission",
+ "function-identity",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
  "physical-planning",
+ "physical-recipes",
  "post-allocation-machine",
  "register-environment",
  "register-homes",
@@ -1459,6 +1492,7 @@ dependencies = [
  "libc",
  "native-artifact",
  "native-encoding",
+ "native-provider-sponsor",
  "physical-planning",
  "runtime-abi",
  "sha2",
@@ -1468,20 +1502,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-provider-sponsor"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "calling-conventions",
+ "native-provider-runtime",
+ "product-publication",
+]
+
+[[package]]
 name = "native-runtime-provisions"
 version = "0.1.0"
 dependencies = [
- "backend-plan",
  "calling-conventions",
  "effects",
- "provider-admission",
- "runtime-abi",
  "semantic-vocabulary",
  "target",
- "target-operations",
- "terminal-codec",
  "terminal-installation",
- "terminal-psi",
  "verified-optimization-input",
 ]
 
@@ -1494,6 +1532,7 @@ dependencies = [
  "diagnostics",
  "encoding-admission",
  "iced-x86",
+ "image-fixtures",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
@@ -1619,6 +1658,7 @@ dependencies = [
  "execution-admission",
  "libc",
  "mimalloc",
+ "native-provider-sponsor",
  "orchestration",
  "package-compilation",
  "package-manager",
@@ -1724,7 +1764,6 @@ dependencies = [
  "compiler",
  "diagnostics",
  "execution-admission",
- "image-emission",
  "native-artifact",
  "native-compiler",
  "native-program-planning",
@@ -1732,6 +1771,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "products",
+ "published-object-verification",
  "rayon",
  "semantic-vocabulary",
  "sha2",
@@ -1831,6 +1871,7 @@ dependencies = [
  "diagnostics",
  "frame-admission",
  "function-identity",
+ "installation-admission",
  "installation-evidence",
  "language-core",
  "layout-plans",
@@ -1838,7 +1879,10 @@ dependencies = [
  "machine-code",
  "native-vocabulary",
  "optimization-core",
+ "physical-program",
+ "physical-recipes",
  "post-allocation-machine",
+ "program-entry-plan",
  "provider-admission",
  "register-environment",
  "register-homes",
@@ -1854,6 +1898,7 @@ dependencies = [
  "target-vocabulary",
  "target-x86_64",
  "task-plans",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1865,6 +1910,27 @@ dependencies = [
  "machine-code",
  "selected-instructions",
  "verified-optimization-input",
+]
+
+[[package]]
+name = "physical-recipes"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "frame-admission",
+ "function-identity",
+ "machine-code",
+ "post-allocation-machine",
+ "register-model",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-aarch64",
+ "target-vocabulary",
+ "target-x86_64",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1880,12 +1946,17 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
  "diagnostics",
+ "effects",
  "optimization",
  "package-compilation",
+ "provider-choices",
  "semantic-vocabulary",
  "source-compiler",
+ "target",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
 ]
 
@@ -1934,11 +2005,16 @@ dependencies = [
 name = "product-publication"
 version = "0.1.0"
 dependencies = [
+ "image",
  "image-emission",
+ "image-macho",
  "native-artifact",
+ "object-file",
+ "optimization-requests",
  "platform-custody",
  "target",
  "terminal-codec",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -1958,12 +2034,8 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-receipts",
- "image",
- "image-macho",
  "installation-evidence",
- "native-artifact",
- "native-program-planning",
- "object-file",
+ "native-compiler",
  "optimization-core",
  "optimization-requests",
  "package-compilation",
@@ -1999,6 +2071,7 @@ dependencies = [
  "optimization-core",
  "semantic-vocabulary",
  "target",
+ "terminal-installation",
  "terminal-psi",
  "wire",
 ]
@@ -2077,8 +2150,21 @@ dependencies = [
  "flow-effects",
  "graphs",
  "semantic-vocabulary",
+ "symbols",
  "target",
+ "terminal-codec",
  "terminal-psi",
+ "wire",
+]
+
+[[package]]
+name = "published-object-verification"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "image-emission",
+ "native-program-planning",
+ "optimization-core",
 ]
 
 [[package]]
@@ -2189,7 +2275,6 @@ dependencies = [
  "flow-effects",
  "language-core",
  "layout-plans",
- "native-program-planning",
  "numeric-literals",
  "numerics",
  "optimization-core",
@@ -2854,7 +2939,6 @@ dependencies = [
  "extent-contracts",
  "extents",
  "language-core",
- "native-artifact",
  "native-provider-runtime",
  "numerics",
  "orchestration",
@@ -2871,6 +2955,7 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -3020,6 +3105,7 @@ dependencies = [
  "program-entry-plan",
  "provider-admission",
  "provider-correspondence",
+ "runtime-abi",
  "semantic-vocabulary",
  "source-text",
  "symbols",

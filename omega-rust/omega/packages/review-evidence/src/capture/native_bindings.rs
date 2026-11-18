@@ -13,7 +13,6 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use effects::provider_plan::{EvaluatedNativeBinding, ServiceSchema};
-use native_program_planning::target_supply::NormalizedNativeSupply;
 use semantic_vocabulary::{ForeignLocatorCandidate, PackageKeyIdentity};
 use target::TargetProfile;
 
@@ -33,10 +32,18 @@ impl PackageReviewInput<'_> {
             .native_bindings
             .iter()
             .filter(|supply| supply.selection.target.canonical_name() == target.target_name());
-        if supplies.clone().next().is_none() && selected.is_empty() {
+        let authored = supplies.clone().count();
+        let reviewed = match checked.execution().package_review() {
+            Some(review) => review.bindings.as_ref().map_err(Clone::clone)?,
+            None if authored == 0 && selected.is_empty() => return Ok(Vec::new()),
+            None => return Err(unavailable("the package's target review plan")),
+        };
+        if reviewed.rows.len() != authored {
+            return Err(unavailable("the complete selected native supply custody"));
+        }
+        if authored == 0 && selected.is_empty() {
             return Ok(Vec::new());
         }
-        let publication = checked.terminal_publication();
         let accepted = declarations.accepted;
         let module = accepted.module();
         let source = self.typed();
@@ -77,10 +84,8 @@ impl PackageReviewInput<'_> {
                 Ok::<_, Vec<Diagnostic>>((slot, schema, methods))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let mut normalized = Vec::new();
         let mut policies = Vec::new();
-        for supply in supplies {
+        for (supply, retained) in supplies.zip(&reviewed.rows) {
             let selection = &supply.selection;
             if selection.supplier_package != package || selection.producer.package != package {
                 return Err(unavailable(
@@ -111,7 +116,10 @@ impl PackageReviewInput<'_> {
             let application = selection
                 .application
                 .map(|handle| {
-                    let handle = source_compiler::evaluation::provider_declarations::source_application(handle);
+                    let handle =
+                        source_compiler::evaluation::provider_declarations::source_application(
+                            handle,
+                        );
                     let closed = source
                         .product_requirement_application(handle)
                         .map_err(unavailable)?;
@@ -165,12 +173,12 @@ impl PackageReviewInput<'_> {
                     "the native binding's exact original schema method",
                 ));
             }
-            let binding = native_program_planning::native_bindings::normalize_native_binding(
-                &supply.materialization(),
-                &canonical,
-                &mut identities,
-            )
-            .map_err(|reason| unavailable(&reason))?;
+            if retained.boundary != boundary.id
+                || retained.materialization != supply.materialization()
+                || retained.binding.target() != target
+            {
+                return Err(unavailable("the complete selected native supply custody"));
+            }
             let producer = PackagePolicyEvaluatedBindingProducer {
                 declaration: PackageReviewNominalIdentity {
                     owner: PackageReviewNominalOwner::Package(package),
@@ -179,7 +187,7 @@ impl PackageReviewInput<'_> {
                 package: Some(package),
                 callable_identity: selection.producer.callable_identity.clone(),
             };
-            let policy_binding = binding_policy(&binding, producer);
+            let policy_binding = binding_policy(&retained.binding, producer);
             let schema_index = schemas
                 .binary_search_by_key(&symbol_key(declaration.slot), |(slot, _, _)| {
                     symbol_key(*slot)
@@ -204,10 +212,6 @@ impl PackageReviewInput<'_> {
                 self.nominal(service.symbol)?,
                 declarations,
             )?;
-            normalized.push(NormalizedNativeSupply {
-                boundary: boundary.id,
-                binding,
-            });
             policies.push((
                 PackagePolicyNativeBinding {
                     application,
@@ -217,7 +221,8 @@ impl PackageReviewInput<'_> {
                 callable,
             ));
         }
-        let mut normalized_receipts = normalized
+        let mut normalized_receipts = reviewed
+            .rows
             .iter()
             .map(|row| (row.boundary, row.binding.receipt().identity_digest()))
             .collect::<Vec<_>>();
@@ -254,19 +259,17 @@ impl PackageReviewInput<'_> {
                 return Err(unavailable("the complete selected native supply custody"));
             }
         }
-        let program = publication
+        let program = checked
+            .terminal_publication()
             .published()
             .ok_or_else(|| unavailable("the checked program for native calling policy"))?;
-        let program = native_program_planning::calling_policy_plans::CallingProgram {
-            artifact: std::sync::Arc::clone(program.artifact()),
-
-        };
-        let applications = native_program_planning::calling_policy_plans::native_calling_applications(
-            target,
-            &program,
-            &normalized,
-        )?;
-        if applications.len() != normalized.len() {
+        let effective = checked.execution().effective_artifact(program.artifact())
+            .map_err(|reason| unavailable(&reason))?;
+        realization
+            .require_program(effective.view().identity())
+            .map_err(|reason| unavailable(&reason))?;
+        let applications = reviewed.calling.as_ref().map_err(Clone::clone)?;
+        if applications.len() != reviewed.rows.len() {
             return Err(unavailable(
                 "one validated calling application per native binding",
             ));
@@ -274,13 +277,13 @@ impl PackageReviewInput<'_> {
         // The planner preserves the binding order, after rejoining each
         // exact requirement to the calling declaration in this artifact.
         for (((policy, _), row), application) in
-            policies.iter_mut().zip(&normalized).zip(applications)
+            policies.iter_mut().zip(&reviewed.rows).zip(applications)
         {
             let requirement = row
                 .binding
                 .receipt()
                 .build_origin()
-                .and_then(|origin| identities.as_table().text(origin.requirement_identity));
+                .and_then(|origin| reviewed.identities.text(origin.requirement_identity));
             let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, row.boundary)
                 .map_err(|reason| unavailable(&reason))?;
             if requirement
@@ -300,7 +303,7 @@ impl PackageReviewInput<'_> {
             policy
                 .method
                 .calling
-                .push(calling::project(&application, &policy.method, target)?);
+                .push(calling::project(application, &policy.method, target)?);
         }
         policies.sort_by(|(left, _), (right, _)| left.key().cmp(&right.key()));
         Ok(policies)

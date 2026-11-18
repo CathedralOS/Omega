@@ -174,7 +174,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         return Err("native vector control must remove exactly vector permission".into());
     }
     if !generated_vector_control {
-        let scalar = native_encoding::test_support::emit_native_entry_bridge(missing)
+        let scalar = image_fixtures::emit_native_entry_bridge(missing)
             .map_err(|error| {
                 format!("scalar entry unexpectedly needs vector permission: {error:?}")
             })?;
@@ -200,7 +200,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         }
         Ok(()) => return Err("generated entry accepted undeclared vector use".into()),
     }
-    match native_encoding::test_support::emit_native_entry_bridge(missing) {
+    match image_fixtures::emit_native_entry_bridge(missing) {
         Err(
             physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                 reason,
@@ -347,10 +347,10 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
             }
         }
         "scalar calls" => {
-            let rows = object
-                .native_instruction_source_rows()
-                .ok_or("scalar CPU-state control lacks retained instruction rows")?;
-            let source = rows.frame_application.source().source();
+            let retained = object
+                .retained_fragment_source()
+                .ok_or("CPU-state audit requires retained fragments")?;
+            let source = retained.source().source().source().source();
             let model = source.register_environment().physical().model();
             let actual_abi_vector_clobber = source
                 .original_physical_program()
@@ -448,8 +448,11 @@ fn inspect_instruction_sources(
     let rows = object
         .native_instruction_source_rows()
         .ok_or("native instruction controls require retained source rows")?;
-    inspect_relative_branches(rows.frame_application)?;
-    use image_emission::correlate_native_instruction_sources as correlate;
+    let retained = object
+        .retained_fragment_source()
+        .ok_or("relative-branch audit requires retained fragments")?;
+    inspect_relative_branches(retained.source().source())?;
+    use installation_admission::selected::correlate_native_instruction_sources as correlate;
     let original = correlate(rows.selected, rows.physical.iter().copied())
         .map_err(|error| format!("unchanged native instruction correspondence: {error:?}"))?;
     if original.len() != rows.physical.len()
@@ -498,20 +501,20 @@ fn inspect_instruction_sources(
         .ok_or("native instruction control needs two distinct IDs in one function")?;
     block.instructions[0].id = duplicate_id;
     require_instruction_refusal(
-        correlate(&duplicate_selected, rows.physical.iter().copied()),
+        correlate(&duplicate_selected, rows.physical.iter().copied()).map_err(Into::into),
         "installed fault analysis has duplicate selected instructions",
     )?;
 
     let mut duplicate_physical = rows.physical.clone();
     duplicate_physical.push(*rows.physical.first().ok_or("physical rows are empty")?);
     require_instruction_refusal(
-        correlate(rows.selected, duplicate_physical),
+        correlate(rows.selected, duplicate_physical).map_err(Into::into),
         "installed physical instruction is duplicated",
     )?;
     let mut omitted = rows.physical.clone();
     omitted.pop().ok_or("physical rows are empty")?;
     require_instruction_refusal(
-        correlate(rows.selected, omitted),
+        correlate(rows.selected, omitted).map_err(Into::into),
         "installed physical closure omits a selected instruction",
     )?;
 
@@ -536,7 +539,7 @@ fn inspect_instruction_sources(
     let mut wrong_owner = rows.physical.clone();
     wrong_owner[position] = replacement;
     require_instruction_refusal(
-        correlate(rows.selected, wrong_owner),
+        correlate(rows.selected, wrong_owner).map_err(Into::into),
         "installed physical instruction has no exact selected source",
     )?;
     Ok(())

@@ -8,7 +8,7 @@ use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use crate::preparation::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
+use target::ExecutableImageEmissionRequest;
 use native_program_planning::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 
 pub fn compile(

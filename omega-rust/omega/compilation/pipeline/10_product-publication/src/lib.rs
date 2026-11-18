@@ -2,17 +2,29 @@
 //! Stage 10 installs finished Psi, native and component files and returns the
 //! receipts for the exact installed products. Receipts are issued after staging.
 
+mod output;
+
 use native_artifact::{
-    DynamicElfNativeArtifact, DynamicElfPublicationReceipt, ExecutablePublicationReceipt,
-    NativeArtifact, NativeComponentProduct, NativeComponentPublicationReceipt,
-    NativePackagePublicationReceipt, PreparedDynamicElfPublication, PreparedExecutablePublication,
+    DynamicElfPublicationReceipt, NativeComponentProduct, NativeComponentPublicationReceipt,
+    PreparedDynamicElfPublication, PreparedExecutablePublication,
     publish_macos_application_package,
+};
+pub use native_artifact::{
+    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
+    NativeForeignAdapterImage, NativePackagePublicationReceipt, NativePublicationEvidenceDigest,
+    NativePublicationInputsDigest, PackagePublicationComponent, RetainedDynamicElfArtifact,
+    RetainedNativeArtifact, TerminalRuntimeHostProvision, TerminalRuntimeProvisions,
+    executable_installation_evidence_digest,
+};
+pub use output::{
+    CompileOutputKind, CompletedProduct, FinishedNativeImage, RetainedNativeProgram,
+    RetainedNativeProgramIdentity,
 };
 use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 use std::path::Path;
 use std::sync::Arc;
 
-pub fn publish_psi(
+fn publish_psi(
     root: &Path,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     build_dir: &Path,
@@ -34,21 +46,21 @@ pub fn publish_psi(
     install_staged_files(&staged_products)
 }
 
-pub struct ExecutableProduct<'a> {
-    pub artifact: &'a NativeArtifact,
-    pub components: &'a [Arc<NativeComponentProduct>],
-    pub intent: Option<target::HostedApplicationIntent>,
-    pub name: Option<&'a str>,
-    pub identifier: Option<&'a target::ApplicationIdentifier>,
+struct ExecutableProduct<'a> {
+    artifact: &'a RetainedNativeArtifact,
+    components: &'a [Arc<NativeComponentProduct>],
+    intent: Option<target::HostedApplicationIntent>,
+    name: Option<&'a str>,
+    identifier: Option<&'a target::ApplicationIdentifier>,
 }
 
-pub struct PublishedExecutable {
-    pub receipt: ExecutablePublicationReceipt,
-    pub package: Option<NativePackagePublicationReceipt>,
-    pub components: Vec<NativeComponentPublicationReceipt>,
+struct PublishedExecutable {
+    receipt: ExecutablePublicationReceipt,
+    package: Option<NativePackagePublicationReceipt>,
+    components: Vec<NativeComponentPublicationReceipt>,
 }
 
-pub fn publish_executable(
+fn publish_executable(
     product: ExecutableProduct<'_>,
     build_dir: &Path,
 ) -> Result<PublishedExecutable, String> {
@@ -118,8 +130,8 @@ pub fn publish_executable(
     })
 }
 
-pub fn publish_dynamic_elf(
-    artifact: &DynamicElfNativeArtifact,
+fn publish_dynamic_elf(
+    artifact: &RetainedDynamicElfArtifact,
     components: &[Arc<NativeComponentProduct>],
     build_dir: &Path,
 ) -> Result<

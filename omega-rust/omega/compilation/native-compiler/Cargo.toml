@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+installation-admission = { path = "../verification/installation-admission" }
 physical-program = { path = "../representations/physical-program" }
 native-runtime-provisions = { path = "../pipeline/03_native-program-planning/runtime-provisions" }
 provider-admission = { path = "../verification/provider-admission" }
@@ -24,6 +25,7 @@ effects = { path = "../representations/native-effects" }
 native-program-planning = { path = "../pipeline/03_native-program-planning" }
 selected-instruction-analyses = { path = "../representations/selected-instructions/analyses" }
 native-encoding = { path = "../pipeline/06_native-encoding" }
+object-file = { path = "../pipeline/08_object-construction" }
 native-layout = { path = "../pipeline/07_native-layout" }
 backend-plan = { path = "../representations/provider-plans" }
 calling-conventions = { path = "../target-description/calling-conventions" }
@@ -46,7 +48,7 @@ verified-optimization-input = { path = "../representations/abstract-operations/v
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 
 [dev-dependencies]
-native-encoding = { path = "../pipeline/06_native-encoding", features = ["test-support"] }
+published-object-verification = { path = "../verification/published-objects" }
 physical-planning = { path = "../pipeline/04_physical-program-planning", features = ["test-support"] }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }

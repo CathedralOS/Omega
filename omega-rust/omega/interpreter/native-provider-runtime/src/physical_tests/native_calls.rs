@@ -12,7 +12,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 use physical_planning::native_foreign_bridge::{NativeForeignBridgeRequest};
-use native_encoding::test_support::{emit_native_foreign_bridge};
+use image_fixtures::{emit_native_foreign_bridge};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
 pub(super) fn compile(command: &mut Command) {

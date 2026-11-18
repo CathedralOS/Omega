@@ -81,7 +81,7 @@ impl PackageReviewBoundaryValuePlacement {
 }
 
 pub(crate) type PackageReviewOpaqueRepresentationMovementRole =
-    native_program_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole;
+    calling_conventions::BoundaryOpaqueRepresentationMovementRole;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewOpaqueRepresentationPathElement {
