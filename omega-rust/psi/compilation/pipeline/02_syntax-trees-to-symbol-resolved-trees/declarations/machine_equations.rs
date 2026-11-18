@@ -1192,29 +1192,44 @@ pub(crate) fn complete(
         }
     }
     let binders = BinderClosures::build(trees);
-    // Calls retain their callee as an expression child. That occurrence is
-    // checked by the owning call below; a separately selected machine still
-    // needs the noncall refusal. Match exact handles and selected declarations.
+    // A call also stores its function name as a child expression. Check that
+    // occurrence with its call; a function selected on its own still needs
+    // the refusal below. Match both the handle and selected declaration.
+    let expression_key = |handle: &ExpressionHandle| (handle.generation(), handle.arena_index());
     let mut call_callees = Vec::new();
-    let mut retain_callee = |callee: ExpressionHandle, target: symbols::SymbolHandle| {
-        if callee.is_valid()
-            && matches!(trees.tables.bodies.expressions.expression(callee),
-                ExpressionNode::Name(path) if path.symbol == target)
-        {
-            call_callees.push(callee);
-        }
-    };
+    let mut retain_callee =
+        |callee: ExpressionHandle, target: symbols::SymbolHandle, name: &str| {
+            if !callee.is_valid() || !target.is_valid() {
+                return;
+            }
+            let ExpressionNode::Name(path) = trees.tables.bodies.expressions.expression(callee)
+            else {
+                return;
+            };
+            if !path.symbol.is_valid() {
+                return;
+            }
+            // A name selects the machine; a call selects its exact entry state.
+            // Reuse call resolution's entry rule rather than accepting any child.
+            let selected = path.symbol;
+            if selected == target
+                || (trees.symbols.get(selected).kind == symbols::SymbolKind::Machine
+                    && crate::names::machine_entry_symbol(&trees.symbols, selected, name) == target)
+            {
+                call_callees.push(callee);
+            }
+        };
     for (_, resolved) in &sources.expressions {
         if let ExpressionNode::Call(call) = trees.tables.bodies.expressions.expression(*resolved) {
-            retain_callee(call.callee, call.target_symbol);
+            retain_callee(call.callee, call.target_symbol, call.target.as_str());
         }
     }
     for (_, resolved) in &sources.statements {
         if let Statement::Call(call) = trees.tables.declarations.state_statements.get(*resolved) {
-            retain_callee(call.callee, call.target_symbol);
+            retain_callee(call.callee, call.target_symbol, call.target.as_str());
         }
     }
-    call_callees.sort_unstable();
+    call_callees.sort_unstable_by_key(expression_key);
     call_callees.dedup();
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
@@ -1261,7 +1276,9 @@ pub(crate) fn complete(
                 );
             }
             ExpressionNode::Name(path)
-                if call_callees.binary_search(resolved).is_err()
+                if call_callees
+                    .binary_search_by_key(&expression_key(resolved), expression_key)
+                    .is_err()
                     && selected_machine(trees, path.symbol).is_some_and(|index| {
                         trees.machines[index].has_structural_type_equations
                     }) =>

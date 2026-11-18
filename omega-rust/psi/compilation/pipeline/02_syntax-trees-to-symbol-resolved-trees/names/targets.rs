@@ -350,7 +350,7 @@ mod calls {
         machine_entry_symbol(symbols, machine_symbol, target.as_str())
     }
 
-    pub(super) fn machine_entry_symbol(
+    pub(crate) fn machine_entry_symbol(
         symbols: &SymbolTable,
         machine_symbol: SymbolHandle,
         target: &str,
@@ -1394,6 +1394,8 @@ mod transitions {
         }
     }
 }
+
+pub(crate) use calls::machine_entry_symbol;
 
 pub(super) use calls::{
     SOURCE_CALL_KINDS, assign_call_machine_argument_symbols, assign_call_static_argument_symbol,

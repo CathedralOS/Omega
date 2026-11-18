@@ -42,6 +42,7 @@ mod statements;
 pub(crate) mod target_machine_families;
 pub(crate) mod target_siblings;
 mod targets;
+pub(crate) use targets::machine_entry_symbol;
 mod top_level;
 pub(crate) mod type_predicates;
 mod type_references;
