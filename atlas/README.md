@@ -22,6 +22,7 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Pre-migration routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
 | [Extra-arrow audit](plans/foundation-and-backend.md#start-with-the-extra-arrows) | Source-backed detours, required repairs and a handler before/after view; focused recheck at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f`. |
+| [Four-host native execution](plans/foundation-and-backend.md#native-execution-on-four-matching-hosts) | The selected-provider fixture built by both compilers and run on matching Linux, macOS and Windows hosts. |
 | [Questions](questions.md) | Open decisions and recommendations. |
 | [Owner rulings](rulings.md) | Dated decisions governing the destination. |
 

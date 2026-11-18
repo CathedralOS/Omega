@@ -820,6 +820,19 @@ installers, and 05 comparing complete handler demand with the installation.
 Its ordering tests include a shared handler, an unreachable cycle and a
 demanded cycle. [Body roster][checkpoint-roster] · [Handler order and tests][checkpoint-order] · [Installation checks][checkpoint-bind]
 
+#### Native execution on four matching hosts
+
+Both compilers built the selected-provider fixture with the official `f658f30ec966` library. Each target got a byte-identical pair of executables. Four GitHub-hosted machines ran the programs directly. All eight processes returned the fixture’s expected exit code of 0. The program calls a service and checks the constants returned by the provider chosen for that target. [Fixture source](https://github.com/CathedralOS/Omega/blob/f658f30ec9660b8d66c8b3c2fd704def734fab7c/tests/fixtures/run/providers/target_selected_implementation/main.omg) · [Host workflow](https://github.com/CathedralOS/Omega/actions/runs/44227027634)
+
+| Target | Host reported by the job | Native format | Official exit | Migration exit | Job log |
+| --- | --- | --- | ---: | ---: | --- |
+| Linux x86-64 | Ubuntu 24.04, x86-64 | ELF64 | 0 | 0 | [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580486) |
+| Linux arm64 | Ubuntu 24.04, AArch64 | ELF64 | 0 | 0 | [Linux arm64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580741) |
+| macOS arm64 | macOS 15, arm64 | Mach-O 64 | 0 | 0 | [macOS arm64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580862) |
+| Windows x86-64 | Windows Server 2022, AMD64 | PE32+ | 0 | 0 | [Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/44227027634/job/134542580769) |
+
+The official compiler came from the `f658f30ec966` warm build. The migration build integrated that release at `683122d180a9` and includes the provider change `3d14fe87dff4`. Its binary SHA-256, beginning `bbd2ab8002de`, identifies the executable tested. The exact migration checkout is *unverified*. The host jobs checked out `edc830ed21a3`, which pins the test runner and the eight published images. Each job checked its actual OS, CPU, executable format and image digest before launching both programs. [Compiler, fixture, library and image identities](../evidence/checkpoints/native-host-execution-f658.json) · [Official warm build](https://github.com/CathedralOS/Omega/actions/runs/44219307162) · [Host checks](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/verify.py#L44-L69) · [Replay this checkpoint](../evidence/README.md#verify-the-four-matching-native-hosts)
+
 #### Measured public CLI checkpoint
 
 Official compiler `46502a522a16` and migration compiler `fcb284a45c40` compiled the same selected-provider fixture against the official toolchain library. The fixture selects an implementation separately for each target. Both compilers emitted byte-identical executables on all four targets. [Inputs and complete hashes](../evidence/checkpoints/target-execution-4650.json) · [Reproduction commands](../evidence/README.md#compare-the-two-published-compiler-builds)

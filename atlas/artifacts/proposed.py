@@ -135,8 +135,11 @@ def annotate_implementation(nodes):
             [('Read the completed image', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L19-L58'),
              ('Validate linked ranges', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L105-L141')]),
         'published': (
-            'The host matches a supplied native image to the Terminal artifact, manifest and target before giving its layout to the interpreter. A Psi-only request can run without an image. A native adapter request reaches a host service that installs only an adapter held in the published product.',
+            'The host matches a supplied native image to the Terminal artifact, manifest and target before giving its layout to the interpreter. A Psi-only request can run without an image. A native adapter request reaches a host service that installs only an adapter held in the published product. On the selected-provider fixture, official and migration images ran on four matching native hosts. All eight exited 0.',
             [('Host identity and target checks', implemented + 'build-system/orchestration/src/published_terminal.rs#L45-L91'),
+             ('Four-host results', 'foundation-backend-plan.html#native-execution-on-four-matching-hosts'),
+             ('Eight native process exits', 'https://github.com/CathedralOS/Omega/actions/runs/44227027634'),
+             ('Executed image and compiler digests', 'https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/images.json'),
              ('Published adapter installation', implemented + 'host-support/native-provider-sponsor/src/lib.rs#L54-L100'),
              ('Layout execution and target refusal test', implemented + 'interpreter/terminal-runtime/tests/retained_runtime.rs#L156-L196')]),
         'object-stage-container': (

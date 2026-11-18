@@ -102,9 +102,21 @@ macros, reexports and repeated names still need manual inspection. Focused
 scripts alone do not refresh the manifest; use `regenerate.py` when replacing
 the saved snapshot.
 
+## Verify the four matching native hosts
+
+The [native execution checkpoint](checkpoints/native-host-execution-f658.json) records the actual OS and CPU, job URL, format, image size, SHA-256 and exit for each compiler’s program. The official compiler used commit `f658f30ec966`. The migration compiler used the integration containing `3d14fe87dff4`, with the upstream merge at `683122d180a9`. Its binary digest pins the build. The jobs at proof commit `edc830ed21a3` ran those published files on their matching operating systems. [Workflow and logs](https://github.com/CathedralOS/Omega/actions/runs/44227027634) · [Committed fixture images](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/images.json) · [Execution code](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/verify.py#L44-L69)
+
+From the repository root, run the evidence checker with GitHub CLI access to the job logs and the cited Git objects available locally.
+
+```bash
+python3 atlas/evidence/scripts/check_native_hosts.py
+```
+
+The checker reads each process result from its job log, verifies the complete set of eight executions and checks the image bytes against the proof commit. To match the original local build products as well, pass `--products /path/to/acceptance-f658-products`. This also checks both compiler binaries, the fixture source hashes, every official library file and all eight locally published images. The [host proof readme](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/README.md) gives the build command.
+
 ## Compare the two published compiler builds
 
-The [target execution record](checkpoints/target-execution-4650.json) contains the exact compiler SHA-256 values, Git revisions, fixture hashes, toolchain library tree and results for the selected-provider fixture. It compares official build `46502a522a16` with migration build `fcb284a45c40`. The arm64 Mach-O result records offline signature verification. Execution on Darwin remains *unverified*.
+The [target execution record](checkpoints/target-execution-4650.json) contains the exact compiler SHA-256 values, Git revisions, fixture hashes, toolchain library tree and results for the selected-provider fixture. It compares official build `46502a522a16` with migration build `fcb284a45c40`. The arm64 Mach-O result records offline signature verification. Execution on Darwin was *unverified* for those two recorded builds.
 
 To replay, set `BASELINE_OMEGA` and `CANDIDATE_OMEGA` to the absolute paths of those executables. Check their hashes with `sha256sum "$BASELINE_OMEGA" "$CANDIDATE_OMEGA"`. Run the following from a checkout containing the official commit. A new temporary directory gives both compilers the same source root and separate output directories.
 
