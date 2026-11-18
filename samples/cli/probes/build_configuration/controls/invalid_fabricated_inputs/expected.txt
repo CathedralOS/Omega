@@ -1,2 +1,1 @@
-cannot check prepared project: checked compilation failed for package `invalid_fabricated_inputs` with 1 diagnostic(s)
-  error: build-time evaluation of `build` failed: named build inputs require a compiler-issued facet
+named input lookup requires the original compiler-issued inputs facet
