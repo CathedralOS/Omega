@@ -320,6 +320,83 @@ pass, with three new ones tying the class table to the punctuation list.
 | --- | --- | --- |
 | All 19,442 files | 746 MB/s | about 11 GB/s |
 | V1's `source` tree only (301 files, 13 KB average) | 832 MB/s | about 11 GB/s |
+## 6. Where reading a file goes (2026-11-18): measured, nothing changed in the lexer
+
+**The question.** After experiment 4 the path from files to tokens waits on
+reading. Where does the time for one small file go, and what gets around it?
+A new tool measures it:
+
+    cargo run --release -p omega-lexer --example read_breakdown -- <directories>
+
+Same 19,442 files, warm file cache, fastest of 5 passes, two runs. This host
+was busy and the runs differ by up to 20 percent, so the figures are ranges.
+
+**One file on one thread costs about 28 to 34 microseconds**, in four
+requests to the operating system:
+
+| Request | Per file | Share |
+| --- | --- | --- |
+| Open | 13 to 16 us | about 48% |
+| Ask the size | about 3 us | about 10% |
+| Read | 9 to 12 us | about 33% |
+| Close | about 3 us | about 10% |
+
+None of this is the drive. The bytes are already in memory; this is the cost
+of asking for them. 9 to 12 microseconds to read about 1.4 KB from the cache
+is far more than copying those bytes takes. Windows real-time antivirus
+protection is on for this machine, and it inspects files as they are opened
+and read. Whether it accounts for the cost is **not measured**: seeing or
+changing its exclusions needs administrator rights, and that is the owner's
+call.
+
+**Ways to read a file, one thread:**
+
+| Strategy | Files/s | MB/s |
+| --- | --- | --- |
+| `std::fs::read` | 26,000 to 34,000 | 36 to 47 |
+| Reuse one buffer, skip the size request | 29,000 to 34,000 | 39 to 46 |
+| Size from the directory listing, one read | 37,500 to 40,500 | 51 to 55 |
+| All files packed into one, reused buffer | (one file) | 6,600 to 8,900 |
+
+- **Trimming requests helps a little.** Knowing the size from the listing and
+  reading once is the best per-file strategy, perhaps 1.2 to 1.3 times
+  `std::fs::read`. The gap is not much larger than the noise.
+- **One packed file is more than a hundred times faster.** 26 MB in 3 to 4
+  ms. This is the only measurement here that gets near what the drive can do.
+
+**More threads stop helping at about 8.**
+
+| Threads | Files/s |
+| --- | --- |
+| 1 | 33,000 to 38,000 |
+| 2 | 59,000 to 69,000 |
+| 4 | 85,000 to 98,000 |
+| 8 | 74,000 to 88,000 |
+| 16 | about 71,000 |
+| 32 | 72,000 to 74,000 |
+
+Reading peaks at 4 to 8 threads and is slower on 16 and 32. The threads are
+waiting on each other inside the operating system, not on the drive. So the
+best a per-file loader does here is roughly 90,000 files per second, about
+125 MB/s on this corpus, whatever it does in its own code.
+
+**What follows for V2.**
+
+- A loader that reads file by file should use about 4 to 8 threads for
+  reading, take sizes from the directory listing, and reuse its buffers. That
+  is worth perhaps 3 times over one thread of `std::fs::read`, and no more.
+- To get near the drive, a build has to open few files. That means a packed
+  copy of the sources, with a cheap way to notice which files have changed.
+  The walk that finds the files costs 330 ms by itself, so "check every file"
+  is not cheap either; this needs designing, and is recorded as an owner
+  question in PLAN.md.
+- Lexing is no longer close to mattering: 2.4 ms on all threads against at
+  least 200 ms to read the same files one by one.
+
+**Not measured:** a cold cache; the effect of antivirus exclusions or a Dev
+Drive; opening files relative to an already-open directory, which skips
+walking the path each time and needs calls the standard library does not
+expose.
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
