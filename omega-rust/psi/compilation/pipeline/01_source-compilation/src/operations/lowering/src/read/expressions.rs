@@ -491,6 +491,12 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
+                // Addition permits the address on either side. Its result
+                // cannot choose an operand's carrier before the peer is read.
+                let hint = hint.filter(|ty| {
+                    binary.operator != BinaryOperator::Add
+                        || !matches!(ty, ScalarType::Integer(integer) if integer.is_address())
+                });
                 // Membership names a case domain. Value equality instead
                 // reads both operands through the ordinary comparison path,
                 // including when one is a named case value.
@@ -1273,10 +1279,9 @@ pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
     }
 }
 
-/// An address subtraction's result context does not choose its operand roles.
-/// The shared source signature lands an anonymous offset in u64, while an
-/// address peer on the right makes the left operand another address.
-/// Other arithmetic retains its existing contextual and generic-width hints.
+/// Address arithmetic keeps the offset's u64 carrier independent of its result.
+/// The shared source signatures distinguish offsets from address distances;
+/// an expected address result cannot turn an anonymous count into an address.
 fn arithmetic_operand_hint(
     id: MachineId,
     operator: BinaryOperator,
@@ -1287,7 +1292,8 @@ fn arithmetic_operand_hint(
     let Some(ScalarType::Integer(address)) = peer else {
         return Ok(expected.or(peer));
     };
-    if operator != BinaryOperator::Subtract || !address.is_address() {
+    if !matches!(operator, BinaryOperator::Add | BinaryOperator::Subtract) || !address.is_address()
+    {
         return Ok(expected.or(peer));
     }
     let selected = crate::source_state::operator::integer_peer_operand_carrier(
@@ -1304,20 +1310,20 @@ fn arithmetic_operand_hint(
             Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Typing("address subtraction operand carrier"),
+                Unserved::Typing("address arithmetic operand carrier"),
             ))
         }
     }
 }
 
-/// Reuse the source signature's two subtraction forms without identifying an
-/// address with a fixed integer of the same width. Terminal semantics checks
-/// the retained operand models and supplies the ordinary exact-fit obligation.
-fn address_subtraction_result(
+/// Reuse the source address/count signatures and the ordinary exact-fit
+/// judgment. Equal physical widths do not identify these operand carriers.
+fn address_arithmetic_result(
     id: MachineId,
+    operator: BinaryOperator,
     left: ScalarType,
     right: ScalarType,
-) -> Checked<ScalarType> {
+) -> Checked<(Strict, ScalarType)> {
     let unserved = || {
         refuse(
             id,
@@ -1330,12 +1336,18 @@ fn address_subtraction_result(
             .ok_or_else(unserved)
     };
     let selected = crate::source_state::operator::builtin_integer_result_carrier(
-        BinaryOperator::Subtract,
+        operator,
         [primitive(left)?, primitive(right)?],
     )
     .ok_or_else(unserved)?;
     let result = match selected {
-        PrimitiveType::Addr => left,
+        PrimitiveType::Addr => {
+            if matches!(left, ScalarType::Integer(integer) if integer.is_address()) {
+                left
+            } else {
+                right
+            }
+        }
         PrimitiveType::Integer(carrier) => {
             super::types::atom_type(BuiltinTypeAtom::Integer(carrier), id)?
         }
@@ -1343,17 +1355,29 @@ fn address_subtraction_result(
             return Err(unserved());
         }
     };
-    if !matches!((result, left, right),
-        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
-            if result.admits_exact_subtract_operands(left, right))
-    {
+    let operation = match operator {
+        BinaryOperator::Add => Strict::Add,
+        BinaryOperator::Subtract => Strict::Subtract,
+        _ => return Err(unserved()),
+    };
+    let admitted = match (result, left, right) {
+        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right)) => {
+            match operator {
+                BinaryOperator::Add => result.admits_exact_add_operands(left, right),
+                BinaryOperator::Subtract => result.admits_exact_subtract_operands(left, right),
+                _ => false,
+            }
+        }
+        _ => false,
+    };
+    if !admitted {
         return Err(refuse(
             id,
             Construct::Machine,
             Unserved::Typing("operand types"),
         ));
     }
-    Ok(result)
+    Ok((operation, result))
 }
 
 /// Builtin operator selection: which operation a binary operator names, and
@@ -1386,11 +1410,7 @@ fn binary_expression(
                 .result
                 .is_some_and(|value| value.qualification().is_none())
         };
-        if operator != BinaryOperator::Subtract
-            || suffix.is_some()
-            || !plain(&left)
-            || !plain(&right)
-        {
+        if suffix.is_some() || !plain(&left) || !plain(&right) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1407,11 +1427,8 @@ fn binary_expression(
                 Unserved::Typing("operand types"),
             ));
         };
-        (
-            Some(Strict::Subtract),
-            None,
-            ValueType::plain(address_subtraction_result(id, left_type, right_type)?),
-        )
+        let (operation, result) = address_arithmetic_result(id, operator, left_type, right_type)?;
+        (Some(operation), None, ValueType::plain(result))
     } else {
         binary_selection(
             id,

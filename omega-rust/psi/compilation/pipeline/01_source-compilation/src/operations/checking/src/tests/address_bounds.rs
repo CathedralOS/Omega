@@ -103,6 +103,104 @@ fn exact_address_subtraction_keeps_address_and_count_results() {
 }
 
 #[test]
+fn exact_address_addition_keeps_counts_in_both_operand_orders() {
+    let observed = verdict(
+        "machine build_entry() {
+    let base: addr = 4096;
+    let count: u64 = 17;
+    let forward: addr = base + count;
+    let reversed: addr = count + base;
+    let anonymous_right: addr = base + 17;
+    let anonymous_left: addr = 17 + base;
+    let explicit_right: addr = base + 17u64;
+    let explicit_left: addr = 17u64 + base;
+    let distance: u64 = forward - base;
+}",
+    );
+    assert_eq!(observed, "accepted");
+}
+
+#[test]
+fn exact_address_addition_uses_the_parameters_fit_contract() {
+    let source = "machine advance(base: addr, count: u64) -> addr
+requires embed(base) + embed(count) < addr::Bound
+{ base + count }
+machine reversed(count: u64, base: addr) -> addr
+requires embed(base) + embed(count) < addr::Bound
+{ count + base }
+machine build_entry() {
+    let base: addr = 4096;
+    let count: u64 = 17;
+    let forward: addr = advance(base, count);
+    let backward_order: addr = reversed(count, base);
+}";
+    assert_eq!(verdict(source), "accepted");
+    let insufficient = judge_build(
+        "machine advance(base: addr, count: u64) -> addr
+requires embed(base) + embed(count) <= addr::Bound
+{ base + count }
+machine build_entry() {
+    let base: addr = 18446744073709551615;
+    let beyond: addr = advance(base, 1u64);
+}",
+    );
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = insufficient else {
+        panic!("an inclusive bound cannot prove the offset fits: {insufficient:?}");
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::OperationSafety { .. }),
+        "{unproved:?}"
+    );
+}
+
+#[test]
+fn exact_address_addition_keeps_fit_and_operand_restrictions() {
+    let invalid = [
+        (
+            "wrong count",
+            "machine probe(base: addr, count: u32) -> addr { base + count }
+machine build_entry() {}",
+        ),
+        (
+            "two addresses",
+            "machine probe(base: addr, other: addr) -> addr { base + other }
+machine build_entry() {}",
+        ),
+        (
+            "wrapping",
+            "machine build_entry() { let base: addr = 4096; let next: addr = base +% 17u64; }",
+        ),
+        (
+            "qualified count",
+            "machine probe(base: addr, count: u64 in Trapping) -> addr { base + count }
+machine build_entry() {}",
+        ),
+    ]
+    .map(|(name, source)| (name, verdict(source)));
+    let overflow = judge_build(
+        "machine build_entry() {
+    let base: addr = 18446744073709551615;
+    let beyond: addr = base + 1u64;
+}",
+    );
+    for (name, observed) in invalid {
+        assert!(
+            observed.contains("arithmetic on an address"),
+            "{name}: {observed}"
+        );
+    }
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = overflow else {
+        panic!("the exact overflow must fail its fit proof: {overflow:?}");
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::OperationSafety { .. }),
+        "{unproved:?}"
+    );
+}
+
+#[test]
 fn exact_address_subtraction_refuses_wrong_count_carriers_and_underflow() {
     let wrong_count = verdict(
         "machine probe(base: addr, count: u32) -> addr { base - count }
