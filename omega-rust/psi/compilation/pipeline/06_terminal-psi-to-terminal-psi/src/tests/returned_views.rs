@@ -281,6 +281,106 @@ fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
 }
 
 #[test]
+fn boundary_reference_completion_does_not_invent_a_captured_address() {
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, DescriptorProviderOutput, DescriptorSourceOrigin,
+        terminal_borrowed_storage_graph_from,
+    };
+    let input = elaborate(PROVIDER_REFERENCE).unwrap();
+    let (machine, at, actual) = input
+        .module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.blocks.iter().find_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .enumerate()
+                    .find_map(|(ordinal, operation)| {
+                        let call = operation.declared_invocation()?;
+                        let actual = call.structural_arguments.first()?;
+                        (actual.path == [terminal_psi::StructuralPathSegment::Referent]).then_some(
+                            (machine, (block.id, u32::try_from(ordinal).unwrap()), actual),
+                        )
+                    })
+            })
+        })
+        .expect("the original read borrows the provider's scalar referent");
+    let graph = terminal_borrowed_storage_graph_from(&input.module, [machine.id], &[]).unwrap();
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+    let descriptor =
+        terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(actual.place);
+    let origins = analysis
+        .symbolic_source_origins(machine.id, at, &descriptor)
+        .unwrap();
+    let [DescriptorSourceOrigin::Provider(provider)] = origins.as_slice() else {
+        panic!("the actual call retains its exact provider provenance: {origins:?}");
+    };
+    assert_eq!(
+        provider.output,
+        DescriptorProviderOutput::Result(Vec::new())
+    );
+    assert_eq!(provider.invocations.len(), 1);
+    let referent = descriptor_location(
+        &input.module.structural_types,
+        actual.place,
+        machine.structural_place_type(actual.place).unwrap(),
+        &actual.path,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        analysis.captured_storage_family(machine.id, at, &referent),
+        Err("reference descriptor has no supported captured address account"),
+        "provider permission must not fabricate an original storage address",
+    );
+    assert!(matches!(
+        crate::judge(Ok(input)),
+        Ok(RouteVerdict::Accepted(_))
+    ));
+}
+
+#[test]
+fn boundary_reference_completion_does_not_claim_an_unknown_scalar_value() {
+    let source = PROVIDER_REFERENCE.replace(
+        "machine entry() -> i32",
+        "machine entry() -> i32 ensures result == 0i32",
+    );
+    assert_ne!(source, PROVIDER_REFERENCE);
+    let verdict = crate::judge(elaborate(&source));
+    let Ok(RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    }) = verdict
+    else {
+        panic!("an initialized provider referent has no promised zero value: {verdict:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+    );
+    assert!(
+        unproved
+            .iter()
+            .any(|failure| { matches!(failure.kind, ObligationKind::NormalGuarantee { .. }) })
+    );
+    assert!(unproved.iter().all(|failure| matches!(
+        failure.kind,
+        ObligationKind::NormalGuarantee { .. } | ObligationKind::PublishedGuarantee { .. }
+    )));
+}
+
+#[test]
 fn boundary_reference_completion_cannot_claim_owned_backing() {
     provider_permission_cannot_be_claimed_as_owned_storage(PROVIDER_REFERENCE);
 }

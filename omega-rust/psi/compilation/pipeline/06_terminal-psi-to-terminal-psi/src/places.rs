@@ -3250,6 +3250,28 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
+        // The admitted shared reference establishes valid primitive contents.
+        // It supplies no stored value identity or concrete backing address.
+        if matches!(asked, Asked::Contents(_))
+            && original.segments.last() == Some(&Segment::Referent)
+            && matches!(
+                budget.used,
+                None | Some(ProgramPoint::BlockEntry(_) | ProgramPoint::AfterOperation(_))
+            )
+            && (up_to != usize::MAX || budget.used.is_some())
+            && let Some(at) = self.descriptor_position((block, up_to))
+            && let Some(referent) = self.provider_referent(references, original, at, concerns)?
+        {
+            let declaration = self.declaration(referent, concerns)?;
+            if declaration.quotient_carrier.is_none()
+                && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                    if terminal_semantics::reference_storage_byte_width(scalar).is_some())
+            {
+                let address = budget.add_equation();
+                budget.add_supply(address, Supply::Direct(Reached::Established(1)));
+                return Ok(Supply::transfer(address));
+            }
+        }
         let resolved = match asked {
             // Windows follow their captured storage, even after the original
             // descriptor has expired. Looking up that name again can either
@@ -4773,6 +4795,24 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "a literal with no structural result"))
     }
 
+    /// Descriptor replay uses a checked block boundary. Graph ordering names
+    /// the terminator with a sentinel rather than an operation offset.
+    fn descriptor_position(
+        &self,
+        position: (BlockId, usize),
+    ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition> {
+        let end = self.block(position.0).ok()?.operations.len();
+        let before = if position.1 == usize::MAX {
+            end
+        } else {
+            position.1
+        };
+        (before <= end)
+            .then_some(before)
+            .and_then(|before| u32::try_from(before).ok())
+            .map(|before| (position.0, before))
+    }
+
     /// Resolve the predicate from the exact immutable descriptor source.
     /// Shared inputs remain symbolic entry requirements; a produced view may
     /// use only reconstructed source facts or its authenticated callee contract.
@@ -4787,24 +4827,12 @@ impl<'a> Storage<'a> {
         let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
         required.insert(predicate);
         if actual.segments.is_empty()
-            // Graph ordering uses a sentinel for the terminator. Descriptor
-            // replay needs the actual checked boundary within this block.
-            && let Some(before) = self.block(position.0).ok().and_then(|block| {
-                let end = block.operations.len();
-                let before = if position.1 == usize::MAX {
-                    end
-                } else {
-                    position.1
-                };
-                (before <= end)
-                    .then_some(before)
-                    .and_then(|before| u32::try_from(before).ok())
-            })
+            && let Some(at) = self.descriptor_position(position)
             && terminal_semantics::incoming_byte_sequence_argument_predicates(
                 self.module,
                 self.lowered,
                 references,
-                (position.0, before),
+                at,
                 &StructuralArgument::whole(actual.root, StructuralAccess::SharedBorrow),
             )
             .is_some_and(|facts| facts.implies(required))
