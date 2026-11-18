@@ -8,16 +8,17 @@ compiler to rebuild itself reproducibly. No path is selected during exploration.
 bootstrap/
   interpreted/   existing interpreter-based chain and its language sources
   compiled_vm/   source-compiled Gamma route to independent Alpha tapes
-  independent/   standalone-language construction experiment
+  independent/   native Linux compiler construction
+  linux_x86_64/  offline binary that builds the native Gamma compiler
   proofs/        optional research outside construction acceptance
 ```
 
 The [interpreted path](interpreted/README.md) contains the existing numbered
 rungs. The [compiled VM path](compiled_vm/README.md) currently reuses their seed
-and successor sources and owns its Gamma compiler. The
-[independent path](independent/README.md) has its first construction target
-specified; its implementation has not started. Shared source reuse is explicit,
-and does not require other experiments to use the same stages or implementation.
+and successor sources and owns its Gamma compiler. The native path shares that
+frontend and emits Linux executables. One Linux x86-64 command now constructs
+the native Gamma compiler from its predecessors and rebuilds it twice.
+[Native path](independent/README.md) · [Offline command](linux_x86_64/README.md)
 
 The Omega-written product lives in [`source/psi`](../source/psi) and
 [`source/omega`](../source/omega), outside any bootstrap variant. Its construction
@@ -26,9 +27,9 @@ Keep its implementation within a deliberate subset of the language it implements
 where that simplifies the complete bootstrap, while preserving specified source
 semantics and explicit refusals. Rust-assisted results remain identified as such.
 
-Neither existing path has constructed and reproducibly self-rebuilt the full
-Omega compiler. Executed Omega programs and the Gamma compiler's self-rebuilds
-are intermediate evidence, not that acceptance.
+Construction and reproducible self-compilation of the full Omega compiler remain
+open. The working stages have executed Omega programs and rebuilt the Gamma
+compiler.
 
 Each path owns its source, invocation and construction evidence. Retain only
 machinery needed by real successors or necessary validation. Record seed/trust
