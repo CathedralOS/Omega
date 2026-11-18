@@ -1322,8 +1322,11 @@ impl Program<'_> {
                     )
                 ) =>
             {
-                if !scope.formal_fields || scope.subject.is_some() {
-                    return unserved("extent outside an input requirement");
+                if !scope.formal_fields
+                    && scope.subject.is_none()
+                    && !matches!(scope.result, ResultTerm::Structural(..))
+                {
+                    return unserved("extent without a structural subject");
                 }
                 let Some((root, path, receiver)) = self.projected(id, scope, member.receiver)?
                 else {

@@ -2097,6 +2097,27 @@ pub mod domain_preservation {
                 path,
                 format,
             } => (*root, path.clone(), ScalarType::IeeeFloat(*format)),
+            ScalarTerm::ViewExtent {
+                root,
+                path,
+                scalar_type,
+            } => {
+                let count = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is a valid descriptor count type");
+                let selected = crate::canonical_structural_path_tip(types, carrier, path)?;
+                if *root != subject || *scalar_type != count || !selected.shape.is_view_descriptor()
+                {
+                    return None;
+                }
+                // A length depends on this descriptor's stored geometry.
+                // Replacing it must invalidate the predicate even though the
+                // borrowed payload has separate storage.
+                output.push(path.clone());
+                return Some(());
+            }
             ScalarTerm::ByteSequencePredicate { root, path, .. } => {
                 if *root != subject {
                     return None;
@@ -2627,6 +2648,77 @@ pub mod domain_preservation {
             BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
             StructuralFieldType, StructuralTypeShape, TerminalIdentityIndex,
         };
+
+        #[test]
+        fn extent_predicates_keep_the_exact_subject_carrier_and_storage_dependency() {
+            let carrier = StructuralTypeId::new(1).unwrap();
+            let subject = PlaceId::new(1).unwrap();
+            let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let mut types = [StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                id: carrier,
+                identity: TerminalIdentityIndex(1),
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
+                ),
+                scalar_restriction: None,
+            }];
+            let predicate = |root, path, scalar_type| StructuralDomainPredicate {
+                subject,
+                proposition: Proposition::Equal(
+                    ScalarTerm::ViewExtent {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(4)).unwrap(),
+                ),
+            };
+            let valid = predicate(subject, Vec::new(), count);
+            assert_eq!(
+                predicate_dependencies(types.iter(), carrier, &valid),
+                Some(vec![Vec::new()])
+            );
+            assert!(!domain_predicate_observes_no_storage(
+                types.iter(),
+                carrier,
+                &valid
+            ));
+            assert!(!domain_predicate_is_closed(
+                types.iter(),
+                carrier,
+                &predicate(PlaceId::new(2).unwrap(), Vec::new(), count)
+            ));
+            assert!(!domain_predicate_is_closed(
+                types.iter(),
+                carrier,
+                &predicate(
+                    subject,
+                    vec![Segment::Field(StructuralFieldId::new(1).unwrap())],
+                    count
+                )
+            ));
+            assert!(!domain_predicate_is_closed(
+                types.iter(),
+                carrier,
+                &predicate(
+                    subject,
+                    Vec::new(),
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+                )
+            ));
+            types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(count));
+            assert!(!domain_predicate_is_closed(types.iter(), carrier, &valid));
+        }
 
         #[test]
         fn case_tests_and_payload_reads_close_over_the_subjects_declared_case() {

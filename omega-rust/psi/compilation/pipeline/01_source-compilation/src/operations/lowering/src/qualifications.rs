@@ -448,12 +448,53 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
+        // The same logical domain can be displayed by several descriptor
+        // carriers. Prepare its semantic ID once; each carrier still retains
+        // its own declaration and must pass the existing theory comparison.
+        let key = |instance: DomainInstance| {
+            (
+                instance.declaration.arena_index(),
+                instance.declaration.generation(),
+                instance.identity.0,
+            )
+        };
+        let mut structural_instances: Vec<_> = source
+            .declared_domains
+            .iter()
+            .filter(|declared| matches!(declared.carrier, ValueType::Record(..)))
+            .map(|declared| key(declared.instance))
+            .collect();
+        structural_instances.sort_unstable();
+        structural_instances.dedup();
+        let mut structural_semantics: Vec<_> = structural_instances
+            .into_iter()
+            .map(|instance| (instance, None))
+            .collect();
         for declared in &source.declared_domains {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
                 ValueType::Record(_, _, _) => {
-                    result.declare_structural(diagnostic, source, &sources, declared)?;
+                    let position = structural_semantics
+                        .binary_search_by_key(&key(symbol), |(instance, _)| *instance)
+                        .map_err(|_| {
+                            unavailable("structural domain lost its prepared semantic identity")
+                        })?;
+                    let semantic_domain = match structural_semantics[position].1 {
+                        Some(id) => id,
+                        None => {
+                            let id = result.next_semantic_domain(&unavailable)?;
+                            structural_semantics[position].1 = Some(id);
+                            id
+                        }
+                    };
+                    result.declare_structural(
+                        diagnostic,
+                        source,
+                        &sources,
+                        declared,
+                        semantic_domain,
+                    )?;
                     continue;
                 }
                 ValueType::Rigid(_) => {
@@ -697,6 +738,7 @@ impl Qualifications {
         source: &crate::lowering::read::Program<'_>,
         sources: &[(source_text::SourceId, [u8; 32])],
         declared: &crate::lowering::read::DeclaredDomain,
+        semantic_domain: DomainSemanticId,
     ) -> Checked<()> {
         let typed = source.typed;
         let unavailable = |detail| {
@@ -729,11 +771,30 @@ impl Qualifications {
                 })
             })
             .transpose()?;
-        let semantic_domain = self.next_semantic_domain(&unavailable)?;
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
         let identity =
             domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
+        let identity = if source.records.get(carrier).is_some_and(|record| {
+            matches!(record.shape,
+            crate::lowering::StorageShape::ByteSequence(bytes) if bytes.is_shared_readable_view())
+        }) {
+            let carrier_identity = self.identities.intern(
+                &source
+                    .records
+                    .get(carrier)
+                    .ok_or_else(|| unavailable("byte domain lost its descriptor carrier"))?
+                    .identity,
+            );
+            crate::lowering::lower::places::byte_domain_identity(
+                &mut self.identities,
+                identity,
+                carrier_identity,
+            )
+            .map_err(unavailable)?
+        } else {
+            identity
+        };
         // A governed domain's access plan decides who may issue it. An
         // evaluated plan reads as its routes below; a plan nobody has run
         // shows no machine to be an issuer, so the lowered form permits

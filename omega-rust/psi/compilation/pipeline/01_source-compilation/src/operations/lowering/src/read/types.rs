@@ -1343,7 +1343,11 @@ impl Program<'_> {
         let Some(plain) = carrier.qualified(crate::lowering::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
         };
-        let subject = self.value_type(id, definition.target_type)?;
+        let subject =
+            match self.logical_byte_domain_carrier(id, definition.target_type, Some(plain))? {
+                Some(subject) => subject,
+                None => self.value_type(id, definition.target_type)?,
+            };
         if subject != plain {
             // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
             // L's geometry (plans.md, "Representation applications"), so T's
@@ -1370,10 +1374,9 @@ impl Program<'_> {
         // generic declaration alongside the instantiated use-site clauses.
         if crate::source_state::byte_predicates::byte_slice_domain_predicate(typed, definition)
             .is_none()
-            && !self
-                .declared_domains
-                .iter()
-                .any(|declared| declared.instance == domain)
+            && !self.declared_domains.iter().any(|declared| {
+                declared.instance == domain && declared.carrier.erased() == plain.erased()
+            })
         {
             self.declared_domains.push(super::DeclaredDomain {
                 instance: domain,
