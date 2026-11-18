@@ -143,7 +143,7 @@ Psi to native code) are not planned yet.
     token lexes to itself when taken alone.
   - All 19,442 `.omg` files in V1's `source`, `samples` and `tests/fixtures`
     lex with no refusals: 26 MB and 7.8 million tokens. Throughput is about
-    630 MB/s on one thread and 9.7 GB/s on all 32, up from about 78 MB/s
+    745 MB/s on one thread and 11 GB/s on all 32, up from about 78 MB/s
     at first. On the real path the lexer is not the limit: opening the
     files is, at about 100 MB/s. See
     [layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md). Run with

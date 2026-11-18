@@ -260,6 +260,66 @@ this layer:
   contents cached between builds, so that a build opens a handful of files
   and not thousands.
 - The cold case, straight from the drive, is not measured at all.
+## 5. Tightening the scanner (2026-11-18): two parts kept, one rejected
+
+**What was known.** The storage diagnostic in experiment 3 put about 4 of
+5.8 ns per token in the scanner's own decision work. A new measurement in the
+throughput tool split that further: the same line of code repeated, which a
+branch predictor learns almost perfectly, cost 3.8 ns per token against 5.8 on
+real files. So roughly a third of the per-token cost was branches guessed
+wrong, and the rest was straight-line work.
+
+Three changes were tried one at a time, each against the one before, in five
+alternating rounds of 15 passes. Figures are the median pass, file by file.
+
+**A. Pick each token's rule from a byte-class table: kept.** The main loop
+now looks the first byte up in a 256-entry table and handles whitespace, words
+and punctuation in place, with the position in a local. Numbers, quoted
+literals and block comments still go to the existing methods. The raw-literal
+check, which ran twice for every word starting with `r`, now runs only for the
+one-letter word `r`. Guess: 10 to 25 percent.
+
+| | Before | After |
+| --- | --- | --- |
+| Real files | 578 MB/s, 5.8 ns/token | 616 MB/s, 5.3 ns/token |
+| One line repeated | 3.8 ns/token | 3.1 ns/token |
+
+About 7 percent on real files and 18 percent on the predictable input. The
+straight-line work shrank as intended; on real files the wrong guesses, which
+this did not touch, hid most of it.
+
+**B. Find the end of a word without a data-dependent loop: kept.** A word's
+length differs every time, so a loop that exits at the end of the word is
+guessed wrong about once per word. `find_word_end` looks eight bytes up at
+once, packs the answers into a mask and reads the length off it. Guess: about
+10 percent.
+
+| | Before (A) | After (B) |
+| --- | --- | --- |
+| Real files | 642 MB/s, 5.2 ns/token | 745 MB/s, 4.5 ns/token |
+
+About 16 percent, in every round. This is the first estimate of a small gain
+that came in low.
+
+**C. The same window for whitespace runs: rejected.** Guess: a few percent.
+
+| | Before (B) | After (C) |
+| --- | --- | --- |
+| Real files | 740 MB/s | 626 MB/s |
+
+15 percent slower in every round. Most whitespace runs are one byte, so the
+plain loop exits at once and is guessed right, while the window always pays
+for eight lookups. Reverted; a comment at the site says why.
+
+**Same output.** Fingerprint `b7778a2e5cd741fb` in all thirty runs. 53 tests
+pass, with three new ones tying the class table to the punctuation list.
+
+**Where the lexer stands after A and B.** Fastest of 5 passes:
+
+| | 1 thread | 32 threads |
+| --- | --- | --- |
+| All 19,442 files | 746 MB/s | about 11 GB/s |
+| V1's `source` tree only (301 files, 13 KB average) | 832 MB/s | about 11 GB/s |
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
@@ -268,20 +328,22 @@ this layer:
 | 2. Larger reservation | 5 to 15 percent file by file | under 5 percent, unresolved |
 | 3. Punctuation match | 15 to 30 percent | about 9 percent |
 | 4. Reuse the token list | over 2 GB/s on 32 threads | about 9.7 GB/s |
+| 5A. Class-table dispatch | 10 to 25 percent | about 7 percent |
+| 5B. Branch-free word end | about 10 percent | about 16 percent |
+| 5C. Branch-free whitespace | a few percent faster | 15 percent slower |
 
-Estimates of small gains have run high. Read the guesses below with that in
-mind.
-
+Guesses about straight-line work have run high. The two that came in low, 4
+and 5B, both removed a wait (for the allocator, for a wrong branch guess)
+rather than work. Worth remembering when picking the next one.
 ## Candidates not yet tried
 
 Ranked for the file-by-file workload after the diagnostic above.
 
-1. **Tighten the scanner's decision work.** This is where the diagnostic says
-   the time is. `scan_token` picks its rule through a chain of comparisons;
-   every word starting with `r` runs the raw-literal check twice; the inner
-   loops go through a closure and a bounds-checked `peek` for every byte. A
-   byte-class table to pick the rule and loops over a plain slice are the
-   obvious forms. Guess: 10 to 25 percent, with the caveat above.
+1. **The remaining wrong guesses.** Real files still cost 4.5 ns per token
+   against 3.0 on a predictable input. What is left is mostly the choice of
+   rule itself, which follows the token sequence. Not obviously removable
+   without a different design, such as classifying a whole block of bytes at
+   once with vector instructions. Guess: unknown.
 2. **A smaller token.** 32 bytes holds two `usize` offsets and a 16-byte
    kind. Since tokens tile the source, a token's end is the next token's
    start, so start plus kind fits in 8 bytes. Worth at most the 14 percent

@@ -115,7 +115,17 @@ impl Punctuation {
         let first_byte = *remaining_bytes.first()?;
         let second_byte = remaining_bytes.get(1).copied().unwrap_or(0);
         let third_byte = remaining_bytes.get(2).copied().unwrap_or(0);
+        Self::match_leading_bytes(first_byte, second_byte, third_byte)
+    }
 
+    /// `longest_match` for a caller that already holds the next three bytes, with zero for any
+    /// byte past the end of the source. The scanner calls this directly so that choosing a
+    /// punctuation token costs no slice and no bounds check.
+    pub(crate) fn match_leading_bytes(
+        first_byte: u8,
+        second_byte: u8,
+        third_byte: u8,
+    ) -> Option<Punctuation> {
         Some(match (first_byte, second_byte) {
             (b'+', b'%') => Self::PlusWrapping,
             (b'+', b'|') => Self::PlusSaturating,

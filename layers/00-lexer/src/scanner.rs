@@ -27,65 +27,106 @@ impl<'source> Scanner<'source> {
         // is being reused usually has the room already, and then this does nothing.
         tokens.reserve(self.source_bytes.len() / 3 + 16);
 
-        while let Some(first_byte) = self.peek(0) {
-            let token_start = self.offset;
-            let kind = self.scan_token(token_start, first_byte)?;
+        // :HotLoop
+        // Nine tokens in ten are whitespace, a word or punctuation, and each of those is decided
+        // here from one table lookup with the position held in a local. Numbers, quoted literals
+        // and block comments are rare and have more rules, so they go to the methods below, which
+        // keep the position in `self.offset`; we hand it over before the call and take it back
+        // after.
+        let source_bytes = self.source_bytes;
+        let mut offset = 0usize;
+
+        while let Some(&first_byte) = source_bytes.get(offset) {
+            let token_start = offset;
+
+            let kind = match BYTE_CLASSES[usize::from(first_byte)] {
+                ByteClass::Whitespace => {
+                    // A plain loop on purpose. Most whitespace runs are a single byte, so the loop
+                    // exits at once and is guessed right; the eight-byte window used for words
+                    // was measured 15 percent slower here. See experiment 5 in EXPERIMENTS.md.
+                    offset = find_run_end(source_bytes, token_start + 1, |byte| {
+                        BYTE_CLASSES[usize::from(byte)] == ByteClass::Whitespace
+                    });
+                    TokenKind::Whitespace
+                }
+                ByteClass::WordStart => {
+                    offset = find_word_end(source_bytes, token_start + 1);
+                    // Only the one-letter word `r` can be the start of a raw literal, since the
+                    // next byte has to be a quote or a hash and neither can continue a word.
+                    if first_byte == b'r'
+                        && offset == token_start + 1
+                        && let Some(prefix_end) =
+                            find_raw_literal_prefix_end(source_bytes, token_start)
+                    {
+                        return Err(LexError::new(
+                            LexErrorKind::RawLiteralPrefix,
+                            Span::new(token_start, prefix_end),
+                        ));
+                    }
+                    TokenKind::Word
+                }
+                ByteClass::Punctuation => {
+                    let Some(punctuation) =
+                        match_punctuation_at(source_bytes, token_start, first_byte)
+                    else {
+                        return Err(unknown_character(token_start));
+                    };
+                    offset = token_start + punctuation.get_spelling().len();
+                    TokenKind::Punctuation(punctuation)
+                }
+                // A slash is a comment when the next byte says so, and punctuation otherwise.
+                ByteClass::Slash => match source_bytes.get(token_start + 1) {
+                    Some(b'/') => {
+                        // We stop before the line feed and let it join the next whitespace token.
+                        offset = find_run_end(source_bytes, token_start + 2, |byte| byte != b'\n');
+                        TokenKind::LineComment
+                    }
+                    Some(b'*') => {
+                        self.offset = token_start;
+                        let kind = self.scan_block_comment(token_start)?;
+                        offset = self.offset;
+                        kind
+                    }
+                    _ => {
+                        let Some(punctuation) =
+                            match_punctuation_at(source_bytes, token_start, first_byte)
+                        else {
+                            return Err(unknown_character(token_start));
+                        };
+                        offset = token_start + punctuation.get_spelling().len();
+                        TokenKind::Punctuation(punctuation)
+                    }
+                },
+                ByteClass::Digit => {
+                    self.offset = token_start;
+                    let kind = self.scan_number(token_start, first_byte)?;
+                    offset = self.offset;
+                    kind
+                }
+                ByteClass::Quote => {
+                    self.offset = token_start;
+                    let kind = self.scan_quoted(token_start)?;
+                    offset = self.offset;
+                    kind
+                }
+                ByteClass::NonAscii => {
+                    let character_end = token_start + get_utf8_character_byte_count(first_byte);
+                    return Err(LexError::new(
+                        LexErrorKind::NonAsciiOutsideCommentOrQuoted,
+                        Span::new(token_start, character_end.min(source_bytes.len())),
+                    ));
+                }
+                ByteClass::Unknown => return Err(unknown_character(token_start)),
+            };
+
             tokens.push(Token {
                 kind,
-                span: Span::new(token_start, self.offset),
+                span: Span::new(token_start, offset),
             });
         }
 
         Ok(())
     }
-
-    /// Scans the token that begins at `token_start`, leaving `offset` one past its last byte.
-    fn scan_token(&mut self, token_start: usize, first_byte: u8) -> Result<TokenKind, LexError> {
-        match first_byte {
-            byte if is_whitespace(byte) => {
-                self.skip_while(is_whitespace);
-                Ok(TokenKind::Whitespace)
-            }
-            // Comments are tested before punctuation, or `//` would lex as two slashes.
-            b'/' if self.peek(1) == Some(b'/') => {
-                // We stop before the line feed and let it join the next whitespace token.
-                self.skip_while(|byte| byte != b'\n');
-                Ok(TokenKind::LineComment)
-            }
-            b'/' if self.peek(1) == Some(b'*') => self.scan_block_comment(token_start),
-            b'"' => self.scan_quoted(token_start),
-            b'0'..=b'9' => self.scan_number(token_start, first_byte),
-            b'r' if self.get_raw_literal_prefix_end().is_some() => {
-                let prefix_end = self.get_raw_literal_prefix_end().unwrap_or(self.offset + 1);
-                Err(LexError::new(
-                    LexErrorKind::RawLiteralPrefix,
-                    Span::new(token_start, prefix_end),
-                ))
-            }
-            byte if is_word_start(byte) => {
-                self.skip_while(is_word_continue);
-                Ok(TokenKind::Word)
-            }
-            byte if !byte.is_ascii() => {
-                let character_end = token_start + get_utf8_character_byte_count(byte);
-                Err(LexError::new(
-                    LexErrorKind::NonAsciiOutsideCommentOrQuoted,
-                    Span::new(token_start, character_end.min(self.source_bytes.len())),
-                ))
-            }
-            _ => match Punctuation::longest_match(&self.source_bytes[token_start..]) {
-                Some(punctuation) => {
-                    self.offset += punctuation.get_spelling().len();
-                    Ok(TokenKind::Punctuation(punctuation))
-                }
-                None => Err(LexError::new(
-                    LexErrorKind::UnknownCharacter,
-                    Span::new(token_start, token_start + 1),
-                )),
-            },
-        }
-    }
-
     fn scan_block_comment(&mut self, token_start: usize) -> Result<TokenKind, LexError> {
         self.offset += 2;
         let mut open_comment_count = 1usize;
@@ -286,15 +327,6 @@ impl<'source> Scanner<'source> {
         }
     }
 
-    /// If the source at `offset` is `r"` or `r#...#"`, returns the offset just past the opening quote.
-    fn get_raw_literal_prefix_end(&self) -> Option<usize> {
-        let mut prefix_offset = self.offset + 1;
-        while self.source_bytes.get(prefix_offset) == Some(&b'#') {
-            prefix_offset += 1;
-        }
-        (self.source_bytes.get(prefix_offset) == Some(&b'"')).then_some(prefix_offset + 1)
-    }
-
     fn peek(&self, bytes_ahead: usize) -> Option<u8> {
         self.source_bytes.get(self.offset + bytes_ahead).copied()
     }
@@ -306,18 +338,141 @@ impl<'source> Scanner<'source> {
     }
 }
 
-fn is_whitespace(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\r' | b'\n')
+/// What the first byte of a token tells the scanner to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ByteClass {
+    Whitespace,
+    WordStart,
+    Digit,
+    Quote,
+    Slash, // Kept apart from other punctuation because it may begin a comment.
+    Punctuation,
+    NonAscii,
+    Unknown, // An ASCII byte that is not part of Omega's syntax, such as `@` or a control byte.
 }
 
-fn is_word_start(byte: u8) -> bool {
-    byte == b'_' || byte.is_ascii_alphabetic()
+/// The class of every possible byte, so that choosing a token's rule is one lookup.
+const BYTE_CLASSES: [ByteClass; 256] = build_byte_classes();
+
+const fn build_byte_classes() -> [ByteClass; 256] {
+    let mut classes = [ByteClass::Unknown; 256];
+    let mut byte = 0usize;
+    while byte < 256 {
+        classes[byte] = match byte as u8 {
+            b' ' | b'\t' | b'\r' | b'\n' => ByteClass::Whitespace,
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' => ByteClass::WordStart,
+            b'0'..=b'9' => ByteClass::Digit,
+            b'"' => ByteClass::Quote,
+            b'/' => ByteClass::Slash,
+            // @Volatile: must list every first byte in `Punctuation::ORDERED_SPELLINGS` except the
+            // slash. A test below fails if the two ever disagree.
+            b'+' | b'-' | b'*' | b'%' | b'<' | b'>' | b'=' | b'!' | b'&' | b'|' | b':' | b'.'
+            | b'\'' | b'^' | b'~' | b'#' | b',' | b';' | b'(' | b')' | b'[' | b']' | b'{'
+            | b'}' => ByteClass::Punctuation,
+            0x80..=0xFF => ByteClass::NonAscii,
+            _ => ByteClass::Unknown,
+        };
+        byte += 1;
+    }
+    classes
+}
+
+/// Whether a byte can appear inside a word after its first byte: a letter, a digit or an underscore.
+const IS_WORD_CONTINUE: [bool; 256] = build_is_word_continue();
+
+const fn build_is_word_continue() -> [bool; 256] {
+    let mut is_word_continue = [false; 256];
+    let mut byte = 0usize;
+    while byte < 256 {
+        is_word_continue[byte] =
+            matches!(byte as u8, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_');
+        byte += 1;
+    }
+    is_word_continue
+}
+
+/// Returns the offset of the first byte at or after `run_start` that `continues_run` rejects,
+/// or the end of the source if every remaining byte is accepted.
+fn find_run_end(
+    source_bytes: &[u8],
+    run_start: usize,
+    continues_run: impl Fn(u8) -> bool,
+) -> usize {
+    let Some(remaining_bytes) = source_bytes.get(run_start..) else {
+        return source_bytes.len();
+    };
+    remaining_bytes
+        .iter()
+        .position(|&byte| !continues_run(byte))
+        .map_or(source_bytes.len(), |run_byte_count| {
+            run_start + run_byte_count
+        })
+}
+
+/// Returns the offset of the first byte at or after `run_start` that cannot continue a word.
+///
+/// This does the same job as `find_run_end`, eight bytes at a time and without a loop that
+/// stops on the data. A word's length is different every time, so a loop that exits at the
+/// end of the word makes the processor guess the exit wrong about once per word, and a wrong
+/// guess costs more than reading the whole word did. Here we look all eight bytes up, pack the
+/// answers into a mask, and read the length off the mask; the only branch left asks whether the
+/// word ran past the window, which is usually no.
+fn find_word_end(source_bytes: &[u8], run_start: usize) -> usize {
+    const WINDOW_BYTE_COUNT: usize = 8;
+
+    let mut offset = run_start;
+    while let Some(window) = source_bytes
+        .get(offset..)
+        .and_then(|remaining_bytes| remaining_bytes.first_chunk::<WINDOW_BYTE_COUNT>())
+    {
+        let mut continue_mask = 0u32;
+        for (window_index, &byte) in window.iter().enumerate() {
+            continue_mask |= u32::from(IS_WORD_CONTINUE[usize::from(byte)]) << window_index;
+        }
+        let word_byte_count = continue_mask.trailing_ones() as usize;
+        if word_byte_count < WINDOW_BYTE_COUNT {
+            return offset + word_byte_count;
+        }
+        offset += WINDOW_BYTE_COUNT;
+    }
+
+    // Fewer than eight bytes are left in the source; finish them one at a time.
+    find_run_end(source_bytes, offset, |byte| {
+        IS_WORD_CONTINUE[usize::from(byte)]
+    })
+}
+
+/// Chooses the punctuation token that starts at `token_start`, whose first byte is `first_byte`.
+fn match_punctuation_at(
+    source_bytes: &[u8],
+    token_start: usize,
+    first_byte: u8,
+) -> Option<Punctuation> {
+    // Zero stands for "past the end of the source"; no punctuation spelling contains a zero byte.
+    let second_byte = source_bytes.get(token_start + 1).copied().unwrap_or(0);
+    let third_byte = source_bytes.get(token_start + 2).copied().unwrap_or(0);
+    Punctuation::match_leading_bytes(first_byte, second_byte, third_byte)
+}
+
+/// If the source at `r_offset` is `r"` or `r#...#"`, returns the offset just past the opening quote.
+fn find_raw_literal_prefix_end(source_bytes: &[u8], r_offset: usize) -> Option<usize> {
+    let mut prefix_offset = r_offset + 1;
+    while source_bytes.get(prefix_offset) == Some(&b'#') {
+        prefix_offset += 1;
+    }
+    (source_bytes.get(prefix_offset) == Some(&b'"')).then_some(prefix_offset + 1)
+}
+
+fn unknown_character(character_offset: usize) -> LexError {
+    LexError::new(
+        LexErrorKind::UnknownCharacter,
+        Span::new(character_offset, character_offset + 1),
+    )
 }
 
 fn is_word_continue(byte: u8) -> bool {
-    byte == b'_' || byte.is_ascii_alphanumeric()
+    IS_WORD_CONTINUE[usize::from(byte)]
 }
-
 /// `i`, `u`, `i<width>`, `u<width>`, `f32`, `f64`. A width is positive decimal with no leading zero.
 fn is_valid_literal_suffix(suffix_bytes: &[u8]) -> bool {
     match suffix_bytes {
@@ -339,5 +494,51 @@ fn get_utf8_character_byte_count(leading_byte: u8) -> usize {
         0x80..=0xDF => 2,
         0xE0..=0xEF => 3,
         0xF0..=0xFF => 4,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BYTE_CLASSES, ByteClass, IS_WORD_CONTINUE};
+    use crate::punctuation::Punctuation;
+
+    #[test]
+    fn every_punctuation_first_byte_is_classed_as_punctuation_or_slash() {
+        for (spelling, _) in Punctuation::ORDERED_SPELLINGS {
+            let first_byte = spelling.as_bytes()[0];
+            let class = BYTE_CLASSES[usize::from(first_byte)];
+            assert!(
+                matches!(class, ByteClass::Punctuation | ByteClass::Slash),
+                "`{spelling}` starts with a byte classed {class:?}, so the scanner would never try it"
+            );
+        }
+    }
+
+    #[test]
+    fn every_byte_classed_as_punctuation_starts_some_spelling() {
+        for byte in 0u8..=255 {
+            if matches!(
+                BYTE_CLASSES[usize::from(byte)],
+                ByteClass::Punctuation | ByteClass::Slash
+            ) {
+                assert!(
+                    Punctuation::longest_match(&[byte]).is_some(),
+                    "byte {byte:#04x} is classed as punctuation but matches no spelling"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_word_start_can_also_continue_a_word_and_so_can_a_digit() {
+        for byte in 0u8..=255 {
+            let class = BYTE_CLASSES[usize::from(byte)];
+            let expected = matches!(class, ByteClass::WordStart | ByteClass::Digit);
+            assert_eq!(
+                IS_WORD_CONTINUE[usize::from(byte)],
+                expected,
+                "byte {byte:#04x}"
+            );
+        }
     }
 }
