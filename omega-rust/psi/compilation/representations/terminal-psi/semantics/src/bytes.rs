@@ -471,12 +471,26 @@ pub(crate) mod byte_sequence_predicates {
         source: PlaceId,
     ) -> Option<&'machine terminal_psi::StructuralOperationResult> {
         let (operation, structural_type) = operation_producer(machine, source)?;
-        let callee = match operation.kind {
-            call_structural_pair_pattern!(callee, ..) => callee,
+        let signature = match &operation.kind {
+            call_structural_pair_pattern!(callee, ..) => module
+                .invocation_machine_contract(*callee, operation.required_contract)?
+                .result
+                .structural()?,
+            OperationKind::CallMachine { contract, .. } => {
+                if operation.required_contract.is_some() {
+                    return None;
+                }
+                let callable = module.callables.contract(*contract)?;
+                // The callable's public result owns the guarantee. Its shape
+                // columns and declared lifetime frontier must agree before an
+                // operation annotation can establish any byte predicate.
+                crate::references::callable_reference_result(&module.structural_types, callable)
+                    .ok()?;
+                callable.proof_result.structural()?
+            }
             _ => return None,
         };
         let result = operation.result.structural()?;
-        let signature = module.machine(callee)?.result.structural()?;
         (result.place == source
             && result.structural_type == structural_type
             && signature.structural_type == structural_type
@@ -549,7 +563,10 @@ pub(crate) mod byte_sequence_predicates {
         source: PlaceId,
     ) -> Option<ByteSequencePredicateSet> {
         let (operation, structural_type) = operation_producer(machine, source)?;
-        let result = if matches!(operation.kind, call_structural_pair_pattern!(..)) {
+        let result = if matches!(
+            operation.kind,
+            call_structural_pair_pattern!(..) | OperationKind::CallMachine { .. }
+        ) {
             authenticated_call_result(module, machine, source)?
         } else {
             let result = operation.result.structural()?;

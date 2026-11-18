@@ -33,8 +33,9 @@ pub struct PackagePolicyTraitRequirement {
     pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
-    pub(crate) published_crash: Vec<PackagePolicyCrashRoute>,
-    pub(crate) service_reach: Vec<PackageReviewNominalIdentity>,
+    /// None is open; Some(empty) is an explicit empty ceiling.
+    pub(crate) published_crash: Option<Vec<PackagePolicyCrashRoute>>,
+    pub(crate) service_reach: Option<Vec<PackageReviewNominalIdentity>>,
     pub(crate) service_reach_is_installation_bound: bool,
     pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     pub(crate) suspends: bool,

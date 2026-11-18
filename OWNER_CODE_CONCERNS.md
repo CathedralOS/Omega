@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Package review recovery cannot verify structural parameter indices
+
+- Category: A verdict with nothing behind it.
+- Where: [Public trait validation](omega-rust/omega/packages/review-evidence/src/record/public_policy/validation/declarations.rs#L75) and [trait policy recovery](omega-rust/omega/packages/review-evidence/src/encoding/recovery/policy/public_api/traits.rs#L64).
+- Saw: Recovery reads a parameter number from each returned borrow and each qualification. It checks ordering and domain identity, and accepts a number beyond the entire formal list. The policy holds each formal's type name, while source checking knows which formals use structural storage.
+- Cost: A recovered policy can describe a borrow or qualification on a nonexistent parameter. Retain the checked structural parameter list so recovery can validate both kinds of index.
+- Reported: 2026-11-18, Codex, while restoring package review for stored machine calls.
+
 ### Case splits rebuild unchanged proof facts
 - Category: Verifying costs more than writing
 - Where: [case splitting](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/prove.rs#L1674), [fact substitution](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L766)

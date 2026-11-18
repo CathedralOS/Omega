@@ -48,17 +48,21 @@ pub(crate) use opaque_representation_selection_accessors;
 
 macro_rules! package_policy_callable_signature_accessors {
     () => {
+        pub fn published_crash(&self) -> &[crate::record::PackagePolicyCrashRoute] { &self.published_crash }
+        pub fn service_reach(&self) -> &[crate::record::PackageReviewNominalIdentity] { &self.service_reach }
+        crate::record::accessors::package_policy_callable_signature_accessors!(@common);
+    };
+    (optional_ceilings) => {
+        pub fn published_crash(&self) -> Option<&[crate::record::PackagePolicyCrashRoute]> { self.published_crash.as_deref() }
+        pub fn service_reach(&self) -> Option<&[crate::record::PackageReviewNominalIdentity]> { self.service_reach.as_deref() }
+        crate::record::accessors::package_policy_callable_signature_accessors!(@common);
+    };
+    (@common) => {
         pub const fn return_type(&self) -> Option<&crate::record::PackageReviewTypeIdentity> {
             self.return_type.as_ref()
         }
         pub fn contracts(&self) -> &[crate::record::PackageReviewCallableContract] {
             &self.contracts
-        }
-        pub fn published_crash(&self) -> &[crate::record::PackagePolicyCrashRoute] {
-            &self.published_crash
-        }
-        pub fn service_reach(&self) -> &[crate::record::PackageReviewNominalIdentity] {
-            &self.service_reach
         }
         pub const fn service_reach_is_installation_bound(&self) -> bool {
             self.service_reach_is_installation_bound

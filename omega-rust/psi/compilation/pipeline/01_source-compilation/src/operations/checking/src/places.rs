@@ -5404,6 +5404,7 @@ impl<'a> Storage<'a> {
                 } else if matches!(
                     operation.kind,
                     terminal_psi::call_structural_pair_pattern!(..)
+                        | OperationKind::CallMachine { .. }
                         | OperationKind::ByteSequenceSubslice { .. }
                 ) {
                     if establishes_predicate() {

@@ -59,7 +59,7 @@ pub(super) fn render(
             names.reach(
                 output,
                 "declared-reach",
-                Some(requirement.service_reach()),
+                requirement.service_reach(),
                 "not declared",
             )?;
             names.invocations(

@@ -36,15 +36,21 @@ macro_rules! encode_callable_shape {
 pub(crate) use encode_callable_shape;
 
 macro_rules! encode_callable_behavior_tail {
-    ($encoder:expr, $record:ident) => {{
+    (@ceiling $encoder:expr, $record:expr, $encoder_fn:ident) => {
+        $encoder.sequence($record, $encoder_fn)
+    };
+    (@ceiling $encoder:expr, $record:expr, $encoder_fn:ident, optional) => {
+        $encoder.option($record.as_ref(), |encoder, rows| encoder.sequence(rows, $encoder_fn))
+    };
+    ($encoder:expr, $record:ident $(, $optional:ident)?) => {{
         ($encoder).field("contracts", |encoder| {
             encoder.sequence(&$record.contracts, encode_callable_contract)
         })?;
         ($encoder).field("published_crash", |encoder| {
-            encoder.sequence(&$record.published_crash, crash_route)
+            encode_callable_behavior_tail!(@ceiling encoder, &$record.published_crash, crash_route $(, $optional)?)
         })?;
         ($encoder).field("service_reach", |encoder| {
-            encoder.sequence(&$record.service_reach, encode_nominal)
+            encode_callable_behavior_tail!(@ceiling encoder, &$record.service_reach, encode_nominal $(, $optional)?)
         })?;
         ($encoder).field("service_reach_is_installation_bound", |encoder| {
             encoder.boolean($record.service_reach_is_installation_bound);

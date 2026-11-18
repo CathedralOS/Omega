@@ -964,15 +964,20 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// The `MachineId` that stands for a trait requirement in a generic
-    /// check form: its signature and contract, read as any machine's, and
-    /// no body. A requirement with value parameters is one machine per
-    /// tuple of literals a call binds them to (`arguments`), because its
-    /// contract differs with them.
-    /// A template requirement's own check form: the requirement read once as
-    /// a bodyless machine with its `const` binders as rigid inputs, so its
-    /// contract is judged for every admitted application (generics.md,
-    /// "Publication and assumptions").
+    /// Read the headers of authored requirements in this check form.
+    pub(super) fn declared_requirement_headers(
+        &self,
+    ) -> impl Iterator<Item = (SymbolHandle, MachineId)> + '_ {
+        self.requirement_headers
+            .iter()
+            .filter_map(|(origin, machine)| match origin {
+                RequirementHeaderOrigin::Declared(declaration) => Some((*declaration, *machine)),
+                RequirementHeaderOrigin::CallableParameter(_) => None,
+            })
+    }
+
+    /// Read a template requirement as a bodyless machine with rigid inputs
+    /// so the checker judges its contract for every admitted application.
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
         self.requirement_form(
             RequirementHeaderOrigin::Declared(declared.symbol),
@@ -981,6 +986,7 @@ impl<'t> Program<'t> {
         )
     }
 
+    /// Read the requirement for the exact literals supplied by a call.
     pub(super) fn requirement(
         &mut self,
         declared: &StateSignature,

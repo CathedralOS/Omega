@@ -16,6 +16,7 @@ mod provider_rows;
 mod providers;
 mod runtime_permissions;
 mod semantic_bindings;
+mod traits;
 
 pub use input::{IntoPackageReviewInput, PackageReviewInput};
 pub use package_review::{PackageReviewProjectionError, project_package_review};

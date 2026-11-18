@@ -18035,9 +18035,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/policy.rs",
       "item": "function:declaration_policy#1",
       "kind": "producer",
-      "meaning": "Check authority and module support and prepare all public, callable, representation and Build review fields.",
+      "meaning": "Check authority and module support, then assemble the package-owned public traits, callables, representation and Build declarations.",
       "producer": "package policy projection",
-      "signature": "795fa6d7e4de04deb129580bafe34bb915b88bbdb57348570b267d363ca6b5da"
+      "signature": "437e01712a6f0192fca7743d8f00cbe9c6f49018ba7154e69d638fba9d3dc10b"
     },
     {
       "consumers": [
@@ -18047,9 +18047,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/policy.rs",
       "item": "function:prepare#1",
       "kind": "producer",
-      "meaning": "Compute source service ownership, native declarations, provider contracts and full inventories at source time, recording review failures in decision order.",
+      "meaning": "Collect package service ownership, native declarations, provider contracts and ordinary public traits, and retain any error for final review.",
       "producer": "package policy projection",
-      "signature": "9be9f458f583957c2d797527663e54e925ff4a860c09c6b0d18a189da4db1729"
+      "signature": "a57e0604e60710b186817f46cfacc868443ea2d61fe87fa3e76b5b79264d6c33"
     },
     {
       "consumers": [
@@ -18083,9 +18083,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/policy.rs",
       "item": "function:require_supported_inventory#1",
       "kind": "checker",
-      "meaning": "Reject any unsupported package-owned declaration or unaccounted boundary, including declarations without executable demand.",
+      "meaning": "Reject unsupported package-owned declarations and unreviewed boundary traits, including those with no executable demand.",
       "producer": "package policy projection",
-      "signature": "ba86a4580ef68b785762fad9d1e4e967b78ba062d91e7b248366d9312ccd62c0"
+      "signature": "e48bf41be7391f30326a9e5ce56e5635baf9f5902024b3a7a4b0db1cb7afaf1b"
     },
     {
       "consumers": [
@@ -18107,9 +18107,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/policy.rs",
       "item": "impl:PreparedPolicy::implementation#1",
       "kind": "definition",
-      "meaning": "Implement package policy projection operations on PreparedPolicy.",
+      "meaning": "Finish package policy with the actual native bindings and selected providers, then validate the result.",
       "producer": "package policy projection",
-      "signature": "52d8d0b88c25f89f53c573148637b5d64b149c4480de8961b9737ba32748c621"
+      "signature": "a882903cb8cfb99a5ce866df3234cc7b333de18fe115d47f33fd8360b3dfce1c"
     },
     {
       "consumers": [
@@ -18119,9 +18119,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/policy.rs",
       "item": "impl:PreparedPolicy::method:finish#1",
       "kind": "checker",
-      "meaning": "Join prepared declarations to the actual native bindings and selected provider shapes and validate the resulting canonical policy.",
+      "meaning": "Combine the source-owned public trait rows with selected provider traits, verify native and target correspondence, and validate the canonical policy.",
       "producer": "package policy projection",
-      "signature": "e1c76623400da01bf78bf97f43b31988ea86b4c608144585d4b5365df82b6f07"
+      "signature": "3871aaea633ba2c4659df3fa01075a5e4e6683fc6287eac7a5333667620eb225"
     },
     {
       "consumers": [
@@ -18995,9 +18995,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "function:service_requirement#1",
       "kind": "producer",
-      "meaning": "Convert the complete original reviewed callable into its service trait requirement shape.",
+      "meaning": "Project the checked service callable into a trait requirement, retaining its declared reach and crash ceilings.",
       "producer": "package review provider contracts",
-      "signature": "cdef6ed83b6f2ba8cdb79d108b0234455a3955eef5863e48dc576f677a7affc8"
+      "signature": "8799f730cc2e92666cf9e1b85fe7366855c183bedc17048d4fce8bfecd851370"
     },
     {
       "consumers": [

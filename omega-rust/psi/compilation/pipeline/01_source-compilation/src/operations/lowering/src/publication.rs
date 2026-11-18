@@ -15,6 +15,9 @@ pub struct SourceCorrespondence {
 #[derive(Debug, Clone, Default)]
 pub struct SourceFormCorrespondence {
     pub records: Vec<crate::source_state::SourceRecordCorrespondence>,
+    /// Declaration-owned review facts from this exact form. They become
+    /// available only after every form of the source compilation accepts.
+    pub review_requirements: Vec<RequirementReview>,
     pub designated: IdTable<MachineId, Vec<(OperationId, DesignatedOperands)>>,
     /// Each requirement a Build awaits a provider for
     /// (`DesignatedOperands::readiness`), with the identity of the trait that
@@ -40,6 +43,28 @@ pub struct SourceFormCorrespondence {
         crate::source_state::SourceNode,
     )>,
     pub selection_questions: Option<crate::lowering::selection_questions::RawSelectionQuestions>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementReviewMetadata {
+    pub parameter_types: Vec<String>,
+    pub result_type: Option<String>,
+    pub lifetime_parameter_count: usize,
+    /// None is an open ceiling; Some(empty) is a closed empty ceiling.
+    pub service_reach: Option<Vec<symbols::SymbolHandle>>,
+    pub crash_is_open: bool,
+    pub returned_parameters: Vec<u32>,
+    pub parameter_qualifications: Vec<(u32, symbols::SymbolHandle)>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub terminates: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementReview {
+    pub declaration: symbols::SymbolHandle,
+    /// Unsupported metadata cannot turn into an empty policy claim.
+    pub metadata: Result<RequirementReviewMetadata, String>,
 }
 
 pub(crate) struct PreparedProgram<'source> {

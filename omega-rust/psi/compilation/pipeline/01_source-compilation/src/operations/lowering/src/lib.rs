@@ -56,7 +56,8 @@ mod compilation;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{
-    DesignatedOperands, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+    DesignatedOperands, RequirementReview, RequirementReviewMetadata, SourceCorrespondence,
+    SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]
@@ -1378,6 +1379,7 @@ fn finish_reading_into<'source>(
             .flat_map(|rows| rows.signatures.iter().map(|row| &row.storage)),
         &mut elaboration.module,
     )?;
+    source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
