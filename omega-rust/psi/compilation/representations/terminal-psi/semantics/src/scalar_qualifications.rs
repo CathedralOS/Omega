@@ -13,6 +13,10 @@ use terminal_psi::{
 
 #[derive(Debug)]
 pub enum ScalarQualificationError {
+    NormalResultMembership {
+        machine: Option<MachineId>,
+        detail: &'static str,
+    },
     MalformedStructuralFoundation(&'static str),
     MalformedProposition(semantic_vocabulary::PropositionError),
     MalformedScalarReturnFoundation {
@@ -1075,8 +1079,13 @@ pub fn validate_for_bodies(
             return malformed("scalar qualification set names an absent domain");
         }
     }
-    let membership_facts = crate::membership_facts::analyze_bodies(module, bodies)
-        .map_err(|error| ScalarQualificationError::MalformedStructuralFoundation(error.detail))?;
+    let membership_facts =
+        crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
+            ScalarQualificationError::NormalResultMembership {
+                machine: error.machine,
+                detail: error.detail,
+            }
+        })?;
     for coercion in &catalog.coercions {
         let machine = module
             .machines

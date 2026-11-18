@@ -360,36 +360,34 @@ impl Program<'_> {
                 "a schema query lost its exact selected type application",
             ));
         }
-        let data = self
-            .typed
-            .closed_data_definition(reference)
-            .ok_or_else(|| fail("a schema query requires its retained data application"))?;
+        let subject =
+            typed_trees::reflection::construction::schema_subject_symbol(self.typed, reference)
+                .map_err(|reason| invalid(machine, reason))?;
         let author = application.lexical_owner(self.typed);
         let span = self
             .typed
             .symbols
             .symbol_provenance_source_span(author)
             .ok_or_else(|| fail("a schema query lost its actual source author"))?;
-        let declared = self
-            .typed
-            .symbols
-            .symbol_provenance_source_span(data.symbol)
-            .ok_or_else(|| fail("a schema query lost its declaration source"))?;
+        let authored_subject_is_valid = self.typed.symbols.builtin_type_atom(subject).is_some()
+            || self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(subject)
+                .is_some_and(|declared| self.typed.symbols.source_file(declared).is_some());
         if self.typed.symbols.source_file(span).is_none()
-            || self.typed.symbols.source_file(declared).is_none()
+            || !authored_subject_is_valid
             || !self
                 .typed
                 .symbols
-                .source_reference_may_select_symbol(span, data.symbol)
+                .source_reference_may_select_symbol(span, subject)
         {
             return Err(fail(
                 "a schema query is outside its author's declaration scope",
             ));
         }
         let authority = typed_trees::reflection::construction::schema_query_authority(
-            self.typed,
-            author,
-            data.symbol,
+            self.typed, author, subject,
         )
         .map_err(|reason| invalid(machine, reason))?;
         let graph =
@@ -400,7 +398,7 @@ impl Program<'_> {
         // Describing and forming this type select the same actual application.
         // This constructs no inhabitant and establishes no domain or layout
         // permission.
-        self.record_at(machine, reference)?;
+        self.value_type(machine, reference)?;
         let (_, entry) = self.declaration(machine, query)?;
         let result_type = entry.return_type;
         let result = self

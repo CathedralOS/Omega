@@ -1,7 +1,38 @@
 // Expected exit: 0
 
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::reflect;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::Issuance;
+use omega::language::core::access;
+
+StampAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })
+    }
+}
+
+WordStampAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp_word)] })
+    }
+}
+
+TickAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(tick_source)] })
+    }
+}
+
+AllocationAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(NativeAllocation::allocate)] })
+    }
+}
+
 data Ticket { number: u32; }
-domain Ticket::Stamped requires self.number > 0u32 established by stamp;
+domain Ticket::Stamped requires self.number > 0u32 access StampAccess;
 machine stamp(ticket: Ticket) -> Ticket
 requires ticket.number > 0u32
 ensures result in Stamped {
@@ -14,7 +45,7 @@ machine record_value(number: u32) -> u32 requires number > 0u32 {
     tagged.number
 }
 machine other(ticket: Ticket) -> Ticket { ticket }
-domain u32::WordStamped established by stamp_word;
+domain u32::WordStamped access WordStampAccess;
 machine stamp_word(number: u32) -> u32 ensures result in WordStamped {
     let tagged: u32 in WordStamped = number as +WordStamped;
     tagged as -WordStamped
@@ -36,7 +67,7 @@ machine entry() -> u32 crashes Trap {
     machine wrong() -> u32 crashes Trap { crash Trap; }
 }
 
-domain u64::Ticked established by tick_source;
+domain u64::Ticked access TickAccess;
 machine tick_source(value: u64) -> u64 ensures result in Ticked {
     let tagged: u64 in Ticked = value as +Ticked;
     tagged as -Ticked
@@ -46,7 +77,7 @@ boundary trait Service {
 }
 Selected satisfies Service { machine tick() -> u64 reaches none crashes none { tick_source(29u64) } }
 Unselected satisfies Service { machine tick() -> u64 reaches none crashes none { tick_source(37u64) } }
-domain addr::Allocated established by NativeAllocation::allocate;
+domain addr::Allocated access AllocationAccess;
 boundary trait NativeAllocation {
     machine allocate(count: u64, width: u64) -> addr
     reaches NativeAllocation requires count == 1

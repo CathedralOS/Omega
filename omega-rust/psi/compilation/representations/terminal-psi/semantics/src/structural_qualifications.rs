@@ -1410,12 +1410,7 @@ fn validate_change(
             !shown.contains(id)
                 && domain(module, id.0)
                     .and_then(|row| row.access_policy.as_ref())
-                    .is_some_and(|plan| {
-                        !plan.readers.is_empty()
-                            || !plan.writers.is_empty()
-                            || !plan.observations.is_empty()
-                            || plan.reach.services().len() != 0
-                    })
+                    .is_some_and(|plan| plan.has_operation_rules())
         }) {
             return malformed(
                 machine,

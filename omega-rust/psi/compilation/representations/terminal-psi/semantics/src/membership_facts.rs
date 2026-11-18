@@ -173,6 +173,11 @@ struct Fact {
 }
 
 impl Fact {
+    fn needs_projection_evidence(&self) -> bool {
+        matches!(&self.subject, Subject::Storage { location, .. }
+            if location.path.iter().any(|step| !matches!(step, DescriptorPathSegment::Field(_))))
+    }
+
     fn has_case_projection(&self) -> bool {
         matches!(&self.subject, Subject::Storage { location, .. }
             if location.path.iter().any(|step| matches!(step, DescriptorPathSegment::Case(_))))
@@ -854,16 +859,36 @@ fn bind_result(
 /// Join each published promise to its checked body once. A provider's normal
 /// guarantees are owed even when its implementation omits an explicit clause.
 fn prepare_promises(module: &TerminalModule) -> Judged<BTreeMap<MachineId, Vec<Fact>>> {
+    // Pure predicates are still ordinary postconditions. Retain their header
+    // rows, but do not invent an additional issuer obligation for their bodies.
+    let predicates = module
+        .scalar_qualifications
+        .domains
+        .iter()
+        .filter(|domain| {
+            domain.establishment_routes.is_none() && domain.has_no_required_memberships()
+        })
+        .map(|domain| Domain::Scalar(domain.id))
+        .chain(
+            module
+                .structural_domains
+                .iter()
+                .filter(|domain| domain.is_pure_predicate() && domain.byte_predicate.is_none())
+                .map(|domain| Domain::Structural(domain.id)),
+        )
+        .collect::<BTreeSet<_>>();
     let mut promises = BTreeMap::<MachineId, Vec<Fact>>::new();
     let mut append = |machine: &TerminalMachine,
                       binding: ResultBinding,
                       rows: &[RuntimeDomainMembership]|
      -> Judged<()> {
         for row in rows {
-            promises
-                .entry(machine.id)
-                .or_default()
-                .push(binding.membership(module, Some(machine.id), row)?);
+            let fact = binding.membership(module, Some(machine.id), row)?;
+            // Cases, indices and dereferences still owe formation evidence;
+            // their conditional field types cannot establish that themselves.
+            if fact.needs_projection_evidence() || !predicates.contains(&fact.domain) {
+                promises.entry(machine.id).or_default().push(fact);
+            }
         }
         Ok(())
     };
@@ -1988,7 +2013,7 @@ mod tests {
             copied.0.is_empty(),
             "unknown writes can change the referent"
         );
-        copied.accept_transfers(transfers, Some(&[destination.clone()]));
+        copied.accept_transfers(transfers, Some(std::slice::from_ref(&destination)));
         assert!(
             copied.0.contains_key(&fact(destination)),
             "the copy creates its own destination image"

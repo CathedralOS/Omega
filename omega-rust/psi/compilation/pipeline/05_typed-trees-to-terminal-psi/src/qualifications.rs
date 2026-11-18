@@ -462,6 +462,14 @@ impl Qualifications {
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
             let definition = source.domain_theory(diagnostic, symbol)?;
+            if definition.access_policy.as_ref().is_some_and(|policy| {
+                matches!(&policy.plan, typed_trees::domain::AccessPlanJudgment::Checked(plan)
+                    if plan.normalized.has_operation_rules())
+            }) {
+                return Err(unavailable(
+                    "scalar domain access rules need retained operation checking",
+                ));
+            }
             let identity =
                 domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
             let mut predicate =

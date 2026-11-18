@@ -670,7 +670,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let definition = self.domain_theory(id, domain)?;
-        if definition.access_policy.is_some() {
+        if definition.requires_access_retention() {
             return Err(unavailable(
                 "removal of a domain governed by an access policy",
             ));

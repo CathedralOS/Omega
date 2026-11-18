@@ -46,17 +46,16 @@ pub fn prepare_replay<'source>(
         .collect::<Vec<_>>();
     terminal_semantics::scalar_qualifications::validate_for_bodies(&elaboration.module, &bodies)
         .map_err(|error| {
-            crate::refusal(
-                RefusalReason::ForeignIdentity,
-                elaboration
-                    .module
-                    .machines
-                    .first()
-                    .map(|machine| machine.id)
-                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
-                Construct::Machine,
-                &format!("invalid declared scalar qualifications: {error:?}"),
-            )
+            let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+            let (machine, detail) = match error {
+                terminal_semantics::scalar_qualifications::ScalarQualificationError::NormalResultMembership { machine, detail } => (
+                    machine.unwrap_or_else(fallback),
+                    format!("domain guarantee for the returned value: {detail}"),
+                ),
+                other => (fallback(), format!("invalid declared scalar qualifications: {other:?}")),
+            };
+            crate::refusal(RefusalReason::ForeignIdentity, machine, Construct::Machine, &detail)
         })?;
     // Declared linear leaves owe their claims even when the producer omitted
     // every claim row. Check that premise before following the supplied rows.

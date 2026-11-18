@@ -33,6 +33,15 @@ pub struct AccessPlan<
 }
 
 impl<Region, Caller> AccessPlan<Region, Caller> {
+    /// Rules for using an issued value remain attached to it. Issuer choice
+    /// alone places no restriction on later reads, writes or observations.
+    pub fn has_operation_rules(&self) -> bool {
+        !self.readers.is_empty()
+            || !self.writers.is_empty()
+            || !self.observations.is_empty()
+            || self.reach.services().len() != 0
+    }
+
     /// Replace descriptions with the exact fields and functions they name.
     /// Keep every rule: later rules must not override earlier restrictions or
     /// discard the independent issuer, caller, observation and reach choices.

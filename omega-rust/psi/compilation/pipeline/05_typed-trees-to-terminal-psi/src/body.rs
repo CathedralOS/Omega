@@ -509,7 +509,6 @@ impl OperationalCeilings {
     }
 }
 
-/// A machine's published signature as lowering and its callers need it.
 /// An authored membership promise, separate from the subject's declared type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeMembership {
@@ -528,6 +527,7 @@ pub enum RuntimeMembershipSubject {
     },
 }
 
+/// A machine's published signature as lowering and its callers need it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     /// Independent suspension and worker-blocking bounds.

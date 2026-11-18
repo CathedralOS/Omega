@@ -598,6 +598,10 @@ machine entry() -> u32 crashes none {
     let boundary = &module.boundary_machines[0];
     let method = &module.service_schemas[0].surface.methods[0];
     assert_eq!(method.normal_result_memberships.len(), 1);
+    assert!(!boundary.requires_checked_result(
+        &module.structural_domains,
+        &module.scalar_qualifications.domains
+    ));
     terminal_semantics::validate_boundary_normal_memberships(&module, boundary, method).unwrap();
     let mut missing = boundary.clone();
     missing.membership_ensures.clear();
@@ -734,10 +738,10 @@ machine entry() -> u32 {
         Err(refusal) => refusal,
     };
     assert!(
-        refusal.detail.contains("zero construction adds")
+        refusal.detail.contains("this cast adds `Ticket::Stamped`")
             && refusal
                 .detail
-                .contains("outside its authorized establishment routes"),
+                .contains("not one of the domain's establishment routes"),
         "{refusal:?}"
     );
 }
@@ -884,9 +888,130 @@ machine entry() -> u64 reaches Service { Service::tick() }
         matches!(positive.unwrap(), RouteVerdict::Accepted(_)),
         "{positive_name}"
     );
-    let refusal = format!("{negative:?}");
+    let refusal = match negative {
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal,
+        other => panic!("{negative_name}: {other:?}"),
+    };
     assert!(
-        refusal.contains("normal completion does not establish its promised runtime membership"),
-        "{negative_name}: {refusal}"
+        refusal
+            .detail
+            .contains("normal completion does not establish its promised runtime membership"),
+        "{negative_name}: {refusal:?}"
     );
+    let selected_name = text.rfind("machine tick()").unwrap() + "machine ".len();
+    assert_eq!(
+        refusal.source_span.unwrap().span.start,
+        selected_name,
+        "the error must identify the selected body: {refusal:?}"
+    );
+}
+
+#[test]
+fn a_pure_result_membership_keeps_its_independent_predicate_proof() {
+    let source = r#"
+domain u32::Positive requires self > 0u32;
+machine entry(value: u32 in Positive) -> u32
+ensures result in Positive { value as -Positive }
+"#;
+    let negative = source.replace("value as -Positive", "0u32");
+    let observed = [
+        ("predicate established", source),
+        ("predicate false", negative.as_str()),
+    ]
+    .map(|(name, source)| {
+        let mut elaboration = invocation(source).unwrap();
+        assert_eq!(elaboration.module.scalar_qualifications.domains.len(), 1);
+        let domain = elaboration.module.scalar_qualifications.domains[0].id;
+        for machine in &mut elaboration.module.machines {
+            let result = machine.result.scalar_ref().unwrap();
+            machine.contract.membership_ensures.push(
+                terminal_psi::RuntimeDomainMembership::Scalar {
+                    subject: semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                    domain,
+                },
+            );
+        }
+        let verdict = judge(Ok(elaboration));
+        match &verdict {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+        (name, verdict)
+    });
+    let [(name, positive), (negative_name, negative)] = observed;
+    assert!(
+        matches!(positive.unwrap(), RouteVerdict::Accepted(_)),
+        "{name}"
+    );
+    assert!(
+        matches!(negative.unwrap(), RouteVerdict::Rejected { unproved, .. } if !unproved.is_empty()),
+        "{negative_name}"
+    );
+}
+
+#[test]
+fn native_scalar_promises_require_their_exact_nominal_issuer() {
+    let module = invocation(
+        r#"
+domain u64::Issued established by Native::issue;
+boundary trait Native {
+    machine issue() -> u64 reaches none ensures result in Issued crashes none;
+    machine other() -> u64 reaches none crashes none;
+}
+machine entry() -> u64 crashes none {
+    let other: u64 = Native::other();
+    Native::issue()
+}
+"#,
+    )
+    .unwrap()
+    .module;
+    let own = module
+        .boundary_machines
+        .iter()
+        .find(|row| !row.membership_ensures.is_empty())
+        .unwrap();
+    let other = module
+        .boundary_machines
+        .iter()
+        .find(|row| row.membership_ensures.is_empty())
+        .unwrap();
+    let requires_checked = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
+        boundary.requires_checked_result(
+            &module.structural_domains,
+            &module.scalar_qualifications.domains,
+        )
+    };
+    let mut wrong_callable = own.clone();
+    wrong_callable.identity = other.identity;
+    let mut wrong_owner = own.clone();
+    wrong_owner.declaration.as_mut().unwrap().source.state =
+        other.declaration.as_ref().unwrap().source.state.clone();
+    let mut missing = own.clone();
+    missing.declaration = None;
+    let observed = [
+        ("own requirement", requires_checked(own), false),
+        ("another callable", requires_checked(&wrong_callable), true),
+        (
+            "another nominal owner",
+            requires_checked(&wrong_owner),
+            true,
+        ),
+        ("missing declaration", requires_checked(&missing), true),
+    ];
+    for boundary in [own, other] {
+        let source = &boundary.declaration.as_ref().unwrap().source;
+        eprintln!(
+            "callable: {:?}; nominal requirement: {:?}; semantic declaration: {:?}",
+            module.identities.text(boundary.identity),
+            module.identities.text(source.state.identity()),
+            module.identities.text(source.semantic_declaration)
+        );
+    }
+    for (name, actual, _) in &observed {
+        eprintln!("{name}: requires checked body = {actual}");
+    }
+    for (name, actual, expected) in observed {
+        assert_eq!(actual, expected, "{name}");
+    }
 }

@@ -2528,10 +2528,7 @@ pub(crate) mod identity_context {
                 return path;
             }
             if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
-                return compound(
-                    NameForm::CompilerType,
-                    [atom(Label::Atom, &builtin_atom.identity())],
-                );
+                return language_semantics::type_identity::builtin_type_name(builtin_atom);
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())

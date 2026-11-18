@@ -2092,6 +2092,14 @@ every earlier semantic format reject before payload interpretation.
 The `OMGFCV\0\0` fixed-view recovery envelope uses version 117 for this semantic
 vocabulary; versions 103 through 116 reject at the recovery header.
 
+Semantic schema images use version 2. Declaration shape 4 describes an exact
+compiler-owned scalar: its payload retains Boolean, integer sign and width,
+address, or IEEE format identity. Address is target-parametric, not a fixed-width
+integer. Primitive roots have no fields, cases, parameters or retired members;
+their canonical builtin identity and semantic revision replace authored source
+identity and revision. Other declaration shapes retain their source identities.
+Version 1 images and inconsistent primitive payloads reject before use.
+
 A present domain access policy carries the complete runtime schema image,
 optional issuance callers, counted reader and writer rules, observations and
 service reach. Each rule retains its exact schema region and optional structural

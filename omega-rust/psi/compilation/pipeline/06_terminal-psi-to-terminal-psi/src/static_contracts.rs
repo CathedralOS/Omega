@@ -222,6 +222,10 @@ pub(crate) fn requirement_declarations(
                         .eq(machine.ensures.iter().map(|row| &row.proposition)),
                 ),
                 (
+                    "abstract requirement has different source result memberships",
+                    header.proof.membership_ensures != machine.contract.membership_ensures,
+                ),
+                (
                     "abstract requirement has different source crash routes",
                     header.proof.declared_crash_routes != machine.declared_crash_routes,
                 ),
