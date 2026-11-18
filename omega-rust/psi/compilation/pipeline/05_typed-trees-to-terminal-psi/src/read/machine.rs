@@ -4286,7 +4286,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(operand, binder, out);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             spans(base, binder, out);
             spans(index, binder, out);
         }

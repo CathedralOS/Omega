@@ -2004,6 +2004,13 @@ impl<'a> Storage<'a> {
                     )
                     .expect("u64 is valid"),
                 )),
+                (Shape::View, Segment::RuntimeIndex { .. }) => Shape::Scalar(ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        8,
+                    )
+                    .expect("u8 is valid"),
+                )),
                 (Shape::View, _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a stored view"));
                 }
@@ -2089,6 +2096,41 @@ impl<'a> Storage<'a> {
                 }
                 (Shape::Payload(_), Segment::Case(_)) => {
                     return Err(self.foreign(concerns, "a case beneath a case"));
+                }
+                (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. })
+                    if matches!(
+                        self.declaration(owner, concerns)?.shape,
+                        StructuralTypeShape::ByteSequence(_)
+                    ) =>
+                {
+                    let StructuralTypeShape::ByteSequence(carrier) =
+                        self.declaration(owner, concerns)?.shape
+                    else {
+                        unreachable!()
+                    };
+                    if let Segment::FixedIndex(index) = segment {
+                        let terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } =
+                            carrier
+                        else {
+                            return Err(self.foreign(
+                                concerns,
+                                "a fixed byte index needs a declared fixed extent",
+                            ));
+                        };
+                        if *index >= capacity {
+                            return Err(self.foreign(
+                                concerns,
+                                "a literal byte index exceeds its declared extent",
+                            ));
+                        }
+                    }
+                    Shape::Scalar(ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            8,
+                        )
+                        .expect("u8 is valid"),
+                    ))
                 }
                 (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
                     let element = match self.declaration(owner, concerns)?.shape {
@@ -2503,10 +2545,16 @@ impl<'a> Storage<'a> {
                 projection.path,
                 types,
                 |prefix| {
-                    terminal_semantics::preceding_element_view_length(
+                    terminal_semantics::preceding_collection_length(
                         preceding,
                         projection.root,
                         prefix,
+                        terminal_semantics::runtime_structural_field(
+                            self.types.iter(),
+                            root,
+                            prefix,
+                        )
+                        .map(|field| field.id),
                     )
                 },
                 |owned, goal| {
