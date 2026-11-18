@@ -1,0 +1,10 @@
+{
+  "source_inputs": [
+    ".gitignore",
+    "README.md",
+    "build.omg",
+    "dependency",
+    "generator",
+    "main.omg"
+  ]
+}
