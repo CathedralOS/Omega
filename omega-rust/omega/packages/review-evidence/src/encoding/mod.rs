@@ -22,7 +22,9 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // Calling plans distinguish Darwin integer composites from scalar values.
 // Every component embedding a physical calling application advertises the
 // expanded class vocabulary even though existing class tags are unchanged.
-pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 35;
+// Ordinary public requirements preserve open reach/crash separately from
+// authored empty ceilings; predecessor payloads are not reinterpreted.
+pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 36;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 10;

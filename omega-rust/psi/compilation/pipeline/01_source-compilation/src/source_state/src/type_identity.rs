@@ -480,6 +480,32 @@ pub(crate) mod callable_identity {
             scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            self.requirement_definition_types_with_sources(scope, requirement, &[], None)
+        }
+
+        pub fn exact_requirement_definition_types(
+            &self,
+            scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+            requirement: &StateSignature,
+            exact_sources: &[(source_text::SourceId, [u8; 32])],
+        ) -> Option<(Vec<String>, String, usize)> {
+            let missing = std::cell::Cell::new(false);
+            let result = self.requirement_definition_types_with_sources(
+                scope,
+                requirement,
+                exact_sources,
+                Some(&missing),
+            );
+            (!missing.get()).then_some(result).flatten()
+        }
+
+        fn requirement_definition_types_with_sources(
+            &self,
+            scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+            requirement: &StateSignature,
+            exact_sources: &[(source_text::SourceId, [u8; 32])],
+            missing_owner: Option<&std::cell::Cell<bool>>,
+        ) -> Option<(Vec<String>, String, usize)> {
             let owner = scope.declaration;
             let mut type_parameters = self.trait_type_parameters(owner).to_vec();
             type_parameters.extend(
@@ -502,6 +528,8 @@ pub(crate) mod callable_identity {
                         substitution_scope_starts: &scope.substitution_scope_starts,
                         application_scopes,
                         application_argument_owner: scope.argument_owner,
+                        exact_toolchain_sources: exact_sources,
+                        missing_exact_nominal_owner: missing_owner,
                         ..Default::default()
                     },
                 )

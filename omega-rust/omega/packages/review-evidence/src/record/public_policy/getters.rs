@@ -31,7 +31,7 @@ impl PackagePolicyTraitRequirement {
     field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     field_projection_accessors!(copied has_default_realization: bool);
 
-    crate::record::accessors::package_policy_callable_signature_accessors!();
+    crate::record::accessors::package_policy_callable_signature_accessors!(optional_ceilings);
 
     pub fn returned_borrow_origins(&self) -> &[crate::record::PackageReviewReturnedBorrowOrigin] {
         &self.returned_borrow_origins

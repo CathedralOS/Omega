@@ -1310,8 +1310,8 @@ fn service_requirement(callable: &PackagePolicyCallable) -> PackagePolicyTraitRe
         parameters: callable.parameters.clone(),
         return_type: callable.return_type.clone(),
         contracts: callable.contracts.clone(),
-        published_crash: callable.checked_crash.published.clone(),
-        service_reach: callable.declared_service_reach.clone().unwrap_or_default(),
+        published_crash: Some(callable.checked_crash.published.clone()),
+        service_reach: callable.declared_service_reach.clone(),
         service_reach_is_installation_bound: false,
         synchronous_invocations: callable
             .declared_synchronous_invocations

@@ -91,16 +91,21 @@ pub(super) fn prepare(
             choices,
         )
     });
-    let inventory = providers
+    let ordinary_traits = declarations.public_traits(package);
+    let inventory = ordinary_traits
         .as_ref()
         .map_err(Clone::clone)
-        .and_then(|providers| {
-            require_supported_inventory(declarations, package, &providers.review.slots)
+        .and_then(|_| {
+            providers
+                .as_ref()
+                .map_err(Clone::clone)
+                .and_then(|providers| {
+                    require_supported_inventory(declarations, package, &providers.review.slots)
+                })
         });
-    let source_declarations = inventory
-        .as_ref()
-        .map_err(Clone::clone)
-        .and_then(|()| declaration_policy(declarations, target, package, &services));
+    let source_declarations = inventory.as_ref().map_err(Clone::clone).and_then(|()| {
+        declaration_policy(declarations, target, package, &services, ordinary_traits?)
+    });
     Ok(PreparedPolicy {
         package,
         target,
@@ -116,6 +121,7 @@ fn declaration_policy(
     target: TargetProfile,
     package: PackageKeyIdentity,
     services: &[(semantic_vocabulary::ServiceId, PackageReviewNominalIdentity)],
+    ordinary_traits: Vec<crate::record::PackagePolicyTraitShape>,
 ) -> Result<PolicyDeclarations, Vec<Diagnostic>> {
     // The owned declaration census above refuses unserved admission claims,
     // including unused private claims. The provider inventory's separate
@@ -169,7 +175,7 @@ fn declaration_policy(
         return Err(unavailable("register-operation authority"));
     }
     let public_api = PackagePolicyPublicApi {
-        traits: Vec::new(),
+        traits: ordinary_traits,
         conformances: Vec::new(),
         domains: declarations.public_domains(package)?,
         propositions: Vec::new(),
@@ -225,7 +231,10 @@ impl PreparedPolicy {
         }
         let source = self.declarations.as_ref().map_err(Clone::clone)?;
         let mut public_api = source.public_api.clone();
-        public_api.traits = providers.public_traits;
+        public_api.traits.extend(providers.public_traits);
+        public_api
+            .traits
+            .sort_by(|left, right| left.identity.cmp(&right.identity));
         let mut callables = source.callables.clone();
         callables.extend(providers.callables);
         callables.sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -410,7 +419,7 @@ fn require_supported_inventory(
         }
     }
     for declaration in typed.traits() {
-        if (declaration.is_public || declaration.is_boundary)
+        if declaration.is_boundary
             && owned(declaration.symbol)?
             && reviewed_boundary_slots
                 .binary_search_by_key(

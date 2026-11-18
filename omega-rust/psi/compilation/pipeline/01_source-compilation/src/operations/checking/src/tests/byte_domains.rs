@@ -290,6 +290,135 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 }
 
 #[test]
+fn a_callable_byte_result_keeps_only_its_public_predicates() {
+    let source = r#"
+domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
+trait Window {
+    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text;
+}
+Direct satisfies Window {
+    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text { packet }
+}
+machine build_entry() -> bool {
+    let packet: &[u8] in Text = "é" as +Text;
+    let selected: machine(packet: &[u8] in Text) -> &[u8] in Text reaches none crashes none = Direct::view;
+    let viewed: &[u8] in Text = selected(packet);
+    (viewed as -Text) == "é"
+}
+"#;
+    let accepted = match judge_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the callable's public result retains its byte domain: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    let (caller, place, contract) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.operations().find_map(|operation| {
+                let terminal_psi::OperationKind::CallMachine { contract, .. } = operation.kind
+                else {
+                    return None;
+                };
+                Some((machine.id, operation.result.structural()?.place, contract))
+            })
+        })
+        .expect("the source invokes its retained machine value");
+    let predicates = terminal_semantics::byte_sequence_source_predicates(
+        module,
+        module.machine(caller).unwrap(),
+        place,
+    )
+    .expect("the public contract authenticates the actual result");
+    assert!(
+        predicates
+            .predicates()
+            .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+    );
+
+    let mut changed_result = module.clone();
+    let result = changed_result
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == caller)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == place)
+        })
+        .unwrap();
+    let terminal_psi::OperationResult::Structural(result) = &mut result.result else {
+        unreachable!()
+    };
+    result.qualifications.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &changed_result,
+            changed_result.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "an operation cannot change the public result's qualifications"
+    );
+
+    let mut changed_header = module.clone();
+    let callable = changed_header
+        .callables
+        .contracts
+        .iter_mut()
+        .find(|row| row.id == contract)
+        .unwrap();
+    let terminal_psi::TerminalMachineResult::Structural(result) = &mut callable.proof_result else {
+        unreachable!()
+    };
+    result.qualifications.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &changed_header,
+            changed_header.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "disagreeing public result columns establish no predicate"
+    );
+
+    let mut missing_header = module.clone();
+    missing_header.callables.contracts.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &missing_header,
+            missing_header.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "an absent contract cannot be replaced by the operation annotation"
+    );
+
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Boolean(true)
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
     let source = r#"
 domain [u8]::Text requires byte_observation::no_nul(&self[..]);

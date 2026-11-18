@@ -12,6 +12,7 @@ The obsolete checked-source production request interfaces have been removed.
 
 mod accepted;
 pub use crate::lowering::Compilation as TerminalSourceCompilation;
+pub use crate::lowering::RequirementReviewMetadata;
 pub use crate::lowering::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use crate::lowering::Supply as TerminalSourceSupply;
 pub use crate::lowering::provider_selections::{
