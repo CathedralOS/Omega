@@ -77,6 +77,69 @@ pub(crate) struct PreparedApplication {
     telescope: Vec<PreparedParameter>,
 }
 
+pub(crate) enum DeclarationError {
+    Reason(&'static str),
+    StaticReach(terminal_semantics::static_reach::DerivationError),
+}
+
+impl From<&'static str> for DeclarationError {
+    fn from(reason: &'static str) -> Self {
+        Self::Reason(reason)
+    }
+}
+
+impl From<terminal_semantics::static_reach::DerivationError> for DeclarationError {
+    fn from(error: terminal_semantics::static_reach::DerivationError) -> Self {
+        Self::StaticReach(error)
+    }
+}
+
+impl DeclarationError {
+    pub(crate) fn into_refusal(
+        self,
+        diagnostic: MachineId,
+        program: &crate::read::Program<'_>,
+    ) -> terminal_check_tables::Refusal {
+        let error = match self {
+            Self::Reason(reason) => {
+                return crate::refuse(
+                    diagnostic,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                );
+            }
+            Self::StaticReach(error) => error,
+        };
+        let machine = error.call.as_ref().map_or(diagnostic, |call| call.caller);
+        let mut refusal = crate::refuse(
+            machine,
+            terminal_check_tables::Construct::Machine,
+            crate::Unserved::Declaration(error.reason),
+        );
+        if let Some(call) = &error.call {
+            if let Some(&caller) = program.symbols.get(call.caller) {
+                refusal.detail.push_str(&format!(
+                    " while deriving callback reach of `{}`",
+                    program.typed.symbols.display_path(caller, "::"),
+                ));
+                refusal.source_span = program
+                    .typed
+                    .symbols
+                    .symbol_provenance_source_span(caller)
+                    .filter(|span| *span != source::SourceSpan::default());
+            }
+            if let Some(&callee) = program.symbols.get(call.callee) {
+                refusal.detail.push_str(&format!(
+                    "; called requirement `{}`",
+                    program.typed.symbols.display_path(callee, "::"),
+                ));
+            }
+            refusal.detail.push_str(&format!("; {call}"));
+        }
+        refusal
+    }
+}
+
 enum PreparedDeclaration {
     Runtime(CheckedMachineDeclaration, Option<PreparedApplication>),
     Generic(terminal_check_tables::contracts::GenericCallableDeclaration),
@@ -106,7 +169,7 @@ pub(crate) fn declare(
         Option<terminal_check_tables::contracts::StaticCallableEnvelope>,
     >,
     elaboration: &mut Elaboration,
-) -> Result<Vec<(MachineId, PreparedApplication)>, &'static str> {
+) -> Result<Vec<(MachineId, PreparedApplication)>, DeclarationError> {
     let machines = &program.symbols;
     let signatures = &program.signatures;
     let requirement_sources = &program.declaration_sources;
@@ -152,7 +215,7 @@ pub(crate) fn declare(
             .iter()
             .any(|id| elaboration.requirement_ceilings.get(*id).is_none())
         {
-            return Err("static reach lost an abstract requirement's exact bounds");
+            return Err("static reach lost an abstract requirement's exact bounds".into());
         }
         elaboration.static_reach_summaries = terminal_semantics::static_reach::derive(
             &elaboration.module,
@@ -469,7 +532,7 @@ pub(crate) fn declare(
         Ok(())
     })();
     elaboration.module.identities = identities.build();
-    result.map(|()| prepared)
+    result.map(|()| prepared).map_err(DeclarationError::from)
 }
 
 /// Prepares each exact supplied requirement's candidate intent. The complete

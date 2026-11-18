@@ -1197,28 +1197,28 @@ pub(crate) fn complete(
     // the refusal below. Match both the handle and selected declaration.
     let expression_key = |handle: &ExpressionHandle| (handle.generation(), handle.arena_index());
     let mut call_callees = Vec::new();
-    let mut retain_callee =
-        |callee: ExpressionHandle, target: symbols::SymbolHandle, name: &str| {
-            if !callee.is_valid() || !target.is_valid() {
-                return;
-            }
-            let ExpressionNode::Name(path) = trees.tables.bodies.expressions.expression(callee)
-            else {
-                return;
-            };
-            if !path.symbol.is_valid() {
-                return;
-            }
-            // A name selects the machine; a call selects its exact entry state.
-            // Reuse call resolution's entry rule rather than accepting any child.
-            let selected = path.symbol;
-            if selected == target
-                || (trees.symbols.get(selected).kind == symbols::SymbolKind::Machine
-                    && crate::names::machine_entry_symbol(&trees.symbols, selected, name) == target)
-            {
-                call_callees.push(callee);
-            }
+    let mut retain_callee = |callee: ExpressionHandle,
+                             target: symbols::SymbolHandle,
+                             name: &str| {
+        if !callee.is_valid() || !target.is_valid() {
+            return;
+        }
+        let ExpressionNode::Name(path) = trees.tables.bodies.expressions.expression(callee) else {
+            return;
         };
+        if !path.symbol.is_valid() {
+            return;
+        }
+        // A name selects the machine; a call selects its exact entry state.
+        // Reuse call resolution's entry rule rather than accepting any child.
+        let selected = path.symbol;
+        if selected == target
+            || (trees.symbols.get(selected).kind == symbols::SymbolKind::Machine
+                && crate::names::machine_entry_symbol(&trees.symbols, selected, name) == target)
+        {
+            call_callees.push(callee);
+        }
+    };
     for (_, resolved) in &sources.expressions {
         if let ExpressionNode::Call(call) = trees.tables.bodies.expressions.expression(*resolved) {
             retain_callee(call.callee, call.target_symbol, call.target.as_str());

@@ -268,14 +268,11 @@ fn available_place(
         .is_some_and(|formal| formal.place == place && formal.position == position)
 }
 
-/// An inferred predicate may also name an integer operation result whose
-/// definition dominates the join, such as a call result. Every path to the
-/// join passes it, so it is one value on every arrival and at the join, and
-/// fact_validity.md requires only that a premise "dominate its use". Without
-/// it a guard over a call result could not cross the join `&&` lowers to:
-/// `let s = f(x); transition s >= 100 && s <= 200` left the predicate
-/// `Truth`, and `s - 100` on the taken edge was refused. A result defined in
-/// one arm does not dominate the join and stays out.
+/// A join can name an integer result or a scalar snapshot established on a
+/// call's normal return when that operation dominates the join. For example,
+/// a guard after a callback can describe the exact contents it returned even
+/// if one arm of `&&` never reads them. Later reads still have to find their
+/// reaching value independently.
 ///
 /// Only integers are admitted, because they carry the bounds a guard
 /// establishes. A dominating Boolean result adds no bound, only another
@@ -315,9 +312,14 @@ fn available_value(
         Some((ValueOrigin::BlockParameter { block: owner, .. }, _)) => {
             owner == block || dominates(ProgramPoint::BlockEntry(owner))
         }
-        Some((ValueOrigin::Operation(operation), ScalarType::Integer(_))) => {
-            dominates(ProgramPoint::AfterOperation(operation))
-        }
+        Some((ValueOrigin::Operation(operation), ScalarType::Integer(_)))
+        | Some((
+            ValueOrigin::StorageContent {
+                after: Some(operation),
+                ..
+            },
+            ScalarType::Integer(_),
+        )) => dominates(ProgramPoint::AfterOperation(operation)),
         _ => false,
     }
 }
@@ -668,14 +670,8 @@ fn describe(
                 if available_value(lowered, tables, dominating_bindings, join.id, *id)
         ))
     };
-    // A value the join can already name stays itself when its definition
-    // names something the join cannot. A read after a call is the usual case:
-    // `let mid = main.pout` is defined as the field's contents after that
-    // call, which no join predicate can restate. Expanding `mid` into that
-    // contents would drop every guard over it at the scope filter, so
-    // `mid >= 0 && mid < 26` would cross the `&&` join as `Truth`. The read
-    // result itself dominates the join and is in scope, so the fact is
-    // stated over it instead.
+    // Keep an in-scope read under its own name when expanding its definition
+    // would make a guard mention a value outside the join's scope.
     let visible_as_itself = |subject: &ScalarTerm, proposition: &Proposition| {
         matches!(subject, ScalarTerm::Value { id, .. }
             if available_value(lowered, tables, dominating_bindings, join.id, *id))
