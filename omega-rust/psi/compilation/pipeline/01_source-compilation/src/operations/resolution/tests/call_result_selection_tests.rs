@@ -186,3 +186,47 @@ fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn conjunctions_keep_only_structural_definitions() {
+    for (requirement, expected) in [
+        ("Kind == Buffer<Element, N> && Element == u8", 1),
+        ("Kind == Buffer<Element, N> || Element == u8", 0),
+        ("!(Kind == Buffer<Element, N>)", 0),
+    ] {
+        let text = format!(
+            "data Buffer<Element, const N: u64> {{ items: [Element; N]; }}\n\
+             machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64\n\
+             requires {requirement} {{ 1u64 }}"
+        );
+        let tokens = Lexer::new(&text).tokenize().unwrap();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let source_id = sources
+            .add("equation-definitions/main.omg".into(), text)
+            .source_id;
+        let syntax =
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let resolved = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let machine = resolved
+            .machines
+            .iter()
+            .find(|machine| !machine.type_parameters.is_empty())
+            .unwrap();
+        let equations = resolved
+            .declarations()
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations);
+        assert_eq!(equations.len(), expected, "{requirement}");
+        if expected != 0 {
+            assert!(matches!(&equations[0].parameter,
+                crate::source_resolved::types::TypeReference::Named { name, .. }
+                    if name.as_str() == "Kind"));
+        }
+    }
+}

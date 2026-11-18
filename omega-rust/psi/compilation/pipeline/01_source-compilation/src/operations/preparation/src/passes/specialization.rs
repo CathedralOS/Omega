@@ -1969,7 +1969,6 @@ fn copied_parts(
     // separate executable body.
     let plain = machine.body_is_present
         && machine.supply_mode == declaration_contracts::MachineSupplyMode::CheckedBody
-        && machine.declared_type_equations.is_empty()
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && program.signature_invokes.span(machine.invokes).is_some()
@@ -2009,7 +2008,12 @@ fn copied_parts(
         .chain(program.state_contracts(state))
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     let mut roots = Vec::new();
-    let mut fact_types = Vec::new();
+    let mut fact_types = program
+        .declared_type_equations
+        .span_or_empty(machine.declared_type_equations)
+        .iter()
+        .flat_map(|equation| [equation.parameter, equation.definition])
+        .collect::<Vec<_>>();
     match (
         &plan.implementation_witness,
         program.ranking_expression_custody_for(symbol),

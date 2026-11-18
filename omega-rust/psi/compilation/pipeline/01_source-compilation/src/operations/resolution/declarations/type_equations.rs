@@ -1747,10 +1747,28 @@ impl TypeEquation {
         The classifier, rather than an expression's spelling, gives this
         operand type role. Retain the equation in that declaration's scope.
     */
-    pub(crate) fn structural_definition(&self) -> Option<(usize, ExpressionHandle)> {
-        match self.shape {
-            EquationShape::Structural { binder, .. } => Some((binder, self.definition)),
-            EquationShape::Boolean { .. } | EquationShape::KindMismatch { .. } => None,
+    pub(crate) fn structural_definitions(
+        &self,
+        syntax: &SyntaxTrees,
+        binders: &[String],
+        definitions: &mut Vec<(usize, ExpressionHandle)>,
+    ) {
+        match &self.shape {
+            EquationShape::Structural { binder, .. } if self.defines_structure(syntax, binders) => {
+                definitions.push((*binder, self.definition));
+            }
+            EquationShape::Boolean {
+                operator: TypeBooleanOperator::And,
+                operands,
+                ..
+            } => {
+                for operand in operands {
+                    operand.structural_definitions(syntax, binders, definitions);
+                }
+            }
+            EquationShape::Structural { .. }
+            | EquationShape::Boolean { .. }
+            | EquationShape::KindMismatch { .. } => {}
         }
     }
 

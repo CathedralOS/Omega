@@ -2172,8 +2172,13 @@ impl Program<'_> {
         let parameters = self.typed.machine_type_parameters(machine);
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || !parameter.symbol.is_valid()
+                !parameter.symbol.is_valid()
+                    || !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                            | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Machine { .. }
+                    )
             })
         {
             return unserved("finite family needs an exact type-parameter roster");
@@ -2244,6 +2249,9 @@ impl Program<'_> {
                     let listed = parameters
                         .iter()
                         .enumerate()
+                        .filter(|(_, parameter)| {
+                            parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                        })
                         .find_map(|(position, parameter)| {
                             disjuncts
                                 .iter()
