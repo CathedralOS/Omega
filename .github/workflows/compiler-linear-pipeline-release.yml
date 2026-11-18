@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  OMEGA_MIGRATION_REVISION: 'c329436ed22f18b41352985cff202b46129e6538'
+  OMEGA_MIGRATION_REVISION: '5b223b02120bd61405047779d801e819da466d2b'
+  OMEGA_EXPECTED_LIBRARY_TREE: '04a3cbef3a6a053200594fb29ff5070331dc0c77'
   CARGO_BUILD_JOBS: '4'
   CARGO_INCREMENTAL: '0'
   CARGO_TARGET_DIR: /tmp/ot
@@ -40,6 +41,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$OMEGA_MIGRATION_REVISION"
           echo "Checked migration $(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD:source/library)" = "$OMEGA_EXPECTED_LIBRARY_TREE"
           echo "Library tree $(git rev-parse HEAD:source/library)"
           echo "OMEGA_LIBRARY_ROOT=$GITHUB_WORKSPACE/source/library" >> "$GITHUB_ENV"
           echo "OMEGA_CORPUS_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
