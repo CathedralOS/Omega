@@ -9,7 +9,9 @@ The published evaluator refused the 4,651,287-byte request before the bootstrap 
 | Sealed stdin cursor | 4 MiB | status 253 | 0.900 | 11,264 |
 | Sealed stdin cursor | 8 MiB | supervisor `SIGKILL` | 240.553 | 8,391,356 |
 
-All four processes left stdout and stderr empty. Status 253 is the adapter's input refusal. Both 8 MiB processes were still running when the supervisor stopped them. Timings and peak RSS describe one run per profile on a shared Linux x86-64 host. The output limit was 4 MiB throughout.
+All four processes left stdout and stderr empty. Status 253 is the adapter's input refusal. Both 8 MiB processes were still running when the supervisor stopped them. Timings and peak RSS describe one run per profile on a shared Linux x86-64 host. The output limit was 4 MiB throughout. A separate Delta program appended one byte to its input. Both adapters published exactly 4,194,304 bytes and refused a 4,194,305-byte result with raw status 254 and empty output.
+
+A one-word change distinguishes the outer refusal from the running bootstrap compiler. Replacing the product's first little-endian word (package count 5) with 65 keeps the entire 4,651,287-byte envelope. The eager evaluator at 4 MiB still returned 253. At 8 MiB it returned raw status 0 and `0003000000`, the bootstrap compiler's Exit 3 for malformed framing, in 19.718 seconds at 833,060 KiB.
 
 ## Reproduce
 
