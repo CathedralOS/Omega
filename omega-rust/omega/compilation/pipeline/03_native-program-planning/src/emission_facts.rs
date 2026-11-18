@@ -10,19 +10,19 @@ use verified_optimization_input::publication::{
 pub(crate) fn project(target: &crate::ValidatedOptimizedTargetOperations) -> SemanticEmissionFacts {
     let optimized = target.optimized();
     let plan = optimized.plan();
-    SemanticEmissionFacts {
-        admission: target.lowering_facts().emission_admission(),
-        program: EmissionProgramFacts {
+    SemanticEmissionFacts::new(
+        target.lowering_facts().emission_admission(),
+        EmissionProgramFacts {
             psi: plan.psi,
             entry: plan.entry,
             functions: plan.functions.iter().map(function).collect(),
         },
-        projection: OptimizedProgramProjection {
+        OptimizedProgramProjection {
             identity: optimized.projection(),
             terminal: optimized.projection_psi(),
             final_unit: optimized.final_unit(),
         },
-    }
+    )
 }
 
 fn function(source: &abstract_operations::AbstractFunction) -> EmissionFunctionFacts {

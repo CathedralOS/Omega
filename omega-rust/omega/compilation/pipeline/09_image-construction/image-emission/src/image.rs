@@ -415,7 +415,7 @@ pub(crate) mod entry_effects {
                     bridge.request().target.architecture,
                     &output.final_text_bytes,
                     region.section_offset,
-                    bridge.call_field_offset(),
+                    bridge.call_relocation().offset,
                     symbol.offset,
                 )?;
                 let end = region

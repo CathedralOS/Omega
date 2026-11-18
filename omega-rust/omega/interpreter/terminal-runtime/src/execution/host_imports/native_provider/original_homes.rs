@@ -19,7 +19,6 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, St
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
-
     rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,

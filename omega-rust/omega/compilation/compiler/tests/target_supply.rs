@@ -1026,18 +1026,18 @@ fn execution(
     publication: &source_compiler::SourcePublication,
     settled: &SettledTargetSupply,
 ) -> Result<native_program_planning::SelectedExecution, String> {
+    let accepted = publication.accepted().map_err(first)?;
     if settled.requirements().is_empty() {
         return native_program_planning::test_support::select_realization(
+            accepted.module(),
             profile,
-            settled
-                .realize_no_demand(publication.accepted().map_err(first)?.module())
-                .map_err(first)?,
+            settled.realize_no_demand(accepted.module()).map_err(first)?,
         )
         .map_err(first);
     }
-    let accepted = publication.accepted().map_err(first)?;
     let schemas = settled_supply::settled_slot_schemas(accepted, settled);
     native_program_planning::test_support::select_realization(
+        accepted.module(),
         profile,
         settled
             .realize(SupplyPlanning {

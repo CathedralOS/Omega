@@ -126,7 +126,9 @@ impl EmissionAdmission {
         &self,
         entry: &crate::ValidatedNativeProgramEntrySettlement,
     ) -> Result<AdmittedPhysicalEntry, &'static str> {
-        let adapter = entry.physical_adapter().ok_or("physical entry has no selected adapter")?;
+        let adapter = entry
+            .physical_adapter()
+            .ok_or("physical entry has no selected adapter")?;
         let checked = entry.checked_entry();
         if entry.source().target_slot().owner != target::TargetProfile::UefiX64
             || adapter.terminal() != self.terminal()

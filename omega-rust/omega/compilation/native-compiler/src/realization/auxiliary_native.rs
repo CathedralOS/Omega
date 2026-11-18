@@ -2,8 +2,10 @@
 // in Psi. Runtime metadata captures requests; this producer owns their physical
 // planning and encoding. A failed optional adapter remains a boundary-local error.
 
-use physical_planning::native_foreign_bridge::{NativeForeignBridgePlan, plan_native_foreign_bridge};
-use native_encoding::native_foreign_bridge::{encode_native_foreign_bridge};
+use native_encoding::native_foreign_bridge::encode_native_foreign_bridge;
+use physical_planning::native_foreign_bridge::{
+    NativeForeignBridgePlan, plan_native_foreign_bridge,
+};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -34,12 +36,22 @@ pub(super) fn plan(
     })
 }
 
-pub(crate) struct EncodedForeignAdapter {
-    bridge: image_emission::NativeForeignBridge,
+pub(crate) struct ForeignAdapter<Bridge> {
+    bridge: Bridge,
     imports: machine_code::import_code::EncodedImportProgram,
     locator: target::NormalizedForeignLocator,
     application: [u8; 32],
 }
+
+pub(crate) type EncodedForeignAdapter = ForeignAdapter<
+    native_encoding::native_foreign_bridge::NativeForeignBridge<
+        physical_planning::PhysicalRecipeOrigin,
+    >,
+>;
+pub(crate) type PlacedForeignAdapter = ForeignAdapter<
+    function_layout::entry_placement::PlacedNativeForeignBridge,
+>;
+pub(crate) type ObjectForeignAdapter = ForeignAdapter<image_emission::NativeForeignBridge>;
 
 pub(super) fn encode(plan: PlannedForeignAdapter) -> Result<EncodedForeignAdapter, String> {
     let bridge = encode_native_foreign_bridge(plan.bridge)
@@ -52,8 +64,27 @@ pub(super) fn encode(plan: PlannedForeignAdapter) -> Result<EncodedForeignAdapte
     })
 }
 
+pub(super) fn place(adapter: EncodedForeignAdapter) -> Result<PlacedForeignAdapter, String> {
+    Ok(ForeignAdapter {
+        bridge: function_layout::entry_placement::place_native_foreign_bridge(adapter.bridge)
+            .map_err(|error| error.to_string())?,
+        imports: adapter.imports,
+        locator: adapter.locator,
+        application: adapter.application,
+    })
+}
+
+pub(super) fn construct(adapter: PlacedForeignAdapter) -> Result<ObjectForeignAdapter, String> {
+    Ok(ForeignAdapter {
+        bridge: object_file::NativeBridgeObject::from_placement(adapter.bridge),
+        imports: adapter.imports,
+        locator: adapter.locator,
+        application: adapter.application,
+    })
+}
+
 pub(super) fn emit(
-    adapter: EncodedForeignAdapter,
+    adapter: ObjectForeignAdapter,
 ) -> Result<Arc<image_emission::NativeForeignAdapterImage>, String> {
     image_emission::emit_native_foreign_adapter(
         adapter.bridge,

@@ -2,13 +2,10 @@
 use crate::entries::{hosted_entry_storage, hosted_receiver, hosted_unit_entry};
 use diagnostics::Diagnostic;
 use machine_code::hosted_entry::{EntryFixupKind, EntrySymbol, HostedEntryMode};
-use object_file::{
-    ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord, SectionKind,
-};
+use object_file::{ObjectSymbolHandle, RelocationOrigin, RelocationRecord, SectionKind};
 
-pub type EncodedHostedProgramEntry = native_encoding::hosted_program::EncodedHostedProgramEntry<
-    physical_planning::PhysicalRecipeOrigin,
-    physical_planning::hosted_program::HostedProgramContext<
+pub type EncodedHostedProgramEntry = object_file::program_entry_object::HostedProgramObject<
+    program_entry_plan::hosted_receiver::HostedProgramContext<
         verified_optimization_input::hosted_receiver::AdmittedHostedReceiver,
     >,
 >;
@@ -108,7 +105,7 @@ pub(crate) fn prepare(
     let start = artifact.text_bytes.len();
     let mut relocations = artifact.relocations.clone();
     let mut symbolic = Vec::new();
-    for fixup in &code.fixups {
+    for (fixup, kind) in binding.relocations() {
         // These calls were internal displacements before the migration. Resolve
         // only their declared fields after body placement; retain object relocation
         // records for receiver imports, data and x86 receiver body calls.
@@ -146,7 +143,7 @@ pub(crate) fn prepare(
                 _ => return Err(invalid()),
             }
         } else {
-            symbolic.push((fixup, destination(fixup.destination)?));
+            symbolic.push((fixup, kind, destination(fixup.destination)?));
         }
     }
     let form = hosted_unit_entry::unit_entry_form(artifact.target).ok_or_else(invalid)?;
@@ -181,7 +178,7 @@ pub(crate) fn prepare(
     let mut text = artifact.text_bytes.clone();
     let (symbol, offset) =
         hosted_unit_entry::install_entry_shim(&mut object, &mut text, &bytes, name, &invalid)?;
-    for (fixup, destination) in symbolic {
+    for (fixup, kind, destination) in symbolic {
         relocations.push_record(RelocationRecord {
             origin: RelocationOrigin::Materialization {
                 object_symbol_handle: symbol,
@@ -191,12 +188,7 @@ pub(crate) fn prepare(
             byte_width: 4,
             symbol_handle: destination,
             addend: fixup.addend,
-            kind: match fixup.kind {
-                EntryFixupKind::X86Relative32 => RelocationKind::X86_64Relative32,
-                EntryFixupKind::Aarch64Branch26 => RelocationKind::Aarch64Branch26,
-                EntryFixupKind::Aarch64Page21 => RelocationKind::Aarch64Page21,
-                EntryFixupKind::Aarch64PageOffset12 => RelocationKind::Aarch64PageOffset12,
-            },
+            kind,
         });
     }
     let mut shim = surface.shim(symbol, offset);

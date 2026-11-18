@@ -60,6 +60,11 @@ boundary.
 
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::cursor;
+mod bridge_object;
+pub use bridge_object::{
+    BridgeCallRelocation, CallableEntryTransport, NativeBridgeObject, NativeEntryBridge,
+    NativeForeignBridge, PrivateEntryObject,
+};
 mod fragment_container;
 mod names;
 mod object_plan;
@@ -114,3 +119,5 @@ pub(crate) use relocation_free_object::{
     decode_relocation_free_object, encode_relocation_free_object, validate_relocation_free_object,
 };
 pub(crate) use target_matrix::object_target_policy;
+
+pub mod program_entry_object;

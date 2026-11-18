@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+program-entry-plan = { path = "../representations/program-entry" }
 installation-admission = { path = "../verification/installation-admission" }
 physical-program = { path = "../representations/physical-program" }
 native-runtime-provisions = { path = "../pipeline/03_native-program-planning/runtime-provisions" }

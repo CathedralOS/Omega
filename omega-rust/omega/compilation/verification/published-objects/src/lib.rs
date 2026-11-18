@@ -20,13 +20,14 @@ pub fn verify_retained_fixed_frame(
             "fixed-frame audit requires retained originals (ReplayUnavailable)",
         )
     })?;
+    verify_physical_origins(artifact, replay)?;
     let current = replay.fragment_source().source().source().source().source();
     current
         .verify_original_correspondence()
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     let original = retained_target(replay, "fixed-frame")?;
     let expected = original
-        .target()
+        .target_for_correspondence()
         .optimized()
         .selections()
         .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
@@ -39,6 +40,72 @@ pub fn verify_retained_fixed_frame(
     {
         return Err(diagnostics::Diagnostic::error(
             "fixed-frame allocation recovery differs from the selection physical planning used",
+        ));
+    }
+    Ok(())
+}
+
+/// Reconstruct the physical instruction projections while the explicit audit owns its originals.
+fn verify_physical_origins(
+    artifact: &ObjectArtifact,
+    replay: &FragmentReplay,
+) -> Result<(), diagnostics::Diagnostic> {
+    let source = replay.fragment_source();
+    let current = source.source().source().source().source();
+    let program = current.original_physical_program().ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "original physical instructions were not retained (ReplayUnavailable)",
+        )
+    })?;
+    let facts = source.emission_facts();
+    let mismatch = diagnostics::Diagnostic::error;
+    let calls = physical_planning::call_origins::capture(program);
+    if calls != facts.calls || &calls != artifact.call_origins().as_ref() {
+        return Err(mismatch(
+            "object call origins differ from retained physical instructions",
+        ));
+    }
+    let foreign = physical_planning::foreign_call_plans::capture(program, current.frame_layout());
+    if foreign != facts.foreign_calls
+        || foreign.as_ref().ok() != Some(artifact.foreign_call_plans().as_ref())
+    {
+        return Err(mismatch(
+            "object foreign call plans differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::image_origins::capture(program.functions.iter()) != facts.image_origins {
+        return Err(mismatch(
+            "image address origins differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::physical_facts::port_writes(program) != facts.port_writes {
+        return Err(mismatch(
+            "port event origins differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::boundary_settlements::capture(program) != facts.boundary_settlements {
+        return Err(mismatch(
+            "boundary settlements differ from retained physical instructions",
+        ));
+    }
+    if physical_planning::internal_call_plans::capture(
+        program,
+        current.frame_layout(),
+        &facts.program,
+    ) != facts.internal_calls
+    {
+        return Err(mismatch(
+            "internal call plans differ from retained physical instructions",
+        ));
+    }
+    if installation_admission::selected::cpu_origins::capture(program) != facts.cpu {
+        return Err(mismatch(
+            "CPU origins differ from retained physical instructions",
+        ));
+    }
+    if installation_admission::selected::fault_origins::capture(program) != facts.faults {
+        return Err(mismatch(
+            "fault origins differ from retained physical instructions",
         ));
     }
     Ok(())
@@ -80,7 +147,7 @@ pub fn verify_retained_target_operations(
         diagnostics::Diagnostic::error("target-operation audit requires retained target operations")
     })?;
     let original = retained_target(replay, "target-operation")?;
-    let current = original.target();
+    let current = original.target_for_correspondence();
     let optimized = current.optimized();
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
@@ -136,12 +203,13 @@ fn retained_target<'replay>(
         diagnostics::Diagnostic::error(format!("{audit} audit requires retained target operations"))
     })?;
     let current = replay.fragment_source().source().source().source().source();
-    if current.post_allocation_manifest().record().pre_physical
-        != original
-            .target()
-            .optimized()
-            .pre_physical_manifest()
-            .identity
+    if !original.belongs_to(replay.fragment_source().emission_facts())
+        || current.post_allocation_manifest().record().pre_physical
+            != original
+                .target_for_correspondence()
+                .optimized()
+                .pre_physical_manifest()
+                .identity
     {
         return Err(diagnostics::Diagnostic::error(format!(
             "{audit} audit: retained target operations name another pre-physical manifest"

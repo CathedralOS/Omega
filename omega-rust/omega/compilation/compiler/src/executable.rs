@@ -30,21 +30,14 @@ pub(super) fn prepare(
         .target_profile()
         .unwrap_or_else(target::TargetProfile::host);
     let declarations = realization.provider_declarations();
-    let selection = native_compiler::PublishedEntrySelection::select(artifact, execution)?;
+    let selection = native_compiler::PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = program
         .entry_schema_custody(selection.schema_declaration())
         .map_err(refuse)?;
     let binding = selection
-        .selected()
-        .source_signature()
-        .target_slot()
-        .physical_contract_package
-        .and_then(|package| {
-            checked.package_inputs().accepted_semantic_binding(
-                effects::semantic_bindings::program_entry_semantic_binding_role(package),
-            )
-        });
-    let entry = selection.with_calling_plans(
+        .binding_role()
+        .and_then(|role| checked.package_inputs().accepted_semantic_binding(role));
+    let entry = selection.settle_calling_plans(
         requester,
         binding,
         checked.package_inputs().declaration_permissions(),

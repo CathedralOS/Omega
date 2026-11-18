@@ -9,6 +9,9 @@ name = "function_layout"
 path = "src/lib.rs"
 
 [dependencies]
+physical-recipes = { path = "../../../representations/physical-recipes" }
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
 physical-program = { path = "../../../representations/physical-program" }
 installation-admission = { path = "../../../verification/installation-admission" }
 frame-admission = { path = "../../../verification/frame-admission" }

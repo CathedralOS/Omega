@@ -141,5 +141,5 @@ mod object_input;
 
 
 /// Executable image bindings retain the exact origin of physical planning.
-pub type NativeEntryBridge = native_encoding::native_entry_bridge::NativeEntryBridge<physical_planning::PhysicalRecipeOrigin>;
-pub type NativeForeignBridge = native_encoding::native_foreign_bridge::NativeForeignBridge<physical_planning::PhysicalRecipeOrigin>;
+pub use object_file::NativeEntryBridge;
+pub use object_file::NativeForeignBridge;

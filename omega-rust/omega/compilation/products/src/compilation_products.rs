@@ -253,7 +253,9 @@ impl CompileReport {
     }
 
     pub fn runtime_provisions(&self) -> Option<&crate::RuntimeExecutionProvisions> {
-        self.product.runtime_provisions().map(|provisions| provisions.execution())
+        self.product
+            .runtime_provisions()
+            .map(|provisions| provisions.execution())
     }
 
     pub const fn published_runtime_provisions(&self) -> Option<&crate::TerminalRuntimeProvisions> {

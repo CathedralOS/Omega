@@ -4,7 +4,7 @@
 // matching this root's `TerminalPsiIdentity` without private function indirection.
 
 use super::TerminalRuntimeError;
-use verified_optimization_input::runtime_provisions::RuntimeImageInspection;
+use published_runtime_input::RuntimeImageInspection;
 use terminal_interpreter::{
     TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
 };
@@ -14,7 +14,9 @@ pub(super) fn inspect(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     execution_target: Option<&str>,
 ) -> Result<Option<TerminalNativeCodeLayoutEnvironment>, TerminalRuntimeError> {
-    let Some(image) = image else { return Ok(None); };
+    let Some(image) = image else {
+        return Ok(None);
+    };
     let Some(target) = execution_target else {
         return Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection requires the completed image's target",

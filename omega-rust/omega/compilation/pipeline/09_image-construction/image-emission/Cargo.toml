@@ -15,10 +15,7 @@ test-support = []
 sha2 = "0.10.9"
 physical-recipes = { path = "../../../representations/physical-recipes" }
 physical-program = { path = "../../../representations/physical-program" }
-native-verification = { path = "../../../verification/native-verification" }
 installation-admission = { path = "../../../verification/installation-admission" }
-native-encoding = { path = "../../06_native-encoding" }
-physical-planning = { path = "../../04_physical-program-planning" }
 register-homes = { path = "../../../representations/register-homes" }
 wire = { path = "../../../../../psi/foundation/wire" }
 native-vocabulary = { path = "../../../representations/native-vocabulary" }
@@ -52,7 +49,6 @@ function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
 boundary-applications = { path = "../../../representations/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
-native-program-planning = { path = "../../03_native-program-planning" }
 task-plans = { path = "../../../representations/task-plans" }
 target-aarch64 = { path = "../../../target-description/target-aarch64" }
 target-x86_64 = { path = "../../../target-description/target-x86_64" }
@@ -65,6 +61,8 @@ terminal-work = { path = "../../../../../psi/compilation/representations/termina
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+physical-planning = { path = "../../04_physical-program-planning" }
+native-encoding = { path = "../../06_native-encoding" }
 isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }

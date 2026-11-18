@@ -15,13 +15,20 @@ pub(super) fn try_typed(text: &str) -> Result<crate::source_state::TypedTrees, d
     // toolchain identity or provider-execution authority.
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32])
         .expect("nonempty fixture package identity");
+    try_typed_in_package(text, Some(package))
+}
+
+fn try_typed_in_package(
+    text: &str,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             "boundary_calls/source.omg".into(),
             text,
             "boundary_calls".into(),
-            Some(package),
+            package,
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
             declaration_contracts::source_identity::DependencyScope::Product,
@@ -2208,6 +2215,14 @@ fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
 }
 
 fn inline_parameter_prepared(actual: &str, guarantee: &str) -> crate::source_state::FrozenTypedTrees {
+    inline_parameter_prepared_with(actual, guarantee, typed)
+}
+
+fn inline_parameter_prepared_with(
+    actual: &str,
+    guarantee: &str,
+    read: impl FnOnce(&str) -> crate::source_state::TypedTrees,
+) -> crate::source_state::FrozenTypedTrees {
     let text = format!(
         r#"
 trait Step {{
@@ -2229,7 +2244,7 @@ machine entry() -> u32 crashes none {{ relay<Inline>() }}
     // Use the actual specialization pass, retaining the exact source
     // parameter dispatch and selected realization it produces.
     let (prepared, _) = crate::preparation::prepare_typed_trees(
-        typed(&text),
+        read(&text),
         &crate::preparation::PreparationRequest::settled(),
     )
     .unwrap();
@@ -2365,7 +2380,9 @@ fn an_owned_inline_parameter_dispatch_keeps_exact_selection_checks() {
 
 #[test]
 fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
-    let prepared = inline_parameter_prepared("7", "");
+    let prepared = inline_parameter_prepared_with("7", "", |text| {
+        try_typed_in_package(text, None).expect("type the unowned invocation")
+    });
     let first =
         inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
     let second =
@@ -2415,7 +2432,9 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
 
 #[test]
 fn an_anonymous_parameter_application_rejects_a_foreign_template_handle() {
-    let mut prepared = inline_parameter_prepared("7", "").into_inner();
+    let mut prepared = inline_parameter_prepared_with("7", "", |text| {
+        try_typed_in_package(text, None).expect("type the unowned invocation")
+    }).into_inner();
     let template = prepared.machine_specializations[0].template;
     prepared.machine_specializations.edit(|rows| {
         rows[0].template =

@@ -13,7 +13,7 @@ pub(crate) mod component_object {
         FinalImage, FinalImageInput, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
     };
     use crate::NativeEntryBridge;
-    use object_file::{RelocationKind, SymbolKind};
+    use object_file::SymbolKind;
 
     pub struct ComponentFunctionImage {
         pub(crate) body: crate::ObjectArtifact,
@@ -104,15 +104,12 @@ pub(crate) mod component_object {
                     .insert(FinalImageRelocation {
                         section: FinalImageSection::Text,
                         offset: offset
-                            .checked_add(bridge.call_field_offset())
+                            .checked_add(bridge.call_relocation().offset)
                             .ok_or_else(|| invalid("entry bridge call offset overflows"))?,
                         byte_width: 4,
                         symbol_handle: body_symbol,
                         addend: 0,
-                        kind: match body.target().architecture {
-                            target::Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
-                            target::Architecture::X86_64 => RelocationKind::X86_64Relative32,
-                        },
+                        kind: bridge.call_relocation().kind,
                     });
                 symbol
             }
@@ -396,7 +393,7 @@ pub(crate) mod component_shared_image {
                 bridge.request().target.architecture,
                 container.final_text_bytes(),
                 symbol.offset,
-                bridge.call_field_offset(),
+                bridge.call_relocation().offset,
                 body_symbol.offset,
             )?;
             if complete != bridge.complete_effects() {
@@ -744,19 +741,12 @@ pub(crate) mod private_object_composition {
                     },
                     section: SectionKind::Text,
                     offset: bridge_offset
-                        .checked_add(bridge.call_field_offset())
+                        .checked_add(bridge.call_relocation().offset)
                         .ok_or(Error::Overflow)?,
                     byte_width: 4,
                     symbol_handle: body_symbol,
                     addend: 0,
-                    kind: match linked.target.architecture {
-                        target::Architecture::Aarch64 => {
-                            object_file::RelocationKind::Aarch64Branch26
-                        }
-                        target::Architecture::X86_64 => {
-                            object_file::RelocationKind::X86_64Relative32
-                        }
-                    },
+                    kind: bridge.call_relocation().kind,
                 });
             function.scalar_abi = None;
             function.symbol = symbol;

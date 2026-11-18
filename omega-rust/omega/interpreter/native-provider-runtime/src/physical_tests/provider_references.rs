@@ -2,14 +2,15 @@
 //! host above this API still owes every semantic access and lifetime contract.
 
 use super::{Command, TIMEOUT, native_calls::compile};
+use crate::native_provider_runtime::test_session::TestProviderProcess;
 use crate::{
-    NativeAdapterId, NativeArgument, NativeProviderProcess, NativeProviderReference,
-    NativeResultStorage, wire::Packet,
+    NativeAdapterId, NativeArgument, NativeProviderReference, NativeResultStorage, wire::Packet,
 };
 use calling_conventions::{
-    CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
+    evaluate_ordinary_boundary_entry_plan,
 };
-use image_fixtures::emit_native_foreign_bridge;
+use image_fixtures::emit_native_foreign_bridge_object;
 use std::path::{Path, PathBuf};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -87,7 +88,7 @@ impl Fixture {
         library
     }
 
-    fn launch(&self) -> NativeProviderProcess {
+    fn launch(&self) -> TestProviderProcess {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command.args([
             "--exact",
@@ -102,7 +103,7 @@ impl Fixture {
             ));
             command.env("PATH", std::env::join_paths(paths).unwrap());
         }
-        NativeProviderProcess::launch(command, TIMEOUT).unwrap()
+        TestProviderProcess::launch(command, TIMEOUT).unwrap()
     }
 
     fn product(
@@ -112,7 +113,7 @@ impl Fixture {
         version: &[u8],
         parameters: Vec<ValueShape>,
         result: Option<ValueShape>,
-    ) -> native_artifact::NativeForeignAdapterImage {
+    ) -> image_emission::NativeForeignAdapterImage {
         let profile = TargetProfile::host();
         let target = profile.native_target();
         let candidate = match target.object_format {
@@ -144,7 +145,7 @@ impl Fixture {
             },
         )
         .unwrap();
-        let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
+        let bridge = emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
             target,
             foreign,
             scalar_parameters: vec![None; parameters.len()],
@@ -152,13 +153,12 @@ impl Fixture {
         .unwrap();
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
         let imports = image_fixtures::encode_locator_import(&locator);
-        image_emission::emit_native_foreign_adapter(bridge, locator, [37; 32], imports)
-        .unwrap()
+        image_emission::emit_native_foreign_adapter(bridge, locator, [37; 32], imports).unwrap()
     }
 
     fn install(
         &self,
-        process: &mut NativeProviderProcess,
+        process: &mut TestProviderProcess,
         symbol: &str,
         storage: NativeResultStorage,
     ) -> NativeAdapterId {
@@ -179,7 +179,7 @@ impl Drop for Fixture {
     }
 }
 
-fn read_cell(process: &mut NativeProviderProcess, reference: NativeProviderReference) -> i32 {
+fn read_cell(process: &mut TestProviderProcess, reference: NativeProviderReference) -> i32 {
     let mut bytes = [0xa5; 8];
     process
         .read_provider_reference(reference, 0, &mut bytes[2..6])

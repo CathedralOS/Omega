@@ -7,11 +7,9 @@ pub fn encode_native_foreign_bridge<Origin>(
 ) -> Result<NativeForeignBridge<Origin>, Error> {
     let (bytes, call_field_offset) =
         crate::adapters::encode_instructions(plan.instructions()).map_err(|_| Error::Encoding)?;
-    let frame_bytes = plan.frame_bytes();
-    let request = plan.into_request();
     Ok(NativeForeignBridge {
         origin: std::marker::PhantomData,
-        code: NativeForeignBridgeCode::from_parts(request, bytes, frame_bytes, call_field_offset),
+        code: NativeForeignBridgeCode::from_recipe(plan, bytes, call_field_offset),
     })
 }
 

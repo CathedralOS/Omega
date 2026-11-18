@@ -135,12 +135,18 @@ pub(crate) fn produce_retained_terminal_artifacts(
         for product in cohort {
             let outcome = produced.clone().and_then(|program| {
                 let execution = product.request.view.execution;
-                let effective = Arc::clone(execution.effective_artifact(program.artifact())
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?);
-                let proposal = execution.provider_proposal(
-                    effective.view(), product.request.selections.identity(),
+                let effective = Arc::clone(
+                    execution
+                        .effective_artifact(program.artifact())
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
                 );
-                Ok(ProducedTerminalProduct { program, effective, proposal })
+                let proposal = execution
+                    .provider_proposal(effective.view(), product.request.selections.identity());
+                Ok(ProducedTerminalProduct {
+                    program,
+                    effective,
+                    proposal,
+                })
             });
             outcomes.push((product.position, outcome));
         }
@@ -152,7 +158,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
 fn shared_terminal(
     first: &PreparedTerminalProduct<'_>,
 ) -> Result<Arc<source_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
-    if first.request.view.program.artifact().optimization().selections() != first.request.selections.project_psi().selections() {
+    if first
+        .request
+        .view
+        .program
+        .artifact()
+        .optimization()
+        .selections()
+        != first.request.selections.project_psi().selections()
+    {
         return Err(vec![Diagnostic::error(
             "Terminal publication differs from the Product's fixed Psi optimization selection",
         )]);

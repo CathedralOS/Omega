@@ -281,7 +281,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             let other = std::sync::Arc::new(terminal_codec::CanonicalTerminalArtifact::from_parts(
                 other, program.artifact().optimization().clone(), None,
             ).unwrap());
-            let refusal = native_compiler::PublishedEntrySelection::select(&other, checked.execution())
+            let refusal = native_compiler::PublishedNativeEntry::for_program(&other, checked.execution())
                 .err().expect("a different program cannot borrow this target selection");
             assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
 

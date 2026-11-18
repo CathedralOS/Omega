@@ -201,17 +201,7 @@ pub use callable_invocations::PreparedCallableInvocations;
 mod publication;
 pub use publication::capture_source_publication;
 
-/// What stage 02 knows about the program's boundary origins while it prepares
-/// the plan: the program entry, the installed assumed bindings, the target
-/// context and the Terminal Psi module. Preparation reads these; the prepared
-/// plan and later forms do not carry them.
-#[derive(Debug, Clone, Copy)]
-pub struct BoundaryOriginFacts<'input> {
-    pub program_entry: Option<target_operations::ProgramEntryOrigin>,
-    pub assumed_bindings: &'input [installation_evidence::InstalledAssumedBindingEvidence],
-    pub target_context: Option<&'input terminal_installation::TerminalTargetContext>,
-    pub module: &'input terminal_psi::TerminalModule,
-}
+pub use verified_optimization_input::publication::target_replay::BoundaryOriginFacts;
 
 pub(crate) mod installed_interrupts;
 pub(crate) mod interrupt_installation;

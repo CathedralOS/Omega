@@ -57,7 +57,7 @@ pub enum TerminalNativeServiceDelegation {
     MatchingHost,
 }
 
-use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
+use published_runtime_input::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
     TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,
@@ -65,7 +65,7 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
-    pub native_image: Option<verified_optimization_input::runtime_provisions::RuntimeImageInspection>, // Optional completed image for code-layout metadata inspection.
+    pub native_image: Option<published_runtime_input::RuntimeImageInspection>, // Optional completed image for code-layout metadata inspection.
     pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
     pub native_provider: Option<native_provider_runtime::NativeProviderCommand>, // Optional isolated native sponsor worker command.
     pub native_services: TerminalNativeServiceDelegation,
@@ -199,7 +199,7 @@ pub fn execute_sliced(
         }
     }
     if let Some(provisions) = request.provisions
-        && provisions.identity() != program.terminal_psi()
+        && !provisions.matches_artifact(request.artifact)
     {
         return Err(TerminalRuntimeError::InvalidProvision(
             "runtime provisions name another Terminal program or entry",
@@ -282,8 +282,11 @@ pub fn execute_sliced(
             }
         }
     }
-    let native_code_layouts =
-        native_code_layouts::inspect(request.native_image.take(), request.artifact, execution_target)?;
+    let native_code_layouts = native_code_layouts::inspect(
+        request.native_image.take(),
+        request.artifact,
+        execution_target,
+    )?;
     let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: native_code_layouts.as_ref(),
@@ -300,14 +303,18 @@ pub fn execute_sliced(
             target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
-    if let Some(provisions) = request.provisions {
-        provisions.validate_component_product_roster().map_err(TerminalRuntimeError::InvalidProvision)?;
-        for component in provisions.component_products() {
-            installation = installation
-                .with_component_provider(component.selection())
-                .map_err(TerminalRuntimeError::Requirements)?;
-        }
+    let component_products = request
+        .provisions
+        .map(|provisions| provisions.component_products())
+        .transpose()
+        .map_err(TerminalRuntimeError::InvalidProvision)?
+        .unwrap_or_default();
+    for component in component_products {
+        installation = installation
+            .with_component_provider(component.selection())
+            .map_err(TerminalRuntimeError::Requirements)?;
     }
+
     let installed_entry = program
         .entry_installed(&installation)
         .map_err(TerminalRuntimeError::Requirements)?;
@@ -368,16 +375,10 @@ pub fn execute_sliced(
         request.native_services,
         request.filesystem,
     );
-    let component_slots = request
-        .provisions
-        .map(|provisions| {
-            provisions
-                .component_products()
-                .iter()
-                .map(|component| component.selection().receiving_boundary())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let component_slots = component_products
+        .iter()
+        .map(|component| component.selection().receiving_boundary())
+        .collect::<Vec<_>>();
     let imports = requirements
         .imports
         .iter()
@@ -393,14 +394,12 @@ pub fn execute_sliced(
         &imports,
         &host,
     )?;
-    if let Some(provisions) = request.provisions {
-        for component in provisions.component_products() {
-            let binding =
-                components::prepare(component, &host, request.x86_flags, request.memory_ordering)?;
-            instance
-                .bind_component(binding)
-                .map_err(TerminalRuntimeError::ComponentBinding)?;
-        }
+    for component in component_products {
+        let binding =
+            components::prepare(component, &host, request.x86_flags, request.memory_ordering)?;
+        instance
+            .bind_component(binding)
+            .map_err(TerminalRuntimeError::ComponentBinding)?;
     }
     for demand in &requirements.external_completions {
         let admission = TerminalProcessExitAdmission::admit_isolated_simulated_domain(

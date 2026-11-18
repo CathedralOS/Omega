@@ -3,44 +3,13 @@ use crate::native_entry_bridge::{NativeEntryBridge, encode_native_entry_bridge};
 use arena::Arena;
 use diagnostics::Diagnostic;
 use physical_recipes::physical_stack_switch::{
-    PhysicalIncomingStackRequirement, StackSwitchInstructions, StackSwitchPlan, StackTransfer,
+    StackSwitchInstructions, StackSwitchPlan, StackTransfer,
 };
 fn invalid(reason: &str) -> Diagnostic {
     Diagnostic::error(format!("physical image entry: {reason}"))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Destination {
-    #[default]
-    SavedStack,
-    SavedAccumulator,
-    SavedScratch,
-    StackTop,
-    Body,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Fixup {
-    pub field: usize,
-    pub destination: Destination,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StackSwitch {
-    pub bytes: Vec<u8>,
-    pub fixups: Arena<Fixup>,
-    pub outgoing_frame_bytes: u32,
-    pub incoming: PhysicalIncomingStackRequirement,
-    pub effects: calling_conventions::StateEffectsEvidence,
-    pub body_call: u32,
-    pub complete_effects: calling_conventions::StateEffectsEvidence,
-}
-
-impl StackSwitch {
-    pub fn stack_overhead_bytes(&self) -> u64 {
-        u64::from(self.outgoing_frame_bytes) + 8
-    }
-}
+pub use physical_recipes::physical_stack_switch::{Destination, Fixup, StackSwitch};
 
 pub fn encode<Origin>(
     plan: StackSwitchPlan<Origin>,
@@ -130,21 +99,4 @@ pub fn encode<Origin>(
             body_call,
         },
     ))
-}
-
-impl StackSwitch {
-    pub fn validate_published_code(&self, bytes: &[u8]) -> Result<(), Diagnostic> {
-        // Both decodes belong to the explicit audit. The producer carries its
-        // planned effects; it does not decode its own output to discover them.
-        let expected = isa_x86_64::decode_x86_64_generated_entry(&self.bytes, Some(self.body_call))
-            .map_err(|error| invalid(&error))?;
-        let actual = isa_x86_64::decode_x86_64_generated_entry(bytes, Some(self.body_call))
-            .map_err(|error| invalid(&error))?;
-        if actual != expected || actual.effects != self.effects {
-            return Err(invalid(
-                "physical entry instruction/state evidence fails exact target replay",
-            ));
-        }
-        Ok(())
-    }
 }

@@ -23,26 +23,43 @@ impl FoldedTargetProgram {
         folded.validate(prior.module()).map_err(str::to_owned)?;
         let mut module = prior.module().clone();
         module.folded_constants = folded;
-        let debug = original.debug_bytes()
+        let debug = original
+            .debug_bytes()
             .map(|bytes| terminal_codec::decode_debug_map(prior.module(), bytes))
-            .transpose().map_err(|error| error.to_string())?;
-        let closed = terminal_codec::ClosedTerminalModule::new(module)
+            .transpose()
             .map_err(|error| error.to_string())?;
-        let evidence = accepted_evidence.map(|evidence| {
-            if evidence.module != prior.identity() {
-                return Err("accepted evidence belongs to another portable program".to_owned());
-            }
-            Ok(Arc::new(closed.evidence_seals(evidence.seals.clone())))
-        }).transpose()?;
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(module).map_err(|error| error.to_string())?;
+        let evidence = accepted_evidence
+            .map(|evidence| {
+                if evidence.module != prior.identity() {
+                    return Err("accepted evidence belongs to another portable program".to_owned());
+                }
+                Ok(Arc::new(closed.evidence_seals(evidence.seals.clone())))
+            })
+            .transpose()?;
         let identity = closed.identity();
         let record = terminal_codec::PsiOptimizationExecutionRecord::new(
-            optimization::PsiOptimizationSelections::default(), identity, identity,
-        ).map_err(|error| format!("{error:?}"))?;
+            optimization::PsiOptimizationSelections::default(),
+            identity,
+            identity,
+        )
+        .map_err(|error| format!("{error:?}"))?;
         let artifact = CanonicalTerminalArtifact::from_closed_parts(closed, record, debug.as_ref())
             .map_err(|error| error.to_string())?;
-        Ok(Self { original: prior.identity(), artifact: Arc::new(artifact), evidence })
+        Ok(Self {
+            original: prior.identity(),
+            artifact: Arc::new(artifact),
+            evidence,
+        })
     }
-    pub fn original(&self) -> terminal_psi::TerminalPsiIdentity { self.original }
-    pub fn artifact(&self) -> &Arc<CanonicalTerminalArtifact> { &self.artifact }
-    pub fn evidence(&self) -> Option<&Arc<EvidenceSeals>> { self.evidence.as_ref() }
+    pub fn original(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.original
+    }
+    pub fn artifact(&self) -> &Arc<CanonicalTerminalArtifact> {
+        &self.artifact
+    }
+    pub fn evidence(&self) -> Option<&Arc<EvidenceSeals>> {
+        self.evidence.as_ref()
+    }
 }

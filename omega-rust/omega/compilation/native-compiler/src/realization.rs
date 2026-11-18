@@ -177,6 +177,8 @@ pub(crate) fn admit_terminal_runtime(
         provisions
             .map_adapters(auxiliary_native::plan)
             .map_adapters(auxiliary_native::encode)
+            .map_adapters(auxiliary_native::place)
+            .map_adapters(auxiliary_native::construct)
             .map_adapters(auxiliary_native::emit)
             .with_private_entry_ram(private_entry_ram)
             .with_borrowed_storage_layouts(borrowed_storage_layouts)

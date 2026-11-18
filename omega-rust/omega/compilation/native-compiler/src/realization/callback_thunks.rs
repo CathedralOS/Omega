@@ -35,9 +35,14 @@ pub(crate) struct PlannedPrivateBody {
     measurement: std::sync::OnceLock<Result<physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>>,
 }
 
-pub(super) struct PrivateBody<Callable> {
+pub(super) type EncodedPrivateBody =
+    PrivateBody<super::callable_objects::EncodedCallable, native_verification::bridges::EncodedPrivateEntry>;
+pub(super) type LaidOutPrivateBody =
+    PrivateBody<super::callable_objects::LaidOutCallable, function_layout::entry_placement::PlacedPrivateEntry>;
+
+pub(super) struct PrivateBody<Callable, Entry> {
     callable: Callable,
-    entry: image_emission::EncodedPrivateEntry,
+    entry: Entry,
 }
 
 pub(super) struct BoundPrivateBody {
@@ -83,7 +88,7 @@ impl PlannedPrivateBody {
 impl BoundPrivateBody {
     pub(super) fn encode(
         self,
-    ) -> Result<PrivateBody<super::callable_objects::EncodedCallable>, Vec<Diagnostic>> {
+    ) -> Result<EncodedPrivateBody, Vec<Diagnostic>> {
         let callable = self.callable.encode()?;
         let entry = native_encoding::callable_entry::encode_private_function_entry(self.entry)
             .map_err(|error| {
@@ -96,18 +101,19 @@ impl BoundPrivateBody {
     }
 }
 
-impl PrivateBody<super::callable_objects::EncodedCallable> {
+impl EncodedPrivateBody {
     pub(super) fn layout(
         self,
-    ) -> Result<PrivateBody<super::callable_objects::LaidOutCallable>, Vec<Diagnostic>> {
+    ) -> Result<LaidOutPrivateBody, Vec<Diagnostic>> {
         Ok(PrivateBody {
             callable: self.callable.layout()?,
-            entry: self.entry,
+            entry: function_layout::entry_placement::place_private_entry(self.entry)
+                .map_err(|error| realization_error("callback entry layout", error))?,
         })
     }
 }
 
-impl PrivateBody<super::callable_objects::LaidOutCallable> {
+impl LaidOutPrivateBody {
     pub(super) fn construct_object(
         self,
     ) -> Result<
@@ -119,7 +125,7 @@ impl PrivateBody<super::callable_objects::LaidOutCallable> {
     > {
         let emitted = self.callable.construct_object()?;
         let object = image_emission::bind_private_function_entry(
-            self.entry,
+            object_file::PrivateEntryObject::from_placement(self.entry),
             Arc::new(emitted.projection.into_object()),
         )
         .map_err(|error| realization_error("callback entry ABI", error))?;

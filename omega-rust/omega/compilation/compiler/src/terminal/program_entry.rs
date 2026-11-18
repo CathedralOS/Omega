@@ -12,17 +12,20 @@ pub(crate) fn bind_folded_entry_dependencies(
     custody: &mut crate::execution_settlement::SelectedProviderCustody,
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &custody.source_program;
-    custody.execution.bind_folded_entry(
-        program.artifact(), program.evidence().map(std::sync::Arc::as_ref),
-    ).map_err(|reason| vec![Diagnostic::error(reason)])
+    custody
+        .execution
+        .bind_folded_entry(
+            program.artifact(),
+            program.evidence().map(std::sync::Arc::as_ref),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
 pub fn prepare_program_entry(
     checked: &PublishedCompilation,
 ) -> Result<(SelectedProgramEntrySignature, ProducedTerminalApplication), Vec<Diagnostic>> {
     let program = checked.program();
-    let selection = native_compiler::PublishedEntrySelection::select(program.artifact(), checked.execution())?;
-    let selected = selection.selected();
+    let selected = native_compiler::PublishedNativeEntry::for_program(program.artifact(), checked.execution())?;
     let signature = selected.source_signature().clone();
     let application = TerminalApplicationCustody::prepare(
         selected.nominal_root(),

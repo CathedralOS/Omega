@@ -697,17 +697,33 @@ impl RetainedNativeArtifact {
 
     /// Inspect the completed product while the object and image are still
     /// together. Private function indexes belong to their own semantic root.
-    pub fn inspect_for_runtime(&self) -> verified_optimization_input::runtime_provisions::RuntimeImageInspection {
-        use verified_optimization_input::runtime_provisions::{RuntimeImageInspection, RuntimeImageSections};
+    pub fn inspect_for_runtime(&self) -> published_runtime_input::RuntimeImageInspection {
+        use published_runtime_input::{RuntimeImageInspection, RuntimeImageSections};
         let artifact = self.psi_artifact();
-        let descriptors = self.inspect_native_code_layouts().map(|rows| rows.into_iter()
-            .filter(|row| row.private_function.is_none() && row.terminal_psi == artifact.view().identity())
-            .map(|row| (row.machine, row.data_section_offset))).map_err(|error| error.to_string());
+        let descriptors = self
+            .inspect_native_code_layouts()
+            .map(|rows| {
+                rows.into_iter()
+                    .filter(|row| {
+                        row.private_function.is_none()
+                            && row.terminal_psi == artifact.view().identity()
+                    })
+                    .map(|row| (row.machine, row.data_section_offset))
+            })
+            .map_err(|error| error.to_string());
         let output = self.image().output();
-        RuntimeImageInspection::read(artifact, self.target(), *self.identity().as_bytes(), RuntimeImageSections {
-            text_address: output.final_image_layout.text_address, text: &output.final_text_bytes,
-            data_address: output.final_image_layout.data_address, data: &output.final_data_bytes,
-        }, descriptors)
+        RuntimeImageInspection::read(
+            artifact,
+            self.target(),
+            *self.identity().as_bytes(),
+            RuntimeImageSections {
+                text_address: output.final_image_layout.text_address,
+                text: &output.final_text_bytes,
+                data_address: output.final_image_layout.data_address,
+                data: &output.final_data_bytes,
+            },
+            descriptors,
+        )
     }
 
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {

@@ -909,35 +909,95 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     // The executable route commits its provider choices to target code. The
     // original checked program and its Build/source companions keep one identity.
     let (mut session, build, _) = captured_package_build(
-        &project, &workspace.path().join("checked"), target::TargetProfile::LinuxX64,
+        &project,
+        &workspace.path().join("checked"),
+        target::TargetProfile::LinuxX64,
         Some(historical_constant_snapshot()),
     );
-    let checked = session.compiler().check_package_build(build).expect("accepted scalar source");
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .expect("accepted scalar source");
     let publication = checked.terminal_publication();
-    let source = publication.require_published(publication.optimizations()).unwrap();
+    let source = publication
+        .require_published(publication.optimizations())
+        .unwrap();
     let original = source.artifact().view();
     let original_bytes = source.artifact().to_bytes();
     assert!(original.module().folded_constants.dependencies.is_empty());
-    let mut selected = checked.execution().clone();
-    selected.bind_folded_entry(
-        source.artifact(), source.evidence().map(std::sync::Arc::as_ref),
-    ).expect("normal target planner binds the exact reached providers");
+    let source_demand = publication.prepare_provider_demand(
+        Some("linux_x86_64"),
+        &checked.build().config.provider_selections,
+        &checked.build().config.native_bindings,
+        checked.sources().package_identity().is_some(),
+    ).expect("close the Linux source provider choices");
+    let demand = portable_publication::ProductCodeSource {
+        publication,
+        sources: checked.sources(),
+    }
+    .publish_provider_demand(
+        Some(target::TargetProfile::LinuxX64),
+        source_demand,
+        &mut source_compiler::UnmeasuredProduction,
+    )
+    .expect("source publishes the exact Linux scalar reach");
+    let backend_plan::PublishedProviderDemand::Target { folded_entry, .. } = &demand else {
+        panic!("expected target-specific provider demand");
+    };
+    let reach = folded_entry.clone().unwrap();
+    let planner = native_compiler::select_published_providers(demand)
+        .expect("plan native providers from the published demand");
+    let mut selected = planner.clone();
+    selected
+        .bind_folded_entry(
+            source.artifact(),
+            source.evidence().map(std::sync::Arc::as_ref),
+        )
+        .expect("normal target planner binds the exact reached providers");
     let folded = selected.effective_artifact(source.artifact()).unwrap();
-    assert_eq!(folded.view().identity(), retained.artifact().view().identity());
+    assert_eq!(
+        folded.view().identity(),
+        retained.artifact().view().identity()
+    );
     assert_ne!(folded.view().identity(), original.identity());
     let mut without_dependencies = folded.semantic_module().clone();
     without_dependencies.folded_constants = Default::default();
     assert_eq!(&without_dependencies, original.module());
     assert_eq!(folded.debug_bytes(), source.artifact().debug_bytes());
     assert_eq!(source.artifact().to_bytes(), original_bytes);
-    assert!(std::sync::Arc::ptr_eq(&source, &publication.require_published(publication.optimizations()).unwrap()));
+    assert!(std::sync::Arc::ptr_eq(
+        &source,
+        &publication
+            .require_published(publication.optimizations())
+            .unwrap()
+    ));
     assert!(source.build_bindings().calls_for(original.into()).is_some());
-    assert!(source.build_bindings().calls_for(folded.view().into()).is_none());
-    assert_eq!(checked.execution().realization().program(), original.identity());
-    checked.execution().with_folded_program(folded.view()).expect("receive the same exact dependency table");
-    assert!(selected.bind_folded_entry(
-        source.artifact(), source.evidence().map(std::sync::Arc::as_ref),
-    ).is_err());
+    assert!(
+        source
+            .build_bindings()
+            .calls_for(folded.view().into())
+            .is_none()
+    );
+    assert_eq!(
+        checked.execution().realization().program(),
+        original.identity()
+    );
+    let replayed = planner
+        .with_folded_program(folded.view())
+        .expect("receive the same exact dependency table")
+        .into_result();
+    assert_eq!(replayed.original_program(), original.identity());
+    assert_eq!(replayed.realization().program(), folded.view().identity());
+    native_compiler::PublishedNativeEntry::for_program(folded, &replayed)
+        .expect("replayed entry retains its original nomination and its effective code");
+    assert!(
+        selected
+            .bind_folded_entry(
+                source.artifact(),
+                source.evidence().map(std::sync::Arc::as_ref),
+            )
+            .is_err()
+    );
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
@@ -950,6 +1010,22 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     );
     let view = decoded.view();
     let plans = proposal.providers().selection.plans();
+    assert_eq!(
+        reach.bind(original, "linux_x86_64", plans).unwrap(),
+        view.module().folded_constants
+    );
+    assert_eq!(
+        reach.bind(original, "linux_arm64", plans).unwrap_err(),
+        "folded scalar entry belongs to another program or deployment"
+    );
+    assert_eq!(
+        reach.bind(view, "linux_x86_64", plans).unwrap_err(),
+        "folded scalar entry belongs to another program or deployment"
+    );
+    assert!(
+        selected.effective_artifact(retained.shared_artifact()).is_err(),
+        "derived code must not reenter planning as its own source"
+    );
     let preimages =
         backend_plan::matching_folded_constant_dependencies(view, "linux_x86_64", plans.iter())
             .expect("native admission rejoins exact real plans");
@@ -996,7 +1072,11 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let alternate = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("alternate native proposal");
-    assert!(checked.execution().with_folded_program(alternate.artifact().view()).is_err());
+    assert!(
+        planner
+            .with_folded_program(alternate.artifact().view())
+            .is_err()
+    );
     let alternate_plans = alternate
         .native_realization_proposal()
         .unwrap()
@@ -1771,8 +1851,9 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
             .evaluated_native_bindings()
             .is_empty()
     );
-    let policy = project_checked_package_policy(&checked, target, inputs.root()).unwrap();
-    let bytes = policy.canonical_bytes().unwrap();
+    let review = review_evidence::project_package_review(&checked, inputs.root(), target, usize::MAX)
+        .expect("review the idle entry and its completed Build");
+    let bytes = review.policy.canonical_bytes().unwrap();
     let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
     assert_eq!(policy.canonical_bytes().unwrap(), bytes);
     let [binding] = policy.native_bindings() else {

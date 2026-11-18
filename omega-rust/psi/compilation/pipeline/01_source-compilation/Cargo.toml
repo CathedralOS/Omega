@@ -19,6 +19,7 @@ storage-access = { path = "../../../runtime/storage-access" }
 layout-planning = { path = "../../layout-planning" }
 numeric-literals = { path = "../../representations/numeric-literals" }
 evaluation-contracts = { path = "../../../evaluation/evaluation-contracts" }
+evaluation-receipts = { path = "../../../evaluation/evaluation-receipts" }
 source-capture = { path = "../../../../host-support/source-capture" }
 source-admission = { path = "../../representations/source-admission" }
 source-text = { path = "../../../foundation/source-text" }

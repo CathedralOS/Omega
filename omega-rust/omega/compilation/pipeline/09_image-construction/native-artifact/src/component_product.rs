@@ -16,20 +16,15 @@ use verified_optimization_input::AdmittedNativeComponentCall;
 pub struct NativeComponentProduct {
     image: image_emission::ComponentSharedImage,
     description: Vec<u8>,
-    artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    selection: terminal_installation::AdmittedComponentProvider,
-    application: calling_conventions::BoundaryCallingApplication,
     runtime: crate::TerminalCallableRuntimeProvisions,
-    authority: AdmittedNativeCallableAuthority,
-    locator: target::NormalizedComponentLocator,
-    runtime_record: Arc<verified_optimization_input::runtime_provisions::RuntimeComponent>,
+    runtime_record: Arc<published_runtime_input::RuntimeComponent>,
 }
 impl std::fmt::Debug for NativeComponentProduct {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("NativeComponentProduct")
-            .field("selection", &self.selection)
-            .field("locator", &self.locator)
+            .field("selection", self.selection())
+            .field("locator", self.locator())
             .finish()
     }
 }
@@ -76,8 +71,13 @@ impl NativeComponentProduct {
         let stack_bytes = demand
             .ceiling_bytes()
             .ok_or("component calls require a finite stack demand without hosted imports")?;
-        let locator = target::NormalizedComponentLocator::for_image(
-            runtime.target(),
+        let runtime_record = published_runtime_input::RuntimeComponent::admit(
+            call,
+            runtime
+                .clone()
+                .map_adapters(|adapter| Ok(Arc::new(adapter.runtime_identity()))),
+            authority,
+            &demand,
             image.image().contents(),
             *image.slot_commitment(),
         )?;
@@ -90,23 +90,14 @@ impl NativeComponentProduct {
                     ceiling_bytes: stack_bytes,
                     stack_alignment: demand.stack_alignment(),
                 }),
-                realization_identity: Some(*locator.identity_digest()),
+                realization_identity: Some(*runtime_record.locator().identity_digest()),
             },
         )
         .map_err(|error| format!("native component description publication: {error}"))?;
-        let runtime_record = verified_optimization_input::runtime_provisions::RuntimeComponent::admit(
-            call, runtime.clone().map_adapters(|adapter| Ok(Arc::new(adapter.runtime_identity()))),
-            authority.clone(), locator.clone(), stack_bytes, demand.stack_alignment(),
-        )?;
         Ok(Self {
             image,
             description,
-            artifact: Arc::clone(call.component().shared_artifact()),
-            selection: selection.clone(),
-            application: application.clone(),
             runtime,
-            authority,
-            locator,
             runtime_record: Arc::new(runtime_record),
         })
     }
@@ -117,7 +108,7 @@ impl NativeComponentProduct {
         &self.description
     }
     pub fn description_filename(&self) -> String {
-        format!("{}.component", self.locator.image_filename())
+        format!("{}.component", self.locator().image_filename())
     }
     pub fn verify_description(&self, description: &[u8]) -> Result<(), &'static str> {
         if description != self.description {
@@ -125,37 +116,40 @@ impl NativeComponentProduct {
         }
         Ok(())
     }
-    pub const fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
-        &self.artifact
+    pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
+        self.runtime_record.artifact()
     }
-    pub const fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
-        &self.selection
+    pub fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
+        self.runtime_record.selection()
     }
-    pub const fn application(&self) -> &calling_conventions::BoundaryCallingApplication {
-        &self.application
+    pub fn application(&self) -> &calling_conventions::BoundaryCallingApplication {
+        self.runtime_record.application()
     }
     pub const fn runtime(&self) -> &crate::TerminalCallableRuntimeProvisions {
         &self.runtime
     }
-    pub const fn locator(&self) -> &target::NormalizedComponentLocator {
-        &self.locator
+    pub fn locator(&self) -> &target::NormalizedComponentLocator {
+        self.runtime_record.locator()
     }
-    pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
-        &self.authority
+    pub fn authority(&self) -> &AdmittedNativeCallableAuthority {
+        self.runtime_record.authority()
     }
-    pub(crate) fn runtime_record(&self) -> &Arc<verified_optimization_input::runtime_provisions::RuntimeComponent> {
+    pub(crate) fn runtime_record(&self) -> &Arc<published_runtime_input::RuntimeComponent> {
         &self.runtime_record
     }
-    pub fn validate_same_stack(&self, contribution: &task_plans::AdmittedSameStackContribution) -> Result<(), &'static str> {
+    pub fn validate_same_stack(
+        &self,
+        contribution: &task_plans::AdmittedSameStackContribution,
+    ) -> Result<(), &'static str> {
         self.runtime_record.validate_same_stack(contribution)
     }
 
     pub fn verify_contents(&self, contents: &[u8]) -> Result<(), &'static str> {
         if target::NormalizedComponentLocator::for_image(
-            self.locator.target(),
+            self.locator().target(),
             contents,
-            *self.locator.slot_commitment(),
-        )? != self.locator
+            *self.locator().slot_commitment(),
+        )? != *self.locator()
         {
             return Err("component file differs from its exact admitted content-addressed image");
         }

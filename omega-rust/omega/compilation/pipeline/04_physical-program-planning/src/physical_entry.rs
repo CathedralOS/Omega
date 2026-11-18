@@ -5,41 +5,14 @@ use physical_recipes::physical_entry::{
     InstalledPhysicalCpuRequirement, PhysicalEntryParts, PhysicalEntryProgram,
     PhysicalEntryStackRequirement,
 };
-use program_entry_plan::{
-    ProgramEntryPhysicalContractPlan, physical_selection::PhysicalEntrySelection,
-};
-use semantic_vocabulary::{MachineId, OperationId};
+use program_entry_plan::physical_selection::PhysicalEntrySelection;
 fn invalid(reason: &str) -> Diagnostic {
     Diagnostic::error(format!("physical image entry: {reason}"))
 }
 
 pub type PlannedPhysicalEntry<S> =
     PhysicalEntryProgram<crate::PhysicalRecipeOrigin, PhysicalEntryContext<S>>;
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PhysicalEntryContext<S> {
-    pub selection: S,
-    pub target: target::NativeTarget,
-    pub installed_reserve_bytes: u64,
-    pub plan: BoundaryEntryPlan,
-    pub body_demand: crate::stack_demand::StackDemand,
-    pub arrival_stack: target::TargetEntryStackGuarantee,
-    pub requirements: PlannedRequirements,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlannedRequirements {
-    pub psi: terminal_psi::TerminalPsiIdentity,
-    pub target: target::NativeTarget,
-    pub semantic_entry: MachineId,
-    pub adapter: MachineId,
-    pub contract: ProgramEntryPhysicalContractPlan,
-    pub stack: PhysicalEntryStackRequirement,
-    pub stack_bytes: u64,
-    pub alignment: u64,
-    pub minimum_stack_bytes: u64,
-    pub installed_scopes: Vec<(MachineId, OperationId)>,
-    pub installed_cpu: Option<InstalledPhysicalCpuRequirement>,
-}
+pub use program_entry_plan::physical_selection::{PhysicalEntryContext, PlannedRequirements};
 
 pub struct PrivatePhysicalEntry<'a> {
     pub psi: terminal_psi::TerminalPsiIdentity,

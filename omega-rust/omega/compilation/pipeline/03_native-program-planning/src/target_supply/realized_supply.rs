@@ -40,10 +40,14 @@ struct PlanRealization {
     executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
+/// Stage 03 owns this value while it resolves a target's complete supply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RealizedTargetSupply(SelectedProviderRealization);
+
 /// The effect closure owns the sole retained plan roster. The small parallel
 /// rows retain native execution information that is not an effect-plan field.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RealizedTargetSupply {
+pub struct SelectedProviderRealization {
     program: terminal_psi::TerminalPsiIdentity,
     target: Option<String>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
@@ -57,7 +61,19 @@ pub struct RealizedTargetSupply {
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
+impl std::ops::Deref for RealizedTargetSupply {
+    type Target = SelectedProviderRealization;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl RealizedTargetSupply {
+    pub(crate) fn into_result(self) -> SelectedProviderRealization {
+        self.0
+    }
+
     /// An unscoped check cannot choose a target's provider. Its actual roots
     /// must reach no boundary before a no-demand realization can be retained.
     pub fn unscoped(
@@ -95,7 +111,7 @@ impl RealizedTargetSupply {
             target::TargetProfile::from_canonical_target_name(target)
                 .map_err(|error| error.to_string())?;
         }
-        Ok(Self {
+        Ok(Self(SelectedProviderRealization {
             program: terminal_codec::terminal_psi_identity(module)
                 .map_err(|error| format!("provider realization lost its canonical program: {error:?}"))?,
             target: target.map(str::to_owned),
@@ -110,7 +126,7 @@ impl RealizedTargetSupply {
             evaluated_binding_identities: Default::default(),
             terminal_authority_permissions: Vec::new(),
             terminal_authority_permission_identities: Default::default(),
-        })
+        }))
     }
 
     pub fn from_checked(
@@ -391,7 +407,7 @@ impl RealizedTargetSupply {
             });
         }
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(plans)?;
-        Ok(Self {
+        Ok(Self(SelectedProviderRealization {
             program: terminal_codec::terminal_psi_identity(module)
                 .map_err(|error| format!("provider realization lost its canonical program: {error:?}"))?,
             target: Some(input.target),
@@ -405,7 +421,7 @@ impl RealizedTargetSupply {
             terminal_authority_permissions: input.terminal_authority_permissions,
             terminal_authority_permission_identities: input
                 .terminal_authority_permission_identities,
-        })
+        }))
     }
 
     pub fn resolve_installation_reach(
@@ -427,41 +443,63 @@ impl RealizedTargetSupply {
                 .collect::<Vec<_>>()
                 .join("; ")
         })?;
-        self.plans = Arc::new(plans);
+        self.0.plans = Arc::new(plans);
         Ok(self)
+    }
+
+    pub fn with_folded_program(
+        &self,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+    ) -> Result<Self, String> {
+        Self::replay_folded_program(&self.0, artifact).map(Self)
     }
 
     /// Bind the same plans to a derived program whose only change is the exact
     /// folded dependency closure these plans establish. Different code or an
     /// incomplete/foreign closure cannot reuse this realization.
-    pub fn with_folded_program(
-        &self,
+    pub(crate) fn replay_folded_program(
+        realization: &SelectedProviderRealization,
         artifact: terminal_codec::TerminalArtifactView<'_>,
-    ) -> Result<Self, String> {
-        let target = self.target().ok_or("folded constants require an explicit target")?;
+    ) -> Result<SelectedProviderRealization, String> {
+        let target = realization.target().ok_or("folded constants require an explicit target")?;
         let mut original = artifact.module().clone();
         let folded = std::mem::take(&mut original.folded_constants);
-        self.require_program(terminal_codec::terminal_psi_identity(&original)
+        realization.require_program(terminal_codec::terminal_psi_identity(&original)
             .map_err(|error| error.to_string())?)?;
         let root = original.program_entry_contract(target)?.entry;
         let expected = backend_plan::folded_constant_dependencies(
-            &original, target, self.plans.plans(), &[root],
+            &original, target, realization.plans().plans(), &[root],
         )?;
         if folded != expected || folded.dependencies.is_empty() {
             return Err("folded constant closure differs from this exact provider realization".into());
         }
-        let mut derived = self.clone();
+        let mut derived = realization.clone();
         derived.program = artifact.identity();
         Ok(derived)
     }
 
-    pub(crate) fn bind_folded_artifact(&self, folded: &crate::FoldedTargetProgram) -> Result<Self, String> {
-        self.require_program(folded.original())?;
-        let mut derived = self.clone();
+    pub(crate) fn close_folded_entry(
+        realization: &SelectedProviderRealization,
+        original: &terminal_codec::CanonicalTerminalArtifact,
+        evidence: Option<&terminal_codec::EvidenceSeals>,
+        reach: &backend_plan::FoldedEntryReach,
+    ) -> Result<Option<(SelectedProviderRealization, crate::FoldedTargetProgram)>, String> {
+        realization.require_program(original.view().identity())?;
+        let target = realization
+            .target()
+            .ok_or("folded constants require an explicit target")?;
+        let closure = reach.bind(original.view(), target, realization.plans().plans())?;
+        if closure.dependencies.is_empty() {
+            return Ok(None);
+        }
+        let folded = crate::FoldedTargetProgram::close(original, evidence, closure)?;
+        let mut derived = realization.clone();
         derived.program = folded.artifact().view().identity();
-        Ok(derived)
+        Ok(Some((derived, folded)))
     }
+}
 
+impl SelectedProviderRealization {
     pub fn program(&self) -> terminal_psi::TerminalPsiIdentity { self.program }
 
     pub fn require_program(&self, program: terminal_psi::TerminalPsiIdentity) -> Result<(), String> {

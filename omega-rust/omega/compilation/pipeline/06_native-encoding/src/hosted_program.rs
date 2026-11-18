@@ -13,6 +13,9 @@ pub struct EncodedHostedProgramEntry<Origin, Context> {
 }
 
 impl<Origin, Context> EncodedHostedProgramEntry<Origin, Context> {
+    pub fn into_parts(self) -> (Context, EncodedHostedEntry, EncodedImportProgram) {
+        (self.context, self.program, self.imports)
+    }
     pub const fn context(&self) -> &Context {
         &self.context
     }

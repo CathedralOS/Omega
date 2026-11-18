@@ -24,7 +24,7 @@ pub fn plan_unscoped_execution(
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     let realization = RealizedTargetSupply::unscoped(module, roots)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    SelectedExecution::from_realization(None, realization)
+    SelectedExecution::from_realization(module, None, realization)
 }
 
 /// Select the concrete providers from a portable handoff. Package review reads
@@ -72,7 +72,7 @@ pub fn plan_target_execution(
     let realization = realization
         .resolve_installation_reach(module, &module.installation_reach_requirements())
         .map_err(|reason| Admission(vec![Diagnostic::error(reason)]))?;
-    SelectedExecution::from_realization(Some(target), realization).map_err(Admission)
+    SelectedExecution::from_realization(module, Some(target), realization).map_err(Admission)
 }
 
 /// Grow only the body bindings of actually chosen maps. Registering their

@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+function-layout = { path = "../../omega/compilation/pipeline/07_native-layout/function-layout" }
+object-file = { path = "../../omega/compilation/pipeline/08_object-construction" }
 target = { path = "../../omega/compilation/target-description/target" }
 physical-planning = { path = "../../omega/compilation/pipeline/04_physical-program-planning" }
 native-encoding = { path = "../../omega/compilation/pipeline/06_native-encoding" }

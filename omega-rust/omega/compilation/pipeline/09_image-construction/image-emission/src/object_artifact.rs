@@ -188,7 +188,7 @@ mod carriers {
         /// compile retained native stage inputs for a correspondence audit.
         pub fn retained_target_operations(
             &self,
-        ) -> Option<&native_program_planning::ValidatedOptimizedTargetOperations> {
+        ) -> Option<&verified_optimization_input::publication::target_replay::TargetOperationsForReplay> {
             self.composition_source
                 .as_deref()
                 .unwrap_or(self)
@@ -196,7 +196,7 @@ mod carriers {
                 .as_ref()?
                 .1
                 .as_ref()
-                .map(crate::RetainedTargetOperations::target)
+                .map(crate::RetainedTargetOperations::target_for_correspondence)
         }
 
         pub fn native_instruction_source_rows(&self) -> Option<NativeInstructionSourceRows<'_>> {
@@ -1000,9 +1000,13 @@ pub(crate) mod installed_stack {
             .require_without_floating_state()?;
             let mut encoded = current.encoding.rows().iter();
             for function in &origins.functions {
-                let placed = body.function_on_machine(function.machine).ok_or(Error::Mismatch(
+                let mut placements = body.functions().iter().filter(|placed| placed.machine == function.machine);
+                let placed = placements.next().ok_or(Error::Mismatch(
                     "installed fault analysis has no exact placed function",
                 ))?;
+                if placements.next().is_some() {
+                    return Err(Error::Mismatch("installed function has multiple object placements"));
+                }
                 let function_bytes = placed.text_offset.checked_add(placed.byte_count)
                     .and_then(|end| body.text_bytes().get(placed.text_offset..end))
                     .ok_or(Error::Mismatch("installed function bytes exceed the object text"))?;

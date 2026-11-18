@@ -16,5 +16,5 @@ use target_operations::TargetOperationPlan;
 pub(crate) fn target_operations(
     original: &crate::RetainedTargetOperations,
 ) -> &TargetOperationPlan {
-    original.target().working_program_for_validation()
+    original.target_for_correspondence().working_program_for_validation()
 }

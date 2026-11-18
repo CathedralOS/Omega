@@ -380,95 +380,13 @@ fn validate_original(
             "current object publication differs from retained original",
         ));
     }
-    let call_origins = physical_planning::call_origins::capture(
-        source
-            .source()
-            .source()
-            .source()
-            .source()
-            .original_physical_program()
-            .ok_or(Error::Mismatch(
-                "original physical instructions were not retained (ReplayUnavailable)",
-            ))?,
-    );
-    if &call_origins != artifact.call_origins.as_ref()
-        || call_origins != source.emission_facts().calls
-    {
-        return Err(Error::Mismatch(
-            "object call origins differ from retained physical instructions",
-        ));
+    // The fixed-frame audit reconstructs these projections from retained instructions.
+    // An object readback checks its current, immutable publication against the carried facts.
+    if artifact.call_origins.as_ref() != &source.emission_facts().calls {
+        return Err(Error::Mismatch("object call origins differ from retained publication"));
     }
-    let physical = source.source().source().source().source();
-    let foreign_calls = physical_planning::foreign_call_plans::capture(
-        physical.original_physical_program().ok_or(Error::Mismatch(
-            "original physical instructions were not retained (ReplayUnavailable)",
-        ))?,
-        physical.frame_layout(),
-    );
-    if foreign_calls != source.emission_facts().foreign_calls
-        || foreign_calls.as_ref().ok() != Some(artifact.foreign_call_plans.as_ref())
-    {
-        return Err(Error::Mismatch(
-            "object foreign call plans differ from retained physical instructions",
-        ));
-    }
-    if physical_planning::image_origins::capture(
-        physical
-            .original_physical_program()
-            .ok_or(Error::Mismatch(
-                "original physical instructions were not retained (ReplayUnavailable)",
-            ))?
-            .functions
-            .iter(),
-    ) != source.emission_facts().image_origins
-    {
-        return Err(Error::Mismatch(
-            "image address origins differ from retained physical instructions",
-        ));
-    }
-    if physical_planning::physical_facts::port_writes(physical.original_physical_program().ok_or(
-        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
-    )?) != source.emission_facts().port_writes
-    {
-        return Err(Error::Mismatch(
-            "port event origins differ from retained physical instructions",
-        ));
-    }
-    if physical_planning::boundary_settlements::capture(physical.original_physical_program().ok_or(
-        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
-    )?) != source.emission_facts().boundary_settlements
-    {
-        return Err(Error::Mismatch(
-            "boundary settlements differ from retained physical instructions",
-        ));
-    }
-    if physical_planning::internal_call_plans::capture(
-        physical.original_physical_program().ok_or(Error::Mismatch(
-            "original physical instructions were not retained (ReplayUnavailable)",
-        ))?,
-        physical.frame_layout(),
-        &source.emission_facts().program,
-    ) != source.emission_facts().internal_calls
-    {
-        return Err(Error::Mismatch(
-            "internal call plans differ from retained physical instructions",
-        ));
-    }
-    if installation_admission::selected::cpu_origins::capture(physical.original_physical_program().ok_or(
-        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
-    )?) != source.emission_facts().cpu
-    {
-        return Err(Error::Mismatch(
-            "CPU origins differ from retained physical instructions",
-        ));
-    }
-    if installation_admission::selected::fault_origins::capture(physical.original_physical_program().ok_or(
-        Error::Mismatch("original physical instructions were not retained (ReplayUnavailable)"),
-    )?) != source.emission_facts().faults
-    {
-        return Err(Error::Mismatch(
-            "fault origins differ from retained physical instructions",
-        ));
+    if source.emission_facts().foreign_calls.as_ref().ok() != Some(artifact.foreign_call_plans.as_ref()) {
+        return Err(Error::Mismatch("object foreign call plans differ from retained publication"));
     }
     if source::replayed_temporary_stack_bytes_by_function(source)?
         != source::temporary_stack_bytes_by_function(&artifact.emission_input)?
@@ -619,7 +537,7 @@ fn validate(
     }
     let fragments = source::fragments(source);
     let temporary_stack_bytes = if text.functions.is_empty() {
-        std::collections::BTreeMap::new()
+        Vec::new()
     } else {
         {
             let replayed = source::decoded_temporary_stack_bytes_by_function(source)?;
@@ -726,11 +644,10 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
-                *temporary_stack_bytes
-                    .get(&placed.machine)
-                    .ok_or(Error::Mismatch(
-                        "missing selected function for temporary stack replay",
-                    ))?,
+                temporary_stack_bytes
+                    .binary_search_by_key(&placed.machine, |row| row.machine)
+                    .map(|index| temporary_stack_bytes[index].byte_count)
+                    .map_err(|_| Error::Mismatch("missing selected function for temporary stack replay"))?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

@@ -128,7 +128,7 @@ pub(crate) mod callable_entry_transport {
                     let decoded = match body.target.architecture {
                         target::Architecture::X86_64 => target_x86_64::decode_x86_64_generated_entry(bytes, None),
                         target::Architecture::Aarch64 => target_aarch64::decode_aarch64_generated_entry(bytes, None),
-                    }.map_err(|reason| Error::NativeEntryBridge(physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
+                    }.map_err(|reason| Error::NativeEntryBridge(physical_recipes::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
                     generated_effects = generated_effects.compose(&decoded.effects);
                 }
                 if preemption == Preemption::Masked && !origin.unmasks_interrupts.is_empty() {
@@ -408,7 +408,7 @@ pub(crate) mod callable_entry_transport {
             }
             .map_err(|reason| {
                 Error::NativeEntryBridge(
-                    physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+                    physical_recipes::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                         reason,
                     ),
                 )
@@ -759,7 +759,7 @@ pub(crate) mod callable_entry_transport {
     };
     use calling_conventions::BoundaryEntryPlan;
     use function_identity::MachineFunctionIdentity;
-    use physical_planning::native_entry_bridge::{
+    use physical_recipes::native_entry_bridge::{
         InstalledInterruptEntryPlan, NativeEntryBridgeRequest,
     };
 
@@ -804,12 +804,7 @@ pub(crate) mod callable_entry_transport {
         )
     }
 
-    pub type CallableEntryTransport = native_encoding::callable_entry::CallableEntryTransport<
-        physical_planning::PhysicalRecipeOrigin,
-    >;
-    pub type EncodedPrivateEntry = native_encoding::callable_entry::EncodedPrivateEntry<
-        physical_planning::PhysicalRecipeOrigin,
-    >;
+    pub use object_file::{CallableEntryTransport, PrivateEntryObject as EncodedPrivateEntry};
     use physical_recipes::callable_entry::{identity_transport, native_entry_request_from_abi};
     pub(crate) fn validate_callable_transport(
         body: &ObjectArtifact,
@@ -955,7 +950,7 @@ pub(crate) mod foreign_adapter {
         FinalImageSection, FinalImageSymbol,
     };
     use crate::NativeForeignBridge;
-    use object_file::{RelocationKind, SymbolKind};
+    use object_file::SymbolKind;
     use sha2::{Digest, Sha256};
 
     #[derive(Debug)]
@@ -1011,6 +1006,15 @@ pub(crate) mod foreign_adapter {
     ///
     /// ```compile_fail,E0308
     /// fn publish(bridge: native_encoding::native_foreign_bridge::NativeForeignBridge<()>,
+    ///            locator: target::NormalizedForeignLocator,
+    ///            imports: machine_code::import_code::EncodedImportProgram) {
+    ///     let _ = image_emission::emit_native_foreign_adapter(bridge, locator, [1; 32], imports);
+    /// }
+    /// ```
+    ///
+    /// The inspectable code record also requires the object constructor's admitted relocation.
+    /// ```compile_fail,E0308
+    /// fn publish(bridge: physical_recipes::native_foreign_bridge::NativeForeignBridgeCode,
     ///            locator: target::NormalizedForeignLocator,
     ///            imports: machine_code::import_code::EncodedImportProgram) {
     ///     let _ = image_emission::emit_native_foreign_adapter(bridge, locator, [1; 32], imports);
@@ -1082,14 +1086,11 @@ pub(crate) mod foreign_adapter {
                 .relocations
                 .insert(FinalImageRelocation {
                     section: FinalImageSection::Text,
-                    offset: bridge.call_field_offset(),
+                    offset: bridge.call_relocation().offset,
                     byte_width: 4,
                     symbol_handle: imported,
                     addend: 0,
-                    kind: match bridge.request().target.architecture {
-                        target::Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
-                        target::Architecture::X86_64 => RelocationKind::X86_64Relative32,
-                    },
+                    kind: bridge.call_relocation().kind,
                 });
             emit_shared_function_container(image, entry, commitment, symbol.into_bytes())
                 .map(|container| (container, export))
@@ -2035,7 +2036,7 @@ pub(crate) mod hosted_receiver {
     pub use verified_optimization_input::hosted_receiver::{
         invalid, recipe_index_for_runtime_position,
     };
-    pub type HostedReceiverBinding = physical_planning::hosted_program::HostedReceiverBinding<
+    pub type HostedReceiverBinding = program_entry_plan::hosted_receiver::HostedReceiverBinding<
         verified_optimization_input::hosted_receiver::AdmittedHostedReceiver,
     >;
     pub use program_entry_plan::hosted_receiver::HostedEntryPartitions as HostedReceiverPartitions;
@@ -3591,7 +3592,7 @@ pub(crate) mod physical_entry {
         }
 
         pub(super) fn place(
-            plan: physical_planning::physical_entry::PlannedRequirements,
+            plan: program_entry_plan::physical_selection::PlannedRequirements,
             existing_bss: u64,
         ) -> Result<PhysicalEntryRequirements, Diagnostic> {
             let retained_storage = PhysicalEntryPartitions::derive(
@@ -3697,7 +3698,7 @@ pub(crate) mod physical_entry {
     mod stack_switch {
         #[cfg(test)]
         pub(super) use native_encoding::physical_stack_switch::encode;
-        pub(super) use native_encoding::physical_stack_switch::{Destination, StackSwitch};
+        pub(super) use physical_recipes::physical_stack_switch::{Destination, StackSwitch};
         #[cfg(test)]
         pub(super) use physical_planning::physical_stack_switch::plan;
     }
@@ -3796,6 +3797,18 @@ pub(crate) mod physical_entry {
                     super::stack_switch::encode(super::stack_switch::plan(physical).unwrap())
                         .unwrap();
                 wrapper.validate_published_code(&wrapper.bytes).unwrap();
+                let mut relocated = wrapper.bytes.clone();
+                let field = wrapper.fixups.iter().next().unwrap().1.field;
+                relocated[field..field + 4].copy_from_slice(&512_i32.to_le_bytes());
+                wrapper.validate_published_code(&relocated).unwrap();
+                relocated[0] ^= 1;
+                assert!(
+                    wrapper
+                        .validate_published_code(&relocated)
+                        .unwrap_err()
+                        .message
+                        .contains("outside its declared relocation fields")
+                );
                 assert_eq!(wrapper.incoming.bytes_below_entry_rsp, 0);
                 assert_eq!(wrapper.incoming.caller_alignment, 16);
                 assert_eq!(wrapper.incoming.caller_rsp_bias, 8);
@@ -3962,9 +3975,8 @@ pub(crate) mod physical_entry {
         }
     }
 
-    pub type EncodedPhysicalEntry = native_encoding::physical_entry::EncodedPhysicalEntry<
-        physical_planning::PhysicalRecipeOrigin,
-        physical_planning::physical_entry::PhysicalEntryContext<
+    pub type EncodedPhysicalEntry = object_file::program_entry_object::PhysicalProgramObject<
+        program_entry_plan::physical_selection::PhysicalEntryContext<
             verified_optimization_input::AdmittedPhysicalEntry,
         >,
     >;
@@ -4058,7 +4070,8 @@ pub(crate) mod physical_entry {
         {
             return Err(invalid("private stack differs from its exact invocation"));
         }
-        native_verification::bridges::validate_stack_switch(&binding.bridge, &binding.stack_switch)
+        binding.stack_switch.validate_bridge(&binding.bridge)?;
+        binding.stack_switch.validate_published_code(&binding.stack_switch.bytes)
     }
 
     pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagnostic> {
@@ -4109,7 +4122,7 @@ pub(crate) mod physical_entry {
     pub(crate) fn generated_state_effects(
         artifact: &ObjectArtifact,
     ) -> Option<(
-        &native_encoding::physical_stack_switch::StackSwitch,
+        &physical_recipes::physical_stack_switch::StackSwitch,
         &calling_conventions::StateEffectsEvidence,
     )> {
         let binding = artifact.physical_entry.as_ref()?;

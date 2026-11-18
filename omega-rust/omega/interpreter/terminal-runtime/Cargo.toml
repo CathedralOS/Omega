@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+published-runtime-input = { path = "../../compilation/representations/published-runtime-input" }
 access-vocabulary = { path = "../../../psi/compilation/representations/access-vocabulary" }
 storage-access = { path = "../../../psi/runtime/storage-access" }
 extent-contracts = { path = "../../../psi/compilation/representations/extent-contracts" }
@@ -25,7 +26,6 @@ terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/
 terminal-interpreter = { path = "../../../psi/interpreter" }
 target-operations = { path = "../../compilation/representations/target-operations" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
-verified-optimization-input = { path = "../../compilation/representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 
 [dev-dependencies]

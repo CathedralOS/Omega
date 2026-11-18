@@ -61,6 +61,45 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         standard_input: None,
         clock: None,
     };
+    // Debug sections leave semantic code intact but change the canonical
+    // manifest. Neither a retained runtime plan nor an image inspection can
+    // transfer to this separately published artifact.
+    let debug = terminal_codec::TerminalDebugMap {
+        semantic: artifact.view().identity(),
+        files: Vec::new(),
+        sites: Vec::new(),
+    };
+    let other = terminal_codec::CanonicalTerminalArtifact::from_closed_parts(
+        artifact.view().closed_module().clone(),
+        artifact.optimization().clone(),
+        artifact.debug_bytes().is_none().then_some(&debug),
+    )
+    .unwrap();
+    assert_eq!(artifact.view().identity(), other.view().identity());
+    assert_ne!(artifact.manifest().identity(), other.manifest().identity());
+    let mut other_plan = request(profile.target_name());
+    other_plan.artifact = &other;
+    assert!(matches!(
+        terminal_runtime::execute(other_plan),
+        Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions name another Terminal program or entry"
+        ))
+    ));
+    let mut other_image = request(profile.target_name());
+    other_image.artifact = &other;
+    other_image.provisions = None;
+    other_image.native_image = Some(
+        report
+            .retained_native_artifact()
+            .unwrap()
+            .inspect_for_runtime(),
+    );
+    assert!(matches!(
+        terminal_runtime::execute(other_image),
+        Err(TerminalRuntimeError::InvalidProvision(
+            "native layout inspection names another artifact or target"
+        ))
+    ));
     let before = terminal_codec::module_decode_count();
     let wrong_target = if profile.target_name() == "linux_x86_64" {
         "macos_arm64"

@@ -3,14 +3,12 @@
 //! Current executable code and the metadata native entry planning actually reads.
 //! Build companions, source record coordinates and source producer methods end
 //! at the publication boundary.
-mod package_review;
-pub use package_review::package_review_requirements;
-
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PublishedProgram {
+    source: std::sync::Weak<source_compiler::PortableTerminalProgram>,
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     entry: Arc<PublishedEntryMetadata>,
@@ -27,7 +25,7 @@ pub struct PublishedEntryMetadata {
 }
 
 impl PublishedProgram {
-    pub fn from_source(program: &source_compiler::PortableTerminalProgram) -> Self {
+    pub fn from_source(program: &Arc<source_compiler::PortableTerminalProgram>) -> Self {
         let artifact = Arc::clone(program.artifact());
         let module = artifact.semantic_module();
         let mut entry_custody = Vec::new();
@@ -55,13 +53,19 @@ impl PublishedProgram {
         }
 
         Self {
+            source: Arc::downgrade(program),
             artifact,
             evidence: program.evidence().cloned(),
             has_applications: !program.applications().is_empty(),
             entry: Arc::new(PublishedEntryMetadata {
-                provenance: program.machine_provenance().clone(), entry_custody,
+                provenance: program.machine_provenance().clone(),
+                entry_custody,
             }),
         }
+    }
+
+    pub fn belongs_to(&self, source: &Arc<source_compiler::PortableTerminalProgram>) -> bool {
+        self.source.ptr_eq(&Arc::downgrade(source))
     }
 
     pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
@@ -70,13 +74,21 @@ impl PublishedProgram {
     pub fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
         self.evidence.as_ref()
     }
-    pub fn has_applications(&self) -> bool { self.has_applications }
-    pub fn entry_metadata(&self) -> &Arc<PublishedEntryMetadata> { &self.entry }
+    pub fn has_applications(&self) -> bool {
+        self.has_applications
+    }
+    pub fn entry_metadata(&self) -> &Arc<PublishedEntryMetadata> {
+        &self.entry
+    }
     pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {
         self.entry.machine_provenance()
     }
-    pub fn entry_schema_custody(&self, declaration: terminal_psi::TerminalIdentityIndex)
-        -> Result<DeclarationCustody,String> { self.entry.entry_schema_custody(declaration) }
+    pub fn entry_schema_custody(
+        &self,
+        declaration: terminal_psi::TerminalIdentityIndex,
+    ) -> Result<DeclarationCustody, String> {
+        self.entry.entry_schema_custody(declaration)
+    }
 }
 impl PublishedEntryMetadata {
     pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {

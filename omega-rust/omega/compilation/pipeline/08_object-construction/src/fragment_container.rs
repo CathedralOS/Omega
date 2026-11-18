@@ -181,8 +181,8 @@ pub struct StagedOptimizedRelocationFreeObjectContainer {
 }
 
 impl StagedOptimizedRelocationFreeObjectContainer {
-    /// Share the current placed program and its custody without retaining any
-    /// producer stage or executable instruction graph.
+    /// Share the placed code, object relocations, body evidence and custody
+    /// receipt that image construction consumes.
     pub fn publication(&self) -> ObjectPublication {
         ObjectPublication {
             object: Arc::clone(&self.object),

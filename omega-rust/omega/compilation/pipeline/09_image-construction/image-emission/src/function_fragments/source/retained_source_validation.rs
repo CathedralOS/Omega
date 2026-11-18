@@ -22,7 +22,7 @@ fn original_function(
     machine: MachineId,
 ) -> Result<&AbstractFunction, Error> {
     let mut rows = original
-        .target()
+        .target_for_correspondence()
         .optimized()
         .plan()
         .functions
@@ -63,7 +63,7 @@ pub(in crate::function_fragments) fn establish_geometry(
     let physical = current.original_physical_program().ok_or(Error::Mismatch(
         "original physical instructions were not retained (ReplayUnavailable)",
     ))?;
-    let abstracted = original.target().optimized().plan();
+    let abstracted = original.target_for_correspondence().optimized().plan();
     let targeted = crate::retained_working_program::target_operations(original);
     let selected = physical;
     if !targeted.functions.iter().any(|function| {
@@ -293,7 +293,7 @@ pub(in crate::function_fragments) fn admit(
     let physical = current.original_physical_program().ok_or(Error::Mismatch(
         "original physical instructions were not retained (ReplayUnavailable)",
     ))?;
-    let published = original.target().execution_plan().plan();
+    let published = original.target_for_correspondence().execution_plan().plan();
     let contracts = &physical.contracts;
     if contracts.profile() != published.profile
         || contracts.function_abis().as_ref() != published.function_abis.as_ref()
@@ -314,7 +314,7 @@ pub(in crate::function_fragments) fn admit(
     }
     validate_image_selection_origins(source, original)?;
     let mut original_functions: Vec<_> = original
-        .target()
+        .target_for_correspondence()
         .optimized()
         .plan()
         .functions
@@ -344,7 +344,7 @@ pub(in crate::function_fragments) fn admit(
         validate_block_parameter_rows(&original_rows, &function.structural_block_parameters)?;
     }
     validate_byte_writers(published, physical)?;
-    let abstract_plan = original.target().optimized().plan();
+    let abstract_plan = original.target_for_correspondence().optimized().plan();
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
         physical,
@@ -379,8 +379,8 @@ pub(in crate::function_fragments) fn admit(
     let interrupt_helpers =
         provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
             abstract_plan.psi,
-            original.target().lowering_facts().module(),
-            original.target().lowering_facts().installed_interrupts(),
+            original.target_for_correspondence().lowering_facts().module(),
+            original.target_for_correspondence().lowering_facts().installed_interrupts(),
         );
     for fragment in &fragments.functions {
         let (abstracted, targeted) = audited_function(source, original, fragment.machine)?;
@@ -395,8 +395,8 @@ pub(in crate::function_fragments) fn admit(
         let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
         installed_calls::validate(abstracted, targeted, selected)?;
         let installed_scopes = installed_interrupts::validate(
-            original.target().lowering_facts().module(),
-            original.target().lowering_facts().installed_interrupts(),
+            original.target_for_correspondence().lowering_facts().module(),
+            original.target_for_correspondence().lowering_facts().installed_interrupts(),
             current
                 .installation_authority()
                 .installed_stack_requirements(),
@@ -410,7 +410,7 @@ pub(in crate::function_fragments) fn admit(
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
         let mut declarations = original
-            .target()
+            .target_for_correspondence()
             .optimized()
             .unit()
             .functions
@@ -577,7 +577,7 @@ pub(in crate::function_fragments) fn admit(
                             operation,
                             Some(targeted),
                             &selected.memory_accesses,
-                            &original.target().optimized().plan().structural_types,
+                            &original.target_for_correspondence().optimized().plan().structural_types,
                         )
                 }
                 AbstractOperation::StorageAddress { .. }
@@ -637,7 +637,7 @@ pub(in crate::function_fragments) fn admit(
                     matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
                     && instruction.provenance.operations.contains(psi_operation)).count()==1,
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
-                    let catalog=&original.target().optimized().plan().dynamic_dispatch;
+                    let catalog=&original.target_for_correspondence().optimized().plan().dynamic_dispatch;
                     catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
                         && selected.calls.iter().filter(|row|row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
                             && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
@@ -691,7 +691,7 @@ pub(in crate::function_fragments) fn admit(
                     byte_operation_retained(operation, targeted)
                         || fixed_byte_length_is_static(
                             abstracted,
-                            original.target()
+                            original.target_for_correspondence()
                                 .optimized()
                                 .plan()
                                 .structural_types
@@ -824,7 +824,7 @@ pub(in crate::function_fragments) fn admit(
                         *source,
                         path,
                         cases,
-                        original.target().optimized().unit(),
+                        original.target_for_correspondence().optimized().unit(),
                         &mut addresses,
                     )
                 }

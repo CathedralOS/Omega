@@ -101,6 +101,10 @@ impl SourcePublication {
     }
 
     pub fn accepted(&self) -> Result<&crate::AcceptedTerminalSource, Vec<Diagnostic>> {
+        self.accepted_owner().map(Arc::as_ref)
+    }
+
+    pub(crate) fn accepted_owner(&self) -> Result<&Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
         // The factory seals the module the unoptimized check judged. A
         // nonempty selection needs the second lowered-form check, which has
         // no route yet.
@@ -111,7 +115,7 @@ impl SourcePublication {
         }
         self.accepted
             .as_ref()
-            .map(|(accepted, _)| accepted.as_ref())
+            .map(|(accepted, _)| accepted)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "no product route yet: this root selection has no accepted source",

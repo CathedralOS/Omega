@@ -2,7 +2,7 @@
 //! package review. Only the selected execution's own rosters grant runtime
 //! supply; a library may expose additional authored declarations for review.
 use crate::calling_policy_plans::{CallingProgram, NativeCallingResults};
-use crate::target_supply::{NormalizedNativeSupply, RealizedTargetSupply};
+use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
 use backend_plan::package_review::{
     PackageReviewRequirements, PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings,
 };
@@ -72,7 +72,7 @@ impl PreparedReview {
         self,
         module: &TerminalModule,
         target: target::TargetProfile,
-        execution: &RealizedTargetSupply,
+        execution: &SelectedProviderRealization,
     ) -> PackageTargetReview {
         PackageTargetReview {
             numeric: self
@@ -86,7 +86,7 @@ impl PreparedReview {
 fn numeric(
     module: &TerminalModule,
     target: target::TargetProfile,
-    execution: &RealizedTargetSupply,
+    execution: &SelectedProviderRealization,
     requested: Vec<BoundaryMachineId>,
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let mut retained: Vec<_> = execution

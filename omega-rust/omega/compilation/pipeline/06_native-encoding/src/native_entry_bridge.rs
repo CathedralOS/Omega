@@ -27,19 +27,8 @@ pub fn encode_native_entry_bridge<Origin>(
 ) -> Result<NativeEntryBridge<Origin>, Error> {
     let (bytes, call_field_offset) =
         crate::adapters::encode_instructions(plan.instructions()).map_err(|_| Error::Encoding)?;
-    let frame_bytes = plan.frame_bytes();
-    let installed_interrupt = plan.installed_interrupt();
-    let (request, adapter_effects, complete_effects) = plan.into_contract();
     Ok(NativeEntryBridge {
         origin: std::marker::PhantomData,
-        code: NativeEntryBridgeCode::from_parts(
-            request,
-            bytes,
-            frame_bytes,
-            call_field_offset,
-            installed_interrupt,
-            adapter_effects,
-            complete_effects,
-        ),
+        code: NativeEntryBridgeCode::from_recipe(plan, bytes, call_field_offset),
     })
 }

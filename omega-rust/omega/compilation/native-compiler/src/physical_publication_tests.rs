@@ -672,19 +672,31 @@ fn checked_value_plan() -> effects::provider_plan::ProviderPlan {
 #[test]
 fn physical_publication_rejoins_emitted_object_and_receiver() {
     for through_boundary in [false, true] {
-        let ordinary = check_publication(through_boundary, false);
-        let audited = check_publication(through_boundary, true);
+        let (ordinary, _) = check_publication(through_boundary, false);
+        let (audited, originals) = check_publication(through_boundary, true);
         assert_eq!(
             ordinary, audited,
             "retaining originals changes no artifact identity"
         );
+        if !through_boundary {
+            let first = originals.expect("explicitly retained target");
+            let (again, second) = check_publication(through_boundary, true);
+            let second = second.expect("separately retained target");
+            assert_eq!(again, audited);
+            let original = first.target_source().unwrap();
+            assert!(original.belongs_to(first.fragment_source().emission_facts()));
+            assert!(!original.belongs_to(second.fragment_source().emission_facts()));
+            let mut changed = first.fragment_source().emission_facts().semantic.clone();
+            changed.program.functions.clear();
+            assert!(!original.belongs_to(&changed));
+        }
     }
 }
 
 fn check_publication(
     through_boundary: bool,
     retain_native_stage_inputs: bool,
-) -> native_artifact::NativeArtifactIdentity {
+) -> (native_artifact::NativeArtifactIdentity, Option<image_emission::FragmentReplay>) {
     use provider_admission::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
@@ -843,6 +855,7 @@ fn check_publication(
         let error = audit.expect_err("default publication retains no original allocation graph");
         assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
     }
+    let originals = published.object.fragment_replay().cloned();
     let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
         profile.native_target(),
         artifact,
@@ -900,5 +913,5 @@ fn check_publication(
         native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
         "receiver must reject stripped complete physical evidence"
     );
-    identity
+    (identity, originals)
 }

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+published-runtime-input = { path = "../representations/published-runtime-input" }
 product-publication = { path = "../pipeline/10_product-publication" }
 portable-publication = { path = "../pipeline/02_portable-publication" }
 compilation-inputs = { path = "../pipeline/00_compilation-inputs" }

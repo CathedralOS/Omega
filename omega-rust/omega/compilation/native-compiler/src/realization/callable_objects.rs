@@ -13,7 +13,7 @@ pub(super) struct CallableObjectProduct {
     pub physical_original: native_artifact::PrivatePhysicalOriginal,
     pub projection: native_artifact::FragmentObjectProjection,
     pub runtime: native_artifact::TerminalCallableRuntimeProvisions<
-        super::auxiliary_native::EncodedForeignAdapter,
+        super::auxiliary_native::ObjectForeignAdapter,
     >,
     pub authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
 }
@@ -38,7 +38,7 @@ pub(super) type BoundCallable =
 pub(super) type EncodedCallable =
     CallableProduct<pipeline::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
 pub(super) type LaidOutCallable =
-    CallableProduct<pipeline::LaidOutBody, super::auxiliary_native::EncodedForeignAdapter>;
+    CallableProduct<pipeline::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
 
 fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
@@ -115,7 +115,7 @@ impl EncodedCallable {
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
-            runtime: self.runtime,
+            runtime: self.runtime.map_adapters(super::auxiliary_native::place),
             custody: self.custody,
         })
     }
@@ -141,7 +141,7 @@ impl LaidOutCallable {
         Ok(CallableObjectProduct {
             physical_original,
             projection,
-            runtime: self.runtime,
+            runtime: self.runtime.map_adapters(super::auxiliary_native::construct),
             authority,
         })
     }

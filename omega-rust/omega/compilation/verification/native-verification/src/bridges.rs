@@ -1,9 +1,19 @@
 //! Compare supplied adapter bytes and effects with the exact canonical request.
+/// Encoded whole-entry bundles issued for a physical planner's settled recipe.
+pub type EncodedHostedProgram<Context> = native_encoding::hosted_program::EncodedHostedProgramEntry<physical_planning::PhysicalRecipeOrigin, Context>;
+pub type EncodedPhysicalProgram<Context> = native_encoding::physical_entry::EncodedPhysicalEntry<physical_planning::PhysicalRecipeOrigin, Context>;
 use diagnostics::Diagnostic;
 use native_encoding::native_entry_bridge::encode_native_entry_bridge;
-type NativeEntryBridge = native_encoding::native_entry_bridge::NativeEntryBridge<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedNativeEntryBridge =
+    native_encoding::native_entry_bridge::NativeEntryBridge<physical_planning::PhysicalRecipeOrigin>;
 use native_encoding::native_foreign_bridge::encode_native_foreign_bridge;
-type NativeForeignBridge = native_encoding::native_foreign_bridge::NativeForeignBridge<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedNativeForeignBridge =
+    native_encoding::native_foreign_bridge::NativeForeignBridge<physical_planning::PhysicalRecipeOrigin>;
+/// Callable transports issued from the admitted physical planner's private origin.
+pub type EncodedCallableEntry =
+    native_encoding::callable_entry::CallableEntryTransport<physical_planning::PhysicalRecipeOrigin>;
+pub type EncodedPrivateEntry =
+    native_encoding::callable_entry::EncodedPrivateEntry<physical_planning::PhysicalRecipeOrigin>;
 use physical_planning::native_entry_bridge::{
     NativeEntryBridgeError as Error, plan_installed_interrupt_entry_bridge,
     plan_native_entry_bridge,
@@ -12,11 +22,11 @@ use physical_planning::native_foreign_bridge::{
     NativeForeignBridgeError, plan_native_foreign_bridge,
 };
 
-pub fn validate_native_entry_bridge(bridge: &NativeEntryBridge) -> Result<(), Error> {
+pub fn validate_native_entry_bridge(bridge: &EncodedNativeEntryBridge) -> Result<(), Error> {
     verify_entry_translation(bridge, bridge.bytes())
 }
 
-fn verify_entry_translation(bridge: &NativeEntryBridge, bytes: &[u8]) -> Result<(), Error> {
+fn verify_entry_translation(bridge: &EncodedNativeEntryBridge, bytes: &[u8]) -> Result<(), Error> {
     bridge.validate_published_code(bytes)?;
     let request = bridge.request().clone();
     let plan = match bridge.installed_interrupt() {
@@ -31,7 +41,7 @@ fn verify_entry_translation(bridge: &NativeEntryBridge, bytes: &[u8]) -> Result<
 }
 
 pub fn validate_native_foreign_bridge(
-    bridge: &NativeForeignBridge,
+    bridge: &EncodedNativeForeignBridge,
 ) -> Result<(), NativeForeignBridgeError> {
     let plan = plan_native_foreign_bridge(bridge.request().clone())?;
     if encode_native_foreign_bridge(plan)? != *bridge {
@@ -41,7 +51,7 @@ pub fn validate_native_foreign_bridge(
 }
 
 pub fn validate_stack_switch(
-    bridge: &NativeEntryBridge,
+    bridge: &EncodedNativeEntryBridge,
     switch: &native_encoding::physical_stack_switch::StackSwitch,
 ) -> Result<(), Diagnostic> {
     let invalid = |reason: &str| Diagnostic::error(format!("physical image entry: {reason}"));

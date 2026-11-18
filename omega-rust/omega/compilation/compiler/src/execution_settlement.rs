@@ -39,14 +39,14 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let PreparedProductTarget { profile, entry } = prepared;
         // Retain the original census or its refusal before native selection. Grant
         // admission consumes it only when the requested product needs that evidence.
         if !source.computed_build_config.config.grants.is_empty() {
             let _ = source.provider_inventory.trust_declarations();
         }
         let mut timings = source.timings.clone();
-        let (source_program, published_program, execution) = settle_execution(source, profile, entry, &mut timings)?;
+        let (source_program, published_program, execution) =
+            settle_execution(source, prepared, &mut timings)?;
         Ok(Self {
             runtime_policy: Arc::new(
                 review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
@@ -125,7 +125,7 @@ impl SelectedProductTarget {
         } = self.custody;
         CheckedCompilation::from_settled_execution(
             CheckedCompilationInputs {
-                settled: execution,
+                settled: execution.into_result(),
                 source_inspection,
                 build,
                 build_admission,
@@ -144,23 +144,36 @@ impl SelectedProductTarget {
 
 fn settle_execution(
     source: &CheckedProductSource,
-    profile: Option<target::TargetProfile>,
-    entry: Option<semantic_vocabulary::MachineId>,
+    prepared: PreparedProductTarget,
     timings: &mut CompileTimings,
-) -> Result<(Arc<source_compiler::PortableTerminalProgram>, Arc<portable_publication::PublishedProgram>, SelectedExecution), Vec<Diagnostic>> {
+) -> Result<
+    (
+        Arc<source_compiler::PortableTerminalProgram>,
+        Arc<portable_publication::PublishedProgram>,
+        SelectedExecution,
+    ),
+    Vec<Diagnostic>,
+> {
     let demand = portable_publication::ProductCodeSource {
         publication: &source.terminal_publication,
         sources: &source.sources,
-    }.publish_provider_demand(
-        profile,
-        entry,
-        &source.computed_build_config.config.provider_selections,
-        &source.computed_build_config.config.native_bindings,
+    }
+    .publish_provider_demand(
+        prepared.profile,
+        prepared.demand,
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
-    let program = source.terminal_publication.require_published(source.terminal_publication.optimizations())?;
-    let published = Arc::new(portable_publication::PublishedProgram::from_source(&program));
-    Ok((program, published, native_compiler::select_published_providers(demand)?))
+    let program = source
+        .terminal_publication
+        .require_published(source.terminal_publication.optimizations())?;
+    let published = Arc::new(portable_publication::PublishedProgram::from_source(
+        &program,
+    ));
+    Ok((
+        program,
+        published,
+        native_compiler::select_published_providers(demand)?,
+    ))
 }
 
 pub(crate) struct SelectedCompileOutcome {

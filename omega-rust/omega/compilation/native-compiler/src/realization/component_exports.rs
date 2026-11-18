@@ -29,7 +29,7 @@ pub struct ComponentNativeExport<'input> {
     body: image_emission::ObjectArtifact,
     entry_bridge: image_emission::CallableEntryTransport,
     runtime: native_artifact::TerminalCallableRuntimeProvisions<
-        super::auxiliary_native::EncodedForeignAdapter,
+        super::auxiliary_native::ObjectForeignAdapter,
     >,
     authority: AdmittedNativeCallableAuthority,
 }
@@ -290,6 +290,8 @@ pub fn emit_component_exports<'input>(
     }
     let mut layouts = Vec::with_capacity(encoded.len());
     for (export, body, entry) in encoded {
+        let entry = function_layout::entry_placement::place_callable_entry(entry)
+            .map_err(|error| realization_error("component entry layout", error))?;
         layouts.push((export, body.layout()?, entry));
     }
     let mut exports = Vec::with_capacity(layouts.len());
@@ -305,7 +307,7 @@ pub fn emit_component_exports<'input>(
             candidate: export.candidate,
             calling_application: application,
             body,
-            entry_bridge,
+            entry_bridge: object_file::CallableEntryTransport::from_placement(entry_bridge),
             runtime,
             authority,
         });

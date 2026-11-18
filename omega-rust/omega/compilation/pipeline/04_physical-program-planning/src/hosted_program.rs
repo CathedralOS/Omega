@@ -13,73 +13,7 @@ pub struct HostedProgramEntryRequest<'a, Receiver> {
     pub demand: StackDemand,
 }
 
-/// A receiver stays coupled to the stack measured for the same physical root.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HostedReceiverBinding<Receiver> {
-    receipt: Receiver,
-    demand: StackDemand,
-    call_overhead: u64,
-}
-
-impl<R: HostedReceiverCustody> HostedReceiverBinding<R> {
-    pub fn source(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
-        self.receipt.source()
-    }
-    pub fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
-        self.receipt.checked_entry()
-    }
-    pub fn physical_contract(&self) -> &program_entry_plan::ProgramEntryPhysicalContractPlan {
-        self.receipt.physical_contract()
-    }
-    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
-        self.receipt.private_entry_ram()
-    }
-    pub const fn call_overhead(&self) -> u64 {
-        self.call_overhead
-    }
-    pub const fn stack_demand(&self) -> &StackDemand {
-        &self.demand
-    }
-    pub fn partitions(
-        &self,
-        existing_bss_bytes: u64,
-    ) -> Result<program_entry_plan::hosted_receiver::HostedEntryPartitions, Diagnostic> {
-        program_entry_plan::hosted_receiver::partitions(
-            self.demand.target(),
-            self.demand.ceiling_bytes(),
-            self.private_entry_ram(),
-            self.call_overhead,
-            existing_bss_bytes,
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HostedProgramContext<Receiver> {
-    psi: terminal_psi::TerminalPsiIdentity,
-    entry: semantic_vocabulary::MachineId,
-    profile: Option<target::TargetProfile>,
-    demand: StackDemand,
-    receiver: Option<HostedReceiverBinding<Receiver>>,
-}
-
-impl<R> HostedProgramContext<R> {
-    pub const fn psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.psi
-    }
-    pub const fn entry(&self) -> semantic_vocabulary::MachineId {
-        self.entry
-    }
-    pub const fn profile(&self) -> Option<target::TargetProfile> {
-        self.profile
-    }
-    pub const fn demand(&self) -> &StackDemand {
-        &self.demand
-    }
-    pub const fn receiver(&self) -> Option<&HostedReceiverBinding<R>> {
-        self.receiver.as_ref()
-    }
-}
+pub use program_entry_plan::hosted_receiver::{HostedProgramContext, HostedReceiverBinding};
 
 pub type PlannedHostedProgramEntry<R> =
     HostedProgram<crate::PhysicalRecipeOrigin, HostedProgramContext<R>>;
@@ -184,17 +118,12 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
     Ok(HostedProgram::from_planner(
         crate::PhysicalRecipeOrigin(()),
         HostedProgramParts {
-            context: HostedProgramContext {
-                psi: program.psi,
-                entry: program.entry,
-                profile: program.contracts.profile(),
-                receiver: receiver.map(|receipt| HostedReceiverBinding {
-                    receipt,
-                    demand: input.demand.clone(),
-                    call_overhead: entry_program.call_overhead(),
-                }),
-                demand: input.demand,
-            },
+            context: HostedProgramContext::from_demand(
+                program.contracts.profile(),
+                input.demand,
+                receiver,
+                entry_program.call_overhead(),
+            ),
             imports: crate::imports::plan_import_program(
                 target,
                 entry_program.imports().iter().cloned().map(|locator| {

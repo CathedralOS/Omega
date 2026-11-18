@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+published-runtime-input = { path = "../../../representations/published-runtime-input" }
 wire = { path = "../../../../../psi/foundation/wire" }
 component-description = { path = "../../../representations/component-description" }
 task-plans = { path = "../../../representations/task-plans" }

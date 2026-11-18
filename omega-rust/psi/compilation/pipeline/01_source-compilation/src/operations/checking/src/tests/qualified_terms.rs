@@ -253,7 +253,7 @@ machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract domain membership while reading the body of `entry`"
+        "contract runtime membership needs nominal or governed domain evidence while reading the body of `entry`"
     );
 }
 

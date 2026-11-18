@@ -23,6 +23,11 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::TerminalModule;
 
+mod demand;
+mod package_review;
+pub use demand::{SourceNativeBinding, SourceProviderDemand, SourceProviderFacts};
+pub use package_review::SourcePackageReviewRequirements;
+
 /// All actually reached boundaries and their chosen checked implementations.
 /// Retained candidates remain available code; only invocations add demand.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,13 +118,7 @@ impl crate::AcceptedTerminalSource {
 /// messages. The coordinator fills the declared rows from
 /// `AcceptedTerminalSource::boundary_requirements_declared`; the rows a
 /// prepared supply holds are the ones the target's entries reach.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReachedBoundaryRequirement {
-    pub boundary: BoundaryMachineId,
-    pub requirement: symbols::SymbolHandle,
-    pub slot: symbols::SymbolHandle,
-    pub name: String,
-}
+pub use crate::DeclaredBoundaryRequirement as ReachedBoundaryRequirement;
 
 /// The machine the accepted module holds for one requirement of one chosen
 /// provider (`AcceptedTerminalSource::supplied_requirements`). `provider`

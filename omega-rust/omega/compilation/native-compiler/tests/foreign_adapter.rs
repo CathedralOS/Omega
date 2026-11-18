@@ -7,7 +7,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 use physical_planning::native_foreign_bridge::{NativeForeignBridgeRequest};
-use image_fixtures::{emit_native_foreign_bridge};
+use image_fixtures::{emit_native_foreign_bridge_object};
 use std::{path::PathBuf, process::Command};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -128,7 +128,7 @@ fn emitted_adapters_load_and_share_the_real_provider_registration() {
                 export: function.as_bytes().to_vec(),
             },
         };
-        let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
+        let bridge = emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
             target,
             scalar_parameters: vec![None; parameters.len()],
             foreign: evaluate_ordinary_boundary_entry_plan(

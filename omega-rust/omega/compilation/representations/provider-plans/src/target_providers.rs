@@ -333,8 +333,11 @@ pub struct FoldedEntryReach {
     program: terminal_psi::TerminalPsiIdentity,
     target: String,
     has_applications: bool,
-    selected: Vec<(semantic_vocabulary::BoundaryMachineId, semantic_vocabulary::MachineId)>,
-    reached: std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId>,
+    selected: Vec<(
+        semantic_vocabulary::BoundaryMachineId,
+        semantic_vocabulary::MachineId,
+    )>,
+    reached: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
 
 impl FoldedEntryReach {
@@ -349,12 +352,21 @@ impl FoldedEntryReach {
         let mut selected = Vec::new();
         let mut reached = Default::default();
         if !module.scalar_applications.declarations().is_empty() {
-            selected = bindings.iter().map(|binding| (binding.boundary, binding.machine)).collect();
+            selected = bindings
+                .iter()
+                .map(|binding| (binding.boundary, binding.machine))
+                .collect();
             selected.sort_unstable();
             selected.dedup();
             reached = scalar_boundaries(module, target, &[root], &selected)?;
         }
-        Ok(Self { program: artifact.identity(), target: target.to_owned(), selected, reached, has_applications })
+        Ok(Self {
+            program: artifact.identity(),
+            target: target.to_owned(),
+            selected,
+            reached,
+            has_applications,
+        })
     }
 
     pub fn bind(
@@ -372,7 +384,9 @@ impl FoldedEntryReach {
         }
         let rows = selected_checked_invocation_rows(plans, module)?;
         if selected_bodies(&rows) != self.selected {
-            return Err("folded scalar entry differs from the published logical provider bodies".into());
+            return Err(
+                "folded scalar entry differs from the published logical provider bodies".into(),
+            );
         }
         let closure = folded_dependencies_for_rows(module, target, rows, &self.reached)?;
         if self.has_applications && !closure.dependencies.is_empty() {
@@ -386,18 +400,36 @@ fn scalar_boundaries(
     module: &terminal_psi::TerminalModule,
     target: &str,
     roots: &[semantic_vocabulary::MachineId],
-    selected: &[(semantic_vocabulary::BoundaryMachineId, semantic_vocabulary::MachineId)],
-) -> Result<std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId>, String> {
+    selected: &[(
+        semantic_vocabulary::BoundaryMachineId,
+        semantic_vocabulary::MachineId,
+    )],
+) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, String> {
     let graph = terminal_installation::SynchronousCallGraph::new(module, None)?
         .with_boundary_calls(selected.to_vec())?;
-    Ok(graph.from_callables(graph.scalar_evaluation_roots(roots, Some(target))?)?.boundaries)
+    Ok(graph
+        .from_callables(graph.scalar_evaluation_roots(roots, Some(target))?)?
+        .boundaries
+        .into_iter()
+        .collect())
 }
 
 fn selected_bodies(
     rows: &[SelectedCheckedInvocationRow<'_, '_>],
-) -> Vec<(semantic_vocabulary::BoundaryMachineId, semantic_vocabulary::MachineId)> {
-    let mut selected: Vec<_> = rows.iter().flat_map(|row| &row.candidates)
-        .map(|candidate| (candidate.conformance.boundary, candidate.conformance.candidate)).collect();
+) -> Vec<(
+    semantic_vocabulary::BoundaryMachineId,
+    semantic_vocabulary::MachineId,
+)> {
+    let mut selected: Vec<_> = rows
+        .iter()
+        .flat_map(|row| &row.candidates)
+        .map(|candidate| {
+            (
+                candidate.conformance.boundary,
+                candidate.conformance.candidate,
+            )
+        })
+        .collect();
     selected.sort_unstable();
     selected.dedup();
     selected
@@ -422,7 +454,7 @@ fn folded_dependencies_for_rows(
     module: &terminal_psi::TerminalModule,
     target: &str,
     rows: Vec<SelectedCheckedInvocationRow<'_, '_>>,
-    reached: &std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId>,
+    reached: &[semantic_vocabulary::BoundaryMachineId],
 ) -> Result<terminal_psi::FoldedConstantClosure, String> {
     let mut dependencies = Vec::new();
     for row in rows {
@@ -431,7 +463,7 @@ fn folded_dependencies_for_rows(
         }
         for candidate in row.candidates {
             let candidate = candidate.conformance;
-            if reached.contains(&candidate.boundary) {
+            if reached.binary_search(&candidate.boundary).is_ok() {
                 dependencies.push(terminal_psi::FoldedConstantDependency {
                     target: target.to_owned(),
                     requirement: candidate.source_requirement_identity,

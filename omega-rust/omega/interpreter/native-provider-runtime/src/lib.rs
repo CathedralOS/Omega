@@ -40,8 +40,9 @@ mod shared_backing;
 mod wire;
 mod worker;
 pub use native_provider_runtime::{
-    NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage, NativeProviderError,
-    NativeProviderCommand, NativeProviderInstallation, NativeProviderProcess,
+    NativeAdapterId, NativeAdapterStorage, NativeArgument, NativeHomeId, NativeParameterStorage,
+    NativeProviderCommand, NativeProviderError, NativeProviderOperation, NativeProviderProcess,
+    NativeProviderSession,
 };
 pub use worker::run_worker_if_requested;
 

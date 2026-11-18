@@ -55,7 +55,10 @@ pub use verified_optimization_input::{
 };
 
 mod provider_selection;
-pub use provider_selection::{SelectedExecution, select_published_providers};
+pub use provider_selection::{SelectedExecution, SelectedProviderRealization, SelectedProviderResult, select_published_providers};
 
 // Published native entry selection and explicitly requested provider-input inspection.
-pub use native_program_planning::{plan_provider_execution_inputs, program_entry::PublishedEntrySelection, target_supply::TargetSupplyExecutionInputs};
+pub use native_program_planning::{plan_provider_execution_inputs, target_supply::TargetSupplyExecutionInputs};
+
+mod program_entry;
+pub use program_entry::PublishedNativeEntry;

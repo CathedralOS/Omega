@@ -650,6 +650,7 @@ const PLAN_VALIDATOR_CALLERS: &[&str] = &[
 
 /// Stage 02's accessor for its working program.
 const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
+const TARGET_REPLAY_RECORD: &str = "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
 /// Binding belongs to the driver after preparation, not to setters on the
 /// prepared stage output. Neither the old definitions nor callers may return.
 const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
@@ -876,9 +877,64 @@ pub fn working_program_read_violations(root: &Path) -> Vec<String> {
         root,
         WORKING_PROGRAM_ACCESSORS,
         WORKING_PROGRAM_READERS,
-        &[],
+        &[(
+            TARGET_REPLAY_RECORD,
+            "pub fn working_program_for_validation(&self) -> &TargetOperationPlan {",
+        )],
         "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
     )
+}
+
+/// Package review reads issued source demand, and an audited image reads its
+/// own frozen target. Only the original publishing operations can issue them.
+fn retained_publication_violations(root: &Path) -> Vec<String> {
+    let mut errors = call_violations_in(
+        root,
+        "omega-rust",
+        &["publish_package_review_numeric_requirements"],
+        &["omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/package_review.rs"],
+        &[(
+            "omega-rust/psi/compilation/pipeline/01_source-compilation/src/package_review.rs",
+            "pub(crate) fn publish_package_review_numeric_requirements(",
+        )],
+        "package numeric review demand can only be issued when publishing the accepted provider request",
+    );
+    errors.extend(call_violations(
+        root,
+        &["retain_target_operations"],
+        &["omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/mod.rs"],
+        &[(TARGET_REPLAY_RECORD, "pub fn retain_target_operations(")],
+        "only native program planning can issue the archived target with its emitted facts",
+    ));
+    errors.extend(call_violations(
+        root,
+        &["into_target_replay"],
+        &["omega-rust/omega/compilation/native-compiler/src/pipeline.rs"],
+        &[(
+            "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/mod.rs",
+            "pub fn into_target_replay(",
+        )],
+        "only the native driver may retain a completed target on the explicit audit route",
+    ));
+    errors.extend(call_violations(
+        root,
+        &[
+            "target_for_correspondence",
+            ".retained_target_operations",
+            "::retained_target_operations",
+        ],
+        &[
+            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
+            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
+        ],
+        &[
+            (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
+            ("omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
+        ],
+        "only explicit object correspondence audits may inspect the original target forms",
+    ));
+    errors
 }
 
 /// Production must not reach stage 02 through a replay helper or its import.
@@ -987,6 +1043,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
+        violations.extend(retained_publication_violations(&root));
         violations.extend(image_replay_read_violations(&root));
         violations.extend(backend_execution_plan_read_violations(&root));
         violations.extend(installation_mutation_violations(&root));
@@ -1439,6 +1496,14 @@ mod tests {
         let image =
             "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
         let files = [
+            (
+                "omega-rust/omega/packages/review-evidence/src/projection.rs".to_owned(),
+                "let recalculate = AcceptedTerminalSource::publish_package_review_numeric_requirements;\n\
+                 let pair = SemanticEmissionFacts::retain_target_operations;\n\
+                 let issue = ValidatedOptimizedTargetOperations::into_target_replay;\n\
+                 let read = RetainedTargetOperations::target_for_correspondence;\n\
+                 let retained = ObjectArtifact::retained_target_operations;\n",
+            ),
             ("omega-rust/omega/compilation/verification/published-objects/src/lib.rs".to_owned(), "current.working_program_for_validation();\ncurrent.execution_plan();\n"),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1485,9 +1550,11 @@ mod tests {
         }
         let violations = image_replay_read_violations(&root);
         let raw_accessor_violations = working_program_read_violations(&root);
+        let publication_violations = retained_publication_violations(&root);
         let execution_plan_violations = backend_execution_plan_read_violations(&root);
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(violations.len(), 6, "{violations:?}");
+        assert_eq!(publication_violations.len(), 5, "{publication_violations:?}");
         assert_eq!(
             execution_plan_violations.len(),
             5,

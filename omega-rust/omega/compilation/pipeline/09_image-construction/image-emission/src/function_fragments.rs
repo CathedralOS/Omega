@@ -4071,16 +4071,13 @@ mod production {
         }
         let emission_input = Arc::new(crate::object_input::ObjectEmissionInput::from_publication(publication)?);
         let source = emission_input.as_ref();
-        if let Some(original) = &original_target {
-            let projection = &source.emission_facts().projection;
-            let optimized = original.target().optimized();
-            if optimized.projection() != projection.identity
-                || optimized.final_unit() != projection.final_unit
-            {
-                return Err(Error::Mismatch(
-                    "retained target operations belong to another optimized program",
-                ));
-            }
+        if let Some(original) = &original_target
+            && (!original.belongs_to(source.emission_facts())
+                || !replay.as_ref().is_some_and(|retained| original.belongs_to(retained.emission_facts())))
+        {
+            return Err(Error::Mismatch(
+                "retained target operations belong to another optimized program",
+            ));
         }
         let catalogs = source::code_catalogs(source);
         let callable_invocations = source::callable_invocations(source)?;
@@ -4088,7 +4085,7 @@ mod production {
         let text = source.text_section();
         let fragments = source::fragments(source);
         let temporary_stack_bytes = if text.functions.is_empty() {
-            std::collections::BTreeMap::new()
+            Vec::new()
         } else {
             source::temporary_stack_bytes_by_function(source)?
         };
@@ -4137,12 +4134,8 @@ mod production {
             fragments.function(placed.machine).ok_or(Error::Mismatch(
                 "missing current fragment for temporary stack replay",
             ))?;
-            let function_temporary_stack =
-                *temporary_stack_bytes
-                    .get(&placed.machine)
-                    .ok_or(Error::Mismatch(
-                        "missing selected function for temporary stack replay",
-                    ))?;
+            let stack_index = source::temporary_stack_index(&temporary_stack_bytes, placed.machine)?;
+            let function_temporary_stack = temporary_stack_bytes[stack_index].byte_count;
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
                 .ok_or(Error::Overflow)?;
@@ -4367,25 +4360,8 @@ mod production {
 pub(crate) mod replay {
     use std::sync::Arc;
 
-    use native_program_planning::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
-
-    /// Stage 02's output, kept beside an emitted object only when the compile
-    /// requested an explicit correspondence audit. Ordinary emission never
-    /// holds it; the audits that compare the object with what stage 02
-    /// lowered refuse without it.
-    #[derive(Debug, Clone)]
-    pub struct RetainedTargetOperations(Arc<ValidatedOptimizedTargetOperations>);
-
-    impl RetainedTargetOperations {
-        pub fn new(target: Arc<ValidatedOptimizedTargetOperations>) -> Self {
-            Self(target)
-        }
-
-        pub fn target(&self) -> &ValidatedOptimizedTargetOperations {
-            &self.0
-        }
-    }
+    pub use verified_optimization_input::publication::target_replay::RetainedTargetOperations;
 
     /// The emitted object's current producer chain, plus stage 02's output
     /// when an audit asked for it.
@@ -8566,6 +8542,7 @@ mod source {
         AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
         AbstractStructuralCallResult,
     };
+    use machine_code::function_metadata::FunctionTemporaryStack;
     use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
     // Pair the existing block-owned rosters once. This keeps no-code events and
@@ -18930,29 +18907,53 @@ mod source {
         Err(Error::Mismatch("missing placed fragment"))
     }
 
+    pub(super) fn temporary_stack_index(
+        rows: &[FunctionTemporaryStack],
+        machine: MachineId,
+    ) -> Result<usize, Error> {
+        rows.binary_search_by_key(&machine, |row| row.machine)
+            .map_err(|_| Error::Mismatch("missing selected function for temporary stack replay"))
+    }
+
+    fn ordered_temporary_stack_rows(
+        mut rows: Vec<FunctionTemporaryStack>,
+        duplicate: &'static str,
+    ) -> Result<Vec<FunctionTemporaryStack>, Error> {
+        rows.sort_unstable_by_key(|row| row.machine);
+        if rows
+            .windows(2)
+            .any(|pair| pair[0].machine == pair[1].machine)
+        {
+            return Err(Error::Mismatch(duplicate));
+        }
+        Ok(rows)
+    }
+
     pub(super) fn temporary_stack_bytes_by_function(
         source: &ObjectEmissionInput,
-    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
-        let mut bounds = std::collections::BTreeMap::new();
-        for row in &source.emission_facts().temporary_stack {
-            if bounds.insert(row.machine, row.byte_count).is_some() {
-                return Err(Error::Mismatch("temporary stack plan repeats a function"));
-            }
-        }
-        Ok(bounds)
+    ) -> Result<Vec<FunctionTemporaryStack>, Error> {
+        ordered_temporary_stack_rows(
+            source.emission_facts().temporary_stack.clone(),
+            "temporary stack plan repeats a function",
+        )
     }
 
     pub(super) fn decoded_temporary_stack_bytes_by_function(
-        source: &crate::object_input::ObjectEmissionInput,
-    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
-        let mut peaks = std::collections::BTreeMap::new();
-        for function in &source.emission_facts().cpu.functions {
-            if peaks.insert(function.machine, 0).is_some() {
-                return Err(Error::Mismatch(
-                    "encoding instruction roster changed for temporary stack replay",
-                ));
-            }
-        }
+        source: &ObjectEmissionInput,
+    ) -> Result<Vec<FunctionTemporaryStack>, Error> {
+        let mut peaks = ordered_temporary_stack_rows(
+            source
+                .emission_facts()
+                .cpu
+                .functions
+                .iter()
+                .map(|function| FunctionTemporaryStack {
+                    machine: function.machine,
+                    byte_count: 0,
+                })
+                .collect(),
+            "encoding instruction roster changed for temporary stack replay",
+        )?;
         let mut rows = source.readback.encoding.rows().iter();
         let mut seen = std::collections::BTreeSet::new();
         for &(machine, instruction) in &source.emission_facts().cpu.instruction_roster {
@@ -18964,10 +18965,9 @@ mod source {
                     "encoding instruction roster changed for temporary stack replay",
                 ));
             }
-            let peak = peaks.get_mut(&machine).ok_or(Error::Mismatch(
-                "missing selected function for temporary stack replay",
-            ))?;
+            let index = temporary_stack_index(&peaks, machine)?;
             if let Some(footprint) = source.readback.encoding.encoded().footprint(row.footprint) {
+                let peak = &mut peaks[index].byte_count;
                 *peak = (*peak).max(temporary_stack_peak(std::iter::once(&footprint.encoded)));
             }
         }
@@ -18981,7 +18981,7 @@ mod source {
 
     pub(super) fn replayed_temporary_stack_bytes_by_function(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
+    ) -> Result<Vec<FunctionTemporaryStack>, Error> {
         let current = source.source().source().source().source();
         temporary_stack_bytes_for_selected_functions(
             current
@@ -19006,20 +19006,17 @@ mod source {
         selected.function(machine).ok_or(Error::Mismatch(
             "missing selected function for temporary stack replay",
         ))?;
-        temporary_stack_bytes_for_selected_functions(selected.iter(), rows, encoded)?
-            .remove(&machine)
-            .ok_or(Error::Mismatch(
-                "missing selected function for temporary stack replay",
-            ))
+        let peaks = temporary_stack_bytes_for_selected_functions(selected.iter(), rows, encoded)?;
+        Ok(peaks[temporary_stack_index(&peaks, machine)?].byte_count)
     }
 
     fn temporary_stack_bytes_for_selected_functions<'function>(
         selected: impl IntoIterator<Item = &'function selected_instructions::SelectedFunction>,
         rows: &[machine_code::SelectedFormEncodingRow],
         encoded: &machine_code::SelectedFormEncodedRowStore,
-    ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
+    ) -> Result<Vec<FunctionTemporaryStack>, Error> {
         let mut encoded_rows = rows.iter();
-        let mut peaks = std::collections::BTreeMap::new();
+        let mut peaks = Vec::new();
         let mut identities = std::collections::BTreeSet::new();
         let mut effects = Vec::new();
         for function in selected {
@@ -19042,24 +19039,20 @@ mod source {
                     }
                 }
             }
-            if peaks
-                .insert(
-                    function.machine,
-                    temporary_stack_peak(effects.iter().copied()),
-                )
-                .is_some()
-            {
-                return Err(Error::Mismatch(
-                    "encoding instruction roster changed for temporary stack replay",
-                ));
-            }
+            peaks.push(FunctionTemporaryStack {
+                machine: function.machine,
+                byte_count: temporary_stack_peak(effects.iter().copied()),
+            });
         }
         if encoded_rows.next().is_some() {
             return Err(Error::Mismatch(
                 "extra encoding row for temporary stack replay",
             ));
         }
-        Ok(peaks)
+        ordered_temporary_stack_rows(
+            peaks,
+            "encoding instruction roster changed for temporary stack replay",
+        )
     }
 
     fn temporary_stack_peak<'effects>(
@@ -22445,7 +22438,7 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     PrivateFunctions(crate::ObjectError),
     ForeignCalls(crate::ObjectError),
-    NativeEntryBridge(physical_planning::native_entry_bridge::NativeEntryBridgeError),
+    NativeEntryBridge(physical_recipes::native_entry_bridge::NativeEntryBridgeError),
     PhysicalEntry(diagnostics::Diagnostic),
     NativeCodeLayout(machine_code::code_layout::NativeCodeLayoutError),
     Overflow,

@@ -2,7 +2,7 @@
 // installed private-RAM recipes (`CheckedPrivateEntryRamRecipe`). No ordinary
 // reference receives zeroed backing inferred solely from its parameter signature.
 
-use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
+use published_runtime_input::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalEstablishedErasedField, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,

@@ -2294,7 +2294,7 @@ pub mod expression {
             assert_ne!(original.generation(), current.generation());
             assert!(!table.expression_is_valid(original));
             assert!(table.expression_is_valid(current));
-            assert!(table.expression_handles(original_arguments).is_empty());
+            assert!(table.spans.expression_handles.span(original_arguments).is_none());
             assert_eq!(table.expression_handles(current_arguments), [current]);
         }
 

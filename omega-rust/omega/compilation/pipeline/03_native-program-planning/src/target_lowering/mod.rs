@@ -344,6 +344,21 @@ pub(crate) mod optimized {
         references
     }
     impl ValidatedOptimizedTargetOperations {
+        pub fn into_target_replay(
+            self,
+            emission: &mut verified_optimization_input::publication::SemanticEmissionFacts,
+        ) -> Result<
+            verified_optimization_input::publication::target_replay::RetainedTargetOperations,
+            &'static str,
+        > {
+            emission.retain_target_operations(
+                self.optimized,
+                self.lowering_facts,
+                self.current_program,
+                self.prepared,
+            )
+        }
+
         pub fn retained_private_references(&self) -> &[function_identity::MachineFunctionIdentity] {
             &self.retained_private_references
         }
@@ -391,18 +406,7 @@ pub(crate) mod optimized {
     fn boundary_origins(
         input: &AdmittedLoweringFacts,
     ) -> crate::preparation::BoundaryOriginFacts<'_> {
-        crate::preparation::BoundaryOriginFacts {
-            program_entry: input.program_entry().map(|call| {
-                target_operations::ProgramEntryOrigin {
-                    boundary: call.boundary(),
-                    entry: call.entry(),
-                    source_signature: call.source_signature(),
-                }
-            }),
-            assumed_bindings: input.assumed_bindings(),
-            target_context: input.target_context(),
-            module: input.module(),
-        }
+        crate::preparation::BoundaryOriginFacts::from_lowering(input)
     }
 
     pub struct OptimizedTargetLoweringRequest<'a> {

@@ -1,10 +1,10 @@
 //! Runtime plans with their published component products and receipts.
+use backend_plan::TerminalTargetProviderProposal;
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::Arc;
 use target::NormalizedImportLocator;
 use terminal_installation::{AdmittedScalarApplications, CheckedPrivateEntryRamRecipe};
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::TerminalPsiIdentity;
-use backend_plan::TerminalTargetProviderProposal;
 
 pub use verified_optimization_input::runtime_provisions::TerminalRuntimeHostProvision;
 pub type TerminalRuntimeHostProvisions<A = Arc<image_emission::NativeForeignAdapterImage>> =
@@ -16,7 +16,7 @@ pub type TerminalCallableRuntimeProvisions<A = Arc<image_emission::NativeForeign
 pub struct TerminalRuntimeProvisions<A = Arc<image_emission::NativeForeignAdapterImage>> {
     plan: verified_optimization_input::runtime_provisions::NativeRuntimePlan<A>,
     components: Vec<Arc<crate::NativeComponentProduct>>,
-    execution: std::sync::OnceLock<verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions>,
+    execution: std::sync::OnceLock<published_runtime_input::RuntimeExecutionProvisions>,
     component_publications: Vec<crate::NativeComponentPublicationReceipt>,
 }
 
@@ -39,7 +39,8 @@ impl<A> TerminalRuntimeProvisions<A> {
         binding: &target_operations::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
-        self.plan.matches_host_requirement(declaration, binding, identities)
+        self.plan
+            .matches_host_requirement(declaration, binding, identities)
     }
 
     pub fn host_calling_application(
@@ -85,10 +86,20 @@ impl<A> TerminalRuntimeProvisions<A> {
         self.plan.host()
     }
 
-    pub fn from_plan(plan: verified_optimization_input::runtime_provisions::NativeRuntimePlan<A>) -> Self {
-        Self { plan, components: Vec::new(), execution: Default::default(), component_publications: Vec::new() }
+    pub fn from_plan(
+        plan: verified_optimization_input::runtime_provisions::NativeRuntimePlan<A>,
+    ) -> Self {
+        Self {
+            plan,
+            components: Vec::new(),
+            execution: Default::default(),
+            component_publications: Vec::new(),
+        }
     }
-    pub fn map_adapters<B>(self, transform: impl FnMut(A) -> Result<B, String>) -> TerminalRuntimeProvisions<B> {
+    pub fn map_adapters<B>(
+        self,
+        transform: impl FnMut(A) -> Result<B, String>,
+    ) -> TerminalRuntimeProvisions<B> {
         TerminalRuntimeProvisions {
             plan: self.plan.map_adapters(transform),
             components: self.components,
@@ -96,17 +107,26 @@ impl<A> TerminalRuntimeProvisions<A> {
             component_publications: self.component_publications,
         }
     }
-    pub fn with_private_entry_ram(mut self, recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>) -> Self {
+    pub fn with_private_entry_ram(
+        mut self,
+        recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    ) -> Self {
         self.execution.take();
         self.plan = self.plan.with_private_entry_ram(recipes);
         self
     }
-    pub fn with_target_provider_proposals(mut self, proposals: Vec<backend_plan::TerminalTargetProviderProposal>) -> Self {
+    pub fn with_target_provider_proposals(
+        mut self,
+        proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    ) -> Self {
         self.execution.take();
         self.plan = self.plan.with_target_provider_proposals(proposals);
         self
     }
-    pub fn with_borrowed_storage_layouts(mut self, layouts: runtime_abi::NativeBorrowedStorageLayouts) -> Self {
+    pub fn with_borrowed_storage_layouts(
+        mut self,
+        layouts: runtime_abi::NativeBorrowedStorageLayouts,
+    ) -> Self {
         self.execution.take();
         self.plan = self.plan.with_borrowed_storage_layouts(layouts);
         self
@@ -246,20 +266,40 @@ impl<A> TerminalRuntimeProvisions<A> {
         &self,
         components: &[Arc<crate::NativeComponentProduct>],
     ) -> Result<(), &'static str> {
-        verified_optimization_input::runtime_provisions::validate_component_roster(
-            &self.plan, components.iter().map(|component| component.runtime_record().as_ref())
+        published_runtime_input::validate_component_roster(
+            &self.plan,
+            components
+                .iter()
+                .map(|component| component.runtime_record().as_ref()),
         )
     }
 }
 
 impl TerminalRuntimeProvisions {
-    pub fn execution(&self) -> &verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions {
-        self.execution.get_or_init(|| verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions::from_plan(
-            self.plan.clone().map_adapters(|adapter| Ok(Arc::new(adapter.runtime_identity()))),
-            self.components.iter().map(|component| Arc::clone(component.runtime_record())).collect(),
-        ))
+    pub fn execution(&self) -> &published_runtime_input::RuntimeExecutionProvisions {
+        self.execution.get_or_init(|| {
+            published_runtime_input::RuntimeExecutionProvisions::from_plan(
+                self.plan
+                    .clone()
+                    .map_adapters(|adapter| Ok(Arc::new(adapter.runtime_identity()))),
+                self.components
+                    .iter()
+                    .map(|component| Arc::clone(component.runtime_record()))
+                    .collect(),
+            )
+        })
     }
-    pub fn published_native_adapters(&self) -> impl Iterator<Item = &Arc<image_emission::NativeForeignAdapterImage>> {
-        self.plan.host_provisions().retained_foreign_adapters().chain(self.components.iter().flat_map(|component| component.runtime().host_provisions().retained_foreign_adapters()))
+    pub fn published_native_adapters(
+        &self,
+    ) -> impl Iterator<Item = &Arc<image_emission::NativeForeignAdapterImage>> {
+        self.plan
+            .host_provisions()
+            .retained_foreign_adapters()
+            .chain(self.components.iter().flat_map(|component| {
+                component
+                    .runtime()
+                    .host_provisions()
+                    .retained_foreign_adapters()
+            }))
     }
 }

@@ -754,6 +754,7 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "physical-program",
+ "physical-recipes",
  "post-allocation-machine",
  "provider-admission",
  "register-environment",
@@ -764,8 +765,10 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-aarch64",
  "target-operations",
  "target-vocabulary",
+ "target-x86_64",
  "task-plans",
  "terminal-psi",
  "terminal-semantics",
@@ -867,7 +870,6 @@ dependencies = [
  "machine-code",
  "native-encoding",
  "native-program-planning",
- "native-verification",
  "native-vocabulary",
  "object-file",
  "optimization-core",
@@ -905,9 +907,11 @@ dependencies = [
 name = "image-fixtures"
 version = "0.1.0"
 dependencies = [
+ "function-layout",
  "image",
  "machine-code",
  "native-encoding",
+ "object-file",
  "physical-planning",
  "target",
 ]
@@ -1238,6 +1242,7 @@ dependencies = [
  "calling-conventions",
  "compiler-storage",
  "function-identity",
+ "installation-evidence",
  "native-vocabulary",
  "optimization-core",
  "post-allocation-machine",
@@ -1310,6 +1315,7 @@ dependencies = [
  "post-allocation-machine",
  "program-entry-plan",
  "provider-admission",
+ "published-runtime-input",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -1362,6 +1368,7 @@ dependencies = [
  "physical-planning",
  "physical-program",
  "post-allocation-machine",
+ "program-entry-plan",
  "provider-admission",
  "published-object-verification",
  "register-environment",
@@ -1486,14 +1493,10 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "calling-conventions",
- "function-layout",
  "image-emission",
  "image-fixtures",
  "libc",
- "native-artifact",
- "native-encoding",
  "native-provider-sponsor",
- "physical-planning",
  "runtime-abi",
  "sha2",
  "target",
@@ -1507,8 +1510,11 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "calling-conventions",
+ "image-emission",
+ "image-fixtures",
  "native-provider-runtime",
  "product-publication",
+ "target",
 ]
 
 [[package]]
@@ -1639,6 +1645,7 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-program",
+ "physical-recipes",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -2046,6 +2053,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
  "source-compiler",
@@ -2068,7 +2076,9 @@ dependencies = [
  "declaration-contracts",
  "diagnostics",
  "effects",
+ "machine-code",
  "optimization-core",
+ "physical-recipes",
  "semantic-vocabulary",
  "target",
  "terminal-installation",
@@ -2163,8 +2173,29 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "image-emission",
+ "installation-admission",
  "native-program-planning",
  "optimization-core",
+ "physical-planning",
+]
+
+[[package]]
+name = "published-runtime-input"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "effects",
+ "machine-code",
+ "provider-admission",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -2562,6 +2593,7 @@ dependencies = [
  "diagnostics",
  "evaluation-accounting",
  "evaluation-contracts",
+ "evaluation-receipts",
  "execution-admission",
  "filesystem-authority",
  "flow-effects",
@@ -2944,6 +2976,7 @@ dependencies = [
  "orchestration",
  "platform-custody",
  "provider-admission",
+ "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
  "storage-access",
@@ -2955,7 +2988,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
- "verified-optimization-input",
 ]
 
 [[package]]
@@ -3098,10 +3130,12 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "layout-plans",
+ "legalized-operations",
  "native-vocabulary",
  "numeric-literals",
  "numerics",
  "optimization-core",
+ "optimization-unit",
  "program-entry-plan",
  "provider-admission",
  "provider-correspondence",

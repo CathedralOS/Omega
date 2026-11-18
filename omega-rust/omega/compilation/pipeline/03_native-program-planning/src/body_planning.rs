@@ -39,7 +39,7 @@ pub struct NativeBodyPlan {
     pub selection: legalized_operations::PreparedInstructionSelection,
     pub facts: verified_optimization_input::publication::SemanticEmissionFacts,
     pub private_references: Vec<function_identity::MachineFunctionIdentity>,
-    pub original_for_audit: Option<std::sync::Arc<ValidatedOptimizedTargetOperations>>,
+    pub original_for_audit: Option<Box<ValidatedOptimizedTargetOperations>>,
 }
 
 impl NativeBodyPlan {
@@ -74,7 +74,7 @@ pub fn plan_native_body(
         selection,
         facts: crate::emission_facts::project(&target),
         private_references: target.retained_private_references().to_vec(),
-        original_for_audit: retain_original.then(|| std::sync::Arc::new(target)),
+        original_for_audit: retain_original.then(|| Box::new(target)),
     })
 }
 

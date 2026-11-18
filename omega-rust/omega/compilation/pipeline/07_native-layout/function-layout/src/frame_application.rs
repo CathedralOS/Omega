@@ -26,7 +26,8 @@ use encoding_admission::relative_branches::{self, RelativeBranchError, validate_
 pub use machine_code::function_fragment_frame_application_identity;
 use machine_code::{
     EncodedControlIndex, FunctionFragment, FunctionFragmentBranchEvidence,
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
+    FunctionFragmentEmissionPlan,
     FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
     TargetFrameProtocolEncodingIdentity,
 };
@@ -89,9 +90,13 @@ pub(crate) fn validate_function_fragment_frame_application(
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
     let expected = PlacedBodyEvidence::capture(
-        &staged.source, &staged.application, prepare_branch_origins(staged.source.fragments()).into(),
+        &staged.source,
+        &staged.application,
+        prepare_branch_origins(staged.source.fragments()).into(),
     );
-    if *staged.placed_body != expected || staged.retains_originals != staged.source.source().has_original_replay() {
+    if *staged.placed_body != expected
+        || staged.retains_originals != staged.source.source().has_original_replay()
+    {
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
     }
     let protocol = staged.source.source().frame_protocol();
@@ -204,8 +209,10 @@ pub fn validate_current_relative_branch_rows<'a>(
     machine: MachineId,
     candidates: impl IntoIterator<Item = &'a FunctionFragmentInstructionSpan>,
 ) -> Result<Vec<SelectedInstructionId>, FunctionFragmentFrameApplicationError> {
-    relative_branches::validate_current_relative_branch_rows(fragments, origins, physical, machine, candidates)
-        .map_err(|error| FrameApplicationError::from(error).into())
+    relative_branches::validate_current_relative_branch_rows(
+        fragments, origins, physical, machine, candidates,
+    )
+    .map_err(|error| FrameApplicationError::from(error).into())
 }
 
 fn prepare_branch_origins(
@@ -2007,6 +2014,10 @@ mod tests {
                     apply_frame_protocol_to_fragments(&source, manifest, &protocol, &physical)
                         .unwrap();
                 let branch = &application.fragments.functions[0].blocks[0].instructions[0];
+                check_published_branch_bytes(
+                    &application.fragments, &super::prepare_branch_origins(&source), &physical,
+                    source.entry, branch,
+                );
                 assert_eq!(branch.bytes.len(), expected_width);
                 assert_eq!(
                     branch.alternative.variant,
@@ -2442,6 +2453,31 @@ mod tests {
             }
         }
     }
+    fn check_published_branch_bytes(
+        fragments: &FunctionFragmentEmissionPlan,
+        origins: &[machine_code::frame_branch_origins::FunctionFrameBranchOrigins],
+        physical: &register_model::ValidatedPhysicalRegisterModel,
+        machine: MachineId,
+        original: &FunctionFragmentInstructionSpan,
+    ) {
+        let published = |bytes: &[u8]| {
+            encoding_admission::relative_branches::validate_published_relative_branches(
+                fragments, origins, physical, machine, bytes,
+            )
+        };
+        let mut bytes = fragments.function(machine).unwrap().bytes.clone();
+        assert_eq!(published(&bytes).unwrap(), [original.instruction]);
+        assert!(published(&bytes[..bytes.len() - 1]).is_err());
+        let offset = usize::try_from(original.offset).unwrap();
+        for index in offset..offset + original.bytes.len() {
+            for bit in 0..8 {
+                bytes[index] ^= 1 << bit;
+                assert!(published(&bytes).is_err(), "published byte {index}, bit {bit}");
+                bytes[index] ^= 1 << bit;
+            }
+        }
+    }
+
     #[test]
     fn current_branch_readback_refuses_changed_targets_bytes_and_rosters() {
         let source = aarch64_source(&AARCH64_CONDITIONALS[0], 4, 32, false);
@@ -2466,22 +2502,7 @@ mod tests {
                 )
             };
         assert!(check(&origins, original).is_ok());
-        let published = |bytes: &[u8]| {
-            encoding_admission::relative_branches::validate_published_relative_branches(
-                fragments, &origins, physical, source.entry, bytes,
-            )
-        };
-        let mut bytes = fragments.functions[0].bytes.clone();
-        assert_eq!(published(&bytes).unwrap(), [original.instruction]);
-        assert!(published(&bytes[..bytes.len() - 1]).is_err());
-        let offset = usize::try_from(original.offset).unwrap();
-        for index in offset..offset + original.bytes.len() {
-            for bit in 0..8 {
-                bytes[index] ^= 1 << bit;
-                assert!(published(&bytes).is_err(), "published byte {index}, bit {bit}");
-                bytes[index] ^= 1 << bit;
-            }
-        }
+        check_published_branch_bytes(fragments, &origins, physical, source.entry, original);
         let mut changed = original.clone();
         changed.bytes[0] ^= 0x20;
         assert!(check(&origins, &changed).is_err());

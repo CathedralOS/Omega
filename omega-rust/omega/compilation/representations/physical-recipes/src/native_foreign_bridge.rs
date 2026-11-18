@@ -48,13 +48,18 @@ pub struct NativeForeignBridgeCode {
 }
 
 impl NativeForeignBridgeCode {
-    pub fn from_parts(
-        request: NativeForeignBridgeRequest,
+    pub fn from_recipe<Origin>(
+        plan: NativeForeignBridgePlan<Origin>,
         bytes: Vec<u8>,
-        frame_bytes: u32,
         call_field_offset: usize,
     ) -> Self {
-        Self { request, bytes, frame_bytes, call_field_offset }
+        let frame_bytes = plan.frame_bytes();
+        Self {
+            request: plan.into_request(),
+            bytes,
+            frame_bytes,
+            call_field_offset,
+        }
     }
 
     pub fn request(&self) -> &NativeForeignBridgeRequest {

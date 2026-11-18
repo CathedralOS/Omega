@@ -170,16 +170,23 @@ pub struct NativeEntryBridgeCode {
 }
 
 impl NativeEntryBridgeCode {
-    pub fn from_parts(
-        request: NativeEntryBridgeRequest,
+    pub fn from_recipe<Origin>(
+        plan: NativeEntryBridgePlan<Origin>,
         bytes: Vec<u8>,
-        frame_bytes: u32,
         call_field_offset: usize,
-        installed_interrupt: Option<InstalledInterruptEntryPlan>,
-        adapter_effects: StateEffectsEvidence,
-        complete_effects: StateEffectsEvidence,
     ) -> Self {
-        Self { request, bytes, frame_bytes, call_field_offset, installed_interrupt, adapter_effects, complete_effects }
+        let frame_bytes = plan.frame_bytes();
+        let installed_interrupt = plan.installed_interrupt();
+        let (request, adapter_effects, complete_effects) = plan.into_contract();
+        Self {
+            request,
+            bytes,
+            frame_bytes,
+            call_field_offset,
+            installed_interrupt,
+            adapter_effects,
+            complete_effects,
+        }
     }
 
     pub fn adapter_effects(&self) -> &StateEffectsEvidence {

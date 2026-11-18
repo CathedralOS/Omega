@@ -4,6 +4,7 @@
 pub(crate) use ::wire::codec_bytes;
 
 pub mod code_layout;
+pub mod entry_placement;
 
 mod exit_contract;
 mod fragment_emission;
@@ -90,3 +91,5 @@ impl std::fmt::Display for FunctionTextLayoutError {
     }
 }
 impl std::error::Error for FunctionTextLayoutError {}
+
+pub mod program_entry_placement;

@@ -767,13 +767,9 @@ fn a_true_branch_bounds_its_arm() {
     )))]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     let core = assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
-    // The rule checker accepts it; the mathematical core does not cover the
-    // discreteness step from the transported `a < 10` to `a <= 9`, and says
-    // so instead of judging.
-    assert_eq!(
-        core,
-        MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints"),
-        "{core:?}"
+    assert!(
+        matches!(core, MathematicalCoreDecision::Judged(ref receipt) if receipt.assumption_closure >= 1),
+        "the core must judge the discrete integer step and retain its rule instance: {core:?}"
     );
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     assert_eq!(
@@ -1140,11 +1136,9 @@ fn a_disequality_guard_splits_into_cases() {
     let (elaboration, result) = run(vec![program]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     let core = assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
-    // The case split and the contradiction are judged; the discreteness step
-    // from `0 < a` to `1 <= a` is the one the core does not cover.
-    assert_eq!(
-        core,
-        MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
+    assert!(
+        matches!(core, MathematicalCoreDecision::Judged(ref receipt) if receipt.assumption_closure >= 1),
+        "the core must judge the discrete integer step and retain its rule instance: {core:?}"
     );
 }
 

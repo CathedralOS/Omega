@@ -10,26 +10,20 @@ use semantic_vocabulary::compiler_evaluation::{
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 
-pub struct PublishedEntrySelection<'a> {
-    artifact: &'a Arc<CanonicalTerminalArtifact>,
-    execution: &'a crate::SelectedExecution,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublishedEntryNomination {
+    program: terminal_psi::TerminalPsiIdentity,
     selected: SelectedCompilerProgramEntry,
     schema_declaration: terminal_psi::TerminalIdentityIndex,
 }
 
-impl<'a> PublishedEntrySelection<'a> {
-    pub fn select(
-        artifact: &'a Arc<CanonicalTerminalArtifact>,
-        execution: &'a crate::SelectedExecution,
+impl PublishedEntryNomination {
+    pub(crate) fn from_module(
+        module: &terminal_psi::TerminalModule,
+        program: terminal_psi::TerminalPsiIdentity,
+        target: Option<target::TargetProfile>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        execution
-            .realization()
-            .require_program(artifact.view().identity())
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let profile = execution
-            .target_profile()
-            .unwrap_or_else(target::TargetProfile::host);
-        let module = artifact.semantic_module();
+        let profile = target.unwrap_or_else(target::TargetProfile::host);
         let contract = module
             .program_entry_contract(profile.target_name())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -39,95 +33,100 @@ impl<'a> PublishedEntrySelection<'a> {
             profile.program_entry_slot(),
         )?;
         Ok(Self {
-            artifact,
-            execution,
+            program,
             selected,
             schema_declaration: contract.schema_declaration,
         })
     }
 
-    pub fn selected(&self) -> &SelectedCompilerProgramEntry {
-        &self.selected
+    pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.program
+    }
+    pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+        self.selected.source_signature()
+    }
+    pub fn nominal_root(&self) -> Result<terminal_psi::PreparedNominalRoot, Vec<Diagnostic>> {
+        self.selected.nominal_root()
     }
     pub fn schema_declaration(&self) -> terminal_psi::TerminalIdentityIndex {
         self.schema_declaration
     }
+}
 
-    pub fn with_calling_plans(
-        self,
-        requester: DeclarationCustody,
-        binding: Option<&AcceptedSemanticBinding>,
-        permissions: Option<&ProductDeclarationScope>,
-    ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
-        let refuse = |reason: String| vec![Diagnostic::error(reason)];
-        let selected = self.selected;
-        let slot = selected.source_signature().target_slot();
-        let providers = self.execution.realization().provider_declarations();
-        let module = self.artifact.semantic_module();
-        let contract = module
-            .program_entry_contract(slot.owner.target_name())
-            .map_err(refuse)?;
-        let declared = module
-            .service_schema(contract.schema_declaration, contract.schema_application)
-            .map_err(refuse)?;
-        let schema = effects::provider_plan::ServiceSchema::from_declaration(
-            std::sync::Arc::clone(&declared.surface),
-        );
-        let declaring_schema = module
-            .identities
-            .text(contract.schema_declaration)
-            .ok_or_else(|| refuse("entry schema lost its canonical declaration identity".into()))?;
-        admit_entry_schema(binding, slot, &schema, requester).map_err(refuse)?;
-        let physical = slot.physical_arrival_requirement.ok_or_else(|| {
-            refuse("selected entry slot has no physical arrival requirement".into())
-        })?;
-        let semantic =
-            requirement_identity(&schema, slot.semantic_arrival_requirement).map_err(refuse)?;
-        let physical = requirement_identity(&schema, physical).map_err(refuse)?;
-        let authority = permissions.map(|scope| scope as &dyn DeclarationSelectionAuthority);
-        let owner = schema
-            .root_application_identity()
-            .ok_or_else(|| refuse("entry schema has no exact root application identity".into()))?;
-        let policy =
-            super::entry_calling_policy(module, declaring_schema, owner).map_err(refuse)?;
-        let admitted_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
-            providers.to_vec(),
-            self.artifact.view(),
-        )
-        .and_then(|selected| selected.admit(self.artifact.view(), slot.owner.target_name()))
+pub fn plan_published_entry_calling_conventions(
+    nomination: &PublishedEntryNomination,
+    artifact: &Arc<CanonicalTerminalArtifact>,
+    providers: &[effects::provider_plan::ProviderPlan],
+    requester: DeclarationCustody,
+    binding: Option<&AcceptedSemanticBinding>,
+    permissions: Option<&ProductDeclarationScope>,
+) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
+    let refuse = |reason: String| vec![Diagnostic::error(reason)];
+    let selected = nomination.selected.clone();
+    let slot = selected.source_signature().target_slot();
+    let module = artifact.semantic_module();
+    let contract = module
+        .program_entry_contract(slot.owner.target_name())
         .map_err(refuse)?;
-        let admission = terminal_installation::admit_compiler_evaluation(
-            self.artifact.view(),
-            slot.owner.target_name(),
-            *policy
-                .policy_declaration
-                .as_ref()
-                .map_err(|reason| refuse(reason.clone()))?,
-            admitted_providers,
-            requester,
-            authority,
-        )
+    let declared = module
+        .service_schema(contract.schema_declaration, contract.schema_application)
         .map_err(refuse)?;
-        let plans = SelectedProgramEntryCallingPlans::evaluate(
-            &crate::calling_policy_plans::CallingProgram {
-                artifact: std::sync::Arc::clone(self.artifact),
-            },
-            ProgramEntryCallingPlanRequest {
-                slot,
-                schema: schema.clone(),
-                declaring_schema,
-                semantic_requirement: semantic,
-                physical_requirement: physical,
-                physical_source_digest: contract.physical_source_digest,
-                providers,
-                admission,
-            },
-        )
-        .map_err(refuse)?;
-        let mut entry = selected.with_calling_plans(plans)?;
-        entry.bind_physical_adapter(module, providers)?;
-        Ok(entry)
-    }
+    let schema = effects::provider_plan::ServiceSchema::from_declaration(std::sync::Arc::clone(
+        &declared.surface,
+    ));
+    let declaring_schema = module
+        .identities
+        .text(contract.schema_declaration)
+        .ok_or_else(|| refuse("entry schema lost its canonical declaration identity".into()))?;
+    admit_entry_schema(binding, slot, &schema, requester).map_err(refuse)?;
+    let physical = slot
+        .physical_arrival_requirement
+        .ok_or_else(|| refuse("selected entry slot has no physical arrival requirement".into()))?;
+    let semantic =
+        requirement_identity(&schema, slot.semantic_arrival_requirement).map_err(refuse)?;
+    let physical = requirement_identity(&schema, physical).map_err(refuse)?;
+    let authority = permissions.map(|scope| scope as &dyn DeclarationSelectionAuthority);
+    let owner = schema
+        .root_application_identity()
+        .ok_or_else(|| refuse("entry schema has no exact root application identity".into()))?;
+    let policy = super::entry_calling_policy(module, declaring_schema, owner).map_err(refuse)?;
+    let admitted_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+        providers.to_vec(),
+        artifact.view(),
+    )
+    .and_then(|selected| selected.admit(artifact.view(), slot.owner.target_name()))
+    .map_err(refuse)?;
+    let admission = terminal_installation::admit_compiler_evaluation(
+        artifact.view(),
+        slot.owner.target_name(),
+        *policy
+            .policy_declaration
+            .as_ref()
+            .map_err(|reason| refuse(reason.clone()))?,
+        admitted_providers,
+        requester,
+        authority,
+    )
+    .map_err(refuse)?;
+    let plans = SelectedProgramEntryCallingPlans::evaluate(
+        &crate::calling_policy_plans::CallingProgram {
+            artifact: std::sync::Arc::clone(artifact),
+        },
+        ProgramEntryCallingPlanRequest {
+            slot,
+            schema: schema.clone(),
+            declaring_schema,
+            semantic_requirement: semantic,
+            physical_requirement: physical,
+            physical_source_digest: contract.physical_source_digest,
+            providers,
+            admission,
+        },
+    )
+    .map_err(refuse)?;
+    let mut entry = selected.with_calling_plans(plans)?;
+    entry.bind_physical_adapter(module, providers)?;
+    Ok(entry)
 }
 
 fn requirement_identity<'schema>(

@@ -9,6 +9,8 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+legalized-operations = { path = "../../target-operations/legalized-operations" }
+optimization-unit = { path = "../optimization-unit" }
 runtime-abi = { path = "../../../target-description/runtime-abi" }
 native-vocabulary = { path = "../../native-vocabulary" }
 declaration-contracts = { path = "../../../../../psi/compilation/representations/declaration-contracts" }

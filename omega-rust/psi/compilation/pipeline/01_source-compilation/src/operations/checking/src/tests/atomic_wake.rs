@@ -318,8 +318,8 @@ fn computed_subject_is_retired_on_a_real_backedge() {
         r#"
         data Reply { case Ready(value: u32); }
         machine make(value: u32) -> Reply { Reply::Ready { value: value } }
-        machine walk(value: u32) -> u32 {
-            match make(value) { Reply::Ready { value } -> step(value) }
+        machine walk(input: u32) -> u32 {
+            match make(input) { Reply::Ready { value } -> step(value) }
             machine step(value: u32) -> u32 {
                 transition value < 2 { true -> walk(value + 1) _ -> done(value) }
                 machine done(value: u32) -> u32 { value }

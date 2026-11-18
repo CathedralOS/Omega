@@ -29,7 +29,7 @@ pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
-pub use verified_optimization_input::runtime_provisions::RuntimeExecutionProvisions;
+pub use published_runtime_input::RuntimeExecutionProvisions;
 pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
     recover_native_derivation_inputs,

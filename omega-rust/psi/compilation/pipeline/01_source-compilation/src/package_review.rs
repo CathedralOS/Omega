@@ -26,7 +26,7 @@ impl crate::AcceptedTerminalSource {
         roots
     }
 
-    pub fn publish_package_review_numeric_requirements(
+    pub(crate) fn publish_package_review_numeric_requirements(
         &self,
         provider_bodies: impl IntoIterator<Item = MachineId>,
     ) -> Result<Vec<BoundaryMachineId>, &'static str> {

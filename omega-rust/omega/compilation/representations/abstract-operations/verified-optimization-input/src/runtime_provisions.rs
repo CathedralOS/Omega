@@ -364,7 +364,9 @@ impl<A> TerminalRuntimeHostProvisions<A> {
 
 impl<T> TerminalRuntimeHostProvisions<Arc<T>> {
     pub fn retained_foreign_adapters(&self) -> impl Iterator<Item = &Arc<T>> {
-        self.host_requirements.iter().filter_map(|row| row.native_adapter.as_ref()?.as_ref().ok())
+        self.host_requirements
+            .iter()
+            .filter_map(|row| row.native_adapter.as_ref()?.as_ref().ok())
     }
 
     pub fn host_native_foreign_adapter(
@@ -383,6 +385,7 @@ impl<T> TerminalRuntimeHostProvisions<Arc<T>> {
 #[derive(Debug, Clone)]
 pub struct TerminalCallableRuntimeProvisions<A> {
     identity: TerminalPsiIdentity,
+    manifest: [u8; 32],
     entry: MachineId,
     target: target::TargetProfile,
     host: TerminalRuntimeHostProvisions<A>,
@@ -396,6 +399,7 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
     ) -> TerminalCallableRuntimeProvisions<B> {
         TerminalCallableRuntimeProvisions {
             identity: self.identity,
+            manifest: self.manifest,
             entry: self.entry,
             target: self.target,
             host: self.host.map_adapters(transform),
@@ -422,6 +426,7 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
             capture_scalar_applications(input, artifact.identity(), target, host.installation())?;
         Ok(Self {
             identity: artifact.identity(),
+            manifest: input.manifest_identity(),
             entry,
             target,
             host,
@@ -431,6 +436,12 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
     pub const fn identity(&self) -> TerminalPsiIdentity {
         self.identity
     }
+
+    pub fn matches_artifact(&self, artifact: &terminal_codec::CanonicalTerminalArtifact) -> bool {
+        self.identity == artifact.view().identity()
+            && &self.manifest == artifact.manifest().identity().as_bytes()
+    }
+
     pub const fn entry(&self) -> MachineId {
         self.entry
     }
@@ -457,6 +468,7 @@ impl<A> TerminalCallableRuntimeProvisions<A> {
 #[derive(Debug, Clone)]
 pub struct NativeRuntimePlan<A> {
     identity: TerminalPsiIdentity,
+    manifest: [u8; 32],
     entry: MachineId,
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
@@ -473,6 +485,7 @@ impl<A> NativeRuntimePlan<A> {
     ) -> NativeRuntimePlan<B> {
         NativeRuntimePlan {
             identity: self.identity,
+            manifest: self.manifest,
             entry: self.entry,
             source_signature_identity: self.source_signature_identity,
             target_slot: self.target_slot,
@@ -518,6 +531,11 @@ impl<A> NativeRuntimePlan<A> {
 
     pub const fn identity(&self) -> TerminalPsiIdentity {
         self.identity
+    }
+
+    pub fn matches_artifact(&self, artifact: &terminal_codec::CanonicalTerminalArtifact) -> bool {
+        self.identity == artifact.view().identity()
+            && &self.manifest == artifact.manifest().identity().as_bytes()
     }
 
     pub fn with_target_provider_proposals(
@@ -612,6 +630,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             private_entry_ram: Vec::new(),
             scalar_applications,
             identity: checked.terminal_psi_identity(),
+            manifest: input.manifest_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
@@ -620,8 +639,3 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         })
     }
 }
-
-mod execution;
-mod image_inspection;
-pub use execution::*;
-pub use image_inspection::{RuntimeCodeLayout, RuntimeImageInspection, RuntimeImageSections};

@@ -147,7 +147,7 @@ pub(crate) fn prepare_physical_body(
 ) -> Result<PreparedPhysicalBody, BodyEmissionError> {
     let native_program_planning::NativeBodyPlan {
         selection,
-        facts,
+        mut facts,
         private_references: native_references,
         original_for_audit,
     } = optimized_target;
@@ -155,7 +155,10 @@ pub(crate) fn prepare_physical_body(
         program: selection,
         installations: std::sync::Arc::clone(installations.facts()),
     };
-    let original_target = original_for_audit.map(image_emission::RetainedTargetOperations::new);
+    let original_target = original_for_audit
+        .map(|original| original.into_target_replay(&mut facts))
+        .transpose()
+        .map_err(|reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]))?;
     let physical_planning::PlannedPhysicalProgram { frame, originals } =
         physical_planning::plan_physical_program(
             input,

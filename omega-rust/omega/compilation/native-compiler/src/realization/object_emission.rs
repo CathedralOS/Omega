@@ -22,7 +22,7 @@ pub(crate) struct EmittedRealizationObject {
     pub physical_originals: native_artifact::NativePhysicalOriginals,
     pub object: PublishedFragmentObject,
     pub runtime_provisions: Option<
-        native_artifact::TerminalRuntimeProvisions<super::auxiliary_native::EncodedForeignAdapter>,
+        native_artifact::TerminalRuntimeProvisions<super::auxiliary_native::ObjectForeignAdapter>,
     >,
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
@@ -265,12 +265,22 @@ pub(crate) fn emit_realization_object(
         .into_iter()
         .map(|body| body.encode())
         .collect::<Result<Vec<_>, _>>()?;
+    let runtime_provisions =
+        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::place));
+    let hosted_entry = hosted_entry.map(function_layout::program_entry_placement::place_hosted_program)
+        .transpose().map_err(|error| vec![error])?;
+    let physical_entry = physical_entry.map(function_layout::program_entry_placement::place_physical_program)
+        .transpose().map_err(|error| vec![error])?;
     let root_layout =
         pipeline::layout_encoded_body(encoded_root, request.observation).map_err(root_error)?;
     let private_layouts = encoded_private
         .into_iter()
         .map(|body| body.layout())
         .collect::<Result<Vec<_>, _>>()?;
+    let runtime_provisions =
+        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::construct));
+    let hosted_entry = hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_placement);
+    let physical_entry = physical_entry.map(object_file::program_entry_object::PhysicalProgramObject::from_placement);
     let projection = pipeline::construct_body_object(root_layout).map_err(root_error)?;
     let mut private_functions = Vec::with_capacity(private_layouts.len());
     let mut private_originals = Vec::with_capacity(private_layouts.len());

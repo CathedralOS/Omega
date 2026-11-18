@@ -34,17 +34,24 @@ mod folded_entry;
 pub use folded_entry::FoldedTargetProgram;
 pub use provider_correspondence::trust;
 pub use execution::{NativeProgramPlanningError, plan_published_target_execution, plan_target_execution, plan_unscoped_execution};
-pub use selected_execution::SelectedExecution;
+pub use selected_execution::{SelectedExecution, SelectedProviderResult};
+pub use target_supply::SelectedProviderRealization;
 
 #[cfg(feature = "test-support")]
 pub mod test_support {
     use super::{SelectedExecution, target_supply::RealizedTargetSupply};
     pub use crate::abstract_optimization::build_verified_psi_optimization_unit;
     pub fn select_realization(
+        module: &terminal_psi::TerminalModule,
         profile: Option<target::TargetProfile>,
         realization: RealizedTargetSupply,
     ) -> Result<SelectedExecution, Vec<diagnostics::Diagnostic>> {
-        SelectedExecution::from_realization(profile, realization)
+        let program = terminal_codec::terminal_psi_identity(module)
+            .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
+        realization
+            .require_program(program)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        SelectedExecution::from_realization(module, profile, realization)
     }
 }
 

@@ -846,7 +846,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .err()
         .expect("this source cannot adopt another source file's private field");
     assert!(
-        error.contains("a field query is outside its author's declaration scope"),
+        error.contains("a declaration query is outside its author's declaration scope"),
         "{error}"
     );
     assert!(

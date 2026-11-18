@@ -5,7 +5,6 @@ We project placed native text sections (`StagedOptimizedFixedFrameTextSection`) 
 use machine_code::{FunctionAppliedFrameProtocol, PlacedFunctionFragment};
 use selected_instructions::SelectedImageAddressReference;
 use semantic_vocabulary::MachineId;
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::StagedOptimizedFixedFrameTextSection;
@@ -27,16 +26,15 @@ pub(crate) fn requested_native_code_layouts(
     text: &machine_code::RelocationFreeTextSectionPlacement,
     frames: &[FunctionAppliedFrameProtocol],
 ) -> Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError> {
-    let mut seen = BTreeSet::new();
-    text.unresolved_image_addresses
-        .iter()
-        .filter_map(|address| match address.reference {
-            SelectedImageAddressReference::NativeCodeLayout { machine } if seen.insert(machine) => {
-                Some(describe_native_code_layout_from_records(text, frames, machine))
-            }
-            _ => None,
-        })
-        .collect()
+    let mut layouts = Vec::<NativeCodeLayout>::new();
+    for address in &text.unresolved_image_addresses {
+        if let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
+            && !layouts.iter().any(|layout| layout.machine == machine)
+        {
+            layouts.push(describe_native_code_layout_from_records(text, frames, machine)?);
+        }
+    }
+    Ok(layouts.into())
 }
 
 fn describe_native_code_layout_from_records(
