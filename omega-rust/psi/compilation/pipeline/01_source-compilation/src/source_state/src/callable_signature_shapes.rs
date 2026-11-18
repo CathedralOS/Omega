@@ -7,6 +7,15 @@ use crate::source_state::types::TypeReferenceHandle;
 use source_admission::RetainedDeclaration;
 use symbols::SymbolHandle;
 
+/// The call keeps both the supplied record value and the scope that supplied
+/// it. Copying a helper body must not replace that scope.
+pub struct SelectedRecordCallOperand {
+    pub operand: crate::source_state::expression::StaticMachineArgument,
+    pub supplier: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub application: String,
+}
+
 /// Declaration matching ignores whether expression syntax also names this
 /// callable. Exact static binders, parameter modes and full result types choose
 /// an overload; this comparison establishes no contract refinement.
@@ -491,6 +500,92 @@ impl crate::source_state::TypedTrees {
         }
         self.static_operand_region_supplier(&operand, owner)?;
         Ok((operand, owner))
+    }
+
+    /// Find the original record argument used by this call. An alias must
+    /// name the same canonical value and complete schema.
+    pub fn source_call_record_operand(
+        &self,
+        owner: SymbolHandle,
+        call: crate::source_state::references::StaticArgumentCall<'_>,
+        selected: &crate::source_state::expression::StaticMachineArgument,
+        selected_supplier: SymbolHandle,
+        exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<Option<SelectedRecordCallOperand>, String> {
+        use crate::source_state::static_applications::StaticMachineBindingValue;
+        use crate::source_state::trait_definition::AppliedTraitScope;
+        use crate::source_state::type_identity::{
+            DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+        };
+
+        let application = call.application();
+        if !application.is_valid() {
+            return Ok(None);
+        }
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            return Err("selected record call has a stale source application".into());
+        }
+        let Some((parameter, _)) = self.static_record_source_receiver(application)? else {
+            return Ok(None);
+        };
+        let identity = |operand: &crate::source_state::expression::StaticMachineArgument,
+                        supplier| {
+            self.declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(operand),
+                lexical_owner: supplier,
+                binders: &[],
+                lifetime_binders: &[],
+                exact_toolchain_sources,
+            })
+            .and_then(|identity| self.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("selected record operand has no complete canonical identity")
+        };
+        for frame in self.enclosing_invocation_frames(owner)? {
+            let mut bindings = frame
+                .bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter);
+            let Some(binding) = bindings.next() else {
+                continue;
+            };
+            if bindings.next().is_some() {
+                return Err("selected record has repeated source operand bindings".into());
+            }
+            let StaticMachineBindingValue::Const(reference) = binding.value else {
+                return Err("selected record was not supplied as its declared Const value".into());
+            };
+            let schema = self
+                .static_record_parameter_schema(frame.declaration, parameter)?
+                .ok_or("selected record receiver has no exact declared schema")?;
+            let actual = self.static_operand_from_type_reference(reference)?;
+            if identity(&actual, frame.argument_owner)? != identity(selected, selected_supplier)? {
+                return Err("selected record differs from its exact supplying operand".into());
+            }
+            let named = self
+                .conformance_by_symbol(actual.symbol)
+                .ok_or("selected record lost its named schema construction")?;
+            let actual_schema = AppliedTraitScope::from_conformance(self, named)
+                .ok_or("selected record lost its complete supplied schema")?;
+            if !schema.same_application(self, &actual_schema) {
+                return Err("selected record has another declared schema application".into());
+            }
+            let application = schema
+                .portable_application_identity(self)
+                .and_then(|identity| self.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or("selected record schema lost its application identity")?;
+            return Ok(Some(SelectedRecordCallOperand {
+                operand: actual,
+                supplier: frame.argument_owner,
+                parameter,
+                application,
+            }));
+        }
+        Err("selected record receiver has no exact retained supplying application".into())
     }
 
     pub fn source_call_declaration<'source>(

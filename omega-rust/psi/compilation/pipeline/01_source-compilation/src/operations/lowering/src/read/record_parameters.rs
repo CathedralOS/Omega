@@ -1,18 +1,17 @@
-//! Const record values remain source-only schema accounts in generic checking.
-//! Their member instances use the ordinary requirement and selected-call owners.
+//! Generic checking records the trait required of each const record. Calls
+//! keep the public requirement separate from the selected implementation.
 
 use super::Program;
 use crate::lowering::static_contracts::SourceRecordBinding;
-use crate::lowering::{Unserved, refuse};
 use crate::source_state::data::TypeParameter;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::AppliedTraitScope;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
+use terminal_check_tables::Checked;
 use terminal_check_tables::contracts::{
     StaticRecordBinding, StaticRecordMember, StaticRecordRequirementInstance,
 };
-use terminal_check_tables::{Checked, Construct};
 
 impl Program<'_> {
     pub(super) fn record_parameter(&self, parameter: SymbolHandle) -> Option<&SourceRecordBinding> {
@@ -218,13 +217,13 @@ impl Program<'_> {
         Ok(id)
     }
 
-    /// Authenticate the source receiver against the retained specialization's actual operand.
-    /// Alias equality uses the existing canonical static-value coordinate, never the spelling.
+    /// Source checking and final publication use the same retained argument.
     pub(super) fn selected_record_operand(
         &self,
         id: MachineId,
         call: crate::source_state::references::StaticArgumentCall<'_>,
         selected: &crate::source_state::expression::StaticMachineArgument,
+        selected_supplier: SymbolHandle,
     ) -> Checked<
         Option<(
             crate::source_state::expression::StaticMachineArgument,
@@ -232,151 +231,32 @@ impl Program<'_> {
             terminal_check_tables::program::SelectedStaticRecordOperand,
         )>,
     > {
-        let application = call.application();
-        if !self
-            .typed
-            .expression_table
-            .static_machine_application_is_valid(application)
-        {
-            return Ok(None);
-        }
-        let Some(parameter) = self
-            .typed
-            .expression_table
-            .static_machine_application(application)
-            .source_record_receiver
-        else {
-            return Ok(None);
-        };
         let owner = *self.symbols.get(id).ok_or_else(|| {
             super::services::unavailable(id, "selected record has no actual source caller")
         })?;
-        let frames = self
-            .typed
-            .enclosing_invocation_frames(owner)
-            .map_err(|reason| super::services::unavailable(id, reason))?;
-        let mut chosen = None;
-        for frame in &frames {
-            let mut bindings = frame
-                .bindings
-                .iter()
-                .filter(|binding| binding.parameter == parameter);
-            let Some(binding) = bindings.next() else {
-                continue;
-            };
-            if bindings.next().is_some() {
-                return Err(super::services::unavailable(
-                    id,
-                    "selected record has repeated source operand bindings",
-                ));
-            }
-            let crate::source_state::static_applications::StaticMachineBindingValue::Const(
-                reference,
-            ) = binding.value
-            else {
-                return Err(super::services::unavailable(
-                    id,
-                    "selected record was not supplied as its declared Const value",
-                ));
-            };
-            let schema = self
-                .typed
-                .static_record_parameter_schema(frame.declaration, parameter)
-                .map_err(|reason| super::services::unavailable(id, reason))?
-                .ok_or_else(|| {
-                    super::services::unavailable(
-                        id,
-                        "selected record receiver has no exact declared schema",
-                    )
-                })?;
-            let actual = self
-                .typed
-                .static_operand_from_type_reference(reference)
-                .map_err(|reason| super::services::unavailable(id, reason))?;
-            let identity = |operand: &crate::source_state::expression::StaticMachineArgument,
-                            supplier| {
-                self.typed
-                    .declared_static_operand_identity(
-                        crate::source_state::type_identity::DeclaredStaticOperandIdentityRequest {
-                            operand:
-                                crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
-                                    operand,
-                                ),
-                            lexical_owner: supplier,
-                            binders: &[],
-                            lifetime_binders: &[],
-                            exact_toolchain_sources: self
-                                .shared
-                                .exact_toolchain_sources(self.typed)
-                                .map_err(|reason| super::services::unavailable(id, reason))?,
+        self.typed
+            .source_call_record_operand(
+                owner,
+                call,
+                selected,
+                selected_supplier,
+                self.shared
+                    .exact_toolchain_sources(self.typed)
+                    .map_err(|reason| super::services::unavailable(id, reason))?,
+            )
+            .map(|record| {
+                record.map(|record| {
+                    (
+                        record.operand,
+                        record.supplier,
+                        terminal_check_tables::program::SelectedStaticRecordOperand {
+                            parameter: record.parameter,
+                            application: record.application,
                         },
                     )
-                    .and_then(|identity| self.typed.type_identity_text(identity))
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or_else(|| {
-                        super::services::unavailable(
-                            id,
-                            "selected record operand has no complete canonical identity",
-                        )
-                    })
-            };
-            if identity(&actual, frame.argument_owner)? != identity(selected, owner)? {
-                return Err(super::services::unavailable(
-                    id,
-                    "selected record differs from its exact supplying operand",
-                ));
-            }
-            let named = self
-                .typed
-                .conformance_by_symbol(actual.symbol)
-                .ok_or_else(|| {
-                    super::services::unavailable(
-                        id,
-                        "selected record lost its named schema construction",
-                    )
-                })?;
-            let actual_schema =
-                AppliedTraitScope::from_conformance(self.typed, named).ok_or_else(|| {
-                    super::services::unavailable(
-                        id,
-                        "selected record lost its complete supplied schema",
-                    )
-                })?;
-            if !schema.same_application(self.typed, &actual_schema) {
-                return Err(super::services::unavailable(
-                    id,
-                    "selected record has another declared schema application",
-                ));
-            }
-            let application = schema
-                .portable_application_identity(self.typed)
-                .and_then(|identity| self.typed.type_identity_text(identity))
-                .filter(|identity| !identity.is_empty())
-                .ok_or_else(|| {
-                    super::services::unavailable(
-                        id,
-                        "selected record schema lost its application identity",
-                    )
-                })?;
-            chosen = Some((
-                actual,
-                frame.argument_owner,
-                terminal_check_tables::program::SelectedStaticRecordOperand {
-                    parameter,
-                    application,
-                },
-            ));
-            break;
-        }
-        chosen.map(Some).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call(
-                    "selected record receiver has no exact retained supplying application",
-                ),
-            )
-        })
+                })
+            })
+            .map_err(|reason| super::services::unavailable(id, &reason))
     }
 }
 
@@ -1049,6 +929,7 @@ mod tests {
                         call,
                     ),
                     selected,
+                    fixture.instance,
                 )
             };
             let (_, supplier, first) = read(&a, &left).unwrap().unwrap();
