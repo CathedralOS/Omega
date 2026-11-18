@@ -393,10 +393,48 @@ best a per-file loader does here is roughly 90,000 files per second, about
 - Lexing is no longer close to mattering: 2.4 ms on all threads against at
   least 200 ms to read the same files one by one.
 
-**Not measured:** a cold cache; the effect of antivirus exclusions or a Dev
-Drive; opening files relative to an already-open directory, which skips
-walking the path each time and needs calls the standard library does not
-expose.
+### With real-time antivirus protection off
+
+Jarod turned Windows real-time protection off and the same measurements were
+rerun, same day, same files, two runs. `Get-MpComputerStatus` confirmed
+real-time and on-access protection were both off.
+
+| Request | Protection on | Protection off |
+| --- | --- | --- |
+| Open | 13 to 16 us | 12.9 us |
+| Ask the size | about 3 us | 2.8 to 2.9 us |
+| Read | 9 to 12 us | 5.6 to 5.8 us |
+| Close | about 3 us | 2.7 to 3.1 us |
+| All four | 28 to 34 us | 24.3 to 24.5 us |
+
+| | Protection on | Protection off |
+| --- | --- | --- |
+| Best per-file strategy, one thread | 37,500 to 40,500 files/s | 40,000 to 48,000 |
+| Peak across threads | 85,000 to 98,000 files/s at 4 | 103,000 to 122,000 at 4 |
+| 32 threads | 72,000 to 74,000 files/s | 78,000 to 80,000 |
+| One packed file, reused buffer | 6.6 to 8.9 GB/s | 9.2 to 9.7 GB/s |
+
+- **Antivirus was about a fifth of the per-file cost**, 4 to 9 microseconds
+  out of roughly 30. Nearly all of it was in the read step, which halved.
+- **Opening the file is untouched** at about 13 microseconds and is now more
+  than half of what is left. That cost belongs to Windows and the file
+  system, not to antivirus.
+- **Threads still stop helping after 4.** The peak moved up about 25 percent
+  and 16 and 32 threads are still slower than 4, so the contention is not
+  antivirus either.
+- **The two runs agree to within 1 percent on the per-request figures**, where
+  the protection-on runs differed by 20 percent. Some of the earlier noise was
+  the antivirus itself.
+
+So the conclusion stands with better numbers: a per-file loader is capped
+near 110,000 to 120,000 files per second with protection off, about 150 MB/s
+on this corpus, against 9 GB/s for one packed file.
+
+**Not measured:** a cold cache; a Dev Drive or a folder exclusion in place of
+turning protection off altogether; opening files relative to an already-open
+directory, which skips walking the path each time and needs calls the
+standard library does not expose. With open now the largest remaining cost,
+that last one is the obvious next thing to try for per-file loading.
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
