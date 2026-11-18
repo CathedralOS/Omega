@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Asking for an integer range copies proofs that the caller immediately drops
+- Category: Verifying costs more than writing
+- Where: [lower and upper endpoint queries](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/prove.rs#L1126), [certificate and literal accessors](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/prove.rs#L2963)
+- Saw: `Prover::literal_bounds` calls `bound` for each endpoint and takes only its integer. On success, `bound` calls `bound_literal` and clones the stored bound, including its recursive proof. Both accessors use the same stored endpoint, including during a recursive search.
+- Cost: Join inference and return summaries can copy two proof trees per range query just to discard them. A macOS arm64 stack sample during `omega run --both samples/cli/systems/event_log/main.omg` at `2a0af45cd1b` showed join inference in this query. The profile did not isolate time spent copying. Use the existing literal accessor and check `bound_certificate_copies` alongside the range and its separately checked proof.
+- Reported: 2026-11-17, Codex, while running the wildcard transition samples
+
 ### Capture comparisons leave their time scope implicit
 - Category: A verdict with nothing behind it
 - Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
