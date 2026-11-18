@@ -3260,6 +3260,8 @@ pub(crate) mod reference_origins {
             pub structural_type: StructuralTypeId,
         }
 
+        /// References stored in a value. A slice descriptor borrows its
+        /// elements from separate storage, and descriptor flow tracks that loan.
         pub fn reference_inventory<'types>(
             types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
             root: StructuralTypeId,
@@ -3280,6 +3282,7 @@ pub(crate) mod reference_origins {
                 }
                 let declaration = types.clone().find(|row| row.id == current)?;
                 let fields: Vec<_> = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::ElementView { .. } => continue,
                     terminal_psi::StructuralTypeShape::TypeParameter => {
                         if output.len() + unknown_contents.len() == maximum_leaves {
                             return None;

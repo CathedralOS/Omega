@@ -212,6 +212,27 @@ pub(super) struct AnonymousValue {
 }
 
 impl Program<'_> {
+    /// A caller-owned rigid binder already has its exact bound storage.
+    /// Resolving its source identity does not put that lexical binder into
+    /// the callee's value scope. Constructors and locally bound heads can be
+    /// read normally; foreign rigid heads retain that existing storage.
+    fn source_head_is_readable(
+        &self,
+        reference: TypeReferenceHandle,
+        scope: &[(symbols::SymbolHandle, ValueType)],
+    ) -> bool {
+        match self.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                self.typed.symbols.symbols().nodes().is_valid(*symbol)
+                    && (scope.iter().any(|(binder, _)| binder == symbol)
+                        || self.typed.symbols.builtin_type_atom(*symbol).is_some()
+                        || self.typed.symbols.integer_family(*symbol).is_some()
+                        || self.data_declaration(*symbol).is_some())
+            }
+            _ => true,
+        }
+    }
+
     /// Whether the existing value-type reader will declare a value identity.
     /// This preflight does not allocate records, regions or qualifications.
     /// The caller supplies its declaration's type scope in source-symbol order.
@@ -228,14 +249,17 @@ impl Program<'_> {
                 Unserved::Type("unresolved formal shape"),
             )
         };
-        handle = self
-            .source_scope
-            .supplied_type_reference(self.typed, handle)
-            .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?
-            .reference;
+        let mut source_scope = self.source_scope.clone();
         for _ in 0..=self.typed.type_reference_table.type_reference_count() {
             if !handle.is_valid() {
                 return Err(unserved());
+            }
+            let supplied = source_scope
+                .supplied_type_reference(self.typed, handle)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
+            if self.source_head_is_readable(supplied.reference, scope) {
+                handle = supplied.reference;
+                source_scope = supplied.scope;
             }
             match self.typed.type_reference_table.type_reference(handle) {
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -415,7 +439,8 @@ impl Program<'_> {
     /// A record application must retain its complete tuple and exact source
     /// members, including indices unused by its layout. The scope fixes a
     /// type parameter when reading a finite alternative or an applied call.
-    /// Rigid parameters, qualifications and unsupported premises stay open.
+    /// The body may use its formed structural definitions; other unresolved
+    /// parameters, qualifications and unsupported premises stay open.
     /// generics.md,
     /// "Static type equality": "`==` between type expressions states exact
     /// normalized type equality".
@@ -440,11 +465,7 @@ impl Program<'_> {
                 else {
                     continue;
                 };
-                if !self
-                    .scope
-                    .iter()
-                    .any(|(binder, bound)| binder == symbol && matches!(bound, ValueType::Rigid(_)))
-                {
+                if !self.scope.iter().any(|(binder, _)| binder == symbol) {
                     continue;
                 }
                 for equation in self
@@ -945,16 +966,7 @@ impl Program<'_> {
                 .source_scope
                 .supplied_type_reference(self.typed, handle)
                 .map_err(|detail| refuse(id, Construct::Machine, Unserved::Type(detail)))?;
-            let readable = match self
-                .typed
-                .type_reference_table
-                .type_reference(supplied.reference)
-            {
-                TypeReferenceNode::Named { symbol, .. } => {
-                    self.scope.iter().any(|(binder, _)| binder == symbol)
-                }
-                _ => true,
-            };
+            let readable = self.source_head_is_readable(supplied.reference, &self.scope);
             if supplied.reference != handle && readable {
                 let outer = std::mem::replace(&mut self.source_scope, supplied.scope);
                 let result = self.value_type(id, supplied.reference);

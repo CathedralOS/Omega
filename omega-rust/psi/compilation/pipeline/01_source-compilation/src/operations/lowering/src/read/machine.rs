@@ -1963,7 +1963,17 @@ impl<'t> Program<'t> {
                 .declared_type_equations
                 .span_or_empty(machine.declared_type_equations)
             {
-                self.value_type(id, equation.definition)?;
+                let value = self.value_type(id, equation.definition)?;
+                if let TypeReferenceNode::Named { symbol, .. } = self
+                    .typed
+                    .type_reference_table
+                    .type_reference(equation.parameter)
+                    && let Some((_, bound)) =
+                        self.scope.iter_mut().find(|(binder, _)| binder == symbol)
+                    && matches!(bound, ValueType::Rigid(_))
+                {
+                    *bound = value;
+                }
             }
         }
         if !self.contracts_restate_formal_domains(state) {
