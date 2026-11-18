@@ -162,9 +162,9 @@ impl<'source> Program<'source> {
         let mut callables = Vec::new();
         for parameter in parameters {
             if let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind {
-                if contract.structural().is_none() {
+                if typed.machine_parameter_contract_view(contract).is_none() {
                     return Err(unavailable(
-                        "generic callable lost its complete structural contract",
+                        "generic callable lost its complete declared contract",
                     ));
                 }
                 if !inherited {
