@@ -292,7 +292,9 @@ pub(crate) mod address_joins {
         if let Some(source) = function.structural_parameter(place) {
             return permitted(source).then_some(source.structural_type);
         }
-        if let Some((owner, joined)) = parameter(function, place, plan) {
+        if let Some((owner, joined)) =
+            super::aggregate_results::borrowed_block_arrival(function, place, plan)
+        {
             return ((owner == block || dominates(function, owner, block)) && permitted(joined))
                 .then_some(joined.structural_type);
         }

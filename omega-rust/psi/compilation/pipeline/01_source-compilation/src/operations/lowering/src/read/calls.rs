@@ -3290,10 +3290,10 @@ impl<'t> Program<'t> {
         }
         let mut nominal_arguments = Vec::new();
         let mut structural_ordinal = 0;
-        for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
+        for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
             let mut nominal_agrees = false;
-            if borrowed.is_some() || matches!(formal, ValueType::Record(..)) {
+            if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
                 if let Some(argument) = self.nominal_call_argument(
                     id,
                     &callee,

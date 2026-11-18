@@ -887,7 +887,13 @@ impl Program<'_> {
                         "reference storage disagrees with its declared access or source metadata",
                     ));
                 }
-                let reference_identity = identity(&application.scope, application.reference);
+                let reference_identity =
+                    identity(&application.scope, application.reference).map(|identity| {
+                        super::places::storage_identity_for_inputs(
+                            identity,
+                            source.constant_input_owner,
+                        )
+                    });
                 if reference_identity.as_deref() != Some(declaration.identity.as_str()) {
                     let mut refusal =
                         malformed(machine, "reference storage has another declared type");
@@ -943,7 +949,13 @@ impl Program<'_> {
                         "sequence storage changes its source view carrier",
                     ));
                 };
-                let (source_access, identity) = (elements.access, elements.identity);
+                let (source_access, identity) = (
+                    elements.access,
+                    super::places::storage_identity_for_inputs(
+                        elements.identity,
+                        source.constant_input_owner,
+                    ),
+                );
                 let element_type = view.slice.element.reference;
                 let element_storage = if qualification.is_none() {
                     element_type
@@ -970,6 +982,14 @@ impl Program<'_> {
                         .scope
                         .type_identity(self.typed, element_storage),
                 );
+                let expected = expected.map(|identity| {
+                    super::places::storage_identity_for_inputs(
+                        identity,
+                        self.record_sources
+                            .get(element)
+                            .and_then(|source| source.constant_input_owner),
+                    )
+                });
                 let actual = self.records.get(element).map(|row| row.identity.as_str());
                 if expected.as_deref() != actual || actual.is_none() {
                     let mut refusal =

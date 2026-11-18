@@ -991,9 +991,9 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let multiplicity = crate::lowering::body::source_multiplicity(
-            self.typed.stored_value_multiplicity(reference),
-        );
+        // The supplied element owns these permissions. The authored element
+        // may still name a parameter whose default bound is more restrictive.
+        let multiplicity = self.data_type(machine, element)?.multiplicity;
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;

@@ -456,6 +456,29 @@ machine entry<const N: u64, const M: u64>(token: &Token<N>) -> u64 {
 }
 
 #[test]
+fn a_literal_const_call_keeps_the_supplied_element_permissions() {
+    let source = "
+data Buffer<Element, const N: u64> { items: [Element; N]; }
+machine measure<Element, const N: u64>(value: &Buffer<Element, N>) -> u64 { value.items.len }
+machine entry<Kind>(value: &Kind) -> u64
+requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
+{
+    transition {
+        Kind == Buffer<u8, 4> -> measure<u8, 4>(value)
+        _ -> measure<u16, 4>(value)
+    }
+}";
+    let verdicts = array_subject(source);
+    assert!(
+        !verdicts.is_empty()
+            && verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
 fn a_recursive_const_call_checks_its_extent_even_when_the_local_types_are_equal() {
     for array in ["[u8; N]", "[[u8; N]; 2]"] {
         let mut form = rigid_array_form(&format!(

@@ -334,15 +334,20 @@ impl Program<'_> {
         module: &mut terminal_psi::TerminalModule,
     ) -> Checked<Vec<terminal_psi::generic_calls::NominalCallArgument>> {
         use terminal_psi::generic_calls::{NominalCallArgument, NominalConstArgument};
+        if self.nominal_calls.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut consumed = vec![false; self.nominal_calls.len()];
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let published = (|| {
             let mut sources = self
                 .nominal_calls
                 .iter()
-                .filter_map(|call| {
+                .enumerate()
+                .filter_map(|(position, call)| {
                     call.source
                         .node()
-                        .map(|(_, node)| (source_key(call.caller, node), call))
+                        .map(|(_, node)| (source_key(call.caller, node), (position, call)))
                 })
                 .collect::<Vec<_>>();
             sources.sort_unstable_by_key(|(key, _)| *key);
@@ -391,7 +396,10 @@ impl Program<'_> {
                 else {
                     return Err(fault("nominal call changed its callee kind"));
                 };
-                for (_, source) in &sources[first..last] {
+                for (_, (position, source)) in &sources[first..last] {
+                    if source.arguments.iter().all(|input| input.callee == callee) {
+                        consumed[*position] = true;
+                    }
                     for input in &source.arguments {
                         if input.callee != callee {
                             continue;
@@ -465,6 +473,15 @@ impl Program<'_> {
                         });
                     }
                 }
+            }
+            if let Some(position) = consumed.iter().position(|consumed| !consumed) {
+                let source = &self.nominal_calls[position];
+                return Err(refuse(
+                    source.caller,
+                    Construct::Machine,
+                    Unserved::Call("nominal call has no complete emitted type correspondence"),
+                )
+                .with_source_span(source.source.span()));
             }
             result.sort_unstable_by_key(|row| (row.caller, row.operation, row.argument));
             if result.windows(2).any(|pair| {
