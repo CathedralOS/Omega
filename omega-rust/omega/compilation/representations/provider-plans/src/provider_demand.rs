@@ -31,7 +31,7 @@ pub struct ProviderExecutionOrigins {
     >,
 }
 
-pub enum PublishedProviderDemand {
+pub enum ProviderDemandInputs {
     Unscoped {
         artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
         roots: Vec<MachineId>,
@@ -45,4 +45,42 @@ pub enum PublishedProviderDemand {
         origins: ProviderExecutionOrigins,
         review: Option<crate::package_review::PackageReviewRequirements>,
     },
+}
+
+/// An issuer hands over a complete request. Taking its facts consumes the
+/// request and never yields the issuer needed to authorize another set.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ProviderDemandAuthority<Publisher>(Publisher);
+
+impl<Publisher> ProviderDemandAuthority<Publisher> {
+    pub fn publisher(&self) -> &Publisher {
+        &self.0
+    }
+}
+
+pub struct IssuedProviderDemand<Publisher> {
+    inputs: ProviderDemandInputs,
+    publisher: Arc<ProviderDemandAuthority<Publisher>>,
+}
+
+impl<Publisher> IssuedProviderDemand<Publisher> {
+    pub fn issue(publisher: Publisher, inputs: ProviderDemandInputs) -> Self {
+        Self {
+            inputs,
+            publisher: Arc::new(ProviderDemandAuthority(publisher)),
+        }
+    }
+
+    pub fn inputs(&self) -> &ProviderDemandInputs {
+        &self.inputs
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProviderDemandInputs,
+        Arc<ProviderDemandAuthority<Publisher>>,
+    ) {
+        (self.inputs, self.publisher)
+    }
 }

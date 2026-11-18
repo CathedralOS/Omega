@@ -1,12 +1,43 @@
 //! Project the source owner's completed provider choices onto its immutable portable program.
 use super::ProductCodeSource;
-use backend_plan::{ProviderExecutionOrigins, PublishedProviderDemand};
+use backend_plan::{ProviderDemandInputs, ProviderExecutionOrigins};
 use diagnostics::Diagnostic;
 use source_compiler::provider_supply::{
     SourceNativeBinding, SourceProviderDemand, SourceProviderFacts,
 };
 use source_compiler::{PortableTerminalProgram, PsiCompilationObserver};
 use std::sync::Arc;
+
+/// The issuer of provider demand for a received source judgment. Only this
+/// module can supply an instance to the source-free handoff constructor.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PortableDemandIssuer(source_compiler::source_state::ProductSourceIdentity);
+
+impl PortableDemandIssuer {
+    pub fn matches_source(
+        &self,
+        source: &source_compiler::source_state::ProductSourceIdentity,
+    ) -> bool {
+        self.0.same_source(source)
+    }
+}
+
+/// A caller may inspect or consume these facts but cannot replace their
+/// roots, bindings or permission origins and publish them again.
+///
+/// ```compile_fail
+/// fn replace_roots(owner: source_compiler::source_state::ProductSourceIdentity, facts: backend_plan::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
+///     backend_plan::IssuedProviderDemand::issue(portable_publication::PortableDemandIssuer(owner), facts)
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn reuse_receipt(demand: portable_publication::PublishedProviderDemand, replacement: backend_plan::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
+///     let (_, receipt) = demand.into_parts();
+///     backend_plan::IssuedProviderDemand::issue(receipt.publisher(), replacement)
+/// }
+/// ```
+pub type PublishedProviderDemand = backend_plan::IssuedProviderDemand<PortableDemandIssuer>;
 
 fn capture_origins(
     program: &PortableTerminalProgram,
@@ -83,13 +114,15 @@ impl ProductCodeSource<'_> {
             profile.map(|profile| profile.target_name()),
         )?;
         let program = self.publish(self.publication.optimizations(), observer)?;
+        let issuer = PortableDemandIssuer(self.sources.source_identity().clone());
         match (profile, facts) {
-            (None, SourceProviderDemand::Unscoped { roots }) => {
-                Ok(PublishedProviderDemand::Unscoped {
+            (None, SourceProviderDemand::Unscoped { roots }) => Ok(PublishedProviderDemand::issue(
+                issuer,
+                ProviderDemandInputs::Unscoped {
                     artifact: Arc::clone(program.artifact()),
                     roots,
-                })
-            }
+                },
+            )),
             (
                 Some(profile),
                 SourceProviderDemand::Target {
@@ -115,15 +148,18 @@ impl ProductCodeSource<'_> {
                             bindings: facts.bindings,
                         },
                     );
-                Ok(PublishedProviderDemand::Target {
-                    profile,
-                    logical,
-                    folded_entry,
-                    bodies,
-                    labels,
-                    origins,
-                    review,
-                })
+                Ok(PublishedProviderDemand::issue(
+                    issuer,
+                    ProviderDemandInputs::Target {
+                        profile,
+                        logical,
+                        folded_entry,
+                        bodies,
+                        labels,
+                        origins,
+                        review,
+                    },
+                ))
             }
             _ => Err(vec![Diagnostic::error(
                 "closed provider demand has a different deployment scope",

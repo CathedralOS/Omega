@@ -566,11 +566,7 @@ pub(super) fn select_completed_build(
     }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
-            crate::checked::PreparedProductTarget::capture(
-                &source,
-                selected_target_profile,
-                package_inputs,
-            ),
+            crate::checked::PreparedProductTarget::capture(&source, selected_target_profile, None),
         ),
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(diagnostics),

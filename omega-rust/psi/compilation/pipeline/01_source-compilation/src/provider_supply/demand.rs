@@ -34,11 +34,11 @@ impl<T> SourceProviderFacts<T> {
         }
     }
 
-    pub fn receive(
-        self,
+    fn require_issuer(
+        &self,
         publication: &SourcePublication,
         target: Option<&str>,
-    ) -> Result<T, Vec<Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         if self.target.as_deref() != target
             || !self
                 .issuer
@@ -48,7 +48,32 @@ impl<T> SourceProviderFacts<T> {
                 "closed provider demand belongs to another source judgment or deployment",
             )]);
         }
+        Ok(())
+    }
+
+    pub fn receive(
+        self,
+        publication: &SourcePublication,
+        target: Option<&str>,
+    ) -> Result<T, Vec<Diagnostic>> {
+        self.require_issuer(publication, target)?;
         Ok(self.facts)
+    }
+}
+
+impl SourceProviderFacts<SourceProviderDemand> {
+    /// A lock-policy request can prepare its source-derived review facts from
+    /// the same closed choices that portable publication receives next.
+    pub fn logical_provider_reach(
+        &self,
+        publication: &SourcePublication,
+        target: Option<&str>,
+    ) -> Result<Option<&ClosedLogicalProviderReach>, Vec<Diagnostic>> {
+        self.require_issuer(publication, target)?;
+        match &self.facts {
+            SourceProviderDemand::Unscoped { .. } => Ok(None),
+            SourceProviderDemand::Target { closed, .. } => Ok(Some(closed)),
+        }
     }
 }
 

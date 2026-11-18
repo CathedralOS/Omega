@@ -3,7 +3,7 @@
 //! separately from the retained module, and an unhandled declaration form makes
 //! the review incomplete instead of vanishing from its inventory.
 
-use super::PackageReviewInput;
+use super::input::PolicySource;
 use crate::record::{
     PackagePolicyDataShape, PackagePolicyDomainShape, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact,
@@ -74,11 +74,7 @@ pub(super) fn nominal_identity(
     Ok(PackageReviewNominalIdentity { owner, path })
 }
 
-impl<'a> PackageReviewInput<'a> {
-    pub(super) fn typed(&self) -> &'a TypedTrees {
-        self.candidate()
-    }
-
+impl<'a> PolicySource<'a> {
     pub(super) fn owns(
         &self,
         symbol: SymbolHandle,
@@ -99,7 +95,7 @@ impl<'a> PackageReviewInput<'a> {
     ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
         nominal_identity(
             self.typed(),
-            self.compilation().sources().exact_toolchain_sources(),
+            self.sources().exact_toolchain_sources(),
             symbol,
         )
     }
@@ -162,7 +158,7 @@ impl<'a> PackageReviewInput<'a> {
                     lifetime_scope,
                     binders: &[],
                     substitutions: &[],
-                    exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
+                    exact_toolchain_sources: self.sources().exact_toolchain_sources(),
                 },
             )
             .and_then(|identity| self.typed().type_identity_text(identity))
@@ -177,7 +173,6 @@ impl<'a> PackageReviewInput<'a> {
         exposure: PackageReviewSemanticDependencyExposure,
     ) -> Result<(), Vec<Diagnostic>> {
         let package = self
-            .compilation()
             .sources()
             .package_identity()
             .ok_or_else(|| unavailable("a type outside the reviewed package subject"))?;

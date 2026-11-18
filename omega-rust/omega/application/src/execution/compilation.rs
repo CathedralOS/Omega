@@ -106,33 +106,32 @@ pub(super) fn interpret_product(
         .ok_or(TerminalRuntimeError::InvalidProvision(
             "report lost its produced Terminal artifact before execution",
         ))?;
-    terminal_runtime::execute(TerminalRuntimeRequest {
-        native_image: report
-            .retained_native_artifact()
-            .map(|image| image.inspect_for_runtime()),
-        entry: None,
-        filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
-        native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
-        native_provider: Some(native_provider_sponsor::for_provisions(
-            std::process::Command::new(std::env::current_exe().map_err(|error| {
-                TerminalRuntimeError::MissingProvision {
-                    capability: "native-provider-sponsor",
-                    reason: error.to_string(),
-                }
-            })?),
-            report.published_runtime_provisions(),
-        )),
-        x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
-        memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
-            target,
-        ),
-        provider_proposal: None,
-        artifact,
-        target: Some(target),
-        provisions: report.runtime_provisions(),
-        work_budget: psi_work_budget,
-        domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: input,
-        clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
-    })
+    orchestration::execute_published_terminal(
+        TerminalRuntimeRequest {
+            entry: None,
+            filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
+            native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
+            native_provider: Some(native_provider_sponsor::for_provisions(
+                std::process::Command::new(std::env::current_exe().map_err(|error| {
+                    TerminalRuntimeError::MissingProvision {
+                        capability: "native-provider-sponsor",
+                        reason: error.to_string(),
+                    }
+                })?),
+                report.published_runtime_provisions(),
+            )),
+            x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
+            memory_ordering:
+                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
+            provider_proposal: None,
+            artifact,
+            target: Some(target),
+            provisions: report.runtime_provisions(),
+            work_budget: psi_work_budget,
+            domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
+            standard_input: input,
+            clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
+        },
+        report.retained_native_artifact(),
+    )
 }

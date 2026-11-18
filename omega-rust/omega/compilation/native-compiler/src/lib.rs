@@ -56,7 +56,7 @@ pub use verified_optimization_input::{
 
 mod provider_selection;
 pub use provider_selection::{
-    SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
+    PublishedSelection, SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
     select_published_providers,
 };
 
@@ -65,5 +65,7 @@ pub use native_program_planning::{
     plan_provider_execution_inputs, target_supply::TargetSupplyExecutionInputs,
 };
 
-mod program_entry;
-pub use program_entry::PublishedNativeEntry;
+pub use native_program_planning::program_entry::{
+    PublishedEntryNomination, SelectedCompilerProgramEntry,
+    plan_published_entry_calling_conventions,
+};

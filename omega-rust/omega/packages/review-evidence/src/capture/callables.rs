@@ -3,8 +3,8 @@
 //! requirements borrow Product's accepted module. Neither may infer a body for
 //! a declaration supplied elsewhere.
 
-use super::PackageReviewInput;
 use super::declarations::{nominal_identity, unavailable};
+use super::input::PolicySource;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCrash, PackagePolicyCrashGuard,
     PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
@@ -25,12 +25,12 @@ struct CallableInventory<'a> {
     service_names: &'a [(ServiceId, PackageReviewNominalIdentity)],
 }
 
-impl PackageReviewInput<'_> {
+impl PolicySource<'_> {
     pub(super) fn build_callable(
         &self,
         package: PackageKeyIdentity,
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
-        let computed = self.compilation().build();
+        let computed = self.build();
         let Some(selected) = computed.selected_build_machine_symbol else {
             return Ok(None);
         };
@@ -68,10 +68,7 @@ impl PackageReviewInput<'_> {
         .map_err(unavailable)?;
         if rejoined != selected
             || computed.selected_machine_identity(self.typed())?
-                != self
-                    .compilation()
-                    .build_admission()
-                    .selected_build_machine_identity
+                != self.admission.selected_build_machine_identity
         {
             return Err(unavailable("the exact selected Build/source association"));
         }
@@ -115,8 +112,8 @@ impl PackageReviewInput<'_> {
         service_names: &[(ServiceId, PackageReviewNominalIdentity)],
     ) -> Result<Vec<PackagePolicyCallable>, Vec<Diagnostic>> {
         let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
-        let accepted = self.compilation().terminal_publication().accepted()?;
-        let exact_sources = self.compilation().sources().exact_toolchain_sources();
+        let accepted = self.accepted();
+        let exact_sources = self.sources().exact_toolchain_sources();
         let mut inventory = None;
         let mut effects_validated = false;
         let mut bodies: Vec<_> = accepted
@@ -232,7 +229,7 @@ impl PackageReviewInput<'_> {
                 let exact = source
                     .exact_owner_nominal_identity(
                         original,
-                        self.compilation().sources().exact_toolchain_sources(),
+                        self.sources().exact_toolchain_sources(),
                     )
                     .and_then(|identity| source.type_identity_text(identity))
                     .ok_or_else(|| unavailable("a bodyless callable's exact identity"))?;

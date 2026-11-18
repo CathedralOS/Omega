@@ -3,17 +3,55 @@
 // numbers are local to their own semantic artifacts, so we filter to layouts
 // matching this root's `TerminalPsiIdentity` without private function indirection.
 
-use super::TerminalRuntimeError;
-use published_runtime_input::RuntimeImageInspection;
 use terminal_interpreter::{
     TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
 };
+use terminal_runtime::embedding::{HostContext, HostedTerminalProgram, establish_host_entry};
+use terminal_runtime::{
+    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
+    TerminalRuntimeRequest,
+};
 
-pub(super) fn inspect(
-    image: Option<RuntimeImageInspection>,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    execution_target: Option<&str>,
+type Image = products::RetainedNativeArtifact;
+
+/// Run the portable program with metadata from the optional completed product.
+/// Observations of addresses or regions cannot be used as a native product.
+///
+/// ```compile_fail
+/// fn run_with_host_addresses(request: terminal_runtime::TerminalRuntimeRequest<'_>,
+///                            addresses: Vec<(u64, u64)>) {
+///     orchestration::execute_published_terminal(request, Some(&addresses)).unwrap();
+/// }
+/// ```
+pub fn execute_published_terminal(
+    request: TerminalRuntimeRequest<'_>,
+    image: Option<&products::RetainedNativeArtifact>,
+) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    execute_published_terminal_sliced(request, image, std::num::NonZeroU64::MAX)
+}
+
+pub fn execute_published_terminal_sliced(
+    request: TerminalRuntimeRequest<'_>,
+    image: Option<&products::RetainedNativeArtifact>,
+    quantum: std::num::NonZeroU64,
+) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    invocation::execute(request, image, quantum)
+}
+
+mod invocation {
+    include!("../../../interpreter/terminal-runtime/src/execution/hosted_invocation.rs");
+}
+
+fn inspect(
+    image: Option<&Image>,
+    request: &TerminalRuntimeRequest<'_>,
 ) -> Result<Option<TerminalNativeCodeLayoutEnvironment>, TerminalRuntimeError> {
+    let artifact = request.artifact;
+    let execution_target = request.target.or_else(|| {
+        request
+            .provisions
+            .map(|provisions| provisions.target_slot().owner.target_name())
+    });
     let Some(image) = image else {
         return Ok(None);
     };
@@ -24,12 +62,15 @@ pub(super) fn inspect(
     };
     let selected_target =
         require_valid_inspection(target::NativeTarget::from_omega_target_name(Some(target)))?;
-    if !image.matches(artifact, selected_target) {
+    if image.psi_artifact().manifest().identity() != artifact.manifest().identity()
+        || image.psi_artifact().view().identity() != artifact.view().identity()
+        || image.target() != selected_target
+    {
         return Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target",
         ));
     }
-    let (identity, descriptions) = require_valid_inspection(image.into_layouts())?;
+    let descriptions = require_valid_inspection(image.inspect_root_code_layouts())?;
     let layouts = descriptions
         .into_iter()
         .map(|layout| TerminalNativeCodeLayout {
@@ -45,7 +86,7 @@ pub(super) fn inspect(
     require_valid_inspection(TerminalNativeCodeLayoutEnvironment::linked_image(
         artifact.view().identity(),
         target,
-        identity,
+        *image.identity().as_bytes(),
         layouts,
     ))
     .map(Some)

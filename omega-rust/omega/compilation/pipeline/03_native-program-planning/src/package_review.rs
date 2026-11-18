@@ -5,6 +5,7 @@ use crate::calling_policy_plans::{CallingProgram, NativeCallingResults};
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
 use backend_plan::package_review::{
     PackageReviewRequirements, PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings,
+    ReviewedNumericBinding, ReviewedProviderRow,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
@@ -79,6 +80,32 @@ impl PreparedReview {
                 .numeric
                 .and_then(|demand| numeric(module, target, execution, demand)),
             bindings: self.bindings,
+            provider_candidates: backend_plan::selected_checked_invocation_rows(
+                execution.plans().plans(),
+                module,
+            )
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|selected| ReviewedProviderRow {
+                        plan: selected.plan.name.clone(),
+                        requirement: selected
+                            .plan
+                            .identity_text(selected.row.declared_requirement_identity)
+                            .to_owned(),
+                        candidates: selected
+                            .candidates
+                            .iter()
+                            .map(|candidate| {
+                                (
+                                    candidate.conformance.boundary,
+                                    candidate.conformance.candidate,
+                                )
+                            })
+                            .collect(),
+                    })
+                    .collect()
+            })
+            .map_err(|reason| unavailable(&reason)),
         }
     }
 }
@@ -88,7 +115,7 @@ fn numeric(
     target: target::TargetProfile,
     execution: &SelectedProviderRealization,
     requested: Vec<BoundaryMachineId>,
-) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+) -> Result<Vec<ReviewedNumericBinding>, Vec<Diagnostic>> {
     let mut retained: Vec<_> = execution
         .direct_boundary_leaves()
         .iter()
@@ -124,7 +151,13 @@ fn numeric(
     {
         return Err(unavailable("one exact numeric target realization"));
     }
-    Ok(leaves)
+    leaves
+        .into_iter()
+        .map(|leaf| {
+            ReviewedNumericBinding::from_leaf(module, target, leaf)
+                .map_err(|reason| unavailable(&reason))
+        })
+        .collect()
 }
 
 fn unavailable(what: &str) -> Vec<Diagnostic> {

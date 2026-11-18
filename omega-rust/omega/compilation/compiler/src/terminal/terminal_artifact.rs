@@ -16,7 +16,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<source_compiler::PortableTerminalProgram>,
-    execution: &'a native_compiler::SelectedExecution,
+    execution: &'a products::SelectedExecution,
     timings: &'a mut CompileTimings,
 }
 

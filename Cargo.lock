@@ -968,7 +968,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "mimalloc",
- "native-program-planning",
  "optimization-core",
  "orchestration",
  "package-compilation",
@@ -978,7 +977,6 @@ dependencies = [
  "review-evidence",
  "semantic-vocabulary",
  "source-acquisition",
- "source-compiler",
  "symbols",
  "syntax-trees",
  "target",
@@ -1785,7 +1783,10 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
  "terminal-runtime",
+ "terminal-work",
 ]
 
 [[package]]
@@ -2302,6 +2303,7 @@ dependencies = [
  "declaration-contracts",
  "diagnostics",
  "effects",
+ "evaluation-receipts",
  "flow-effects",
  "language-core",
  "layout-plans",

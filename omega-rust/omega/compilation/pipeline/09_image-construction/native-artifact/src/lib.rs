@@ -32,6 +32,8 @@ pub(crate) use ::wire::digest_encoder;
 mod component_product;
 mod fragment_object_publication;
 mod native_artifact;
+mod runtime_image;
+pub use runtime_image::RuntimeCodeLayout;
 mod package_publication;
 mod physical;
 mod publication;

@@ -354,6 +354,70 @@ fn check_reopened_installation_reach(
 }
 
 #[test]
+fn package_target_batch_binds_runtime_consent_to_its_own_target() {
+    let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
+    let targets = [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ];
+    let source = fixture_package_inputs::discover_fixture(&fixture, Default::default()).unwrap();
+    let mut prepared = fixture_package_inputs::review_fixture(
+        source,
+        &targets,
+        compiler::CompilationProduct::Check,
+    )
+    .unwrap();
+    let mut requests = Vec::new();
+    for (target, request) in prepared.plans {
+        let package = request
+            .occurrences
+            .last()
+            .unwrap()
+            .package_inputs()
+            .unwrap()
+            .root();
+        let build = orchestration::prepare_package(
+            prepared.session.compiler(),
+            request.occurrences,
+            &mut prepared.completed,
+        )
+        .unwrap_or_else(|error| panic!("package source: {:?}", error.failure));
+        requests.push((
+            target,
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: Some(compiler::TerminalPermissionAcceptance {
+                    schema_version: review_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+                    package,
+                    target: target::TargetProfile::LinuxX64,
+                    rows: Vec::new(),
+                }),
+            },
+        ));
+    }
+    requests.sort_by_key(|(profile, _)| *profile != targets[0]);
+    let outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(requests)
+        .unwrap();
+    let [(first, matching), (second, foreign)] = outcomes
+        .try_into()
+        .unwrap_or_else(|_| panic!("both requested targets must return an outcome"));
+    assert_eq!([first, second], targets);
+    matching.unwrap().into_report().unwrap();
+    let Err(foreign) = foreign else {
+        panic!("a different target's lock was accepted")
+    };
+    let diagnostics = diagnostics::join_messages(&foreign.into_diagnostics());
+    assert!(
+        diagnostics.contains("policy package or target differs from the exact root activation"),
+        "{diagnostics}"
+    );
+}
+
+#[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
     let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
@@ -943,7 +1007,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         &mut source_compiler::UnmeasuredProduction,
     )
     .expect("source publishes the exact Linux scalar reach");
-    let backend_plan::PublishedProviderDemand::Target { folded_entry, .. } = &demand else {
+    let backend_plan::ProviderDemandInputs::Target { folded_entry, .. } = demand.inputs() else {
         panic!("expected target-specific provider demand");
     };
     let reach = folded_entry.clone().unwrap();
@@ -990,7 +1054,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .into_result();
     assert_eq!(replayed.original_program(), original.identity());
     assert_eq!(replayed.realization().program(), folded.view().identity());
-    native_compiler::PublishedNativeEntry::for_program(folded, &replayed)
+    products::PublishedNativeEntry::for_program(folded, &replayed)
         .expect("replayed entry retains its original nomination and its effective code");
     assert!(
         selected
@@ -1123,7 +1187,6 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .retained_native_artifact()
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),
@@ -2939,6 +3002,60 @@ fn captured_package_build(
         .complete(session.compiler(), target, inputs.clone())
         .unwrap_or_else(|failure| panic!("Product preparation: {:?}", failure.into_diagnostics()));
     (session, build, inputs)
+}
+
+#[test]
+fn runtime_consent_requires_the_complete_source_inventory_only_when_requested() {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "runtime-lock-unused-public-constant",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    let root = project.join("main.omg");
+    std::fs::write(&root, "public const Limit: u64 = 8;\nmachine main() {}\n").unwrap();
+    std::fs::write(project.join("build.omg"), REVIEW_BUILD_SOURCE).unwrap();
+
+    let target = target::TargetProfile::LinuxX64;
+    for locked in [false, true] {
+        let session_root = workspace
+            .path()
+            .join(if locked { "locked" } else { "ordinary" });
+        let (mut session, build, inputs) =
+            captured_package_build(&root, &session_root, target, None);
+        let permissions = locked.then(|| compiler::TerminalPermissionAcceptance {
+            schema_version: review_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+            package: inputs.root(),
+            target,
+            rows: Vec::new(),
+        });
+        let request = compiler::PreparedPackageProduct {
+            build,
+            product: compiler::CompilationProduct::Check,
+            permissions,
+        };
+        let [((), product)] = session
+            .compiler()
+            .complete_package_products(vec![((), request)])
+            .unwrap()
+            .try_into()
+            .unwrap_or_else(|_| panic!("one package product was requested"));
+        if locked {
+            let Err(refusal) = product else {
+                panic!("lock consent omitted the unsupported public declaration")
+            };
+            let errors = refusal.into_diagnostics();
+            assert_eq!(errors.len(), 1, "{errors:?}");
+            assert_eq!(
+                errors[0].message,
+                "package review cannot retain public constant contracts from the accepted declaration"
+            );
+        } else {
+            product.unwrap().into_report().unwrap();
+        }
+        session.close().unwrap();
+    }
 }
 
 #[test]

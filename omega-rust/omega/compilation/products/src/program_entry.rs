@@ -1,10 +1,8 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
+use crate::SelectedProviderResult;
 use diagnostics::Diagnostic;
 use effects::semantic_bindings::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use native_program_planning::{
-    SelectedProviderResult,
-    program_entry::{PublishedEntryNomination, SelectedCompilerProgramEntry},
-};
+use native_compiler::{PublishedEntryNomination, SelectedCompilerProgramEntry};
 use semantic_vocabulary::compiler_evaluation::{DeclarationCustody, ProductDeclarationScope};
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -66,7 +64,7 @@ impl<'a> PublishedNativeEntry<'a> {
         binding: Option<&AcceptedSemanticBinding>,
         permissions: Option<&ProductDeclarationScope>,
     ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
-        native_program_planning::program_entry::plan_published_entry_calling_conventions(
+        native_compiler::plan_published_entry_calling_conventions(
             self.nomination,
             self.artifact,
             self.providers,

@@ -1,7 +1,6 @@
 // Products publish the accepted Terminal module once and check each target's
 // conditions against that same artifact and the target's settled plans.
 
-pub(crate) use portable_publication::ProductCodeSource;
 mod provider_execution;
 pub use provider_execution::prepare_provider_execution_inputs;
 mod program_entry;

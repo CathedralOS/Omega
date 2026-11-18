@@ -87,23 +87,25 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         .into_report()
         .expect("a completed native report");
     let artifact = report.retained_native_artifact().expect("a native product");
-    let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        native_image: Some(artifact.inspect_for_runtime()),
-        entry: None,
-        filesystem: Default::default(),
-        native_services: Default::default(),
-        native_provider: None,
-        x86_flags: None,
-        memory_ordering: None,
-        provider_proposal: None,
-        artifact: artifact.psi_artifact(),
-        target: Some("linux_x86_64"),
-        provisions: report.runtime_provisions(),
-        work_budget: 100_000,
-        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    })
+    let observed = orchestration::execute_published_terminal(
+        terminal_runtime::TerminalRuntimeRequest {
+            entry: None,
+            filesystem: Default::default(),
+            native_services: Default::default(),
+            native_provider: None,
+            x86_flags: None,
+            memory_ordering: None,
+            provider_proposal: None,
+            artifact: artifact.psi_artifact(),
+            target: Some("linux_x86_64"),
+            provisions: report.runtime_provisions(),
+            work_budget: 100_000,
+            domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+            standard_input: None,
+            clock: None,
+        },
+        Some(artifact),
+    )
     .expect("Psi executes the completed application");
     // The authored entry returns unit, which the CLI's native/Psi comparison
     // maps to exit 0. It does not invoke an external exit operation.

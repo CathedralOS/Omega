@@ -123,7 +123,6 @@ impl CompilationSession {
                     package_inputs,
                     root,
                     product,
-                    permissions: None,
                 }),
             )]);
             match outputs.pop() {

@@ -4,14 +4,15 @@
 // retained by a map or descriptor never becomes an independent entry root.
 
 use crate::checked::CheckedCompilation;
-use crate::checked::PreparedProductTarget;
+use crate::checked::{PreparedProductTarget, PreparedRuntimeConsent};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use native_compiler::SelectedExecution;
+use products::SelectedExecution;
 use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
 };
+use source_compiler::provider_supply::{SourceProviderDemand, SourceProviderFacts};
 use std::sync::Arc;
 
 pub(crate) struct SelectedProviderCustody {
@@ -30,7 +31,7 @@ pub(crate) struct SelectedProviderCustody {
 }
 
 pub(crate) struct SelectedProductTarget {
-    pub(crate) runtime_policy: Arc<review_evidence::permission_acceptance::PreparedRuntimePolicy>,
+    pub(crate) consent: Option<PreparedRuntimeConsent>,
     pub(crate) custody: SelectedProviderCustody,
 }
 
@@ -39,18 +40,11 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
-        // Retain the original census or its refusal before native selection. Grant
-        // admission consumes it only when the requested product needs that evidence.
-        if !source.computed_build_config.config.grants.is_empty() {
-            let _ = source.provider_inventory.trust_declarations();
-        }
         let mut timings = source.timings.clone();
         let (source_program, published_program, execution) =
-            settle_execution(source, prepared, &mut timings)?;
+            settle_execution(source, prepared.profile, prepared.demand, &mut timings)?;
         Ok(Self {
-            runtime_policy: Arc::new(
-                review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
-            ),
+            consent: prepared.consent,
             custody: SelectedProviderCustody {
                 optimizations: source.optimizations.clone(),
                 terminal_publication: Arc::clone(&source.terminal_publication),
@@ -144,7 +138,8 @@ impl SelectedProductTarget {
 
 fn settle_execution(
     source: &CheckedProductSource,
-    prepared: PreparedProductTarget,
+    profile: Option<target::TargetProfile>,
+    demand: SourceProviderFacts<SourceProviderDemand>,
     timings: &mut CompileTimings,
 ) -> Result<
     (
@@ -159,8 +154,8 @@ fn settle_execution(
         sources: &source.sources,
     }
     .publish_provider_demand(
-        prepared.profile,
-        prepared.demand,
+        profile,
+        demand,
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
     let program = source

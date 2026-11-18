@@ -1884,8 +1884,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
                     .unwrap()
                     .id;
                 let observation =
-                    terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-                        native_image: report.retained_native_artifact().map(|image| image.inspect_for_runtime()),
+                    orchestration::execute_published_terminal(terminal_runtime::TerminalRuntimeRequest {
                         entry: None,
                         filesystem: Default::default(),
                         native_services: Default::default(),
@@ -1901,7 +1900,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
                             terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
                         standard_input: None,
                         clock: None,
-                    })
+                    }, report.retained_native_artifact())
                     .unwrap_or_else(|error| panic!("{name}: {error:?}"));
                 assert!(
                     matches!(

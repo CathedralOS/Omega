@@ -1,4 +1,4 @@
-//! The canonical root, component and layout facts a Terminal interpreter can consume.
+//! Canonical root, component and host provisions for a Terminal interpreter.
 //! Native code and mutable compilation products stay with the publisher.
 #![forbid(unsafe_code)]
 
@@ -11,9 +11,6 @@ pub use verified_optimization_input::runtime_provisions::TerminalRuntimeHostProv
 use verified_optimization_input::runtime_provisions::{
     NativeRuntimePlan, TerminalCallableRuntimeProvisions, TerminalRuntimeHostProvisions,
 };
-
-mod image_inspection;
-pub use image_inspection::{RuntimeCodeLayout, RuntimeImageInspection, RuntimeImageSections};
 
 pub type RuntimeAdapterIdentity = Arc<calling_conventions::PublishedForeignAdapterIdentity>;
 pub type RuntimeHostProvisions = TerminalRuntimeHostProvisions<RuntimeAdapterIdentity>;

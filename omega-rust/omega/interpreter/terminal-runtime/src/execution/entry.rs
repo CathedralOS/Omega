@@ -10,7 +10,7 @@ use terminal_interpreter::{
 
 use super::TerminalRuntimeError;
 
-pub(super) struct EstablishedEntry {
+pub struct EstablishedEntry {
     arguments: Vec<TerminalStructuralValue>,
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
@@ -19,7 +19,7 @@ pub(super) struct EstablishedEntry {
 }
 
 impl EstablishedEntry {
-    pub(super) fn inputs(&self) -> TerminalStructuralInputs<'_> {
+    pub fn inputs(&self) -> TerminalStructuralInputs<'_> {
         TerminalStructuralInputs {
             arguments: &self.arguments,
             zero_initialized_arguments: &self.zero_initialized,
@@ -31,7 +31,7 @@ impl EstablishedEntry {
     }
 }
 
-pub(super) fn establish(
+pub fn establish(
     program: &TerminalProgram,
     installation: &terminal_interpreter::TerminalRuntimeSupplies,
     provisions: Option<&TerminalRuntimeProvisions>,

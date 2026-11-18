@@ -327,29 +327,29 @@ fn run(sample: Sample) {
         .unwrap();
     let mut records = sample.evidence.header().to_owned();
     for case in &cases {
-        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
-            native_image: report
-                .retained_native_artifact()
-                .map(|image| image.inspect_for_runtime()),
-            entry: None,
-            native_provider: None,
-            native_services: Default::default(),
-            filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
-            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
-                .expect("host flags capture"),
-            memory_ordering:
-                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
-                    "linux_x86_64",
-                ),
-            artifact,
-            target: Some("linux_x86_64"),
-            provisions: report.runtime_provisions(),
-            provider_proposal: None,
-            work_budget: work,
-            domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-            standard_input: Some(Box::new(Cursor::new(case.input.clone()))),
-            clock: None,
-        })
+        let observation = orchestration::execute_published_terminal(
+            TerminalRuntimeRequest {
+                entry: None,
+                native_provider: None,
+                native_services: Default::default(),
+                filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
+                x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
+                    .expect("host flags capture"),
+                memory_ordering:
+                    terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+                        "linux_x86_64",
+                    ),
+                artifact,
+                target: Some("linux_x86_64"),
+                provisions: report.runtime_provisions(),
+                provider_proposal: None,
+                work_budget: work,
+                domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
+                standard_input: Some(Box::new(Cursor::new(case.input.clone()))),
+                clock: None,
+            },
+            report.retained_native_artifact(),
+        )
         .unwrap_or_else(|error| fail(format!("{}: {error}", case.label)));
         fs::write(&case.stdout, &observation.stdout).unwrap();
         fs::write(&case.stderr, &observation.stderr).unwrap();

@@ -16,7 +16,6 @@ use optimization_core::OptimizationSelections;
 use products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
-use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -248,7 +247,6 @@ pub(crate) enum ProductRequest {
         package_inputs: Option<package_compilation::PackageCompilationInputs>,
         root: PathBuf,
         product: CompilationProduct,
-        permissions: Option<TerminalPermissionAcceptance>,
     },
     Component(CheckedCompilation),
 }
@@ -261,7 +259,6 @@ pub(crate) enum TerminalCompilation {
 pub(crate) struct TargetCompilation {
     realization: SelectedProductTarget,
     report: ProductReportPlan,
-    permissions: Option<TerminalPermissionAcceptance>,
     selections: OptimizationSelections,
 }
 
@@ -270,13 +267,11 @@ impl TargetCompilation {
         realization: SelectedProductTarget,
         _package_inputs: Option<package_compilation::PackageCompilationInputs>,
         report: ProductReportPlan,
-        permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
         let selections = report.optimizations().clone();
         Self {
             realization,
             report,
-            permissions,
             selections,
         }
     }
@@ -310,16 +305,11 @@ impl TargetCompilation {
         let runtime_product = self
             .report
             .needs_terminal(&self.realization.custody.build_admission);
-        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
+        let consent = self.realization.consent.take();
         let checked = self.realization.into_checked_compilation()?;
         let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
-            admit_permissions(
-                &checked,
-                &runtime_policy,
-                self.permissions.as_ref(),
-                runtime_product,
-            )?;
+            admit_permissions(&checked, consent.as_ref(), runtime_product)?;
             checked
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
@@ -411,14 +401,13 @@ fn advisories(checked: &products::CheckedCompilation) -> Vec<Diagnostic> {
 
 impl ProductRequest {
     pub(crate) fn plan(self) -> Result<TerminalCompilation, CompilationProductError> {
-        let (mut realization, package_inputs, root, product, permissions) = match self {
+        let (mut realization, package_inputs, root, product) = match self {
             Self::Requested {
                 realization,
                 package_inputs,
                 root,
                 product,
-                permissions,
-            } => (realization, package_inputs, root, product, permissions),
+            } => (realization, package_inputs, root, product),
             Self::Component(checked) => {
                 let accounting = checked.source_completion_accounting().clone();
                 if checked.sources().package_identity().is_none() {
@@ -459,7 +448,6 @@ impl ProductRequest {
             realization,
             package_inputs,
             report,
-            permissions,
         )))
     }
 }
@@ -500,26 +488,18 @@ impl TerminalCompilation {
 
 fn admit_permissions(
     checked: &CheckedCompilation,
-    declarations: &review_evidence::permission_acceptance::PreparedRuntimePolicy,
-    permissions: Option<&TerminalPermissionAcceptance>,
+    consent: Option<&crate::checked::PreparedRuntimeConsent>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
-    let input = review_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
-        declarations,
-        checked,
-    );
-    let permissions = match permissions {
-        Some(permissions) => permissions,
-        None => {
-            return refuse_unaccepted_assumed_bindings(
-                runtime_product,
-                checked.execution().plans().assumed_bindings().len(),
-            );
-        }
-    };
-    permissions
-        .validate(&input)
-        .map_err(CompilationProductError::TrustAdmission)
+    match consent {
+        Some(consent) => consent
+            .validate(checked)
+            .map_err(CompilationProductError::TrustAdmission),
+        None => refuse_unaccepted_assumed_bindings(
+            runtime_product,
+            checked.execution().plans().assumed_bindings().len(),
+        ),
+    }
 }
 
 /// Without a lock nobody has accepted anything, so a runtime product cannot

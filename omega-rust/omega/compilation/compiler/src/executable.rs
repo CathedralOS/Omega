@@ -30,7 +30,7 @@ pub(super) fn prepare(
         .target_profile()
         .unwrap_or_else(target::TargetProfile::host);
     let declarations = realization.provider_declarations();
-    let selection = native_compiler::PublishedNativeEntry::for_program(artifact, execution)?;
+    let selection = products::PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = program
         .entry_schema_custody(selection.schema_declaration())
         .map_err(refuse)?;

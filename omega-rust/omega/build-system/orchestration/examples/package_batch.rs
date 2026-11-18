@@ -363,7 +363,6 @@ fn produce(
                 "duplicate Terminal target selection"
             );
             let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-                native_image: None,
                 entry: Some(companion.program_entry().checked_entry()),
                 filesystem: Default::default(),
                 native_services: Default::default(),
@@ -554,7 +553,6 @@ fn observe_native_products(
             .psi_artifact();
         let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())?;
         let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-            native_image: None,
             entry: None,
             filesystem: Default::default(),
             native_services: Default::default(),

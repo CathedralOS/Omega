@@ -1522,9 +1522,9 @@ is the baseline; an extra lookup map needs a measured reason.
 The 2026-11-12 depth ruling requires recursive scalar terms, propositions,
 proof terms and other self-nesting values to use flat in-memory postorder
 tables. Entries name earlier entries by handle. Walking, cloning, comparing
-and dropping a deep term must use bounded stack. Conversion remains open.
-For example, `ContentConservationTerm::Separate` still contains a vector of
-terms of its own kind, and compiler workers still request a 256 MiB stack.
+and dropping a deep term must use bounded stack. `ContentConservationTerm::Separate`
+contains a vector of terms of its own kind. The task board tracks conversion of
+that representation and removal of the compiler workers’ 256 MiB stack request.
 [Depth requirement](../wiki/spec/build/compiler_request.md)
 · [Content conservation terms](psi/compilation/representations/declaration-contracts/src/content.rs)
 · [Worker stack](psi/foundation/execution-admission/src/lib.rs)

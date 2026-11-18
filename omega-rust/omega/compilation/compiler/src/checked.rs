@@ -53,4 +53,4 @@ pub use source_compiler::{
     ChosenDefaultLayout, ProductSupplySource, SuppliedProduct, SupplyJudgment, TargetSupplySource,
     judge_supplied_product, prepare_supplied_target,
 };
-pub(crate) use target_preparation::PreparedProductTarget;
+pub(crate) use target_preparation::{PreparedProductTarget, PreparedRuntimeConsent};

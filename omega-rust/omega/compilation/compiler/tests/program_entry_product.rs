@@ -286,10 +286,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 )
                 .unwrap(),
             );
-            let refusal =
-                native_compiler::PublishedNativeEntry::for_program(&other, checked.execution())
-                    .err()
-                    .expect("a different program cannot borrow this target selection");
+            let refusal = products::PublishedNativeEntry::for_program(&other, checked.execution())
+                .err()
+                .expect("a different program cannot borrow this target selection");
             assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
 
             // A portable body with the same entry ID is insufficient when its
@@ -338,9 +337,100 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             );
             let mut executable_roster = checked.terminal_publication().roster().unwrap().clone();
             assert!(executable_roster.declaration_metadata.contains(&schema));
-            let executable = executable_roster
-                .judge(std::sync::Arc::clone(accepted.source()))
-                .expect("all original scope is judged with the requested descriptors");
+            let fresh = std::sync::Arc::new(
+                source_compiler::SourcePublication::judge(
+                    std::sync::Arc::clone(accepted.source()),
+                    executable_roster.clone(),
+                    checked.terminal_publication().optimizations().clone(),
+                )
+                .expect("all original scope is judged with the requested descriptors"),
+            );
+            let receive = |settled: &products::SelectedProviderResult| {
+                products::CheckedCompilation::from_settled_execution(
+                    products::CheckedCompilationInputs {
+                        settled: settled.clone(),
+                        source_inspection: std::sync::Arc::new(
+                            products::SelectedProviderSource::new(
+                                std::sync::Arc::clone(checked.source_inspection().inventory()),
+                                std::sync::Arc::clone(settled.shared_plans()),
+                            ),
+                        ),
+                        build: std::sync::Arc::new(checked.build().clone()),
+                        build_admission: checked.build_admission().clone(),
+                    },
+                    std::sync::Arc::new(checked.sources().clone()),
+                    Default::default(),
+                    std::sync::Arc::clone(&fresh),
+                )
+            };
+            let rechecked = receive(checked.execution())
+                .expect("a fresh judgment of the same program can receive its selected providers");
+            rechecked.admit_trust().unwrap();
+            assert!(fresh.published().is_none());
+
+            let independently_checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "independent program owner: {:?}",
+                    failure.into_diagnostics()
+                )
+            });
+            assert_eq!(
+                independently_checked.execution().original_program(),
+                checked.execution().original_program()
+            );
+            assert!(!std::sync::Arc::ptr_eq(
+                independently_checked.source_inspection().program(),
+                checked.source_inspection().program(),
+            ));
+            assert_eq!(
+                receive(independently_checked.execution()).unwrap_err()[0].message,
+                "selected providers belong to a different accepted program"
+            );
+
+            let unrelated = workspace.join("different-program");
+            std::fs::create_dir_all(&unrelated).unwrap();
+            std::fs::copy(workspace.join("build.omg"), unrelated.join("build.omg")).unwrap();
+            let other_main = unrelated.join("main.omg");
+            std::fs::write(&other_main, "machine main() {}\n").unwrap();
+            let other_checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&other_main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("second program: {:?}", failure.into_diagnostics()));
+            assert_eq!(
+                other_checked.execution().target_profile(),
+                checked.execution().target_profile()
+            );
+            assert_ne!(
+                other_checked.execution().original_program(),
+                checked.execution().original_program()
+            );
+            let mismatch = receive(other_checked.execution()).unwrap_err();
+            assert_eq!(
+                mismatch[0].message,
+                "selected providers belong to a different accepted program"
+            );
+            assert!(rechecked.published_artifact().is_none());
+            let ready = portable_publication::ProductCodeSource {
+                publication: &fresh,
+                sources: checked.sources(),
+            }
+            .publish(
+                fresh.optimizations(),
+                &mut source_compiler::UnmeasuredProduction,
+            )
+            .expect("publish only after checking the fresh source");
+            assert!(std::sync::Arc::ptr_eq(
+                rechecked.published_artifact().unwrap(),
+                ready.artifact()
+            ));
+            let executable = fresh.accepted().unwrap();
             assert!(std::sync::Arc::ptr_eq(
                 accepted.source(),
                 executable.source()

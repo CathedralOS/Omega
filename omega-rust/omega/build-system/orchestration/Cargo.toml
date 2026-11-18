@@ -22,9 +22,12 @@ bounded-process = { path = "../../host-support/bounded-process" }
 target = { path = "../../compilation/target-description/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-interpreter = { path = "../../../psi/interpreter" }
+terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 
 [dev-dependencies]
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 sha2 = "0.10.9"
 native-artifact = { path = "../../compilation/pipeline/09_image-construction/native-artifact" }

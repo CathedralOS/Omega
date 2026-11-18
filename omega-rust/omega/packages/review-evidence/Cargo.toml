@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
 declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 application-identity = { path = "../../../psi/compilation/representations/application-identity" }
 numeric-literals = { path = "../../../psi/compilation/representations/numeric-literals" }

@@ -9,12 +9,40 @@ use super::PreparedProductTarget;
 use super::checking::{check_product_source, complete_prepared_build};
 use crate::execution_settlement::SelectedCompileOutcome;
 use products::{CompileFailure, PreparedPackageBuild};
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use std::sync::Arc;
+
+#[derive(Default)]
+pub(super) struct PackageProductSelection<'a> {
+    inspection: Option<&'a str>,
+    permissions: Option<&'a Arc<TerminalPermissionAcceptance>>,
+    test_permissions: Option<&'a Arc<TerminalPermissionAcceptance>>,
+}
+
+impl<'a> PackageProductSelection<'a> {
+    pub(super) fn requested(
+        product: &'a crate::CompilationProduct,
+        permissions: Option<&'a Arc<TerminalPermissionAcceptance>>,
+    ) -> Self {
+        use crate::CompilationProduct;
+        let (permissions, test_permissions) = match product {
+            CompilationProduct::Native(_) => (permissions, permissions),
+            CompilationProduct::Check | CompilationProduct::Terminal(_) => (permissions, None),
+            CompilationProduct::Inspection(_) => (None, None),
+        };
+        Self {
+            inspection: product.inspection_name(),
+            permissions,
+            test_permissions,
+        }
+    }
+}
 
 impl CompilationSession {
     pub(super) fn select_build_batch<Owner>(
         &mut self,
         builds: Vec<(Owner, PreparedPackageBuild)>,
-        inspection_name: impl Fn(&Owner) -> Option<&str>,
+        requested: impl Fn(&Owner) -> PackageProductSelection<'_>,
         mut frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
@@ -25,7 +53,7 @@ impl CompilationSession {
             artifacts::compile_timings::counters::record_checked_compilation();
             if let Some(group) = groups.iter_mut().find(|group| {
                 group.first().is_some_and(|(_, prior_owner, prior)| {
-                    inspection_name(prior_owner) == inspection_name(&owner)
+                    requested(prior_owner).inspection == requested(&owner).inspection
                         && prior.same_product_source(&build)
                 })
             }) {
@@ -74,7 +102,7 @@ impl CompilationSession {
                     Some(&inputs),
                     &calling_targets,
                     &rollback,
-                    inspection_name(&first_owner),
+                    requested(&first_owner).inspection,
                     frontier.as_deref_mut(),
                 )
             });
@@ -170,7 +198,9 @@ impl CompilationSession {
         let prepared_applications = applications
             .into_iter()
             .map(|(position, owner, source, target, inputs, unprepared)| {
-                let prepared = PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
+                let demand = requested(&owner);
+                let prepared =
+                    PreparedProductTarget::capture(&source, Some(target), demand.permissions);
                 let tests =
                     super::test_roots::select_test_roots(&source, target).map(|selection| {
                         let roots = selection
@@ -188,7 +218,7 @@ impl CompilationSession {
                                     let prepared = PreparedProductTarget::capture(
                                         &checked,
                                         Some(target),
-                                        Some(&inputs),
+                                        demand.test_permissions,
                                     );
                                     (checked, prepared)
                                 });

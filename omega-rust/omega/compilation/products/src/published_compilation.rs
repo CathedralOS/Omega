@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct PublishedCompilation {
     pub(crate) root_grants: Arc<[provider_correspondence::trust::TrustAdmission]>,
-    pub(crate) execution: native_compiler::SelectedProviderResult,
+    pub(crate) execution: crate::SelectedProviderResult,
     pub(crate) package_inputs: crate::ExecutablePackageInputs,
     pub(crate) program: Arc<PublishedExecutableProgram>,
     pub(crate) application: target::NativeApplicationMetadata,
@@ -32,7 +32,7 @@ impl PublishedCompilation {
     ///     let _ = realized.with_folded_program(view);
     /// }
     /// ```
-    pub fn execution(&self) -> &native_compiler::SelectedProviderResult {
+    pub fn execution(&self) -> &crate::SelectedProviderResult {
         &self.execution
     }
 
@@ -70,7 +70,7 @@ pub struct PublishedExecutableProgram {
 impl PublishedExecutableProgram {
     pub(crate) fn for_execution(
         source: &crate::PublishedProgram,
-        execution: &native_compiler::SelectedProviderResult,
+        execution: &crate::SelectedProviderResult,
     ) -> Result<Self, String> {
         let artifact = Arc::clone(execution.effective_artifact(source.artifact())?);
         let evidence = match execution.folded_program() {

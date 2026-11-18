@@ -243,7 +243,9 @@ pub(super) fn matches_platform_c_symbol(
     }
 }
 
-pub(super) struct HostContext<'host> {
+mod embedding;
+
+pub struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
     clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockEnvironment>>>,
@@ -253,12 +255,12 @@ pub(super) struct HostContext<'host> {
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
-    pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
+    pub fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
             TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
         })
     }
-    pub(super) fn new(
+    pub fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockEnvironment>,
         native_provider: Option<native_provider_runtime::NativeProviderCommand>,

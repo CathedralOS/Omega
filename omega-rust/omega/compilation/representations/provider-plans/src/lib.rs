@@ -47,4 +47,6 @@ pub use target_providers::{
 };
 
 mod provider_demand;
-pub use provider_demand::{ProviderExecutionOrigins, PublishedProviderDemand};
+pub use provider_demand::{
+    IssuedProviderDemand, ProviderDemandAuthority, ProviderDemandInputs, ProviderExecutionOrigins,
+};

@@ -184,7 +184,6 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
-            native_image: None,
             entry: None,
             native_provider: None,
             native_services: Default::default(),

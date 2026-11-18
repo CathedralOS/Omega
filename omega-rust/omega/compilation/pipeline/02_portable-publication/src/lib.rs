@@ -169,3 +169,4 @@ impl<'a> ProductCodeSource<'a> {
 }
 
 mod provider_demand;
+pub use provider_demand::{PortableDemandIssuer, PublishedProviderDemand};

@@ -16,10 +16,10 @@ separate checked semantic identity: `PartialEq` compares only `execution` and
 `sources` so populating lazy Terminal publication cannot alter equality.
 */
 
+use crate::SelectedProviderResult;
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use native_compiler::SelectedProviderResult;
 use package_compilation::CheckedSourceCustody;
 use source_compiler::source_state::FrozenTypedTrees;
 use std::sync::Arc;
@@ -125,6 +125,24 @@ impl CheckedCompilation {
         terminal_publication
             .require_source_owner(execution.source_inspection.program())
             .map_err(|error| vec![error])?;
+        // A fresh judgment of this source can be checked before it publishes code.
+        let original_program = match terminal_publication.published() {
+            Some(program) => program.artifact().view().identity(),
+            None => {
+                terminal_codec::terminal_psi_identity(terminal_publication.accepted()?.module())
+                    .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+            }
+        };
+        if execution.settled.original_program() != original_program
+            || !execution
+                .settled
+                .publisher()
+                .matches_source(sources.source_identity())
+        {
+            return Err(vec![Diagnostic::error(
+                "selected providers belong to a different accepted program",
+            )]);
+        }
         let root_grants = admit_published_root_grants(&execution, &sources, &terminal_publication);
         Ok(Self {
             source_completion_accounting: Default::default(),
@@ -186,6 +204,22 @@ impl CheckedCompilation {
 
     pub fn source_inspection(&self) -> &crate::SelectedProviderSource {
         &self.execution.source_inspection
+    }
+
+    /// The portable program already issued for this checked product.
+    pub fn published_program(&self) -> Option<&crate::PublishedProgram> {
+        self.published_program.as_deref()
+    }
+
+    /// The canonical artifact already issued for this product or its explicit source judgment.
+    pub fn published_artifact(&self) -> Option<&Arc<terminal_codec::CanonicalTerminalArtifact>> {
+        self.published_program()
+            .map(crate::PublishedProgram::artifact)
+            .or_else(|| {
+                self.terminal_publication
+                    .published()
+                    .map(|program| program.artifact())
+            })
     }
 
     pub fn terminal_publication(&self) -> &source_compiler::SourcePublication {
