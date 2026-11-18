@@ -1,6 +1,6 @@
-use k1::main;
-use k2::main;
+use k1;
+use k2;
 
 machine entry() -> i32 {
-    value() + other()
+    k1::value() + k2::other()
 }
