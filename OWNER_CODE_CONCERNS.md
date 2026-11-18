@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Descriptor lifetime queries repeat the same graph walk
+- Category: One idea, several implementations
+- Where: [descriptor lifetime queries](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1221), [descriptor transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1487)
+- Saw: Entry and successor lifetime queries compute where each descriptor can survive. The solver computes those same locations internally to seed the all-arrivals authorization check. Local lifetime queries repeat the walk when authorization exists.
+- Cost: These paths solve the same graph twice. Share the first result while keeping the distinction between a descriptor that can survive on one arrival and one authorized on every arrival.
+- Reported: 2026-11-18, Codex, while investigating the Console binding test timeout.
+
 ### Individual proof citations copy their entire compound premise
 - Category: Verifying costs more than writing
 - Where: [Fact::proof_with_work](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L119), [stored proof nodes](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L420)

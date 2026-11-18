@@ -771,8 +771,13 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
         PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
             .unwrap();
     let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
-    let (literal, proof) = prover.side(&expression, Direction::Upper).unwrap();
-    assert_eq!(literal, endpoint);
+    let side = prover
+        .comparison_side(&expression, Direction::Upper)
+        .unwrap();
+    assert_eq!(side.literal, endpoint);
+    let proof = prover
+        .comparison_proof(&expression, Direction::Upper, side)
+        .unwrap();
     let goal = Proposition::LessOrEqual(expression, limit);
     proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof.unwrap())
         .unwrap();
@@ -1820,6 +1825,53 @@ fn dense_order_arrivals_copy_only_the_bounds_the_certificate_uses() {
             );
         }
     }
+}
+
+#[test]
+fn an_undecided_comparison_does_not_copy_its_endpoint_proofs() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [left_id, right_id] = [0, 1].map(|position| {
+        values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        })
+    });
+    let left = ScalarTerm::value(left_id, scalar_type);
+    let right = ScalarTerm::value(right_id, scalar_type);
+    let limit = ScalarTerm::integer(integer, IntegerValue::Unsigned(8)).unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(left.clone(), limit.clone()),
+        Proposition::LessOrEqual(limit, right.clone()),
+    ];
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+
+    // Both values can be eight. The strict goal still settles both bounds,
+    // which the next comparison can use without searching again.
+    assert!(prover.compare(&left, &right, true).is_err());
+    assert_eq!(prover.activity.bound_value_searches, 2);
+    assert_eq!(prover.activity.bound_certificate_copies, 0);
+
+    let proof = prover.compare(&left, &right, false).unwrap();
+    assert_eq!(prover.activity.bound_value_searches, 2);
+    assert_eq!(prover.activity.bound_certificate_copies, 2);
+    let goal = Proposition::LessOrEqual(left, right);
+    let accepted =
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert_eq!(
+        accepted
+            .assumptions
+            .iter()
+            .map(|used| used.index)
+            .collect::<Vec<_>>(),
+        vec![0, 1],
+    );
 }
 
 #[test]
