@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Individual proof citations copy their entire compound premise
+- Category: Verifying costs more than writing
+- Where: [Fact::proof_with_work](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L119), [stored proof nodes](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L420)
+- Saw: Selecting a conjunct rebuilds its parent's proof and copies the complete parent proposition. One saved multiplication-table proof (machine 7, obligation 26) has 3,798 nodes and 1,408 assumption citations. Formatting it with `Debug` produces 1.95 GB of text, while its checked core certificate is 212 KB. Cloning it takes 0.593 seconds in `build/byte-observers/borrowed-admission-baseline` on the table worktree. Wire's 200-second sample also found `compound_limit_as_le` calling `Fact::proof_with_work` at about 4 GB of resident memory. That program subsequently passed native/Psi agreement in 233 seconds; its receipt and sample are in worker-4's `build/wire-3791/original-retained-540`.
+- Cost: Borrowing the proof during verification removes one extra copy, but building it still copies these large premises. Any sharing must count every logical use, keep its original scope and publish the complete predicate. Certificates attached to operations still refer to whole premise rows, so those assumptions cannot simply be replaced with selected conjuncts.
+- Reported: 2026-11-18, Codex, while carrying the original multiplication table through proof checking and execution.
+
 ### Focused compiler checks rebuild the implementation three times
 - Category: Verifying costs more than writing
 - Where: [source-compiler unit tests](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/source_selection_publication.rs#L1985), [integration-test feature](omega-rust/omega/compilation/compiler/Cargo.toml#L107), [source-compiler feature](omega-rust/psi/compilation/pipeline/01_source-compilation/Cargo.toml#L8)

@@ -2525,7 +2525,7 @@ fn verify_certificate(
         },
         assumptions,
         axioms,
-        EvidenceRoute::CertificateDerived(certificate.clone()),
+        EvidenceRoute::CertificateDerived(certificate.as_ref()),
     )
     .map_err(|error| {
         unproved(
@@ -2656,7 +2656,7 @@ pub fn derive_contract_obligation(
         },
         &[],
         &[],
-        EvidenceRoute::CertificateDerived(certificate.clone()),
+        EvidenceRoute::CertificateDerived(certificate.as_ref()),
     )
     .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
     Ok(certificate)
