@@ -862,7 +862,7 @@ pub(crate) mod structural_type_lookup {
             )
             .with_target_carriers(Some(self.carriers))
             .with_record_storage(self)
-            .region_source_compatible(source, path, reference, stored)
+            .view_source_compatible(source, path, reference, stored)
         }
 
         pub(crate) fn subtree(
