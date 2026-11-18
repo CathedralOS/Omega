@@ -844,9 +844,13 @@ mod compiler_machine_tests {
                         _ => None,
                     })
                     .expect("the bundled Run declaration exists");
-                let mut lowerer = crate::lowering::lowerer::Lowerer::new(Some(sources), vec![]);
-                let result =
-                    crate::lowering::machine::lower_machine_into(&mut lowerer, &syntax, authored);
+                let mut lowerer =
+                    crate::resolution::lowering::lowerer::Lowerer::new(Some(sources), vec![]);
+                let result = crate::resolution::lowering::machine::lower_machine_into(
+                    &mut lowerer,
+                    &syntax,
+                    authored,
+                );
                 if !admitted {
                     let error = result.expect_err("copied source cannot supply Run primitives");
                     assert!(
