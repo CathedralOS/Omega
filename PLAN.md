@@ -523,8 +523,39 @@ not worked around in code.
 | 1 | May `build.omg` register a build-only package while it runs and then use it? If yes, `build.omg` itself still needs staged checking (reason 2 under [Why V1 loops back](#why-v1-loops-back)). If build-only packages must be known before it runs, the only loop left is source discovery. | 2026-11-18 | driver | Answered 2026-11-18: no. A stage may discover a package and put it in its plan; a later stage imports it. Nothing is used in the stage that registers it. |
 | 2 | Where do a Build's own services come from? `build.omg` may import a file that declares or uses a service such as `Console`, but calling it needs a provider, and the decided Build model does not say who supplies one. Raised by Zac. | 2026-11-18 | driver, interpreter | Answered 2026-11-18: from the stage before it. The core-supplied first stage selects the ordinary build backings for `build.omg`, and the invocation grants the resources. See the [Build model](#v2s-build-model-a-chain-of-stages). |
 | 3 | When `omega run main.omg` is run and a build program sits beside it, is that build program used or ignored? Using it makes the command do what the project intends; ignoring it keeps "what you pass is what runs" and lets a script be run without its project's build. | 2026-11-18 | driver | Open. Probably moot: if no file names are blessed, nothing beside the given file can be picked up implicitly. Not confirmed. |
-| 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Open |
+| 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
 
+## What the operating system costs
+
+Measured 2026-11-18 on a Ryzen 9 7950X (16 cores, 32 threads) with source on a
+Samsung 9100 PRO NVMe, Windows 11, NTFS, over V1's 19,442 Omega files (26 MB).
+Everything is from a warm file cache, so the drive itself is not involved in
+any of these numbers.
+
+| What | Rate | Against the lexer on 32 threads |
+| --- | --- | --- |
+| Lexing, 32 threads | about 11 GB/s | |
+| Reading one packed file | about 9 GB/s | about the same |
+| Reading file by file, best case (4 threads, antivirus off) | about 150 MB/s | about 70 times slower |
+| Reading file by file, 32 threads, antivirus on | about 100 MB/s | about 110 times slower |
+
+Windows charges per file, not per byte:
+
+- **About 20 microseconds to open, read and close one small file**, whatever
+  its size. About 13 of that is the open.
+- **Real-time antivirus adds 4 to 9 microseconds more**, about a fifth.
+- **More threads stop helping at 4.** 16 and 32 threads are slower than 4.
+- **Opening a directory costs the same as opening a file**, and walking the
+  tree to find the files takes 330 ms, longer than reading them.
+- **No route from user code is cheaper.** Opening relative to a directory
+  handle and calling the kernel directly were both tried and made no
+  measurable difference.
+
+Put together: lexing the whole corpus takes about 2.4 ms and reading it file
+by file takes at least 170 ms. The compiler is not what a build of many small
+files waits for. Full figures and method are in
+[layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiments
+4, 6 and 7. What to do about it is owner question 4.
 ## Decision log
 
 | Date | Decision | By |
@@ -538,3 +569,4 @@ not worked around in code.
 | 2026-11-18 | Build model ratified: insulated stages plus reflection identities. Cracks return as owner questions in this repo. | Jarod |
 | 2026-11-18 | Rust on stable, `layers/NN-name/` layout, git repository; start with the lexer. | Jarod |
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
+| 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
