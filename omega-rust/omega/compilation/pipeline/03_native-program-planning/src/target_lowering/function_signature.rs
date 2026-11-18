@@ -1425,6 +1425,7 @@ mod native_region_geometry_tests {
             }]),
             requires: Vec::new(),
             normal_qualifications: Vec::new(),
+            membership_ensures: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),
             scalar_ensures: Vec::new(),
