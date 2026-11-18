@@ -1,6 +1,5 @@
-//! Dispatch a sum visitor using the ordinary case test and call machinery.
-//! Only the selected branch can borrow its payload. Each callback then
-//! reborrows its own field and the context through its declared interface.
+//! Test the sum's case before borrowing any payload. The selected helper
+//! reports that case, then visits its payload fields in declaration order.
 
 use super::{
     Bound, CallbackSite, Served, Stop, binding_name, callback, context_type, declaration,
@@ -21,7 +20,9 @@ use crate::source_state::name::Identifier;
 use crate::source_state::reflection::construction::{
     construct_semantic_schema_graph_for_type, schema_query_authority,
 };
-use crate::source_state::reflection::{CaseDescription, DeclarationDescription, SchemaNode};
+use crate::source_state::reflection::{
+    CaseDescription, DeclarationDescription, SchemaNode, SchemaShape,
+};
 use crate::source_state::signature::{StateParameter, StateSignature};
 use crate::source_state::state::State;
 use crate::source_state::statement::{
@@ -46,11 +47,10 @@ struct Sum {
     symbol: SymbolHandle,
     name: Identifier,
     description: DeclarationDescription,
-    common: Vec<DataField>,
     cases: Vec<ActiveCase>,
 }
 
-pub(super) fn close(
+pub(super) fn expand(
     program: &mut TypedTrees,
     holder: &Machine,
     state: &State,
@@ -58,9 +58,9 @@ pub(super) fn close(
     call: &TableCall,
     access: ReferenceAccess,
 ) -> Served<Vec<StatementNode>> {
-    let query = declaration(program, call.target_symbol)
-        .ok_or(unserved("the sum visitor lost its declaration"))?
-        .symbol;
+    let visitor = declaration(program, call.target_symbol)
+        .ok_or(unserved("the sum visitor lost its declaration"))?;
+    let query = visitor.symbol;
     let lexical_owner = call
         .authored_machine_application
         .is_valid()
@@ -72,11 +72,7 @@ pub(super) fn close(
         })
         .filter(|owner| owner.is_valid())
         .ok_or(unserved("the sum visitor lost its lexical author"))?;
-    let parameters = program.machine_callable_parameters(
-        program
-            .machine_by_symbol(query)
-            .ok_or(Stop::Defect("the resolved sum visitor has no declaration"))?,
-    );
+    let parameters = program.machine_callable_parameters(visitor);
     let [subject_binder, case_binder, field_binder, context_binder] = parameters.as_slice() else {
         return Err(Stop::Defect(
             "the sum visitor has the wrong static parameters",
@@ -109,9 +105,9 @@ pub(super) fn close(
     let case_visitor = callback(program, case_visitor)?;
     let field_visitor = callback(program, field_visitor)?;
     let included_types = sum
-        .common
+        .cases
         .iter()
-        .chain(sum.cases.iter().flat_map(|case| &case.fields))
+        .flat_map(|case| &case.fields)
         .map(|field| field.type_reference)
         .collect::<Vec<_>>();
     let substitutions = [
@@ -164,13 +160,8 @@ pub(super) fn close(
     let context = dispatcher.parameters[1].symbol;
     let mut arms = Vec::with_capacity(sum.cases.len());
     for case in &sum.cases {
-        let fields = sum
-            .common
-            .iter()
-            .map(|field| (None, field))
-            .chain(case.fields.iter().map(|field| (Some(&case.variant), field)));
         let mut inputs = vec![("context".to_owned(), context_reference)];
-        inputs.extend(fields.clone().enumerate().map(|(position, (_, field))| {
+        inputs.extend(case.fields.iter().enumerate().map(|(position, field)| {
             (
                 format!("field_{position}"),
                 reference(program, field.type_reference, access),
@@ -210,9 +201,15 @@ pub(super) fn close(
         );
 
         let mut actuals = vec![binding_name(program, context, span)];
-        for ((owner, field), parameter) in fields.zip(&branch.parameters[1..]) {
-            let declaration =
-                field_declaration(program, &sum, application.as_ref(), owner, field, span);
+        for (field, parameter) in case.fields.iter().zip(&branch.parameters[1..]) {
+            let declaration = field_declaration(
+                program,
+                &sum,
+                application.as_ref(),
+                &case.variant,
+                field,
+                span,
+            );
             let value = binding_name(program, parameter.symbol, span);
             emission.field(
                 program,
@@ -229,7 +226,7 @@ pub(super) fn close(
                 program,
                 subject,
                 field,
-                owner.map(|case| case.name.clone()),
+                Some(case.variant.name.clone()),
                 access,
                 span,
             ));
@@ -298,15 +295,21 @@ fn sum_description(
     let graph = construct_semantic_schema_graph_for_type(program, reference, authority)
         .map_err(unserved)?;
     let description = graph.declaration();
-    let mut common = Vec::new();
+    if description.shape != SchemaShape::Sum {
+        return Err(Stop::Rejected(
+            "active-case visitation takes a sum. To visit a sum held in a record, borrow its field"
+                .to_owned(),
+        ));
+    }
+    let members = program.data_members(data);
+    if members.len() != description.members.len() {
+        return Err(Stop::Defect(
+            "the sum schema does not cover every declared member",
+        ));
+    }
     let mut cases = Vec::new();
-    for (member, description) in program.data_members(data).iter().zip(&description.members) {
+    for (member, description) in members.iter().zip(&description.members) {
         match (member, graph.node(*description)) {
-            (DataMember::Field(field), SchemaNode::Field(_)) => {
-                if !field.relevance.is_erased() {
-                    common.push(field.clone());
-                }
-            }
             (DataMember::Variant(variant), SchemaNode::Case(description)) => {
                 cases.push(ActiveCase {
                     variant: variant.clone(),
@@ -326,14 +329,10 @@ fn sum_description(
             }
         }
     }
-    if cases.is_empty() {
-        return Err(unserved("the active-case visitor needs a type with cases"));
-    }
     Ok(Sum {
         symbol: data.symbol,
         name: data.name.clone(),
         description: description.clone(),
-        common,
         cases,
     })
 }
@@ -392,19 +391,16 @@ fn field_declaration(
     program: &mut TypedTrees,
     sum: &Sum,
     application: Option<&StaticMachineArgument>,
-    owner: Option<&DataVariant>,
+    case: &DataVariant,
     field: &DataField,
     span: SourceSpan,
 ) -> ExpressionHandle {
-    let mut path = vec![sum.name.clone()];
-    let mut symbols = vec![sum.symbol];
-    if let Some(owner) = owner {
-        path.push(owner.name.clone());
-        symbols.push(owner.symbol);
-    }
-    path.push(field.name.clone());
-    symbols.push(field.symbol);
-    let declaration = name(program, path, symbols, span);
+    let declaration = name(
+        program,
+        vec![sum.name.clone(), case.name.clone(), field.name.clone()],
+        vec![sum.symbol, case.symbol, field.symbol],
+        span,
+    );
     if let Some(mut applied) = application.cloned() {
         let field = program
             .expression_table
@@ -413,22 +409,18 @@ fn field_declaration(
                 path: Box::new([field.name.clone()]),
                 ..Default::default()
             });
-        let member = if let Some(owner) = owner {
-            program
-                .expression_table
-                .insert_static_member(StaticMachineArgument {
-                    symbol: owner.symbol,
-                    path: Box::new([owner.name.clone()]),
-                    application: Some(Box::new(StaticSymbolApplication {
-                        member: field,
-                        arguments: Box::default(),
-                        lifetime_arguments: Box::default(),
-                    })),
-                    ..Default::default()
-                })
-        } else {
-            field
-        };
+        let member = program
+            .expression_table
+            .insert_static_member(StaticMachineArgument {
+                symbol: case.symbol,
+                path: Box::new([case.name.clone()]),
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: field,
+                    arguments: Box::default(),
+                    lifetime_arguments: Box::default(),
+                })),
+                ..Default::default()
+            });
         applied
             .application
             .as_mut()

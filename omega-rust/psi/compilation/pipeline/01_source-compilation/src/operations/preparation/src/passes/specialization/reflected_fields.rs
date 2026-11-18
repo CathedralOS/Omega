@@ -1,32 +1,7 @@
-//! `reflect::inspect_record_fields<Packet, describe>(&mut capture)` has an
-//! empty library body: the compiler closes it, in the caller, into one
-//! ordinary call of the selected callback per field of `Packet`, in declared
-//! order, each given the field's exact type and its `reflect::field` query
-//! (reflection.md, "Typed runtime visitation": "It checks every selected
-//! application and generates ordinary calls before Terminal Psi").
-//!
-//! ```text
-//! reflect::inspect_record_fields<Packet, describe>(&mut capture);
-//!     let context: &mut Capture = &mut capture;
-//!     let field: reflect::FieldInfo = reflect::field(Packet::id);
-//!     describe<u32>(context, &field);
-//!     ...one query and one call for each further field
-//! ```
-//!
-//! The callback is checked against the binder the library publishes,
-//! `requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo)`,
-//! before any call is written. generics.md, "Requirements and conformance
-//! evidence": selected implementations must refine the requirement, and a
-//! concrete selection cannot silently strengthen the generic API. So a
-//! callback that adds a precondition the binder does not publish is refused
-//! even where every generated call would meet it. The calls themselves are
-//! ordinary: the specialization pass then serves each one, and the
-//! lowered-form checker judges them like any other call.
-//!
-//! Runtime visitation uses the same expansion, capturing the subject once and
-//! borrowing its exact field for each ordinary call. Erased fields have no
-//! runtime loan. Mutable traversal changes only that borrow's access; the
-//! ordinary checker still owns disjointness, escape and handback.
+//! Expand typed visitors into ordinary calls. Each call gets the exact field
+//! type and its description. Runtime visitors borrow each field for its call;
+//! declaration inspection also describes erased fields without borrowing them.
+//! The callback must satisfy the library's published interface.
 
 use super::callable_binder::{Bound, satisfies_binder};
 use super::{Served, Stop, named_type, unserved};
@@ -79,7 +54,7 @@ pub(super) fn elaborate(
                     close(program, &machine, &state, site, &call, operation)
                 }
                 ReflectionOperation::ActiveCases(access) => {
-                    active_cases::close(program, &machine, &state, site, &call, access)
+                    active_cases::expand(program, &machine, &state, site, &call, access)
                 }
             };
             match replacement {
@@ -613,8 +588,7 @@ fn context_type(
             Ok(written)
         }
         (Some(_), Some(_)) => Err(Stop::Rejected(
-            "the context passed to reflect::inspect_record_fields is not of its written Context type"
-                .to_owned(),
+            "the visitor context has a different type from its written Context argument".to_owned(),
         )),
         (Some(context), None) | (None, Some(context)) => Ok(context),
         (None, None) => Err(unserved(
