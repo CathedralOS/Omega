@@ -9,7 +9,7 @@ The published evaluator refused the 4,651,287-byte request before the bootstrap 
 | Sealed stdin cursor | 4 MiB | status 253 | 0.900 | 11,264 |
 | Sealed stdin cursor | 8 MiB | supervisor `SIGKILL` | 240.553 | 8,391,356 |
 
-All four processes left stdout and stderr empty. Status 253 is the adapter's input refusal. Both 8 MiB processes were still running when the supervisor stopped them. Timings and peak RSS describe single Linux x86-64 runs. The output limit was 4 MiB throughout.
+All four processes left stdout and stderr empty. Status 253 is the adapter's input refusal. Both 8 MiB processes were still running when the supervisor stopped them. Timings and peak RSS describe one run per profile on a shared Linux x86-64 host. The output limit was 4 MiB throughout.
 
 ## Reproduce
 
@@ -21,7 +21,7 @@ scratch=$(mktemp -d)
 mkdir "$scratch/eager" "$scratch/cursor"
 git archive b95769558667b7a88654cb42d6673d08811ca4c4 | tar -x -C "$scratch/eager"
 git archive 720b1a10712feb649d13b7918a944d5c43508191 | tar -x -C "$scratch/cursor"
-(cd "$scratch/eager" && cargo build -p xtask)
+(cd "$scratch/eager" && cargo build -p xtask --target-dir target)
 export OMEGA_XTASK_BIN="$scratch/eager/target/debug/xtask"
 python3 "$scratch/eager/bootstrap/independent/successor_test.py" --omega
 python3 "$bench" "$scratch/eager" "$scratch/eager" "$scratch/eager-run" --measure
