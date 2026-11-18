@@ -857,13 +857,18 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             ranking: None,
         });
     }
-    let refused =
+    let form =
         crate::lowering::lower_generic(id(1), &bodies, &signatures, &IdTable::default(), &[id(3)])
-            .unwrap_err();
+            .unwrap();
+    let verdict = judge(Ok(form)).unwrap();
+    let RouteVerdict::FallBack(refused) = verdict else {
+        panic!("{verdict:?}");
+    };
+    assert_eq!(refused.machine, id(1));
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "machine reach ceiling over a requirement that defers its reach"
+        "open abstract service reach cannot establish a finite caller ceiling"
     );
 }
 
@@ -1099,12 +1104,12 @@ fn an_open_record_call_requires_its_actual_source_owner() {
         .lexical_owner = callee;
     let refusal = crate::lowering::elaborate_generic(&source, entry).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert!(
-        refusal
-            .detail
-            .contains("type application has another source owner or declaration"),
-        "{refusal:?}"
+    assert_eq!(
+        refusal.detail,
+        "generic application changed its caller or target, or has another static feature while reading the body of `entry`"
     );
+    let caller_span = source.symbols.symbol_provenance_source_span(entry).unwrap();
+    assert_eq!(refusal.source_span, Some(caller_span));
 }
 
 fn callback_form(text: &str) -> Checked<crate::lowering::Elaboration> {

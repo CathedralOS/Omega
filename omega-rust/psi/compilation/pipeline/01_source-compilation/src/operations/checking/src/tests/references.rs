@@ -1754,14 +1754,15 @@ fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
 #[test]
 fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
-    let RouteVerdict::Accepted(accepted) = returned_relay(
+    let verdict = returned_relay(
         "machine entry() crashes none {
     let mut backing: i64 = 17;
     let child: &mut i64 = relay<Direct>(&mut backing);
     child = 41;
 }",
-    ) else {
-        panic!("a returned selected result keeps its declared input region");
+    );
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("a returned selected result keeps its declared input region: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
     let program = TerminalProgram::borrow(publication.artifact.view());

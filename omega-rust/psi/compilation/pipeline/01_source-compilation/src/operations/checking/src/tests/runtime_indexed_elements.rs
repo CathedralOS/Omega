@@ -115,7 +115,7 @@ machine build_entry(kind: Kind) {{
     ));
     assert_eq!(
         verdict,
-        "rejected: owned storage is used after its value was transferred or consumed"
+        "rejected: owned storage is used after its value was transferred or consumed in machine `build_entry`"
     );
 }
 

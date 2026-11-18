@@ -99,7 +99,7 @@ machine select(view: &[u8], selection: Selection) {{
     );
     assert_eq!(
         verdict(&routing("pair(selection, selection)")),
-        "owned storage is used after its value was transferred or consumed"
+        "owned storage is used after its value was transferred or consumed in machine `route`"
     );
 }
 

@@ -353,7 +353,10 @@ fn an_invocation_row_with_another_callee_is_refused() {
         tables.invocations.get_mut(invocation).unwrap().callee =
             Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id(3)));
     });
-    assert_refused(verdict, "an invocation row names another callee");
+    assert_refused(
+        verdict,
+        "invocation row and lowered call name different targets",
+    );
 }
 
 #[test]

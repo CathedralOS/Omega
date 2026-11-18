@@ -705,7 +705,7 @@ machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
         assert_eq!(violations.len(), 1, "{label}: {violations:?}");
         assert_eq!(
             violations[0].message(),
-            "call may block and requires a block acknowledgement"
+            "call may block and requires a block acknowledgement in machine `build_entry`"
         );
     }
 }

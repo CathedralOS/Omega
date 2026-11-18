@@ -41,7 +41,7 @@ fn an_owned_match_result_cannot_be_consumed_twice() {
         panic!("a second consumption must fail ownership checking: {verdict:?}");
     };
     assert!(unestablished.iter().any(|failure| failure.detail
-        == "owned storage is used after its value was transferred or consumed"));
+        == "owned storage is used after its value was transferred or consumed in machine `build_entry`"));
 }
 
 #[test]
