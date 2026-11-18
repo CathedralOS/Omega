@@ -2,7 +2,7 @@ data Configuration<'activation, 'storage> { builder: &'activation Build<'storage
 machine rebind<'activation>(builder: &'activation Build) {
     let mut configuration: Configuration = Configuration { builder: builder };
     configuration.builder = builder;
-    let observed: bool = configuration.builder.freestanding;
+    let observed: bool = configuration.builder.tests.disabled;
 }
 machine build(builder: &mut Build) {
     Build::application(builder, "builder_rebind_scope");
