@@ -535,7 +535,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::PathDependency | Operation::GitDependency => {
                 flag(0)?;
                 if flag(1)? {
-                    name(text(1)?)?;
+                    let alias = text(1)?;
+                    if !ProjectName::is_valid(alias) {
+                        return Err(TerminalEffectRejection::new(format!(
+                            "Build dependency alias `{}` must start with an ASCII lowercase letter and use only ASCII lowercase letters, digits, and single interior underscores",
+                            alias.escape_debug()
+                        )));
+                    }
                 } else if !text(1)?.is_empty() {
                     return Err(refuse("implicit dependency alias carries unexpected text"));
                 }
