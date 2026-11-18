@@ -25,7 +25,9 @@ require_bound_identity "materialized compiler" "$TMP/compiler.gamma" \
 head -c "$DELTA_COMPILER_ENTRY_SIZE" "$TMP/compiler.gamma" |
   cmp -s - "$OMEGA_PATH_DELTA_COMPILER_SOURCE" ||
   fail "materialized prefix differs from the canonical entry"
-echo "materialize: packed closure is exactly the bound entry-plus-member bytes"
+cmp -s "$TMP/compiler.gamma" "$OMEGA_PATH_BOOTSTRAP/linux_x86_64/delta.gamma" ||
+  fail "the distributed Linux Delta source differs from the canonical closure"
+echo "materialize: the distributed Delta source matches the bound entry-plus-member bytes"
 
 materialize_delta_support "$TMP/support.bin" ||
   fail "materialization of the bound support section failed"
