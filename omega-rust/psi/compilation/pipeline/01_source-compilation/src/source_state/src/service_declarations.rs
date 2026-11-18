@@ -491,12 +491,8 @@ pub mod projection {
             identities: &mut ProviderIdentityTable,
         ) -> Result<Vec<ServiceReceiverApplication>, Diagnostic> {
             let mut applications = Vec::new();
-            for scope in scopes.iter().filter(|scope| {
-                scope.declaration.is_boundary
-                    || !program
-                        .trait_machine_signatures(scope.declaration)
-                        .is_empty()
-            }) {
+            // Parents still distinguish service contracts when they add no methods.
+            for scope in scopes {
                 let unavailable =
                     |reason| super::projection_failure(program, scope.declaration.symbol, reason);
                 let mut argument_identities = Vec::new();
