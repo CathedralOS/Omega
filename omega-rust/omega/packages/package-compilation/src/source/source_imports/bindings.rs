@@ -9,10 +9,10 @@ use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
 use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
+use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
-use source::{DependencyScope, SourceId};
+use source_text::SourceId;
 use std::path::PathBuf;
-use syntax_trees::identifier::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(super) struct ImportOccurrence {
@@ -23,17 +23,11 @@ pub(super) struct ImportOccurrence {
 }
 
 impl ImportOccurrence {
-    pub(super) fn new(
-        syntax_trees: &syntax_trees::SyntaxTrees,
-        source: SourceId,
-        ordinal: usize,
-        members: &[Identifier],
-        prefix: usize,
-    ) -> Self {
+    pub(super) fn new(source: SourceId, ordinal: usize, members: &[String], prefix: usize) -> Self {
         Self {
             source,
             ordinal,
-            authored_path: identifier_path_text(syntax_trees, members),
+            authored_path: identifier_path_text(members),
             package_prefix_members: prefix,
         }
     }
@@ -113,7 +107,7 @@ impl PendingPackageImport {
 
 pub(crate) fn retain_module_import_bindings(
     storage: &SourceStorage,
-) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+) -> Result<Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     if storage.resolved_imports.is_empty() {
         return Ok(Vec::new());
     }
@@ -144,7 +138,7 @@ pub(crate) fn retain_module_import_bindings(
         .collect::<Vec<_>>();
     imports.sort_by_key(|import| (import.occurrence.source.0, import.occurrence.ordinal));
     let mut bindings = Vec::with_capacity(imports.len());
-    let mut previous: Option<(&ImportOccurrence, &source::SourceFile)> = None;
+    let mut previous: Option<(&ImportOccurrence, &source_admission::SourceFile)> = None;
     for import in imports {
         let occurrence = &import.occurrence;
         let importer = storage
@@ -179,8 +173,8 @@ pub(crate) fn retain_module_import_bindings(
         {
             if prior != occurrence
                 || !storage.sources.same_checked_instance(
-                    anchor.source_span(source::Span::default()),
-                    declaration.source_span(source::Span::default()),
+                    anchor.source_span(source_text::Span::default()),
+                    declaration.source_span(source_text::Span::default()),
                 )
             {
                 return Err(vec![Diagnostic::error(format!(
@@ -190,12 +184,14 @@ pub(crate) fn retain_module_import_bindings(
             }
             continue;
         }
-        bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
-            occurrence.source,
-            declaration.source_id,
-            &occurrence.authored_path,
-            occurrence.package_prefix_members,
-        ));
+        bindings.push(
+            source_compiler::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                occurrence.source,
+                declaration.source_id,
+                &occurrence.authored_path,
+                occurrence.package_prefix_members,
+            ),
+        );
         previous = Some((occurrence, declaration));
     }
     Ok(bindings)
@@ -212,7 +208,10 @@ fn scope_order(scope: DependencyScope) -> u8 {
 mod tests {
     use super::super::frontier::SourceRoots;
     use super::*;
-    use source::{SourceCatalogue, SourceFile, SourceMap, SourceOrigin, SourceResolutionStratum};
+    use source_admission::SourceFile;
+    use source_admission::SourceOrigin;
+    use source_admission::SourceResolutionStratum;
+    use source_compiler::source_inputs::{SourceCatalogue, SourceMap};
 
     fn file(path: &str, root: &str, text: &str) -> SourceFile {
         SourceFile {
@@ -268,7 +267,7 @@ mod tests {
         for source_id in [stale, importer, current, sibling] {
             storage.source_roots.append(SourceRoots {
                 source_id,
-                root_items: Vec::new(),
+                root_items: Default::default(),
             });
         }
         storage.resolved_imports = vec![
@@ -277,12 +276,14 @@ mod tests {
         ];
         assert_eq!(
             retain_module_import_bindings(&storage).unwrap(),
-            [symbols::SourceScopedTopLevelBinding::logical_module_import(
-                importer,
-                current,
-                "dep::Thing",
-                1
-            )]
+            [
+                source_compiler::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    importer,
+                    current,
+                    "dep::Thing",
+                    1
+                )
+            ]
         );
     }
 
@@ -301,7 +302,7 @@ mod tests {
         for index in 0..3 {
             storage.source_roots.append(SourceRoots {
                 source_id: SourceId(index),
-                root_items: Vec::new(),
+                root_items: Default::default(),
             });
         }
         storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
@@ -323,7 +324,7 @@ mod tests {
         for index in 0..3 {
             storage.source_roots.append(SourceRoots {
                 source_id: SourceId(index),
-                root_items: Vec::new(),
+                root_items: Default::default(),
             });
         }
         storage.resolved_imports = vec![

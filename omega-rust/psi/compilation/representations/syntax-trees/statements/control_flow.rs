@@ -4,7 +4,7 @@ use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
 use crate::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan};
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
 

@@ -9,12 +9,14 @@ name = "optimization_unit"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../../psi/foundation/arena" }
+wire = { path = "../../../../../psi/foundation/wire" }
 native-vocabulary = { path = "../../native-vocabulary" }
-numerics = { path = "../../../../../psi/foundation/numerics" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
+numerics = { path = "../../../../../psi/compilation/representations/scalar-values" }
+optimization-core = { path = "../../optimization-contracts" }
 abstract-operations = { path = ".." }
-language-core = { path = "../../../../../psi/foundation/language-core" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 

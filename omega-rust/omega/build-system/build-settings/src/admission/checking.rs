@@ -54,13 +54,13 @@ refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
     constants: &products::BuildConstants,
-    rejoined: source_compiler::BuildSourceInput<'_>,
+    rejoined: &source_compiler::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     dependency_activation: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<build_time_evaluation::SourceCompletionAccounting, products::CompileFailure> {
+) -> Result<source_compiler::evaluation::SourceCompletionAccounting, products::CompileFailure> {
     if constants.folded_under_providers {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
@@ -80,7 +80,7 @@ pub fn settle_rejoined_build_slice(
     // A retyped Build is a new request in its actual Build context. Nothing
     // copies its old result into Product or uses an old receipt for this input.
     let (accepted, _, current, accounting) = prepare_admitted_build(
-        rejoined.typed,
+        rejoined,
         entry,
         packages,
         anonymous_source,
@@ -96,7 +96,7 @@ pub fn settle_rejoined_build_slice(
 fn compare_rejoined_constants(
     original: &products::BuildConstants,
     current: &products::BuildConstants,
-    typed: &typed_trees::TypedTrees,
+    typed: &source_compiler::source_state::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     // Index only this constant family. The source anchor still authenticates
     // bytes, owner, purpose and declaration kind inside the matching range.
@@ -129,14 +129,17 @@ fn compare_rejoined_constants(
             let key = (declaration.source().path.as_path(), span.start, span.end);
             let start = family.partition_point(|row| (row.0, row.1, row.2) < key);
             let end = family.partition_point(|row| (row.0, row.1, row.2) <= key);
-            let symbol = declaration
-                .rejoin(&typed.symbols, family[start..end].iter().map(|row| row.3))
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "Build constant `{}` rejoin: {reason}",
-                        read.name
-                    ))]
-                })?;
+            let symbol = source_compiler::source_symbols::rejoin_declaration(
+                declaration,
+                &typed.symbols,
+                family[start..end].iter().map(|row| row.3),
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "Build constant `{}` rejoin: {reason}",
+                    read.name
+                ))]
+            })?;
             let value = read.value.clone().ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "Build constant `{}` has no evaluated value in its own context",
@@ -160,7 +163,7 @@ fn compare_rejoined_constants(
 }
 
 pub(crate) fn prepare_admitted_build(
-    typed: &typed_trees::TypedTrees,
+    typed: &source_compiler::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
@@ -171,11 +174,11 @@ pub(crate) fn prepare_admitted_build(
         Arc<source_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
         products::BuildConstants,
-        build_time_evaluation::SourceCompletionAccounting,
+        source_compiler::evaluation::SourceCompletionAccounting,
     ),
     products::CompileFailure,
 > {
-    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let result = (|| -> Result<_, Vec<Diagnostic>> {
         if packages.is_some() && anonymous_source.is_some() {
             return Err(vec![Diagnostic::error(
@@ -192,7 +195,7 @@ pub(crate) fn prepare_admitted_build(
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
-                purpose: source::DependencyScope::Build,
+                purpose: declaration_contracts::source_identity::DependencyScope::Build,
                 selected: &[],
                 calling: None,
                 providers: None,
@@ -205,29 +208,23 @@ pub(crate) fn prepare_admitted_build(
                 admission: source_compiler::SourceAdmission {
                     invocation_sources: anonymous_source.map(|capture| {
                         Arc::new(capture.clone())
-                            as Arc<dyn build_time_evaluation::InvocationSourceConsent>
+                            as Arc<dyn source_compiler::evaluation::InvocationSourceConsent>
                     }),
                     ..Default::default()
                 },
                 compilation,
             }
-            .prepare();
-            let (source, constants) = match source {
+            .judge(terminal_codec::TerminalPublication::Invocation);
+            match source {
                 Ok(source) => {
                     accounting = source.accounting;
-                    (source.program, source.constants)
+                    Ok((source.accepted, source.constants))
                 }
                 Err(failure) => {
                     accounting = failure.accounting;
-                    return Err(failure.diagnostics);
+                    Err(failure.diagnostics)
                 }
-            };
-            source_compiler::AcceptedTerminalSource::judge(
-                source,
-                compilation,
-                terminal_codec::TerminalPublication::Invocation,
-            )
-            .map(|accepted| (accepted, constants))
+            }
         })?;
         // Source preparation retains the demanded family before literal
         // substitution. Its genuine receipts travel as Build costs, while
@@ -257,14 +254,10 @@ mod tests {
     use products::BuildConstants;
 
     fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
-        let mut typed = typed_trees::TypedTrees::default();
-        let mut pre_checks = Vec::new();
+        let typed = source_compiler::source_state::TypedTrees::default();
         settle_rejoined_build_slice(
             constants,
-            source_compiler::BuildSourceInput {
-                typed: &mut typed,
-                pre_checks: &mut pre_checks,
-            },
+            &typed,
             symbols::SymbolHandle::invalid(),
             None,
             None,
@@ -333,17 +326,17 @@ mod tests {
         assert!(refusals[0].contains("folded a constant under its provider plans"));
     }
 
-    fn source(text: &str) -> typed_trees::TypedTrees {
-        let mut sources = source::SourceMap::default();
+    fn source(text: &str) -> source_compiler::source_state::TypedTrees {
+        let mut sources = source_compiler::source_inputs::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "/unit/build.omg".into(),
                 text,
                 "/unit".into(),
                 None,
-                source::SourceOrigin::Toolchain,
-                source::SourceResolutionStratum::Base,
-                source::DependencyScope::Build,
+                source_admission::SourceOrigin::Toolchain,
+                source_admission::SourceResolutionStratum::Base,
+                declaration_contracts::source_identity::DependencyScope::Build,
             )
             .source_id;
         let sources = std::sync::Arc::new(sources);
@@ -351,17 +344,17 @@ mod tests {
             .tokenize()
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+        let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(sources);
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+        let resolved = source_compiler::resolution::resolve(request).unwrap();
+        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
     fn prepare(
-        typed: typed_trees::TypedTrees,
+        typed: source_compiler::source_state::TypedTrees,
     ) -> Result<source_compiler::FrozenSource, source_compiler::SourcePreparationFailure> {
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        source_compiler::SourcePreparationRequest {
+        source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
             program: typed,
             accounting: Default::default(),
             admission: Default::default(),
@@ -369,15 +362,14 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: source::DependencyScope::Build,
+                purpose: declaration_contracts::source_identity::DependencyScope::Build,
                 selected: &[],
                 bindings: &[],
                 calling: None,
                 providers: None,
                 supplies: &[],
             },
-        }
-        .prepare()
+        })
     }
 
     #[test]
@@ -429,15 +421,11 @@ mod tests {
                 executions * 2,
                 "a fresh invocation is a second charge"
             );
-            let mut retyped = source(&text);
+            let retyped = source(&text);
             let entry = retyped.realized_machine_named("build").unwrap().symbol;
-            let mut pre_checks = Vec::new();
             let fresh = super::settle_rejoined_build_slice(
                 &old,
-                source_compiler::BuildSourceInput {
-                    typed: &mut retyped,
-                    pre_checks: &mut pre_checks,
-                },
+                &retyped,
                 entry,
                 None,
                 None,

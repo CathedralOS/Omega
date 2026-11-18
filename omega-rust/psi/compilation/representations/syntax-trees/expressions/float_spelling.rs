@@ -1,6 +1,6 @@
 use crate::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 use arena::Handle;
-use source::SourceSpan;
+use source_text::SourceSpan;
 
 #[derive(Clone, compiler_storage::Record)]
 pub struct FloatSpelling {
@@ -19,7 +19,7 @@ impl crate::SyntaxRelocate for FloatSpelling {
 enum FloatSpellingText {
     Owned(Box<str>),
     SourceBacked(Handle<RetainedSource>),
-    Materialized(numerics::literals::FloatLiteral),
+    Materialized(numeric_literals::FloatLiteral),
 }
 
 impl FloatSpelling {
@@ -34,7 +34,7 @@ impl FloatSpelling {
         Self::new(text, SourceSpan::default())
     }
 
-    pub fn materialized(value: numerics::literals::FloatLiteral, source_span: SourceSpan) -> Self {
+    pub fn materialized(value: numeric_literals::FloatLiteral, source_span: SourceSpan) -> Self {
         Self {
             text: FloatSpellingText::Materialized(value),
             source_span,
@@ -44,10 +44,10 @@ impl FloatSpelling {
     pub fn literal(
         &self,
         context: &impl SyntaxTextContext,
-    ) -> Option<numerics::literals::FloatLiteral> {
+    ) -> Option<numeric_literals::FloatLiteral> {
         match &self.text {
             FloatSpellingText::Materialized(value) => Some(value.clone()),
-            _ => numerics::literals::FloatLiteral::parse(self.as_str(context)),
+            _ => numeric_literals::FloatLiteral::parse(self.as_str(context)),
         }
     }
 

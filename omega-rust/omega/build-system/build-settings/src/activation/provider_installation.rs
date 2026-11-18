@@ -15,8 +15,8 @@ produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
 */
 
 use crate::host::bindings::BuildProviderRequest;
-use build_time_evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use source_compiler::ProducedBuildProvider;
+use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use terminal_installation::{
@@ -117,7 +117,7 @@ pub(super) fn prepare<'host, 'code>(
         let requirements = program
             .execution_requirements(Some(&supplies))
             .map_err(|error| format!("Build helper demands: {error:?}"))?;
-        let completed = build_time_evaluation::complete_scalar_applications(
+        let completed = source_compiler::evaluation::complete_scalar_applications(
             artifact,
             profile.target_name(),
             None,

@@ -23,7 +23,7 @@ struct RequirementCorrespondence {
 struct UseCorrespondence {
     usage: CallbackUseId,
     name: Option<String>,
-    span: Option<source::SourceSpan>,
+    span: Option<source_text::SourceSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -46,7 +46,11 @@ impl PreparedCallbackDeclarations {
             SymbolHandle,
             CallbackRequirementId,
         )>,
-        occurrences: Vec<(CallbackUseId, Option<String>, Option<source::SourceSpan>)>,
+        occurrences: Vec<(
+            CallbackUseId,
+            Option<String>,
+            Option<source_text::SourceSpan>,
+        )>,
         installed_uses: Vec<CallbackUseId>,
     ) -> Self {
         Self {
@@ -336,7 +340,7 @@ mod correspondence_tests {
         };
         let usage = prepared.declarations.uses.insert(CallbackUseDeclaration {
             application_index: 0, static_machine_ordinal: 1,
-            registration: Ok(language_semantics::callback_declarations::CallbackRegistrationDeclaration::External("unit::Registrar::register".into())),
+            registration: Ok(application_identity::callback_declarations::CallbackRegistrationDeclaration::External("unit::Registrar::register".into())),
             registration_declaration: Ok(registrar.clone()), requirement,
             requirement_overload: "unit::Handler::call".into(),
             published: published.clone(), actual: actual.clone(),

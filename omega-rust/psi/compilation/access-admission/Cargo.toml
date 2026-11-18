@@ -1,0 +1,28 @@
+[package]
+name = "access-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "access_admission"
+path = "src/lib.rs"
+
+[features]
+test-support = ["layout-plans/test-support"]
+
+[dependencies]
+access-vocabulary = { path = "../representations/access-vocabulary" }
+schema-reflection = { path = "../representations/schema-reflection" }
+extent-contracts = { path = "../representations/extent-contracts" }
+wire = { path = "../../foundation/wire" }
+compiler-storage = { path = "../../foundation/compiler-storage" }
+language-core = { path = "../representations/source-vocabulary" }
+layout-plans = { path = "../representations/storage-layout" }
+optimization = { path = "../representations/optimization-policy" }
+semantic-vocabulary = { path = "../representations/semantic-vocabulary" }
+
+[dev-dependencies]
+access-admission = { path = ".", features = ["test-support"] }
+storage-access = { path = "../../runtime/storage-access" }
+layout-plans = { path = "../representations/storage-layout", features = ["test-support"] }

@@ -509,31 +509,8 @@ pub use allocation_recovery_catalog::{
 };
 pub mod codec_bytes {
 
-    pub use optimization_core::codec_bytes::push_encoded;
-    pub fn encode_header(buffer: &mut Vec<u8>, magic: &[u8; 8], version: u32) {
-        buffer.extend_from_slice(magic);
-        push_encoded(buffer, version.to_le_bytes());
-    }
-
-    pub fn decode_header<E>(
-        cursor: &mut crate::cursor::Cursor<'_>,
-        magic: &[u8; 8],
-        expected_version: u32,
-        wrong_magic: impl FnOnce() -> E,
-        unsupported_version: impl FnOnce(u32) -> E,
-    ) -> Result<(), E>
-    where
-        E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
-    {
-        if cursor.take(magic.len())? != magic.as_slice() {
-            return Err(wrong_magic());
-        }
-        let version = cursor.u32()?;
-        if version != expected_version {
-            return Err(unsupported_version(version));
-        }
-        Ok(())
-    }
+    pub use ::wire::codec_bytes::push_encoded;
+    pub use ::wire::codec_bytes::{decode_header, encode_header};
 }
 mod selected_optimization_record {
 
@@ -554,16 +531,6 @@ mod selected_optimization_record {
         pub transformations: Vec<PostAllocationSelectedTransformation>,
     }
 
-    /// One completed Omega 04 rewrite run kept for an explicitly requested
-    /// validator. Later stages carry it as replay evidence beside the current
-    /// program and never read it to produce output; Omega 04 owns the
-    /// validation it runs.
-    pub trait RetainedSelectedOptimizationRun: std::fmt::Debug + Send + Sync {
-        /// Rebuild every step of the run independently and require `record`,
-        /// the record the allocated program carries, to name exactly this run.
-        fn validate(&self, record: &SelectedOptimizationRecord) -> Result<(), String>;
-    }
-
     impl SelectedOptimizationRecord {
         /// Whether an Omega 04 rewrite phase produced the program.
         pub const fn is_rewritten(&self) -> bool {
@@ -582,9 +549,7 @@ mod selected_optimization_record {
         }
     }
 }
-pub use selected_optimization_record::{
-    RetainedSelectedOptimizationRun, SelectedOptimizationRecord,
-};
+pub use selected_optimization_record::SelectedOptimizationRecord;
 mod allocation_input {
 
     use optimization_core::OptimizationSelections;
@@ -666,61 +631,8 @@ mod allocation_input {
         }
     }
 }
+pub use ::wire::cursor;
 pub use allocation_input::SelectedAllocationInput;
-pub mod cursor {
-
-    pub use optimization_core::cursor::{TakeError, Truncated};
-    pub struct Cursor<'a> {
-        encoded: &'a [u8],
-        offset: usize,
-    }
-
-    impl<'a> Cursor<'a> {
-        pub const fn new(encoded: &'a [u8]) -> Self {
-            Self { encoded, offset: 0 }
-        }
-
-        pub fn remaining(&self) -> usize {
-            self.encoded.len().saturating_sub(self.offset)
-        }
-
-        pub fn take(&mut self, count: usize) -> Result<&'a [u8], Truncated> {
-            let end = self.offset.checked_add(count).ok_or(Truncated)?;
-            let value = self.encoded.get(self.offset..end).ok_or(Truncated)?;
-            self.offset = end;
-            Ok(value)
-        }
-
-        pub fn array<const N: usize>(&mut self) -> Result<[u8; N], Truncated> {
-            self.take(N)?.try_into().map_err(|_| Truncated)
-        }
-
-        pub fn byte(&mut self) -> Result<u8, Truncated> {
-            Ok(self.array::<1>()?[0])
-        }
-
-        pub fn length(&mut self) -> Result<usize, TakeError> {
-            let value = u64::from_le_bytes(self.array().map_err(|_| TakeError::Truncated)?);
-            usize::try_from(value).map_err(|_| TakeError::LengthOverflow)
-        }
-
-        pub fn u16(&mut self) -> Result<u16, Truncated> {
-            Ok(u16::from_le_bytes(self.array()?))
-        }
-
-        pub fn u32(&mut self) -> Result<u32, Truncated> {
-            Ok(u32::from_le_bytes(self.array()?))
-        }
-
-        pub fn u64(&mut self) -> Result<u64, Truncated> {
-            Ok(u64::from_le_bytes(self.array()?))
-        }
-
-        pub fn u128(&mut self) -> Result<u128, Truncated> {
-            Ok(u128::from_le_bytes(self.array()?))
-        }
-    }
-}
 pub mod rewriting;
 pub mod work_accounting;
 pub use work_accounting::WorkDefect;
@@ -808,6 +720,7 @@ pub mod fixed_precolored_intervals;
 mod fixed_precolored_segment_homes;
 pub mod fixed_precolored_split_requirements;
 pub mod recovery_classification;
+pub mod register_writes;
 mod selected_input {
     use optimization_core::OptimizationUnitIdentity;
     use selected_instructions::{

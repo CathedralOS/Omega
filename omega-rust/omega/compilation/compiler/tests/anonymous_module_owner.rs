@@ -35,7 +35,7 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
         .program()
         .symbols
         .source_files()
-        .filter(|file| file.origin == source::SourceOrigin::User)
+        .filter(|file| file.origin == source_admission::SourceOrigin::User)
         .map(|file| {
             file.package_identity
                 .expect("default root must carry its final owner")
@@ -329,7 +329,6 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("consumer artifact reload");
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-            native_image: None,
             entry: None,
             filesystem: Default::default(),
             native_services: Default::default(),
@@ -474,8 +473,9 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
                     failure.into_diagnostics()
                 )
             });
-            let (_, application) = compiler::prepare_program_entry(&checked)
-                .expect("Build selected an exact Linux ProgramEntry for the matching owner");
+            let (_, application) =
+                compiler::prepare_program_entry(&checked.clone().into_published().unwrap())
+                    .expect("Build selected an exact Linux ProgramEntry for the matching owner");
             application.receipt.unwrap().unwrap();
         }
     }

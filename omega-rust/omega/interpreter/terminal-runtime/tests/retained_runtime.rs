@@ -43,9 +43,10 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         .into_report()
         .unwrap()
         .report;
-    let artifact = report.retained_native_artifact().unwrap().psi_artifact();
+    let native = report.retained_native_artifact().unwrap();
+    let artifact = native.psi_artifact();
+    assert!(native.inspect_root_code_layouts().unwrap().is_empty());
     let request = |target| TerminalRuntimeRequest {
-        native_image: None,
         entry: None,
         filesystem: Default::default(),
         native_services: Default::default(),
@@ -61,6 +62,39 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         standard_input: None,
         clock: None,
     };
+    // Debug sections leave semantic code intact but change the canonical
+    // manifest. Neither a retained runtime plan nor an image inspection can
+    // transfer to this separately published artifact.
+    let debug = terminal_codec::TerminalDebugMap {
+        semantic: artifact.view().identity(),
+        files: Vec::new(),
+        sites: Vec::new(),
+    };
+    let other = terminal_codec::CanonicalTerminalArtifact::from_closed_parts(
+        artifact.view().closed_module().clone(),
+        artifact.optimization().clone(),
+        artifact.debug_bytes().is_none().then_some(&debug),
+    )
+    .unwrap();
+    assert_eq!(artifact.view().identity(), other.view().identity());
+    assert_ne!(artifact.manifest().identity(), other.manifest().identity());
+    let mut other_plan = request(profile.target_name());
+    other_plan.artifact = &other;
+    assert!(matches!(
+        terminal_runtime::execute(other_plan),
+        Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions name another Terminal program or entry"
+        ))
+    ));
+    let mut other_image = request(profile.target_name());
+    other_image.artifact = &other;
+    other_image.provisions = None;
+    assert!(matches!(
+        orchestration::execute_published_terminal(other_image, report.retained_native_artifact()),
+        Err(TerminalRuntimeError::InvalidProvision(
+            "native layout inspection names another artifact or target"
+        ))
+    ));
     let before = terminal_codec::module_decode_count();
     let wrong_target = if profile.target_name() == "linux_x86_64" {
         "macos_arm64"
@@ -73,13 +107,30 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
             "runtime provisions name another deployment target"
         ))
     ));
+    let mut wrong_image_target = request(wrong_target);
+    wrong_image_target.provisions = None;
+    assert!(matches!(
+        orchestration::execute_published_terminal(wrong_image_target, Some(native)),
+        Err(TerminalRuntimeError::InvalidProvision(
+            "native layout inspection names another artifact or target"
+        ))
+    ));
     let normal = terminal_runtime::execute(request(profile.target_name())).unwrap();
     let sliced = terminal_runtime::execute_sliced(
         request(profile.target_name()),
         std::num::NonZeroU64::new(1).unwrap(),
     )
     .unwrap();
-    for observed in [&normal, &sliced] {
+    let published =
+        orchestration::execute_published_terminal(request(profile.target_name()), Some(native))
+            .unwrap();
+    let published_sliced = orchestration::execute_published_terminal_sliced(
+        request(profile.target_name()),
+        Some(native),
+        std::num::NonZeroU64::new(1).unwrap(),
+    )
+    .unwrap();
+    for observed in [&normal, &sliced, &published, &published_sliced] {
         assert!(matches!(
             observed.status,
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
@@ -88,5 +139,6 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         assert!(observed.stderr.is_empty());
     }
     assert!(sliced.work_suspensions > 0);
+    assert_eq!(sliced.work_suspensions, published_sliced.work_suspensions);
     assert_eq!(terminal_codec::module_decode_count(), before);
 }

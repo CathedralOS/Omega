@@ -24,7 +24,7 @@ use terminal_installation::terminal_target_context;
 /// evaluated for its deployment, or `None` when it needs none.
 pub fn complete_native(
     retained: &products::RetainedTerminalArtifact,
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut source_compiler::evaluation::SourceCompletionAccounting,
 ) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
@@ -41,7 +41,7 @@ pub fn complete_native_demand(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     proposal: &products::TerminalNativeRealizationProposal,
     demand: Option<Vec<semantic_vocabulary::ScalarApplicationId>>,
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut source_compiler::evaluation::SourceCompletionAccounting,
 ) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
     let Some(demand) = demand else {
         return Ok(None);
@@ -69,7 +69,7 @@ pub fn complete<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut source_compiler::evaluation::SourceCompletionAccounting,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     prepare(artifact, primary, demand, proposals, accounting)
         .map(|completion| completion.completed.into_admitted())
@@ -82,7 +82,7 @@ pub fn prepare<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut source_compiler::evaluation::SourceCompletionAccounting,
 ) -> Result<products::ProductScalarCompletion, String> {
     let deployed = proposals
         .iter()
@@ -92,7 +92,7 @@ pub fn prepare<'scope>(
         .filter(|proposal| proposal.application_required)
         .map(|proposal| proposal.target.clone())
         .collect::<Vec<_>>();
-    build_time_evaluation::prepare_scalar_applications(
+    source_compiler::evaluation::prepare_scalar_applications(
         artifact,
         primary,
         deployed.then_some(scopes.as_slice()),
@@ -101,7 +101,7 @@ pub fn prepare<'scope>(
         accounting,
         |scope| {
             let Some(scope) = scope else {
-                return Ok(build_time_evaluation::ScalarScopeEvaluation {
+                return Ok(source_compiler::evaluation::ScalarScopeEvaluation {
                     application_roots: None,
                     targets: None,
                     providers: terminal_installation::admit_provider_installation(
@@ -140,7 +140,7 @@ pub fn prepare<'scope>(
                         commitment: model.commitment(),
                     }
                 });
-            Ok(build_time_evaluation::ScalarScopeEvaluation {
+            Ok(source_compiler::evaluation::ScalarScopeEvaluation {
                 application_roots: proposal.application_roots.clone(),
                 layout_target: Some(
                     profile
@@ -166,7 +166,7 @@ pub fn prepare<'scope>(
 pub fn extend_native(
     retained: &products::RetainedTerminalArtifact,
     completion: products::ProductScalarCompletion,
-    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    accounting: &mut source_compiler::evaluation::SourceCompletionAccounting,
 ) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
@@ -253,11 +253,14 @@ impl TargetRealizedIntrinsics {
     }
 }
 
-impl build_time_evaluation::TargetImportRealizations for TargetRealizedIntrinsics {
+impl artifact_evaluation::scalar_applications::TargetImportRealizations
+    for TargetRealizedIntrinsics
+{
     fn admit(
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
-    ) -> Result<Box<dyn build_time_evaluation::AdmittedImportRealizations>, String> {
+    ) -> Result<Box<dyn artifact_evaluation::scalar_applications::AdmittedImportRealizations>, String>
+    {
         use provider_admission::provider_admission as admission;
         let module = self.artifact.view().module();
         // Catalog admission matches selected rows by callable identity. An
@@ -313,7 +316,7 @@ impl build_time_evaluation::TargetImportRealizations for TargetRealizedIntrinsic
 
 struct AdmittedIntrinsics(provider_admission::provider_admission::AdmittedTerminalIntrinsics);
 
-impl build_time_evaluation::AdmittedImportRealizations for AdmittedIntrinsics {
+impl artifact_evaluation::scalar_applications::AdmittedImportRealizations for AdmittedIntrinsics {
     fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {
         self.0
             .operations()

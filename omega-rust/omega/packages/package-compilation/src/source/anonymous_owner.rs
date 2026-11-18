@@ -12,16 +12,16 @@
 
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
-use source::{CapturedSourceNode, CapturedSourceTree};
+use source_capture::{CapturedSourceNode, CapturedSourceTree};
 use std::sync::Arc;
 
 #[derive(Clone, compiler_storage::Record)]
 pub struct AnonymousSourceCapture {
     pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
-    pub(crate) filesystem: source::SourceFileSystem, // Captured virtual filesystem used during assembly.
+    pub(crate) filesystem: source_capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
     pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable `core` and toolchain-contract digests.
-    pub(crate) sources: Arc<source::SourceMap>,      // Retained source map prior to owner binding.
+    pub(crate) sources: Arc<source_compiler::source_inputs::SourceMap>, // Retained source map prior to owner binding.
     pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody, // Admitted toolchain contract roots.
 }
 
@@ -30,7 +30,7 @@ impl AnonymousSourceCapture {
         &self.root
     }
 
-    pub fn filesystem(&self) -> &source::SourceFileSystem {
+    pub fn filesystem(&self) -> &source_capture::SourceFileSystem {
         &self.filesystem
     }
 
@@ -38,13 +38,13 @@ impl AnonymousSourceCapture {
         crate::source::source_snapshot::retained_source_input(&self.capture)
     }
 
-    pub fn sources(&self) -> &Arc<source::SourceMap> {
+    pub fn sources(&self) -> &Arc<source_compiler::source_inputs::SourceMap> {
         &self.sources
     }
 
     pub fn complete_without_dependencies(
         self,
-    ) -> Result<Arc<source::SourceMap>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Arc<source_compiler::source_inputs::SourceMap>, Vec<diagnostics::Diagnostic>> {
         let identity = derive(&self.capture, self.semantic_dependencies)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         let mut sources = Arc::unwrap_or_clone(self.sources);
@@ -55,23 +55,25 @@ impl AnonymousSourceCapture {
     }
 }
 
-impl build_time_evaluation::InvocationSourceConsent for AnonymousSourceCapture {
+impl source_compiler::evaluation::InvocationSourceConsent for AnonymousSourceCapture {
     fn allows_selection(
         &self,
-        sources: &Arc<source::SourceMap>,
-        requester: source::SourceSpan,
-        declaration: source::SourceSpan,
-        purpose: source::DependencyScope,
+        sources: &Arc<source_compiler::source_inputs::SourceMap>,
+        requester: source_text::SourceSpan,
+        declaration: source_text::SourceSpan,
+        purpose: declaration_contracts::source_identity::DependencyScope,
     ) -> bool {
         // This is the retained live Build input, not an anonymous package key.
         // A later Product cohort or another capture cannot borrow its consent.
-        if purpose != source::DependencyScope::Build || !Arc::ptr_eq(sources, &self.sources) {
+        if purpose != declaration_contracts::source_identity::DependencyScope::Build
+            || !Arc::ptr_eq(sources, &self.sources)
+        {
             return false;
         }
         [requester, declaration].into_iter().all(|span| {
             sources.get(span.source_id).is_some_and(|file| {
                 sources.source_is_selected(span.source_id)
-                    && file.origin == source::SourceOrigin::User
+                    && file.origin == source_admission::SourceOrigin::User
                     && file.package_identity.is_none()
                     && file.package_root == self.root
                     && file.dependency_scope == purpose
@@ -162,24 +164,24 @@ mod tests {
 
     #[test]
     fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
-        use build_time_evaluation::InvocationSourceConsent;
+        use source_compiler::evaluation::InvocationSourceConsent;
         let root = PathBuf::from("/anonymous");
         let text = "machine local() {}";
         let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
-        let mut filesystem = source::SourceFileSystem::default();
+        let mut filesystem = source_capture::SourceFileSystem::default();
         filesystem
             .add_capture(root.clone(), Arc::clone(&tree))
             .unwrap();
-        let mut sources = source::SourceMap::default();
+        let mut sources = source_compiler::source_inputs::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 root.join("build.omg"),
                 text,
                 root.clone(),
                 None,
-                source::SourceOrigin::User,
-                source::SourceResolutionStratum::Base,
-                source::DependencyScope::Build,
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
+                declaration_contracts::source_identity::DependencyScope::Build,
             )
             .source_id;
         let sources = Arc::new(sources);
@@ -191,23 +193,48 @@ mod tests {
             sources: Arc::clone(&sources),
             toolchain_contract_custody: Default::default(),
         };
-        let span = source::SourceSpan::new(id, source::Span::new(0, text.len()));
-        assert!(capture.allows_selection(&sources, span, span, source::DependencyScope::Build));
+        let span = source_text::SourceSpan::new(id, source_text::Span::new(0, text.len()));
+        assert!(capture.allows_selection(
+            &sources,
+            span,
+            span,
+            declaration_contracts::source_identity::DependencyScope::Build
+        ));
         assert!(sources.get(id).unwrap().package_identity.is_none());
-        assert!(!capture.allows_selection(&sources, span, span, source::DependencyScope::Product));
+        assert!(!capture.allows_selection(
+            &sources,
+            span,
+            span,
+            declaration_contracts::source_identity::DependencyScope::Product
+        ));
         let foreign = Arc::new(sources.as_ref().clone());
-        assert!(!capture.allows_selection(&foreign, span, span, source::DependencyScope::Build));
-        let outside = source::SourceSpan::new(id, source::Span::new(0, text.len() + 1));
-        assert!(!capture.allows_selection(&sources, span, outside, source::DependencyScope::Build));
-        let missing = source::SourceSpan::new(source::SourceId(usize::MAX), span.span);
-        assert!(!capture.allows_selection(&sources, span, missing, source::DependencyScope::Build));
+        assert!(!capture.allows_selection(
+            &foreign,
+            span,
+            span,
+            declaration_contracts::source_identity::DependencyScope::Build
+        ));
+        let outside = source_text::SourceSpan::new(id, source_text::Span::new(0, text.len() + 1));
+        assert!(!capture.allows_selection(
+            &sources,
+            span,
+            outside,
+            declaration_contracts::source_identity::DependencyScope::Build
+        ));
+        let missing = source_text::SourceSpan::new(source_text::SourceId(usize::MAX), span.span);
+        assert!(!capture.allows_selection(
+            &sources,
+            span,
+            missing,
+            declaration_contracts::source_identity::DependencyScope::Build
+        ));
         let mut another_root = capture;
         another_root.root = PathBuf::from("/another-root");
         assert!(!another_root.allows_selection(
             &sources,
             span,
             span,
-            source::DependencyScope::Build
+            declaration_contracts::source_identity::DependencyScope::Build
         ));
     }
 
@@ -299,18 +326,18 @@ mod tests {
         let identity = derive(&snapshot("library.omg", b"public data Token {}"), []).unwrap();
         let supplied = PackageKeyIdentity::from_digest([23; 32]).unwrap();
         let root = PathBuf::from("/anonymous");
-        let mut sources = source::SourceMap::default();
+        let mut sources = source_compiler::source_inputs::SourceMap::default();
         for scope in [
-            source::DependencyScope::Product,
-            source::DependencyScope::Build,
+            declaration_contracts::source_identity::DependencyScope::Product,
+            declaration_contracts::source_identity::DependencyScope::Build,
         ] {
             sources.add_checked_instance(
                 root.join("library.omg"),
                 "public data Token {}".to_owned(),
                 root.clone(),
                 None,
-                source::SourceOrigin::User,
-                source::SourceResolutionStratum::Base,
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
                 scope,
             );
         }
@@ -319,35 +346,53 @@ mod tests {
             "public data Foreign {}".to_owned(),
             PathBuf::from("/supplier"),
             Some(supplied),
-            source::SourceOrigin::User,
+            source_admission::SourceOrigin::User,
         );
         sources.add_with_metadata(
             PathBuf::from("/toolchain/core.omg"),
             "public data Core {}".to_owned(),
             PathBuf::from("/toolchain"),
             None,
-            source::SourceOrigin::Toolchain,
+            source_admission::SourceOrigin::Toolchain,
         );
         sources.bind_anonymous_owner(&root, identity).unwrap();
         assert_eq!(
-            sources.get(source::SourceId(0)).unwrap().package_identity,
+            sources
+                .get(source_text::SourceId(0))
+                .unwrap()
+                .package_identity,
             Some(identity)
         );
         assert_eq!(
-            sources.get(source::SourceId(1)).unwrap().package_identity,
+            sources
+                .get(source_text::SourceId(1))
+                .unwrap()
+                .package_identity,
             Some(identity)
         );
         assert_eq!(
-            sources.get(source::SourceId(2)).unwrap().package_identity,
+            sources
+                .get(source_text::SourceId(2))
+                .unwrap()
+                .package_identity,
             Some(supplied)
         );
         assert_eq!(
-            sources.get(source::SourceId(3)).unwrap().package_identity,
+            sources
+                .get(source_text::SourceId(3))
+                .unwrap()
+                .package_identity,
             None
         );
         assert_ne!(
-            sources.get(source::SourceId(0)).unwrap().dependency_scope,
-            sources.get(source::SourceId(1)).unwrap().dependency_scope
+            sources
+                .get(source_text::SourceId(0))
+                .unwrap()
+                .dependency_scope,
+            sources
+                .get(source_text::SourceId(1))
+                .unwrap()
+                .dependency_scope
         );
         let before = sources.clone();
         sources.bind_anonymous_owner(&root, supplied).unwrap();
@@ -358,20 +403,20 @@ mod tests {
     fn missing_foreign_provenance_rejects_without_partial_binding() {
         let owner = derive(&snapshot("library.omg", b"public data Token {}"), []).unwrap();
         let root = PathBuf::from("/anonymous");
-        let mut sources = source::SourceMap::default();
+        let mut sources = source_compiler::source_inputs::SourceMap::default();
         sources.add_with_metadata(
             root.join("library.omg"),
             String::new(),
             root.clone(),
             None,
-            source::SourceOrigin::User,
+            source_admission::SourceOrigin::User,
         );
         sources.add_with_metadata(
             PathBuf::from("/foreign/copied.omg"),
             String::new(),
             PathBuf::from("/foreign"),
             None,
-            source::SourceOrigin::User,
+            source_admission::SourceOrigin::User,
         );
         let before = sources.clone();
         let error = sources.bind_anonymous_owner(&root, owner).unwrap_err();

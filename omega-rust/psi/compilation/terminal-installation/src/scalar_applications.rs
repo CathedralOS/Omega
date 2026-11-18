@@ -4,7 +4,7 @@ layout observation checks (`scalar_applications`).
 */
 
 use arena::Arena;
-use numerics::bignum::BigInt;
+use bignum::BigInt;
 use numerics::scalar_predicates::ScalarValue;
 use semantic_vocabulary::{IntegerValue, MachineId, ScalarApplicationId, ScalarType, ValueId};
 use terminal_codec::TerminalArtifactView;
@@ -753,7 +753,8 @@ pub(crate) mod conditions {
         use super::super::ScalarConditionScope;
         use super::*;
         use arena::Arena;
-        use numerics::{bignum::BigInt, scalar_predicates::ScalarValue};
+        use bignum::BigInt;
+        use numerics::scalar_predicates::ScalarValue;
         use semantic_vocabulary::proof_applications::{
             ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
             ProofDeclarationDependencies,
@@ -1204,7 +1205,7 @@ pub(crate) mod conditions {
 pub(crate) mod prerequisites {
     use super::{ScalarAddressModel, ScalarApplicationObservations};
     use crate::TerminalScalarValue;
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use numerics::integer_bounds::IntegerBoundStep;
     use numerics::scalar_predicates::{PredicateNode, ScalarValue};
     use semantic_vocabulary::{
@@ -2057,7 +2058,7 @@ pub(crate) mod closure {
         ScalarConditionSelection,
     };
     use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, TerminalTargetContext};
-    use numerics::bignum::BigInt;
+    use bignum::BigInt;
     use terminal_codec::TerminalArtifactView;
     use terminal_psi::{
         ScalarCompletionCondition, ScalarConditionSubject, ScalarRangeCondition,

@@ -9,7 +9,7 @@
 //! One program pins the accepted forms from source. Each twin changes one
 //! machine and is not accepted.
 
-use terminal_psi_to_terminal_psi::RouteVerdict;
+use source_compiler::checking::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -101,14 +101,14 @@ fn verdicts_beside(name: &str, machines: &str, beside: &[(&str, &str)]) -> Vec<S
     let frontier = typed_frontier(name, machines, beside).unwrap_or_else(|diagnostics| {
         panic!("{name}: Psi 00 through 04 must complete: {diagnostics:?}")
     });
-    terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+    source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
-            typed_trees_to_terminal_psi::Compilation {
+            source_compiler::lowering::Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization

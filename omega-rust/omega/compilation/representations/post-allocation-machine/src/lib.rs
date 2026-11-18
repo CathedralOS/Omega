@@ -26,8 +26,8 @@ decoded plan implements its upstream selected instructions, live ranges, and
 register homes before machine encoding.
 */
 
-pub(crate) use optimization_core::codec_bytes;
-pub(crate) use optimization_core::digest_encoder;
+pub(crate) use ::wire::codec_bytes;
+pub(crate) use ::wire::digest_encoder;
 
 pub mod codec;
 pub mod control_flow;
@@ -108,3 +108,5 @@ impl PostAllocationMachinePlan {
         codec::decode_terminal_post_allocation_machine_plan(encoded)
     }
 }
+
+pub mod adapters;

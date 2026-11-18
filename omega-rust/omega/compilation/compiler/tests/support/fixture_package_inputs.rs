@@ -309,7 +309,7 @@ fn observe_failed_scalar_accounting(
             .filter(|receipt| {
                 matches!(
                     receipt,
-                    build_time_evaluation::PureEvaluationRecord::CanonicalScalar(_)
+                    source_compiler::evaluation::PureEvaluationRecord::CanonicalScalar(_)
                 )
             })
             .count();
@@ -643,8 +643,10 @@ fn review_fixture_recording(
                 .inventory()
                 .services_for(program.as_ref())
                 .map_err(|diagnostic| vec![diagnostic])?;
-            let declaration =
-                package_compilation::selected_program_entry_boundary(catalog, slot, Some(&inputs))?;
+            let declaration = source_compiler::entry_contracts::selected_program_entry_boundary(
+                catalog,
+                &package_compilation::source_imports::source_target(slot.owner, Some(&inputs)),
+            )?;
             if program.symbols.symbol_package_identity(declaration) != Some(owner) {
                 return Err(vec![Diagnostic::error(
                     "fixture Product selected a different entry supplier",
@@ -782,7 +784,7 @@ fn assumed_fixture_permissions(
         })
         .map(|row| {
             (
-                optimization_core::digest_encoder::content_identity(row.key_bytes()),
+                ::wire::digest_encoder::content_identity(row.key_bytes()),
                 row.into_canonical_text(),
             )
         })

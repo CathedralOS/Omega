@@ -848,9 +848,10 @@ pub(crate) mod frames {
         use crate::engine::execution::{CleanupContinuation, CompletedReturn};
         use crate::storage::byte_sequences::ByteSequenceView;
         use crate::storage::byte_sequences::storage::ByteSequenceStorage;
-        use evaluation_accounting::{
-            BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
-            EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
+        use evaluation_accounting::BuildEvaluationSponsor;
+        use evaluation_contracts::{
+            BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
+            EvaluationResource, TerminalStorageScheduleIdentity,
         };
         use semantic_vocabulary::{BlockId, ClaimId, ContractId, EdgeId, StructuralTypeId};
         use std::sync::Arc;

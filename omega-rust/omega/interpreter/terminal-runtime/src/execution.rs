@@ -19,8 +19,8 @@ standard output/error is copied into `TerminalRuntimeObservation`.
 mod components;
 mod entry;
 mod host_imports;
-pub use host_imports::bind_admitted_intrinsics;
-mod native_code_layouts;
+pub use entry::establish as establish_host_entry;
+pub use host_imports::{HostContext, bind_admitted_intrinsics};
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
@@ -57,17 +57,22 @@ pub enum TerminalNativeServiceDelegation {
     MatchingHost,
 }
 
-use native_artifact::TerminalRuntimeProvisions;
+use published_runtime_input::RuntimeExecutionProvisions as TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
-    TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,
-    TerminalRuntimeSupplyRequest,
+    TerminalInstanceError, TerminalInterpretError, TerminalProgram, TerminalRuntimeSupplyRequest,
 };
 
+/// Host capabilities for execution of a canonical Terminal program.
+///
+/// ```compile_fail
+/// fn inject(request: &mut terminal_runtime::TerminalRuntimeRequest<'_>) {
+///     request.native_image = Some(([1u8; 32], vec![(1_u32, 0x1000_u64)]));
+/// }
+/// ```
 pub struct TerminalRuntimeRequest<'program> {
-    pub native_image: Option<&'program native_artifact::NativeArtifact>, // Optional completed image for code-layout metadata inspection.
     pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
-    pub native_provider: Option<std::process::Command>, // Optional isolated native sponsor worker command.
+    pub native_provider: Option<native_provider_runtime::NativeProviderCommand>, // Optional isolated native sponsor worker command.
     pub native_services: TerminalNativeServiceDelegation,
     pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
@@ -140,7 +145,7 @@ impl TerminalRuntimeError {
         }
     }
 
-    pub(super) fn missing(capability: &'static str, reason: impl Into<String>) -> Self {
+    pub fn missing(capability: &'static str, reason: impl Into<String>) -> Self {
         Self::MissingProvision {
             capability,
             reason: reason.into(),
@@ -181,273 +186,190 @@ pub fn execute_sliced(
     request: TerminalRuntimeRequest<'_>,
     quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let artifact = request.artifact.view();
-    let program = TerminalProgram::borrow(artifact);
-    if let Some(entry) = request.entry {
-        if entry.terminal_psi_identity() != program.terminal_psi() {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "explicit entry names another Terminal artifact",
-            ));
-        }
-        if request
-            .provisions
-            .is_some_and(|provisions| provisions.entry() != entry.terminal_entry())
-        {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "explicit entry and runtime provisions disagree",
-            ));
-        }
+    portable::invocation::execute(request, None, quantum)
+}
+
+mod portable {
+    use super::*;
+    type Image = std::convert::Infallible;
+    fn inspect(
+        image: Option<&Image>,
+        _: &TerminalRuntimeRequest<'_>,
+    ) -> Result<
+        Option<terminal_interpreter::TerminalNativeCodeLayoutEnvironment>,
+        TerminalRuntimeError,
+    > {
+        Ok(image.map(|image| match *image {}))
     }
-    if let Some(provisions) = request.provisions
-        && provisions.identity() != program.terminal_psi()
-    {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "runtime provisions name another Terminal program or entry",
-        ));
+
+    // Both hosts compile the same private invocation with a concrete image input.
+    pub(super) mod invocation {
+        include!("execution/hosted_invocation.rs");
     }
-    if let (Some(provisions), Some(target)) = (request.provisions, request.target)
-        && provisions.target_slot().owner.target_name() != target
-    {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "runtime provisions name another deployment target",
-        ));
-    }
-    let retained_installation = request.provisions.and_then(|provisions| {
-        provisions
-            .scalar_applications()
-            .map(|completed| completed.primary().providers())
-            .or_else(|| provisions.installation())
-    });
-    let proposed_installation = request
-        .provider_proposal
-        .map(|proposal| {
-            if proposal.terminal_psi != artifact.identity()
-                || request.target != Some(proposal.target.as_str())
-            {
+}
+
+/// Checked host choices for PSI's explicit low-level installation API.
+pub struct HostedTerminalProgram<'program> {
+    request: TerminalRuntimeRequest<'program>,
+    program: TerminalProgram<'program>,
+    providers:
+        Option<std::borrow::Cow<'program, terminal_installation::AdmittedProviderSelections>>,
+    host_imports: Vec<semantic_vocabulary::BoundaryMachineId>,
+    target_machines: Option<terminal_interpreter::TerminalTargetContext>,
+    target_layouts: Option<terminal_interpreter::AdmittedTargetLayouts>,
+}
+
+impl<'program> HostedTerminalProgram<'program> {
+    pub fn prepare(
+        request: TerminalRuntimeRequest<'program>,
+    ) -> Result<Self, TerminalRuntimeError> {
+        let artifact = request.artifact.view();
+        let program = TerminalProgram::borrow(artifact);
+        if let Some(entry) = request.entry {
+            if entry.terminal_psi_identity() != program.terminal_psi() {
                 return Err(TerminalRuntimeError::InvalidProvision(
-                    "provider proposal names another Terminal artifact or deployment target",
+                    "explicit entry names another Terminal artifact",
                 ));
             }
-            let selection = proposal.selection.as_ref().map_err(|reasons| {
-                TerminalRuntimeError::missing("target-provider-selection", reasons.join("; "))
-            })?;
-            selection
-                .admit(artifact, &proposal.target)
-                .map_err(|error| TerminalRuntimeError::missing("target-provider-selection", error))
-        })
-        .transpose()?;
-    if let (Some(retained), Some(proposed)) =
-        (retained_installation, proposed_installation.as_ref())
-        && retained != proposed
-    {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "runtime provisions and explicit provider proposal disagree",
-        ));
-    }
-    let checked_installation = proposed_installation.as_ref().or(retained_installation);
-    let execution_target = request.target.or_else(|| {
-        request
-            .provisions
-            .map(|provisions| provisions.target_slot().owner.target_name())
-    });
-    let target_machines = execution_target
-        .map(|target| terminal_interpreter::terminal_target_context(artifact, target));
-    let target_layouts = target_machines
-        .as_ref()
-        .map(|selected| {
-            let facts = layout_target_facts(selected.target())?;
-            terminal_interpreter::admit_target_layouts(artifact, selected, &facts)
-        })
-        .transpose()
-        .map_err(|error| {
-            TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
-        })?;
-    let mut host_imports = Vec::new();
-    if let Some(provisions) = request.provisions {
-        for provision in provisions.host() {
-            if matches!(&provision.realization,
-                target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                    if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+            if request
+                .provisions
+                .is_some_and(|provisions| provisions.entry() != entry.terminal_entry())
             {
-                continue;
-            }
-            if host_imports::executes_internally(&program, provision) {
-                continue;
-            }
-            if program
-                .external_completion_requirement(provision.boundary)
-                .is_none()
-            {
-                host_imports.push(provision.boundary);
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "explicit entry and runtime provisions disagree",
+                ));
             }
         }
+        if let Some(provisions) = request.provisions
+            && !provisions.matches_artifact(request.artifact)
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "runtime provisions name another Terminal program or entry",
+            ));
+        }
+        if let (Some(provisions), Some(target)) = (request.provisions, request.target)
+            && provisions.target_slot().owner.target_name() != target
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "runtime provisions name another deployment target",
+            ));
+        }
+        let retained_installation = request.provisions.and_then(|provisions| {
+            provisions
+                .scalar_applications()
+                .map(|completed| completed.primary().providers())
+                .or_else(|| provisions.installation())
+        });
+        let proposed_installation = request
+            .provider_proposal
+            .map(|proposal| {
+                if proposal.terminal_psi != artifact.identity()
+                    || request.target != Some(proposal.target.as_str())
+                {
+                    return Err(TerminalRuntimeError::InvalidProvision(
+                        "provider proposal names another Terminal artifact or deployment target",
+                    ));
+                }
+                let selection = proposal.selection.as_ref().map_err(|reasons| {
+                    TerminalRuntimeError::missing("target-provider-selection", reasons.join("; "))
+                })?;
+                selection
+                    .admit(artifact, &proposal.target)
+                    .map_err(|error| {
+                        TerminalRuntimeError::missing("target-provider-selection", error)
+                    })
+            })
+            .transpose()?;
+        if let (Some(retained), Some(proposed)) =
+            (retained_installation, proposed_installation.as_ref())
+            && retained != proposed
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "runtime provisions and explicit provider proposal disagree",
+            ));
+        }
+        let execution_target = request.target.or_else(|| {
+            request
+                .provisions
+                .map(|provisions| provisions.target_slot().owner.target_name())
+        });
+        let target_machines = execution_target
+            .map(|target| terminal_interpreter::terminal_target_context(artifact, target));
+        let target_layouts = target_machines
+            .as_ref()
+            .map(|selected| {
+                let facts = layout_target_facts(selected.target())?;
+                terminal_interpreter::admit_target_layouts(artifact, selected, &facts)
+            })
+            .transpose()
+            .map_err(|error| {
+                TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(
+                    error,
+                ))
+            })?;
+        let mut host_imports = Vec::new();
+        if let Some(provisions) = request.provisions {
+            for provision in provisions.host() {
+                if matches!(&provision.realization,
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                    if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+                {
+                    continue;
+                }
+                if host_imports::executes_internally(&program, provision) {
+                    continue;
+                }
+                if program
+                    .external_completion_requirement(provision.boundary)
+                    .is_none()
+                {
+                    host_imports.push(provision.boundary);
+                }
+            }
+        }
+
+        let providers = proposed_installation
+            .map(std::borrow::Cow::Owned)
+            .or_else(|| retained_installation.map(std::borrow::Cow::Borrowed));
+        Ok(Self {
+            request,
+            program,
+            providers,
+            host_imports,
+            target_machines,
+            target_layouts,
+        })
     }
-    let native_code_layouts =
-        native_code_layouts::inspect(&request, program.terminal_psi(), execution_target)?;
-    let mut installation = program
-        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            native_code_layouts: native_code_layouts.as_ref(),
+
+    pub fn request(&self) -> &TerminalRuntimeRequest<'program> {
+        &self.request
+    }
+
+    pub fn into_request(self) -> TerminalRuntimeRequest<'program> {
+        self.request
+    }
+
+    pub fn program(&self) -> &TerminalProgram<'program> {
+        &self.program
+    }
+
+    pub fn supplies(&self) -> TerminalRuntimeSupplyRequest<'_> {
+        let request = &self.request;
+        TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: request.x86_flags,
             memory_ordering: request.memory_ordering,
             entry: request
                 .entry
                 .map(|entry| entry.terminal_entry())
-                .or_else(|| request.provisions.map(TerminalRuntimeProvisions::entry))
+                .or_else(|| request.provisions.map(|provisions| provisions.entry()))
                 .map(terminal_psi::TargetMachineCallable::Machine),
-            installation: checked_installation,
-            host_imports: &host_imports,
-            target_machines: target_machines.as_ref(),
-            target_layouts: target_layouts.as_ref(),
-        })
-        .map_err(TerminalRuntimeError::Requirements)?;
-    if let Some(provisions) = request.provisions {
-        for component in provisions.component_products() {
-            installation = installation
-                .with_component_provider(component.selection())
-                .map_err(TerminalRuntimeError::Requirements)?;
+            installation: self.providers.as_deref(),
+            host_imports: &self.host_imports,
+            target_machines: self.target_machines.as_ref(),
+            target_layouts: self.target_layouts.as_ref(),
         }
     }
-    let installed_entry = program
-        .entry_installed(&installation)
-        .map_err(TerminalRuntimeError::Requirements)?;
-    if request
-        .provisions
-        .is_some_and(|provisions| provisions.entry() != installed_entry.machine)
-    {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "runtime provisions name another installed executable entry",
-        ));
-    }
-    let requirements = program
-        .execution_requirements_with_private_entry_ram(
-            Some(&installation),
-            request
-                .provisions
-                .map(TerminalRuntimeProvisions::private_entry_ram)
-                .unwrap_or_default(),
-        )
-        .map_err(TerminalRuntimeError::Requirements)?;
-    if !requirements.missing_providers.is_empty() {
-        return Err(TerminalRuntimeError::missing(
-            "runtime-provider-installation",
-            format!(
-                "uninstalled exact provider slots {:?}",
-                requirements.missing_providers
-            ),
-        ));
-    }
-    if !requirements.external_completions.is_empty()
-        && matches!(
-            request.domain_exit,
-            TerminalDomainExitDelegation::Unprovided
-        )
-    {
-        return Err(TerminalRuntimeError::missing(
-            "process-exit-domain-delegation",
-            "the host has not delegated exit of this isolated containing domain",
-        ));
-    }
-    let arrival = entry::establish(&program, &installation, request.provisions)?;
-    let inputs = arrival.inputs();
-    let mut instance = program
-        .instantiate(terminal_interpreter::TerminalInstantiation {
-            scalar_arguments: &[],
-            structural_inputs: inputs,
-            installation: Some(&installation),
-            scalar_admission: request
-                .provisions
-                .and_then(TerminalRuntimeProvisions::scalar_applications),
-            ..Default::default()
-        })
-        .map_err(TerminalRuntimeError::Artifact)?;
-    let host = host_imports::HostContext::new(
-        request.standard_input,
-        request.clock,
-        request.native_provider,
-        request.native_services,
-        request.filesystem,
-    );
-    let component_slots = request
-        .provisions
-        .map(|provisions| {
-            provisions
-                .component_products()
-                .iter()
-                .map(|component| component.selection().receiving_boundary())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let imports = requirements
-        .imports
-        .iter()
-        .copied()
-        .filter(|boundary| !component_slots.contains(boundary))
-        .collect::<Vec<_>>();
-    let output = host_imports::bind(
-        &program,
-        &mut instance,
-        request
-            .provisions
-            .map(TerminalRuntimeProvisions::host_provisions),
-        &imports,
-        &host,
-    )?;
-    if let Some(provisions) = request.provisions {
-        for component in provisions.component_products() {
-            let binding =
-                components::prepare(component, &host, request.x86_flags, request.memory_ordering)?;
-            instance
-                .bind_component(binding)
-                .map_err(TerminalRuntimeError::ComponentBinding)?;
-        }
-    }
-    for demand in &requirements.external_completions {
-        let admission = TerminalProcessExitAdmission::admit_isolated_simulated_domain(
-            &instance,
-            demand.boundary,
-        )
-        .map_err(TerminalRuntimeError::Binding)?;
-        instance
-            .bind_external_completion(demand.boundary, admission)
-            .map_err(TerminalRuntimeError::Binding)?;
-    }
-    let first_quantum = request.work_budget.min(quantum.get());
-    let mut remaining = request.work_budget - first_quantum;
-    let mut work = terminal_work::WorkMeter::with_budget(first_quantum);
-    let mut work_suspensions = 0u64;
-    let mut component_suspensions = 0u64;
-    let status = loop {
-        let status = instance
-            .invoke(&mut work)
-            .map_err(TerminalRuntimeError::Execution)?;
-        if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) || remaining == 0 {
-            break status;
-        }
-        work_suspensions += 1;
-        component_suspensions += u64::from(instance.active_component_invocation_count() != 0);
-        let additional = remaining.min(quantum.get());
-        remaining -= additional;
-        work.replenish(additional).map_err(|_| {
-            TerminalRuntimeError::InvalidProvision("sponsor work replenishment overflows")
-        })?;
-    };
-    let stdout = output.stdout.snapshot()?;
-    let stderr = output.stderr.snapshot()?;
-    let private_entry_ram = instance
-        .observe_private_entry_ram()
-        .map_err(TerminalRuntimeError::Execution)?;
-    let effects = instance.effects().to_vec();
-    host.finish_native_provider()?;
-    Ok(TerminalRuntimeObservation {
-        work_usage: work.into_usage(),
-        work_suspensions,
-        component_suspensions,
-        effects,
-        private_entry_ram,
-        status,
-        stdout,
-        stderr,
-    })
 }
 
 pub fn capture_host_x86_flags(

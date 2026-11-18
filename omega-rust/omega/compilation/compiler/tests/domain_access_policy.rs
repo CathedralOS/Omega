@@ -8,7 +8,7 @@
 //! twin whose policy is declared nowhere. A demanded domain also carries the
 //! plan its policy returned (`build_time_evaluation`, `domain_access_plans`).
 
-use typed_trees::domain::{AccessPlanJudgment, CheckedIssuance, DomainIssuance};
+use source_compiler::source_state::domain::{AccessPlanJudgment, CheckedIssuance, DomainIssuance};
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -21,11 +21,15 @@ fn fixture(name: &str) -> std::path::PathBuf {
 }
 
 /// Psi 00 through 04 on one fixture, without its Build.
-fn typed_frontier(name: &str) -> Result<typed_trees::FrozenTypedTrees, Vec<String>> {
+fn typed_frontier(
+    name: &str,
+) -> Result<source_compiler::source_state::FrozenTypedTrees, Vec<String>> {
     typed_frontier_of(&fixture(name))
 }
 
-fn typed_frontier_of(main: &std::path::Path) -> Result<typed_trees::FrozenTypedTrees, Vec<String>> {
+fn typed_frontier_of(
+    main: &std::path::Path,
+) -> Result<source_compiler::source_state::FrozenTypedTrees, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -121,9 +125,11 @@ fn a_policy_applied_at_static_arguments_is_deferred_on_its_domain() {
         .find(|data| data.name.as_str() == "Cell")
         .expect("the actual type argument is declared");
     assert_eq!(argument.symbol, cell.symbol);
-    let references = typed_trees::references::collect_selected_program_references(
+    let references = source_compiler::source_state::references::collect_selected_program_references(
         typed,
-        &typed_trees::references::DeclarationSelection::from_symbols([controlled.symbol]),
+        &source_compiler::source_state::references::DeclarationSelection::from_symbols([
+            controlled.symbol,
+        ]),
     );
     assert!(references.symbols.contains(&cell.symbol));
     assert!(references.symbols.contains(&policy.implementation()));
@@ -154,10 +160,13 @@ fn a_policy_applied_at_static_arguments_is_deferred_on_its_domain() {
             .symbol,
         cell.symbol
     );
-    let other_references = typed_trees::references::collect_selected_program_references(
-        typed,
-        &typed_trees::references::DeclarationSelection::from_symbols([other.symbol]),
-    );
+    let other_references =
+        source_compiler::source_state::references::collect_selected_program_references(
+            typed,
+            &source_compiler::source_state::references::DeclarationSelection::from_symbols([
+                other.symbol
+            ]),
+        );
     assert!(other_references.symbols.contains(&cell.symbol));
     let [name] = argument.path.as_ref() else {
         panic!("the policy retains its one authored Cell path member");
@@ -173,7 +182,7 @@ fn a_policy_applied_at_static_arguments_is_deferred_on_its_domain() {
         .expect("the applied policy is recorded as unserved");
     assert_eq!(
         refusal.request,
-        typed_trees::deferred_refusals::DeferredRequest::AccessPolicyApplication
+        source_compiler::source_state::deferred_refusals::DeferredRequest::AccessPolicyApplication
     );
 }
 
@@ -209,9 +218,11 @@ fn a_numeric_policy_argument_keeps_its_value_without_a_declaration_dependency() 
             .and_then(|literal| literal.value_u64()),
         Some(7)
     );
-    let references = typed_trees::references::collect_selected_program_references(
+    let references = source_compiler::source_state::references::collect_selected_program_references(
         typed,
-        &typed_trees::references::DeclarationSelection::from_symbols([counted.symbol]),
+        &source_compiler::source_state::references::DeclarationSelection::from_symbols([
+            counted.symbol
+        ]),
     );
     assert!(references.symbols.contains(&policy.implementation()));
     assert!(
@@ -224,7 +235,7 @@ fn a_numeric_policy_argument_keeps_its_value_without_a_declaration_dependency() 
         .expect("the applied numeric policy remains unserved");
     assert_eq!(
         refusal.request,
-        typed_trees::deferred_refusals::DeferredRequest::AccessPolicyApplication
+        source_compiler::source_state::deferred_refusals::DeferredRequest::AccessPolicyApplication
     );
 }
 
@@ -314,13 +325,13 @@ fn result_membership_promises_demand_their_access_plans() {
             eprintln!(
                 "{} schema application: {:?}; declaration name: {:?}; full type: {:?}",
                 domain.name.as_str(),
-                typed_trees::reflection::construction::schema_type_identity(
+                source_compiler::source_state::reflection::construction::schema_type_identity(
                     &typed,
                     domain.target_type,
                     subject
                 ),
-                language_semantics::type_identity::builtin_type_name(atom),
-                language_semantics::type_identity::builtin_type_identity(atom)
+                application_identity::type_identity::builtin_type_name(atom),
+                application_identity::type_identity::builtin_type_identity(atom)
             );
         }
         let state = match domain.access_policy.as_ref().map(|policy| &policy.plan) {
@@ -396,13 +407,13 @@ machine main() {
                 "{:?}",
                 controlled.access_policy
             );
-            let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            let prepared = source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
-                typed_trees_to_terminal_psi::Compilation {
+                source_compiler::lowering::Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -415,11 +426,11 @@ machine main() {
                 },
                 terminal_codec::TerminalPublication::Portable,
             );
-            terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+            source_compiler::checking::judge_compilation(prepared.program)
                 .into_iter()
                 .map(|row| {
                     let refused = matches!(&row,
-                        Ok(terminal_psi_to_terminal_psi::RouteVerdict::FallBack(refusal))
+                        Ok(source_compiler::checking::RouteVerdict::FallBack(refusal))
                         if refusal.detail == "declaration scalar domain access rules need retained operation checking");
                     (refused, format!("{row:?}"))
                 })

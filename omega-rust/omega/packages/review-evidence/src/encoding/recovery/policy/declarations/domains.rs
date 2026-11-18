@@ -33,11 +33,11 @@ pub(in crate::encoding::recovery) fn establishment_route(
 
 pub(in crate::encoding::recovery) fn carry_permission(
     reader: &mut Reader<'_>,
-) -> Result<language_semantics::CarryPermission, Error> {
+) -> Result<declaration_contracts::CarryPermission, Error> {
     Ok(super::super::tag!(reader => {
-        0 => language_semantics::CarryPermission::AcrossSuspend,
-        1 => language_semantics::CarryPermission::AnyCpu,
-        2 => language_semantics::CarryPermission::AnyThread,
-        3 => language_semantics::CarryPermission::MovableAddress,
+        0 => declaration_contracts::CarryPermission::AcrossSuspend,
+        1 => declaration_contracts::CarryPermission::AnyCpu,
+        2 => declaration_contracts::CarryPermission::AnyThread,
+        3 => declaration_contracts::CarryPermission::MovableAddress,
     }))
 }

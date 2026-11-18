@@ -1,0 +1,2733 @@
+#[cfg(test)]
+use encoding_admission::exit_requirements::scalar_return_view;
+#[cfg(test)]
+use register_model::RegisterOperandAccess;
+#[cfg(test)]
+use selected_instructions::{
+    MachineAlternativeFamily, SelectedInstruction, SelectedInstructionKind,
+};
+/*
+We construct whole-function exit contracts from the current machine layout, checking ABI preservation, stack disposition and exit effects while recording their evidence. The producer joins exact input identities and computes the contract once; it does not replay layout stages or the record it just produced.
+
+Artifact validation calls `validate_exit_record_for_current_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Original-input correspondence is checked separately from these current-output obligations.
+*/
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+
+use isa_aarch64::aarch64_preservation_convention_for_target;
+use isa_x86_64::x86_64_preservation_convention_for_target;
+use machine_code::FunctionFragmentControlProvenance as Control;
+use machine_code::OptimizedMachineLayout;
+#[cfg(test)]
+use machine_code::SelectedFormDecodedFootprint;
+use machine_code::exit_requirements::{
+    EncodedExitRequirements, ExitRowRequirements, ExitSourceRequirements, NonReturnRequirements,
+    ProcessExitRequirements, TrapRequirements,
+};
+use machine_code::fragment_origins::{FragmentBlockOrigin, FragmentOrigins};
+use machine_code::{
+    ResolvedMachineLayout, ResolvedSelectedFormRow, SelectedFormEncoding, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    whole_function_exit_contract_identity as contract_identity,
+};
+pub use machine_code::{
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
+    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
+    WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
+};
+use register_model::{
+    PreservationConvention, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
+};
+use selected_instructions::{
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedBlockId, SelectedCallTarget,
+    SelectedInstructionId,
+};
+use semantic_vocabulary::{EdgeId, MachineId};
+use target::{Architecture, NativeTarget, ObjectFormat};
+
+use encoding_admission::frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use frame_admission::frame_layout::{
+    FunctionTargetFrameLayout, ReturnAddressFrameCustody, ValidatedTargetFrameLayout,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedWholeFunctionExitContract {
+    contract: Arc<WholeFunctionExitContract>,
+}
+
+impl StagedWholeFunctionExitContract {
+    pub fn contract(&self) -> &WholeFunctionExitContract {
+        &self.contract
+    }
+    pub fn identity(&self) -> WholeFunctionExitContractIdentity {
+        self.contract.identity
+    }
+}
+
+pub use machine_code::exit_requirements::WholeFunctionExitContractError;
+#[derive(Clone, Copy)]
+enum EntryAssumptionKind {
+    ActivationStack,
+    LinkRegister,
+}
+
+struct ValidationInputs<'a> {
+    selected: &'a FragmentOrigins,
+    machine: &'a machine_code::frame_demands::MachineFrameDemands,
+    exits: &'a EncodedExitRequirements,
+    physical: &'a ValidatedPhysicalRegisterModel,
+    encoding: &'a SelectedFormEncoding,
+    layout: &'a ResolvedMachineLayout,
+    frame: Option<(
+        &'a ValidatedTargetFrameLayout,
+        &'a ValidatedTargetFrameProtocolEncoding,
+    )>,
+    contract: &'a WholeFunctionExitContract,
+}
+
+struct ValidationContext {
+    stack_pointer: RegisterViewId,
+    link_register: Option<RegisterViewId>,
+    stack_units: BTreeSet<RegisterUnitId>,
+    link_units: BTreeSet<RegisterUnitId>,
+    callee_saved: BTreeSet<RegisterUnitId>,
+}
+
+pub(crate) fn stage_whole_function_exit_contract_for_layout(
+    layout: &OptimizedMachineLayout,
+) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
+    let contract = compute_inner(&layout.program, layout_custody(layout))?;
+    Ok(StagedWholeFunctionExitContract {
+        contract: Arc::new(contract),
+    })
+}
+
+pub(crate) fn validate_exit_record_for_current_layout(
+    layout: &OptimizedMachineLayout,
+    frame: Option<(
+        &ValidatedTargetFrameLayout,
+        &ValidatedTargetFrameProtocolEncoding,
+    )>,
+    contract: &StagedWholeFunctionExitContract,
+) -> Result<(), WholeFunctionExitContractError> {
+    let program = &layout.program;
+    let custody = layout_custody(layout);
+    validate_layout_custody(&program.encoding, &program.layout, custody)?;
+    let inputs = ValidationInputs {
+        selected: &program.fragment_origins,
+        machine: &program.frame_demands,
+        exits: &program.exit_requirements,
+        physical: program.context.physical(),
+        encoding: &program.encoding,
+        layout: &program.layout,
+        frame,
+        contract: contract.contract(),
+    };
+    let context = check_validation_context(&inputs, custody)?;
+    check_ordinary_exit_roster(&inputs, &context)?;
+    require_artifact(contract.identity() == contract.contract().recomputed_identity())
+}
+
+fn layout_custody(layout: &OptimizedMachineLayout) -> WholeFunctionExitLayoutCustody {
+    if let Some(relaxation) = layout.relaxation {
+        WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+            relaxation: relaxation.identity,
+        }
+    } else {
+        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+    }
+}
+
+fn compute_inner(
+    program: &machine_code::ResolvedMachineProgram,
+    layout_custody: WholeFunctionExitLayoutCustody,
+) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
+    let selected_plan = &program.fragment_origins;
+    let machine = &*program.frame_demands;
+    let physical = program.context.physical();
+    let encoding = &*program.encoding;
+    let layout = &*program.layout;
+    let frame_inputs = Some((&*program.frame, &*program.protocol));
+    use WholeFunctionExitContractError::{
+        BlockRosterMismatch, FunctionRosterMismatch, InstructionRosterMismatch, InvalidConvention,
+        MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
+        RootMismatch,
+    };
+    validate_layout_custody(encoding, layout, layout_custody)?;
+    if encoding.selected() != machine.selected
+        || layout.selected() != machine.selected
+        || encoding.machine() != machine.identity
+        || layout.machine() != machine.identity
+        || layout.pre_layout() != encoding.identity()
+        || selected_plan.target != machine.target
+        || layout.target() != machine.target
+        || machine.physical_register_model != physical.identity()
+    {
+        return Err(RootMismatch);
+    }
+
+    if encoding.frame.as_ref() != frame_inputs.map(|(frame, _)| frame) {
+        return Err(RootMismatch);
+    }
+    let target = machine.target;
+    let (frameless_policy, convention, stack_name, link_name, entry_assumption) =
+        target_contract_inputs(physical, target)?;
+    let (ordinary_policy, frame_disposition) = match frame_inputs {
+        None => (frameless_policy, WholeFunctionFrameDisposition::FramelessV1),
+        Some((frame, protocol)) => {
+            if frame.post_allocation_machine != machine.identity
+                || frame.register_environment != machine.register_environment
+                || frame.physical_register_model != machine.physical_register_model
+                || frame.target != target
+                || protocol.frame_layout != program.frame_identity
+                || protocol.target != target
+            {
+                return Err(RootMismatch);
+            }
+            let policy = match frameless_policy {
+                WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1
+                }
+                WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1
+                }
+                WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1
+                }
+                WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1
+                }
+                _ => return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy),
+            };
+            (
+                policy,
+                WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+                    layout: program.frame_identity,
+                    protocol: program.protocol_identity,
+                },
+            )
+        }
+    };
+    if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
+        return Err(InvalidConvention);
+    }
+    let stack_pointer = view(physical, stack_name)?.id;
+    let result_view = convention.result_views[0];
+    let link_register = link_name
+        .map(|name| view(physical, name).map(|view| view.id))
+        .transpose()?;
+    let entry_assumption = match (entry_assumption, link_register) {
+        (EntryAssumptionKind::ActivationStack, None) => {
+            WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1
+        }
+        (EntryAssumptionKind::LinkRegister, Some(link_register)) => {
+            WholeFunctionEntryAssumption::CallerLinkRegisterV1 { link_register }
+        }
+        _ => return Err(InvalidConvention),
+    };
+
+    let encoding_rows = unique_encoding_rows(
+        selected_plan
+            .functions
+            .iter()
+            .map(|function| (function.machine, &function.blocks)),
+        encoding,
+    )?;
+    let encoded = encoding.encoded();
+    let layout_rows = unique_layout_rows(layout)?;
+    let machine_functions = program
+        .exit_requirements
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<BTreeMap<_, _>>();
+    let layout_functions = layout
+        .functions()
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<BTreeMap<_, _>>();
+    if machine_functions.len() != selected_plan.functions.len()
+        || layout_functions.len() != selected_plan.functions.len()
+    {
+        return Err(RootMismatch);
+    }
+
+    let callee_saved = convention
+        .callee_saved
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let stack_units = view(physical, stack_name)?
+        .units
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let link_units = link_name
+        .map(|name| view(physical, name).map(|view| view.units.iter().copied().collect()))
+        .transpose()?
+        .unwrap_or_default();
+
+    let frame_functions = frame_inputs
+        .map(|(frame, _)| {
+            frame
+                .functions
+                .iter()
+                .map(|function| (function.machine, function))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let protocol_functions = frame_inputs
+        .map(|(_, protocol)| {
+            protocol
+                .functions
+                .iter()
+                .map(|function| (function.machine, function))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    if frame_inputs.is_some()
+        && (frame_functions.len() != selected_plan.functions.len()
+            || protocol_functions.len() != selected_plan.functions.len())
+    {
+        return Err(RootMismatch);
+    }
+    let mut functions = Vec::with_capacity(selected_plan.functions.len());
+    for function in selected_plan.functions.iter() {
+        let function_frame = frame_inputs
+            .map(|_| {
+                frame_functions
+                    .get(&function.machine)
+                    .copied()
+                    .ok_or(FunctionRosterMismatch(function.machine))
+            })
+            .transpose()?;
+        if frame_inputs.is_some() && !protocol_functions.contains_key(&function.machine) {
+            return Err(FunctionRosterMismatch(function.machine));
+        }
+        let (allowed_callee_saved, allow_link_write) = frame_permissions(physical, function_frame)?;
+        let mut modified_callee_saved = BTreeSet::new();
+        let machine_function = machine_functions
+            .get(&function.machine)
+            .ok_or(FunctionRosterMismatch(function.machine))?;
+        let layout_function = layout_functions
+            .get(&function.machine)
+            .ok_or(FunctionRosterMismatch(function.machine))?;
+        let machine_blocks = machine_function
+            .blocks
+            .iter()
+            .map(|block| (block.block, block))
+            .collect::<BTreeMap<_, _>>();
+        let layout_blocks = layout_function
+            .blocks
+            .iter()
+            .map(|block| (block.block, block))
+            .collect::<BTreeMap<_, _>>();
+        if machine_blocks.len() != function.blocks.len()
+            || layout_blocks.len() != function.blocks.len()
+        {
+            return Err(FunctionRosterMismatch(function.machine));
+        }
+
+        let mut returns = Vec::new();
+        let mut process_exits = Vec::new();
+        let mut crashes = Vec::new();
+        for block in &function.blocks {
+            let machine_block = machine_blocks
+                .get(&block.id)
+                .ok_or(BlockRosterMismatch(block.id))?;
+            let _layout_block = layout_blocks
+                .get(&block.id)
+                .ok_or(BlockRosterMismatch(block.id))?;
+            if machine_block.instructions.len() != block.instructions.len() {
+                return Err(BlockRosterMismatch(block.id));
+            }
+            for (origin, machine_instruction) in
+                block.instructions.iter().zip(&machine_block.instructions)
+            {
+                let instruction = &machine_instruction.source;
+                let control = origin.control.as_ref().map_err(|_| RootMismatch)?;
+                let return_edge = match control {
+                    Control::Return { psi_return_edge } => Some(*psi_return_edge),
+                    _ => None,
+                };
+                if origin.id != instruction.id {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                if machine_instruction.instruction != instruction.id {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                let instruction_key = (function.machine, instruction.id);
+                let encoding_row = encoding_rows
+                    .get(&instruction_key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let (resolved_block, resolved_row) = layout_rows
+                    .get(&instruction_key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let relaxed_less_than_alternative = matches!(
+                    layout_custody,
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+                ) && (instruction.comparison_branch
+                    == Some(machine_instruction.alternative.key.family))
+                    && machine_instruction.alternative.key.variant == 0
+                    && resolved_row.alternative.family
+                        == machine_instruction.alternative.key.family
+                    && resolved_row.alternative.variant == 1;
+                if resolved_block.block != block.id
+                    || encoding_row.alternative != machine_instruction.alternative.key
+                    || (resolved_row.alternative != machine_instruction.alternative.key
+                        && !relaxed_less_than_alternative)
+                {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                validate_preservation_writes(
+                    machine_instruction,
+                    encoding_row,
+                    &callee_saved,
+                    &link_units,
+                    &allowed_callee_saved,
+                    allow_link_write,
+                    instruction.id,
+                    &mut modified_callee_saved,
+                    encoded,
+                )?;
+                if matches!(
+                    control,
+                    Control::EliminateEmpty { .. }
+                        | Control::Crash { .. }
+                        | Control::OperationTrap { .. }
+                ) {
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    validate_trap(
+                        physical,
+                        instruction,
+                        machine_instruction,
+                        encoding_row,
+                        resolved_row,
+                        end,
+                        encoded,
+                    )?;
+                    if let Control::Crash { psi_edge, cause } = control {
+                        crashes.push(machine_code::WholeFunctionCrashEvidence {
+                            block: block.id,
+                            psi_edge: *psi_edge,
+                            cause: *cause,
+                            instruction: instruction.id,
+                            offset: resolved_row.offset,
+                            bytes: resolved_row.bytes.clone(),
+                        });
+                    }
+                } else if let Control::HostedExitProcess { completion_edge } = control {
+                    if machine_instruction
+                        .unit_defs
+                        .iter()
+                        .chain(&machine_instruction.unit_clobbers)
+                        .any(|unit| stack_units.contains(unit))
+                        || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
+                    {
+                        return Err(NonReturnStackEffect(instruction.id));
+                    }
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    validate_process_exit(
+                        physical,
+                        instruction,
+                        machine_instruction,
+                        encoding_row,
+                        resolved_row,
+                        end,
+                        encoded,
+                    )?;
+                    process_exits.push(machine_code::WholeFunctionProcessExitEvidence {
+                        block: block.id,
+                        completion_edge: *completion_edge,
+                        instruction: instruction.id,
+                        offset: resolved_row.offset,
+                        bytes: resolved_row.bytes.clone(),
+                    });
+                } else if let Some(psi_return_edge) = return_edge {
+                    let layout_block_end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    returns.push(validate_return(
+                        target,
+                        stack_pointer,
+                        link_register,
+                        block.id,
+                        psi_return_edge,
+                        instruction,
+                        machine_instruction,
+                        encoding_row,
+                        resolved_row,
+                        layout_block_end,
+                        encoded,
+                    )?);
+                } else {
+                    if instruction.call.is_some() {
+                        if function_frame.is_none() {
+                            return Err(NonReturnControlEffect(instruction.id));
+                        }
+                        validate_internal_call(
+                            target,
+                            stack_pointer,
+                            instruction.id,
+                            instruction
+                                .call
+                                .ok_or(NonReturnControlEffect(instruction.id))?,
+                            encoding_row,
+                            resolved_row,
+                            encoded,
+                        )?;
+                        continue;
+                    }
+                    if instruction.foreign.is_some() {
+                        if function_frame.is_none()
+                            && instruction
+                                .foreign
+                                .ok_or(NonReturnControlEffect(instruction.id))?
+                                .family
+                                != register_model::RegisterConstraintFamily::SystemCall
+                        {
+                            return Err(NonReturnControlEffect(instruction.id));
+                        }
+                        validate_normalized_foreign_call(
+                            target,
+                            stack_pointer,
+                            instruction.id,
+                            instruction
+                                .foreign
+                                .ok_or(NonReturnControlEffect(instruction.id))?,
+                            encoding_row,
+                            resolved_row,
+                            encoded,
+                        )?;
+                        continue;
+                    }
+                    if machine_instruction
+                        .unit_defs
+                        .iter()
+                        .chain(&machine_instruction.unit_clobbers)
+                        .any(|unit| stack_units.contains(unit))
+                        || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
+                    {
+                        return Err(NonReturnStackEffect(instruction.id));
+                    }
+                    validate_current_non_return(
+                        instruction.id,
+                        &instruction.non_return,
+                        encoding_row,
+                        resolved_row,
+                        encoded,
+                    )?;
+                }
+            }
+        }
+        if function_frame.is_some() && modified_callee_saved != allowed_callee_saved {
+            return Err(WholeFunctionExitContractError::FramePreservationMismatch(
+                function.machine,
+            ));
+        }
+        functions.push(WholeFunctionExitEvidence {
+            machine: function.machine,
+            entry_block: function.entry_block,
+            body_stack_delta: 0,
+            modified_callee_saved_units: modified_callee_saved.into_iter().collect(),
+            returns,
+            process_exits,
+            crashes,
+        });
+    }
+
+    let mut contract = WholeFunctionExitContract {
+        identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
+        selected: machine.selected,
+        post_allocation_manifest: machine.post_allocation_manifest,
+        post_allocation_machine: machine.identity,
+        register_environment: machine.register_environment,
+        physical_register_model: machine.physical_register_model,
+        pre_layout: encoding.identity(),
+        resolved_layout: layout.identity(),
+        layout_custody,
+        target,
+        policy: ordinary_policy,
+        frame: frame_disposition,
+        hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
+        entry_assumption,
+        stack_pointer,
+        stack_alignment: convention.stack_alignment,
+        red_zone_bytes: convention.red_zone_bytes,
+        result_view,
+        callee_saved_units: convention.callee_saved.clone(),
+        functions: Box::new(functions),
+    };
+    contract.identity = contract_identity(&contract);
+    Ok(contract)
+}
+
+fn require_artifact(condition: bool) -> Result<(), WholeFunctionExitContractError> {
+    condition
+        .then_some(())
+        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)
+}
+
+fn check_validation_context(
+    inputs: &ValidationInputs<'_>,
+    custody: WholeFunctionExitLayoutCustody,
+) -> Result<ValidationContext, WholeFunctionExitContractError> {
+    let ValidationInputs {
+        selected,
+        machine,
+        exits: _,
+        physical,
+        encoding,
+        layout,
+        frame,
+        contract,
+    } = inputs;
+    if encoding.selected() != machine.selected
+        || layout.selected() != machine.selected
+        || encoding.machine() != machine.identity
+        || layout.machine() != machine.identity
+        || layout.pre_layout() != encoding.identity()
+        || selected.target != machine.target
+        || layout.target() != machine.target
+        || physical.identity() != machine.physical_register_model
+    {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
+    if encoding.frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
+    let (mut policy, convention, stack_name, link_name, entry) =
+        target_contract_inputs(physical, machine.target)?;
+    if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
+        return Err(WholeFunctionExitContractError::InvalidConvention);
+    }
+    let stack = view(physical, stack_name)?;
+    let link = link_name.map(|name| view(physical, name)).transpose()?;
+    let entry = match (entry, link) {
+        (EntryAssumptionKind::ActivationStack, None) => {
+            WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1
+        }
+        (EntryAssumptionKind::LinkRegister, Some(link)) => {
+            WholeFunctionEntryAssumption::CallerLinkRegisterV1 {
+                link_register: link.id,
+            }
+        }
+        _ => return Err(WholeFunctionExitContractError::InvalidConvention),
+    };
+    let disposition = if let Some((frame, protocol)) = frame {
+        if frame.receipt().post_allocation_machine() != machine.identity
+            || frame.plan().register_environment != machine.register_environment
+            || frame.plan().physical_register_model != machine.physical_register_model
+            || frame.receipt().target() != machine.target
+            || protocol.receipt().frame_layout() != frame.receipt().identity()
+            || protocol.receipt().target() != machine.target
+        {
+            return Err(WholeFunctionExitContractError::RootMismatch);
+        }
+        policy = match policy {
+            WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => {
+                WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1
+            }
+            WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => {
+                WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1
+            }
+            WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => {
+                WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1
+            }
+            WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => {
+                WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1
+            }
+            _ => return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy),
+        };
+        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+            layout: frame.receipt().identity(),
+            protocol: protocol.receipt().identity(),
+        }
+    } else {
+        WholeFunctionFrameDisposition::FramelessV1
+    };
+    require_artifact(
+        contract.selected == machine.selected
+            && contract.post_allocation_manifest == machine.post_allocation_manifest
+            && contract.post_allocation_machine == machine.identity
+            && contract.register_environment == machine.register_environment
+            && contract.physical_register_model == machine.physical_register_model
+            && contract.pre_layout == encoding.identity()
+            && contract.resolved_layout == layout.identity()
+            && contract.layout_custody == custody
+            && contract.target == machine.target
+            && contract.policy == policy
+            && contract.frame == disposition
+            && contract.hardening == WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1
+            && contract.entry_assumption == entry
+            && contract.stack_pointer == stack.id
+            && contract.stack_alignment == convention.stack_alignment
+            && contract.red_zone_bytes == convention.red_zone_bytes
+            && contract.result_view == convention.result_views[0]
+            && contract.callee_saved_units == convention.callee_saved,
+    )?;
+    Ok(ValidationContext {
+        stack_pointer: stack.id,
+        link_register: link.map(|link| link.id),
+        stack_units: stack.units.iter().copied().collect(),
+        link_units: link
+            .map(|link| link.units.iter().copied().collect())
+            .unwrap_or_default(),
+        callee_saved: convention.callee_saved.iter().copied().collect(),
+    })
+}
+
+fn check_ordinary_exit_roster(
+    inputs: &ValidationInputs<'_>,
+    context: &ValidationContext,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{
+        ArtifactMismatch, BlockRosterMismatch, FunctionRosterMismatch, InstructionRosterMismatch,
+        MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
+    };
+    let ValidationInputs {
+        selected,
+        machine,
+        exits,
+        physical,
+        encoding,
+        layout,
+        frame,
+        contract,
+    } = inputs;
+    require_artifact(contract.functions.len() == selected.functions.len())?;
+    if let Some((frame, protocol)) = frame
+        && (frame.plan().functions.len() != selected.functions.len()
+            || protocol.plan().functions.len() != selected.functions.len())
+    {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
+    let encoding_rows = unique_encoding_rows(
+        selected
+            .functions
+            .iter()
+            .map(|function| (function.machine, &function.blocks)),
+        encoding,
+    )?;
+    let encoded = encoding.encoded();
+    let layout_rows = unique_layout_rows(layout)?;
+    let mut seen = BTreeSet::new();
+    for (claimed, function) in contract.functions.iter().zip(&selected.functions) {
+        require_artifact(
+            claimed.machine == function.machine
+                && seen.insert(claimed.machine)
+                && claimed.entry_block == function.entry_block
+                && claimed.body_stack_delta == 0,
+        )?;
+        let machine_function = exits
+            .function(claimed.machine)
+            .ok_or(FunctionRosterMismatch(claimed.machine))?;
+        let layout_function = layout
+            .functions()
+            .iter()
+            .find(|row| row.machine == claimed.machine)
+            .ok_or(FunctionRosterMismatch(claimed.machine))?;
+        if machine_function.blocks.len() != function.blocks.len()
+            || layout_function.blocks.len() != function.blocks.len()
+        {
+            return Err(FunctionRosterMismatch(claimed.machine));
+        }
+        let function_frame = frame
+            .map(|(frame, _)| {
+                frame
+                    .plan()
+                    .functions
+                    .iter()
+                    .find(|row| row.machine == claimed.machine)
+                    .ok_or(FunctionRosterMismatch(claimed.machine))
+            })
+            .transpose()?;
+        if let Some((_, protocol)) = frame
+            && !protocol
+                .plan()
+                .functions
+                .iter()
+                .any(|row| row.machine == claimed.machine)
+        {
+            return Err(FunctionRosterMismatch(claimed.machine));
+        }
+        let (allowed, link_write) = frame_permissions(physical, function_frame)?;
+        let mut modified = BTreeSet::new();
+        let mut returns = claimed.returns.iter();
+        let mut process_exits = claimed.process_exits.iter();
+        let mut crashes = claimed.crashes.iter();
+        for block in &function.blocks {
+            let machine_block = machine_function
+                .blocks
+                .iter()
+                .find(|row| row.block == block.id)
+                .ok_or(BlockRosterMismatch(block.id))?;
+            if !layout_function
+                .blocks
+                .iter()
+                .any(|row| row.block == block.id)
+                || machine_block.instructions.len() != block.instructions.len()
+            {
+                return Err(BlockRosterMismatch(block.id));
+            }
+            for (origin, actual) in block.instructions.iter().zip(&machine_block.instructions) {
+                let instruction = &actual.source;
+                let control = origin.control.as_ref().map_err(|_| ArtifactMismatch)?;
+                let edge = match control {
+                    Control::Return { psi_return_edge } => Some(*psi_return_edge),
+                    _ => None,
+                };
+                if origin.id != instruction.id {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                if instruction.id != actual.instruction {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                let key = (claimed.machine, instruction.id);
+                let encoding_row = encoding_rows
+                    .get(&key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let (resolved_block, resolved) = layout_rows
+                    .get(&key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let relaxed_comparison = matches!(
+                    contract.layout_custody,
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+                ) && (instruction.comparison_branch
+                    == Some(actual.alternative.key.family))
+                    && actual.alternative.key.variant == 0
+                    && resolved.alternative.family == actual.alternative.key.family
+                    && resolved.alternative.variant == 1;
+                if resolved_block.block != block.id
+                    || encoding_row.alternative != actual.alternative.key
+                    || (resolved.alternative != actual.alternative.key && !relaxed_comparison)
+                {
+                    return Err(InstructionRosterMismatch(instruction.id));
+                }
+                validate_preservation_writes(
+                    actual,
+                    encoding_row,
+                    &context.callee_saved,
+                    &context.link_units,
+                    &allowed,
+                    link_write,
+                    instruction.id,
+                    &mut modified,
+                    encoded,
+                )?;
+                if matches!(
+                    control,
+                    Control::EliminateEmpty { .. }
+                        | Control::Crash { .. }
+                        | Control::OperationTrap { .. }
+                ) {
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    validate_trap(
+                        physical,
+                        instruction,
+                        actual,
+                        encoding_row,
+                        resolved,
+                        end,
+                        encoded,
+                    )?;
+                    if let Control::Crash { psi_edge, cause } = control {
+                        let crash = crashes.next().ok_or(ArtifactMismatch)?;
+                        require_artifact(
+                            crash.block == block.id
+                                && crash.psi_edge == *psi_edge
+                                && crash.cause == *cause
+                                && crash.instruction == instruction.id
+                                && crash.offset == resolved.offset
+                                && crash.bytes == resolved.bytes,
+                        )?;
+                    }
+                } else if let Control::HostedExitProcess { completion_edge } = control {
+                    if actual
+                        .unit_defs
+                        .iter()
+                        .chain(&actual.unit_clobbers)
+                        .any(|unit| context.stack_units.contains(unit))
+                        || transformed_implicit_writes_any(
+                            encoding_row,
+                            &context.stack_units,
+                            encoded,
+                        )
+                    {
+                        return Err(NonReturnStackEffect(instruction.id));
+                    }
+                    let exited = process_exits.next().ok_or(ArtifactMismatch)?;
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    validate_process_exit(
+                        physical,
+                        instruction,
+                        actual,
+                        encoding_row,
+                        resolved,
+                        end,
+                        encoded,
+                    )?;
+                    require_artifact(
+                        exited.block == block.id
+                            && exited.completion_edge == *completion_edge
+                            && exited.instruction == instruction.id
+                            && exited.offset == resolved.offset
+                            && exited.bytes == resolved.bytes,
+                    )?;
+                } else if let Some(edge) = edge {
+                    let claimed_return = returns.next().ok_or(ArtifactMismatch)?;
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(OffsetOverflow)?;
+                    check_claimed_return(
+                        context,
+                        machine.target.architecture,
+                        block.id,
+                        edge,
+                        instruction,
+                        actual,
+                        encoding_row,
+                        resolved,
+                        end,
+                        claimed_return,
+                        encoded,
+                    )?;
+                } else if instruction.call.is_some() {
+                    if function_frame.is_none() {
+                        return Err(NonReturnControlEffect(instruction.id));
+                    }
+                    validate_internal_call(
+                        machine.target,
+                        context.stack_pointer,
+                        instruction.id,
+                        instruction.call.ok_or(
+                            WholeFunctionExitContractError::NonReturnControlEffect(instruction.id),
+                        )?,
+                        encoding_row,
+                        resolved,
+                        encoded,
+                    )?;
+                } else if instruction.foreign.is_some() {
+                    if function_frame.is_none()
+                        && instruction
+                            .foreign
+                            .ok_or(NonReturnControlEffect(instruction.id))?
+                            .family
+                            != register_model::RegisterConstraintFamily::SystemCall
+                    {
+                        return Err(NonReturnControlEffect(instruction.id));
+                    }
+                    validate_normalized_foreign_call(
+                        machine.target,
+                        context.stack_pointer,
+                        instruction.id,
+                        instruction
+                            .foreign
+                            .ok_or(NonReturnControlEffect(instruction.id))?,
+                        encoding_row,
+                        resolved,
+                        encoded,
+                    )?;
+                } else {
+                    if actual
+                        .unit_defs
+                        .iter()
+                        .chain(&actual.unit_clobbers)
+                        .any(|unit| context.stack_units.contains(unit))
+                        || transformed_implicit_writes_any(
+                            encoding_row,
+                            &context.stack_units,
+                            encoded,
+                        )
+                    {
+                        return Err(NonReturnStackEffect(instruction.id));
+                    }
+                    validate_current_non_return(
+                        instruction.id,
+                        &instruction.non_return,
+                        encoding_row,
+                        resolved,
+                        encoded,
+                    )?;
+                }
+            }
+        }
+        require_artifact(
+            returns.next().is_none() && process_exits.next().is_none() && crashes.next().is_none(),
+        )?;
+        if function_frame.is_some() && modified != allowed {
+            return Err(WholeFunctionExitContractError::FramePreservationMismatch(
+                claimed.machine,
+            ));
+        }
+        require_artifact(
+            claimed
+                .modified_callee_saved_units
+                .iter()
+                .copied()
+                .eq(modified),
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_claimed_return(
+    context: &ValidationContext,
+    architecture: Architecture,
+    block: SelectedBlockId,
+    edge: EdgeId,
+    selected: &ExitSourceRequirements,
+    machine: &ExitRowRequirements,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    end: u64,
+    claimed: &WholeFunctionReturnEvidence,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{
+        ArtifactMismatch, OffsetOverflow, ReturnEncodingMismatch,
+    };
+    require_artifact(
+        claimed.block == block
+            && claimed.psi_return_edge == edge
+            && claimed.instruction == selected.id
+            && claimed.offset == layout.offset
+            && claimed.bytes == layout.bytes
+            && layout.branch.is_none(),
+    )?;
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(ReturnEncodingMismatch(selected.id));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(ReturnEncodingMismatch(selected.id));
+    };
+    require_artifact(bytes == claimed.bytes && footprint.encoded == machine.alternative.encoded)?;
+    let actual_end = claimed
+        .offset
+        .checked_add(u64::try_from(claimed.bytes.len()).map_err(|_| OffsetOverflow)?)
+        .ok_or(OffsetOverflow)?;
+    require_artifact(actual_end == end)?;
+    require_artifact(&claimed.value == selected.returned.as_ref().map_err(Clone::clone)?)?;
+    let effects = &footprint.encoded;
+    require_artifact(
+        claimed.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            && effects.trap == claimed.trap,
+    )?;
+    match (&claimed.mechanism, architecture) {
+        (
+            WholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
+                stack_pointer,
+                read_bytes,
+                pop_bytes,
+            },
+            Architecture::X86_64,
+        ) => {
+            require_artifact(
+                *stack_pointer == context.stack_pointer
+                    && *read_bytes == 8
+                    && *pop_bytes == 8
+                    && claimed.bytes == [0xc3]
+                    && effects.memory
+                        == MachineEncodedMemoryEffect::ReadActivationStackV1 {
+                            stack_pointer: *stack_pointer,
+                            byte_count: *read_bytes,
+                        }
+                    && effects.stack
+                        == MachineEncodedStackEffect::PopBytesV1 {
+                            stack_pointer: *stack_pointer,
+                            byte_count: *pop_bytes,
+                        }
+                    && effects.control == MachineEncodedControlEffect::ReturnFromActivationStackV1,
+            )?;
+        }
+        (
+            WholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 {
+                stack_pointer,
+                link_register,
+            },
+            Architecture::Aarch64,
+        ) => {
+            require_artifact(
+                *stack_pointer == context.stack_pointer
+                    && Some(*link_register) == context.link_register
+                    && claimed.bytes == [0xc0, 0x03, 0x5f, 0xd6]
+                    && effects.memory == MachineEncodedMemoryEffect::NoneV1
+                    && effects.stack == MachineEncodedStackEffect::UnchangedV1
+                    && effects.control
+                        == MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                            target: *link_register,
+                        },
+            )?;
+        }
+        _ => return Err(ArtifactMismatch),
+    }
+    Ok(())
+}
+
+fn validate_layout_custody(
+    encoding: &SelectedFormEncoding,
+    layout: &ResolvedMachineLayout,
+    custody: WholeFunctionExitLayoutCustody,
+) -> Result<(), WholeFunctionExitContractError> {
+    if !matches!(
+        custody,
+        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+            | WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+    ) || encoding.post_allocation_machine_optimization().is_some()
+        || layout.post_allocation_machine_optimization().is_some()
+    {
+        return Err(WholeFunctionExitContractError::OptimizationCustodyMismatch);
+    }
+    Ok(())
+}
+
+fn frame_permissions(
+    physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&FunctionTargetFrameLayout>,
+) -> Result<(BTreeSet<RegisterUnitId>, bool), WholeFunctionExitContractError> {
+    let Some(frame) = frame else {
+        return Ok((BTreeSet::new(), false));
+    };
+    let mut units = BTreeSet::new();
+    for slot in &frame.callee_save_slots {
+        let view = physical
+            .model()
+            .view(slot.storage_view)
+            .ok_or(WholeFunctionExitContractError::InvalidConvention)?;
+        units.extend(view.units.iter().copied());
+    }
+    Ok((
+        units,
+        matches!(
+            frame.return_address,
+            ReturnAddressFrameCustody::SavedLinkRegister { .. }
+        ),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_preservation_writes(
+    machine: &ExitRowRequirements,
+    encoding: &SelectedFormEncodingRow,
+    callee_saved: &BTreeSet<RegisterUnitId>,
+    link_units: &BTreeSet<RegisterUnitId>,
+    allowed_callee_saved: &BTreeSet<RegisterUnitId>,
+    allow_link_write: bool,
+    instruction: SelectedInstructionId,
+    modified_callee_saved: &mut BTreeSet<RegisterUnitId>,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    let mut validate = |unit: &RegisterUnitId| {
+        if callee_saved.contains(unit) {
+            if !allowed_callee_saved.contains(unit) {
+                return Err(WholeFunctionExitContractError::CalleeSavedWrite {
+                    instruction,
+                    unit: *unit,
+                });
+            }
+            modified_callee_saved.insert(*unit);
+        }
+        if link_units.contains(unit) && !allow_link_write {
+            return Err(WholeFunctionExitContractError::LinkRegisterWrite(
+                instruction,
+            ));
+        }
+        Ok(())
+    };
+    for unit in machine.unit_defs.iter().chain(&machine.unit_clobbers) {
+        validate(unit)?;
+    }
+    if let Some(footprint) = encoded.footprint(encoding.footprint) {
+        for unit in footprint
+            .implicit_defs
+            .iter()
+            .chain(&footprint.implicit_clobbers)
+        {
+            validate(unit)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_internal_call(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    instruction: SelectedInstructionId,
+    call_target: SelectedCallTarget,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{NonReturnControlEffect, NonReturnStackEffect};
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(NonReturnControlEffect(instruction));
+    };
+    let control_matches = match (call_target, &encoding.state) {
+        (
+            SelectedCallTarget::Machine(callee),
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
+        ) => {
+            fixup.callee == callee
+                && layout.internal_machine_fixup() == Some(**fixup)
+                && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
+        }
+        (
+            SelectedCallTarget::Dynamic { .. } | SelectedCallTarget::Callable { .. },
+            SelectedFormEncodingState::Encoded,
+        ) => {
+            layout.internal_machine_fixup.is_none()
+                && footprint.encoded.control
+                    == MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+        }
+        _ => false,
+    };
+    if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+        || bytes != layout.bytes
+        || layout.branch.is_some()
+        || layout.normalized_foreign_call_fixup.is_some()
+        || !control_matches
+        || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+    {
+        return Err(NonReturnControlEffect(instruction));
+    }
+    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint, &[]);
+    if !effects_match {
+        return Err(NonReturnStackEffect(instruction));
+    }
+    Ok(())
+}
+
+fn validate_normalized_foreign_call(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    instruction: SelectedInstructionId,
+    constraint: register_model::RegisterConstraintKey,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{NonReturnControlEffect, NonReturnStackEffect};
+    if constraint.family == register_model::RegisterConstraintFamily::SystemCall {
+        let canonical = if target == NativeTarget::linux_x64() {
+            isa_x86_64::x86_64_linux_system_call_keys()
+        } else if target == NativeTarget::linux_arm64() {
+            isa_aarch64::aarch64_linux_system_call_keys()
+        } else {
+            return Err(NonReturnControlEffect(instruction));
+        };
+        if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+            return Err(NonReturnControlEffect(instruction));
+        }
+        let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+            return Err(NonReturnControlEffect(instruction));
+        };
+        if !canonical.contains(&constraint)
+            || encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+            || encoding.address.is_some()
+            || bytes != layout.bytes
+            || layout.branch.is_some()
+            || layout.internal_machine_fixup.is_some()
+            || layout.normalized_foreign_call_fixup.is_some()
+            || footprint.encoded.control != MachineEncodedControlEffect::SupervisorCallV1
+            || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        {
+            return Err(NonReturnControlEffect(instruction));
+        }
+        if footprint.encoded.memory != MachineEncodedMemoryEffect::NoneV1
+            || footprint.encoded.stack != MachineEncodedStackEffect::UnchangedV1
+        {
+            return Err(NonReturnStackEffect(instruction));
+        }
+        return Ok(());
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(NonReturnControlEffect(instruction));
+    };
+    let control_matches = match &encoding.state {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
+            layout.normalized_foreign_call_fixup.as_ref() == Some(fixup)
+                && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
+        }
+        SelectedFormEncodingState::Encoded => {
+            layout.normalized_foreign_call_fixup.is_none()
+                && footprint.encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
+        }
+        _ => false,
+    };
+    if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+        || bytes != layout.bytes
+        || layout.branch.is_some()
+        || layout.internal_machine_fixup.is_some()
+        || !control_matches
+        || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+    {
+        return Err(NonReturnControlEffect(instruction));
+    }
+    let callbacks = match &encoding.state {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
+            fixup.callbacks.as_slice()
+        }
+        _ => &[],
+    };
+    let effects_match =
+        call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks);
+    if !effects_match {
+        return Err(NonReturnStackEffect(instruction));
+    }
+    Ok(())
+}
+
+fn call_memory_stack_effects_match(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    footprint: &machine_code::SelectedFormDecodedFootprint,
+    callbacks: &[machine_code::SelectedFormCallbackMaterialization],
+) -> bool {
+    let stack_matches = match target.architecture {
+        Architecture::X86_64 => {
+            footprint.encoded.stack
+                == MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                    stack_pointer,
+                    return_address_byte_count: 8,
+                }
+        }
+        Architecture::Aarch64 => footprint.encoded.stack == MachineEncodedStackEffect::UnchangedV1,
+    };
+    let memory_matches = match footprint.encoded.control {
+        MachineEncodedControlEffect::IndirectExternalCallV1 => {
+            matches!(footprint.encoded.memory,
+                MachineEncodedMemoryEffect::ReadTableFieldV1 { pointer_operand, .. }
+                    if footprint.encoded.external_operand_reads.contains(&pointer_operand))
+        }
+        MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => {
+            matches!(footprint.encoded.memory,
+                MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }
+                    if footprint.encoded.external_operand_reads.last() == Some(&pointer_operand))
+        }
+        MachineEncodedControlEffect::DirectRelativeCallV1
+            if callbacks.iter().any(|callback| {
+                matches!(
+                    callback.destination,
+                    machine_code::CallbackAddressDestination::RecordField { .. }
+                        | machine_code::CallbackAddressDestination::OutgoingStack { .. }
+                )
+            }) =>
+        {
+            footprint.encoded.memory == MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1
+        }
+        MachineEncodedControlEffect::DirectRelativeCallV1 => match target.architecture {
+            Architecture::X86_64 => {
+                footprint.encoded.memory
+                    == MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    }
+            }
+            Architecture::Aarch64 => footprint.encoded.memory == MachineEncodedMemoryEffect::NoneV1,
+        },
+        _ => false,
+    };
+    stack_matches && memory_matches
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_process_exit(
+    _physical: &ValidatedPhysicalRegisterModel,
+    instruction: &ExitSourceRequirements,
+    _machine: &ExitRowRequirements,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError as Error;
+    if let ProcessExitRequirements::Trap(trap) =
+        instruction.process_exit.as_ref().map_err(Clone::clone)?
+    {
+        return validate_trap_bytes(instruction.id, trap, encoding, layout, block_end, encoded);
+    }
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(Error::InstructionRosterMismatch(instruction.id));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(Error::InstructionRosterMismatch(instruction.id));
+    };
+    if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+        || bytes.is_empty()
+        || bytes != layout.bytes
+        || layout.branch.is_some()
+        || encoding.address.is_some()
+        || layout.offset.checked_add(bytes.len() as u64) != Some(block_end)
+        || footprint.encoded.control != MachineEncodedControlEffect::HostedExitOrTrapV1
+        || footprint.encoded.trap != MachineEncodedTrapBehavior::HostedExitReturnedV1
+        || footprint.encoded.stack != MachineEncodedStackEffect::UnchangedV1
+        || footprint.encoded.memory != MachineEncodedMemoryEffect::NoneV1
+        || footprint.encoded.external_operand_reads != [0]
+        || !footprint.encoded.external_operand_writes.is_empty()
+    {
+        return Err(Error::NonReturnControlEffect(instruction.id));
+    }
+    Ok(())
+}
+
+fn validate_trap(
+    _physical: &ValidatedPhysicalRegisterModel,
+    instruction: &ExitSourceRequirements,
+    _machine: &ExitRowRequirements,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    let requirement = instruction.trap.as_ref().map_err(Clone::clone)?;
+    validate_trap_bytes(
+        instruction.id,
+        requirement,
+        encoding,
+        layout,
+        block_end,
+        encoded,
+    )
+}
+fn validate_trap_bytes(
+    instruction: SelectedInstructionId,
+    requirement: &TrapRequirements,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError as Error;
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(Error::InstructionRosterMismatch(instruction));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(Error::InstructionRosterMismatch(instruction));
+    };
+    let effects = &footprint.encoded;
+    let TrapRequirements {
+        control,
+        trap,
+        counter_units,
+        clobbers,
+    } = requirement;
+    if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
+        || bytes.is_empty()
+        || bytes != layout.bytes
+        || layout.branch.is_some()
+        || encoding.address.is_some()
+        || layout.offset.checked_add(bytes.len() as u64) != Some(block_end)
+        || effects.control != *control
+        || effects.trap != *trap
+        || effects.stack != MachineEncodedStackEffect::UnchangedV1
+        || effects.memory != MachineEncodedMemoryEffect::NoneV1
+        || !effects.external_operand_reads.is_empty()
+        || !effects.external_operand_writes.is_empty()
+        || effects.implicit_unit_uses != *counter_units
+        || effects.implicit_unit_defs != *counter_units
+        || effects.implicit_unit_clobbers != *clobbers
+    {
+        return Err(Error::NonReturnControlEffect(instruction));
+    }
+    Ok(())
+}
+
+fn target_contract_inputs(
+    physical: &ValidatedPhysicalRegisterModel,
+    target: NativeTarget,
+) -> Result<
+    (
+        WholeFunctionExitPolicy,
+        &PreservationConvention,
+        &'static str,
+        Option<&'static str>,
+        EntryAssumptionKind,
+    ),
+    WholeFunctionExitContractError,
+> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => Ok((
+            WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
+            x86_64_preservation_convention_for_target(physical, target)
+                .ok_or(WholeFunctionExitContractError::UnsupportedTargetPolicy)?,
+            "rsp",
+            None,
+            EntryAssumptionKind::ActivationStack,
+        )),
+        (Architecture::X86_64, ObjectFormat::Coff) => Ok((
+            WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1,
+            x86_64_preservation_convention_for_target(physical, target)
+                .ok_or(WholeFunctionExitContractError::UnsupportedTargetPolicy)?,
+            "rsp",
+            None,
+            EntryAssumptionKind::ActivationStack,
+        )),
+        (Architecture::Aarch64, ObjectFormat::Elf) => Ok((
+            WholeFunctionExitPolicy::Aapcs64FramelessLeafV1,
+            aarch64_preservation_convention_for_target(physical, target)
+                .ok_or(WholeFunctionExitContractError::UnsupportedTargetPolicy)?,
+            "sp",
+            Some("x30"),
+            EntryAssumptionKind::LinkRegister,
+        )),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Ok((
+            WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1,
+            aarch64_preservation_convention_for_target(physical, target)
+                .ok_or(WholeFunctionExitContractError::UnsupportedTargetPolicy)?,
+            "sp",
+            Some("x30"),
+            EntryAssumptionKind::LinkRegister,
+        )),
+        _ => Err(WholeFunctionExitContractError::UnsupportedTargetPolicy),
+    }
+}
+
+fn view<'model>(
+    physical: &'model ValidatedPhysicalRegisterModel,
+    name: &'static str,
+) -> Result<&'model register_model::RegisterView, WholeFunctionExitContractError> {
+    physical.model().view_named(name).ok_or(
+        WholeFunctionExitContractError::MissingArchitecturalView(name),
+    )
+}
+
+fn unique_encoding_rows<'a, 'function>(
+    functions: impl Iterator<Item = (MachineId, &'function Vec<FragmentBlockOrigin>)>,
+    encoding: &'a SelectedFormEncoding,
+) -> Result<
+    BTreeMap<(MachineId, SelectedInstructionId), &'a SelectedFormEncodingRow>,
+    WholeFunctionExitContractError,
+> {
+    use WholeFunctionExitContractError::{DuplicateInstruction, MissingInstruction};
+    let mut rows = BTreeMap::new();
+    let mut encoded = encoding.rows().iter();
+    for (machine, blocks) in functions {
+        for block in blocks {
+            for instruction in block.instructions.iter() {
+                let row = encoded.next().ok_or(MissingInstruction(instruction.id))?;
+                if row.instruction != instruction.id
+                    || rows.insert((machine, row.instruction), row).is_some()
+                {
+                    return Err(DuplicateInstruction(row.instruction));
+                }
+            }
+        }
+    }
+    if let Some(row) = encoded.next() {
+        return Err(DuplicateInstruction(row.instruction));
+    }
+    Ok(rows)
+}
+
+fn unique_layout_rows(
+    layout: &ResolvedMachineLayout,
+) -> Result<
+    BTreeMap<
+        (MachineId, SelectedInstructionId),
+        (
+            &machine_code::ResolvedSelectedBlockLayout,
+            &ResolvedSelectedFormRow,
+        ),
+    >,
+    WholeFunctionExitContractError,
+> {
+    use WholeFunctionExitContractError::DuplicateInstruction;
+    let mut rows = BTreeMap::new();
+    for function in layout.functions() {
+        for block in &function.blocks {
+            for row in &block.instructions {
+                if rows
+                    .insert((function.machine, row.instruction), (block, row))
+                    .is_some()
+                {
+                    return Err(DuplicateInstruction(row.instruction));
+                }
+            }
+        }
+    }
+    Ok(rows)
+}
+
+fn transformed_implicit_writes_any(
+    encoding: &SelectedFormEncodingRow,
+    units: &BTreeSet<RegisterUnitId>,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> bool {
+    encoded
+        .footprint(encoding.footprint)
+        .is_some_and(|footprint| {
+            footprint
+                .implicit_defs
+                .iter()
+                .chain(&footprint.implicit_clobbers)
+                .any(|unit| units.contains(unit))
+        })
+}
+
+fn validate_current_non_return(
+    instruction: SelectedInstructionId,
+    obligation: &Result<NonReturnRequirements, WholeFunctionExitContractError>,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{
+        InstructionRosterMismatch, NonReturnControlEffect, NonReturnMemoryEffect,
+        NonReturnStackEffect,
+    };
+    let expected = obligation.as_ref().map_err(Clone::clone)?;
+    let expected_control = expected.effects.control;
+    let branch_terminator = matches!(
+        expected_control,
+        MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+    );
+    let effects = match encoded.encoded(encoding) {
+        Some((bytes, footprint)) => {
+            let disposition_matches = match encoding.machine_disposition {
+                SelectedFormMachineDisposition::RetainedV1 => bytes == layout.bytes,
+                SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. }
+                | SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
+                    layout.bytes.is_empty()
+                }
+                SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => false,
+            };
+            if branch_terminator || !disposition_matches || layout.branch.is_some() {
+                return Err(InstructionRosterMismatch(instruction));
+            }
+            &footprint.encoded
+        }
+        None => {
+            if !branch_terminator {
+                return Err(InstructionRosterMismatch(instruction));
+            }
+            layout
+                .branch
+                .as_ref()
+                .map(|branch| match branch.as_ref() {
+                    machine_code::ResolvedBranchEvidence::Conditional(branch) => {
+                        &branch.decoded_effects
+                    }
+                    machine_code::ResolvedBranchEvidence::Jump(branch) => &branch.decoded_effects,
+                })
+                .ok_or(InstructionRosterMismatch(instruction))?
+        }
+    };
+    if effects.stack != expected.effects.stack {
+        return Err(NonReturnStackEffect(instruction));
+    }
+    if effects.memory != expected.effects.memory || encoding.address() != expected.address {
+        return Err(NonReturnMemoryEffect(instruction));
+    }
+    if effects.control != expected_control {
+        return Err(NonReturnControlEffect(instruction));
+    }
+    if effects != &expected.effects {
+        return Err(InstructionRosterMismatch(instruction));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn validate_non_return(
+    architecture: Architecture,
+    instruction: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), WholeFunctionExitContractError> {
+    let obligation = encoding_admission::exit_requirements::prepare_non_return(
+        architecture,
+        instruction,
+        kind,
+        encoding,
+        encoded,
+    );
+    validate_current_non_return(instruction, &obligation, encoding, layout, encoded)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_return(
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    link_register: Option<RegisterViewId>,
+    block: SelectedBlockId,
+    psi_return_edge: EdgeId,
+    selected: &ExitSourceRequirements,
+    machine: &ExitRowRequirements,
+    encoding: &SelectedFormEncodingRow,
+    layout: &ResolvedSelectedFormRow,
+    layout_block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<WholeFunctionReturnEvidence, WholeFunctionExitContractError> {
+    use WholeFunctionExitContractError::{
+        OffsetOverflow, ReturnEffectsMismatch, ReturnEncodingMismatch, ReturnPlacementMismatch,
+    };
+    let value = selected.returned.clone()?;
+    let (bytes, effects): (&[u8], &MachineEncodedEffects) =
+        match (&encoding.state, encoded.encoded(encoding)) {
+            (SelectedFormEncodingState::Encoded, Some((bytes, footprint))) => {
+                (bytes, &footprint.encoded)
+            }
+            _ => {
+                return Err(ReturnEncodingMismatch(selected.id));
+            }
+        };
+    if bytes != layout.bytes || layout.branch.is_some() || effects != &machine.alternative.encoded {
+        return Err(ReturnEncodingMismatch(selected.id));
+    }
+    let end = layout
+        .offset
+        .checked_add(u64::try_from(layout.bytes.len()).map_err(|_| OffsetOverflow)?)
+        .ok_or(OffsetOverflow)?;
+    if end != layout_block_end {
+        return Err(ReturnPlacementMismatch(selected.id));
+    }
+    let mechanism = match target.architecture {
+        Architecture::X86_64 => {
+            if effects.memory
+                != (MachineEncodedMemoryEffect::ReadActivationStackV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                })
+                || effects.stack
+                    != (MachineEncodedStackEffect::PopBytesV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    })
+                || effects.control != MachineEncodedControlEffect::ReturnFromActivationStackV1
+                || bytes != [0xc3]
+            {
+                return Err(ReturnEffectsMismatch(selected.id));
+            }
+            WholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
+                stack_pointer,
+                read_bytes: 8,
+                pop_bytes: 8,
+            }
+        }
+        Architecture::Aarch64 => {
+            let link_register = link_register.ok_or(ReturnEffectsMismatch(selected.id))?;
+            if effects.memory != MachineEncodedMemoryEffect::NoneV1
+                || effects.stack != MachineEncodedStackEffect::UnchangedV1
+                || effects.control
+                    != (MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                        target: link_register,
+                    })
+                || bytes != [0xc0, 0x03, 0x5f, 0xd6]
+            {
+                return Err(ReturnEffectsMismatch(selected.id));
+            }
+            WholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 {
+                stack_pointer,
+                link_register,
+            }
+        }
+    };
+    if effects.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1 {
+        return Err(ReturnEffectsMismatch(selected.id));
+    }
+    Ok(WholeFunctionReturnEvidence {
+        block,
+        psi_return_edge,
+        instruction: selected.id,
+        offset: layout.offset,
+        bytes: layout.bytes.clone(),
+        value,
+        trap: effects.trap,
+        mechanism,
+    })
+}
+
+#[cfg(test)]
+fn encoded_form_and_layout(
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    code: machine_code::SelectedFormEncodedByteSpan,
+    footprint: machine_code::SelectedFormDecodedFootprintHandle,
+    bytes: Vec<u8>,
+) -> (SelectedFormEncodingRow, ResolvedSelectedFormRow) {
+    (
+        SelectedFormEncodingRow {
+            instruction,
+            alternative,
+            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
+            address: None,
+            state: SelectedFormEncodingState::Encoded,
+            code,
+            footprint,
+        },
+        ResolvedSelectedFormRow {
+            instruction,
+            alternative,
+            offset: 0,
+            bytes,
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            image_address_fixup: None,
+        },
+    )
+}
+
+#[cfg(test)]
+fn validated_aarch64_form_fixture(
+    encoded: &isa_aarch64::ValidatedAarch64SelectedFormEncoding,
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    kind: SelectedInstructionKind,
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    SelectedFormEncodingRow,
+    ResolvedSelectedFormRow,
+) {
+    let effects = &encoded.footprint().encoded;
+    let mut store = machine_code::SelectedFormEncodedRowStore::new();
+    let (code, interned_footprint) = store.intern(
+        encoded.bytes(),
+        SelectedFormDecodedFootprint {
+            register_reads: encoded.footprint().register_reads.clone(),
+            register_writes: encoded.footprint().register_writes.clone(),
+            implicit_defs: effects.implicit_unit_defs.clone(),
+            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+            encoded: effects.clone(),
+        },
+    );
+    let (encoding, layout) = encoded_form_and_layout(
+        instruction,
+        alternative,
+        code,
+        interned_footprint,
+        encoded.bytes().to_vec(),
+    );
+    validate_non_return(
+        Architecture::Aarch64,
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &store,
+    )
+    .unwrap();
+    (store, encoding, layout)
+}
+
+#[cfg(test)]
+fn aarch64_physical_register_model() -> ValidatedPhysicalRegisterModel {
+    register_model::validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
+        .unwrap()
+}
+
+#[cfg(test)]
+fn form_fixture(
+    kind: SelectedInstructionKind,
+    alternative: selected_instructions::MachineAlternativeKey,
+    registers: &[RegisterViewId],
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    SelectedFormEncodingRow,
+    ResolvedSelectedFormRow,
+) {
+    let encoded = isa_aarch64::encode_aarch64_selected_form(
+        &aarch64_physical_register_model(),
+        kind,
+        alternative,
+        registers,
+    )
+    .unwrap();
+    validated_aarch64_form_fixture(&encoded, SelectedInstructionId(1), alternative, kind)
+}
+
+#[cfg(test)]
+fn validated_aarch64_addressed_form_fixture(
+    encoded: &isa_aarch64::ValidatedAarch64SelectedFormEncoding,
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    kind: SelectedInstructionKind,
+    symbolic: post_allocation_machine::PhysicalAddressOperation,
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    SelectedFormEncodingRow,
+    ResolvedSelectedFormRow,
+) {
+    let effects = &encoded.footprint().encoded;
+    let mut store = machine_code::SelectedFormEncodedRowStore::new();
+    let (code, interned_footprint) = store.intern(
+        encoded.bytes(),
+        SelectedFormDecodedFootprint {
+            register_reads: Vec::new(),
+            register_writes: Vec::new(),
+            implicit_defs: effects.implicit_unit_defs.clone(),
+            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+            encoded: effects.clone(),
+        },
+    );
+    let (mut encoding, layout) = encoded_form_and_layout(
+        instruction,
+        alternative,
+        code,
+        interned_footprint,
+        encoded.bytes().to_vec(),
+    );
+    encoding.address = Some(Box::new(machine_code::ResolvedPhysicalAddress {
+        symbolic,
+        frame_alignment_bytes: 1,
+        displacement: 16,
+    }));
+    validate_non_return(
+        Architecture::Aarch64,
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &store,
+    )
+    .unwrap();
+    (store, encoding, layout)
+}
+
+#[cfg(test)]
+type NonReturnCase<'a> = (
+    SelectedInstructionId,
+    SelectedInstructionKind,
+    &'a SelectedFormEncodingRow,
+    &'a ResolvedSelectedFormRow,
+    &'a machine_code::SelectedFormEncodedRowStore,
+);
+
+#[cfg(test)]
+fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
+    let (instruction, kind, encoding, layout, store) = case;
+    assert!(
+        validate_non_return(
+            Architecture::Aarch64,
+            instruction,
+            kind,
+            encoding,
+            layout,
+            store
+        )
+        .is_err(),
+        "{message}"
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use machine_code::{
+        ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
+        X86BranchRelaxationIdentity,
+    };
+    use optimization_core::Optimization;
+    use post_allocation_machine::PhysicalAddressOperation;
+    use selected_instructions::{
+        AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
+        IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
+        IeeeFloatToIntegerDomain, LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind,
+        SelectedInstructionPlanIdentity, SelectedOperand, VirtualRegister, VirtualRegisterId,
+        VirtualRegisterOrigin,
+    };
+    use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
+
+    fn contract_with_custody(
+        layout_custody: WholeFunctionExitLayoutCustody,
+    ) -> WholeFunctionExitContract {
+        let mut contract = WholeFunctionExitContract {
+            identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
+            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
+            post_allocation_manifest:
+                optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
+            post_allocation_machine:
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([3; 32]),
+            register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
+                [4; 32],
+            ),
+            physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes(
+                [5; 32],
+            ),
+            pre_layout: SelectedFormEncodingIdentity::from_bytes([6; 32]),
+            resolved_layout: ResolvedSelectedFormLayoutIdentity::from_bytes([7; 32]),
+            layout_custody,
+            target: NativeTarget::linux_x64(),
+            policy: WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
+            frame: WholeFunctionFrameDisposition::FramelessV1,
+            hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
+            entry_assumption: WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1,
+            stack_pointer: RegisterViewId(0),
+            stack_alignment: 16,
+            red_zone_bytes: 128,
+            result_view: RegisterViewId(1),
+            callee_saved_units: Vec::new(),
+            functions: Box::new(Vec::new()),
+        };
+        contract.identity = contract_identity(&contract);
+        contract
+    }
+
+    #[test]
+    fn layout_custody_and_optimization_receipts_are_identity_bound() {
+        let baseline = contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
+        let relaxed = contract_with_custody(
+            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation: X86BranchRelaxationIdentity::from_bytes([8; 32]),
+            },
+        );
+        let another_relaxation = contract_with_custody(
+            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation: X86BranchRelaxationIdentity::from_bytes([9; 32]),
+            },
+        );
+        let movn = contract_with_custody(
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                artifact_identity: [8; 32],
+            },
+        );
+        let another_movn = contract_with_custody(
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                artifact_identity: [9; 32],
+            },
+        );
+        let generic_xor = contract_with_custody(
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+                artifact_identity: [8; 32],
+            },
+        );
+        let another_generic_leaf = contract_with_custody(
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+                artifact_identity: [9; 32],
+            },
+        );
+        let mut framed = baseline.clone();
+        framed.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+            layout: machine_code::TargetFrameLayoutIdentity::from_bytes([10; 32]),
+            protocol: machine_code::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
+        };
+        framed.policy = WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1;
+        framed.identity = contract_identity(&framed);
+
+        assert_ne!(baseline.identity, relaxed.identity);
+        assert_ne!(relaxed.identity, another_relaxation.identity);
+        assert_ne!(baseline.identity, movn.identity);
+        assert_ne!(relaxed.identity, movn.identity);
+        assert_ne!(movn.identity, another_movn.identity);
+        assert_ne!(baseline.identity, generic_xor.identity);
+        assert_ne!(generic_xor.identity, movn.identity);
+        assert_ne!(generic_xor.identity, another_generic_leaf.identity);
+        assert_ne!(baseline.identity, framed.identity);
+        let mut windows = framed.clone();
+        windows.policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;
+        assert_ne!(contract_identity(&windows), framed.identity);
+    }
+
+    #[test]
+    fn callback_writes_require_memory_destinations_and_the_target_call_stack() {
+        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
+        use machine_code::{
+            CallbackAddressDestination, SelectedFormCallbackMaterialization,
+            SelectedFormCallbackMaterializationEncoding,
+        };
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let x86 = target.architecture == Architecture::X86_64;
+            let (physical, pointer_name, root, relocation) = if x86 {
+                (
+                    isa_x86_64::validated_x86_64_physical_register_model(),
+                    "rsp",
+                    MachineRegister::X86Rdi,
+                    SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                        patch_row_offset: 3,
+                    },
+                )
+            } else {
+                (
+                    isa_aarch64::validated_aarch64_physical_register_model(),
+                    "sp",
+                    MachineRegister::Aarch64X(0),
+                    SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                        page_patch_row_offset: 0,
+                        page_offset_patch_row_offset: 4,
+                    },
+                )
+            };
+            let stack_pointer = physical.model().view_named(pointer_name).unwrap().id;
+            let mut footprint = SelectedFormDecodedFootprint {
+                register_reads: Vec::new(),
+                register_writes: Vec::new(),
+                implicit_defs: Vec::new(),
+                implicit_clobbers: Vec::new(),
+                encoded: MachineEncodedEffects {
+                    external_operand_reads: Vec::new(),
+                    external_operand_writes: Vec::new(),
+                    implicit_unit_uses: Vec::new(),
+                    implicit_unit_defs: Vec::new(),
+                    implicit_unit_clobbers: Vec::new(),
+                    memory: MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1,
+                    stack: if x86 {
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                    } else {
+                        MachineEncodedStackEffect::UnchangedV1
+                    },
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: MachineEncodedControlEffect::DirectRelativeCallV1,
+                },
+            };
+            let mut destinations = vec![CallbackAddressDestination::RecordField {
+                root_register: root,
+                placements: PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At { offset: 8 },
+                ]),
+            }];
+            if x86 {
+                destinations.push(CallbackAddressDestination::OutgoingStack { byte_offset: 32 });
+            }
+            for destination in destinations {
+                let code_byte_count = match &destination {
+                    CallbackAddressDestination::OutgoingStack { .. } => 12,
+                    _ if x86 => 17,
+                    _ => 16,
+                };
+                let callback = SelectedFormCallbackMaterialization {
+                    destination,
+                    code_row_offset: 0,
+                    code_byte_count,
+                    encoding: relocation,
+                };
+                let matches = |footprint: &SelectedFormDecodedFootprint, callbacks: &[_]| {
+                    call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks)
+                };
+                assert!(matches(&footprint, std::slice::from_ref(&callback)));
+                assert!(!matches(&footprint, &[]));
+                let mut register_only = callback.clone();
+                register_only.destination = CallbackAddressDestination::Register(root);
+                assert!(!matches(&footprint, &[register_only]));
+
+                let stack = footprint.encoded.stack;
+                for forged in [
+                    if x86 {
+                        MachineEncodedStackEffect::UnchangedV1
+                    } else {
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                    },
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        stack_pointer: RegisterViewId(stack_pointer.0 + 1),
+                        return_address_byte_count: 8,
+                    },
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        stack_pointer,
+                        return_address_byte_count: 4,
+                    },
+                ] {
+                    footprint.encoded.stack = forged;
+                    assert!(!matches(&footprint, std::slice::from_ref(&callback)));
+                }
+                footprint.encoded.stack = stack;
+                for unrelated in [
+                    MachineEncodedMemoryEffect::NoneV1,
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    },
+                ] {
+                    footprint.encoded.memory = unrelated;
+                    assert!(!matches(&footprint, std::slice::from_ref(&callback)));
+                }
+                footprint.encoded.memory =
+                    MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1;
+            }
+        }
+    }
+
+    #[test]
+    fn system_call_exit_contract_preserves_supervisor_control_without_import_stack_effects() {
+        let instruction = SelectedInstructionId(7);
+        let kind = SelectedInstructionKind::NormalizedForeignCall {
+            boundary: BoundaryMachineId::new(3).unwrap(),
+            ordinal: 0,
+        };
+        let alternative = MachineAlternativeKey {
+            family: MachineAlternativeFamily::NormalizedForeignCall,
+            variant: 0,
+        };
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (bytes, footprint, constraint, stack_pointer) =
+                if target == NativeTarget::linux_x64() {
+                    let physical = isa_x86_64::validated_x86_64_physical_register_model();
+                    let encoded = isa_x86_64::encode_x86_64_selected_system_call_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &[],
+                        &[],
+                        211,
+                    )
+                    .unwrap();
+                    let footprint = encoded.footprint();
+                    (
+                        encoded.bytes().to_vec(),
+                        SelectedFormDecodedFootprint {
+                            register_reads: footprint.register_reads.clone(),
+                            register_writes: footprint.register_writes.clone(),
+                            implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+                            implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+                            encoded: footprint.encoded.clone(),
+                        },
+                        isa_x86_64::x86_64_linux_system_call_keys()[0],
+                        physical.model().view_named("rsp").unwrap().id,
+                    )
+                } else {
+                    let physical = isa_aarch64::validated_aarch64_physical_register_model();
+                    let encoded = isa_aarch64::encode_aarch64_selected_system_call_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &[],
+                        &[],
+                        211,
+                    )
+                    .unwrap();
+                    let footprint = encoded.footprint();
+                    (
+                        encoded.bytes().to_vec(),
+                        SelectedFormDecodedFootprint {
+                            register_reads: footprint.register_reads.clone(),
+                            register_writes: footprint.register_writes.clone(),
+                            implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+                            implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+                            encoded: footprint.encoded.clone(),
+                        },
+                        isa_aarch64::aarch64_linux_system_call_keys()[0],
+                        physical.model().view_named("sp").unwrap().id,
+                    )
+                };
+            let mut store = machine_code::SelectedFormEncodedRowStore::new();
+            let (code, interned_footprint) = store.intern(&bytes, footprint);
+            let (encoding, layout) =
+                encoded_form_and_layout(instruction, alternative, code, interned_footprint, bytes);
+            let validate =
+                |encoding: &SelectedFormEncodingRow,
+                 layout: &ResolvedSelectedFormRow,
+                 encoded: &machine_code::SelectedFormEncodedRowStore| {
+                    validate_normalized_foreign_call(
+                        target,
+                        stack_pointer,
+                        instruction,
+                        constraint,
+                        encoding,
+                        layout,
+                        encoded,
+                    )
+                };
+            validate(&encoding, &layout, &store).unwrap();
+            for mutation in 0..5 {
+                let mut forged = store.clone();
+                let footprint = forged.footprint_mut(encoding.footprint).unwrap();
+                match mutation {
+                    0 => {
+                        footprint.encoded.control =
+                            MachineEncodedControlEffect::DirectRelativeCallV1
+                    }
+                    1 => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+                    2 => {
+                        footprint.encoded.memory =
+                            MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                                stack_pointer,
+                                byte_count: 8,
+                            }
+                    }
+                    3 => {
+                        footprint.encoded.stack =
+                            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                                stack_pointer,
+                                return_address_byte_count: 8,
+                            }
+                    }
+                    _ => forged.bytes_mut(encoding.code)[0] ^= 1,
+                }
+                assert!(
+                    validate(&encoding, &layout, &forged).is_err(),
+                    "{target:?}, mutation {mutation}"
+                );
+            }
+            let mut import_constraint = constraint;
+            import_constraint.family = register_model::RegisterConstraintFamily::Call;
+            assert!(
+                validate_normalized_foreign_call(
+                    target,
+                    stack_pointer,
+                    instruction,
+                    import_constraint,
+                    &encoding,
+                    &layout,
+                    &store,
+                )
+                .is_err()
+            );
+            assert!(
+                validate_normalized_foreign_call(
+                    NativeTarget::windows_x64(),
+                    stack_pointer,
+                    instruction,
+                    constraint,
+                    &encoding,
+                    &layout,
+                    &store,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_exit_rejoins_float_type_class_and_abi_home() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let physical = environment.physical();
+            let integer = physical
+                .model()
+                .view_named(if target.architecture == Architecture::X86_64 {
+                    "rax"
+                } else {
+                    "x0"
+                })
+                .unwrap();
+            let floating = physical
+                .model()
+                .view_named(if target.architecture == Architecture::X86_64 {
+                    "xmm0"
+                } else {
+                    "d0"
+                })
+                .unwrap();
+            for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                let mut registers = vec![VirtualRegister {
+                    id: VirtualRegisterId(0),
+                    scalar_type: ScalarType::IeeeFloat(format),
+                    class: floating.class,
+                    definition_site: None,
+                    entry_fixed_view: None,
+                    origin: VirtualRegisterOrigin::InstructionResult {
+                        instruction: SelectedInstructionId(0),
+                        source_value: ValueId::new(1).unwrap(),
+                    },
+                }];
+                let mut instruction = SelectedInstruction {
+                    id: SelectedInstructionId(1),
+                    kind: SelectedInstructionKind::ReturnScalar,
+                    constraint: environment.selected_keys().return_float[0],
+                    operands: vec![SelectedOperand {
+                        operand: 0,
+                        virtual_register: VirtualRegisterId(0),
+                        access: RegisterOperandAccess::Use,
+                        class: floating.class,
+                        fixed_view: Some(floating.id),
+                        tied_to: None,
+                        early_clobber: false,
+                    }],
+                    implicit_uses: Vec::new(),
+                    implicit_defs: Vec::new(),
+                    clobbers: Vec::new(),
+                    provenance: Default::default(),
+                };
+                assert_eq!(
+                    scalar_return_view(physical, target, &registers, &instruction, integer.id)
+                        .unwrap(),
+                    floating.id
+                );
+                instruction.operands[0].fixed_view = Some(integer.id);
+                assert!(
+                    scalar_return_view(physical, target, &registers, &instruction, integer.id)
+                        .is_err()
+                );
+                instruction.operands[0].fixed_view = Some(floating.id);
+                registers[0].scalar_type = ScalarType::Boolean;
+                assert!(
+                    scalar_return_view(physical, target, &registers, &instruction, integer.id)
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn atomic_exit_admission_binds_memory_width_operands_and_control() {
+        let physical = aarch64_physical_register_model();
+        for form in AtomicForm::ALL {
+            let registers =
+                if form.operation == selected_instructions::AtomicOperation::CompareExchange {
+                    ["x9", "x10", "x11", "x12", "x4"]
+                } else if form.operation.retries_until_commit(Architecture::Aarch64) {
+                    ["x9", "x10", "x11", "x3", "x4"]
+                } else {
+                    ["x2", "x0", "x1", "x3", "x4"]
+                }
+                .map(|name| physical.model().view_named(name).unwrap().id);
+            let kind = SelectedInstructionKind::AtomicAccess { form };
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::AtomicAccess(form),
+                variant: 0,
+            };
+            let instruction = SelectedInstructionId(1);
+            let (store, encoding, layout) = form_fixture(
+                kind,
+                alternative,
+                &registers[..usize::from(form.operand_count())],
+            );
+            for mutation in 0..8 {
+                let mut changed = store.clone();
+                let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+                match mutation {
+                    0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
+                    1 => {
+                        footprint.encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: u16::from(form.width.bytes()),
+                        }
+                    }
+                    2 => {
+                        footprint.encoded.memory = MachineEncodedMemoryEffect::AtomicPointerV1 {
+                            pointer_operand: 0,
+                            form: AtomicForm {
+                                width: if form.width == AtomicWidth::Bits8 {
+                                    AtomicWidth::Bits16
+                                } else {
+                                    AtomicWidth::Bits8
+                                },
+                                ..form
+                            },
+                        }
+                    }
+                    3 => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+                    4 => footprint.encoded.external_operand_reads.clear(),
+                    5 => footprint
+                        .encoded
+                        .external_operand_writes
+                        .push(form.operand_count()),
+                    6 => {
+                        footprint.encoded.control =
+                            if form.operation.retries_until_commit(Architecture::Aarch64) {
+                                MachineEncodedControlEffect::FallThroughV1
+                            } else {
+                                MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+                            }
+                    }
+                    _ => {
+                        footprint.encoded.control =
+                            MachineEncodedControlEffect::DirectRelativeCallV1
+                    }
+                }
+                assert_non_return_refused(
+                    &format!("{form:?}, mutation {mutation}"),
+                    (instruction, kind, &encoding, &layout, &changed),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
+        let physical = aarch64_physical_register_model();
+        let registers = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+            .map(|name| physical.model().view_named(name).unwrap().id);
+        let kind = SelectedInstructionKind::CompareByteSequences;
+        let alternative = MachineAlternativeKey {
+            family: MachineAlternativeFamily::CompareByteSequences,
+            variant: 0,
+        };
+        let instruction = SelectedInstructionId(1);
+        let (store, encoding, layout) = form_fixture(kind, alternative, &registers);
+        for mutation in 0..9 {
+            let mut changed = store.clone();
+            let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+            match mutation {
+                0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
+                1 => {
+                    footprint.encoded.memory = MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+                        base_pointer_operand: 0,
+                        count_operand: 1,
+                    }
+                }
+                2..=5 => {
+                    let mut positions = [0, 1, 2, 3];
+                    positions[mutation - 2] = 7;
+                    footprint.encoded.memory = MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+                        left_base_operand: positions[0],
+                        left_count_operand: positions[1],
+                        right_base_operand: positions[2],
+                        right_count_operand: positions[3],
+                    };
+                }
+                6 => footprint
+                    .encoded
+                    .external_operand_reads
+                    .pop()
+                    .map(|_| ())
+                    .unwrap(),
+                7 => footprint.encoded.external_operand_writes.push(0),
+                _ => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+            }
+            assert_non_return_refused(
+                &format!("mutation {mutation}"),
+                (instruction, kind, &encoding, &layout, &changed),
+            );
+        }
+        let mut changed = store.clone();
+        let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+        footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
+        assert_non_return_refused(
+            "a direct relative call leaves the function",
+            (instruction, kind, &encoding, &layout, &changed),
+        );
+    }
+
+    #[test]
+    fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
+        let physical = aarch64_physical_register_model();
+        let registers = ["x3", "x4"].map(|name| physical.model().view_named(name).unwrap().id);
+        for domain in [
+            IeeeFloatToIntegerDomain::Exact,
+            IeeeFloatToIntegerDomain::Saturating,
+            IeeeFloatToIntegerDomain::Trapping,
+        ] {
+            for target in IeeeFloatIntegerCarrier::ALL {
+                for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                    let form = IeeeFloatArithmeticForm {
+                        operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+                            target,
+                            domain,
+                        },
+                        format,
+                    };
+                    let kind = SelectedInstructionKind::NearestIeeeFloatArithmetic { form };
+                    let alternative = MachineAlternativeKey {
+                        family: MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+                        variant: 0,
+                    };
+                    let instruction = SelectedInstructionId(1);
+                    let (store, encoding, layout) = form_fixture(kind, alternative, &registers);
+                    let mut changed = store.clone();
+                    let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+                    footprint.encoded.control = if domain == IeeeFloatToIntegerDomain::Trapping {
+                        MachineEncodedControlEffect::FallThroughV1
+                    } else {
+                        MachineEncodedControlEffect::FallThroughOrTrapV1
+                    };
+                    assert_non_return_refused(
+                        &format!("{form:?}"),
+                        (instruction, kind, &encoding, &layout, &changed),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint() {
+        let physical = aarch64_physical_register_model();
+        let registers =
+            ["x2", "x3", "x4", "x5"].map(|name| physical.model().view_named(name).unwrap().id);
+        for form in FloatResultPolicyForm::ALL {
+            let kind = SelectedInstructionKind::FloatResultPolicy { form };
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::FloatResultPolicy(form),
+                variant: 0,
+            };
+            let instruction = SelectedInstructionId(1);
+            let (store, encoding, layout) =
+                form_fixture(kind, alternative, &registers[..form.operand_count() + 1]);
+            for mutation in 0..5 {
+                let mut changed = store.clone();
+                let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+                match mutation {
+                    0 => {
+                        footprint.encoded.control = if form.can_trap() {
+                            MachineEncodedControlEffect::FallThroughV1
+                        } else {
+                            MachineEncodedControlEffect::FallThroughOrTrapV1
+                        }
+                    }
+                    1 => {
+                        footprint.encoded.trap = if form.can_trap() {
+                            MachineEncodedTrapBehavior::NeverV1
+                        } else {
+                            MachineEncodedTrapBehavior::TrappingIntegerV1
+                        }
+                    }
+                    2 => footprint.encoded.external_operand_reads.clear(),
+                    3 => footprint.encoded.external_operand_writes = vec![0],
+                    _ => {
+                        footprint.encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 4,
+                        }
+                    }
+                }
+                assert_non_return_refused(
+                    &format!("{form:?}, mutation {mutation}"),
+                    (instruction, kind, &encoding, &layout, &changed),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
+        let physical = aarch64_physical_register_model();
+        let slot = LocalStorageSlotId::Boundary {
+            operation: OperationId::new(7).unwrap(),
+        };
+        for restore in [false, true] {
+            let kind = if restore {
+                SelectedInstructionKind::RestoreFloatingControl { slot }
+            } else {
+                SelectedInstructionKind::SaveFloatingControl { slot }
+            };
+            let semantic = if restore {
+                MachineSemanticKind::RestoreFloatingControl
+            } else {
+                MachineSemanticKind::SaveFloatingControl
+            };
+            let alternative = MachineAlternativeKey {
+                family: semantic.into(),
+                variant: 0,
+            };
+            let encoded = isa_aarch64::encode_aarch64_selected_floating_control_form(
+                &physical,
+                kind,
+                alternative,
+                &[],
+                16,
+            )
+            .unwrap();
+            let instruction = SelectedInstructionId(1);
+            let (store, encoding, layout) = validated_aarch64_addressed_form_fixture(
+                &encoded,
+                instruction,
+                alternative,
+                kind,
+                if restore {
+                    PhysicalAddressOperation::RestoreFloatingControl { slot }
+                } else {
+                    PhysicalAddressOperation::SaveFloatingControl { slot }
+                },
+            );
+            for mutation in 0..6 {
+                let mut changed_row = encoding.clone();
+                let mut changed = store.clone();
+                let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+                match mutation {
+                    0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
+                    1 => {
+                        footprint.encoded.control =
+                            MachineEncodedControlEffect::DirectRelativeCallV1
+                    }
+                    2 => {
+                        footprint.encoded.stack = MachineEncodedStackEffect::PopBytesV1 {
+                            stack_pointer: physical.model().view_named("sp").unwrap().id,
+                            byte_count: 8,
+                        }
+                    }
+                    3 => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+                    4 => changed_row.address = None,
+                    _ => {
+                        changed_row.address.as_mut().unwrap().symbolic = if restore {
+                            PhysicalAddressOperation::SaveFloatingControl { slot }
+                        } else {
+                            PhysicalAddressOperation::RestoreFloatingControl { slot }
+                        }
+                    }
+                }
+                assert_non_return_refused(
+                    &format!("mutation {mutation}"),
+                    (instruction, kind, &changed_row, &layout, &changed),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn zero_fill_exit_contract_retains_the_span_and_register_roles() {
+        let physical = aarch64_physical_register_model();
+        let registers =
+            ["x0", "x1", "x2"].map(|name| physical.model().view_named(name).unwrap().id);
+        let kind = SelectedInstructionKind::ZeroBytes;
+        let alternative = MachineAlternativeKey {
+            family: MachineAlternativeFamily::ZeroBytes,
+            variant: 0,
+        };
+        let instruction = SelectedInstructionId(1);
+        let (store, encoding, layout) = form_fixture(kind, alternative, &registers);
+        for mutation in 0..7 {
+            let mut changed = store.clone();
+            let footprint = changed.footprint_mut(encoding.footprint).unwrap();
+            match mutation {
+                0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
+                1 => {
+                    footprint.encoded.memory =
+                        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+                }
+                2 => {
+                    footprint.encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+                        destination_pointer_operand: 1,
+                        count_operand: 0,
+                    }
+                }
+                3 => {
+                    footprint.encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+                        destination_pointer_operand: 0,
+                        count_operand: 2,
+                    }
+                }
+                4 => footprint
+                    .encoded
+                    .external_operand_reads
+                    .pop()
+                    .map(|_| ())
+                    .unwrap(),
+                5 => footprint.encoded.external_operand_writes.push(0),
+                _ => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+            }
+            assert_non_return_refused(
+                &format!("mutation {mutation}"),
+                (instruction, kind, &encoding, &layout, &changed),
+            );
+        }
+    }
+}

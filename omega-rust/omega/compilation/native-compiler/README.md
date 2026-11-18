@@ -1,52 +1,31 @@
 # Native compilation
 
-The application calls [compile](src/compile.rs) once with the retained
-Terminal Psi and a `NativeCompileRequest` (component calls, imports, image
-ownership, policy and the completed scalar values). It completes those values
-before the call with `build_settings::scalar_completion::complete_native` (and
-`complete_native_demand` for each component). A source-produced application instead
-extends Product checking's retained scope with `extend_native`, keeping the same
-execution inputs and already checked conditions. This crate never calls
-an evaluator. [Preparation](src/preparation.rs) then selects native work from
-the retained product and its native proposal, refuses work whose required
-values are missing, and Omega 00 to 09 run once, in order. Failures return the
-original image request and diagnostics.
+The native driver takes a published Terminal program, one target and a
+`NativeCompileRequest`. The request supplies the entry, selected providers,
+imports, component call inputs, completed scalar values and output policy.
+The driver checks the scope and prepares the executable. A full image request
+runs through image construction at 09. A runtime admission request can return
+the provisions needed to interpret the program. [Native entry points](src/compile.rs)
+· [Preparation](src/preparation.rs)
 
-Programs with and without components make the same single call. Callable export
-emission stays separate because it produces an independent image, not an
-application entry.
+| Stages | What passes forward |
+| --- | --- |
+| 03 · Native program planning | The published requirements and chosen bodies join their target provider and calling plans. Each surviving body receives its target operations and instruction selection inputs. [Planning](../pipeline/03_native-program-planning/src/lib.rs) |
+| 04–05 · Physical planning and installation | Physical planning allocates registers, plans frames and generated entry code, and measures demanded installed handlers. Installation binding checks the exact operation, body identity, geometry and fault evidence. [Body sequence](src/pipeline.rs) · [Installation binding](../pipeline/05_installation-binding/src/lib.rs) |
+| 06–08 · Encoding, layout and object construction | The driver encodes each physical body, places it, resolves branches and constructs its object publication. Application entries, demanded callbacks and separately admitted component exports use the common operations. [Body sequence](src/pipeline.rs) · [Callable exports](src/components.rs) |
+| 09 · Image construction | The image owner takes the object publication, target image request and selected component inputs and builds the executable and its evidence. [Native artifact](../pipeline/09_image-construction/native-artifact/src/lib.rs) |
 
-[pipeline.rs](src/pipeline.rs) sequences the body transformations for application
-entries, callbacks and component exports: abstract optimization, target lowering,
-instruction selection, selected optimization, register allocation, post-allocation
-machine construction, frame preparation, encoding, layout, layout optimization,
-realization assembly and object emission. That sequence has one implementation.
-Its internal target boundary lets callers capture runtime layout companions
-before instruction selection, keeping errors in order without a callback.
-Machine emission owns frame layout and its byte format, then joins the
-pipeline's encoding and layout with the exit contract and source identities. It does not run Omega stages 07-09 itself outside the pipeline.
+The product coordinator completes the source or received artifact's scalar
+inputs before native compilation. Target planning runs the selected calling
+policy on the publication. Storage for an identical checked Terminal program
+can be shared across targets. Each target keeps its own entry, deployment
+policy, authority and image. [Product coordinator](../compiler/src/product_execution.rs)
+· [Executable preparation](../compiler/src/executable.rs)
 
-[realization.rs](src/realization.rs) accepts the entry and captures what the
-runtime must provide. [Object emission](src/realization/object_emission.rs)
-runs the shared pipeline, finds the callbacks that survive and publishes the
-combined object; callable emission runs the same pipeline and keeps the
-callable's permissions. Neither caller chooses or orders stages itself. The
-native artifact, not the source coordinator, owns the runtime provisions and
-their types.
-
-Production dependencies, direct or indirect, may include only
-native stages, representations, backend and foundation libraries, Terminal
-contracts and the libraries that check them independently. They must not reach
-source IR, a source checker, an interpreter, Build execution or package
-orchestration. Run `mbx xtask check-boundary` from the repository root to check
-every declared configuration; optional and target-specific dependencies count.
-
-Compiling for several targets reuses one checked Terminal program. The source
-and package entry points check each distinct set of source inputs once and
-gather every target's declarations before choosing its providers and
-planning its layout and calls. Calling policies run from the retained Terminal
-code. Native compilation uses that shared program with each target's own
-permissions and output, without reopening source.
+The caller can submit the finished files to stage 10 for installation and a
+receipt. Independent validators can request retained originals to compare the
+physical program, encoding, frames and image. [Product publication](../pipeline/10_product-publication/src/lib.rs)
+· [Verification](../verification/) · [Full pipeline](../../../pipeline.md#connected-program-route)
 
 ## Reviewing a bootstrap environment assumption
 

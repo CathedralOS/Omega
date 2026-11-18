@@ -132,7 +132,7 @@ impl BuildFilesystemRuntime {
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,
-    ) -> Result<&source::SourceSnapshot, String> {
+    ) -> Result<&source_capture::SourceSnapshot, String> {
         if root == BUILD_SOURCE_ROOT_IDENTITY {
             return self
                 .effects
@@ -276,8 +276,7 @@ impl BuildFilesystemRuntime {
             None,
         )?;
         if flags != 0 {
-            let wants_write =
-                filesystem_authority::open_flags::wants_write(flags) || flags & 3 != 0;
+            let wants_write = open_flags::wants_write(flags) || flags & 3 != 0;
             if wants_write {
                 let attempt = &mut self.effects.attempts[ordinal];
                 attempt.authorized_paths.clear();
@@ -298,11 +297,11 @@ impl BuildFilesystemRuntime {
             .flatten();
         if live_source.is_none() {
             match self.snapshot(root)?.lookup(path) {
-                Ok(source::SourceSnapshotEntry::File(_)) => {}
-                Ok(source::SourceSnapshotEntry::Directory) => {
+                Ok(source_capture::SourceSnapshotEntry::File(_)) => {}
+                Ok(source_capture::SourceSnapshotEntry::Directory) => {
                     return Ok(self.complete_attempt(ordinal, -1, 21) as i32);
                 }
-                Ok(source::SourceSnapshotEntry::Symlink(_)) => {
+                Ok(source_capture::SourceSnapshotEntry::Symlink(_)) => {
                     return Ok(self.complete_attempt(ordinal, -1, 40) as i32);
                 }
                 _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),
@@ -848,7 +847,7 @@ mod tests {
     }
 
     fn account() -> EvaluationInvocationAccount {
-        let limits = evaluation_accounting::BuildEvaluationSponsorLimits::new(
+        let limits = evaluation_contracts::BuildEvaluationSponsorLimits::new(
             1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
         )
         .unwrap();
@@ -937,3 +936,41 @@ mod tests {
 #[cfg(test)]
 #[path = "runtime_live_source_tests.rs"]
 mod live_source_tests;
+
+mod open_flags {
+    #[cfg(target_os = "windows")]
+    pub const O_CREAT_BIT: i32 = 8;
+    #[cfg(target_os = "windows")]
+    pub const O_TRUNC_BIT: i32 = 9;
+    #[cfg(target_os = "windows")]
+    pub const O_APPEND_BIT: i32 = 3;
+
+    #[cfg(target_os = "macos")]
+    pub const O_CREAT_BIT: i32 = 9;
+    #[cfg(target_os = "macos")]
+    pub const O_TRUNC_BIT: i32 = 10;
+    #[cfg(target_os = "macos")]
+    pub const O_APPEND_BIT: i32 = 3;
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_CREAT_BIT: i32 = 6;
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_TRUNC_BIT: i32 = 9;
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    pub const O_APPEND_BIT: i32 = 10;
+
+    pub const fn o_creat(flags: i32) -> bool {
+        (flags >> O_CREAT_BIT) & 1 != 0
+    }
+    pub const fn o_trunc(flags: i32) -> bool {
+        (flags >> O_TRUNC_BIT) & 1 != 0
+    }
+    pub const fn o_append(flags: i32) -> bool {
+        (flags >> O_APPEND_BIT) & 1 != 0
+    }
+
+    pub const fn wants_write(flags: i32) -> bool {
+        let access = flags & 0x3;
+        access == 1 || access == 2 || o_creat(flags) || o_trunc(flags) || o_append(flags)
+    }
+}

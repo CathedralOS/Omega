@@ -140,9 +140,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
 
 fn encode_primitive_float_binary_operation(
     encoder: &mut Encoder,
-    operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,
+    operation: effects::CompilerPrimitiveFloatBinaryOperation,
 ) {
-    use provider_planning::CompilerPrimitiveFloatBinaryOperation;
+    use effects::CompilerPrimitiveFloatBinaryOperation;
 
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => encoder.tag("add", 0),
@@ -160,9 +160,9 @@ fn encode_primitive_float_binary_operation(
 
 fn encode_primitive_integer_comparison_operation(
     encoder: &mut Encoder,
-    operation: provider_planning::CompilerPrimitiveIntegerComparisonOperation,
+    operation: effects::CompilerPrimitiveIntegerComparisonOperation,
 ) {
-    use provider_planning::CompilerPrimitiveIntegerComparisonOperation;
+    use effects::CompilerPrimitiveIntegerComparisonOperation;
 
     match operation {
         CompilerPrimitiveIntegerComparisonOperation::Equal => encoder.tag("equal", 0),
@@ -176,17 +176,14 @@ fn encode_primitive_integer_comparison_operation(
     };
 }
 
-fn encode_float_format(encoder: &mut Encoder, format: numerics::literals::FloatFormat) {
+fn encode_float_format(encoder: &mut Encoder, format: numeric_literals::FloatFormat) {
     match format {
-        numerics::literals::FloatFormat::F32 => encoder.tag("f32", 0),
-        numerics::literals::FloatFormat::F64 => encoder.tag("f64", 1),
+        numeric_literals::FloatFormat::F32 => encoder.tag("f32", 0),
+        numeric_literals::FloatFormat::F64 => encoder.tag("f64", 1),
     };
 }
 
-fn encode_compiler_numeric_type(
-    encoder: &mut Encoder,
-    numeric_type: provider_planning::CompilerNumericType,
-) {
+fn encode_compiler_numeric_type(encoder: &mut Encoder, numeric_type: effects::CompilerNumericType) {
     encoder.fixed_bytes(&numeric_type.canonical_encoding());
 }
 

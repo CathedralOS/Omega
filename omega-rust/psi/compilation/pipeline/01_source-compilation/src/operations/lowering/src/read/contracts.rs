@@ -1,0 +1,2550 @@
+/*
+The contract family of the reader: `requires`, `ensures` and `crashes` clauses
+read into propositions over the formals, and the identity of the reserved
+`result`. A data declaration's `requires` is read by the same clause reader,
+with `self` and its fields as the names in scope (`ClauseScope::subject`).
+*/
+
+use crate::lowering::body::{Policy, Qualification};
+use crate::source_state::closed_numeric;
+use crate::source_state::domain::ProofFact;
+use crate::source_state::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
+};
+use symbols::SymbolHandle;
+use terminal_check_tables::{Checked, Construct};
+
+use super::authority::Access;
+use super::places::Member;
+use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
+use super::{Program, Slot};
+use crate::lowering::StorageShape;
+use crate::lowering::body::ValueType;
+use crate::lowering::canonical::{self, Repeated};
+use crate::lowering::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
+
+/// What a contract clause may name: the formals, and the result pseudo-value
+/// only in a normal-return guarantee of its owning callable.
+#[derive(Clone, Copy)]
+pub(super) struct ClauseScope<'s> {
+    pub(super) slots: &'s [Slot],
+    /// Each formal's immutable logical input identity, by slot
+    /// (`body::formal_values`); `None` for a record or borrowed formal.
+    /// Body assignments change working slots, never these contract inputs.
+    /// The signature owner constructs this roster from declaration formals
+    /// only. `old` excludes erased inputs; borrowed inputs use their exact
+    /// storage observation instead of a scalar input identity.
+    pub(super) values: &'s [Option<ValueId>],
+    /// The value parameters this reading of the clause has bound, each to
+    /// its literal: a requirement read at the static arguments of one call
+    /// (`requirement_signature`). A name that resolves to one is that
+    /// literal.
+    pub(super) bound: &'s [(SymbolHandle, ScalarTerm)],
+    /// The callable whose reserved `result` this clause may name (the
+    /// machine's one state; see `TableNamePath::reserved_result_of`).
+    pub(super) owner: SymbolHandle,
+    pub(super) result: ResultTerm,
+    /// Set for a clause of a data declaration's `requires`: the type whose
+    /// value `self` is. Such a clause may also test a case and be a
+    /// disjunction, because it never enters the module's contracts: the
+    /// checker replaces its names by values before it is a goal.
+    pub(super) subject: Option<DataSubject<'s>>,
+    /// Whether a term may project a formal (`p.first`). Entry requirements
+    /// read the invocation input. Normal guarantees keep owned inline input
+    /// fields, but read borrowed storage at completion. `old` explicitly
+    /// selects the input observation. Crash guards retain their separate
+    /// admission rule.
+    pub(super) formal_fields: bool,
+    pub(super) logical: Option<super::logical::LogicalScope<'s>>,
+}
+
+/// The stored value a `requires` clause is about: the value of a data
+/// declaration for its own clauses, or the field a named domain qualifies
+/// for that domain's clauses (`predicates`).
+#[derive(Clone, Copy)]
+pub(super) struct DataSubject<'s> {
+    /// The type of the value `self` is. In a domain's clause it is the
+    /// carrier without the domain being defined (domains.md, "Operands").
+    pub(super) value_type: ValueType,
+    /// The symbol stage 02 gave the clause's `self`; invalid when the
+    /// declaration never names it.
+    pub(super) symbol: SymbolHandle,
+    /// The root that stands for the owning data value in the clause
+    /// (`body::self_place`).
+    pub(super) root: PlaceId,
+    /// From the root down to the value `self` is: empty for a data
+    /// declaration's own clause.
+    pub(super) path: &'s [CanonicalStructuralPathSegment],
+    /// Whether a name written bare is a field of `self`: so in a data
+    /// declaration (domains.md: "Existing unqualified data-field names in
+    /// data predicates remain field references"), never in a domain's.
+    pub(super) bare_fields: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ResultTerm {
+    /// The result's identity, scalar carrier and complete qualification.
+    Named(ValueId, ScalarType, Qualification),
+    /// The declared result root, shared with structural result lowering.
+    Structural(PlaceId, ValueType),
+    /// Why this clause cannot name `result`.
+    Absent(&'static str),
+}
+
+impl Program<'_> {
+    /// An applied body keeps its declaration's clause trees. Both a whole
+    /// scalar result and a projected result must name that exact owner.
+    fn require_result_owner(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        owner: SymbolHandle,
+    ) -> Checked<()> {
+        if owner == scope.owner {
+            return Ok(());
+        }
+        let declared = self
+            .typed
+            .executable_callable_template(scope.owner)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Contract(what)))?;
+        if declared == Some(owner) {
+            Ok(())
+        } else {
+            Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("result of another callable"),
+            ))
+        }
+    }
+}
+
+/// The mathematical integer `magnitude`, negated when `negative`; zero has
+/// no sign (`IntegerMathLiteral::new` refuses a negative zero).
+fn mathematical_literal(negative: bool, magnitude: u64) -> Option<IntegerMathLiteral> {
+    IntegerMathLiteral::new(negative && magnitude != 0, u128::from(magnitude)).ok()
+}
+
+/// The place of the formal in `slot`: lowering mints the formals that are
+/// places first, in position order (a record formal, and a borrowed formal
+/// of any referent), so the `k`-th of them is place `k + 1`
+/// (`Signature::is_place`).
+pub(super) fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checked<PlaceId> {
+    let earlier = slots[..slot]
+        .iter()
+        .filter(|formal| {
+            formal.borrowed.is_some() || matches!(formal.value_type, ValueType::Record(_, _, _))
+        })
+        .count();
+    PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
+        refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("formal place identity"),
+        )
+    })
+}
+
+impl Program<'_> {
+    // Contract clauses: a comparison of formals, literals and Booleans, or a
+    // conjunction or disjunction of those. Terms name formal `i` as value `i + 1`.
+
+    /// Source-free models have no authored operator to complete. An authored
+    /// data clause keeps its record declaration; callable clauses keep the
+    /// exact contract owner, independently of the reserved result identity.
+    fn complete_contract_operator(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operands: [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<()> {
+        if self
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_none()
+        {
+            return Ok(());
+        }
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_builtin_operator(id, owner, expression, &operands)
+    }
+
+    /// A width-parameterized integer (`u<N>`) has no builtin carrier to name,
+    /// so the operand keeps the declared type of the formal or result it
+    /// reads. Every other operand returns `None` here.
+    fn width_parameter_operand_reference(
+        &self,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operand: ValueType,
+    ) -> Option<TypeReferenceHandle> {
+        let ValueType::Scalar(ScalarType::Integer(integer), qualification) = operand else {
+            return None;
+        };
+        if integer.bits().is_some() || !qualification.domains.is_empty() {
+            return None;
+        }
+        let typed = self.typed;
+        let ExpressionNode::Name(path) = typed.expression_table.expression(expression) else {
+            return None;
+        };
+        let state = typed.state_by_symbol(scope.owner)?;
+        let reference = if path.reserved_result_of.is_valid() {
+            state.return_type
+        } else {
+            typed
+                .state_parameter_by_symbol(state, path.resolved_symbol()?)?
+                .type_reference
+        };
+        let TypeReferenceNode::Generic { base_symbol, .. } =
+            typed.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        typed
+            .symbols
+            .integer_family(*base_symbol)
+            .map(|_| reference)
+    }
+
+    fn contract_operator_owner(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+    ) -> Checked<SymbolHandle> {
+        Ok(
+            if let Some(subject) = scope.subject
+                && subject.bare_fields
+            {
+                let ValueType::Record(record, _, _) = subject.value_type else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("data predicate subject without its record declaration"),
+                    ));
+                };
+                terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?
+                    .declaration
+            } else {
+                scope.owner
+            },
+        )
+    }
+
+    /// A contract fact that is an expression; memberships and named
+    /// propositions are outside the subset.
+    pub(super) fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
+        match fact {
+            ProofFact::Expression(expression) => Ok(*expression),
+            ProofFact::Membership(_) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("domain membership"),
+            )),
+            ProofFact::Proposition(_) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("named proposition"),
+            )),
+        }
+    }
+
+    /// The operands of one connective chain, in authored order.
+    fn connective_parts(
+        &self,
+        expression: ExpressionHandle,
+        connective: BinaryOperator,
+        out: &mut Vec<ExpressionHandle>,
+    ) {
+        if expression.is_valid()
+            && let ExpressionNode::Binary(binary) =
+                self.typed.expression_table.expression(expression)
+            && binary.operator == connective
+        {
+            self.connective_parts(binary.left, connective, out);
+            self.connective_parts(binary.right, connective, out);
+        } else {
+            out.push(expression);
+        }
+    }
+
+    /// Read every remaining alternative before simplifying. Otherwise `true`
+    /// could hide arithmetic that still needs a safety proof. Reuse the
+    /// existing representation for `!=`.
+    fn disjunctive_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operands: &[ExpressionHandle],
+    ) -> Checked<Proposition> {
+        let mut disjuncts = Vec::new();
+        for &operand in operands {
+            match self.clause(id, scope, operand)? {
+                Proposition::Disjunction(inner) => disjuncts.extend(inner),
+                other => disjuncts.push(other),
+            }
+        }
+        canonical::clauses(disjuncts, Repeated::Refuse, id).map(Proposition::Disjunction)
+    }
+
+    /// Read one authored callable predicate at the observation its contract
+    /// chooses. Both ordinary and projected refinement signatures use this
+    /// owner; naming a logical membership never introduces its own evidence.
+    pub(super) fn contract_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        fact: &ProofFact,
+        requirement: bool,
+    ) -> Checked<Option<(Proposition, ClauseText)>> {
+        if let ProofFact::Membership(membership) = fact {
+            return match scope.logical {
+                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                None => self.runtime_membership_clause(id, scope, membership),
+            };
+        }
+        let expression = self.fact(id, fact)?;
+        if self.states_nothing(id, expression, requirement)? {
+            let owner = self.contract_operator_owner(id, scope)?;
+            let _ = self.read_static_truth(id, owner, expression, super::types::Reading::Clause)?;
+            return Ok(None);
+        }
+        Ok(Some((
+            self.clause(id, scope, expression)?,
+            self.clause_text(scope.slots, expression),
+        )))
+    }
+
+    pub(super) fn clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let mut operands = [None, None];
+        let read = self.read_clause(id, scope, expression, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
+        Ok(read)
+    }
+
+    fn read_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<Proposition> {
+        let typed = self.typed;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if !expression.is_valid() {
+            return unserved("missing clause expression");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            return self.byte_predicate_clause(id, scope, predicate, argument);
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => {
+                return Ok(if *value {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                });
+            }
+            ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
+                return self.mathematical_clause(id, scope, call);
+            }
+            ExpressionNode::Call(call) => {
+                if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
+                    return Ok(predicate);
+                }
+                // A call of a declared machine states what its body computes
+                // for the arguments (`clause_calls`).
+                return self.called_clause(id, scope, call);
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                // A callable predicate is Boolean, including a named input
+                // and its negation. Keep its actual contract input identity;
+                // a caller substitutes that identity, never its spelling.
+                return Ok(Proposition::Implication {
+                    premise: Box::new(self.clause(id, scope, unary.operand)?),
+                    conclusion: Box::new(Proposition::Falsehood),
+                });
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                let (term, value_type) =
+                    self.term(id, scope, expression, Some(ScalarType::Boolean))?;
+                if self.clause_operand_type(id, value_type)? != ScalarType::Boolean {
+                    return unserved("predicate whose value is not Boolean");
+                }
+                return canonical::equal(term, ScalarTerm::Boolean(true), id);
+            }
+            _ => {}
+        }
+        let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
+            return unserved("clause that is not a comparison or conjunction");
+        };
+        let operator = binary.operator;
+        if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
+            *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
+        }
+        // A machine clause over a type equation the machine being read
+        // decides: a conjunct decided true states nothing and the rest is
+        // the clause, and a disjunct decided false contributes nothing and
+        // is not read (`guarded_false`). What is left must still be a clause
+        // this reader serves; a clause decided false outright is refused.
+        if scope.subject.is_none() && operator == BinaryOperator::And {
+            if self.guarded_false(expression) {
+                return unserved("conjunction that type equations decide false");
+            }
+            let owner = self.contract_operator_owner(id, scope)?;
+            // A folded type guard still owns the operator answers produced
+            // while evaluating it. Keep them before retaining its sibling.
+            if self.read_static_truth(id, owner, binary.left, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
+                return self.clause(id, scope, binary.right);
+            }
+            if self.read_static_truth(id, owner, binary.right, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
+                return self.clause(id, scope, binary.left);
+            }
+        }
+        if scope.subject.is_none() && operator == BinaryOperator::Or {
+            let mut disjuncts = Vec::new();
+            self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
+            if disjuncts
+                .iter()
+                .any(|disjunct| self.guarded_false(*disjunct))
+            {
+                let (vacuous, open): (Vec<_>, Vec<_>) = disjuncts
+                    .into_iter()
+                    .partition(|disjunct| self.guarded_false(*disjunct));
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.skip_vacuous_disjuncts(id, owner, expression, &vacuous)?;
+                return match open[..] {
+                    [only] => self.clause(id, scope, only),
+                    [] => unserved("disjunction that type equations decide false"),
+                    _ => self.disjunctive_clause(id, scope, &open),
+                };
+            }
+        }
+        // `self in S::C`, in a data clause only. `self == S::C` is the same
+        // test only on a payload-free sum (`require_intrinsic_tag_equality`).
+        if matches!(
+            operator,
+            BinaryOperator::CaseMembership | BinaryOperator::Equal
+        ) && let Some(case) = self.named_case(binary.right)
+        {
+            if scope.subject.is_none() {
+                return unserved("case membership");
+            }
+            let Some((root, path, tested)) = self.projected(id, scope, binary.left)? else {
+                return unserved("case test of something that is not a sum");
+            };
+            let Some(sum) = self.opened(id, Some(tested), Access::Read)? else {
+                return unserved("case test of something that is not a sum");
+            };
+            if operator == BinaryOperator::Equal {
+                self.require_intrinsic_tag_equality(id, sum)?;
+            }
+            let case = self.case_position(id, sum, case)?;
+            let case = self.data_type(id, sum.record())?.cases()[case].id;
+            return Ok(Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(root, path),
+                case,
+            });
+        }
+        let comparison = match operator {
+            BinaryOperator::And => {
+                let mut conjuncts = Vec::new();
+                for side in [binary.left, binary.right] {
+                    match self.clause(id, scope, side)? {
+                        Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                        other => conjuncts.push(other),
+                    }
+                }
+                // A data clause is published with its type, so it takes the
+                // canonical order too. A conjunct that tests the case still
+                // guards the conjuncts that project its payload wherever it
+                // stands: substitution decides a connective by any one part
+                // (`substitute_clause`).
+                return canonical::clauses(conjuncts, Repeated::Refuse, id)
+                    .map(Proposition::Conjunction);
+            }
+            BinaryOperator::Or => {
+                return self.disjunctive_clause(id, scope, &[binary.left, binary.right]);
+            }
+            BinaryOperator::Equal
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::NotEqual => operator,
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor => return unserved("arithmetic clause"),
+            BinaryOperator::CaseMembership => return unserved("case membership"),
+        };
+        // A comparison with an `embed` on either side is between
+        // mathematical integers, which no carrier bounds.
+        if self.mathematical(binary.left) || self.mathematical(binary.right) {
+            *operands = self.mathematical_operator_operands();
+            return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
+        }
+        // A wholly anonymous operand lands in its partner's type; an
+        // operand that already has a type keeps it (numeric_values.md,
+        // "Integer equality and order": "Already-typed operands retain their
+        // types").
+        let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
+            let right = self.term(id, scope, binary.right, None)?;
+            (self.term(id, scope, binary.left, right.1.scalar())?, right)
+        } else {
+            let left = self.term(id, scope, binary.left, None)?;
+            let expected = if self.wholly_anonymous(binary.right) {
+                left.1.scalar()
+            } else {
+                None
+            };
+            let right = self.term(id, scope, binary.right, expected)?;
+            (left, right)
+        };
+        *operands =
+            [(binary.left, left_type), (binary.right, right_type)].map(|(expression, operand)| {
+                self.operator_operand_reference(operand)
+                    .or_else(|| self.width_parameter_operand_reference(scope, expression, operand))
+            });
+        // Core policy comparisons have the same exact declared signatures
+        // as executable comparisons. Plain cross-carrier comparisons keep
+        // their separately specified mathematical-value relation below.
+        let policy_qualified = |value_type| {
+            matches!(value_type,
+            ValueType::Scalar(_, qualification) if qualification.policy.is_some())
+        };
+        if policy_qualified(left_type) || policy_qualified(right_type) {
+            super::expressions::binary_selection(
+                id,
+                comparison,
+                Some(left_type),
+                Some(right_type),
+                (
+                    self.wholly_anonymous(binary.left),
+                    self.wholly_anonymous(binary.right),
+                ),
+                None,
+                (
+                    SourceOrigin::of(typed.expression_table.source_span(binary.left)),
+                    SourceOrigin::of(typed.expression_table.source_span(binary.right)),
+                ),
+            )?;
+        }
+        let left_type = self.clause_operand_type(id, left_type)?;
+        let right_type = self.clause_operand_type(id, right_type)?;
+        // Integers of different types compare by their exact values ("The
+        // operands may differ in width, signedness, or both"), which is the
+        // comparison of their embeddings: `characters <= 4096u64` with an
+        // `i32` formal is `embed(characters) <= 4096`.
+        if left_type != right_type
+            && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
+        {
+            let embedded = |term| {
+                IntegerMathTerm::embed(term).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("embed of a value that is not an integer"),
+                    )
+                })
+            };
+            return mathematical_relation(comparison, embedded(left)?, embedded(right)?, id);
+        }
+        if left_type != right_type {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("clause operand types differ"),
+            ));
+        }
+        if matches!(left_type, ScalarType::IeeeFloat(_)) {
+            return unserved("IEEE comparison without its selected declaration");
+        }
+        let ordered = matches!(left_type, ScalarType::Integer(_));
+        match comparison {
+            BinaryOperator::Equal => canonical::equal(left, right, id),
+            _ if !ordered => unserved("ordering of Booleans"),
+            BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
+            BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
+            BinaryOperator::Greater => Ok(Proposition::LessThan(right, left)),
+            BinaryOperator::GreaterOrEqual => Ok(Proposition::LessOrEqual(right, left)),
+            // There is no negated proposition. An integer `a != b` is the
+            // disjunction the kernel denotes a false integer equality by
+            // (`predicate_denotation`: `a < b or b < a`), so a requirement
+            // and a guard of the same disequality state the same fact.
+            BinaryOperator::NotEqual => canonical::clauses(
+                vec![
+                    Proposition::LessThan(left.clone(), right.clone()),
+                    Proposition::LessThan(right, left),
+                ],
+                Repeated::Refuse,
+                id,
+            )
+            .map(Proposition::Disjunction),
+            _ => unserved("comparison"),
+        }
+    }
+
+    /// A primitive byte predicate of a byte view (`no_nul(self)`,
+    /// `valid_utf8(text)`) is decided by the bytes the view shows, so a
+    /// clause states the term the checker reconstructs for those bytes:
+    /// `ByteSequencePredicate { root, path } == true` over the storage the
+    /// argument names (byte_views.md: "An ordinary or boundary shared-byte
+    /// argument may satisfy its formal's primitive byte domains from these
+    /// reconstructed predicates"). A domain `[u8]::Path requires
+    /// no_nul(self)` on a formal `path: &[u8] in Path` is then an entry
+    /// requirement over that formal's bytes, which every caller proves under
+    /// the exact argument substitution. An argument that names no byte
+    /// view's storage is refused.
+    fn byte_predicate_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        predicate: crate::source_state::byte_predicates::ByteSequencePredicate,
+        argument: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
+        let ValueType::Record(row, _, _) = value_type else {
+            unreachable!("validated byte carrier")
+        };
+        match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(_) => {}
+            // A fixed array's length is in its type, so the predicate is a
+            // statement about its bytes (`fixed_bytes`).
+            StorageShape::FixedArray { .. } => {
+                return self.fixed_byte_predicate_clause(id, root, path, value_type, predicate);
+            }
+            _ => {
+                return Err(unserved(
+                    "byte predicate of something that is not a byte view or a byte array",
+                ));
+            }
+        }
+        canonical::equal(
+            ScalarTerm::byte_sequence_predicate(predicate, root, path),
+            ScalarTerm::Boolean(true),
+            id,
+        )
+    }
+
+    fn byte_predicate_subject(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject = crate::source_state::byte_predicates::whole_byte_observation_subject(
+            self.typed, argument,
+        )
+        .ok_or_else(|| unserved("logical byte observation requires a shared exact whole view"))?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte carrier",
+            ));
+        };
+        let explicit_loan = matches!(
+            self.typed.expression_table.expression(argument),
+            ExpressionNode::Borrow(_)
+        );
+        let valid = match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StorageShape::ByteSequence(_) if explicit_loan => true,
+            StorageShape::FixedArray { .. } if explicit_loan => {
+                let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                    return Err(unserved("byte array is not readable"));
+                };
+                let (element, qualification, _) = self.array_element(id, array)?;
+                matches!(self.storage_value_type(id, element, qualification)?,
+                    ValueType::Scalar(ScalarType::Integer(integer), _) if integer.bits() == Some(8)
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(unserved(
+                "byte predicate requires a byte view or fixed u8 array",
+            ));
+        }
+        let collection = if let ExpressionNode::Borrow(borrow) =
+            self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+        {
+            // A domain's `self` names the declared logical carrier, which
+            // may be unsized. Its actual source type is retained by that
+            // declaration; reading it is not executable slice materialization.
+            if let Some(subject) = scope.subject
+                && let Some(definition) = self.typed.domain_definition(scope.owner)
+                && subject.symbol == definition.subject_symbol
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(definition.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    crate::source_state::types::TypeReferenceNode::Slice { .. }
+                )
+                && crate::source_state::domain::domain_subject_reference(
+                    self.typed,
+                    definition,
+                    indexed.collection,
+                )
+            {
+                Some(definition.target_type)
+            } else {
+                self.structural_operator_operand_reference(id, indexed.collection, value_type)?
+            }
+        } else {
+            None
+        };
+        let owner = self.contract_operator_owner(id, scope)?;
+        self.complete_byte_observation_range(id, owner, argument, collection)?;
+        Ok((root, path, value_type))
+    }
+
+    /// Form the source range of a logical byte observation. The declaration
+    /// reader supplies its exact logical carrier; instantiated clauses supply
+    /// the actual checked structural operand. Neither call grants membership.
+    pub(super) fn complete_byte_observation_range(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        argument: ExpressionHandle,
+        collection: Option<TypeReferenceHandle>,
+    ) -> Checked<()> {
+        if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+            && matches!(
+                self.typed.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            return self.complete_collection_range_operator(id, owner, borrow.target, collection);
+        }
+        Ok(())
+    }
+
+    /// A selected pure comparison denotes its canonical IEEE predicate. Its
+    /// full result contract states equivalence, so this is the same Boolean
+    /// meaning rather than a consequence guessed from an operator token.
+    fn numeric_comparison_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Checked<Option<Proposition>> {
+        if self.typed.symbols.sealed_intrinsic(call.target_symbol)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Ok(None);
+        }
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        self.applies_nothing(
+            id,
+            call.target_symbol,
+            call.authored_machine_application,
+            &call.machine_arguments,
+        )?;
+        if call.receiver.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.build_selection.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.installed_interrupt_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return Err(unavailable(
+                "float comparison in a contract cannot use a receiver, evidence arguments or another call selection",
+            ));
+        }
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(call.target_symbol)
+            .ok_or_else(|| unavailable("numeric predicate lost its exact declaration meaning"))?;
+        let signature = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric predicate has no complete scalar signature"))?;
+        let operand = signature
+            .operand
+            .scalar_type()
+            .filter(|operand| matches!(operand, ScalarType::IeeeFloat(_)))
+            .ok_or_else(|| unavailable("numeric predicate has no permanent float format"))?;
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
+        let [left, right] = arguments else {
+            return Err(unavailable("float comparison needs exactly two arguments"));
+        };
+        let (left, left_type) = self.term(id, scope, *left, Some(operand))?;
+        let (right, right_type) = self.term(id, scope, *right, Some(operand))?;
+        if left_type != ValueType::plain(operand) || right_type != ValueType::plain(operand) {
+            return Err(unavailable(
+                "numeric predicate changes its selected carrier or qualification",
+            ));
+        }
+        terminal_semantics::numeric_primitives::comparison_predicate(meaning, left, right)
+            .map(Some)
+            .map_err(unavailable)
+    }
+
+    /// A clause's authored text, each formal left open by position, for
+    /// diagnostics. Rendering preserves the authored operation and permits
+    /// substitution of the caller's actuals without re-reading source text.
+    pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
+        let mut text = ClauseText::default();
+        self.write_clause_text(slots, expression, &mut text);
+        text
+    }
+
+    fn write_clause_text(
+        &self,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+        text: &mut ClauseText,
+    ) {
+        let table = &self.typed.expression_table;
+        if !expression.is_valid() {
+            return;
+        }
+        match table.expression(expression) {
+            ExpressionNode::Binary(binary) => {
+                self.write_clause_text(slots, binary.left, text);
+                text.push_text(" ");
+                text.push_text(binary.operator.display_name());
+                text.push_text(" ");
+                self.write_clause_text(slots, binary.right, text);
+            }
+            ExpressionNode::Unary(unary) => {
+                text.push_text(unary.operator.display_name());
+                let grouped = matches!(
+                    table.expression(unary.operand),
+                    ExpressionNode::Binary(_)
+                );
+                if grouped { text.push_text("("); }
+                self.write_clause_text(slots, unary.operand, text);
+                if grouped { text.push_text(")"); }
+            }
+            ExpressionNode::Member(member) => {
+                self.write_clause_text(slots, member.receiver, text);
+                text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
+                text.push_text(member.member.as_str());
+            }
+            // Proof projections keep the formal inside open, so a call's
+            // statement of the clause names its own argument there.
+            ExpressionNode::Call(call)
+                if self.embeds(call)
+                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld)
+                    || self.typed.symbols.sealed_intrinsic(call.target_symbol)
+                        == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement) =>
+            {
+                text.push_text(call.target.as_str());
+                text.push_text("(");
+                for (position, argument) in table.expression_handles(call.arguments).iter().enumerate() {
+                    if position != 0 { text.push_text(", "); }
+                    self.write_clause_text(slots, *argument, text);
+                }
+                text.push_text(")");
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                match slots.iter().position(|slot| slot.symbol == path.symbol) {
+                    Some(position) => text.0.push(Piece::Formal(position)),
+                    None => text.push_text(&table.display_name(expression)),
+                }
+            }
+            _ => text.push_text(&table.display_name(expression)),
+        }
+    }
+
+    fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
+        match value_type {
+            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+                Ok(scalar)
+            }
+            ValueType::Scalar(..) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract(
+                    "builtin operator on a value with a declared domain in a clause",
+                ),
+            )),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("non-scalar clause operand"),
+            )),
+        }
+    }
+
+    /// Keep the qualification with the value until its consuming operation.
+    /// A cast can remove a named domain; merely naming the value cannot.
+    pub(super) fn term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        let mut operands = [None, None];
+        let read = self.read_term(id, scope, expression, expected, &mut operands)?;
+        self.complete_contract_operator(id, scope, expression, operands)?;
+        Ok(read)
+    }
+
+    fn read_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        let typed = self.typed;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if !expression.is_valid() {
+            return unserved("missing term");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            let (root, path, _) = self.byte_predicate_subject(id, scope, argument)?;
+            return Ok((
+                ScalarTerm::byte_sequence_predicate(predicate, root, path),
+                ValueType::plain(ScalarType::Boolean),
+            ));
+        }
+        if let Some(logical) = &scope.logical
+            && let Some((term, scalar)) = logical.term(typed, expression)?
+        {
+            return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
+        }
+        // A Boolean static type propositions decide, such as a field of the
+        // integer carrier query, is that Boolean (`clause_truth`).
+        if matches!(
+            typed.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Binary(_)
+        ) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            match self.read_static_truth(id, owner, expression, super::types::Reading::Clause)? {
+                Some(TypeTruth::Known(truth)) => {
+                    return Ok((
+                        ScalarTerm::Boolean(truth),
+                        ValueType::plain(ScalarType::Boolean),
+                    ));
+                }
+                Some(TypeTruth::Open) => return unserved(OPEN_CARRIER_FAMILY),
+                None => {}
+            }
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) if path.static_application.is_valid() => {
+                unserved("applied name used as a plain scalar term")
+            }
+            // The reserved result, by the owner identity stage 02 recorded,
+            // never by its spelling. calls_and_outcomes.md: "The reserved
+            // result occurrence belongs to its contract owner, not any local
+            // or parameter spelled `result`."
+            ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
+                self.require_result_owner(id, scope, path.reserved_result_of)?;
+                match scope.result {
+                    ResultTerm::Named(id, scalar_type, qualification) => Ok((
+                        ScalarTerm::Value { id, scalar_type },
+                        ValueType::Scalar(scalar_type, qualification),
+                    )),
+                    ResultTerm::Structural(..) => {
+                        unserved("whole structural result in a scalar clause")
+                    }
+                    ResultTerm::Absent(why) => unserved(why),
+                }
+            }
+            ExpressionNode::Name(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
+            {
+                if typed.expression_table.name_path_members(path.members).len() != 1 {
+                    return unserved("projected value parameter");
+                }
+                let literal = scope
+                    .bound
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .map(|(_, literal)| literal.clone())
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("value parameter binding"),
+                        )
+                    })?;
+                let scalar_type = literal.scalar_type();
+                Ok((literal, ValueType::plain(scalar_type)))
+            }
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, scope.slots, path)?;
+                // A borrowed scalar is storage too. The clause's consumer
+                // observes entry or completion through the same exact input
+                // place as a projected record field.
+                if scope.slots[slot].borrowed.is_some() {
+                    if !scope.formal_fields {
+                        return unserved("borrowed formal outside an admitted storage clause");
+                    }
+                    let ValueType::Scalar(scalar_type, qualification) =
+                        scope.slots[slot].value_type
+                    else {
+                        return unserved("record formal named whole in a clause");
+                    };
+                    let root = formal_place(id, scope.slots, slot)?;
+                    return match scalar_type {
+                        ScalarType::Integer(integer) => Ok((
+                            ScalarTerm::IntegerField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                                root,
+                                path: Vec::new(),
+                                scalar_type: integer,
+                            },
+                            ValueType::Scalar(scalar_type, qualification),
+                        )),
+                        ScalarType::Boolean => Ok((
+                            ScalarTerm::BooleanField {
+                                version: semantic_vocabulary::ContentPlaceVersion::Current,
+                                root,
+                                path: Vec::new(),
+                            },
+                            ValueType::Scalar(scalar_type, qualification),
+                        )),
+                        ScalarType::IeeeFloat(format) => Ok((
+                            ScalarTerm::ieee_float_field_path(root, Vec::new(), format),
+                            ValueType::Scalar(scalar_type, qualification),
+                        )),
+                        ScalarType::Callable(_) => unserved("callable field in a clause"),
+                    };
+                }
+                // A record formal is a place, not a scalar value: a clause
+                // names it through the admitted field projection below.
+                // A policy-qualified formal is named as its stored value: a
+                // comparison of it compares that value whatever the policy.
+                let ValueType::Scalar(scalar_type, qualification) = scope.slots[slot].value_type
+                else {
+                    return unserved("record formal named whole in a clause");
+                };
+                if matches!(scalar_type, ScalarType::Callable(_)) {
+                    return unserved("callable value in a clause");
+                }
+                // Contracts name the supplied scalar value in every clause.
+                // Lowering initializes the body's working slot from this
+                // formal ValueId; assignments and writable loans can change
+                // that slot without rebinding the logical input. Returns and
+                // calls substitute these same immutable identities, so no
+                // runtime snapshot or additional custody is needed.
+                let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("formal identity"),
+                    )
+                })?;
+                Ok((
+                    ScalarTerm::Value {
+                        id: value,
+                        scalar_type,
+                    },
+                    ValueType::Scalar(scalar_type, qualification),
+                ))
+            }
+            ExpressionNode::Member(member)
+                if matches!(
+                    member.selection,
+                    crate::source_state::expression::MemberSelection::CollectionMeasure(
+                        crate::source_state::expression::CollectionMeasure::Length
+                    )
+                ) =>
+            {
+                if !scope.formal_fields || scope.subject.is_some() {
+                    return unserved("extent outside an input requirement");
+                }
+                let Some((root, path, receiver)) = self.projected(id, scope, member.receiver)?
+                else {
+                    return unserved("extent without an exact formal descriptor");
+                };
+                let Some(record) = self
+                    .opened(id, Some(receiver), Access::Read)?
+                    .map(super::authority::Opened::record)
+                else {
+                    return unserved("extent of non-collection storage");
+                };
+                let scalar_type = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid");
+                let shape = &self.data_type(id, record)?.shape;
+                let length =
+                    if let Some(length) = shape.fixed_array_extent() {
+                        // Taking a type's constant length must not erase the
+                        // obligation to establish a payload before selecting it.
+                        if path.iter().any(|segment| {
+                            matches!(segment, CanonicalStructuralPathSegment::Case(_))
+                        }) {
+                            return unserved(
+                                "fixed array length through an unestablished case payload",
+                            );
+                        }
+                        match length {
+                            terminal_psi::ArrayExtent::Literal(length) => ScalarTerm::Integer {
+                                scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                            },
+                            terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                                let binding = self.extent_input(id, owner, value)?;
+                                let ScalarType::Integer(input_type) = binding.scalar_type else {
+                                    return unserved("fixed-array length input is not an integer");
+                                };
+                                let term = ScalarTerm::Value {
+                                    id: value,
+                                    scalar_type: binding.scalar_type,
+                                };
+                                if input_type == scalar_type {
+                                    term
+                                } else {
+                                    ScalarTerm::integer_widen(input_type, scalar_type, term)
+                                        .map_err(|_| {
+                                            refuse(
+                                                id,
+                                                Construct::Machine,
+                                                Unserved::Contract(
+                                                    "fixed-array length has no count conversion",
+                                                ),
+                                            )
+                                        })?
+                                }
+                            }
+                            terminal_psi::ArrayExtent::Application(_) => {
+                                return unserved(
+                                    "fixed-array length with an unresolved scalar application",
+                                );
+                            }
+                        }
+                    } else if shape.length_operation().is_some() {
+                        ScalarTerm::ViewExtent {
+                            root,
+                            path,
+                            scalar_type,
+                        }
+                    } else {
+                        return unserved("extent without its descriptor operation");
+                    };
+                Ok((length, ValueType::plain(ScalarType::Integer(scalar_type))))
+            }
+            // `self.value`, `self.from.x`: a field of the value a data
+            // clause is about.
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
+            }
+            // `p.first == 7` in an entry `requires`: the field of a record
+            // formal's place.
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                if scope.formal_fields || matches!(scope.result, ResultTerm::Structural(..)) =>
+            {
+                self.field_term(id, scope, expression)
+            }
+            // Other formal projections need their own input or completion
+            // storage correspondence; a readable spelling does not supply it.
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                unserved("clause that projects a formal or result")
+            }
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
+                ))
+            }
+            ExpressionNode::Float(literal) => {
+                let value = self.float_literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(value.format())),
+                ))
+            }
+            ExpressionNode::Integer(literal) => {
+                let (value, integer) = self.literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value,
+                    },
+                    ValueType::plain(ScalarType::Integer(integer)),
+                ))
+            }
+            ExpressionNode::Binary(_)
+                if self.wholly_anonymous(expression)
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
+                ))
+            }
+            ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
+                let evaluated = self.anonymous_value(id, expression, expected)?;
+                if !evaluated.operators.is_empty() {
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                }
+                Ok((
+                    ScalarTerm::Integer {
+                        scalar_type: evaluated.integer,
+                        value: evaluated.value,
+                    },
+                    ValueType::plain(ScalarType::Integer(evaluated.integer)),
+                ))
+            }
+            ExpressionNode::Boolean(value) => Ok((
+                ScalarTerm::Boolean(*value),
+                ValueType::plain(ScalarType::Boolean),
+            )),
+            ExpressionNode::Binary(binary) => {
+                match crate::lowering::policy::suffix(binary.policy) {
+                    // The shared declaration phase forms this canonical term
+                    // before any containing clause becomes proof knowledge.
+                    crate::lowering::policy::Suffix::Unwritten => {
+                        self.arithmetic_term(id, scope, binary, None, expected, operands)
+                    }
+                    // "An arithmetic operation whose selected meaning can
+                    // transfer control cannot form a proof term. It is not
+                    // silently read as Exact or mathematical arithmetic."
+                    crate::lowering::policy::Suffix::Trapping => Err(crate::lowering::reject(
+                        id,
+                        crate::lowering::SourceOrigin::of(
+                            self.typed.expression_table.source_span(expression),
+                        ),
+                        "a trapping operator (`+!`, `-!`, `*!`) in a contract clause: an operation \
+                     that can crash forms no proof term, and it is not read as exact or \
+                     mathematical arithmetic",
+                    )),
+                    crate::lowering::policy::Suffix::Total(policy) => {
+                        self.arithmetic_term(id, scope, binary, Some(policy), expected, operands)
+                    }
+                }
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+                let (operand, value_type) = self.term(id, scope, unary.operand, expected)?;
+                let Some(result @ ValueType::Scalar(ScalarType::Integer(carrier), _)) =
+                    crate::lowering::policy::bitwise_not_type(value_type)
+                else {
+                    return unserved(
+                        "bitwise complement on an operand without a core word signature",
+                    );
+                };
+                let term = ScalarTerm::integer_bitwise_not(carrier, operand).map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("bitwise complement term"),
+                    )
+                })?;
+                Ok((term, result))
+            }
+            ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
+            ExpressionNode::Call(call)
+                if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+            {
+                self.old_term(id, scope, call, expected)
+            }
+            // An `embed` is a mathematical integer, which only a
+            // mathematical comparison holds (`mathematical_term`).
+            ExpressionNode::Call(call) if self.embeds(call) => {
+                unserved("embed outside a mathematical comparison")
+            }
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                let query = call.layout_query.as_ref().expect("matched a layout query");
+                let source = crate::lowering::SourceOrigin::of(
+                    typed.expression_table.source_span(expression),
+                );
+                let measured = self.layout_query(id, call, query, source)?;
+                if let (
+                    crate::lowering::body::ExpressionKind::ScalarApplication { application },
+                    Some(ValueType::Scalar(scalar_type, qualification)),
+                ) = (measured.kind, measured.result)
+                {
+                    return Ok((
+                        ScalarTerm::Application {
+                            application,
+                            scalar_type,
+                        },
+                        ValueType::Scalar(scalar_type, qualification),
+                    ));
+                }
+                unserved("layout query has no scalar application")
+            }
+            ExpressionNode::Call(call) => self.called_term(id, scope, call),
+            _ => unserved("term other than a formal, a literal or an embedded integer"),
+        }
+    }
+
+    /// `old` reads the invocation input, not the current working storage.
+    /// A scalar input already has that identity; a projected field retains
+    /// its exact root/path and asks the existing storage binding for the entry
+    /// observation. Results and computed terms have no such input.
+    fn old_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &crate::source_state::expression::TableCallExpression,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        if scope.subject.is_some() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old outside a callable contract"),
+            ));
+        }
+        let argument = self.old_argument(id, call)?;
+        if let Some(logical) = scope.logical
+            && let Some((term, scalar)) = logical.old_term(self.typed, argument)?
+        {
+            return Ok((term, ValueType::plain(scalar)));
+        }
+        let inputs = ClauseScope {
+            result: ResultTerm::Absent("result has no callable-entry value"),
+            formal_fields: true,
+            // Static substitutions are not invocation inputs. Resolve the
+            // authored subject against the actual formal roster, so a bound
+            // term cannot impersonate an input by reusing its numeric IDs.
+            bound: &[],
+            ..*scope
+        };
+        let mut term = self.term(id, &inputs, argument, expected)?;
+        let is_input = match &mut term.0 {
+            ScalarTerm::IntegerField { version, .. }
+            | ScalarTerm::BooleanField { version, .. }
+            | ScalarTerm::IeeeFloatField { version, .. } => {
+                *version = semantic_vocabulary::ContentPlaceVersion::Entry;
+                true
+            }
+            ScalarTerm::Value {
+                id: value,
+                scalar_type,
+            } => scope.slots.iter().zip(scope.values).any(|(slot, input)| {
+                !slot.erased
+                    && slot.borrowed.is_none()
+                    && *input == Some(*value)
+                    && slot.value_type == term.1
+                    && matches!(slot.value_type, ValueType::Scalar(declared, _)
+                            if declared == *scalar_type)
+            }),
+            _ => false,
+        };
+        if !is_input {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of a subject without an admitted invocation input"),
+            ));
+        }
+        Ok(term)
+    }
+
+    fn old_argument(
+        &self,
+        id: MachineId,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Checked<ExpressionHandle> {
+        match self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+        {
+            [argument] => Ok(*argument),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of other than one subject"),
+            )),
+        }
+    }
+
+    fn clause_cast(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        cast: &crate::source_state::expression::TableCastExpression,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        use language_core::cast_form::CastEntryKind;
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
+            let after = self.qualified_scalar_type(id, cast.result_type)?;
+            let landing = after.scalar().filter(|_| self.wholly_anonymous(cast.value));
+            let (term, before) = self.term(id, scope, cast.value, landing)?;
+            if before == after {
+                return Ok((term, after));
+            }
+            if let (
+                ValueType::Scalar(ScalarType::Integer(from), Qualification::NONE),
+                ValueType::Scalar(ScalarType::Integer(to), Qualification::NONE),
+            ) = (before, after)
+                && !from.is_address()
+                && !to.is_address()
+            {
+                // Widening is total. A narrowing or sign change must form its
+                // representability obligation before this clause can be used.
+                let converted = if from.can_widen_to(to) {
+                    ScalarTerm::integer_widen(from, to, term)
+                } else {
+                    ScalarTerm::integer_exact_cast(from, to, term)
+                };
+                return converted
+                    .map(|term| (term, after))
+                    .map_err(|_| unavailable("integer cast with no exact carrier conversion"));
+            }
+            self.scalar_domain_cast_type(id, cast.result_type, before)?;
+            return Err(unavailable(
+                "value cast in a clause changes its qualification",
+            ));
+        }
+        let Some(entry) = cast.form.entry() else {
+            return Err(unavailable("cast in a clause term"));
+        };
+        // Establishment has its own formation obligation. A clause cannot
+        // assume the predicate it is about to state to justify its operand.
+        if entry.kind == CastEntryKind::Add {
+            return Err(unavailable("domain establishment in a clause term"));
+        }
+        if !cast.result_type.is_valid() {
+            return Err(unavailable("domain cast typing did not account for"));
+        }
+        let (term, before) = self.term(id, scope, cast.value, expected)?;
+        let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+        let domain = self.domain_entry_change(id, before, after, cast, entry)?;
+        if entry.kind == CastEntryKind::Remove
+            && let Some(domain) = domain
+        {
+            self.domain_removal(
+                id,
+                domain,
+                before,
+                SourceOrigin::of(self.typed.expression_table.source_span(cast.value)),
+            )?;
+        }
+        // Only qualification changed. Keeping the original term also keeps
+        // its immutable value identity and every fact already proved of it.
+        Ok((term, after))
+    }
+
+    /// `left <op><suffix> right` in a clause: the value the operator computes
+    /// under `policy`, as a term.
+    ///
+    /// The operator means here what it means in a body (`crate::lowering::policy`):
+    /// both operands are unqualified integers of one carrier, an anonymous
+    /// operand lands in its partner's carrier, a shift's count keeps its own
+    /// type, and the result is the bare carrier. contracts.md, "Total
+    /// arithmetic": "Wrapping and Saturating discharge primitive definedness
+    /// not resolved by their overflow policy, such as a nonzero divisor." A
+    /// divide or remainder therefore owes a condition before it forms a term.
+    /// Declaration formation checks that condition before using the clause.
+    fn arithmetic_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        binary: &crate::source_state::expression::TableBinaryExpression,
+        suffix: Option<Policy>,
+        expected: Option<ScalarType>,
+        operands: &mut [Option<TypeReferenceHandle>; 2],
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let anonymous = (
+            self.wholly_anonymous(binary.left),
+            self.wholly_anonymous(binary.right),
+        );
+        let source =
+            crate::lowering::SourceOrigin::of(self.typed.expression_table.source_span(binary.left));
+        if suffix.is_some() && anonymous == (true, true) {
+            return Err(crate::lowering::reject(
+                id,
+                source,
+                crate::lowering::policy::WHOLLY_ANONYMOUS,
+            ));
+        }
+        let ((left, left_type), (right, right_type)) = if anonymous.0 {
+            let right = self.term(id, scope, binary.right, expected)?;
+            (self.term(id, scope, binary.left, right.1.scalar())?, right)
+        } else {
+            let left = self.term(id, scope, binary.left, expected)?;
+            let right = self.term(id, scope, binary.right, left.1.scalar())?;
+            (left, right)
+        };
+        let (operation, policy, selected) = super::expressions::binary_selection(
+            id,
+            binary.operator,
+            Some(left_type),
+            Some(right_type),
+            anonymous,
+            suffix,
+            (
+                source,
+                crate::lowering::SourceOrigin::of(
+                    self.typed.expression_table.source_span(binary.right),
+                ),
+            ),
+        )?;
+        let operation = operation
+            .ok_or_else(|| unserved("short-circuit expression is not a scalar arithmetic term"))?;
+        let Some(ScalarType::Integer(carrier)) = selected.scalar() else {
+            return Err(unserved(
+                "arithmetic contract term has no selected integer carrier",
+            ));
+        };
+        let term = crate::lowering::policy::term(operation, policy, carrier, left, right)
+            .ok_or_else(|| {
+                unserved("selected arithmetic operator has no canonical contract term")
+            })?;
+        // Source selection must see the operands this reader actually
+        // checked; unknown operands would leave unrelated overloads eligible.
+        *operands = [left_type, right_type].map(|value| self.operator_operand_reference(value));
+        Ok((term, selected))
+    }
+
+    /// Whether `call` is the builtin integer embedding applied to one value:
+    /// decided by the symbol stage 02 resolved the callee to, never by its
+    /// spelling, so a machine a program names `embed` is not one.
+    fn embeds(&self, call: &crate::source_state::expression::TableCallExpression) -> bool {
+        self.builtin_call(call, symbols::BuiltinFunction::IntegerEmbed)
+    }
+
+    fn builtin_call(
+        &self,
+        call: &crate::source_state::expression::TableCallExpression,
+        builtin: symbols::BuiltinFunction,
+    ) -> bool {
+        !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && call.evidence_arguments.is_empty()
+            && call.target_symbol.is_valid()
+            && self
+                .typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                == Some(builtin)
+    }
+
+    /// Whether `expression` holds an `embed` beneath binary operators only:
+    /// what makes the comparison it stands in one between mathematical
+    /// integers. An `embed` inside a call's or a cast's operand does not; that
+    /// operand is the call's or the cast's to read.
+    fn mathematical(&self, expression: ExpressionHandle) -> bool {
+        if self.is_mathematical_term(expression) {
+            return true;
+        }
+        let table = &self.typed.expression_table;
+        let mut pending = vec![expression];
+        while let Some(expression) = pending.pop() {
+            if !expression.is_valid() {
+                continue;
+            }
+            match table.expression(expression) {
+                ExpressionNode::Call(call) if self.embeds(call) => return true,
+                ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// A comparison between mathematical integers, as the proposition
+    /// Terminal Psi keeps for one (`IntegerMathEqual`, `IntegerMathLessThan`,
+    /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
+    /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
+    /// Domain and data clauses retain the same terms; the lowered-form checker
+    /// still proves their formation and establishment in each subject scope.
+    fn mathematical_comparison(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        comparison: BinaryOperator,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let left = self.mathematical_term(id, scope, left)?;
+        let right = self.mathematical_term(id, scope, right)?;
+        mathematical_relation(comparison, left, right, id)
+    }
+
+    /// One side of a comparison between mathematical integers: `embed` of a
+    /// term this reader serves, an anonymous integer, or `+`, `-` and `*` of
+    /// those.
+    ///
+    /// contracts.md, "Mathematical values and quantification": "Runtime
+    /// integer/address values enter mathematical integer arithmetic through
+    /// the total `embed` projection, retaining exact carrier range."
+    /// mathematical_values.md, "Integer terms": "These terms denote
+    /// unbounded mathematical integers and cannot overflow." So nothing here
+    /// computes in a carrier and no term owes a formation condition, which is
+    /// what tells this from carrier arithmetic in a clause (`term`).
+    ///
+    /// What `embed` is applied to is read by `term`, so it is whatever a
+    /// clause of this kind may name: a formal, a field of a record formal in
+    /// an entry `requires`, `result` in an `ensures`, a bound value
+    /// parameter or a typed literal. The embedding keeps that term's carrier
+    /// (`IntegerMathTerm::embed`).
+    ///
+    /// Refused by name: `/` and `%`, whose mathematical meaning is rational
+    /// division or a named quotient and remainder (contracts.md: "Its result
+    /// is always `Rat`"); shifts and bitwise operators; a suffixed operator
+    /// applied to mathematical integers, which have no carrier;
+    /// a call other than `embed`; a cast; and a runtime value or typed
+    /// literal that is not embedded, since no promotion of one into the
+    /// mathematical integers is implied.
+    fn mathematical_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<IntegerMathTerm> {
+        let read = self.read_mathematical_term(id, scope, expression)?;
+        self.complete_contract_operator(
+            id,
+            scope,
+            expression,
+            self.mathematical_operator_operands(),
+        )?;
+        Ok(read)
+    }
+
+    fn read_mathematical_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<IntegerMathTerm> {
+        if scope.logical.is_some() {
+            return self.logical_mathematical_term(id, scope, expression);
+        }
+        let typed = self.typed;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if !expression.is_valid() {
+            return unserved("missing term");
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Call(call) if self.embeds(call) => {
+                let [argument] = typed.expression_table.expression_handles(call.arguments) else {
+                    return unserved("embed of other than one value");
+                };
+                let (term, value_type) = self.term(id, scope, *argument, None)?;
+                super::mathematics::integer_embedding(id, term, value_type)
+            }
+            ExpressionNode::Call(_) => unserved("call in a mathematical term"),
+            ExpressionNode::Integer(literal) => {
+                super::mathematics::mathematical_integer_literal(id, literal)
+            }
+            // numeric_values.md: wholly anonymous arithmetic is exact, and
+            // contracts.md: "An anonymous integral final value can land in
+            // mathematical `Int` or `Nat` without fractional-history
+            // acknowledgment". So `(7 / 2) * 2` is the integer 7 here, where
+            // a carrier landing would need an `as`.
+            ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
+                let evaluated = closed_numeric::evaluate_anonymous_value::<true>(
+                    typed,
+                    expression,
+                    &[],
+                    &mut |expression| {
+                        closed_numeric::has_anonymous_operator_meaning(typed, expression)
+                    },
+                );
+                let Some(evaluated) = evaluated else {
+                    return unserved("anonymous operation without an exact meaning");
+                };
+                let Some(value) = evaluated.value.to_integer_exact() else {
+                    return unserved("fractional anonymous value in a mathematical term");
+                };
+                let literal = match (value.to_u64(), value.to_i64()) {
+                    (Some(magnitude), _) => mathematical_literal(false, magnitude),
+                    (None, Some(negative)) => mathematical_literal(true, negative.unsigned_abs()),
+                    (None, None) => None,
+                };
+                match literal {
+                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
+                    None => unserved("mathematical literal beyond 64 bits"),
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                // A policy operator takes carrier operands, and a
+                // mathematical integer has no carrier to wrap or clamp at.
+                // `embed(a +% b)` is the wrapped sum, embedded: "embedding
+                // a wrapped sum does not turn it into unbounded addition".
+                if !matches!(
+                    crate::lowering::policy::suffix(binary.policy),
+                    crate::lowering::policy::Suffix::Unwritten
+                ) {
+                    return unserved("policy operator on mathematical integers");
+                }
+                let operation: fn(Box<IntegerMathTerm>, Box<IntegerMathTerm>) -> IntegerMathTerm =
+                    match binary.operator {
+                        BinaryOperator::Add => IntegerMathTerm::Add,
+                        BinaryOperator::Subtract => IntegerMathTerm::Subtract,
+                        BinaryOperator::Multiply => IntegerMathTerm::Multiply,
+                        BinaryOperator::Divide | BinaryOperator::Modulo => {
+                            return unserved("mathematical division in a clause");
+                        }
+                        _ => {
+                            return unserved(
+                                "mathematical operator other than add, subtract and multiply",
+                            );
+                        }
+                    };
+                let left = self.mathematical_term(id, scope, binary.left)?;
+                let right = self.mathematical_term(id, scope, binary.right)?;
+                Ok(operation(Box::new(left), Box::new(right)))
+            }
+            ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
+            // counts_and_addresses.md: valid geometry proves `embed(base) +
+            // embed(length) <= addr::Bound` "in unbounded proof integers".
+            // The bound is one past the largest address. Its interpretation
+            // follows this clause: the ordinary lowered carrier, or the exact
+            // retained model of a bound callable.
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+                if self.address_bound(expression) =>
+            {
+                let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
+                match 1_u128.checked_shl(u32::from(address.bits())) {
+                    Some(bound) => Ok(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(bound),
+                    )),
+                    None => unserved("address bound outside mathematical literal support"),
+                }
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+                unserved("runtime value in a mathematical term without embed")
+            }
+            _ => unserved("mathematical term other than embed, a literal and arithmetic"),
+        }
+    }
+
+    /// A scalar field of the value a data clause is about, as the term
+    /// Terminal Psi gives a field of storage: the root and the dense field
+    /// and case identities down to the field.
+    fn field_term(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let Some((root, path, value_type)) = self.projected(id, scope, expression)? else {
+            return unserved("term other than a field of the value or a literal");
+        };
+        match value_type {
+            ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
+            ValueType::Scalar(ScalarType::Integer(scalar_type), qualification) => Ok((
+                ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    root,
+                    path,
+                    scalar_type,
+                },
+                ValueType::Scalar(ScalarType::Integer(scalar_type), qualification),
+            )),
+            ValueType::Scalar(ScalarType::Boolean, qualification) => Ok((
+                ScalarTerm::BooleanField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    root,
+                    path,
+                },
+                ValueType::Scalar(ScalarType::Boolean, qualification),
+            )),
+            ValueType::Scalar(ScalarType::IeeeFloat(format), qualification) => Ok((
+                ScalarTerm::ieee_float_field_path(root, path, format),
+                ValueType::Scalar(ScalarType::IeeeFloat(format), qualification),
+            )),
+            ValueType::Scalar(ScalarType::Callable(_), _) => unserved("callable field in a clause"),
+            ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
+        }
+    }
+
+    /// The storage a clause's expression names. In a data clause: `self`, a
+    /// field named bare, or a member path beneath either. In an admitted
+    /// machine clause: a formal, whose root is its place, or a member path
+    /// beneath one. `None` for an expression that names no storage.
+    /// Every step is resolved from a symbol; a name or member the typed
+    /// trees hold only as a spelling is refused.
+    pub(super) fn projected(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
+        if scope.subject.is_none()
+            && !scope.formal_fields
+            && !matches!(scope.result, ResultTerm::Structural(..))
+        {
+            return Ok(None);
+        }
+        let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
+        if !expression.is_valid() {
+            return Ok(None);
+        }
+        let (root, base, record, symbol) = match self.typed.expression_table.expression(expression)
+        {
+            ExpressionNode::Name(path) => {
+                if path.static_application.is_valid() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("applied name used as a plain storage subject"),
+                    ));
+                }
+                if path.reserved_result_of.is_valid() {
+                    self.require_result_owner(id, scope, path.reserved_result_of)?;
+                    return Ok(match scope.result {
+                        ResultTerm::Structural(root, value_type) => {
+                            Some((root, Vec::new(), value_type))
+                        }
+                        _ => None,
+                    });
+                }
+                if !path.symbol.is_valid() {
+                    return Err(spelling("clause name without a symbol"));
+                }
+                let Some(subject) = scope.subject else {
+                    // A record formal is its root place: lowering mints the
+                    // record formals' places first, so the `k`-th record
+                    // formal is place `k + 1` (`Signature::parameters`).
+                    if !scope.formal_fields {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("formal field in a postcondition"),
+                        ));
+                    }
+                    let slot = self.slot_of(id, scope.slots, path)?;
+                    if scope.slots[slot].erased {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("erased input used as structural storage"),
+                        ));
+                    }
+                    // A clause that names a field of a formal reads inside
+                    // the formal's value, as a body does.
+                    let Some(record) =
+                        self.opened(id, Some(scope.slots[slot].value_type), Access::Read)?
+                    else {
+                        return Ok(None);
+                    };
+                    let root = formal_place(id, scope.slots, slot)?;
+                    return Ok(Some((root, Vec::new(), ValueType::record(record.record()))));
+                };
+                if subject.symbol.is_valid() && path.symbol == subject.symbol {
+                    return Ok(Some((
+                        subject.root,
+                        subject.path.to_vec(),
+                        subject.value_type,
+                    )));
+                }
+                // A field named bare is that field of `self`, read inside
+                // `self`'s value as a member of it is.
+                if !subject.bare_fields {
+                    return Ok(None);
+                }
+                let Some(record) = self.opened(id, Some(subject.value_type), Access::Read)? else {
+                    return Ok(None);
+                };
+                (subject.root, subject.path.to_vec(), record, path.symbol)
+            }
+            ExpressionNode::Member(member) => {
+                if !member.selection.field_symbol().is_valid() {
+                    return Err(spelling("clause member without a field symbol"));
+                }
+                let not_data = || {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("member of something that is not data"),
+                    )
+                };
+                let Some((root, mut base, receiver)) =
+                    self.projected(id, scope, member.receiver)?
+                else {
+                    return Err(not_data());
+                };
+                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return Err(not_data());
+                };
+                let record = self.through_shared_referent(id, &mut base, record)?;
+                (root, base, record, member.selection.field_symbol())
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+                let Some((root, mut path, receiver)) =
+                    self.projected(id, scope, indexed.collection)?
+                else {
+                    return Err(unavailable("index of something that is not storage"));
+                };
+                let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return Err(unavailable("index of something that is not an array"));
+                };
+                let array = self.through_shared_referent(id, &mut path, array)?;
+                let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
+                    self.array_element(id, array)?
+                else {
+                    return Err(unavailable("indexed clause without a fixed array extent"));
+                };
+                let Some(selected) = self
+                    .typed
+                    .closed_integer_expression_value_in(indexed.index, scope.owner)
+                else {
+                    return Err(unavailable(
+                        "array index in a clause that is not a closed integer",
+                    ));
+                };
+                // A closed index can still be arithmetic: `Count - 1` closed at
+                // `Count = 22` is `22 - 1`. Read it as the `u64` clause term it
+                // is, so each operator in it is completed with its actual operand
+                // types; the path keeps the folded position.
+                if matches!(
+                    self.typed.expression_table.expression(indexed.index),
+                    ExpressionNode::Binary(_)
+                ) {
+                    let count = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is a carrier"),
+                    );
+                    self.term(id, scope, indexed.index, Some(count))?;
+                }
+                let source =
+                    SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
+                let Some(position) = selected.to_u64().filter(|position| *position < length) else {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "contract array index {selected} is outside its fixed extent {length}"
+                        ),
+                    ));
+                };
+                // A contract's checked index is the same primitive collection
+                // operation as a body read. Retain its actual collection type
+                // before publishing the source selection; bounds alone cannot
+                // resolve a competing declared operator.
+                let operands = self.collection_index_operand_types(id, array.record());
+                self.complete_contract_operator(id, scope, expression, operands)?;
+                // Keep the checked index in the same typed path as fields
+                // and cases. Storage substitution must follow this exact leaf.
+                path.push(CanonicalStructuralPathSegment::FixedIndex(position));
+                let value_type = self.storage_value_type(id, element, qualification)?;
+                let operands = self.collection_index_operand_types(id, array.record());
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.complete_builtin_operator(id, owner, expression, &operands)?;
+                return Ok(Some((root, path, value_type)));
+            }
+            ExpressionNode::TypeExpression(_)
+            | ExpressionNode::Match(_)
+            | ExpressionNode::SavedSubject(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Atomic(_)
+            | ExpressionNode::Binary(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Call(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::MachineValue(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::Range(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::ZeroValue(_) => return Ok(None),
+        };
+        let mut path = base;
+        let data = self.data_type(id, record.record())?;
+        let value_type = match self.member_of(id, record, symbol)? {
+            Member::Field(field) => {
+                path.push(CanonicalStructuralPathSegment::Field(
+                    data.fields()[field].id,
+                ));
+                data.fields()[field].value_type
+            }
+            Member::Payload { case, field } => {
+                let owner = &data.cases()[case];
+                path.push(CanonicalStructuralPathSegment::Case(owner.id));
+                path.push(CanonicalStructuralPathSegment::Field(
+                    owner.fields[field].id,
+                ));
+                owner.fields[field].value_type
+            }
+        };
+        Ok(Some((root, path, value_type)))
+    }
+
+    /// A clause names storage beneath a stored shared reference, such as
+    /// `self.buffer[4095]` for `buffer: &'s [u16; 4096]`, as the referent the
+    /// reference lends: one `Referent` step, then the referent's own fields
+    /// or elements. A shared referent cannot change while it is lent, so a
+    /// fact about it holds for as long as the reference does. Storage behind
+    /// an exclusive reference can be written through it, so a clause there is
+    /// refused by name. Anything that is not a reference is `record` itself.
+    fn through_shared_referent(
+        &self,
+        id: MachineId,
+        path: &mut Vec<CanonicalStructuralPathSegment>,
+        record: super::authority::Opened,
+    ) -> Checked<super::authority::Opened> {
+        match self.data_type(id, record.record())?.shape {
+            StorageShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            } => {
+                path.push(CanonicalStructuralPathSegment::Referent);
+                self.opened(id, Some(ValueType::record(referent)), Access::Read)?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("referent that is not data"),
+                        )
+                    })
+            }
+            StorageShape::Reference { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("clause through an exclusive stored reference"),
+            )),
+            _ => Ok(record),
+        }
+    }
+}
+
+/// Inspect only evaluated source bodies. Signature and type metadata may
+/// describe other callable families without invoking their classifiers.
+#[derive(Default)]
+struct PartitionCalls {
+    calls: Vec<(
+        SymbolHandle,
+        crate::source_state::static_applications::StaticMachineApplicationHandle,
+    )>,
+}
+
+impl Extend<SymbolHandle> for PartitionCalls {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+}
+
+impl crate::source_state::references::TypedReferences for PartitionCalls {
+    fn derived_declaration_references(&self) -> bool {
+        false
+    }
+    fn callable_signature_contents(
+        &mut self,
+        _: &crate::source_state::signature::StateSignature,
+    ) -> bool {
+        false
+    }
+    fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+        false
+    }
+    fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
+        false
+    }
+    fn call_arguments(
+        &mut self,
+        _: &crate::source_state::TypedTrees,
+        call: crate::source_state::references::StaticArgumentCall<'_>,
+    ) -> bool {
+        let direct = match call {
+            crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+            crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+        };
+        if direct {
+            let target = match call {
+                crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                    call.target_symbol
+                }
+                crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                    call.target_symbol
+                }
+            };
+            if call.application().is_valid() {
+                self.calls.push((target, call.application()));
+            }
+        }
+        false
+    }
+}
+
+impl Program<'_> {
+    /// Complete alternatives for one type binder. A finite family names
+    /// them in a requirement such as `requires T == u32 || T == u64`.
+    /// generics.md, "Static type equality": "Checking
+    /// the body once per listed alternative, each with `T` fixed to that
+    /// type, satisfies this rule for a finite family; the list is closed".
+    /// Other binders remain opaque under their own bounds. An open binder
+    /// instead checks every closed type named by its static guards and one
+    /// opaque remainder that excludes those types; this remains a linear
+    /// partition rather than a Cartesian product of independent families.
+    pub fn family_alternatives(
+        &self,
+        id: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<Vec<super::TypeAlternative>> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let (machine, _) = self.declaration(id, symbol)?;
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                    || !parameter.symbol.is_valid()
+            })
+        {
+            return unserved("finite family needs an exact type-parameter roster");
+        }
+        let table = &self.typed.expression_table;
+        let types = &self.typed.type_reference_table;
+        let operand =
+            |handle: ExpressionHandle| match handle.is_valid().then(|| table.expression(handle)) {
+                Some(ExpressionNode::TypeExpression(reference))
+                    if types.contains_type_reference(*reference) =>
+                {
+                    Some(*reference)
+                }
+                _ => None,
+            };
+        // One alternative per disjunct `T == X`, either way round, with `X`
+        // a closed scalar or record type. Keep its source reference here;
+        // a record identity belongs to the reader that materializes it.
+        let alternative = |parameter: &crate::source_state::data::TypeParameter,
+                           disjunct: ExpressionHandle|
+         -> Option<TypeReferenceHandle> {
+            let ExpressionNode::Binary(binary) = table.expression(disjunct) else {
+                return None;
+            };
+            if binary.operator != BinaryOperator::Equal {
+                return None;
+            }
+            let (left, right) = (operand(binary.left)?, operand(binary.right)?);
+            let binder = |reference| matches!(types.type_reference(reference), crate::source_state::types::TypeReferenceNode::Named {symbol, ..} if *symbol == parameter.symbol);
+            let other = match (binder(left), binder(right)) {
+                (true, false) => right,
+                (false, true) => left,
+                _ => return None,
+            };
+            if self.scalar_type(id, other).is_ok() {
+                return Some(other);
+            }
+            let data = self.typed.closed_data_definition(other)?;
+            super::source_records::source_application(self.typed, data, other, id).ok()?;
+            Some(other)
+        };
+        let mut found: Option<Vec<Vec<Option<TypeReferenceHandle>>>> = None;
+        let contracts = super::span(
+            |span| self.typed.signature_contracts.span(span),
+            machine.contracts,
+            id,
+            "contract span",
+        )?;
+        for contract in contracts {
+            if contract.kind != crate::source_state::signature::SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in super::span(
+                |span| self.typed.proof_facts.span(span),
+                contract.facts,
+                id,
+                "fact span",
+            )? {
+                let expression = self.fact(id, fact)?;
+                let mut conjuncts = Vec::new();
+                self.connective_parts(expression, BinaryOperator::And, &mut conjuncts);
+                // A finite family remains complete when another input
+                // requirement shares its clause. Every alternative still
+                // reads that whole clause, including its runtime conditions.
+                for expression in conjuncts {
+                    let mut disjuncts = Vec::new();
+                    self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
+                    let listed = parameters
+                        .iter()
+                        .enumerate()
+                        .find_map(|(position, parameter)| {
+                            disjuncts
+                                .iter()
+                                .map(|disjunct| {
+                                    disjunct
+                                        .is_valid()
+                                        .then(|| alternative(parameter, *disjunct))?
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .map(|listed| (position, listed))
+                        });
+                    let Some((position, listed)) = listed else {
+                        continue;
+                    };
+                    if found.is_some() {
+                        return unserved("finite family listed by two clauses");
+                    }
+                    let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
+                    for reference in listed {
+                        let identity = self.typed.normalized_type_identity(reference);
+                        if !alternatives.iter().any(|known| {
+                            known[position].is_some_and(|reference| {
+                                self.typed.normalized_type_identity(reference) == identity
+                            })
+                        }) {
+                            let mut arguments = vec![None; parameters.len()];
+                            arguments[position] = Some(reference);
+                            alternatives.push(arguments);
+                        }
+                    }
+                    found = Some(alternatives);
+                }
+            }
+        }
+        match found {
+            Some(alternatives) => Ok(alternatives
+                .into_iter()
+                .map(|arguments| super::TypeAlternative {
+                    arguments,
+                    remainder: None,
+                })
+                .collect()),
+            None => {
+                // Follow exact plain type forwarding as well as local guards.
+                // The mapping names root binders, not spelling or the callee's
+                // declaration ordinal. A closed argument has no root binder.
+                let mut instances = vec![(
+                    symbol,
+                    (0..parameters.len()).map(Some).collect::<Vec<_>>(),
+                    None::<usize>,
+                )];
+                let mut visited = symbols::SymbolMap::<Vec<usize>>::default();
+                visited.insert(symbol, vec![0]);
+                let mut active = symbols::SymbolMap::<usize>::default();
+                let mut pending_instances = vec![(0, true)];
+                let mut selected = None;
+                let mut listed = Vec::new();
+                while let Some((instance, entering)) = pending_instances.pop() {
+                    let (owner, mapping, parent) = &instances[instance];
+                    let owner = *owner;
+                    if !entering {
+                        active.remove(&owner);
+                        continue;
+                    }
+                    if parent.is_some_and(|parent| {
+                        parent >= instance || active.get(&instances[parent].0) != Some(&parent)
+                    }) {
+                        return unserved("static partition has an invalid introducing caller");
+                    }
+                    let mapping = mapping.clone();
+                    active.insert(owner, instance);
+                    pending_instances.push((instance, false));
+                    let (current, state) = self.declaration(id, owner)?;
+                    let current_parameters = self.typed.machine_type_parameters(current);
+                    if current_parameters.len() != mapping.len() {
+                        return unserved("static partition lost its forwarded binder roster");
+                    }
+                    let statements = self.typed.statement_table.statements(state.statement_nodes);
+                    let mut pending = statements
+                        .iter()
+                        .filter_map(|statement| {
+                            let crate::source_state::statement::StatementNode::Transition(
+                                transition,
+                            ) = statement
+                            else {
+                                return None;
+                            };
+                            match transition.guard {
+                                crate::source_state::statement::TransitionGuardNode::When(
+                                    guard,
+                                ) => Some(guard),
+                                _ => None,
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    while let Some(expression) = pending.pop() {
+                        match table.expression(expression) {
+                            ExpressionNode::Unary(unary)
+                                if unary.operator == UnaryOperator::LogicalNot =>
+                            {
+                                pending.push(unary.operand)
+                            }
+                            ExpressionNode::Binary(binary)
+                                if matches!(
+                                    binary.operator,
+                                    BinaryOperator::And | BinaryOperator::Or
+                                ) =>
+                            {
+                                pending.push(binary.left);
+                                pending.push(binary.right);
+                            }
+                            ExpressionNode::Binary(binary)
+                                if binary.operator == BinaryOperator::Equal
+                                    && operand(binary.left).is_some()
+                                    && operand(binary.right).is_some() =>
+                            {
+                                let Some((position, reference)) = current_parameters
+                                    .iter()
+                                    .enumerate()
+                                    .find_map(|(position, parameter)| {
+                                        alternative(parameter, expression)
+                                            .map(|reference| (position, reference))
+                                    })
+                                else {
+                                    return unserved(
+                                        "static partition needs a binder and a closed type",
+                                    );
+                                };
+                                let Some(position) = mapping[position] else {
+                                    continue;
+                                };
+                                if selected.is_some_and(|selected| selected != position) {
+                                    return unserved(
+                                        "static partition over independent type binders",
+                                    );
+                                }
+                                selected = Some(position);
+                                let identity = self.typed.normalized_type_identity(reference);
+                                if !listed.iter().any(|known| {
+                                    self.typed.normalized_type_identity(*known) == identity
+                                }) {
+                                    listed.push(reference);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    let mut calls = PartitionCalls::default();
+                    crate::source_state::references::visit_machine(self.typed, &mut calls, current);
+                    for (target, application) in calls.calls {
+                        let Some(callee) = self.entered_machine(target) else {
+                            continue;
+                        };
+                        if !application.is_valid() {
+                            continue;
+                        }
+                        let (declaration, _) = self.declaration(id, callee)?;
+                        let parameters = self.typed.machine_type_parameters(declaration);
+                        if parameters.is_empty()
+                            || parameters.iter().any(|parameter| {
+                                parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                            })
+                        {
+                            continue;
+                        }
+                        let prepared =
+                            self.application_bindings(id, owner, callee, application, &[])?;
+                        if prepared.inherited {
+                            continue;
+                        }
+                        let arguments = prepared.parameters.iter().map(|parameter| {
+                            let binding = prepared.bindings.get(&parameter.symbol).ok_or_else(|| {
+                                refuse(id, Construct::Machine, Unserved::Call("static partition lost a declared binder"))
+                            })?;
+                            let crate::source_state::static_applications::StaticMachineBindingValue::Type(reference) = binding.value else {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition type has another argument kind")));
+                            };
+                            if !types.contains_type_reference(reference) {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition has a stale type argument")));
+                            }
+                            Ok(reference)
+                        }).collect::<Checked<Vec<_>>>()?;
+                        let mut forwarded = Vec::with_capacity(arguments.len());
+                        for argument in arguments {
+                            if let crate::source_state::types::TypeReferenceNode::Named {
+                                symbol,
+                                ..
+                            } = types.type_reference(argument)
+                                && let Some(position) = current_parameters
+                                    .iter()
+                                    .position(|parameter| parameter.symbol == *symbol)
+                            {
+                                forwarded.push(mapping[position]);
+                                continue;
+                            }
+                            let inputs = crate::source_state::references::type_reference_inputs(
+                                self.typed, argument,
+                            );
+                            if inputs.symbols.iter().any(|symbol| {
+                                current_parameters
+                                    .iter()
+                                    .any(|parameter| parameter.symbol == *symbol)
+                            }) {
+                                return unserved(
+                                    "static partition cannot invert a constructed type argument",
+                                );
+                            }
+                            // Use the same closed-carrier admission as guard
+                            // alternatives; no physical layout stands for a type.
+                            if self.scalar_type(id, argument).is_err() {
+                                let Some(data) = self.typed.closed_data_definition(argument) else {
+                                    return unserved(
+                                        "static partition forwards neither a binder nor a closed type",
+                                    );
+                                };
+                                super::source_records::source_application(
+                                    self.typed, data, argument, id,
+                                )?;
+                            }
+                            forwarded.push(None);
+                        }
+                        if forwarded.iter().all(Option::is_none) {
+                            continue;
+                        }
+                        if visited.get(&callee).is_some_and(|known| {
+                            known
+                                .iter()
+                                .any(|instance| instances[*instance].1 == forwarded)
+                        }) {
+                            continue;
+                        }
+                        // Keep the body's existing expansion boundary: exact
+                        // recurrence reuses its tuple; a new mapping cannot
+                        // re-enter a template on its introducing ancestry.
+                        // The scoped index makes this check independent of
+                        // the number of unrelated declarations already seen.
+                        if active.contains_key(&callee) {
+                            return unserved(
+                                "recursive static partition forwarding changes its arguments",
+                            );
+                        }
+                        let next = instances.len();
+                        instances.push((callee, forwarded, Some(instance)));
+                        visited.entry(callee).or_default().push(next);
+                        pending_instances.push((next, true));
+                    }
+                }
+                let Some(position) = selected else {
+                    return unserved("type parameter that has no complete static partition");
+                };
+                let mut alternatives = listed
+                    .iter()
+                    .map(|reference| {
+                        let mut arguments = vec![None; parameters.len()];
+                        arguments[position] = Some(*reference);
+                        super::TypeAlternative {
+                            arguments,
+                            remainder: None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                alternatives.push(super::TypeAlternative {
+                    arguments: vec![None; parameters.len()],
+                    remainder: Some((position, listed)),
+                });
+                Ok(alternatives)
+            }
+        }
+    }
+}
+
+/// `comparison` between two mathematical integers, as the kernel states it:
+/// `>` and `>=` are `<` and `<=` swapped, `!=` is the disjunction of the two
+/// strict orders, and an equality holds its operands in the vocabulary's
+/// order (`validate_canonical_proposition`).
+fn mathematical_relation(
+    comparison: BinaryOperator,
+    left: IntegerMathTerm,
+    right: IntegerMathTerm,
+    id: MachineId,
+) -> Checked<Proposition> {
+    match comparison {
+        BinaryOperator::Equal if left <= right => Ok(Proposition::IntegerMathEqual(left, right)),
+        BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
+        BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
+        BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
+        BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
+        BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
+        BinaryOperator::NotEqual => canonical::clauses(
+            vec![
+                Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                Proposition::IntegerMathLessThan(right, left),
+            ],
+            Repeated::Refuse,
+            id,
+        )
+        .map(Proposition::Disjunction),
+        _ => Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("comparison"),
+        )),
+    }
+}

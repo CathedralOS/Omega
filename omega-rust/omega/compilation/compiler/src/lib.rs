@@ -52,9 +52,8 @@ pub use crate::checked::{
     typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
-pub use checked::checking::{PreparedProviderChoices, ProductQueries, prepare_provider_choices};
+pub use checked::checking::ProductQueries;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub use execution_settlement::settled_slot_schemas;
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use product_execution::{
@@ -74,9 +73,8 @@ pub use terminal::{prepare_program_entry, prepare_provider_execution_inputs};
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;
-    let mut digest = optimization_core::digest_encoder::DomainDigestEncoder::new(
-        b"omega-accepted-compiler-inputs-v1\0",
-    );
+    let mut digest =
+        ::wire::digest_encoder::DomainDigestEncoder::new(b"omega-accepted-compiler-inputs-v1\0");
     digest.raw(&compiler_identity());
     digest.raw(library.as_bytes());
     Ok(digest.finish())
@@ -89,7 +87,3 @@ pub const fn compiler_identity() -> [u8; 32] {
 pub const fn compiler_optimization_level() -> &'static str {
     env!("OMEGA_COMPILER_OPT_LEVEL")
 }
-
-#[cfg(test)]
-#[path = "../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;

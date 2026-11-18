@@ -1,0 +1,22 @@
+[package]
+name = "provider-correspondence"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../../../../psi/compilation/representations/declaration-contracts" }
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+graphs = { path = "../../../../psi/foundation/graphs" }
+flow-effects = { path = "../../../../psi/compilation/representations/source-effects" }
+boundary-applications = { path = "../../representations/boundary-applications" }
+backend-plan = { path = "../../representations/provider-plans" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+effects = { path = "../../representations/native-effects" }
+target = { path = "../../target-description/target" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+
+symbols = { path = "../../../../psi/compilation/representations/declaration-identity" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+wire = { path = "../../../../psi/foundation/wire" }

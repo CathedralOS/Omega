@@ -3,8 +3,9 @@
 
 use crate::CheckTables;
 use crate::names::MachineNames;
+use arena::IdTable;
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, StructuralTypeId,
+    BlockId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_psi::TerminalModule;
@@ -15,7 +16,7 @@ use terminal_psi::TerminalModule;
 /// to source never guesses").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceOrigin {
-    Authored(source::SourceSpan),
+    Authored(source_text::SourceSpan),
     Unpositioned(Unpositioned),
 }
 
@@ -48,14 +49,14 @@ pub enum Unpositioned {
 }
 
 impl SourceOrigin {
-    pub fn span(self) -> Option<source::SourceSpan> {
+    pub fn span(self) -> Option<source_text::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
             Self::Unpositioned(_) => None,
         }
     }
 
-    pub fn of(span: source::SourceSpan) -> Self {
+    pub fn of(span: source_text::SourceSpan) -> Self {
         if span.span.start < span.span.end {
             Self::Authored(span)
         } else {
@@ -63,7 +64,7 @@ impl SourceOrigin {
         }
     }
 
-    pub fn authored_span(self) -> Option<source::SourceSpan> {
+    pub fn authored_span(self) -> Option<source_text::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
             Self::Unpositioned(_) => None,
@@ -337,7 +338,7 @@ pub struct PredicateSource {
     pub declaration: terminal_psi::TerminalIdentityIndex,
     pub name: String,
     pub machine: MachineId,
-    pub source_span: Option<source::SourceSpan>,
+    pub source_span: Option<source_text::SourceSpan>,
 }
 
 /// One call through an implementation parameter in a machine stage 04

@@ -6,7 +6,7 @@
 
 use crate::{ComputedBuildConfig, PreparedBuild};
 use diagnostics::Diagnostic;
-use optimization_core::OptimizationRollback;
+use optimization_requests::OptimizationRollback;
 use package_compilation::{
     IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
     PackageCompilationInputs,
@@ -165,7 +165,7 @@ impl PreparedPackageBuild {
         &self.build_handoff
     }
 
-    pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
+    pub fn optimization_rollback(&self) -> &optimization_requests::OptimizationRollback {
         &self.rollback
     }
 

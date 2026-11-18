@@ -196,25 +196,26 @@ fn interpret(
         Ok(flags) => flags,
         Err(error) => return EngineOutcome::Unavailable(error.to_string()),
     };
-    let observation = terminal_runtime::execute(TerminalRuntimeRequest {
-        native_image: report.retained_native_artifact(),
-        entry: None,
-        native_provider: None,
-        native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
-        filesystem,
-        x86_flags,
-        memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
-            target,
-        ),
-        artifact,
-        target: Some(target),
-        provisions: report.runtime_provisions(),
-        provider_proposal: None,
-        work_budget: TEST_PSI_WORK_ALLOWANCE,
-        domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    });
+    let observation = crate::execute_published_terminal(
+        TerminalRuntimeRequest {
+            entry: None,
+            native_provider: None,
+            native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
+            filesystem,
+            x86_flags,
+            memory_ordering:
+                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
+            artifact,
+            target: Some(target),
+            provisions: report.runtime_provisions(),
+            provider_proposal: None,
+            work_budget: TEST_PSI_WORK_ALLOWANCE,
+            domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
+            standard_input: None,
+            clock: None,
+        },
+        report.retained_native_artifact(),
+    );
     match observation {
         Err(error) if error.unavailable_before_guest_effects() => {
             EngineOutcome::Unavailable(error.to_string())

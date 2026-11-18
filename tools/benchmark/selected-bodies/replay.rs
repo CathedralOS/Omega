@@ -112,7 +112,7 @@ fn main() -> Result<(), String> {
                 path.display()
             ));
         }
-        let typed = compiler_storage::decode::<typed_trees::TypedTrees>(&bytes, limits)
+        let typed = compiler_storage::decode::<source_compiler::source_state::TypedTrees>(&bytes, limits)
             .map_err(|error| format!("{}: {error}", path.display()))?;
         let input = typed;
         let (candidate, counts) = trace::measure(|| std::hint::black_box(input.clone()));

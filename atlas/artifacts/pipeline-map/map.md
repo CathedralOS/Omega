@@ -1,9 +1,10 @@
 # Pipeline diagrams
 
-The compiler has a numbered Psi route and a numbered native route, plus
-drivers that settle providers, bind installations, and emit artifacts. The
-owner wants one linear pipeline. The diagrams below distinguish the present
-code from the contracts that migration still needs.
+These diagrams record the compiler before migration, at `3f9ce43f0c9d`.
+They show where drivers settled providers, bound installations and emitted
+artifacts alongside the numbered Psi and native stages. The [implementation
+checkpoint](../../plans/foundation-and-backend.md#implementation-checkpoint)
+follows the changes on the migration branch.
 
 ## Current route: source, providers, and execution
 

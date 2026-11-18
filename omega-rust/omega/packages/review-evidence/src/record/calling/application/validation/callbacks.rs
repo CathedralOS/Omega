@@ -4,7 +4,7 @@
 // Recovered catalogs are bounded by `BOUNDARY_CALLBACK_CAPACITY` before
 // checking callback correspondences.
 
-use language_semantics::callback_declarations::BOUNDARY_CALLBACK_CAPACITY;
+use application_identity::callback_declarations::BOUNDARY_CALLBACK_CAPACITY;
 
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 use crate::record::validation::{ordered, ordered_by};

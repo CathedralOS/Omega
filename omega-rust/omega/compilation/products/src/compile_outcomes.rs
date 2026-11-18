@@ -16,18 +16,18 @@ pub enum CompileFailure {
     /// admission failed. Keep their records alongside the diagnostic cause.
     SourceCompletion {
         diagnostics: Vec<Diagnostic>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
     BuildConsentRequired {
         requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
 }
 
 impl CompileFailure {
     pub fn source_completion(
         diagnostics: Vec<Diagnostic>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         if accounting.receipts().is_empty() {
             Self::Diagnostics(diagnostics)
@@ -41,7 +41,7 @@ impl CompileFailure {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+    ) -> Option<&source_compiler::evaluation::SourceCompletionAccounting> {
         match self {
             Self::SourceCompletion { accounting, .. }
             | Self::BuildConsentRequired { accounting, .. } => Some(accounting),
@@ -54,7 +54,7 @@ impl CompileFailure {
     /// occurrences are joined by the account's existing identity rule.
     pub fn with_source_completion_accounting(
         self,
-        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+        mut accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         match self {
             Self::Diagnostics(diagnostics) => Self::source_completion(diagnostics, accounting),
@@ -151,7 +151,8 @@ pub struct CheckedCompileOutcome {
 pub struct CompileTargetOutcome {
     target: Option<TargetProfile>,
     result: Result<CompileReport, Vec<Diagnostic>>,
-    failed_source_completion_accounting: Option<build_time_evaluation::SourceCompletionAccounting>,
+    failed_source_completion_accounting:
+        Option<source_compiler::evaluation::SourceCompletionAccounting>,
 }
 
 impl CompileTargetOutcome {
@@ -168,7 +169,7 @@ impl CompileTargetOutcome {
 
     pub fn with_failed_source_completion_accounting(
         mut self,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         self.failed_source_completion_accounting = Some(accounting);
         self
@@ -176,7 +177,7 @@ impl CompileTargetOutcome {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+    ) -> Option<&source_compiler::evaluation::SourceCompletionAccounting> {
         match &self.result {
             Ok(report) => Some(report.source_completion_accounting()),
             Err(_) => self.failed_source_completion_accounting.as_ref(),

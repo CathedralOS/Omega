@@ -931,6 +931,15 @@ pub(crate) mod reference_completion {
             DescriptorLocation, descriptor_location, descriptor_location_lifetime, descriptor_path,
         };
 
+        let invocation = operation.declared_invocation();
+        if invocation.is_none()
+            && !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallDynamic { .. }
+            )
+        {
+            return Ok(Vec::new());
+        }
         let Some(result) = operation.result.as_structural().filter(|result| {
             terminal_psi::structural_type_has_borrowed_storage_by(
                 |id| module.structural_type(id),
@@ -952,19 +961,12 @@ pub(crate) mod reference_completion {
         // An opaque value packet carries its existing loans. It does not
         // form a new reference to the storage that previously held the value.
         let returns_reference = !result_inventory.references.is_empty();
-        let Some(call) = operation.declared_invocation() else {
-            return if matches!(
-                operation.kind,
-                terminal_psi::OperationKind::CallDynamic { .. }
-            ) {
-                Err(refuse(if returns_reference {
-                    "returned dynamic reference needs its admitted completion resource"
-                } else {
-                    "returned dynamic view needs its declared lifetime contract"
-                }))
+        let Some(call) = invocation else {
+            return Err(refuse(if returns_reference {
+                "returned dynamic reference needs its admitted completion resource"
             } else {
-                Ok(Vec::new())
-            };
+                "returned dynamic view needs its declared lifetime contract"
+            }));
         };
         let (declared_parameters, slots, actual, public) = match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
@@ -4847,7 +4849,7 @@ pub(crate) mod reference_storage_geometry {
             byte_size,
             byte_alignment,
         };
-        let geometry = layout_plans::conventional_sum_geometry(
+        let geometry = layout_planning::conventional_sum_geometry(
             shape(tag),
             common.into_iter().map(shape),
             payloads
