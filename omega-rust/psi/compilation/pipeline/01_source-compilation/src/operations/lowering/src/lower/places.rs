@@ -74,7 +74,7 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, NumericId, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
+    NativeLayoutCatalog, NativeLayoutFieldIdentity, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
     StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralDomainDeclaration,
     StructuralDomainPredicate, StructuralFieldDeclaration, StructuralFieldType,
@@ -1633,7 +1633,11 @@ impl<'a> Lowering<'a> {
         kind: StructuralPlaceKind,
         record: StructuralTypeId,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
-        let place: PlaceId = self.roots.push((kind, record));
+        let place: PlaceId = self.roots.push(super::StructuralRoot {
+            kind,
+            record,
+            content_requests: Memberships::default(),
+        });
         let exact = self.tables.places.push(PlaceRow {
             origin: PlaceOrigin::Root(place),
             children: Vec::new(),
@@ -1658,7 +1662,12 @@ impl<'a> Lowering<'a> {
         )
     }
 
-    fn write(&mut self, place: ExactPlaceId, at: ProgramPoint, content: Content) -> Checked<()> {
+    pub(super) fn write(
+        &mut self,
+        place: ExactPlaceId,
+        at: ProgramPoint,
+        content: Content,
+    ) -> Checked<()> {
         terminal_check_tables::bindings::record_write(
             self.id,
             &mut self.tables.places,
@@ -2136,10 +2145,33 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("a record cast that both adds and removes domains"),
             ));
         }
-        let establishments = self
+        let mut establishments = self
             .qualifications
             .structural_establishments(self.id, &added)?;
         let value = continuing!(self.record(operand));
+        let mut memberships = (whole, projected);
+        let mut requested = Memberships::default();
+        let changes_memberships = if self.has_content(&memberships)
+            || self.roots.get(value).is_some_and(|root| {
+                !root.content_requests.0.is_empty() || !root.content_requests.1.is_empty()
+            }) {
+            let actual = self
+                .declared_memberships(&StructuralArgument::whole(value, StructuralAccess::Owned))?;
+            let displayed = if matches!(
+                self.record_type(record)?.shape,
+                StorageShape::Reference { .. }
+            ) {
+                vec![StructuralPathSegment::Referent]
+            } else {
+                Vec::new()
+            };
+            requested = self.defer_content_cast(value, &mut memberships, &added, &displayed)?;
+            establishments.retain(|row| !self.content_domain(row.domain));
+            actual != memberships
+        } else {
+            changes_memberships
+        };
+        let (whole, projected) = memberships;
         let cast = self.block(expression.source);
         let (place, exact) = self.root(
             StructuralPlaceKind::BlockParameter {
@@ -2148,6 +2180,10 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
+        let Some(root) = self.roots.get_mut(place) else {
+            return Err(self.internal("content cast lost its destination"));
+        };
+        root.content_requests = requested;
         let parameter = terminal_psi::StructuralParameterDeclaration {
             place,
             position: 0,
@@ -2278,7 +2314,33 @@ impl<'a> Lowering<'a> {
         let ValueType::Record(record, qualification, _) = value_type else {
             return Err(self.internal("a structural result has no complete record type"));
         };
-        let memberships = self.memberships(record, qualification)?;
+        let mut memberships = self.memberships(record, qualification)?;
+        let mut requested = Memberships::default();
+        if self.has_content(&memberships) {
+            if let Some(content) = self.transferred_content(record, &kind)? {
+                memberships.0.retain(|domain| !self.content_domain(*domain));
+                memberships.1.retain(|row| !self.content_domain(row.domain));
+                memberships.0.extend(content.held.0);
+                memberships.1.extend(content.held.1);
+                memberships.0.sort_unstable();
+                memberships.0.dedup();
+                memberships.1.sort_unstable();
+                memberships.1.dedup();
+                requested = content.requested;
+                requested.0.sort_unstable();
+                requested.0.dedup();
+                requested.1.sort_unstable();
+                requested.1.dedup();
+            } else if kind.declared_invocation().is_none()
+                && !matches!(kind, OperationKind::TransformContent { .. })
+            {
+                return Err(refuse(
+                    self.id,
+                    Construct::Operation(operation),
+                    Unserved::Expression("content-bearing result needs a checked value transfer"),
+                ));
+            }
+        }
         let (place, exact) = self.root(
             StructuralPlaceKind::OperationResult {
                 producer: operation,
@@ -2286,6 +2348,10 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
+        let Some(root) = self.roots.get_mut(place) else {
+            return Err(self.internal("content result lost its root"));
+        };
+        root.content_requests = requested;
         let type_multiplicity = self.records.multiplicity(record, self.id)?;
         // The operation can create an owned permission independently of
         // the type's copy permission. Keep that creation contract while
@@ -2295,12 +2361,11 @@ impl<'a> Lowering<'a> {
         )
         .and_then(|row| row.schema().required_result_multiplicity())
         .unwrap_or(type_multiplicity);
-        self.draft()?.operations.push(Operation::unsuspended(
+        self.emit_operation(
             operation,
             OperationResult::Structural(owned_result(place, record, multiplicity, memberships)),
             kind,
-        ));
-        self.point = Some(ProgramPoint::AfterOperation(operation));
+        )?;
         Ok((place, exact))
     }
 
@@ -2326,7 +2391,7 @@ impl<'a> Lowering<'a> {
             return Ok(place);
         }
         let Some((StructuralPlaceKind::OperationResult { producer, .. }, _)) =
-            self.roots.get(place).copied()
+            self.roots.get(place).map(|root| (root.kind, root.record))
         else {
             return Ok(place);
         };
@@ -2616,7 +2681,7 @@ impl<'a> Lowering<'a> {
                 };
                 let multiplicity = self.records.multiplicity(record, self.id)?;
                 let memberships = self.memberships(record, value_type.qualification())?;
-                self.draft()?.operations.push(Operation::unsuspended(
+                self.emit_operation(
                     operation,
                     OperationResult::Structural(owned_result(
                         root,
@@ -2625,8 +2690,7 @@ impl<'a> Lowering<'a> {
                         memberships,
                     )),
                     kind,
-                ));
-                self.point = Some(ProgramPoint::AfterOperation(operation));
+                )?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),

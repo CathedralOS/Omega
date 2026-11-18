@@ -2006,11 +2006,16 @@ fn finish_storage(
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
+    claim_publication::prepare(diagnostic, module)?;
+    claim_publication::materialize_content(module)?;
     reference_ends::install(module, tables, sources, further)?;
     default_obligations::install(module, tables, sources)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
-        let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+        let plan = terminal_semantics::plain_affine::plan_storage_and_claims_in(
+            module, machine.id, None,
+        )
+        .map_err(|error| {
             let (concerns, operation, origin) = match error.site() {
                 Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
                     Construct::Operation(at),
@@ -2114,6 +2119,19 @@ fn finish_storage(
             },
         })?;
         let machine = &mut module.machines[ordinal];
+        plan.claims
+            .as_ref()
+            .ok_or_else(|| {
+                claim_publication::preparation_error(
+                    machine.id,
+                    terminal_semantics::plain_affine::Error::Malformed {
+                        detail: "joint storage planning lost its logical claim plan",
+                        site: None,
+                    },
+                )
+            })?
+            .install(machine)
+            .map_err(|error| claim_publication::preparation_error(machine.id, error))?;
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
         // frontier; source syntax alone cannot distinguish them. The checker
@@ -2131,10 +2149,7 @@ fn finish_storage(
             }
             use terminal_psi::Terminator;
             let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
-                actions.retain(|action| !plan.affine_roots.contains(action.place()));
-                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
-                    actions.extend(plan.cleanup[position].1.iter().cloned());
-                }
+                plan.install_cleanup(edge, actions);
             };
             match &mut block.terminator {
                 Terminator::Jump {
@@ -2182,7 +2197,6 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
-    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

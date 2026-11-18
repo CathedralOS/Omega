@@ -8508,6 +8508,7 @@ pub(crate) mod function_structure {
                                     &unit.structural_types,
                                     &unit.structural_domains,
                                     &unit.identities,
+                                    &function.content_entry_claims,
                                     &|place| {
                                         structural_source_contract(function, place)
                                             .map(|contract| contract.structural_type)
@@ -8550,6 +8551,7 @@ pub(crate) mod function_structure {
                                     terminal_semantics::content_transformations::validate_parent_memberships(
                                 &unit.structural_types, &unit.structural_domains, &unit.identities,
                                 root.structural_type, parent, derivations,
+                                &function.content_entry_claims,
                                 &parent_contract.qualifications, &parent_contract.projected_qualifications,
                                 &|relative| {
                                     let mut path = parent.path.clone();

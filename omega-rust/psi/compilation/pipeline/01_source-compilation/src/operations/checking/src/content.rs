@@ -6,12 +6,12 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, ContentConservation, ContentIntervalInterpretation,
     ContentPlaceVersion, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
-use terminal_psi::{StructuralParameterDeclaration, TerminalMachineResult, TerminalModule};
+use terminal_psi::{StructuralParameterDeclaration, TerminalModule};
 
 pub(super) struct AtCut<'a, 'binding> {
     pub module: &'a TerminalModule,
     pub parameters: &'a [StructuralParameterDeclaration],
-    pub result: Option<&'a TerminalMachineResult>,
+    pub result: Option<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
     pub bindings: &'binding mut dyn Bindings<Error = Unbound>,
     pub interpretations: &'binding mut Vec<ContentIntervalInterpretation>,
 }
@@ -92,11 +92,7 @@ impl Bindings for AtCut<'_, '_> {
             .parameters
             .iter()
             .map(|parameter| (parameter.place, parameter.structural_type))
-            .chain(
-                self.result
-                    .and_then(TerminalMachineResult::structural)
-                    .map(|result| (result.place, result.structural_type)),
-            );
+            .chain(self.result);
         let occurrences = terminal_semantics::content_projections::resolve(
             &self.module.structural_types,
             &self.module.structural_domains,

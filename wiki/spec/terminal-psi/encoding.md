@@ -42,11 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 289 also retains each content
-projection's partial-conversion and interval-order questions. Marker 288 and
-earlier reject before payload interpretation; a decoder cannot reconstruct the
-missing questions. The current native input record is `OMGNTI41`, which rejects
-`OMGNTI40` and earlier. Promised normal-result domain facts remain separate from
+Marker 255 introduced term tables. Current marker 290 retains each content
+projection's formation questions, distinguishes content snapshots from current
+claim locations, and binds every transformation to its exact conservation obligation. Marker 289 and earlier reject before payload
+interpretation; a decoder cannot reconstruct missing obligations. The current
+native input record is `OMGNTI42`, which rejects `OMGNTI41` and earlier. Promised normal-result domain facts remain separate from
 declared result types. It records the owning machine before each callback
 registrar and interrupt installation operation.
 Operation identities remain local to that machine; earlier payloads do not

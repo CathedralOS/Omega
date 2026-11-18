@@ -60,6 +60,7 @@ macro_rules! continuing {
 
 mod calls;
 pub(crate) use calls::publish_write_frames;
+mod content;
 mod control;
 mod operations;
 pub(crate) mod places;
@@ -325,6 +326,17 @@ fn begin<'a>(
     );
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let (formals, result) = lowering.formals()?;
+    lowering.result_subject = result.structural().map(|result| result.place);
+    lowering.input_memberships = formals
+        .records
+        .iter()
+        .map(|formal| {
+            (
+                formal.qualifications.clone(),
+                formal.projected_qualifications.clone(),
+            )
+        })
+        .collect();
     lowering.enter(entry);
     // One published identity per `ensures` clause, the one `ContractClause`
     // carries; every normal exit's guarantee names it.
@@ -491,6 +503,8 @@ impl<'a> Lowering<'a> {
             callables,
             boundaries,
             roots: IdTable::default(),
+            input_memberships: Vec::new(),
+            result_subject: None,
             demanded_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
@@ -752,6 +766,20 @@ impl Lowering<'_> {
     }
 }
 
+struct StructuralRoot {
+    kind: StructuralPlaceKind,
+    record: StructuralTypeId,
+    /// Explicit source casts awaiting one joint content transformation. These
+    /// requests grant no membership, backing or logical claim.
+    content_requests: places::Memberships,
+}
+
+impl StructuralRoot {
+    fn storage(&self) -> (&StructuralPlaceKind, &StructuralTypeId) {
+        (&self.kind, &self.record)
+    }
+}
+
 struct Lowering<'a> {
     id: MachineId,
     signature: &'a Signature,
@@ -771,7 +799,12 @@ struct Lowering<'a> {
     value_qualifications: Vec<Option<crate::lowering::body::Qualification>>,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
-    roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
+    roots: IdTable<PlaceId, StructuralRoot>,
+    /// Declared input memberships in the same structural lane order as the
+    /// emitted header. They name qualifications, never custody or proof.
+    input_memberships: Vec<places::Memberships>,
+    /// The result coordinate minted by this header, retained for contract substitution.
+    result_subject: Option<PlaceId>,
     /// Scalar leaves requested by operations and clauses, indexed by exact
     /// place. Final lowering allocates their entry and returned snapshots.
     demanded_contents: Vec<Option<ScalarType>>,
@@ -907,7 +940,8 @@ impl<'a> Lowering<'a> {
     /// A borrowed referent, provider attachment or result placeholder is not
     /// such a value and cannot eliminate its consumer's continuation.
     fn empty_owned_value(&self, root: PlaceId) -> bool {
-        self.roots.get(root).is_some_and(|(kind, ty)| {
+        self.roots.get(root).is_some_and(|root_declaration| {
+            let (kind, ty) = root_declaration.storage();
             !matches!(
                 kind,
                 StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. }
@@ -1431,8 +1465,8 @@ impl<'a> Lowering<'a> {
         let structural_places = self
             .roots
             .iter()
-            .map(|(id, (kind, _))| {
-                let mut kind = *kind;
+            .map(|(id, root)| {
+                let mut kind = root.kind;
                 if let StructuralPlaceKind::ByteSequenceLiteral {
                     declaration_ordinal,
                     ..

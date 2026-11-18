@@ -3916,6 +3916,90 @@ mod default_requirement_tests {
         assert_eq!(input.content_entry_claims[0].projections.len(), 2);
         content.validate_entries(&input).unwrap();
 
+        let formal = &input.structural_parameters[0];
+        let binding = &input.entry_claims[0];
+        let held = input.content_entry_claims[0].projections.as_slice();
+        let subject = |qualifications| crate::content_claims::Subject {
+            place: formal.place,
+            carrier: formal.structural_type,
+            qualifications,
+            projected_qualifications: &formal.projected_qualifications,
+        };
+        content
+            .validate_transport(
+                subject(&formal.qualifications),
+                [(binding.claim, binding.path.as_slice(), held)],
+            )
+            .unwrap();
+        for visible in [&formal.qualifications[..1], &[][..]] {
+            assert_eq!(
+                content.validate_transport(
+                    subject(visible),
+                    [(binding.claim, binding.path.as_slice(), held)],
+                ),
+                Err("call or return declarations omit or change retained content obligations"),
+                "hiding a domain cannot erase its independent debt"
+            );
+        }
+        assert_eq!(
+            content.validate_transport(
+                subject(&formal.qualifications),
+                [(binding.claim, binding.path.as_slice(), &held[..1])],
+            ),
+            Err("call or return declarations omit or change retained content obligations"),
+            "a declared domain cannot supply missing transported custody"
+        );
+
+        let mut caller = machine();
+        caller.contract = input.clone();
+        let mut callee = caller.clone();
+        callee.id = MachineId::new(2).unwrap();
+        callee.contract.id = ContractId::new(2).unwrap();
+        let call = terminal_psi::Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: callee.id,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+                    formal.place,
+                    StructuralAccess::Owned,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        let mut module = TerminalModule::for_entry(caller.id);
+        module.structural_types = types.clone();
+        module.structural_domains = domains.clone();
+        module.machines = vec![caller.clone(), callee];
+        let declared = Declared::new(&caller).unwrap();
+        validate_arguments(
+            &module,
+            &declared,
+            call.declared_invocation().unwrap(),
+            None,
+        )
+        .unwrap();
+        for visible in [formal.qualifications[..1].to_vec(), Vec::new()] {
+            module.machines[1].contract.structural_parameters[0].qualifications = visible;
+            assert_eq!(
+                validate_arguments(
+                    &module,
+                    &declared,
+                    call.declared_invocation().unwrap(),
+                    None
+                )
+                .unwrap_err()
+                .detail,
+                "a structural call argument does not deliver its formal's exact domains",
+                "a plain owned formal cannot hide the caller's content qualifications",
+            );
+        }
+
         let mut missing_projection = input.clone();
         missing_projection.content_entry_claims[0].projections.pop();
         let mut changed_projection = input.clone();

@@ -276,6 +276,9 @@ impl Lowering<'_> {
         source: SourceOrigin,
     ) -> Checked<()> {
         let no_normal_value = self.empty_owned_value(source_root);
+        let source_root = if no_normal_value { source_root } else {
+            self.materialize_content_result(source_root, source)?
+        };
         // Keep the actual structural expression. Its impossible owned value
         // supplies no normal result, whatever type the destination expects,
         // so this edge owes no normal-return guarantee or receiver value.

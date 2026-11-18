@@ -8756,26 +8756,36 @@ mod replay {
                         block: block_id,
                     };
                     let mut expected = BTreeSet::new();
-                    for input in derivations.iter().flat_map(|derived| &derived.inputs) {
-                        let root = structural_source_contract(function, input.subject.root)
-                            .ok_or_else(invalid)?;
-                        let path = terminal_semantics::content_transformations::structural_path(
-                            structural_types.values().copied(),
-                            identities,
-                            root.structural_type,
-                            &input.subject.segments,
-                        )
-                        .ok_or_else(invalid)?;
-                        let claim = frontier.claims.get(&input.claim).ok_or_else(invalid)?;
-                        if claim.input != Some(input.subject.root)
-                            || claim.path != path
-                            || !parents.iter().any(|parent| {
-                                parent.place == input.subject.root && path.starts_with(&parent.path)
-                            })
-                        {
-                            return Err(invalid());
+                    for derived in derivations {
+                        for input in &derived.inputs {
+                            terminal_semantics::content_transformations::validate_input_snapshot(
+                                &function.content_entry_claims,
+                                derived.conservation.algebra(),
+                                input,
+                            )
+                            .map_err(|_| invalid())?;
+                            let root = structural_source_contract(function, input.location.root)
+                                .ok_or_else(invalid)?;
+                            let path =
+                                terminal_semantics::content_transformations::structural_path(
+                                    structural_types.values().copied(),
+                                    identities,
+                                    root.structural_type,
+                                    &input.location.segments,
+                                )
+                                .ok_or_else(invalid)?;
+                            let claim = frontier.claims.get(&input.claim).ok_or_else(invalid)?;
+                            if claim.input != Some(input.location.root)
+                                || claim.path != path
+                                || !parents.iter().any(|parent| {
+                                    parent.place == input.location.root
+                                        && path.starts_with(&parent.path)
+                                })
+                            {
+                                return Err(invalid());
+                            }
+                            expected.insert(input.claim);
                         }
-                        expected.insert(input.claim);
                     }
                     let mut actual = BTreeSet::new();
                     let boundaries = structural_types

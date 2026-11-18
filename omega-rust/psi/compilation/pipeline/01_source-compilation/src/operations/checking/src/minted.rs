@@ -893,6 +893,19 @@ pub(crate) fn follow_the_lowered_form(
                     before,
                 )?;
             }
+            if let OperationKind::TransformContent { derivations, .. } = &operation.kind {
+                for derived in derivations {
+                    minted.claim(
+                        derived.obligation,
+                        ObligationKind::OperationSafety {
+                            site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                                operation.id,
+                            ),
+                        },
+                        before,
+                    )?;
+                }
+            }
             for projection in operation.kind.structural_projections() {
                 for segment in projection.path {
                     if let terminal_psi::StructuralPathSegment::RuntimeIndex {

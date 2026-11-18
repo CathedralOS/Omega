@@ -139,7 +139,7 @@ use terminal_check_tables::{
     UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
-use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
+use terminal_psi::{TerminalMachine, TerminalMachineResult, TerminalModule, Terminator};
 
 use graph::Graph;
 
@@ -2106,7 +2106,9 @@ fn stated_goal<'a>(
                 ScalarTerm::value(parameter, ScalarType::Integer(integer)),
             ))
         }
-        ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
+        ObligationKind::OperationSafety { site } => {
+            storage.safety_goal(site, obligation, types, references, tables, interpretations)
+        }
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,
@@ -2136,7 +2138,11 @@ fn stated_goal<'a>(
                     &mut content::AtCut {
                         module,
                         parameters: call.contract.structural_parameters,
-                        result: call.contract.result,
+                        result: call
+                            .contract
+                            .result
+                            .and_then(TerminalMachineResult::structural)
+                            .map(|result| (result.place, result.structural_type)),
                         bindings: &mut ErasedTerms {
                             terms: &erased,
                             runtime,
@@ -2190,7 +2196,11 @@ fn stated_goal<'a>(
                 &mut content::AtCut {
                     module,
                     parameters: &lowered.contract.structural_parameters,
-                    result: Some(&lowered.contract.result),
+                    result: lowered
+                        .contract
+                        .result
+                        .structural()
+                        .map(|result| (result.place, result.structural_type)),
                     bindings: &mut storage.at_return(references, tables, exit, concerns)?,
                     interpretations,
                 },

@@ -1,11 +1,12 @@
-//! Describe logical claim names and transports after storage lowering. The
-//! rows confer no checked status: Psi 06 reconstructs them from its own input.
+//! Prepare claim declarations before storage planning needs their exact
+//! obligations. The ownership walk emits transports with the cleanup plan;
+//! Psi 06 independently reconstructs both.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalModule;
 
-fn preparation_error(
+pub(crate) fn preparation_error(
     machine: MachineId,
     error: terminal_semantics::plain_affine::Error,
 ) -> Refusal {
@@ -34,7 +35,7 @@ fn preparation_error(
     }
 }
 
-pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Checked<()> {
+pub(crate) fn prepare(diagnostic: MachineId, module: &mut TerminalModule) -> Checked<()> {
     let content = terminal_semantics::content_claims::ClaimProjections::new(
         &module.structural_types,
         &module.structural_domains,
@@ -76,12 +77,27 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
                 )
             })?;
     }
+    Ok(())
+}
+
+/// Resolve explicit requests before descriptor liveness reads their real
+/// custody operands. The later joint walk still owns the final cleanup plan.
+pub(crate) fn materialize_content(module: &mut TerminalModule) -> Checked<()> {
     for ordinal in 0..module.machines.len() {
-        let identity = module.machines[ordinal].id;
-        let plan = terminal_semantics::plain_affine::plan_claims_in(module, identity)
-            .map_err(|error| preparation_error(identity, error))?;
-        plan.install(&mut module.machines[ordinal])
-            .map_err(|error| preparation_error(identity, error))?;
+        let machine = &module.machines[ordinal];
+        if !machine.operations().any(|operation| {
+            matches!(&operation.kind,
+            terminal_psi::OperationKind::TransformContent { derivations, .. }
+                if derivations.iter().any(|row| row.inputs.is_empty() || row.outputs.is_empty()))
+        }) {
+            continue;
+        }
+        let owner = machine.id;
+        let claims = terminal_semantics::plain_affine::plan_claims_in(module, owner)
+            .map_err(|error| preparation_error(owner, error))?;
+        claims
+            .install(&mut module.machines[ordinal])
+            .map_err(|error| preparation_error(owner, error))?;
     }
     Ok(())
 }

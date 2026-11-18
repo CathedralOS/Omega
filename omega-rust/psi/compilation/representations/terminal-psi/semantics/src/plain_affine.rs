@@ -115,6 +115,33 @@ pub struct Plan {
     pub claims: Option<ClaimsPlan>,
 }
 
+impl Plan {
+    /// Preserve cleanup outside this plan and install its owned actions in
+    /// the same order used when naming implicit calls' claim frontiers.
+    pub fn install_cleanup(&self, edge: EdgeId, actions: &mut Vec<TerminalAffineCleanupAction>) {
+        let planned = self
+            .cleanup
+            .binary_search_by_key(&edge, |(edge, _)| *edge)
+            .ok()
+            .map(|position| self.cleanup[position].1.as_slice())
+            .unwrap_or(&[]);
+        *actions = installed_cleanup(actions, planned, |place| self.affine_roots.contains(place))
+            .cloned()
+            .collect();
+    }
+}
+
+fn installed_cleanup<'a>(
+    supplied: &'a [TerminalAffineCleanupAction],
+    planned: &'a [TerminalAffineCleanupAction],
+    owned: impl Fn(PlaceId) -> bool + 'a,
+) -> impl Iterator<Item = &'a TerminalAffineCleanupAction> {
+    supplied
+        .iter()
+        .filter(move |action| !owned(action.place()))
+        .chain(planned)
+}
+
 #[derive(Debug)]
 pub struct ReferenceEnd {
     pub at: crate::descriptor_lifetimes::DescriptorPosition,
@@ -941,7 +968,7 @@ pub fn plan_in(
         false,
         Some(module),
         None,
-        None,
+        Some(claims::Mode::Publish),
     )
 }
 
@@ -960,7 +987,7 @@ pub fn plan_reference_ends(
         false,
         Some(module),
         Some(candidates),
-        None,
+        Some(claims::Mode::Verify),
     )
 }
 
@@ -988,8 +1015,27 @@ pub fn verify_in(
             true,
             Some(module),
             None,
-            None,
+            Some(claims::Mode::Verify),
         )?,
+    )
+}
+
+/// Plan storage and logical claims together. A qualified consuming operation
+/// needs the actual claim frontier while its cleanup is being selected; a later
+/// independent claim walk cannot supply that earlier decision.
+pub fn plan_storage_and_claims_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
+) -> Result<Plan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        reference_candidates,
+        Some(claims::Mode::Publish),
     )
 }
 
@@ -998,17 +1044,9 @@ pub fn plan_claims_in(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
 ) -> Result<ClaimsPlan, Error> {
-    let machine = module_machine(module, identity)?;
-    analyze(
-        machine,
-        &module.structural_types,
-        false,
-        Some(module),
-        None,
-        Some(claims::Mode::Publish),
-    )?
-    .claims
-    .ok_or(Error::malformed("claim producer lost its plan"))
+    plan_storage_and_claims_in(module, identity, None)?
+        .claims
+        .ok_or(Error::malformed("claim producer lost its plan"))
 }
 /// Receiving retains authenticated declaration names and reconstructs every
 /// move/call/return without taking the supplied transfer rows as evidence.
@@ -2413,8 +2451,15 @@ impl<'a> Analysis<'a> {
                 .ok_or(Error::malformed("terminator has no edge"))?,
         );
         if let Some(flow) = &mut self.claim_flow {
-            flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
-                .map_err(|error| error.at(site))?;
+            flow.terminal(
+                &mut state.claims,
+                machine,
+                &block.terminator,
+                self.types,
+                &self.roots,
+                entering.is_some(),
+            )
+            .map_err(|error| error.at(site))?;
         }
         // A reference dead before a dispatch ends there, not on each case
         // edge: the dispatch reads the subject storage, which the reference
@@ -2695,9 +2740,13 @@ impl<'a> Analysis<'a> {
                     let there = owned_there.map(|there| there.regions[raw].as_ref());
                     let still_owed = !read_there
                         && target.is_some()
-                        && self
-                            .needs_explicit_disposition(place, region)
-                            .map_err(|error| error.at(Site::Edge(edge)))?;
+                        && (outgoing
+                            .claims
+                            .at(place)
+                            .any(|claim| !claim.content.is_empty())
+                            || self
+                                .needs_explicit_disposition(place, region)
+                                .map_err(|error| error.at(Site::Edge(edge)))?);
                     if (read_there || still_owed) && there.is_none_or(|there| there.is_some()) {
                         if let Some(Some(there)) = there
                             && there != region
@@ -2752,7 +2801,19 @@ impl<'a> Analysis<'a> {
             retained.reverse();
             outgoing.active = retained;
             if let Some(flow) = &mut self.claim_flow {
-                flow.cleanup(&outgoing.claims, edge, supplied, entering.is_some())?;
+                if bound_output {
+                    flow.cleanup(&outgoing.claims, edge, supplied, entering.is_some())?;
+                } else {
+                    let roots = &self.roots;
+                    let installed = installed_cleanup(supplied, &actions, |place| {
+                        index(place.get())
+                            .ok()
+                            .and_then(|slot| roots.get(slot))
+                            .and_then(Option::as_ref)
+                            .is_some_and(|root| root.affine)
+                    });
+                    flow.cleanup(&outgoing.claims, edge, installed, entering.is_some())?;
+                }
             }
             if let Some(target) = target {
                 self.establish_successor(machine, &mut outgoing, target)
@@ -2916,6 +2977,13 @@ impl<'a> Analysis<'a> {
         settled: bool,
     ) -> Result<(), Error> {
         use terminal_psi::OperationKind as Op;
+        let resolved = self
+            .claim_flow
+            .as_mut()
+            .map(|flow| flow.materialize_content(&state.claims, operation, &self.roots, settled))
+            .transpose()?
+            .flatten();
+        let operation = resolved.as_ref().unwrap_or(operation);
         let site = Site::Operation(operation.id);
         if let Some(flow) = &mut self.claim_flow {
             flow.operation(
@@ -6246,6 +6314,60 @@ mod tests {
         assert!(
             crate::partial_affine_residuals(&types, root, &moved, 3).is_none(),
             "the existing whole-partition refusal remains unchanged"
+        );
+    }
+
+    #[test]
+    fn planned_cleanup_claim_frontiers_keep_the_installed_action_ordinals() {
+        let types = transfer_only_types(false);
+        let machine = returning_relay(false);
+        let (mut flow, state) =
+            claims::Flow::new(&machine, &types, claims::Mode::Publish, None).unwrap();
+        let cleanup = |machine| {
+            TerminalAffineCleanupAction::InvokeOwned(terminal_psi::OwnedCleanupInvocation {
+                subject: StructuralArgument::whole(id(1), StructuralAccess::Owned),
+                structural_type: id(3),
+                cleanup_machine: id(machine),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            })
+        };
+        let supplied = vec![TerminalAffineCleanupAction::RetireHome(id(2)), cleanup(7)];
+        let mut plan = Plan::default();
+        plan.affine_roots.insert(id(1));
+        plan.cleanup.push((id(1), vec![cleanup(8)]));
+        let mut installed = supplied.clone();
+        plan.install_cleanup(id(1), &mut installed);
+        assert_eq!(
+            installed,
+            [TerminalAffineCleanupAction::RetireHome(id(2)), cleanup(8)]
+        );
+        flow.cleanup(
+            &state,
+            id(1),
+            installed_cleanup(&supplied, &plan.cleanup[0].1, |place| {
+                plan.affine_roots.contains(place)
+            }),
+            true,
+        )
+        .unwrap();
+        assert!(
+            flow.plan
+                .call_frontier(semantic_vocabulary::InvocationSite::Cleanup {
+                    edge: id(1),
+                    action_ordinal: 0,
+                })
+                .is_none(),
+            "retirement is not a callable cleanup"
+        );
+        assert_eq!(
+            flow.plan
+                .call_frontier(semantic_vocabulary::InvocationSite::Cleanup {
+                    edge: id(1),
+                    action_ordinal: 1,
+                }),
+            Some(&[][..]),
+            "the newly selected call must retain its actual incoming claims"
         );
     }
 }

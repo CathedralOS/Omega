@@ -320,7 +320,7 @@ pub(crate) mod ancestry {
                         if let Some(claim) =
                             frontier.iter().find(|claim| claim.identity == input.claim)
                         {
-                            let root = super::super::place_type(machine, input.subject.root)
+                            let root = super::super::place_type(machine, input.location.root)
                                 .ok_or(
                                     "nominal retirement transformation lacks its current carrier",
                                 )?;
@@ -328,12 +328,12 @@ pub(crate) mod ancestry {
                                 module.structural_types.iter(),
                                 &module.identities,
                                 root,
-                                &input.subject.segments,
+                                &input.location.segments,
                             )
                             .ok_or(
                                 "nominal retirement transformation lacks its exact typed path",
                             )?;
-                            if claim.place != input.subject.root || claim.path != path {
+                            if claim.place != input.location.root || claim.path != path {
                                 return Err(
                                     "nominal retirement transformation names another current subject",
                                 );
@@ -1719,11 +1719,40 @@ pub fn content_path(
     Ok(output)
 }
 
+/// A historical content observation belongs to the exact original input
+/// claim. Current custody may move, but neither a name nor equal payload bytes
+/// can replace this authenticated entry association.
+pub fn validate_input_snapshot(
+    entries: &[terminal_psi::ContentEntryClaim],
+    algebra: &semantic_vocabulary::ContentAlgebra,
+    binding: &ContentClaimProjection,
+) -> Result<(), &'static str> {
+    if binding.location.version != ContentPlaceVersion::Current {
+        return Err("content custody requires a current claim location");
+    }
+    match binding.subject.version {
+        ContentPlaceVersion::Current if binding.subject == binding.location => Ok(()),
+        ContentPlaceVersion::Entry
+            if entries.iter().any(|entry| {
+                entry.claim == binding.claim
+                    && entry.input == binding.subject
+                    && entry.projections.iter().any(|projection| {
+                        projection.projection == binding.projection
+                            && &projection.algebra == algebra
+                    })
+            }) =>
+        {
+            Ok(())
+        }
+        _ => Err("content snapshot differs from the exact original input claim"),
+    }
+}
+
 pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
     if bindings.is_empty()
         || bindings
             .iter()
-            .any(|binding| binding.subject.version != ContentPlaceVersion::Current)
+            .any(|binding| binding.location.version != ContentPlaceVersion::Current)
     {
         return Err("content transformation requires current claim projections");
     }
@@ -1777,6 +1806,7 @@ pub fn validate_shape(
         &module.structural_types,
         &module.structural_domains,
         &module.identities,
+        &machine.content_entry_claims,
         &|place| place_type(machine, place),
         source,
         parents,
@@ -1849,6 +1879,7 @@ pub fn validate_parent_memberships(
     root_type: StructuralTypeId,
     parent: &StructuralArgument,
     derivations: &[ContentTransformationDerivation],
+    entries: &[terminal_psi::ContentEntryClaim],
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
     inactive: &impl Fn(&[StructuralPathSegment]) -> bool,
@@ -1873,12 +1904,16 @@ pub fn validate_parent_memberships(
     let mut expected = Vec::new();
     for derived in derivations {
         for input in &derived.inputs {
-            if input.subject.root != parent.place {
+            if input.location.root != parent.place {
                 continue;
             }
-            let path =
-                structural_path(types.iter(), identities, root_type, &input.subject.segments)
-                    .ok_or("content parent membership has no typed path")?;
+            let path = structural_path(
+                types.iter(),
+                identities,
+                root_type,
+                &input.location.segments,
+            )
+            .ok_or("content parent membership has no typed path")?;
             let Some(relative) = path.strip_prefix(parent.path.as_slice()) else {
                 continue;
             };
@@ -1886,10 +1921,15 @@ pub fn validate_parent_memberships(
                 .ok_or("content parent membership carrier is absent")?;
             let domain = projection_owner(domains, carrier.id, &input.projection, derived)
                 .ok_or("content parent membership has no exact qualification owner")?;
-            expected.push(StructuralPathQualification {
+            validate_input_snapshot(entries, derived.conservation.algebra(), input)?;
+            let qualification = StructuralPathQualification {
                 path: relative.to_vec(),
                 domain: domain.id,
-            });
+            };
+            if input.subject.version == ContentPlaceVersion::Entry {
+                actual.push(qualification.clone());
+            }
+            expected.push(qualification);
         }
     }
     actual.sort();
@@ -1906,6 +1946,7 @@ pub fn validate_contract(
     types: &[StructuralTypeDeclaration],
     domains: &[StructuralDomainDeclaration],
     identities: &TerminalIdentityTable,
+    entries: &[terminal_psi::ContentEntryClaim],
     carrier_of: &impl Fn(PlaceId) -> Option<StructuralTypeId>,
     source: &StructuralArgument,
     parents: &[StructuralArgument],
@@ -1971,9 +2012,16 @@ pub fn validate_contract(
                     return Err("content transformation repeats a claim projection");
                 }
                 roster.push((binding.claim, binding.projection));
+                if is_input {
+                    validate_input_snapshot(entries, derived.conservation.algebra(), binding)?;
+                } else if binding.subject != binding.location
+                    || binding.location.version != ContentPlaceVersion::Current
+                {
+                    return Err("content output must observe its current result location");
+                }
                 let root_type = if is_input {
-                    carrier_of(binding.subject.root).ok_or("content parent has no carrier")?
-                } else if binding.subject.root == result.place {
+                    carrier_of(binding.location.root).ok_or("content parent has no carrier")?
+                } else if binding.location.root == result.place {
                     result.structural_type
                 } else {
                     return Err("content output names another occurrence");
@@ -1982,11 +2030,27 @@ pub fn validate_contract(
                     types.iter(),
                     identities,
                     root_type,
-                    &binding.subject.segments,
+                    &binding.location.segments,
                 )
                 .ok_or("content claim projection has no exact typed path")?;
                 let carrier = runtime_structural_path_tip(types.iter(), root_type, &path)
                     .ok_or("content claim projection carrier is absent")?;
+                if is_input && binding.subject.version == ContentPlaceVersion::Entry {
+                    let origin = carrier_of(binding.subject.root)
+                        .ok_or("content snapshot has no original carrier")?;
+                    let origin_path = structural_path(
+                        types.iter(),
+                        identities,
+                        origin,
+                        &binding.subject.segments,
+                    )
+                    .ok_or("content snapshot has no exact original path")?;
+                    if runtime_structural_path_tip(types.iter(), origin, &origin_path)
+                        .is_none_or(|original| original.id != carrier.id)
+                    {
+                        return Err("content snapshot changes its original carrier application");
+                    }
+                }
                 let domain = projection_owner(domains, carrier.id, &binding.projection, derived)
                     .ok_or("content projection differs from its qualification owner")?;
                 let owner = (domain.id, domain.semantic_domain, binding.projection);
@@ -1998,7 +2062,7 @@ pub fn validate_contract(
                     let position = parents
                         .iter()
                         .position(|parent| {
-                            parent.place == binding.subject.root && path.starts_with(&parent.path)
+                            parent.place == binding.location.root && path.starts_with(&parent.path)
                         })
                         .ok_or("content input is outside every consumed parent")?;
                     covered_parents[position] = true;
@@ -2024,6 +2088,20 @@ pub fn validate_contract(
                     }
                 }
             }
+        }
+    }
+    inputs.sort_unstable();
+    for entry in entries {
+        let start = inputs.partition_point(|(claim, _)| *claim < entry.claim);
+        let end = inputs.partition_point(|(claim, _)| *claim <= entry.claim);
+        if start != end
+            && entry.projections.iter().any(|projection| {
+                inputs[start..end]
+                    .binary_search(&(entry.claim, projection.projection))
+                    .is_err()
+            })
+        {
+            return Err("content transformation omits an original input projection obligation");
         }
     }
     if covered_parents.contains(&false)

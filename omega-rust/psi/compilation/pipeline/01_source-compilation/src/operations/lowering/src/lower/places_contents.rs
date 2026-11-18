@@ -355,6 +355,7 @@ impl Lowering<'_> {
         let (_, root_type) = self
             .roots
             .get(root)
+            .map(super::super::StructuralRoot::storage)
             .ok_or_else(|| self.internal("content subject lost its storage type"))?;
         terminal_semantics::canonical_structural_path_tip(
             self.structural_types.iter(),
@@ -386,6 +387,7 @@ impl Lowering<'_> {
                 let (_, root_type) = self
                     .roots
                     .get(required.root)
+                    .map(super::super::StructuralRoot::storage)
                     .ok_or_else(|| self.internal("a default clause has no actual storage root"))?;
                 let (selected, carrier) = terminal_semantics::canonical_static_projection(
                     types.iter(),
@@ -428,14 +430,14 @@ impl Lowering<'_> {
         let mut formals: Vec<(StructuralTypeId, PlaceId)> = self
             .roots
             .iter()
-            .filter(|(_, (kind, _))| {
+            .filter(|(_, root)| {
                 matches!(
-                    kind,
+                    root.kind,
                     StructuralPlaceKind::Parameter { .. }
                         | StructuralPlaceKind::BlockParameter { .. }
                 )
             })
-            .map(|(root, (_, record))| (*record, root))
+            .map(|(root, declaration)| (declaration.record, root))
             .collect();
         formals.sort_unstable();
         let mut elements = ElementDemands::default();
@@ -458,7 +460,7 @@ impl Lowering<'_> {
             {
                 continue;
             }
-            let Some((_, record)) = self.roots.get(root) else {
+            let Some(declaration) = self.roots.get(root) else {
                 continue;
             };
             // The first demand already names its own root; propagating it
@@ -466,7 +468,7 @@ impl Lowering<'_> {
             // the same path and scalar type only repeat that work. Retain
             // first-encounter order so exact-place identities stay unchanged,
             // and keep differing scalar types for initial_content to refuse.
-            elements.retain(*record, root, segments, scalar_type);
+            elements.retain(declaration.record, root, segments, scalar_type);
         }
         for (record, root, segments, scalar_type) in elements.into_ordered() {
             let first = formals.partition_point(|(held, _)| *held < record);
@@ -547,7 +549,7 @@ impl Lowering<'_> {
             // demanded, readable field therefore needs its entry name, even
             // when no authored header clause named it. Runtime selectors do
             // not have a binding at that entry and cannot name a snapshot.
-            let named_entry = match self.roots.get(root).map(|(kind, _)| kind) {
+            let named_entry = match self.roots.get(root).map(|root| &root.kind) {
                 Some(StructuralPlaceKind::Parameter { .. }) => true,
                 Some(StructuralPlaceKind::BlockParameter { block, position })
                     if block_observation =>

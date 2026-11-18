@@ -57,10 +57,16 @@ impl ClaimsState {
             live_count: 0,
         })
     }
+    fn get(&self, id: ClaimId) -> Option<&ClaimLocation> {
+        self.claim_ids
+            .binary_search(&id)
+            .ok()
+            .and_then(|slot| self.claims[slot].as_ref())
+    }
     pub(super) fn live(&self) -> impl Iterator<Item = &ClaimLocation> {
         self.claims.iter().flatten()
     }
-    fn at(&self, place: PlaceId) -> impl Iterator<Item = &ClaimLocation> {
+    pub(super) fn at(&self, place: PlaceId) -> impl Iterator<Item = &ClaimLocation> {
         self.place_ids
             .binary_search(&place)
             .ok()
@@ -177,6 +183,7 @@ struct OperationClaims {
     operation: OperationId,
     bindings: Vec<Binding>,
     content: Vec<terminal_psi::ContentEntryClaim>,
+    transformation: Option<Op>,
 }
 
 #[derive(Clone, Debug)]
@@ -210,13 +217,16 @@ impl ClaimsPlan {
             .clone_from(&self.block_entry_claims);
         for block in &mut machine.blocks {
             for operation in &mut block.operations {
+                let row = self
+                    .operation_results
+                    .binary_search_by_key(&operation.id, |row| row.operation)
+                    .ok()
+                    .map(|position| &self.operation_results[position]);
+                if let Some(kind) = row.and_then(|row| row.transformation.as_ref()) {
+                    operation.kind.clone_from(kind);
+                }
                 if let terminal_psi::OperationResult::Structural(result) = &mut operation.result {
-                    result.claims = self
-                        .operation_results
-                        .binary_search_by_key(&operation.id, |row| row.operation)
-                        .ok()
-                        .map(|position| self.operation_results[position].bindings.clone())
-                        .unwrap_or_default();
+                    result.claims = row.map(|row| row.bindings.clone()).unwrap_or_default();
                 }
                 let site = InvocationSite::Operation(operation.id);
                 match &mut operation.kind {
@@ -398,6 +408,8 @@ pub(super) struct Flow<'types> {
     mode: Mode,
     catalogues: Catalogues<'types>,
     projections: Option<crate::content_claims::ClaimProjections<'types>>,
+    entry_content: Vec<terminal_psi::ContentEntryClaim>,
+    result_subject: Option<PlaceId>,
     fresh_results: Vec<OperationClaims>,
     pub plan: ClaimsPlan,
 }
@@ -576,6 +588,7 @@ impl<'types> Flow<'types> {
                 operation: operation.id,
                 bindings: rows,
                 content: obligations,
+                transformation: None,
             });
         }
         fresh_results.sort_unstable_by_key(|row| row.operation);
@@ -606,6 +619,7 @@ impl<'types> Flow<'types> {
                 operation: row.operation,
                 bindings: Vec::new(),
                 content: Vec::new(),
+                transformation: None,
             })
             .collect();
         let mut returned_claims = machine
@@ -634,6 +648,8 @@ impl<'types> Flow<'types> {
                 mode,
                 catalogues: cache,
                 projections: content,
+                entry_content: contract.content_entry_claims,
+                result_subject: contract.result.structural().map(|result| result.place),
                 fresh_results,
                 plan: ClaimsPlan {
                     entry_claims: contract.entry_claims,
@@ -669,6 +685,97 @@ impl<'types> Flow<'types> {
             .map(|row| row.projections.clone())
             .unwrap_or_default()
     }
+    fn check_boundary_content(
+        &self,
+        subject: crate::content_claims::Subject<'_>,
+        claims: &[ClaimLocation],
+    ) -> Result<(), Error> {
+        let Some(projections) = &self.projections else {
+            return if claims.iter().all(|claim| claim.content.is_empty()) {
+                Ok(())
+            } else {
+                Err(Error::unsupported(
+                    "content transport requires its exact module",
+                ))
+            };
+        };
+        projections
+            .validate_transport(
+                subject,
+                claims.iter().map(|claim| {
+                    (
+                        claim.identity,
+                        claim.path.as_slice(),
+                        claim.content.as_slice(),
+                    )
+                }),
+            )
+            .map_err(Error::malformed)
+    }
+
+    fn take_declared(
+        &self,
+        state: &mut ClaimsState,
+        argument: &StructuralArgument,
+        types: &[StructuralTypeDeclaration],
+        roots: &[Option<super::Root>],
+    ) -> Result<Vec<ClaimLocation>, Error> {
+        let claims = state.take(argument)?;
+        if argument.access != StructuralAccess::Owned {
+            return Ok(claims);
+        }
+        let Some(root) = roots
+            .get(super::index(argument.place.get())?)
+            .and_then(Option::as_ref)
+        else {
+            return if claims.is_empty() {
+                Ok(claims)
+            } else {
+                Err(Error::malformed(
+                    "content transport has claims without a typed root",
+                ))
+            };
+        };
+        let carrier =
+            crate::runtime_structural_path_tip(types.iter(), root.structural_type, &argument.path)
+                .ok_or_else(|| Error::malformed("content transport has no exact argument carrier"))?
+                .id;
+        let qualifications = if argument.path.is_empty() {
+            root.memberships.declared.whole.clone()
+        } else {
+            root.memberships
+                .declared
+                .projected
+                .iter()
+                .filter(|row| row.path == argument.path)
+                .map(|row| row.domain)
+                .collect()
+        };
+        let projected = root
+            .memberships
+            .declared
+            .projected
+            .iter()
+            .filter_map(|row| {
+                let suffix = row.path.strip_prefix(argument.path.as_slice())?;
+                (!suffix.is_empty()).then(|| terminal_psi::StructuralPathQualification {
+                    path: suffix.to_vec(),
+                    domain: row.domain,
+                })
+            })
+            .collect::<Vec<_>>();
+        self.check_boundary_content(
+            crate::content_claims::Subject {
+                place: argument.place,
+                carrier,
+                qualifications: &qualifications,
+                projected_qualifications: &projected,
+            },
+            &claims,
+        )?;
+        Ok(claims)
+    }
+
     fn check_content_roster(
         &self,
         claims: &[ClaimLocation],
@@ -715,14 +822,26 @@ impl<'types> Flow<'types> {
                         Error::malformed("content equation names no consumed or produced claim")
                     })?;
                 let path = projections
-                    .resolve_subject(carrier(binding.subject.root)?, &binding.subject)
+                    .resolve_subject(carrier(binding.location.root)?, &binding.location)
                     .map_err(Error::malformed)?;
-                if binding.subject.version != semantic_vocabulary::ContentPlaceVersion::Current
-                    || binding.subject.root != claim.place
+                if binding.location.version != semantic_vocabulary::ContentPlaceVersion::Current
+                    || binding.location.root != claim.place
                     || path != claim.path
                 {
                     return Err(Error::malformed(
-                        "content equation changes the current claim subject",
+                        "content equation changes the current claim location",
+                    ));
+                }
+                if input {
+                    crate::content_transformations::validate_input_snapshot(
+                        &self.entry_content,
+                        derived.conservation.algebra(),
+                        binding,
+                    )
+                    .map_err(Error::malformed)?;
+                } else if binding.subject != binding.location {
+                    return Err(Error::malformed(
+                        "content result observes another value revision",
                     ));
                 }
                 supplied.push((
@@ -743,6 +862,211 @@ impl<'types> Flow<'types> {
         }
         Ok(())
     }
+    /// Bind an unsealed source request to the claims live at this operation.
+    /// Receiving only checks the resulting rows; it never fills missing evidence.
+    pub fn materialize_content(
+        &mut self,
+        state: &ClaimsState,
+        operation: &Operation,
+        roots: &[Option<super::Root>],
+        settled: bool,
+    ) -> Result<Option<Operation>, Error> {
+        use semantic_vocabulary::{ContentPlaceVersion, ContentTerm};
+        use terminal_psi::{ContentClaimProjection, ContentTransformationCustody};
+        let Op::TransformContent {
+            source,
+            derivations,
+            ..
+        } = &operation.kind
+        else {
+            return Ok(None);
+        };
+        let pending = derivations
+            .iter()
+            .any(|row| row.inputs.is_empty() || row.outputs.is_empty());
+        if !pending || self.mode != Mode::Publish {
+            return Ok(None);
+        }
+        if derivations.is_empty()
+            || derivations.iter().any(|row| {
+                !row.inputs.is_empty()
+                    || !row.outputs.is_empty()
+                    || !row.lineage_roots.is_empty()
+                    || !row.ancestry.is_empty()
+                    || row.custody != ContentTransformationCustody::Derived
+            })
+        {
+            return Err(Error::malformed(
+                "content request mixes pending and supplied custody",
+            ));
+        }
+        let result = operation
+            .result
+            .as_structural()
+            .ok_or_else(|| Error::malformed("content request has no structural result"))?;
+        let formal_result = self
+            .result_subject
+            .ok_or_else(|| Error::malformed("content request has no declared result subject"))?;
+        let projections = self
+            .projections
+            .as_ref()
+            .ok_or_else(|| Error::unsupported("content request needs its exact module"))?;
+        let root_type = |place: PlaceId| {
+            roots
+                .get(super::index(place.get())?)
+                .and_then(Option::as_ref)
+                .map(|root| root.structural_type)
+                .ok_or_else(|| Error::malformed("content request names no exact carrier"))
+        };
+        let mut payload = state.clone();
+        let payload_claims = payload.take(source)?;
+        let output = projections
+            .at_subject(
+                crate::content_claims::Subject {
+                    place: result.place,
+                    carrier: result.structural_type,
+                    qualifications: &result.qualifications,
+                    projected_qualifications: &result.projected_qualifications,
+                },
+                payload_claims
+                    .iter()
+                    .map(|claim| (claim.identity, claim.path.as_slice())),
+                ContentPlaceVersion::Current,
+            )
+            .map_err(Error::malformed)?;
+        fn leaves<'a>(term: &'a ContentTerm, output: &mut Vec<&'a ContentTerm>) {
+            match term {
+                ContentTerm::Projection { .. } => output.push(term),
+                ContentTerm::Separate(parts) => {
+                    for part in parts {
+                        leaves(part, output);
+                    }
+                }
+            }
+        }
+        let mut parents = Vec::new();
+        let mut bound = derivations.clone();
+        for row in &mut bound {
+            row.map_places(&mut |place| {
+                if place == formal_result {
+                    result.place
+                } else {
+                    place
+                }
+            });
+            let mut terms = Vec::new();
+            leaves(row.conservation.left(), &mut terms);
+            leaves(row.conservation.right(), &mut terms);
+            for term in terms {
+                let ContentTerm::Projection {
+                    projection,
+                    subject,
+                } = term
+                else {
+                    unreachable!()
+                };
+                if subject.version == ContentPlaceVersion::Entry {
+                    let mut entries = self.entry_content.iter().filter(|entry| {
+                        entry.input == *subject
+                            && entry.projections.iter().any(|held| {
+                                held.projection == *projection
+                                    && held.algebra == *row.conservation.algebra()
+                            })
+                    });
+                    let entry = entries.next().ok_or_else(|| {
+                        Error::malformed("content law has no exact input projection obligation")
+                    })?;
+                    if entries.next().is_some() {
+                        return Err(Error::malformed(
+                            "content law has ambiguous input projection obligations",
+                        ));
+                    }
+                    let claim = state.get(entry.claim).ok_or_else(|| {
+                        Error::malformed("content law input claim is no longer live")
+                    })?;
+                    if !claim
+                        .content
+                        .contains(&terminal_psi::ClaimContentProjection {
+                            projection: *projection,
+                            algebra: row.conservation.algebra().clone(),
+                        })
+                    {
+                        return Err(Error::malformed(
+                            "content law input lost its projection obligation",
+                        ));
+                    }
+                    let location = semantic_vocabulary::ContentStructuralPlace {
+                        version: ContentPlaceVersion::Current,
+                        root: claim.place,
+                        segments: projections
+                            .content_path(root_type(claim.place)?, &claim.path)
+                            .map_err(Error::malformed)?,
+                    };
+                    parents.push(StructuralArgument {
+                        place: claim.place,
+                        path: claim.path.clone(),
+                        access: StructuralAccess::Owned,
+                    });
+                    row.inputs.push(ContentClaimProjection {
+                        claim: claim.identity,
+                        projection: *projection,
+                        location,
+                        subject: subject.clone(),
+                    });
+                } else if subject.root == result.place {
+                    let mut outputs = output.iter().filter(|entry| {
+                        entry.input == *subject
+                            && entry.projections.iter().any(|held| {
+                                held.projection == *projection
+                                    && held.algebra == *row.conservation.algebra()
+                            })
+                    });
+                    let entry = outputs.next().ok_or_else(|| {
+                        Error::malformed("content law output is not a requested result projection")
+                    })?;
+                    if outputs.next().is_some() {
+                        return Err(Error::malformed(
+                            "content law output has ambiguous payload custody",
+                        ));
+                    }
+                    row.outputs.push(ContentClaimProjection {
+                        claim: entry.claim,
+                        projection: *projection,
+                        location: subject.clone(),
+                        subject: subject.clone(),
+                    });
+                } else {
+                    return Err(Error::unsupported(
+                        "content law needs an exact entry input or current result",
+                    ));
+                }
+            }
+            row.inputs.sort();
+            row.outputs.sort();
+            row.lineage_roots = row.inputs.iter().map(|binding| binding.claim).collect();
+            row.lineage_roots.sort_unstable();
+            row.lineage_roots.dedup();
+        }
+        parents.sort();
+        parents.dedup();
+        bound.sort();
+        let mut resolved = operation.clone();
+        resolved.kind = Op::TransformContent {
+            source: source.clone(),
+            parents,
+            derivations: bound,
+        };
+        if settled {
+            let position = self
+                .plan
+                .operation_results
+                .binary_search_by_key(&operation.id, |row| row.operation)
+                .map_err(|_| Error::malformed("content request has no operation result row"))?;
+            self.plan.operation_results[position].transformation = Some(resolved.kind.clone());
+        }
+        Ok(Some(resolved))
+    }
+
     fn transform_content(
         &self,
         state: &mut ClaimsState,
@@ -956,7 +1280,7 @@ impl<'types> Flow<'types> {
                 .iter()
                 .enumerate()
             {
-                for claim in state.take(argument)? {
+                for claim in self.take_declared(state, argument, types, roots)? {
                     transfers.push(ClaimTransfer {
                         claim: claim.identity,
                         argument_index: u32::try_from(ordinal)
@@ -1253,7 +1577,10 @@ impl<'types> Flow<'types> {
     pub fn terminal(
         &mut self,
         state: &mut ClaimsState,
+        machine: &TerminalMachine,
         terminator: &Terminator,
+        types: &[StructuralTypeDeclaration],
+        roots: &[Option<super::Root>],
         settled: bool,
     ) -> Result<(), Error> {
         if let Terminator::InvokeNoNormal {
@@ -1267,7 +1594,7 @@ impl<'types> Flow<'types> {
             self.snapshot(site, state, settled);
             let mut rows = Vec::new();
             for (ordinal, argument) in structural_arguments.iter().enumerate() {
-                for claim in state.take(argument)? {
+                for claim in self.take_declared(state, argument, types, roots)? {
                     rows.push(ClaimTransfer {
                         claim: claim.identity,
                         argument_index: u32::try_from(ordinal)
@@ -1308,8 +1635,20 @@ impl<'types> Flow<'types> {
             ..
         } = terminator
         {
-            let returned = state
-                .take(&StructuralArgument::whole(*source, StructuralAccess::Owned))?
+            let returned =
+                state.take(&StructuralArgument::whole(*source, StructuralAccess::Owned))?;
+            if let Some(result) = machine.result.structural() {
+                self.check_boundary_content(
+                    crate::content_claims::Subject {
+                        place: result.place,
+                        carrier: result.structural_type,
+                        qualifications: &result.qualifications,
+                        projected_qualifications: &result.projected_qualifications,
+                    },
+                    &returned,
+                )?;
+            }
+            let returned = returned
                 .into_iter()
                 .map(|claim| Binding {
                     claim: claim.identity,
@@ -1343,14 +1682,14 @@ impl<'types> Flow<'types> {
         }
         Ok(())
     }
-    pub fn cleanup(
+    pub fn cleanup<'action>(
         &mut self,
         state: &ClaimsState,
         edge: EdgeId,
-        actions: &[TerminalAffineCleanupAction],
+        actions: impl IntoIterator<Item = &'action TerminalAffineCleanupAction>,
         settled: bool,
     ) -> Result<(), Error> {
-        for (ordinal, action) in actions.iter().enumerate() {
+        for (ordinal, action) in actions.into_iter().enumerate() {
             let TerminalAffineCleanupAction::InvokeOwned(_) = action else {
                 continue;
             };

@@ -61,6 +61,7 @@ pub(crate) mod content_wire {
         }
         ClaimProjection: ClaimContentProjection { projection: ProjectionIdentity, algebra: Algebra }
         Derivation: ContentTransformationDerivation {
+            obligation: Id,
             conservation: Conservation,
             lineage_roots: Ids,
             ancestry: List<LineageStep>,
@@ -72,6 +73,7 @@ pub(crate) mod content_wire {
         ClaimSubject: ContentClaimProjection {
             claim: Id,
             projection: ProjectionIdentity,
+            location: ContentPlace,
             subject: ContentPlace,
         }
         BodyRequirement: ContentBoundaryBodyRequirement {

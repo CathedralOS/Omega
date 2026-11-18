@@ -164,11 +164,55 @@ impl<'a> ClaimProjections<'a> {
         Ok(merged)
     }
 
+    /// A public call or result must retain every projection the transported
+    /// claims owe. Hiding a domain name does not dispose its content debt.
+    pub fn validate_transport<'claim>(
+        &self,
+        subject: Subject<'_>,
+        claims: impl IntoIterator<
+            Item = (
+                ClaimId,
+                &'claim [StructuralPathSegment],
+                &'claim [ClaimContentProjection],
+            ),
+        >,
+    ) -> Result<(), &'static str> {
+        let claims = claims.into_iter().collect::<Vec<_>>();
+        let expected = self.at_subject(
+            subject,
+            claims.iter().map(|(claim, path, _)| (*claim, *path)),
+            ContentPlaceVersion::Current,
+        )?;
+        let mut expected = expected
+            .iter()
+            .map(|row| (row.claim, row.projections.as_slice()))
+            .collect::<Vec<_>>();
+        let mut actual = claims
+            .iter()
+            .filter(|(_, _, content)| !content.is_empty())
+            .map(|(claim, _, content)| (*claim, *content))
+            .collect::<Vec<_>>();
+        expected.sort();
+        actual.sort();
+        if actual != expected {
+            return Err("call or return declarations omit or change retained content obligations");
+        }
+        Ok(())
+    }
+
     pub fn validate_entries(&self, contract: &MachineContract) -> Result<(), &'static str> {
         if contract.content_entry_claims != self.entry_claims(contract)? {
             return Err("content entry claims differ from their complete owned membership roster");
         }
         Ok(())
+    }
+
+    pub(super) fn content_path(
+        &self,
+        carrier: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Result<Vec<semantic_vocabulary::ContentPlaceSegment>, &'static str> {
+        crate::content_transformations::content_path(self.types, self.identities, carrier, path)
     }
 
     pub fn resolve_subject(

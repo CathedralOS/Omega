@@ -290,6 +290,48 @@ mod bound_fact_index {
     }
 
     #[test]
+    fn mathematical_address_images_keep_the_declared_carrier() {
+        let address = IntegerType::supported_address_representation();
+        let id = ValueId::new(41).unwrap();
+        let values = IdTable::from_rows([(
+            id,
+            ValueRow {
+                scalar_type: ScalarType::Integer(address),
+                origin: ValueOrigin::MachineParameter { position: 0 },
+                rigid: None,
+            },
+        )])
+        .unwrap();
+        let context = context(&values);
+        let subject = IntegerMathTerm::MathValue {
+            source_type: address,
+            value: id,
+        };
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &[], &[], &values, &mut activity);
+        for direction in [Direction::Lower, Direction::Upper] {
+            let proof = prover.arithmetic_image(&subject, direction).unwrap();
+            proof_admission::accept_certificate(&context, &proof.conclusion, &[], &[], &proof)
+                .unwrap();
+        }
+        // A count at the same width supplies no evidence for an address, and
+        // the address's carrier does not imply a narrower arbitrary limit.
+        let wrong = IntegerMathTerm::MathValue {
+            source_type: integer(),
+            value: id,
+        };
+        assert!(prover.arithmetic_image(&wrong, Direction::Lower).is_err());
+        assert!(
+            prover
+                .prove(&Proposition::IntegerMathLessOrEqual(
+                    subject,
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(7)),
+                ))
+                .is_err()
+        );
+    }
+
+    #[test]
     fn scalar_compound_and_mathematical_bounds_keep_their_evidence() {
         let values = inputs(41, 1);
         let id = values.identity_at(0).unwrap();

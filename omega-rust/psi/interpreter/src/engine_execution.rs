@@ -1655,22 +1655,31 @@ pub(crate) mod content_transformations {
             let mut expected = Vec::new();
             for derived in derivations {
                 for input in &derived.inputs {
+                    terminal_semantics::content_transformations::validate_input_snapshot(
+                        &self
+                            .program
+                            .verified_machine(self.current_machine)?
+                            .content_entry_claims,
+                        derived.conservation.algebra(),
+                        input,
+                    )
+                    .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
                     let root = self
                         .structural_values
-                        .get(&input.subject.root)
+                        .get(&input.location.root)
                         .ok_or_else(invalid)?;
                     let path = terminal_semantics::content_transformations::structural_path(
                         module.structural_types.iter(),
                         &module.identities,
                         root.structural_type,
-                        &input.subject.segments,
+                        &input.location.segments,
                     )
                     .ok_or_else(invalid)?;
                     let claim = self.live_claims.get(&input.claim).ok_or_else(invalid)?;
-                    if claim.place != Some(input.subject.root)
+                    if claim.place != Some(input.location.root)
                         || claim.path != path
                         || !parents.iter().any(|parent| {
-                            parent.place == input.subject.root && path.starts_with(&parent.path)
+                            parent.place == input.location.root && path.starts_with(&parent.path)
                         })
                     {
                         return Err(invalid());
@@ -1781,6 +1790,7 @@ pub(crate) mod content_transformations {
                 root.structural_type,
                 parent,
                 derivations,
+                &self.program.verified_machine(self.current_machine)?.content_entry_claims,
                 whole,
                 projected,
                 &|relative| {

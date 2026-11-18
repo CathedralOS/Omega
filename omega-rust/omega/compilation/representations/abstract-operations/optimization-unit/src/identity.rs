@@ -1779,6 +1779,7 @@ pub(crate) mod structural_encoding {
         bytes: &mut CanonicalBytes,
         derived: &terminal_psi::ContentTransformationDerivation,
     ) {
+        bytes.id(derived.obligation);
         encode_content_conservation(bytes, &derived.conservation);
         bytes.slice(&derived.lineage_roots, |bytes, root| bytes.id(*root));
         match &derived.custody {
@@ -1812,6 +1813,7 @@ pub(crate) mod structural_encoding {
         for bindings in [&derived.inputs, &derived.outputs] {
             bytes.slice(bindings, |bytes, binding| {
                 bytes.id(binding.claim);
+                encode_content_place(bytes, &binding.location);
                 encode_content_term(
                     bytes,
                     &semantic_vocabulary::ContentTerm::Projection {

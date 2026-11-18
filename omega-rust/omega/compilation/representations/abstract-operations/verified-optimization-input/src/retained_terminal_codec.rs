@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI41`) for retained native
+  Compiler-private binary persistence (`OMGNTI42`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1489,7 +1489,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 // Structural type rows now retain their declared three-way multiplicity.
 // Schema 39 retains optional operation evidence beside the immutable Psi bytes.
 // Older native records cannot carry this field and reject before decoding.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI41";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI42";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1712,7 +1712,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI41", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI42", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

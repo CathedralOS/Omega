@@ -1668,6 +1668,78 @@ impl<'a> Storage<'a> {
         })
     }
 
+    fn content_transformation_goal(
+        &self,
+        operation: &terminal_psi::Operation,
+        obligation: ObligationId,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        interpretations: &mut Vec<semantic_vocabulary::ContentIntervalInterpretation>,
+    ) -> Checked<Proposition> {
+        let concerns = Construct::Obligation(obligation);
+        let OperationKind::TransformContent {
+            source,
+            derivations,
+            ..
+        } = &operation.kind
+        else {
+            return Err(self.foreign(concerns, "content safety question names another operation"));
+        };
+        let mut matching = derivations
+            .iter()
+            .filter(|derived| derived.obligation == obligation);
+        let derived = matching.next().ok_or_else(|| {
+            self.foreign(
+                concerns,
+                "content transformation does not own this conservation question",
+            )
+        })?;
+        if matching.next().is_some() {
+            return Err(self.foreign(
+                concerns,
+                "content transformations share a conservation question",
+            ));
+        }
+        let result = operation.result.as_structural().ok_or_else(|| {
+            self.foreign(concerns, "content transformation has no result carrier")
+        })?;
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let before = after.checked_sub(1).ok_or_else(|| {
+            self.foreign(concerns, "content transformation has no execution position")
+        })?;
+        let point = if before == 0 {
+            ProgramPoint::BlockEntry(block)
+        } else {
+            ProgramPoint::AfterOperation(self.block(block)?.operations[before - 1].id)
+        };
+        let mut bindings = Returned {
+            inputs: self.at_entry(references, tables),
+            input_formals: &self.lowered.structural_parameters,
+            storage: self,
+            tables,
+            structural: Some((result.place, self.argument(source, concerns)?)),
+            scalar: None,
+            point,
+            concerns,
+        };
+        // The output is observed in the raw payload before the operation.
+        // Entry inputs retain their authenticated snapshots; the operation's
+        // requested result memberships supply no premise for this question.
+        crate::checking::substitute_goal(
+            &Proposition::ContentConservation(derived.conservation.clone()),
+            &mut crate::checking::content::AtCut {
+                module: self.module,
+                parameters: &self.lowered.structural_parameters,
+                result: Some((result.place, result.structural_type)),
+                bindings: &mut bindings,
+                interpretations,
+            },
+        )
+        .map_err(|unbound| unbound.refusal(self.machine, concerns))
+    }
+
     /// The place and clause one `DataDomain` obligation is about: `clause`
     /// counts through the operation's whole list (`owed`).
     pub(crate) fn owner(
@@ -2488,12 +2560,24 @@ impl<'a> Storage<'a> {
         site: terminal_check_tables::obligations::ExecutionSite,
         obligation: ObligationId,
         types: &IdTable<ValueId, ScalarType>,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        interpretations: &mut Vec<semantic_vocabulary::ContentIntervalInterpretation>,
     ) -> Checked<Proposition> {
         use terminal_check_tables::obligations::ExecutionSite;
         let concerns = Construct::Obligation(obligation);
         let projections = match site {
             ExecutionSite::Operation(id) => {
                 let operation = self.operation(id, concerns)?;
+                if matches!(operation.kind, OperationKind::TransformContent { .. }) {
+                    return self.content_transformation_goal(
+                        operation,
+                        obligation,
+                        references,
+                        tables,
+                        interpretations,
+                    );
+                }
                 if let Some(semantics) =
                     terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
                         .map_err(crate::checking::semantics_refusal(self.machine, id))?
@@ -4244,7 +4328,8 @@ impl<'a> Storage<'a> {
     fn moved_source(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         match &operation.kind {
-            OperationKind::MoveStructuralValue { source } => {
+            OperationKind::MoveStructuralValue { source }
+            | OperationKind::TransformContent { source, .. } => {
                 self.argument(source, concerns).map(Some)
             }
             OperationKind::MoveStructuralField {

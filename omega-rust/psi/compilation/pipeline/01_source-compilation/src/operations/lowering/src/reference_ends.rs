@@ -81,8 +81,12 @@ pub(crate) fn install(
         if candidates.is_empty() {
             continue;
         }
-        let plan = terminal_semantics::plain_affine::plan_reference_ends(module, owner, candidates)
-            .map_err(|error| planning_refusal(owner, error, sources.get(owner)));
+        let plan = terminal_semantics::plain_affine::plan_storage_and_claims_in(
+            module,
+            owner,
+            Some(candidates),
+        )
+        .map_err(|error| planning_refusal(owner, error, sources.get(owner)));
         let plan = match plan {
             Ok(plan) => plan,
             Err(refused) if refused.reason == terminal_check_tables::RefusalReason::Unsupported => {

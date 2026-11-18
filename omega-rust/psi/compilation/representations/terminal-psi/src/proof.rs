@@ -56,11 +56,17 @@ pub(crate) mod content {
     pub struct ContentClaimProjection {
         pub claim: ClaimId,
         pub projection: ContentProjectionIdentity,
+        /// Where the claim is currently held, independently of its payload.
+        pub location: ContentStructuralPlace,
+        /// The value revision whose content this claim owes. An entry subject
+        /// must match the original input claim; it is not arbitrary history.
         pub subject: ContentStructuralPlace,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ContentTransformationDerivation {
+        /// The exact conservation goal owed before this transformation.
+        pub obligation: semantic_vocabulary::ObligationId,
         pub conservation: ContentConservation,
         pub lineage_roots: Vec<ClaimId>,
         pub ancestry: Vec<ContentLineageStep>,
@@ -147,6 +153,7 @@ pub(crate) mod content {
                 term(self.conservation.right(), map),
             );
             for binding in self.inputs.iter_mut().chain(&mut self.outputs) {
+                binding.location.root = map(binding.location.root);
                 binding.subject.root = map(binding.subject.root);
             }
             if let ContentTransformationCustody::Boundary {

@@ -180,7 +180,7 @@ impl Lowering<'_> {
                 let record = self
                     .roots
                     .get(argument.place)
-                    .map(|(_, record)| *record)
+                    .map(|root| root.record)
                     .ok_or_else(|| self.internal("ranking descriptor has no root declaration"))?;
                 let exact = self.exact_root(argument.place)?;
                 self.name_contents(exact, ValueType::record(record))?;
