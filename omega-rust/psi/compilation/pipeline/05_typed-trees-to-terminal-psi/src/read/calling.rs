@@ -351,14 +351,9 @@ impl Program<'_> {
                 ));
             }
             self.served(context, scope.declaration.symbol)?;
-            // Schema keys are exact nominal owners. A member's semantic
-            // declaration is a different identity and cannot name its trait.
-            let declaration = typed_trees::service_declarations::exact_identity(
-                typed,
-                scope.declaration.symbol,
-                bound_catalog.exact_toolchain_sources(),
-            )
-            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+            let declaration = typed
+                .normalized_hermetic_symbol_identity(scope.declaration.symbol)
+                .map_err(|reason| services::unavailable(context, reason))?;
             let schema = typed_trees::service_declarations::projection::from_typed_application(
                 typed_trees::provider_declarations::ProviderPlanningContext::new(
                     typed,
@@ -606,14 +601,9 @@ impl Program<'_> {
                     "selected entry contract has no canonical full application identity",
                 )
             })?;
-            // Schema keys are exact nominal owners. A member's semantic
-            // declaration is a different identity and cannot name its trait.
-            let declaration = typed_trees::service_declarations::exact_identity(
-                typed,
-                scope.declaration.symbol,
-                bound_catalog.exact_toolchain_sources(),
-            )
-            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+            let declaration = typed
+                .normalized_hermetic_symbol_identity(scope.declaration.symbol)
+                .map_err(|reason| services::unavailable(context, reason))?;
             if !prepared.requests.iter().any(|request| {
                 request.declaration == declaration
                     && request

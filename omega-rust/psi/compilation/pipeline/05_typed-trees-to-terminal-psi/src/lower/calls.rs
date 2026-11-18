@@ -603,6 +603,10 @@ impl Lowering<'_> {
         if !captured.erased.is_empty() {
             return Err(self.internal("a loop transfer carries erased arguments"));
         }
+        // Ranking observations can emit operations. Keep their paths captured
+        // until each read has bounds, then place the transfer's index bounds
+        // at its actual terminator.
+        self.successor_ranking(callee, &captured.scalars, &captured.structural)?;
         let structural = self.structural_arguments(
             captured.structural,
             ExecutionSite::Block(self.current()?),
