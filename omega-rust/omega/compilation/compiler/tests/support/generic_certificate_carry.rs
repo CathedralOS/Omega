@@ -87,7 +87,7 @@ fn report(
 /// dependency set. Observe its completed forms instead of independently
 /// finalizing a closure before its generic headers exist. Empty subjects and
 /// selections retain this experiment's concrete-root-only scope.
-fn prepare(
+pub(super) fn prepare(
     frontier: &compiler::TypedFrontier,
     entry: symbols::SymbolHandle,
 ) -> Result<PreparedCompilation, String> {

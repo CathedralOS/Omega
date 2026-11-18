@@ -645,7 +645,8 @@ fn the_comparison_witness_lowers_and_corresponds() {
 }
 
 /// The route's verdict on each machine stage 04 generated from the machine
-/// named `template`, each as the root of its own closure.
+/// named `template`, each as the root of its own closure after source
+/// preparation completes its specialization headers.
 fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
     let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
@@ -657,9 +658,18 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
         .iter()
         .filter(|specialization| specialization.template == declared)
         .map(|specialization| {
-            let closure =
-                source_compiler::lowering::elaborate_closure(typed, specialization.instance);
-            match source_compiler::checking::judge(closure) {
+            let prepared = generic_certificate_carry::prepare(&frontier, specialization.instance)
+                .unwrap_or_else(|reason| {
+                    panic!("{fixture}: generated body preparation must complete: {reason}")
+                });
+            let closure = prepared.closure.expect("prepare checked the closure");
+            let entry = semantic_vocabulary::MachineId::new(1).expect("1 is nonzero");
+            assert_eq!(
+                closure.machines.get(entry),
+                Some(&specialization.instance),
+                "{fixture}: preparation must retain the generated instance as its root"
+            );
+            match source_compiler::checking::judge(Ok(closure)) {
                 Ok(source_compiler::checking::RouteVerdict::Accepted { .. }) => "accepted".into(),
                 Ok(source_compiler::checking::RouteVerdict::Rejected { .. }) => "rejected".into(),
                 Ok(source_compiler::checking::RouteVerdict::Incomplete { .. }) => {
