@@ -699,6 +699,36 @@ ran the frozen bootstrap compiler on the Omega fixture, produced the same
 50-byte Alpha program, and that program exited 42. The full product request
 exceeded the evaluator's 4 MiB input limit and returned 253 with empty output.
 
+
+### Direct Linux branches
+
+The native assembler can jump on the condition the Gamma lowering requested.
+A conditional transfer uses one six-byte x86 instruction after the register
+comparison. A direct call or unconditional jump takes five bytes. The
+earlier encoding used an inverse condition followed by a twelve-byte
+absolute jump. The field writer now computes signed distances for x86 and
+continues to compute absolute offsets for Alpha.
+
+The following paired measurements used already constructed Linux compiler
+executables. Delta had identical source at `b95769558667` and `124129cd2d6`.
+The two Epsilon versions had different source. Every Alpha output matched
+the earlier assembler byte for byte.
+
+| Gamma source | Absolute ELF bytes | Relative ELF bytes | Peak compiler KiB, absolute → relative | Branch and call destinations checked |
+| --- | ---: | ---: | ---: | ---: |
+| Delta | 3,984,546 | 3,856,065 | 120,320 → 116,396 | 16,387 |
+| Epsilon at `b95769558667` | 26,119,826 | 25,322,912 | 771,584 → 746,924 | 100,900 |
+| Epsilon at `124129cd2d6` | 26,075,468 | 25,280,528 | 770,176 → 745,516 | 100,648 |
+
+Across these executables the largest backward and forward displacements
+were −25,319,803 and +25,312,592 bytes. The direct native compiler reproduced its own
+1,484,898-byte ELF from 40,323 source bytes. The extra target-width and
+target-value functions brought the Alpha compiler source to 35,337 bytes
+and its own tape to 457,463 bytes, an increase of 1,129 tape bytes.
+Both native Epsilon versions ran their corresponding bootstrap compiler
+fixture under each encoding and produced the same 50-byte program. It
+exited 42 in all four runs.
+
 ## Earlier nominal-case construction interruption
 
 The candidate bootstrap compiler at `501411f37fe18b55b4e068811c36258f318b002b`

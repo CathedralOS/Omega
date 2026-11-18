@@ -92,10 +92,11 @@ The native assembler uses x86-64 direct branches and calls. For `i_jz`,
 `test rax,rax` sets the flags and `0f 84` jumps on zero. The next four
 bytes hold a signed displacement from the end of that instruction. To
 compute it, the assembler subtracts the target's distance from the code
-end from the number of bytes following the field. This gives a positive
-value for a forward jump and a negative value for a backward jump. Every
-position in a 128 MiB image fits within the signed 32-bit displacement
-range. The same calculation serves calls and unconditional jumps.
+end from the number of bytes following the field. Zero selects the following
+instruction. Positive and negative displacements select later and earlier
+addresses. The distance between any two positions in a 128 MiB image fits
+within the signed 32-bit range. Calls and unconditional jumps use the same
+calculation.
 [Native assembler](native.gamma)
 
 ## Delivery continuation
