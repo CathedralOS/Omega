@@ -35,6 +35,17 @@ fn preparation_error(
 }
 
 pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Checked<()> {
+    let content = terminal_semantics::content_claims::ClaimProjections::new(
+        &module.structural_types,
+        &module.structural_domains,
+        &module.identities,
+    )
+    .map_err(|detail| {
+        preparation_error(
+            diagnostic,
+            terminal_semantics::plain_affine::Error::Unsupported { detail, site: None },
+        )
+    })?;
     // Complete every public header before deriving call rows. The body and a
     // selected requirement can expose different contracts; neither borrows the
     // other's private promises. Boundary custody is separately authenticated.
@@ -44,6 +55,12 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
             &module.structural_types,
         )
         .map_err(|error| preparation_error(diagnostic, error))?;
+        contract.content_entry_claims = content.entry_claims(contract).map_err(|detail| {
+            preparation_error(
+                diagnostic,
+                terminal_semantics::plain_affine::Error::Unsupported { detail, site: None },
+            )
+        })?;
     }
     for machine in &mut module.machines {
         terminal_semantics::plain_affine::publish_contract_claims(
@@ -51,6 +68,13 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
             &module.structural_types,
         )
         .map_err(|error| preparation_error(machine.id, error))?;
+        machine.contract.content_entry_claims =
+            content.entry_claims(&machine.contract).map_err(|detail| {
+                preparation_error(
+                    machine.id,
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, site: None },
+                )
+            })?;
     }
     for ordinal in 0..module.machines.len() {
         let identity = module.machines[ordinal].id;

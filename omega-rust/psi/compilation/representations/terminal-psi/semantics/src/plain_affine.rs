@@ -1307,7 +1307,7 @@ fn analyze(
     if machine.blocks.is_empty() {
         let claims = claim_mode
             .map(|mode| {
-                let (flow, _) = claims::Flow::new(machine, types, mode)?;
+                let (flow, _) = claims::Flow::new(machine, types, mode, module)?;
                 flow.finish(machine)
             })
             .transpose()?;
@@ -1758,7 +1758,7 @@ fn analyze(
         .collect::<Result<Vec<_>, _>>()?;
     let (claim_flow, initial_claims) = match claim_mode {
         Some(mode) => {
-            let (flow, state) = claims::Flow::new(machine, types, mode)?;
+            let (flow, state) = claims::Flow::new(machine, types, mode, module)?;
             (Some(flow), state)
         }
         None => (None, claims::ClaimsState::default()),
@@ -4934,7 +4934,7 @@ mod tests {
         machine.blocks[1].structural_parameters[0].multiplicity =
             terminal_psi::StructuralMultiplicity::Unrestricted;
         let (mut flow, mut state) =
-            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+            claims::Flow::new(&machine, &types, claims::Mode::Publish, None).unwrap();
         let original = state.clone();
         flow.successor(&mut state, &machine, id(2), std::slice::from_ref(&argument))
             .unwrap();
@@ -4946,7 +4946,7 @@ mod tests {
 
         machine.blocks[1].structural_parameters[0].access = StructuralAccess::Owned;
         let (mut flow, mut state) =
-            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+            claims::Flow::new(&machine, &types, claims::Mode::Publish, None).unwrap();
         flow.successor(&mut state, &machine, id(2), &[argument])
             .unwrap();
         assert_eq!(state.live().count(), 1);

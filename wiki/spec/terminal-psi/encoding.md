@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 288 retains promised normal-result domain facts separately from
+Marker 255 introduced term tables. Current marker 289 also retains each content
+projection's partial-conversion and interval-order questions. Marker 288 and
+earlier reject before payload interpretation; a decoder cannot reconstruct the
+missing questions. The current native input record is `OMGNTI41`, which rejects
+`OMGNTI40` and earlier. Promised normal-result domain facts remain separate from
 declared result types. It records the owning machine before each callback
 registrar and interrupt installation operation.
 Operation identities remain local to that machine; earlier payloads do not
@@ -719,6 +723,7 @@ The conservation algebra and content-place grammar used by proposition 9.
 | Field form | Encoding |
 | --- | --- |
 | content algebra | `u8` kind (1 IntervalSet, 2 CountedQuantity) + parameter string |
+| content projection formation question | `u8` tag: 1 + capacity scalar for conversion to Nat; 2 + start and end capacity scalars for interval order |
 | content structural place | `u8` version (1 entry, 2 current) + root place id + counted segments; each `u8`: 1 + field-name string, 2 + `u64` fixed index, 3 + case-name string |
 | content transformation claim projection | claim id + projection domain id + `u64` projection report fingerprint + content structural place |
 | content transformation derivation | content conservation (algebra + left term + right term) + counted lineage-root claim ids + counted lineage steps + counted input claim projections + counted output claim projections |
@@ -742,6 +747,17 @@ by itself.
 | --- | --- | --- |
 | 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
 | 2 | Separate | counted projections (tag 1 rows); a nested separation rejects |
+
+A structural content projection ends with its counted formation questions.
+Every partial conversion is retained even when later arithmetic would hide it.
+Encoding these questions supplies no proof that they hold.
+
+Certificate rule tag 33 records interval normalization: counted endpoint equality
+groups, each a counted list of integer math terms, followed by the child count
+and ordinary postorder proof handles. The kernel checks every child, obtains
+projection meanings from its checking context, and replays interval separation
+and equality. The rule is explicitly provisional in the
+[kernel rule table](../proofs/classicality.md); its bytes grant no custody.
 
 ## Propositions
 

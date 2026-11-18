@@ -164,7 +164,7 @@ const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, ri
 const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
 
-fn bundled_core_sources() -> Vec<(String, String)> {
+pub(crate) fn bundled_core_sources() -> Vec<(String, String)> {
     let core =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
     let mut files = std::fs::read_dir(core)
@@ -1296,41 +1296,15 @@ fn content_projection_reads_exact_owner_fields_without_executing_helpers() {
         "embed(helper(subject.base)) as Nat",
     ));
     let observe = |typed: &crate::source_state::TypedTrees| {
-        let mut observed = Vec::new();
-        for machine in typed.machines().iter().filter(|machine| {
-            machine.name.as_str().rsplit("::").next() == Some("view")
-                && !machine.satisfies.is_empty()
-        }) {
-            let edges = typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .map(|edge| {
-                    let file = typed
-                        .symbols
-                        .symbol_source_span(edge.symbol)
-                        .and_then(|span| typed.symbols.source_file(span))
-                        .map(|file| (file.path.clone(), file.origin, file.package_identity));
-                    (
-                        edge.name.to_string(),
-                        typed.symbols.display_path(edge.symbol, "::"),
-                        typed.symbols.core_vocabulary(edge.symbol),
-                        typed.symbols.core_vocabulary(edge.requirement_symbol),
-                        file,
-                    )
-                })
-                .collect::<Vec<_>>();
-            eprintln!(
-                "projection candidate {}: package {:?}, span {:?}, parent {:?}, edges {edges:?}",
-                machine.name,
-                typed.symbols.symbol_package_identity(machine.symbol),
-                typed.symbols.symbol_source_span(machine.symbol),
-                typed
-                    .symbols
-                    .symbol_source_span(typed.declaration_scope_parent(machine.symbol))
-            );
-            observed.push(typed.content_projection(machine.symbol));
-        }
-        observed
+        typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.name.as_str().rsplit("::").next() == Some("view")
+                    && !machine.satisfies.is_empty()
+            })
+            .map(|machine| typed.content_projection(machine.symbol))
+            .collect::<Vec<_>>()
     };
     let positive = observe(&typed);
     let negative = observe(&changed);
@@ -1340,33 +1314,28 @@ fn content_projection_reads_exact_owner_fields_without_executing_helpers() {
         .iter()
         .find(|machine| machine.name.as_str() == "forward")
         .unwrap();
-    let entry = typed.machine_states(forward).first().unwrap();
-    let clause = typed
-        .signature_contracts
-        .span_or_empty(entry.contracts)
-        .iter()
-        .find_map(|contract| {
-            typed
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .find_map(|fact| {
-                    let crate::source_state::domain::ProofFact::Expression(expression) = fact
-                    else {
-                        return None;
-                    };
-                    Some(typed.content_conservation_clause(
-                        entry.symbol,
-                        typed.state_parameters(entry),
-                        *expression,
-                    ))
-                })
-        })
-        .expect("the fixture retains its conservation clause");
-    eprintln!("forward content clause: {clause:?}");
     eprintln!("valid projection: {positive:?}");
     eprintln!("helper inside projection: {negative:?}");
     eprintln!("complete owner projection roster: {roster:?}");
+    let entry = typed.machine_states(forward).first().unwrap();
+    let contracts = typed.machine_contracts(forward);
+    let clause = contracts.iter().find_map(|contract| {
+        typed
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .iter()
+            .find_map(|fact| {
+                let crate::source_state::domain::ProofFact::Expression(expression) = fact else {
+                    return None;
+                };
+                Some(typed.content_conservation_clause(
+                    entry.symbol,
+                    typed.state_parameters(entry),
+                    *expression,
+                ))
+            })
+    });
+    eprintln!("forward content clause: {clause:?}");
     let [Ok(Some(projection))] = positive.as_slice() else {
         panic!("{positive:?}")
     };
@@ -1393,7 +1362,10 @@ fn content_projection_reads_exact_owner_fields_without_executing_helpers() {
         }
     ));
     assert!(roster.unwrap().contains(projection));
-    let clause = clause.unwrap().unwrap();
+    let clause = clause
+        .expect("the fixture retains its conservation clause")
+        .unwrap()
+        .unwrap();
     assert_eq!(clause.projections, [projection.clone()]);
 
     assert_eq!(

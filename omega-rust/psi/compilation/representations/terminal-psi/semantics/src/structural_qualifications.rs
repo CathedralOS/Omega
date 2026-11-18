@@ -3442,6 +3442,7 @@ pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
 /// checked bodies. Artifact ingress uses every module body through validate_shape.
 pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) -> Judged<()> {
     validate_access_policies(module)?;
+    validate_content_entries(module)?;
     let facts = crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
         StructuralQualificationError {
             machine: error.machine,
@@ -3553,6 +3554,7 @@ pub fn byte_qualification_change_judgments(
 /// The complete structural membership judgment required at artifact ingress.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
+    validate_content_entries(module)?;
     let facts =
         crate::membership_facts::analyze(module).map_err(|error| StructuralQualificationError {
             machine: error.machine,
@@ -3571,6 +3573,37 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
+}
+
+fn validate_content_entries(module: &TerminalModule) -> Judged<()> {
+    let content = crate::content_claims::ClaimProjections::new(
+        &module.structural_types,
+        &module.structural_domains,
+        &module.identities,
+    )
+    .map_err(|detail| StructuralQualificationError {
+        machine: None,
+        detail,
+    })?;
+    for (owner, contract) in module
+        .declaration_contracts
+        .iter()
+        .map(|contract| (None, contract))
+        .chain(
+            module
+                .machines
+                .iter()
+                .map(|machine| (Some(machine.id), &machine.contract)),
+        )
+    {
+        content
+            .validate_entries(contract)
+            .map_err(|detail| StructuralQualificationError {
+                machine: owner,
+                detail,
+            })?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -3683,6 +3716,95 @@ mod default_requirement_tests {
             establishment_routes: None,
             access_policy: None,
         }
+    }
+
+    #[test]
+    fn content_entry_roster_keeps_every_projection_on_the_exact_owned_claim() {
+        use semantic_vocabulary::{
+            ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
+            ContentProjectionExpression, ContentProjectionIdentity,
+        };
+        let mut types = vec![ty(
+            1,
+            StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+        )];
+        types[0].multiplicity = StructuralMultiplicity::Linear;
+        types[0].owns_linear_claim = true;
+        let mut input = machine().contract;
+        input.structural_parameters[0].structural_type = types[0].id;
+        input.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+        input.structural_parameters[0].access = StructuralAccess::Owned;
+        input.structural_parameters[0].qualifications = vec![
+            StructuralDomainId::new(1).unwrap(),
+            StructuralDomainId::new(2).unwrap(),
+        ];
+        input.entry_claims = vec![terminal_psi::EntryClaim {
+            claim: ClaimId::new(21).unwrap(),
+            input: input.structural_parameters[0].place,
+            path: Vec::new(),
+        }];
+        let domains = (1..=2)
+            .map(|id| {
+                let mut declared = domain(types[0].id);
+                declared.id = StructuralDomainId::new(id).unwrap();
+                declared.semantic_domain = DomainSemanticId::new(id).unwrap();
+                declared.predicate = None;
+                declared.content_projection = Some(terminal_psi::StructuralContentProjection {
+                    identity: ContentProjectionIdentity {
+                        domain: ContentDomainId::new(id).unwrap(),
+                        projection_report_fingerprint: id,
+                    },
+                    algebra: ContentAlgebra {
+                        kind: ContentAlgebraKind::IntervalSet,
+                        parameter: "Nat".to_owned(),
+                    },
+                    expression: ContentProjectionExpression::IntervalSet(Vec::new()),
+                    formation: Vec::new(),
+                });
+                declared
+            })
+            .collect::<Vec<_>>();
+        let identities = terminal_psi::TerminalIdentityTable::default();
+        let content =
+            crate::content_claims::ClaimProjections::new(&types, &domains, &identities).unwrap();
+        input.content_entry_claims = content.entry_claims(&input).unwrap();
+        assert_eq!(input.content_entry_claims.len(), 1);
+        assert_eq!(
+            input.content_entry_claims[0].claim,
+            input.entry_claims[0].claim
+        );
+        assert_eq!(input.content_entry_claims[0].projections.len(), 2);
+        content.validate_entries(&input).unwrap();
+
+        let mut missing_projection = input.clone();
+        missing_projection.content_entry_claims[0].projections.pop();
+        let mut changed_projection = input.clone();
+        changed_projection.content_entry_claims[0].projections[0]
+            .projection
+            .projection_report_fingerprint += 1;
+        let mut other_claim = input.clone();
+        other_claim.content_entry_claims[0].claim = ClaimId::new(22).unwrap();
+        let mut other_subject = input.clone();
+        other_subject.content_entry_claims[0].input.root = PlaceId::new(99).unwrap();
+        for forged in [
+            missing_projection,
+            changed_projection,
+            other_claim,
+            other_subject,
+        ] {
+            assert_eq!(
+                content.validate_entries(&forged),
+                Err("content entry claims differ from their complete owned membership roster")
+            );
+        }
+        input.entry_claims.clear();
+        assert_eq!(
+            content.entry_claims(&input),
+            Err("content membership has no exact independently owned claim")
+        );
     }
 
     fn store(path: Vec<StructuralPathSegment>) -> Operation {

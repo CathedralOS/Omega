@@ -21,6 +21,8 @@ pub struct ClaimLocation {
     pub identity: ClaimId,
     pub place: PlaceId,
     pub path: Vec<Path>,
+    /// Independent content remains owed after the payload wrapper is ended.
+    pub content: Vec<terminal_psi::ClaimContentProjection>,
 }
 
 // Slots come from the declared claim and place rosters, never from the largest
@@ -174,6 +176,7 @@ impl ClaimsState {
 struct OperationClaims {
     operation: OperationId,
     bindings: Vec<Binding>,
+    content: Vec<terminal_psi::ContentEntryClaim>,
 }
 
 #[derive(Clone, Debug)]
@@ -402,12 +405,34 @@ impl<'types> Flow<'types> {
         machine: &TerminalMachine,
         types: &'types [StructuralTypeDeclaration],
         mode: Mode,
+        module: Option<&terminal_psi::TerminalModule>,
     ) -> Result<(Self, ClaimsState), Error> {
         let mut contract = machine.contract.clone();
         let mut cache = Catalogues::new(types)?;
         if mode == Mode::Publish {
             publish_claims(&mut contract, &mut cache)?;
         }
+        let content = module
+            .map(|module| {
+                crate::content_claims::ClaimProjections::new(
+                    types,
+                    &module.structural_domains,
+                    &module.identities,
+                )
+            })
+            .transpose()
+            .map_err(Error::malformed)?;
+        if let Some(content) = &content {
+            content
+                .validate_entries(&contract)
+                .map_err(Error::malformed)?;
+        } else if !contract.content_entry_claims.is_empty() {
+            return Err(Error::unsupported(
+                "content claim transport requires its exact module",
+            ));
+        }
+        let mut entry_content = contract.content_entry_claims.iter().collect::<Vec<_>>();
+        entry_content.sort_unstable_by_key(|row| row.claim);
         let mut assigned = BTreeSet::new();
         let mut next = 1;
         let mut check_id = |id: ClaimId| -> Result<(), Error> {
@@ -444,6 +469,11 @@ impl<'types> Flow<'types> {
                     identity: row.claim,
                     place: formal.place,
                     path: row.path,
+                    content: entry_content
+                        .binary_search_by_key(&row.claim, |row| row.claim)
+                        .ok()
+                        .map(|position| entry_content[position].projections.clone())
+                        .unwrap_or_default(),
                 });
             }
         }
@@ -524,9 +554,27 @@ impl<'types> Flow<'types> {
             ) {
                 validate_bindings(expected, &rows)?;
             }
+            let obligations = content
+                .as_ref()
+                .map(|content| {
+                    content.at_subject(
+                        crate::content_claims::Subject {
+                            place: result.place,
+                            carrier: result.structural_type,
+                            qualifications: &result.qualifications,
+                            projected_qualifications: &result.projected_qualifications,
+                        },
+                        rows.iter().map(|row| (row.claim, row.path.as_slice())),
+                        semantic_vocabulary::ContentPlaceVersion::Current,
+                    )
+                })
+                .transpose()
+                .map_err(Error::unsupported)?
+                .unwrap_or_default();
             fresh_results.push(OperationClaims {
                 operation: operation.id,
                 bindings: rows,
+                content: obligations,
             });
         }
         fresh_results.sort_unstable_by_key(|row| row.operation);
@@ -556,6 +604,7 @@ impl<'types> Flow<'types> {
             .map(|row| OperationClaims {
                 operation: row.operation,
                 bindings: Vec::new(),
+                content: Vec::new(),
             })
             .collect();
         let mut returned_claims = machine
@@ -600,6 +649,23 @@ impl<'types> Flow<'types> {
             .binary_search_by_key(&operation, |row| row.operation)
             .ok()
             .map(|position| self.fresh_results[position].bindings.as_slice())
+    }
+    fn fresh_content(
+        &self,
+        operation: OperationId,
+        claim: ClaimId,
+    ) -> Vec<terminal_psi::ClaimContentProjection> {
+        self.fresh_results
+            .binary_search_by_key(&operation, |row| row.operation)
+            .ok()
+            .and_then(|position| {
+                let rows = &self.fresh_results[position].content;
+                rows.binary_search_by_key(&claim, |row| row.claim)
+                    .ok()
+                    .map(|index| &rows[index])
+            })
+            .map(|row| row.projections.clone())
+            .unwrap_or_default()
     }
     fn record_result(&mut self, operation: &Operation, state: &ClaimsState) -> Result<(), Error> {
         if let Some(result) = operation.result.as_structural() {
@@ -752,6 +818,7 @@ impl<'types> Flow<'types> {
                         identity: binding.claim,
                         place: result.place,
                         path: binding.path.clone(),
+                        content: self.fresh_content(operation.id, binding.claim),
                     })?;
                 }
             }
@@ -774,13 +841,22 @@ impl<'types> Flow<'types> {
                                 "decomposition crosses an intact logical claim",
                             ));
                         }
-                        let retired =
-                            state.take_at(subject.place, |claim| claim.path == subject.path);
-                        if retired.len() != 1 {
+                        if state
+                            .at(subject.place)
+                            .filter(|claim| claim.path == subject.path)
+                            .count()
+                            != 1
+                        {
                             return Err(Error::malformed(
                                 "decomposition has no unique intrinsic wrapper claim",
                             ));
                         }
+                        // Ending the payload wrapper cannot end its independently
+                        // conserved content. Its exact claim stays until a checked
+                        // transformation consumes every retained projection.
+                        state.take_at(subject.place, |claim| {
+                            claim.path == subject.path && claim.content.is_empty()
+                        });
                     }
                 }
                 Op::MoveStructuralValue { source } | Op::TransformContent { source, .. } => {
@@ -854,6 +930,7 @@ impl<'types> Flow<'types> {
                                 identity: row.claim,
                                 place: result.place,
                                 path: Vec::new(),
+                                content: self.fresh_content(operation.id, row.claim),
                             })?;
                         }
                     }

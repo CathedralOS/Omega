@@ -6,7 +6,9 @@
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use crate::source_state::statement::StatementNode;
+use crate::source_state::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, direct_state_return_values,
+};
 use crate::source_state::type_system::source_projections;
 use crate::source_state::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use declaration_contracts::content::{
@@ -113,8 +115,13 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<Option<ContentProjection>, &'static str> {
-        let Some(machine) = self.machine_by_symbol(symbol).or_else(|| {
-            self.machine_by_entry_state_symbol(symbol)
+        let mut declarations = self.machines_with_symbol(symbol);
+        let direct = declarations.next();
+        if declarations.next().is_some() {
+            return Err("content projection has competing callable declarations");
+        }
+        let Some(machine) = direct.or_else(|| {
+            self.unique_machine_by_entry_state_symbol(symbol)
                 .map(|(machine, _)| machine)
         }) else {
             return Ok(None);
@@ -228,10 +235,36 @@ impl TypedTrees {
         if machine.suspends || machine.blocks || !machine.invokes.is_empty() {
             return Err("a content projection cannot suspend, block or invoke a service");
         }
-        let [StatementNode::Expression(body)] =
-            self.statement_table.statements(entry.statement_nodes)
-        else {
+        if !machine.owned_data.is_empty()
+            || !machine.contracts.is_empty()
+            || !entry.contracts.is_empty()
+        {
+            return Err(
+                "content projection has additional state or contracts that need a complete conformance judgment",
+            );
+        }
+        let statements = self.statement_table.statements(entry.statement_nodes);
+        let closed_return = match statements {
+            [StatementNode::Expression(_)] => true,
+            [StatementNode::Transition(transition)] => {
+                transition.guard == TransitionGuardNode::Always
+                    && transition.exit == TransitionExit::Ordinary
+                    && transition.patterns.is_empty()
+                    && transition.proof_selectors.is_empty()
+                    && !transition.continuation.is_valid()
+            }
+            _ => false,
+        };
+        if !closed_return {
             return Err("a content projection body is not one closed expression");
+        }
+        // Source tail expressions are ordinary value-return transitions. Use
+        // the same return reader as other declaration consumers; a branch or
+        // helper call still cannot become a projection definition.
+        let values = direct_state_return_values(&self.statement_table, statements)
+            .ok_or("content projection does not return its one closed expression")?;
+        let [body] = values.as_slice() else {
+            return Err("content projection returns more than one expression");
         };
         if !self.expression_table.expression_is_valid(*body) {
             return Err("content projection lost its body expression");

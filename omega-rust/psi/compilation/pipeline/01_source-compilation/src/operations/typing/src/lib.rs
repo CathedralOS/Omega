@@ -53,6 +53,8 @@ mod ranking_defaults_tests;
 
 #[cfg(test)]
 mod qualified_operator_home_tests;
+#[cfg(test)]
+pub(crate) use qualified_operator_home_tests::{bundled_core_sources, packages as typed_packages};
 
 #[cfg(test)]
 mod bodyless_headers_tests;

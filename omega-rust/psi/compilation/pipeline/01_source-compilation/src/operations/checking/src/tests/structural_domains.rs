@@ -1058,3 +1058,102 @@ machine entry() -> u64 crashes none {
         assert_eq!(actual, expected, "{name}");
     }
 }
+
+#[test]
+fn content_partition_keeps_both_claims_and_rejects_a_gap() {
+    use crate::typing::{bundled_core_sources, typed_packages as packages};
+    // This is the unchanged partition body from the executable Run split/merge
+    // control. Its two laws conserve the Granted and Vacant claims separately.
+    let positive = r#"use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
+data Pieces {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+machine partition(whole: Extent in Granted & Vacant, requested: u64)
+    -> Pieces
+requires requested <= whole.length
+ensures
+    core::Identity<IntervalSet<Nat>>(
+        Granted::content(old(&whole)),
+        separate(
+            Granted::content(&result.taken), Granted::content(&result.rest))
+    ),
+    core::Identity<IntervalSet<Nat>>(
+        Vacant::content(old(&whole)),
+        separate(
+            Vacant::content(&result.taken), Vacant::content(&result.rest))
+    )
+{
+    let { base, length } = whole;
+    // An exhausted range has no one-past address: that endpoint may equal
+    // addr::Bound. Keep an existing representable base for the empty tail.
+    let rest_base: addr = match requested < length {
+        true -> base + requested,
+        false -> base,
+    };
+    Pieces {
+        taken: Extent { base: base, length: requested },
+        rest: Extent { base: rest_base, length: match requested < length {
+            true -> length - requested - 0,
+            false -> 0,
+        } },
+    }
+}
+"#;
+    let gap = positive.replace(
+        "true -> length - requested - 0",
+        "true -> length - requested - 1",
+    );
+    assert_ne!(positive, gap);
+    let core = bundled_core_sources();
+    let observe = |text: &str| -> Result<RouteVerdict, String> {
+        let mut units = core
+            .iter()
+            .map(|(path, text)| (0, path.as_str(), text.as_str()))
+            .collect::<Vec<_>>();
+        let caller = units.len();
+        units.push((31, "partition.omg", text));
+        let source = packages(
+            &units,
+            &[],
+            &[
+                (caller, 0, "omega::language::core::Extent", 3),
+                (caller, 0, "omega::language::core::Extent::Granted", 3),
+                (caller, 0, "omega::language::core::Extent::Vacant", 3),
+                (caller, 0, "omega::language::core::IntervalSet", 3),
+                (caller, 0, "omega::language::core::Nat", 3),
+            ],
+        )?;
+        let (source, _) = crate::preparation::prepare_typed_trees(
+            source,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .map_err(|error| format!("preparing the partition: {error:?}"))?;
+        super::entryless::judged_typed_result(&source, false)
+            .map_err(|error| format!("lowering the partition: {error:?}"))
+    };
+    let observed = [observe(positive), observe(&gap)];
+    for (name, result) in ["exact partition", "one-cell gap"]
+        .into_iter()
+        .zip(&observed)
+    {
+        if matches!(result, Ok(RouteVerdict::Accepted(_))) {
+            eprintln!("{name}: accepted");
+        } else {
+            eprintln!("{name}: {result:?}");
+        }
+    }
+    assert!(
+        matches!(&observed[0], Ok(RouteVerdict::Accepted(_))),
+        "{:?}",
+        observed[0]
+    );
+    assert!(
+        !matches!(&observed[1], Ok(RouteVerdict::Accepted(_))),
+        "the gap must not conserve the input"
+    );
+}

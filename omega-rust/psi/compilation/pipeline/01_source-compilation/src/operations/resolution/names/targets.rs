@@ -356,7 +356,10 @@ mod calls {
         machine_symbol: SymbolHandle,
         target: &str,
     ) -> SymbolHandle {
-        crate::resolution::names::select_machine_entry(target, |name| {
+        // A normalized call keeps its qualified declaration path. Its entry
+        // has the leaf name, just as on the first lookup of that same call.
+        let entry_name = target.rsplit("::").next().unwrap_or(target);
+        crate::resolution::names::select_machine_entry(entry_name, |name| {
             let state = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], name);
             state.is_valid().then_some(state)
         })
@@ -1501,6 +1504,11 @@ mod tests {
         );
         let owner = program.symbols.get(selected.target_symbol).parent;
         assert_eq!(program.symbols.name(owner), "names::identity");
+        assert_eq!(
+            super::machine_entry_symbol(&program.symbols, owner, selected.target.as_str()),
+            selected.target_symbol,
+            "looking up the normalized qualified name must keep its selected entry",
+        );
         let shadow = calls
             .iter()
             .find(|call| call.receiver.is_valid())

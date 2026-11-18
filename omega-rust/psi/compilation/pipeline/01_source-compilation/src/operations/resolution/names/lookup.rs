@@ -353,7 +353,7 @@ pub(super) fn call_target_for_attached_data(
         return SymbolHandle::invalid();
     }
 
-    child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target_name)
+    super::targets::machine_entry_symbol(symbols, machine_symbol, target_name)
 }
 
 /*

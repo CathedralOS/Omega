@@ -1677,6 +1677,48 @@ pub fn structural_path<'a>(
     Some(path)
 }
 
+/// Name the exact inline subject without retaining module-local field/case IDs.
+/// The inverse query above replays these identities against the selected carrier.
+pub fn content_path(
+    types: &[StructuralTypeDeclaration],
+    identities: &TerminalIdentityTable,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Result<Vec<ContentPlaceSegment>, &'static str> {
+    let mut output = Vec::with_capacity(path.len());
+    for (position, segment) in path.iter().enumerate() {
+        let carrier = runtime_structural_path_tip(types.iter(), root, &path[..position])
+            .ok_or("content subject has no exact inline carrier")?;
+        output.push(match segment {
+            StructuralPathSegment::Field(identity) => ContentPlaceSegment::Field(
+                identities
+                    .text(*identity)
+                    .ok_or("content subject field has no semantic identity")?
+                    .to_owned(),
+            ),
+            StructuralPathSegment::Case(id) => {
+                let case = carrier
+                    .shape
+                    .sum_cases()
+                    .and_then(|cases| cases.iter().find(|case| case.id == *id))
+                    .ok_or("content subject case does not belong to its carrier")?;
+                ContentPlaceSegment::Case(
+                    identities
+                        .text(case.identity)
+                        .ok_or("content subject case has no semantic identity")?
+                        .to_owned(),
+                )
+            }
+            StructuralPathSegment::FixedIndex(index) => ContentPlaceSegment::FixedIndex(*index),
+            _ => return Err("content custody requires an exact inline subject"),
+        });
+    }
+    if structural_path(types.iter(), identities, root, &output).as_deref() != Some(path) {
+        return Err("content subject identities do not replay to their exact typed path");
+    }
+    Ok(output)
+}
+
 pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
     if bindings.is_empty()
         || bindings
