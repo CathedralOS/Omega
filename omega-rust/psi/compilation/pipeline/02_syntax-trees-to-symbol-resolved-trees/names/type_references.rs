@@ -1673,7 +1673,7 @@ mod value_expressions {
                                 );
                                 *child_types.get_mut(handle) = reference;
                             }
-                            let declaration = crate::symbols::lookup::top_level_symbol_for_source(
+                            let declaration = crate::names::lookup::top_level_symbol_for_source(
                                 symbols,
                                 SymbolKind::Domain,
                                 &domain.name,
@@ -1808,7 +1808,7 @@ mod value_expressions {
     ) {
         for (position, argument) in arguments.handles().enumerate() {
             if scope.binder_roles.role(symbols, declaration, position)
-                != crate::symbols::scope::BinderRole::Value
+                != crate::names::scopes::BinderRole::Value
             {
                 continue;
             }

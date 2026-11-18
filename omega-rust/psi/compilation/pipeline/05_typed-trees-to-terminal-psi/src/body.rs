@@ -537,24 +537,6 @@ pub enum RuntimeMembershipSubject {
 }
 
 /// A machine's published signature as lowering and its callers need it.
-/// An authored membership promise, separate from the subject's declared type.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeMembership {
-    pub subject: RuntimeMembershipSubject,
-    pub domain: DomainInstance,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeMembershipSubject {
-    Scalar(semantic_vocabulary::ScalarTerm),
-    Structural {
-        root: semantic_vocabulary::PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        version: semantic_vocabulary::ContentPlaceVersion,
-        carrier: semantic_vocabulary::StructuralTypeId,
-    },
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     /// Independent suspension and worker-blocking bounds.
