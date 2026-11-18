@@ -4,7 +4,6 @@
 // the activation facet, not the field contents.
 machine build(builder: &mut Build) {
     Build::application(builder, "build_facet_swap");
-    builder.freestanding = true;
     builder.source = BuildSource {};
     builder.inputs = BuildInputs {};
     builder.log = BuildLog {};
