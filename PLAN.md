@@ -115,7 +115,7 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | contract (grammar) being drafted | — |
+| L1 Parser | tokens → syntax tree | grammar decided; fixtures next | — |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -182,12 +182,13 @@ Psi to native code) are not planned yet.
   seven spec examples that V1's parser, as read, would refuse. The largest:
   the spec shows an `if` statement that V1 retired, and writes `match` arms
   in a way V1 cannot parse.
-- **Decisions:** eight of the grammar's ten are decided (2026-11-18): no `if`
+- **Decisions:** all ten of the grammar's are decided (2026-11-18): no `if`
   statement, `match` and `transition` share one grammar, nothing after a
   `requires` before a body, no reserved words, V1's operator precedence,
   assembly is parsed, and the spec's newer forms are in. Generic arguments
-  in expressions are written `::<`. One is open again: what ends an arm.
-  A comma was chosen and then reopened the same day.
+  in expressions are written `::<`. Arms are
+  separated by commas. All ten are decided, and the grammar is rewritten to
+  match; it is the parser's contract in draft until fixtures pass.
 
 ### L2 to L4
 
@@ -525,6 +526,8 @@ decided by Jarod, and the spec text has not been changed to match.
 | 5 | A package has one Build, then its product. | A chain of any number of stages, each an ordinary Omega program. It always starts with a core-supplied stage and then the project's `build.omg`. | 2026-11-18 |
 | 6 | The Build has special standing: a toolchain-supplied default environment and a `Build` context only it receives. | `build.omg` is an ordinary program. What it can do is exactly what the previous stage selected and the invocation granted. | 2026-11-18 |
 | 7 | Generic arguments in expressions are written with a bare `<`, as in `apply<set_time>(x)`, in every spec example. | They are written `apply::<set_time>(x)`. A bare `<` after a name in an expression is always less-than, so the parser never has to look ahead. Declarations and types keep plain `<`. Decided by Zac and relayed by Jarod. | 2026-11-18 |
+| 8 | `match` and `transition` arms are written one per line with no separator, in every spec example. | Arms are separated by commas, with an optional comma after the last. Newlines never matter. An arm has nothing to mark where the next begins, which a clause gets from the next clause word. | 2026-11-18 |
+| 9 | `match` and `transition` are described separately, and V1 gives only `transition` tuple subjects. | One grammar for both. `transition` is the form in tail position. | 2026-11-18 |
 
 ## Owner questions
 
@@ -584,4 +587,5 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
 | 2026-11-18 | L0 Lexer signed off, with its six gap rules accepted as consistent with the spec. L1 Parser starts with its grammar. | Jarod |
 | 2026-11-18 | Eight parser grammar decisions made, recorded in `layers/01-parser/GRAMMAR.md`: no `if` statement; `match` and `transition` are one grammar; nothing after `requires` before a body; no reserved words; V1's precedence; assembly parsed; `satisfies` expressions and `some` binders in. | Jarod |
+| 2026-11-18 | Last two grammar decisions: arms are separated by commas; generic arguments in expressions are written `::<`. V2 may break compatibility with V1's source and the spec's examples freely. | Jarod, with Zac |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
