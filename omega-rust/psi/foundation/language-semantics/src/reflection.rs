@@ -81,7 +81,7 @@ pub fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) ->
     }
 
     let mut hash = crate::reflection::fingerprint::OFFSET_BASIS;
-    bytes(&mut hash, b"omega.reflect.schema.v1");
+    bytes(&mut hash, b"omega.reflect.schema.v2");
     query_authority(&mut hash, authority);
     uint(&mut hash, nodes.len() as u64);
     for node in nodes {
@@ -99,8 +99,12 @@ pub fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) ->
                         SchemaShape::Record => 1,
                         SchemaShape::Sum => 2,
                         SchemaShape::Mixed => 3,
+                        SchemaShape::Primitive(_) => 4,
                     },
                 );
+                if let SchemaShape::Primitive(atom) = declaration.shape {
+                    text(&mut hash, &atom.identity());
+                }
                 text(&mut hash, &declaration.supply);
                 text(&mut hash, &declaration.multiplicity);
                 optional_text(&mut hash, &declaration.carry);
@@ -196,8 +200,25 @@ pub(crate) mod runtime_image {
                         SchemaShape::Record => 1,
                         SchemaShape::Sum => 2,
                         SchemaShape::Mixed => 3,
+                        SchemaShape::Primitive(_) => 4,
                     },
                 );
+                if let SchemaShape::Primitive(atom) = value.shape {
+                    use symbols::BuiltinTypeAtom;
+                    let (kind, width, signed) = match atom {
+                        BuiltinTypeAtom::Bool => (0, 0, false),
+                        BuiltinTypeAtom::Integer(carrier) => {
+                            (1, carrier.width(), carrier.is_signed())
+                        }
+                        BuiltinTypeAtom::Address => (2, 0, false),
+                        BuiltinTypeAtom::F32 => (3, 0, false),
+                        BuiltinTypeAtom::F64 => (4, 0, false),
+                        _ => unreachable!("a primitive schema has a scalar atom"),
+                    };
+                    word(&mut bytes, 1, kind);
+                    word(&mut bytes, 2, width);
+                    word(&mut bytes, 3, u64::from(signed));
+                }
                 word(&mut bytes, 7, u64::from(value.identity_is_hermetic));
                 span(&mut bytes, 8, value.owner_identity.as_bytes());
                 span(&mut bytes, 10, value.name.as_bytes());
@@ -432,6 +453,34 @@ pub(crate) mod runtime_image {
                         1 => SchemaShape::Record,
                         2 => SchemaShape::Sum,
                         3 => SchemaShape::Mixed,
+                        4 => {
+                            use symbols::BuiltinTypeAtom;
+                            let width = image_word(bytes, 2)?;
+                            let signed = image_boolean(bytes, 3)?;
+                            let atom = match (image_word(bytes, 1)?, width, signed) {
+                                (0, 0, false) => BuiltinTypeAtom::Bool,
+                                (1, width, signed) => BuiltinTypeAtom::Integer(
+                                    numerics::integer_carrier::FixedInteger::new(
+                                        if signed {
+                                            numerics::integer_carrier::IntegerSign::Signed
+                                        } else {
+                                            numerics::integer_carrier::IntegerSign::Unsigned
+                                        },
+                                        width,
+                                    )
+                                    .ok_or("primitive schema has an invalid integer carrier")?,
+                                ),
+                                (2, 0, false) => BuiltinTypeAtom::Address,
+                                (3, 0, false) => BuiltinTypeAtom::F32,
+                                (4, 0, false) => BuiltinTypeAtom::F64,
+                                _ => {
+                                    return Err(
+                                        "primitive schema has an invalid scalar carrier".into()
+                                    );
+                                }
+                            };
+                            SchemaShape::Primitive(atom)
+                        }
                         _ => return Err("schema image has an unknown declaration shape".into()),
                     },
                     supply: image_text(bytes, 18)?,
@@ -480,7 +529,7 @@ pub(crate) mod runtime_image {
         /// query/receipt owner authenticates where it came from; this operation
         /// neither reconstructs typed declarations nor grants query authority.
         pub fn from_runtime_image(bytes: &[u8]) -> Result<Self, String> {
-            if image_word(bytes, 0)? != 1 {
+            if image_word(bytes, 0)? != 2 {
                 return Err("schema image has another version".into());
             }
             let count = usize::try_from(image_word(bytes, 1)?)
@@ -513,7 +562,7 @@ pub(crate) mod runtime_image {
 
         pub fn runtime_image(&self) -> Vec<u8> {
             let mut bytes = vec![0; HEADER_WORDS * 8 + self.nodes.len() * 16];
-            word(&mut bytes, 0, 1);
+            word(&mut bytes, 0, 2);
             word(&mut bytes, 1, self.nodes.len() as u64);
             word(&mut bytes, 2, self.root.index() as u64);
             word(&mut bytes, 3, self.revision);
@@ -630,6 +679,7 @@ pub(crate) mod schema_nodes {
         Record,
         Sum,
         Mixed,
+        Primitive(symbols::BuiltinTypeAtom),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -682,6 +732,43 @@ impl SemanticSchemaGraph {
         if !root.is_valid() || !matches!(nodes.get(root.index()), Some(SchemaNode::Declaration(_)))
         {
             return Err("semantic schema root is not its declaration node".into());
+        }
+        for node in &nodes {
+            let SchemaNode::Declaration(declaration) = node else {
+                continue;
+            };
+            let SchemaShape::Primitive(atom) = declaration.shape else {
+                continue;
+            };
+            let identity = crate::type_identity::builtin_type_name(atom);
+            let application = crate::type_identity::builtin_type_identity(atom);
+            if symbols::PrimitiveType::from_builtin_atom(atom).is_none() {
+                return Err("primitive schema names a non-scalar carrier".into());
+            }
+            if declaration.owner_identity != identity
+                || declaration.application_identity.as_deref() != Some(application.as_str())
+                || !declaration.identity_is_hermetic
+            {
+                return Err(format!(
+                    "primitive schema changes its exact scalar identity: owner {:?}, type {:?}; expected {:?} and {:?}",
+                    declaration.owner_identity,
+                    declaration.application_identity,
+                    identity,
+                    application,
+                ));
+            }
+            if !declaration.members.is_empty()
+                || !declaration.retired_identities.is_empty()
+                || !declaration.type_parameters.is_empty()
+                || !declaration.lifetime_parameters.is_empty()
+                || !declaration.supply.is_empty()
+                || declaration.multiplicity != "Copy"
+                || declaration.carry.is_some()
+            {
+                return Err(
+                    "primitive schema adds data members or changes scalar properties".into(),
+                );
+            }
         }
         let revision = graph_revision(&authority, &nodes);
         Ok(Self {
@@ -771,5 +858,92 @@ impl SemanticSchemaGraph {
                 SchemaNode::Case(case) => Some((handle, case)),
                 _ => None,
             })
+    }
+}
+
+#[cfg(test)]
+mod primitive_schema_tests {
+    use super::*;
+    use numerics::integer_carrier::FixedInteger;
+    use symbols::BuiltinTypeAtom;
+
+    fn declaration(atom: BuiltinTypeAtom) -> DeclarationDescription {
+        let identity = crate::type_identity::builtin_type_name(atom);
+        DeclarationDescription {
+            owner_identity: identity.clone(),
+            identity_is_hermetic: true,
+            name: atom.symbol_name().into_owned(),
+            shape: SchemaShape::Primitive(atom),
+            supply: String::new(),
+            multiplicity: "Copy".into(),
+            carry: None,
+            type_parameters: Vec::new(),
+            lifetime_parameters: Vec::new(),
+            application_identity: Some(crate::type_identity::builtin_type_identity(atom)),
+            members: Vec::new(),
+            retired_identities: Vec::new(),
+        }
+    }
+
+    fn graph(declaration: DeclarationDescription) -> Result<SemanticSchemaGraph, String> {
+        SemanticSchemaGraph::from_nodes(
+            vec![SchemaNode::Invalid, SchemaNode::Declaration(declaration)],
+            SchemaNodeHandle::from_index(1),
+            SchemaQueryAuthority::ForeignScope {
+                requester_identity: "schema-test".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn primitive_schemas_preserve_exact_carriers_and_reject_old_images() {
+        assert_eq!(
+            crate::type_identity::builtin_type_identity(BuiltinTypeAtom::U64),
+            r"named(name(compiler-type\(atom\(u64\)\)))",
+        );
+        let mut images = Vec::new();
+        for atom in [
+            BuiltinTypeAtom::Integer(FixedInteger::unsigned(13)),
+            BuiltinTypeAtom::Integer(FixedInteger::signed(13)),
+            BuiltinTypeAtom::Address,
+            BuiltinTypeAtom::F32,
+            BuiltinTypeAtom::F64,
+        ] {
+            let graph = graph(declaration(atom)).unwrap();
+            assert_eq!(graph.declaration().shape, SchemaShape::Primitive(atom));
+            assert_eq!(graph.fields().count(), 0);
+            let image = graph.runtime_image();
+            assert_eq!(
+                SemanticSchemaGraph::from_runtime_image(&image).unwrap(),
+                graph
+            );
+            assert!(!images.contains(&image));
+            let mut old = image.clone();
+            old[..8].copy_from_slice(&1u64.to_le_bytes());
+            assert!(
+                SemanticSchemaGraph::from_runtime_image(&old)
+                    .unwrap_err()
+                    .contains("version")
+            );
+            images.push(image);
+        }
+    }
+
+    #[test]
+    fn primitive_schemas_reject_forged_identity_and_structural_members() {
+        let original = declaration(BuiltinTypeAtom::U64);
+        let mut changed = original.clone();
+        changed.shape = SchemaShape::Primitive(BuiltinTypeAtom::Address);
+        assert!(
+            graph(changed)
+                .unwrap_err()
+                .contains("exact scalar identity")
+        );
+        let mut changed = original.clone();
+        changed.members.push(SchemaNodeHandle::from_index(1));
+        assert!(graph(changed).unwrap_err().contains("adds data members"));
+        let mut changed = original;
+        changed.shape = SchemaShape::Primitive(BuiltinTypeAtom::AtomicU64);
+        assert!(graph(changed).unwrap_err().contains("non-scalar carrier"));
     }
 }

@@ -27,7 +27,7 @@ fn external_completion_provider_result(
     supplied: &terminal_psi::TerminalMachineResult,
     types: &[terminal_psi::StructuralTypeDeclaration],
     requirement: terminal_psi::TerminalIdentityIndex,
-    declaration: Option<terminal_psi::TerminalIdentityIndex>,
+    declaration: Option<&terminal_psi::NominalDeclarationIdentity>,
     domains: &[terminal_psi::StructuralDomainDeclaration],
 ) -> Result<(), String> {
     if !terminal_semantics::inhabitation::external_result_is_erased(
@@ -138,7 +138,7 @@ pub(super) fn replay_installed_provider_calls(
                     declaration
                         .declaration
                         .as_ref()
-                        .map(|callable| callable.source.semantic_declaration),
+                        .map(|callable| &callable.source.state),
                     &module.structural_domains,
                 )
                 .map_err(|reason| {
@@ -427,7 +427,7 @@ fn replays_result(
         boundary
             .declaration
             .as_ref()
-            .map(|callable| callable.source.semantic_declaration),
+            .map(|callable| &callable.source.state),
         domains,
     ) {
         return false;
@@ -578,7 +578,8 @@ mod external_completion_tests {
             .contains("normal return contract")
         );
         let requirement = terminal_psi::TerminalIdentityIndex(1);
-        let owner = terminal_psi::TerminalIdentityIndex(2);
+        let owner =
+            terminal_psi::NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(2));
         let domain = terminal_psi::StructuralDomainDeclaration {
             subject_identity: Default::default(),
             access_policy: None,
@@ -594,7 +595,7 @@ mod external_completion_tests {
             establishment_routes: Some(vec![
                 terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
                     requirement_identity: requirement,
-                    declaration: terminal_psi::NominalDeclarationIdentity::new(owner),
+                    declaration: owner.clone(),
                 },
             ]),
         };
@@ -613,14 +614,16 @@ mod external_completion_tests {
                 &supplied(required_type),
                 &types,
                 requirement,
-                Some(owner),
+                Some(&owner),
                 &domains,
             ),
             Ok(())
         );
+        let foreign_owner =
+            terminal_psi::NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(4));
         for (wrong_requirement, wrong_owner) in [
-            (terminal_psi::TerminalIdentityIndex(4), Some(owner)),
-            (requirement, Some(terminal_psi::TerminalIdentityIndex(4))),
+            (terminal_psi::TerminalIdentityIndex(4), Some(&owner)),
+            (requirement, Some(&foreign_owner)),
         ] {
             assert!(
                 external_completion_provider_result(

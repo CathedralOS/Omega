@@ -117,6 +117,7 @@ fn calls_with(argument: u128) -> (typed_trees_to_terminal_psi::Elaboration, Disc
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     let signature = |parameters: Vec<ValueType>, crashes| Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters,
         erased: Vec::new(),

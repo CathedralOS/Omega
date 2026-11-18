@@ -914,6 +914,7 @@ pub(crate) mod capabilities {
         ) -> terminal_psi::BoundaryMachineDeclaration {
             terminal_psi::BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 declaration: None,

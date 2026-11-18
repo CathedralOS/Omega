@@ -4,6 +4,9 @@ We keep those contracts independent of target calling plans, retaining each exac
 typed declaration and application for later provider selection.
 */
 
+#[path = "service_declarations/normal_memberships.rs"]
+mod normal_memberships;
+
 pub mod provider_declarations {
     use diagnostics::Diagnostic;
     use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
@@ -851,6 +854,7 @@ pub mod projection {
         } else {
             root.argument_owner
         };
+        let normal_memberships = super::normal_memberships::NormalMemberships::new(program);
         let scopes = applied_receivers::collect_scopes(program, root)?;
         for scope in scopes.iter().rev() {
             collect_service_methods(
@@ -859,6 +863,7 @@ pub mod projection {
                 &mut requirements,
                 &mut methods,
                 &mut identities,
+                &normal_memberships,
             )?;
         }
         let receiver_applications =
@@ -883,15 +888,19 @@ pub mod projection {
     pub fn from_typed_operator<'program>(
         context: ProviderPlanningContext<'program>,
         operator: &crate::operator::OperatorDefinition,
-    ) -> Option<ProjectedServiceSurface<'program>> {
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
         let program = context.typed;
         if !context.contains(operator.symbol) || !operator.is_boundary {
-            return None;
+            return Err(projection_failure(
+                program,
+                operator.symbol,
+                "the operator is not an admitted boundary declaration",
+            ));
         }
         let mut identities = ProviderIdentityTable::default();
         let requirement_identity =
             identities.intern(&boundary_operator_requirement_identity(program, operator));
-        Some(ProjectedServiceSurface {
+        Ok(ProjectedServiceSurface {
             program,
             schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
             argument_owner: operator.symbol,
@@ -924,7 +933,7 @@ pub mod projection {
                                 }),
                             &program.package_qualified_type_identity_text(operator.return_type),
                         )
-                        .ok()?,
+                        .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
                     parameter_type_identities: program
                         .operator_parameters(operator)
                         .iter()
@@ -946,6 +955,11 @@ pub mod projection {
                         })
                         .unwrap_or_default(),
                     result_claims: Vec::new(),
+                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
+                        program,
+                    )
+                    .collect(operator.symbol, operator.contracts, None)
+                    .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
                     service_reach: Vec::new(),
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
@@ -961,13 +975,17 @@ pub mod projection {
     pub fn from_typed_boundary_requirement<'program>(
         context: ProviderPlanningContext<'program>,
         requirement: &crate::machine::Machine,
-    ) -> Option<ProjectedServiceSurface<'program>> {
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
         if !context.contains(requirement.symbol)
             || !requirement.symbol.is_valid()
             || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
             || requirement.body_is_present
         {
-            return None;
+            return Err(projection_failure(
+                context.typed,
+                requirement.symbol,
+                "the machine is not an admitted bodyless boundary requirement",
+            ));
         }
         project_boundary_machine_schema(
             context,
@@ -980,18 +998,64 @@ pub mod projection {
         context: ProviderPlanningContext<'program>,
         requirement: &crate::machine::Machine,
         schema: ProviderSchemaDeclaration,
-    ) -> Option<ProjectedServiceSurface<'program>> {
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
         let program = context.typed;
-        let [entry] = program.machine_states(requirement).as_array()?;
+        let [entry] = program
+            .machine_states(requirement)
+            .as_array()
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no unique entry declaration",
+                )
+            })?;
         let requirement_path = program.symbols.display_path(requirement.symbol, "::");
-        let (requirement_owner, method_name) = requirement_path.rsplit_once("::")?;
+        let (requirement_owner, method_name) =
+            requirement_path.rsplit_once("::").ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no exact owning path",
+                )
+            })?;
         if requirement_owner.is_empty() || method_name.is_empty() {
-            return None;
+            return Err(projection_failure(
+                program,
+                requirement.symbol,
+                "the boundary machine has an empty owner or member identity",
+            ));
         }
-        let requirement_identity = program.machine_callable_identity_text(requirement)?;
+        let requirement_identity = program
+            .machine_callable_identity_text(requirement)
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no exact callable identity",
+                )
+            })?;
         let parameters = program.state_parameters(entry);
-        let (parameter_types, result_type) = program.machine_definition_types(requirement)?;
-        let published_termination = requirement.termination_plan.interface.published()?;
+        let (parameter_types, result_type) = program
+            .machine_definition_types(requirement)
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no complete declared type signature",
+                )
+            })?;
+        let published_termination = requirement
+            .termination_plan
+            .interface
+            .published()
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no published termination interface",
+                )
+            })?;
         let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
         let mut identities = ProviderIdentityTable::default();
         let requirement_identity_id = identities.intern(&requirement_identity);
@@ -1001,7 +1065,7 @@ pub mod projection {
             parameters,
             &mut identities,
         );
-        Some(ProjectedServiceSurface {
+        Ok(ProjectedServiceSurface {
             program,
             schema,
             argument_owner: requirement.symbol,
@@ -1029,7 +1093,7 @@ pub mod projection {
                             parameter_types.iter(),
                             &result_type,
                         )
-                        .ok()?,
+                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     parameter_type_identities: parameters
                         .iter()
                         .map(|parameter| {
@@ -1049,11 +1113,23 @@ pub mod projection {
                         })
                         .unwrap_or_default(),
                     result_claims: Vec::new(),
+                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
+                        program,
+                    )
+                    .collect(entry.symbol, entry.contracts, None)
+                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     service_reach: service_reach_row_names(program, requirement.service_reach_row),
                     synchronous_invocations: machine_synchronous_invocation_names(
                         program,
                         requirement,
-                    )?,
+                    )
+                    .ok_or_else(|| {
+                        projection_failure(
+                            program,
+                            requirement.symbol,
+                            "normal requirement lost its synchronous invocation roster",
+                        )
+                    })?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
                     terminates_guarantee: published_termination.promises_termination(),
@@ -1070,6 +1146,7 @@ pub mod projection {
         requirements: &mut Vec<ServiceRequirementSource>,
         methods: &mut Vec<ServiceMethod>,
         identities: &mut ProviderIdentityTable,
+        normal_memberships: &super::normal_memberships::NormalMemberships<'_>,
     ) -> Result<(), diagnostics::Diagnostic> {
         let trait_definition = scope.declaration;
         for signature in program.trait_machine_signatures(trait_definition) {
@@ -1139,6 +1216,9 @@ pub mod projection {
                     })
                     .unwrap_or_default(),
                 result_claims: service_result_claims(program, scope, signature),
+                normal_result_memberships: normal_memberships
+                    .collect(signature.symbol, signature.contracts, Some(scope))
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 service_reach: service_reach_names(program, trait_definition, signature),
                 synchronous_invocations: synchronous_invocation_names(program, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
@@ -1821,13 +1901,7 @@ pub(crate) mod catalog {
                     exact_toolchain_sources,
                     ServiceOrigin::Declaration(schema),
                     schema,
-                    projection::from_typed_operator(context, operator).ok_or_else(|| {
-                        projection::projection_failure(
-                            program,
-                            schema.symbol(),
-                            "the operator has no complete service declaration",
-                        )
-                    }),
+                    projection::from_typed_operator(context, operator),
                     &[],
                 );
             }
@@ -1843,15 +1917,7 @@ pub(crate) mod catalog {
                     exact_toolchain_sources,
                     ServiceOrigin::Declaration(schema),
                     schema,
-                    projection::from_typed_boundary_requirement(context, machine).ok_or_else(
-                        || {
-                            projection::projection_failure(
-                                program,
-                                schema.symbol(),
-                                "the machine has no complete service declaration",
-                            )
-                        },
-                    ),
+                    projection::from_typed_boundary_requirement(context, machine),
                     &[],
                 );
             }
@@ -2189,8 +2255,16 @@ pub(crate) mod catalog {
                 if let Ok(Some(declaration)) = &declaration {
                     let schema = ProviderSchemaDeclaration::SealedAccessor(declaration.machine());
                     if !self.has_origin(ServiceOrigin::Declaration(schema)) {
-                        let projected =
-                            program.machine(declaration.machine()).and_then(|machine| {
+                        let projected = program
+                            .machine(declaration.machine())
+                            .ok_or_else(|| {
+                                projection::projection_failure(
+                                    program,
+                                    schema.symbol(),
+                                    "the sealed accessor has no source machine",
+                                )
+                            })
+                            .and_then(|machine| {
                                 projection::project_boundary_machine_schema(
                                     context, machine, schema,
                                 )
@@ -2200,13 +2274,7 @@ pub(crate) mod catalog {
                             exact_toolchain_sources,
                             ServiceOrigin::Declaration(schema),
                             schema,
-                            projected.ok_or_else(|| {
-                                projection::projection_failure(
-                                    program,
-                                    schema.symbol(),
-                                    "the sealed accessor has no complete service declaration",
-                                )
-                            }),
+                            projected,
                             &[],
                         );
                     }
