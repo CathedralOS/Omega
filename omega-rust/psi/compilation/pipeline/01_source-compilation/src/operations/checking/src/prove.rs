@@ -60,6 +60,8 @@ mod float_integer;
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
 mod ieee_float_order;
+#[path = "prove/mathematical_bounds.rs"]
+mod mathematical_bounds;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
@@ -191,18 +193,19 @@ fn covered(
                 return widths::covered(left, right, width);
             }
             // `Prover::arithmetic_interval` bounds one operation over values
-            // of one carrier and literals, the shape an exact operation's
-            // representability goal has. A deeper term, or one over two
-            // carriers, is a clause's (`embed(a) + embed(b) * 10 <= 99`),
-            // and nothing here bounds it.
+            // and literals. A mathematical sum keeps each leaf's own carrier;
+            // subtraction and multiplication retain their scalar signatures.
+            // Deeper clause expressions are outside this covered subset.
             let leaf = |term: &IntegerMathTerm| match term {
                 IntegerMathTerm::MathValue { source_type, .. } => Some(Some(*source_type)),
                 IntegerMathTerm::IntegerLiteral(_) => Some(None),
                 _ => None,
             };
             let bounded = |term: &IntegerMathTerm| match term {
-                IntegerMathTerm::Add(first, second)
-                | IntegerMathTerm::Subtract(first, second)
+                IntegerMathTerm::Add(first, second) => {
+                    leaf(first).is_some() && leaf(second).is_some()
+                }
+                IntegerMathTerm::Subtract(first, second)
                 | IntegerMathTerm::Multiply(first, second) => match (leaf(first), leaf(second)) {
                     (Some(first), Some(second)) => {
                         first.is_none() || second.is_none() || first == second
@@ -4603,6 +4606,29 @@ impl<'a> Prover<'a> {
                 None,
             ));
         }
+        if let IntegerMathTerm::Add(first, second) = term {
+            let target = arithmetic_target(Arithmetic::Add, first, second).ok();
+            let interval = target
+                .as_ref()
+                .ok_or("sum has no scalar signature")
+                .and_then(|target| {
+                    let operands = target.operands();
+                    let [left, right] = operands.as_slice() else {
+                        return Err("sum term does not have two operands");
+                    };
+                    self.image(Arithmetic::Add, left, right, target.clone(), direction)
+                })
+                .or_else(|_| self.mathematical_sum_image(first, second, direction));
+            if interval.as_ref().is_ok_and(|image| {
+                preferred.is_some_and(|limit| {
+                    mathematical_bounds::image_satisfies(image, limit, direction)
+                })
+            }) {
+                return Ok((interval, None));
+            }
+            let related = self.related_image(target.as_ref(), term, direction, preferred);
+            return Ok((interval, related));
+        }
         let (operation, first, second) = match term {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),
@@ -4627,40 +4653,19 @@ impl<'a> Prover<'a> {
             }
             _ => return Err("arithmetic goal over a single term"),
         };
-        let integer = [first.as_ref(), second.as_ref()]
-            .into_iter()
-            .find_map(|leaf| match leaf {
-                IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
-                _ => None,
-            })
-            .ok_or("arithmetic goal with no value operand")?;
-        let leaf = |leaf: &IntegerMathTerm| -> Result<ScalarTerm, Unproven> {
-            match leaf {
-                IntegerMathTerm::MathValue { source_type, value } if *source_type == integer => {
-                    Ok(ScalarTerm::value(*value, ScalarType::Integer(integer)))
-                }
-                IntegerMathTerm::IntegerLiteral(literal) => literal
-                    .as_integer_value(integer)
-                    .and_then(|value| ScalarTerm::integer(integer, value).ok())
-                    .ok_or("literal operand outside the carrier"),
-                _ => Err("operand is not a value or literal of the operation's type"),
-            }
+        let target = arithmetic_target(operation, first, second)?;
+        let operands = target.operands();
+        let [first, second] = operands.as_slice() else {
+            return Err("arithmetic term does not have two operands");
         };
-        let (first, second) = (leaf(first)?, leaf(second)?);
-        let target = match operation {
-            Arithmetic::Add => {
-                ScalarTerm::exact_integer_add(integer, first.clone(), second.clone())
-            }
-            Arithmetic::Subtract => {
-                ScalarTerm::exact_integer_subtract(integer, first.clone(), second.clone())
-            }
-            Arithmetic::Multiply => {
-                ScalarTerm::exact_integer_multiply(integer, first.clone(), second.clone())
-            }
+        let interval = self.image(operation, first, second, target.clone(), direction);
+        if interval.as_ref().is_ok_and(|image| {
+            preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(image, limit, direction))
+        }) {
+            return Ok((interval, None));
         }
-        .map_err(|_| "operation term")?;
-        let interval = self.image(operation, &first, &second, target.clone(), direction);
-        let related = self.related_image(&target, term, direction, preferred);
+        let related = self.related_image(Some(&target), term, direction, preferred);
         Ok((interval, related))
     }
 
@@ -4669,11 +4674,14 @@ impl<'a> Prover<'a> {
     /// existing affine checker; it alone decides which bound follows.
     fn related_image(
         &self,
-        target: &ScalarTerm,
+        target: Option<&ScalarTerm>,
         term: &IntegerMathTerm,
         direction: Direction,
         preferred: Option<&IntegerMathTerm>,
     ) -> Option<ProofNode> {
+        let Some(target) = target else {
+            return self.mathematical_relation_image(term, direction, preferred);
+        };
         let exchanged = match target {
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
@@ -4836,7 +4844,19 @@ impl<'a> Prover<'a> {
                 }
             }
         }
-        fallback
+        // Existing scalar successes return above. A literal-bound query has
+        // no unmet requested limit that needs another search through the facts.
+        if preferred.is_none() {
+            return fallback;
+        }
+        let mathematical = self.mathematical_relation_image(term, direction, preferred);
+        if mathematical.as_ref().is_some_and(|image| {
+            preferred
+                .is_some_and(|limit| mathematical_bounds::image_satisfies(image, limit, direction))
+        }) {
+            return mathematical;
+        }
+        fallback.or(mathematical)
     }
 
     /// A normalized guard may spell the constant or conversion where the
@@ -4928,4 +4948,43 @@ impl<'a> Prover<'a> {
             },
         ))
     }
+}
+
+/// Reconstruct an executable arithmetic term only when its operands share the
+/// existing scalar signature. Unbounded sums use mathematical bounds directly.
+fn arithmetic_target(
+    operation: Arithmetic,
+    first: &IntegerMathTerm,
+    second: &IntegerMathTerm,
+) -> Result<ScalarTerm, Unproven> {
+    let integer = [first, second]
+        .into_iter()
+        .find_map(|leaf| match leaf {
+            IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
+            _ => None,
+        })
+        .ok_or("arithmetic goal with no value operand")?;
+    let leaf = |leaf: &IntegerMathTerm| -> Result<ScalarTerm, Unproven> {
+        match leaf {
+            IntegerMathTerm::MathValue { source_type, value } if *source_type == integer => {
+                Ok(ScalarTerm::value(*value, ScalarType::Integer(integer)))
+            }
+            IntegerMathTerm::IntegerLiteral(literal) => literal
+                .as_integer_value(integer)
+                .and_then(|value| ScalarTerm::integer(integer, value).ok())
+                .ok_or("literal operand outside the carrier"),
+            _ => Err("operand is not a value or literal of the operation's type"),
+        }
+    };
+    let (first, second) = (leaf(first)?, leaf(second)?);
+    match operation {
+        Arithmetic::Add => ScalarTerm::exact_integer_add(integer, first.clone(), second.clone()),
+        Arithmetic::Subtract => {
+            ScalarTerm::exact_integer_subtract(integer, first.clone(), second.clone())
+        }
+        Arithmetic::Multiply => {
+            ScalarTerm::exact_integer_multiply(integer, first.clone(), second.clone())
+        }
+    }
+    .map_err(|_| "operation term")
 }

@@ -1,15 +1,34 @@
-// The legal half of the `addr` algebra: `addr - count -> addr`
-// offsets backward, `addr - addr -> u64` measures distance, and
-// addresses order (`<`). The illegal half (addr + addr, addr *
-// anything, shifts) rejects at compile — fail corpus territory.
-data Main {
-    marker: u64;
-}
-machine main(main: &mut Main) {
+// Expected exit: 0
+// Address offsets keep the count carrier and exact-fit requirement in both orders.
+data Main { marker: u64; }
+machine exercise(state: &mut Main) {
     let a: addr = 4096;
     let b: addr = 4000;
     let back: addr = a - 16;
-    let d: u64 = a - b;
-    let o: bool = b < a;
-    main.marker = d;
+    let distance: u64 = a - b;
+    state.marker = distance;
+}
+machine advance(base: addr, count: u64) -> addr
+requires embed(base) + embed(count) < addr::Bound
+{ base + count }
+machine advance_reversed(count: u64, base: addr) -> addr
+requires embed(base) + embed(count) < addr::Bound
+{ count + base }
+machine main() crashes Trap {
+    let mut state: Main = Main { marker: 7 };
+    exercise(&mut state);
+    let base: addr = 4096;
+    let count: u64 = 17;
+    let forward: addr = advance(base, count);
+    let reverse_base: addr = 8192;
+    let reversed: addr = advance_reversed(count, reverse_base);
+    let anonymous_right: addr = base + 17;
+    let anonymous_left: addr = 17 + base;
+    transition state.marker == 96 && forward == 4113 && reversed == 8209 &&
+        anonymous_right == 4113 && anonymous_left == 4113 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
