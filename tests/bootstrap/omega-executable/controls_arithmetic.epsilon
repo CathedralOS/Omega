@@ -29,6 +29,7 @@ machine Main::main(&mut self) {
             1 -> batch_1()
             2 -> batch_2()
             3 -> batch_3()
+            4 -> batch_4()
             _ -> self.console.exit_process(99)
         }
     }
@@ -102,6 +103,26 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8 crashes none crashes Trap {42}",1,68);
         self.refusal("machine main()->u8 crashes Abort {42}",2,69);
         self.positive("machine main()->u8 crashes none {59}",59,90);
+    }
+
+    state batch_4() {
+        // A pure body can publish a blocking ceiling. A private omitted wrapper
+        // infers it, and each ordinary call must acknowledge its exact callee.
+        self.positive("public machine leaf()->u8 blocks true {42} machine id(x:u8)->u8 blocks {x} machine wrap()->u8 {block id(block leaf())} public machine main()->u8 blocks {let x:u8=block wrap();x}",42,100);
+        self.positive("machine block()->u8 {43} public machine main()->u8 blocks false {block()}",43,101);
+        self.positive("machine wait() blocks {} public machine main()->u8 blocks {block wait();44}",44,102);
+        self.refusal("machine leaf()->u8 blocks {42} machine unused()->u8 {leaf()} machine main()->u8 {1}",1,103);
+        self.refusal("machine leaf()->u8 blocks {42} machine wrap()->u8 {block leaf()} machine main()->u8 {wrap()}",1,104);
+        self.refusal("machine leaf()->u8 blocks {42} public machine main()->u8 {block leaf()}",1,105);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks false {block leaf()}",1,106);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {suspend leaf()}",1,107);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {block suspend leaf()}",1,108);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {block block leaf()}",1,109);
+        self.refusal("machine main()->u8 blocks true blocks false {42}",1,110);
+        self.refusal("machine leaf()->u8 blocks {42} machine id(x:u8)->u8 blocks{x} machine main()->u8 blocks {block id(leaf())}",1,111);
+        self.refusal("machine main()->u8 {let x:u8=42;block x}",1,112);
+        self.refusal("machine leaf()->u8 blocks {42} machine main()->u8 blocks {suspend block leaf()}",2,113);
+        self.positive("machine leaf()->u8 blocks false {59} public machine main()->u8 {block leaf()}",59,114);
     }
 
 }

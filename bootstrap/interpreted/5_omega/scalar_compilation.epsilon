@@ -179,12 +179,17 @@ data OmegaScalarCompiler {
     call_edge_targets: [i32; 32768];
     call_edge_next: [i32; 32768];
     call_edge_offsets: [i32; 32768];
+    call_acknowledgements: [i32; 32768];
     call_edge_count: i32;
     // Core Trapping comparisons retain their published Trap ceiling even
     // though the emitted comparison is total. Private bodies infer it; a
     // public body without a supported crash clause cannot admit that ceiling.
     machine_may_trap: [i32; 4096];
     machine_allows_trap: [i32; 4096];
+    // -1 = omitted, 0 = blocks false, 1 = blocks. A private omitted
+    // bound infers. The published envelope is distinct from its call marker.
+    block_bounds: [i32; 4096];
+    machine_may_block: [i32; 4096];
     call_colors: [i32; 4096];
     call_walk: [i32; 4096];
     call_cursors: [i32; 4096];
@@ -988,7 +993,7 @@ machine OmegaScalarCompiler::value_cell(
 }
 
 machine OmegaScalarCompiler::retain_edge(
-    &mut self, caller: i32, callee: i32, coordinate: i32
+    &mut self, caller: i32, callee: i32, coordinate: i32, acknowledgements: i32
 ) -> i32 {
     transition self.call_edge_count < 32768 {
         true -> retain()
@@ -998,6 +1003,7 @@ machine OmegaScalarCompiler::retain_edge(
         let edge: i32 = self.call_edge_count;
         self.call_edge_targets[edge] = callee;
         self.call_edge_offsets[edge] = coordinate;
+        self.call_acknowledgements[edge] = acknowledgements;
         self.call_edge_next[edge] = self.call_edge_heads[caller];
         self.call_edge_heads[caller] = edge;
         self.call_edge_count = edge + 1;
@@ -1286,7 +1292,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state edge(call: OmegaCallExpressionSyntax, callee: i32) {
-        transition (self.retain_edge(owner, callee, call.start) == 1) &&
+        transition (self.retain_edge(owner, callee, call.start, call.acknowledgements) == 1) &&
             (self.retain_call_effects(state_index, before, call.first_argument, call.argument_count,
                 self.parser.machine_states[self.parser.machine_items[callee].first_state].first_parameter) == 1) {
             true -> retain(OmegaCheckedValueKind::Call, callee)
@@ -1687,6 +1693,8 @@ machine OmegaScalarCompiler::check_call_graph(&mut self) -> i32 {
     state inherit(root_index: i32, depth: i32, callee: i32) {
         self.machine_may_trap[self.call_walk[depth]] =
             self.machine_may_trap[self.call_walk[depth]] | self.machine_may_trap[callee];
+        self.machine_may_block[self.call_walk[depth]] =
+            self.machine_may_block[self.call_walk[depth]] | self.machine_may_block[callee];
         transition true { true -> walk(root_index, depth) }
     }
     state descend(root_index: i32, depth: i32, callee: i32) {
@@ -2508,6 +2516,8 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state reset_call_node(index: i32) {
         self.call_edge_heads[index] = -1;
         self.call_colors[index] = 0;
+        self.block_bounds[index] = -1;
+        self.machine_may_block[index] = 0;
         transition true { true -> reset_call_graph(index + 1) }
     }
 
@@ -2587,10 +2597,23 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
         let clause: OmegaMachineClauseSyntax = self.parser.machine_clauses[cursor];
         transition clause.kind {
+            OmegaMachineClauseKind::Blocks -> block_ceiling(index, cursor, end, empty, trap, 1)
+            OmegaMachineClauseKind::BlocksFalse -> block_ceiling(index, cursor, end, empty, trap, 0)
             OmegaMachineClauseKind::CrashesNone -> merge_crash_ceiling(index, cursor, end, 1, trap)
             OmegaMachineClauseKind::CrashesTrap -> merge_crash_ceiling(index, cursor, end, empty, 1)
             _ -> incomplete(4, clause.start)
         }
+    }
+    state block_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32, bound: i32) {
+        transition self.block_bounds[index] < 0 {
+            true -> retain_block_ceiling(index, cursor, end, empty, trap, bound)
+            _ -> reject(-1, 4, self.parser.machine_clauses[cursor].start)
+        }
+    }
+    state retain_block_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32, bound: i32) {
+        self.block_bounds[index] = bound;
+        self.machine_may_block[index] = bound;
+        transition true { true -> machine_clauses(index, cursor + 1, end, empty, trap) }
     }
     state merge_crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
         transition (empty == 1) && (trap == 1) {
@@ -2965,7 +2988,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
     state call_edge(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, callee: i32) {
-        transition (self.retain_edge(index, callee, call.start) == 1) &&
+        transition (self.retain_edge(index, callee, call.start, call.acknowledgements) == 1) &&
             (self.retain_call_effects(state_index,
                 statement - self.parser.machine_states[state_index].first_statement,
                 call.first_argument, call.argument_count,
@@ -3386,11 +3409,31 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state call_graph() {
         transition self.check_call_graph() {
-            1 -> check_crash_bounds(0)
+            1 -> check_acknowledgements(0)
             _ -> return
         }
     }
 
+    // Check every retained call against the resolved callee's published or
+    // inferred envelope. A redundant block mark never widens the caller.
+    state check_acknowledgements(edge: i32) {
+        transition edge < self.call_edge_count {
+            true -> check_block_marker(edge, self.call_acknowledgements[edge])
+            _ -> check_crash_bounds(0)
+        }
+    }
+    state check_block_marker(edge: i32, marks: i32) {
+        transition (self.machine_may_block[self.call_edge_targets[edge]] == 1) && ((marks & 1) == 0) {
+            true -> reject(-1, 4, self.call_edge_offsets[edge])
+            _ -> check_suspend_marker(edge, marks)
+        }
+    }
+    state check_suspend_marker(edge: i32, marks: i32) {
+        transition (marks & 2) != 0 {
+            true -> incomplete(4, self.call_edge_offsets[edge])
+            _ -> check_acknowledgements(edge + 1)
+        }
+    }
     // The graph includes nested states and unused declarations. A possible
     // route that would need path-proof discharges remains outside this slice.
     state check_crash_bounds(index: i32) {
@@ -3403,6 +3446,15 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         transition (self.machine_allows_trap[index] == 0) &&
             (self.machine_may_trap[index] != 0) {
             true -> incomplete(4, self.parser.machine_items[index].start)
+            _ -> check_block_bound(index)
+        }
+    }
+
+    state check_block_bound(index: i32) {
+        let bound: i32 = self.block_bounds[index];
+        transition (self.machine_may_block[index] == 1) && ((bound == 0) ||
+            ((bound < 0) && (self.parser.machine_items[index].is_public != 0))) {
+            true -> reject(-1, 4, self.parser.machine_items[index].start)
             _ -> check_crash_bounds(index + 1)
         }
     }
