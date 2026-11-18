@@ -4661,7 +4661,17 @@ mod tests {
         let expected = arena.insert(crate::Term::Id { ty: two, left: endpoints[0], right: endpoints[1] });
         let evidence = arena.insert(crate::Term::Variable(0));
         let certificate = crate::MathematicalCertificate::closed(vec![expected], evidence, expected);
-        assert!(matches!(crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::default()), Err(crate::CoreError::StepCeiling)));
+        let mut independent_budget = crate::Budget::default();
+        crate::verify_mathematical_certificate(&mut arena, &certificate, &mut independent_budget)
+            .expect("sharing equal syntax lets the unchanged judgment fit the default allowance");
+        let consumed = crate::DEFAULT_CONVERSION_STEPS - independent_budget.remaining();
+        assert!(consumed > 0);
+        crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::new(consumed))
+            .expect("the complete judgment fits its measured reduction debit");
+        assert!(matches!(
+            crate::verify_mathematical_certificate(&mut arena, &certificate, &mut crate::Budget::new(consumed - 1)),
+            Err(crate::CoreError::StepCeiling)
+        ));
         for (depth, valid) in [(8192, true), (64, true), (64, false)] {
             let goal = statement(depth, true);
             let context = PropositionContext::default();
@@ -4681,9 +4691,7 @@ mod tests {
             let proof = ProofNode { conclusion: statement(depth, valid), rule: ProofRule::Assumption { index: 0 } };
             let before = bounded_verification_entries();
             let result = super::accept_certificate_with_machine_parameters(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
-            if depth == 8192 {
-                assert!(matches!(result, Err(ProofError::MathematicalCore(ref error)) if matches!(error.as_ref(), crate::BoundedDenotationError::Kernel(crate::CoreError::StepCeiling))), "the deep source question must preserve the independent kernel's resource refusal");
-            } else if valid {
+            if valid {
                 let accepted = result.expect("within the kernel's existing allowance, the complete exact scalar premise is kernel judged");
                 assert_eq!(accepted.assumptions.len(), 1);
                 assert_eq!(accepted.assumptions[0].index, 0);
