@@ -1139,6 +1139,13 @@ pub enum ExpressionKind {
     /// local declared without an initializer a fresh read of its home; a
     /// record slot is the root place it holds.
     Slot(usize),
+    /// A value materialized as storage owned by this invocation.
+    /// Each evaluation establishes a fresh root for the loan.
+    OwnedTemporary {
+        occurrence: crate::source_state::expression::ExpressionHandle,
+        value: Box<Expression>,
+        scalar_home: Option<StructuralTypeId>,
+    },
     /// `R { a: x, b: y }`: each operand in authored order, then one atomic
     /// establishment of the record `result` names.
     /// `wiki/spec/terminal-psi/structural_access.md`: "Each operand is

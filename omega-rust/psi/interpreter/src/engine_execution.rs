@@ -283,10 +283,18 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
-        let callable_values = terminal_semantics::callable_values::terminal_callable_values(
-            program.catalogs.as_ref().as_ref(),
-        )
-        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+        let module = program.catalogs.as_ref().as_ref();
+        let callable_values =
+            terminal_semantics::callable_values::terminal_callable_values_with_error_context(
+                module,
+            )
+            .map_err(|error| {
+                if let Some(boundary) = error.missing_boundary(module) {
+                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
+                } else {
+                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
+                }
+            })?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -1265,6 +1273,10 @@ pub(crate) mod capabilities {
             let mut root = machine(0, vec![read(1), unit_call(MachineId::new(2).unwrap())]);
             let mut disconnected = machine(0, vec![read(4)]).blocks.remove(0);
             disconnected.id = BlockId::new(2).unwrap();
+            disconnected.terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(2).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
             root.blocks.push(disconnected);
             set_machine(&mut program, MachineId::new(1).unwrap(), root);
             set_machine(
@@ -1305,6 +1317,8 @@ pub(crate) mod capabilities {
         fn dynamic_program() -> AdmittedTerminalProgram<'static> {
             let mut program = program();
             let catalogs = program.fixture_module_mut();
+            let declaration = boundary_declaration(catalogs, BoundaryMachineId::new(2).unwrap());
+            catalogs.boundary_machines.push(declaration);
             let slot = |catalogs: &mut terminal_psi::TerminalModule, slot| TerminalDynamicSlot {
                 slot,
                 declaring_trait_identity: intern_identity(catalogs, "graph interface"),
@@ -1371,9 +1385,6 @@ pub(crate) mod capabilities {
             );
             let provider = MachineId::new(4).unwrap();
             let provider_import = BoundaryMachineId::new(2).unwrap();
-            let catalogs = program.fixture_module_mut();
-            let declaration = boundary_declaration(catalogs, provider_import);
-            catalogs.boundary_machines.push(declaration);
             set!(&mut program => provider => machine(0, vec![boundary_call(provider_import)]));
             let installation = TerminalRuntimeSupplies {
                 provider_selections: None,
@@ -1476,27 +1487,95 @@ pub(crate) mod capabilities {
         ) {
             let mut program = program();
             let cleanup_machine = MachineId::new(2).unwrap();
-            set_machine(
-                &mut program,
-                cleanup_machine,
-                machine(
-                    0,
-                    vec![OperationKind::BoundaryCall {
-                        boundary: BoundaryMachineId::new(1).unwrap(),
-                        arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        completion_receipts: Vec::new(),
-                        requirement_obligations: Vec::new(),
-                    }],
-                ),
+            let structural_type = StructuralTypeId::new(3).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let subject = StructuralArgument::whole(place, StructuralAccess::Owned);
+            let catalogs = program.fixture_module_mut();
+            let identity = intern_identity(catalogs, "graph cleanup carrier");
+            catalogs
+                .structural_types
+                .push(terminal_psi::StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: structural_type,
+                    identity,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: Some(terminal_psi::NominalCleanupSelection {
+                        declaration: NominalDeclarationIdentity::new(identity),
+                        cleanup_machine,
+                    }),
+                    shape: terminal_psi::StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
+                    },
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+
+            // Each test keeps construction on the same block as the cleanup.
+            // The unreachable control must not create debt on its live path.
+            let mut entry = machine(0, Vec::new());
+            let producer = OperationId::new(1).unwrap();
+            entry
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: place,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                });
+            entry.blocks[0].operations.push(Operation::unsuspended(
+                producer,
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                OperationKind::EstablishRecord { fields: Vec::new() },
+            ));
+            set_machine(&mut program, MachineId::new(1).unwrap(), entry);
+
+            let mut consumer = machine(
+                0,
+                vec![
+                    OperationKind::DecomposeStructuralValue {
+                        subject: subject.clone(),
+                    },
+                    boundary_call(BoundaryMachineId::new(1).unwrap()),
+                ],
             );
+            consumer.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+            consumer.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
+                place,
+                position: 0,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            }];
+            consumer.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+                id: place,
+                kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+            }];
+            consumer.blocks[0].terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: vec![TerminalAffineCleanupAction::RetireHome(place)],
+            };
+            set_machine(&mut program, cleanup_machine, consumer);
             let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
-                subject: terminal_psi::StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::Owned,
-                },
-                structural_type: StructuralTypeId::new(1).unwrap(),
+                subject,
+                structural_type,
                 cleanup_machine,
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -1511,6 +1590,11 @@ pub(crate) mod capabilities {
             let successor = BlockId::new(2).unwrap();
             let mut destination = entry.blocks[0].clone();
             destination.id = successor;
+            destination.operations.clear();
+            destination.terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(2).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
             entry.blocks.push(destination);
             entry.blocks.first_mut().unwrap().terminator = Terminator::Jump {
                 edge: EdgeId::new(1).unwrap(),
@@ -1537,6 +1621,7 @@ pub(crate) mod capabilities {
                 edge: EdgeId::new(2).unwrap(),
                 cleanup_actions: vec![action],
             };
+            entry.blocks.first_mut().unwrap().operations.clear();
             entry.blocks.push(unreachable);
             assert!(check(&program, None).unwrap().imports.is_empty());
         }
@@ -2287,13 +2372,16 @@ pub(crate) mod execution {
                 )
                 .cloned()
                 .collect::<Vec<_>>();
-            let local_structural_identities = LocalStructuralIdentities::new(
+            let mut local_structural_identities = LocalStructuralIdentities::new(
                 program
                     .machines()
                     .values()
                     .flat_map(|machine| machine.structural_places.iter()),
                 &identity_roots,
             );
+            for atom in inputs.projected_host_atoms {
+                local_structural_identities.reserve_projected_host_at_entry(&atom.value)?;
+            }
             let machine = program
                 .machines()
                 .get(&current_machine)
@@ -2487,7 +2575,143 @@ pub(crate) mod execution {
                 inputs.private_entry_ram,
                 inputs.access_view_establishments,
             )?;
+            execution.bind_projected_host_atoms(machine, inputs.projected_host_atoms)?;
             Ok(execution)
+        }
+
+        /// Resolve an empty inline record without lending authority from a
+        /// descriptor crossing, active case or unproved runtime coordinate.
+        pub(crate) fn projected_empty_host_value(
+            &self,
+            root: &TerminalStructuralValue,
+            path: &[StructuralPathSegment],
+        ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+            if path.is_empty()
+                || path
+                    .iter()
+                    .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
+                || !terminal_semantics::projection_stays_in_inline_storage(
+                    self.structural_types().values(),
+                    root.structural_type,
+                    path,
+                )
+            {
+                return Err(malformed());
+            }
+            let structural_type = crate::engine::custody::resolve_structural_path_type(
+                &self.structural_types(),
+                root.structural_type,
+                path,
+            )?;
+            let declaration = self.structural_declaration(structural_type)?;
+            if !matches!(
+                &declaration.shape,
+                terminal_psi::StructuralTypeShape::Record {
+                    fields,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                } if fields.is_empty()
+            ) || !declaration.no_code_affine_cleanup
+                || declaration.owns_linear_claim
+                || declaration.nominal_cleanup.is_some()
+            {
+                return Err(malformed());
+            }
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &root.qualifications,
+                    &root.projected_qualifications,
+                    path,
+                );
+            let mut selected = TerminalStructuralValue {
+                opaque_identity: root.opaque_identity,
+                structural_type,
+                qualifications,
+                projected_qualifications,
+                path: root.path.clone(),
+            };
+            selected.path.extend_from_slice(path);
+            let described = crate::storage::structural_storage::contents::describe(
+                self,
+                &selected,
+                terminal_psi::StructuralAccess::SharedBorrow,
+                None,
+            )?;
+            if !described.leaves.is_empty()
+                || described.requires_atomic_storage
+                || described.requires_erased_establishment
+            {
+                return Err(malformed());
+            }
+            Ok(selected)
+        }
+
+        fn bind_projected_host_atoms(
+            &mut self,
+            machine: &terminal_psi::TerminalMachine,
+            atoms: &[crate::TerminalProjectedHostAtom],
+        ) -> Result<(), TerminalInterpretError> {
+            fn host_home_overlaps<Value>(
+                rows: &RuntimeRows<StructuralRuntimePlace, Value>,
+                home: &StructuralRuntimePlace,
+            ) -> bool {
+                if crate::storage::structural_storage::cells(rows, home)
+                    .next()
+                    .is_some()
+                {
+                    return true;
+                }
+                let mut ancestor = home.clone();
+                while ancestor.path.pop().is_some() {
+                    if rows.contains_key(&ancestor) {
+                        return true;
+                    }
+                }
+                false
+            }
+
+            if atoms.is_empty() {
+                return Ok(());
+            }
+            // The owned arguments can acquire whole-value payloads later.
+            // Index their homes before admitting any projected payload.
+            let mut owned_homes = RuntimeRows::new(self.account.as_ref());
+            for parameter in &machine.structural_parameters {
+                if parameter.access == terminal_psi::StructuralAccess::Owned {
+                    let value =
+                        verified_structural_place(&self.structural_values, parameter.place)?;
+                    owned_homes.insert(StructuralRuntimePlace::from(value), ())?;
+                }
+            }
+
+            for atom in atoms {
+                let parameter = machine
+                    .structural_parameters
+                    .get(atom.argument_index as usize)
+                    .ok_or_else(malformed)?;
+                if parameter.access == terminal_psi::StructuralAccess::Owned {
+                    return Err(malformed());
+                }
+                let root = verified_structural_place(&self.structural_values, parameter.place)?;
+                let selected = self.projected_empty_host_value(root, &atom.path)?;
+                if !atom.value.path.is_empty()
+                    || atom.value.structural_type != selected.structural_type
+                    || atom.value.qualifications != selected.qualifications
+                    || atom.value.projected_qualifications != selected.projected_qualifications
+                {
+                    return Err(malformed());
+                }
+                let home = StructuralRuntimePlace::from(&selected);
+                if host_home_overlaps(&owned_homes, &home)
+                    || host_home_overlaps(&self.structural_host_atoms, &home)
+                {
+                    return Err(malformed());
+                }
+                self.structural_host_atoms.insert(
+                    home,
+                    HostStructuralPayload::Opaque(atom.value.opaque_identity),
+                )?;
+            }
+            Ok(())
         }
 
         pub(crate) fn retain_host_structural_payloads(

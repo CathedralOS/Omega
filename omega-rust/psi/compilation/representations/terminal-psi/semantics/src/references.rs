@@ -352,6 +352,22 @@ pub(crate) mod reference_completion {
     pub enum BorrowedLoanSources {
         Single(BorrowedLoanSource),
         Incoming(Vec<crate::descriptor_results::DescriptorCallOrigin>),
+        Selected(crate::descriptor_lifetimes::DescriptorLoanChoice),
+    }
+
+    impl BorrowedLoanSources {
+        pub fn single(self) -> Result<BorrowedLoanSource, &'static str> {
+            match self {
+                Self::Single(source) => Ok(source),
+                Self::Incoming(family) if family.len() == 1 => Ok(BorrowedLoanSource::Incoming),
+                Self::Incoming(_) => {
+                    Err("reference descriptor has no single immediate incoming occurrence")
+                }
+                Self::Selected(_) => Err(
+                    "reference descriptor has an unresolved surviving immediate loan occurrence",
+                ),
+            }
+        }
     }
 
     /// Select one immediate resource when a new borrow or result needs it.
@@ -368,15 +384,7 @@ pub(crate) mod reference_completion {
             ),
         >,
     ) -> Result<BorrowedLoanSource, &'static str> {
-        match borrowed_loan_sources(module, machine, analysis, at, descriptor, candidates)? {
-            BorrowedLoanSources::Single(source) => Ok(source),
-            BorrowedLoanSources::Incoming(family) if family.len() == 1 => {
-                Ok(BorrowedLoanSource::Incoming)
-            }
-            BorrowedLoanSources::Incoming(_) => {
-                Err("reference descriptor has no single immediate incoming occurrence")
-            }
-        }
+        borrowed_loan_sources(module, machine, analysis, at, descriptor, candidates)?.single()
     }
 
     /// Authenticate the resources carried by this borrowed transport.
@@ -396,7 +404,7 @@ pub(crate) mod reference_completion {
         let mut parent = None;
         // Loans that may still own the descriptor here, but not on every
         // arrival: each arm of a join formed its own loan.
-        let mut joined = false;
+        let mut joined = Vec::new();
         for (identity, lifetime) in candidates {
             // An input a provider-returned view keeps borrowed is retained for
             // the result's use, but the provider lends the bytes: that
@@ -424,7 +432,7 @@ pub(crate) mod reference_completion {
                         "reference descriptor has an unresolved surviving immediate loan occurrence",
                     );
                 }
-                joined = true;
+                joined.push((identity, lifetime));
                 continue;
             }
             if !authorized {
@@ -435,14 +443,25 @@ pub(crate) mod reference_completion {
             }
             parent = Some(identity);
         }
-        if joined {
+        if !joined.is_empty() {
+            const UNRESOLVED: &str =
+                "reference descriptor has an unresolved surviving immediate loan occurrence";
             if parent.is_some() {
-                return Err(
-                    "reference descriptor has an unresolved surviving immediate loan occurrence",
-                );
+                return Err(UNRESOLVED);
             }
-            return joined_incoming_loans(module, machine, analysis, at, descriptor)
-                .map(BorrowedLoanSources::Single);
+            let unresolved = match joined_incoming_loans(module, machine, analysis, at, descriptor)
+            {
+                Ok(source) => return Ok(BorrowedLoanSources::Single(source)),
+                Err(reason) => reason,
+            };
+            let flow = analysis.flow(machine.id).map_err(|_| unresolved)?;
+            return crate::descriptor_lifetimes::joined_loan_authority(
+                &flow,
+                (at, descriptor.clone()),
+                &joined,
+            )
+            .map(BorrowedLoanSources::Selected)
+            .ok_or(unresolved);
         }
         if let Some(parent) = parent {
             return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Loan(

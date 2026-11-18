@@ -113,7 +113,8 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         | ExpressionKind::Slot(_)
         | ExpressionKind::SavedSubject(_)
         | ExpressionKind::MachineValue { .. } => {}
-        ExpressionKind::Not(operand)
+        ExpressionKind::OwnedTemporary { value: operand, .. }
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Cast(operand)

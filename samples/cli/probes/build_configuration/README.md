@@ -1,39 +1,35 @@
 # build_configuration
 
-The `builder` value exposes authored configuration as writable fields
-that compose independently on a freestanding application:
+This probe writes application configuration through the `builder` value.
 
-- `subsystem` — all four cases write cleanly, including
-  `Unspecified { value: u16 }` (payload cases use record-literal
-  braces; `Subsystem::Unspecified(7)` call-style rejects — see
-  `invalid_subsystem_call`).
-- `identifier` — the macOS application identity / CFBundleIdentifier.
-- `elf_interpreter.linux_x86_64` — the exact `PT_INTERP` pathname.
-- `privileged_services.port_io` / `.interrupt_table` — granular
-  privileged-service admissions that compose independently.
-- `x86_deployment_features` — `Baseline` or `AvxFma3`.
-- `optimizations` — the per-optimization counter roster;
-  `Optimizations::enable(&mut builder.optimizations,
-  Optimization::<CaseName>)` selects a case from the shared 55-name
-  vocabulary and `Optimizations::emit_report` bumps `human_report`.
-  Build-authored enables are distinct from the CLI's
-  `--disable-optimization` rollback (which rejects every name under
-  `--check` because Check executes no optimization stage).
+- `subsystem` accepts all four cases, including `Unspecified { value: u16 }`.
+  Use a record literal for a case with a payload.
+- `identifier` sets the macOS `CFBundleIdentifier`.
+- `elf_interpreter.linux_x86_64` sets the exact `PT_INTERP` pathname.
+- `x86_deployment_features` selects `Baseline` or `AvxFma3`.
+- `Optimizations::enable(&mut builder.optimizations, Optimization::<CaseName>)`
+  selects an optimization from the shared 55-name vocabulary.
+  `Optimizations::emit_report` increments `human_report`. Check mode rejects
+  `--disable-optimization` because it executes no optimization stage.
 
-Controls:
+The Build declaration includes `freestanding` and `privileged_services`
+for compatibility. Build normalization discards their values. Target profiles
+and provider contracts determine hardware authority for each output.
+[Build permissions](../../../../wiki/spec/build/permissions.md#where-the-operation-can-run)
 
-- `invalid_optimization_case`: `Optimization::NoSuchOpt` rejects
-  "`Optimization` names a declaration, not storage" — the consistent
-  shape for a `Data::Case` reference whose case does not exist
-  (identical to `CrashCause::<unknown>`).
-- `invalid_subsystem_call`: `Subsystem::Unspecified(7)` call-style
-  rejects "value call `Subsystem.Unspecified(..)` does not resolve to a
-  callable machine entry or requirement" — payload construction is
-  record-literal only.
-- `invalid_identifier_charset`: `builder.identifier` validates its
-  byte vocabulary — `A-Z a-z 0-9 . -` only; an underscore rejects at
-  build-time Build validation ("not a valid application identifier").
+Package admission currently stops at `no product route yet: selected Psi
+optimizations have no second lowered-form check`. The probe exercises the two
+selected optimizations and their Build settings.
 
+## Rejection controls
+
+- `invalid_optimization_case` tries `Optimization::NoSuchOpt` and receives
+  "data `Optimization` has no member `NoSuchOpt`".
+- `invalid_subsystem_call` tries `Subsystem::Unspecified(7)` and receives
+  "this call names a case of a sum, and a case is not a machine".
+- `invalid_identifier_charset` uses an underscore in `builder.identifier`.
+  Build accepts letters, digits, dots, and hyphens. The control receives
+  "not a valid application identifier".
 - `invalid_fabricated_inputs` passes an authored `BuildInputs {}` value to
   `BuildInputs::get`. The lookup requires the original compiler-issued
   inputs facet and refuses the authored value.

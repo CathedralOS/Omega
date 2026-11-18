@@ -8,6 +8,10 @@ reads `template.txt` through the captured source inventory, and stages a
 generated product source through the required-output obligation flow —
 `require` → `create` → `write` → `close` → `include_source` → `complete`.
 
+`sample.json` includes both `dependency/` and `generator/` in the caller's
+explicit source inventory. Their own project descriptors give them separate
+package owners; their files are not implicit reads from a consumer tree.
+
 The root's build calls `kit::value()` in build scope; `main.omg` calls the
 same machine through the product edge. `value()` is generated and forwards
 to the authored `seed()`: authored source cannot select its own package's
@@ -17,6 +21,8 @@ purposes and across every requested target:
 
 ```text
 mbx run -p omega -- --check --target linux_x86_64 --target macos_arm64 \
+    --build-input .gitignore --build-input README.md --build-input build.omg \
+    --build-input dependency --build-input generator --build-input main.omg \
     samples/cli/probes/build_package_custody/main.omg
 ```
 

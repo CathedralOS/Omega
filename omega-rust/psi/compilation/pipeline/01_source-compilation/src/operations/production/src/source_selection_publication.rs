@@ -1717,51 +1717,62 @@ impl<'source> Declarations<'source> {
                 "local selection changed its actual declaration owner",
             ));
         }
-        // A formal belongs to its entry State, while the body is traversed in
-        // its machine's lexical context. Other binders must be in that actual
-        // context or one of its retained enclosing declaration scopes.
-        let mut scope = lexical_owner;
-        let mut visible = false;
+        let kind = match self.typed.symbols.get(symbol).kind {
+            SymbolKind::Parameter | SymbolKind::Local => SelectionBindingKind::Value,
+            SymbolKind::TypeParameter => SelectionBindingKind::Type,
+            SymbolKind::MachineParameter => SelectionBindingKind::Machine,
+            SymbolKind::ConformanceParameter => SelectionBindingKind::Conformance,
+            SymbolKind::PropositionParameter => SelectionBindingKind::Proof,
+            SymbolKind::PropositionMachineParameter => SelectionBindingKind::PropositionMachine,
+            _ => return Err(refused("resolved local selection names no actual binding")),
+        };
+        // A formal belongs to the entry state, and the body is checked
+        // in its machine's lexical scope. Follow the source declarations
+        // first. When an enclosing static binder was copied, check the
+        // actual parent chain of that specialization as well.
         let mut scopes = Vec::new();
-        while scope.is_valid() {
-            self.valid(scope, "enclosing local scope")?;
-            if scopes.contains(&scope) {
-                return Err(refused("local selection has a cyclic lexical scope"));
+        let mut sees_binding = |follow_copied_parents: bool| -> Result<bool, Diagnostic> {
+            let first = scopes.len();
+            let mut scope = lexical_owner;
+            while scope.is_valid() {
+                self.valid(scope, "enclosing local scope")?;
+                if scopes[first..].contains(&scope) {
+                    return Err(refused("local selection has a cyclic lexical scope"));
+                }
+                scopes.push(scope);
+                if scope == declared_owner
+                    || self.typed.machine_by_symbol(scope).is_some_and(|machine| {
+                        self.typed
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == declared_owner)
+                    })
+                {
+                    return Ok(true);
+                }
+                scope = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
+                    owner.symbol
+                } else if !follow_copied_parents
+                    && let Some(template) = self
+                        .typed
+                        .executable_application_template(scope)
+                        .ok()
+                        .flatten()
+                {
+                    template
+                } else {
+                    self.typed.symbols.get(scope).parent
+                };
             }
-            scopes.push(scope);
-            if scope == declared_owner {
-                visible = true;
-                break;
-            }
-            if self.typed.machine_by_symbol(scope).is_some_and(|machine| {
-                self.typed
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == declared_owner)
-            }) {
-                visible = true;
-                break;
-            }
-            // A machine an implementation owns is written inside that
-            // implementation, so it sees the implementation's own binders
-            // (`Selected<Value> satisfies Step<Value>` gives its members
-            // `Value`) even though its symbol is not nested under it. A copy
-            // stage 04 generated to close an application is its template's
-            // body, so it sees the template's binders the same way.
-            let parent = if let Some((owner, _)) = self.typed.owned_conformance_realization(scope) {
-                owner.symbol
-            } else if let Some(template) = self
-                .typed
-                .executable_application_template(scope)
-                .ok()
-                .flatten()
-            {
-                template
-            } else {
-                self.typed.symbols.get(scope).parent
-            };
-            scope = parent;
-        }
+            Ok(false)
+        };
+        let visible = sees_binding(false)?
+            || (!matches!(kind, SelectionBindingKind::Value)
+                && self
+                    .typed
+                    .executable_application_template(declared_owner)
+                    .is_ok_and(|application| application.is_some())
+                && sees_binding(true)?);
         if !visible {
             let description = |symbol: SymbolHandle| {
                 let provenance = self
@@ -1792,15 +1803,6 @@ impl<'source> Declarations<'source> {
                 ),
             ));
         }
-        let kind = match self.typed.symbols.get(symbol).kind {
-            SymbolKind::Parameter | SymbolKind::Local => SelectionBindingKind::Value,
-            SymbolKind::TypeParameter => SelectionBindingKind::Type,
-            SymbolKind::MachineParameter => SelectionBindingKind::Machine,
-            SymbolKind::ConformanceParameter => SelectionBindingKind::Conformance,
-            SymbolKind::PropositionParameter => SelectionBindingKind::Proof,
-            SymbolKind::PropositionMachineParameter => SelectionBindingKind::PropositionMachine,
-            _ => return Err(refused("resolved local selection names no actual binding")),
-        };
         Ok(SelectionReference::LocalBinding {
             owner: self.declaration(output, lexical_owner)?,
             kind,

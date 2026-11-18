@@ -21,10 +21,11 @@ pub use reachable::{
     reachable_callable_invocations_with_roots,
 };
 pub use terminal::{
-    CallableBoundaryImplementation, ReachedBoundaryCalls, boundary_call_reach,
-    project_callable_invocation, project_owned_cleanup_invocation, reached_boundary_calls,
-    stored_callable_definition, terminal_callable_values,
+    CallableBoundaryImplementation, CallableValuePreparationError, ReachedBoundaryCalls,
+    boundary_call_reach, project_callable_invocation, project_owned_cleanup_invocation,
+    reached_boundary_calls, stored_callable_definition, terminal_callable_values,
     terminal_callable_values_with_boundary_implementations,
+    terminal_callable_values_with_error_context,
 };
 
 fn insert_ordered<T: Ord>(values: &mut Vec<T>, value: T) -> bool {

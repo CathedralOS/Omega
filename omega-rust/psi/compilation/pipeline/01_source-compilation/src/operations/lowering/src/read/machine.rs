@@ -4511,7 +4511,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(left, binder, out);
             spans(right, binder, out);
         }
-        ExpressionKind::Not(operand)
+        ExpressionKind::OwnedTemporary { value: operand, .. }
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)

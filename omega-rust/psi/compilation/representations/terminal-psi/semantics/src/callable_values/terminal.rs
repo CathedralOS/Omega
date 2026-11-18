@@ -121,20 +121,88 @@ pub fn boundary_call_reach(
     })
 }
 
+/// Keep the failed storage site until the caller chooses its diagnostic.
+/// Projection failures still carry their existing text; neither variant grants
+/// execution or skips the shared eager graph preparation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallableValuePreparationError {
+    StorageFlow(crate::descriptor_results::DescriptorGraphError),
+    Projection(String),
+}
+
+impl CallableValuePreparationError {
+    /// Classify only an absent declaration at the exact failed operation.
+    /// The public graph-error guard retains its unique machine/block rules.
+    /// Index the retained point rather than searching by a possibly duplicate
+    /// operation ID, and reuse the operation's ordinary invocation decoder.
+    pub fn missing_boundary(&self, module: &TerminalModule) -> Option<BoundaryMachineId> {
+        let Self::StorageFlow(error) = self else {
+            return None;
+        };
+        let _ = error.operation(module)?;
+        let crate::descriptor_results::DescriptorGraphError::IncompleteMachine {
+            position: Some((block, index)),
+            ..
+        } = *error
+        else {
+            return None;
+        };
+        let operation = module
+            .machine(error.machine())?
+            .block(&block)?
+            .operations
+            .get(usize::try_from(index).ok()?)?;
+        let terminal_psi::TargetMachineCallable::Boundary(boundary) =
+            operation.declared_invocation()?.callee
+        else {
+            return None;
+        };
+        module
+            .boundary_machine(boundary)
+            .is_none()
+            .then_some(boundary)
+    }
+
+    /// Preserve the established String API's exact failure description.
+    pub fn in_module(self, module: &TerminalModule) -> String {
+        match self {
+            Self::StorageFlow(error) => format!(
+                "callable provenance cannot reconstruct current Terminal storage flow: {}",
+                error.in_module(module),
+            ),
+            Self::Projection(message) => message,
+        }
+    }
+}
+
+impl From<String> for CallableValuePreparationError {
+    fn from(message: String) -> Self {
+        Self::Projection(message)
+    }
+}
+
+impl From<&str> for CallableValuePreparationError {
+    fn from(message: &str) -> Self {
+        Self::Projection(message.to_owned())
+    }
+}
+
 /// Project current executable Terminal operations into the shared value query.
 pub fn terminal_callable_values(
     module: &TerminalModule,
 ) -> Result<CallableValueProgram<'_>, String> {
+    terminal_callable_values_with_error_context(module).map_err(|error| error.in_module(module))
+}
+
+/// The same projection with its structured preparation failure retained.
+pub fn terminal_callable_values_with_error_context(
+    module: &TerminalModule,
+) -> Result<CallableValueProgram<'_>, CallableValuePreparationError> {
     let graph = crate::descriptor_results::terminal_reference_graph_from(
         module,
         module.machines.iter().map(|machine| machine.id),
     )
-    .map_err(|error| {
-        format!(
-            "callable provenance cannot reconstruct current Terminal storage flow: {}",
-            error.in_module(module),
-        )
-    })?;
+    .map_err(CallableValuePreparationError::StorageFlow)?;
     let mut bodies: Vec<(semantic_vocabulary::MachineId, CallableValueBody)> =
         Vec::with_capacity(module.machines.len());
     let mut cleanups = Vec::new();

@@ -2872,13 +2872,31 @@ impl<'a> Storage<'a> {
                     weakened = true;
                     continue;
                 }
+                if watched.single_place().is_none() {
+                    // This row can supply one address without supplying the
+                    // others. Let each address find its own last store.
+                    let joined = budget.add_equation();
+                    for captured in watched.captured_regions() {
+                        let supply = self.reaching_backing_supply(
+                            references,
+                            tables,
+                            asked,
+                            &captured,
+                            (row.block, row.position),
+                            budget,
+                            concerns,
+                        )?;
+                        budget.add_supply(joined, supply.without_identity());
+                    }
+                    return Ok(Supply::transfer(joined));
+                }
                 return Ok(self
-                    .reaching_supply(
+                    .reaching_backing_supply(
                         references,
                         tables,
                         asked,
-                        row.block,
-                        row.position - 1,
+                        watched,
+                        (row.block, row.position - 1),
                         budget,
                         concerns,
                     )?
@@ -3491,6 +3509,28 @@ impl<'a> Storage<'a> {
                 }
             }
         };
+        self.reaching_backing_supply(
+            references,
+            tables,
+            asked,
+            &resolved,
+            (block, up_to),
+            budget,
+            concerns,
+        )
+    }
+
+    fn reaching_backing_supply(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        asked: Asked<'_>,
+        resolved: &Backing,
+        (block, up_to): (BlockId, usize),
+        budget: &mut Reaching,
+        concerns: Construct,
+    ) -> Checked<Supply> {
+        let original = asked.place();
         let asked = asked.at(&resolved.place);
         let key = match asked {
             Asked::Contents(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Contents)),
@@ -3516,7 +3556,7 @@ impl<'a> Storage<'a> {
         // copy traces and initialization still use the ordinary solver.
         if up_to >= self.block(block)?.operations.len()
             && let Some(point) = budget.used
-            && let Some(changed) = self.cleanup_at_point(asked, &resolved, block, point)?
+            && let Some(changed) = self.cleanup_at_point(asked, resolved, block, point)?
         {
             budget.add_supply(address, Supply::Direct(changed));
             return Ok(Supply::transfer(address).within(projection));
@@ -3559,7 +3599,7 @@ impl<'a> Storage<'a> {
                         budget.scanned_rows += 1;
                     }
                     if row.position > up_to
-                        || !asked.ended_by(&resolved, row, &budget.crossed_entries)
+                        || !asked.ended_by(resolved, row, &budget.crossed_entries)
                         || self.call_preserves_extent(references, asked, row, concerns)?
                     {
                         continue;
@@ -3594,9 +3634,8 @@ impl<'a> Storage<'a> {
                     }
                 }
                 if let Some((index, _)) = last {
-                    let supply = self.supplied(
-                        references, tables, index, asked, &resolved, budget, concerns,
-                    )?;
+                    let supply = self
+                        .supplied(references, tables, index, asked, resolved, budget, concerns)?;
                     budget.add_supply(destination, supply);
                     continue;
                 }
@@ -3787,7 +3826,7 @@ impl<'a> Storage<'a> {
                     }
                     asked_of.push(*predecessor);
                     if let Some(changed) =
-                        self.cleanup_arrival(asked, &resolved, *predecessor, block)?
+                        self.cleanup_arrival(asked, resolved, *predecessor, block)?
                     {
                         budget.add_supply(destination, Supply::Direct(changed));
                         continue;
@@ -3796,7 +3835,7 @@ impl<'a> Storage<'a> {
                         && let Some(selected) = self.edge_selects(
                             references,
                             tables,
-                            &resolved,
+                            resolved,
                             (*predecessor, block),
                             &budget.crossed_entries,
                             concerns,

@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Reference collection scans every callable application for each machine
+- Category: Re-deriving
+- Where: [owner query](omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/callable_applications.rs#L8547), [reference visitor](omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/references.rs#L4023)
+- Saw: Each visited machine calls `requirement_invocation_signatures`, which scans the whole applied-signature arena to select rows with that machine's lexical owner. A brief sample of the original Console binding test reached this iterator during private input contract collection; it does not establish the operation's share of elapsed time.
+- Cost: For M visited machines and S signatures, owner selection inspects M*S rows. Prepare the existing owner associations once per immutable walk, retaining full owner handles, both owner variants, every distinct signature and their original order. Keep unread outside callers visible so helper contracts cannot become narrower.
+- Reported: 2026-11-18, Codex, while completing the original Console binding acceptance
+
 ### Individual proof citations copy their entire compound premise
 - Category: Verifying costs more than writing
 - Where: [Fact::proof_with_work](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L119), [stored proof nodes](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L420)
@@ -124,11 +131,11 @@ framework or a list of unimplemented features.
 
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
 
-### Build still validates a retired hardware setting
+### Build still validates retired hardware settings
 - Category: Zombie machinery
-- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L3923), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L705), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
-- Saw: The authored `Build.freestanding` Boolean remains mandatory through result decoding for compatibility. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
-- Cost: Retire the authored field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
+- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L4063), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L719), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
+- Saw: Build return decoding requires the legacy `freestanding` Boolean and accepts an optional `privileged_services` record. Target and provider contracts supply each output’s hardware authority. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
+- Cost: Retire the authored fields and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler

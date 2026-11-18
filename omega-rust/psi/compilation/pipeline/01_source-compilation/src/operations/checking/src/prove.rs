@@ -100,6 +100,27 @@ fn fact_proof_for_refutation(
     }
 }
 
+/// Count the fact nodes built for a selected bound in tests.
+fn fact_proof_for_literal_bound(
+    facts: &[Fact],
+    index: usize,
+    activity: &mut ProofSearchActivity,
+) -> ProofNode {
+    #[cfg(test)]
+    {
+        let mut work = crate::checking::known::FactProofWork::default();
+        let proof = facts[index].proof_with_work(facts, &mut work);
+        activity.literal_bound_fact_nodes =
+            activity.literal_bound_fact_nodes.saturating_add(work.nodes);
+        proof
+    }
+    #[cfg(not(test))]
+    {
+        let _ = activity;
+        facts[index].proof(facts)
+    }
+}
+
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
@@ -318,6 +339,50 @@ enum Arithmetic {
 struct Bound {
     literal: IntegerValue,
     proof: ProofNode,
+}
+
+/// A failed offset translation keeps the original relation for its fallback.
+enum OffsetTranslation {
+    Translated(Bound),
+    Original(ProofNode),
+}
+
+/// Endpoint checks finish before the incoming proof is consumed.
+struct MathematicalOrderTranslation {
+    addend: IntegerMathTerm,
+    translated_conclusion: Proposition,
+    left_substituted_conclusion: Proposition,
+    goal: Proposition,
+    left_equality: ProofNode,
+    right_equality: ProofNode,
+}
+
+impl MathematicalOrderTranslation {
+    fn apply(self, relation: ProofNode) -> ProofNode {
+        let translated = node(
+            self.translated_conclusion,
+            ProofRule::IntegerMathOrderTranslation {
+                relation: Box::new(relation),
+                addend: self.addend,
+            },
+        );
+        let after_left = node(
+            self.left_substituted_conclusion,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(translated),
+                equality: Box::new(self.left_equality),
+                endpoint: 0,
+            },
+        );
+        node(
+            self.goal,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(after_left),
+                equality: Box::new(self.right_equality),
+                endpoint: 1,
+            },
+        )
+    }
 }
 
 /// Keep the fact's origin until its endpoint can improve the bound. Expanding
@@ -587,6 +652,9 @@ pub struct ProofSearchActivity {
     /// Fact nodes materialized for compound order candidates.
     #[cfg(test)]
     compound_order_fact_nodes: usize,
+    /// Fact nodes expanded for direct literal-bound candidates.
+    #[cfg(test)]
+    literal_bound_fact_nodes: usize,
     #[cfg(test)]
     bound_value_searches: usize,
     #[cfg(test)]
@@ -624,6 +692,9 @@ impl ProofSearchActivity {
             self.compound_order_fact_nodes = self
                 .compound_order_fact_nodes
                 .saturating_add(other.compound_order_fact_nodes);
+            self.literal_bound_fact_nodes = self
+                .literal_bound_fact_nodes
+                .saturating_add(other.literal_bound_fact_nodes);
             self.bound_value_searches = self
                 .bound_value_searches
                 .saturating_add(other.bound_value_searches);
@@ -1141,13 +1212,11 @@ impl<'a> Prover<'a> {
         else {
             return (None, None);
         };
-        let narrower = |bound: Option<Bound>, carrier: IntegerValue| {
-            bound
-                .map(|bound| bound.literal)
-                .filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
+        let narrower = |literal: Option<IntegerValue>, carrier: IntegerValue| {
+            literal.filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
         };
-        let mut lower = narrower(self.bound(value, Direction::Lower), minimum);
-        let mut upper = narrower(self.bound(value, Direction::Upper), maximum);
+        let mut lower = narrower(self.bound_literal(value, Direction::Lower), minimum);
+        let mut upper = narrower(self.bound_literal(value, Direction::Upper), maximum);
         // A bound that holds only by cases is no bound of the value's own:
         // under `c == true` with `c` the join of `20 <= v && v <= 60`, the
         // limits are inside a disjunctive fact. Each literal such a fact
@@ -3127,11 +3196,15 @@ impl<'a> Prover<'a> {
             {
                 self.activity.bound_fact_visits += 1;
             }
-            if let Some(next) = self.literal_bound_from_fact(index, &subject, integer, direction)
-                && best.as_ref().is_none_or(|current| {
-                    direction.prefers(integer.compare(next.literal, current.literal))
-                })
-            {
+            if let Some(next) = self.literal_bound_from_fact(
+                index,
+                &subject,
+                integer,
+                direction,
+                best.as_ref().map(|bound| bound.literal),
+            ) && best.as_ref().is_none_or(|current| {
+                direction.prefers(integer.compare(next.literal, current.literal))
+            }) {
                 best = Some(next);
             }
         }
@@ -3224,34 +3297,44 @@ impl<'a> Prover<'a> {
     /// A fact with a closed endpoint supplies a bound without consulting
     /// any unfinished value bound. The kernel still checks its actual proof.
     fn literal_bound_from_fact(
-        &self,
+        &mut self,
         index: usize,
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<Bound> {
+        // Compare the adjusted endpoint before building its proof: x < 10 can
+        // tighten an existing x <= 10 even though the written endpoints tie.
+        let improves = |literal: &ScalarTerm, strict: bool| {
+            let Some((_, value)) = literal.integer_value() else {
+                return false;
+            };
+            let value = if strict {
+                step(value, direction == Direction::Lower)
+            } else {
+                Some(value)
+            };
+            value.is_some_and(|value| {
+                current.is_none_or(|current| direction.prefers(integer.compare(value, current)))
+            })
+        };
         match (&self.facts[index].proposition, direction) {
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
+                if left == subject && improves(literal, false) =>
             {
-                let (literal, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
+                let (literal, proof) = self.literal_endpoint(proof, literal, direction)?;
                 Some(Bound { literal, proof })
             }
             (Proposition::LessThan(left, literal), Direction::Upper)
             | (Proposition::LessThan(literal, left), Direction::Lower)
-                if left == subject && literal.integer_value().is_some() =>
+                if left == subject && improves(literal, true) =>
             {
-                let (value, proof) = self.literal_endpoint(
-                    self.facts[index].proof(&self.facts),
-                    literal,
-                    direction,
-                )?;
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
+                let (value, proof) = self.literal_endpoint(proof, literal, direction)?;
                 let adjacent = step(value, direction == Direction::Lower)?;
                 let conclusion = Self::oriented(
                     subject,
@@ -3269,11 +3352,11 @@ impl<'a> Prover<'a> {
                 })
             }
             (Proposition::Equal(left, right), _)
-                if (left == subject && right.integer_value().is_some())
-                    || (right == subject && left.integer_value().is_some()) =>
+                if (left == subject && improves(right, false))
+                    || (right == subject && improves(left, false)) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
-                let proof = self.facts[index].proof(&self.facts);
+                let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
                 let wanted_left_is_subject = direction == Direction::Upper;
                 let proof = if (left == subject) == wanted_left_is_subject {
                     proof
@@ -3555,18 +3638,17 @@ impl<'a> Prover<'a> {
                         proof: le_proof,
                     });
                 }
-                if let Some(delta) = exact_constant_offset(open_side, subject, integer)
-                    && let Some(exact) = self.translate_offset_bound(
-                        le_proof.clone(),
-                        subject,
-                        integer,
-                        m_val,
-                        delta,
-                        direction,
-                    )
-                {
-                    return Some(exact);
-                }
+                let le_proof =
+                    if let Some(delta) = exact_constant_offset(open_side, subject, integer) {
+                        match self.translate_offset_bound(
+                            le_proof, subject, integer, m_val, delta, direction,
+                        ) {
+                            OffsetTranslation::Translated(exact) => return Some(exact),
+                            OffsetTranslation::Original(proof) => proof,
+                        }
+                    } else {
+                        le_proof
+                    };
                 self.monotone_open_bound(open_side, le_proof, subject, integer, m_val, direction)
             })
             .reduce(|best, next| {
@@ -3741,7 +3823,18 @@ impl<'a> Prover<'a> {
         addend: IntegerMathTerm,
         goal: &Proposition,
     ) -> Option<ProofNode> {
-        let Proposition::IntegerMathLessOrEqual(left, right) = &relation.conclusion else {
+        let translation =
+            self.prepare_mathematical_order_translation(&relation.conclusion, addend, goal)?;
+        Some(translation.apply(relation))
+    }
+
+    fn prepare_mathematical_order_translation(
+        &self,
+        relation: &Proposition,
+        addend: IntegerMathTerm,
+        goal: &Proposition,
+    ) -> Option<MathematicalOrderTranslation> {
+        let Proposition::IntegerMathLessOrEqual(left, right) = relation else {
             return None;
         };
         let lifted = lift_exact_integer_order(goal);
@@ -3754,35 +3847,26 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::Add(Box::new(left.clone()), Box::new(addend.clone()));
         let translated_right =
             IntegerMathTerm::Add(Box::new(right.clone()), Box::new(addend.clone()));
-        let translated = node(
-            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone()),
-            ProofRule::IntegerMathOrderTranslation {
-                relation: Box::new(relation),
-                addend,
-            },
-        );
-        let left_eq = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
-        let after_left = node(
-            Proposition::IntegerMathLessOrEqual(goal_left.clone(), translated_right.clone()),
-            ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(translated),
-                equality: Box::new(left_eq),
-                endpoint: 0,
-            },
-        );
-        let right_eq = self.closed(sorted_math_equal(translated_right, goal_right.clone()))?;
-        Some(node(
-            goal.clone(),
-            ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(after_left),
-                equality: Box::new(right_eq),
-                endpoint: 1,
-            },
-        ))
+        let translated_conclusion =
+            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone());
+        let left_equality = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
+        let left_substituted_conclusion =
+            Proposition::IntegerMathLessOrEqual(goal_left.clone(), translated_right.clone());
+        let right_equality =
+            self.closed(sorted_math_equal(translated_right, goal_right.clone()))?;
+        Some(MathematicalOrderTranslation {
+            addend,
+            translated_conclusion,
+            left_substituted_conclusion,
+            goal: goal.clone(),
+            left_equality,
+            right_equality,
+        })
     }
 
     /// Translates `open_side <= m_val` (or `m_val <= open_side`) by `-delta`
-    /// where `open_side` denotes `subject + delta`.
+    /// where `open_side` denotes `subject + delta`. Failed preparation returns
+    /// the original relation for the unchanged monotone fallback.
     fn translate_offset_bound(
         &self,
         le_proof: ProofNode,
@@ -3791,19 +3875,39 @@ impl<'a> Prover<'a> {
         m_val: IntegerValue,
         delta: i128,
         direction: Direction,
-    ) -> Option<Bound> {
-        let shifted = shift_integer_value(integer, m_val, delta)?;
-        let m_term = ScalarTerm::integer(integer, m_val).ok()?;
-        let target_term = ScalarTerm::integer(integer, shifted).ok()?;
-        let Proposition::LessOrEqual(le_left, le_right) = &le_proof.conclusion else {
-            return None;
+    ) -> OffsetTranslation {
+        let Some(shifted) = shift_integer_value(integer, m_val, delta) else {
+            return OffsetTranslation::Original(le_proof);
         };
-        let embedded_le = Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::embed(le_left.clone())?,
-            IntegerMathTerm::embed(le_right.clone())?,
-        );
+        let Ok(m_term) = ScalarTerm::integer(integer, m_val) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Ok(target_term) = ScalarTerm::integer(integer, shifted) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Proposition::LessOrEqual(le_left, le_right) = &le_proof.conclusion else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(math_left) = IntegerMathTerm::embed(le_left.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(math_right) = IntegerMathTerm::embed(le_right.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let embedded_le = Proposition::IntegerMathLessOrEqual(math_left, math_right);
         let goal = Self::oriented(subject, target_term, direction);
-        let m_refl = self.reflexive(Proposition::Equal(m_term.clone(), m_term))?;
+        let Some(m_refl) = self.reflexive(Proposition::Equal(m_term.clone(), m_term)) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(negative_delta) = delta.checked_neg() else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let addend = IntegerMathTerm::literal(IntegerValue::Signed(negative_delta));
+        let Some(translation) =
+            self.prepare_mathematical_order_translation(&embedded_le, addend, &goal)
+        else {
+            return OffsetTranslation::Original(le_proof);
+        };
         let endpoint = match direction {
             Direction::Upper => 1,
             Direction::Lower => 0,
@@ -3816,10 +3920,9 @@ impl<'a> Prover<'a> {
                 endpoint,
             },
         );
-        let addend = IntegerMathTerm::literal(IntegerValue::Signed(delta.checked_neg()?));
-        Some(Bound {
+        OffsetTranslation::Translated(Bound {
             literal: shifted,
-            proof: self.translate_mathematical_order(math_le, addend, &goal)?,
+            proof: translation.apply(math_le),
         })
     }
 

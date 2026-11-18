@@ -135,6 +135,44 @@ impl Backing {
         let ([parent], [child]) = (self.regions.as_slice(), selected.regions.as_slice()) else {
             return false;
         };
+        Self::region_contains(parent, child)
+    }
+
+    /// Check the physical projections after the descriptor flow has proved
+    /// which lenders the value can carry. Every lender and every projected
+    /// region must occur in that correspondence.
+    pub(super) fn projections_from<'a>(
+        &self,
+        owners: impl Clone + Iterator<Item = &'a Self>,
+    ) -> bool {
+        let projects = |owner: &Self, child: &CapturedRegion| {
+            owner
+                .regions
+                .iter()
+                .any(|parent| Self::region_contains(parent, child))
+        };
+        self.regions
+            .iter()
+            .all(|child| owners.clone().any(|owner| projects(owner, child)))
+            && owners
+                .clone()
+                .all(|owner| self.regions.iter().any(|child| projects(owner, child)))
+    }
+
+    fn region_contains(parent: &CapturedRegion, child: &CapturedRegion) -> bool {
+        if child.place.root != parent.place.root
+            || !child.place.segments.starts_with(&parent.place.segments)
+        {
+            return false;
+        }
+        if !parent
+            .place
+            .segments
+            .iter()
+            .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
+        {
+            return true;
+        }
         let (
             Some(DescriptorCallOrigin::Argument {
                 source: a,
@@ -214,6 +252,16 @@ impl Backing {
     }
 
     /// Possible effect footprints only; this iterator proves no selected identity.
+    /// Each address keeps its capture while an earlier storage version is
+    /// checked. The joined descriptor may not yet exist at that point.
+    pub(super) fn captured_regions(&self) -> impl Iterator<Item = Self> + '_ {
+        self.regions.iter().map(|region| Self {
+            place: region.place.clone(),
+            regions: vec![region.clone()],
+            subject: None,
+        })
+    }
+
     pub(super) fn possible_regions(&self) -> impl Iterator<Item = &Lineage> {
         self.regions.iter().map(|region| &region.place)
     }

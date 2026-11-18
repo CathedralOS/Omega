@@ -1098,7 +1098,8 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 static_reach_arguments,
             });
         }
-        E::Field { base, .. }
+        E::OwnedTemporary { value: base, .. }
+        | E::Field { base, .. }
         | E::CollectionView { base, .. }
         | E::CollectionMeasure { base, .. }
         | E::ByteSequencePredicate { base, .. }
