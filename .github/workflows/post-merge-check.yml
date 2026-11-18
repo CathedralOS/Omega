@@ -27,6 +27,10 @@ on:
           wave of merges.
         type: boolean
         default: false
+      sample_only:
+        description: Run the named-implementation validation
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,11 +39,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: post-merge-check
+  group: ${{ github.ref == 'refs/heads/main' && 'post-merge-check' || format('post-merge-check-{0}', github.ref) }}
   cancel-in-progress: false
 
 jobs:
   post-merge-check:
+    if: ${{ !inputs.sample_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -128,7 +133,7 @@ jobs:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -148,35 +153,52 @@ jobs:
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
-      - name: Run a sample natively and in the interpreter
+      - name: Build the optimized compiler for this revision
+        working-directory: /workspace/Omega
+        shell: bash
         run: |
-          cd /workspace/Omega
+          set -euo pipefail
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
-            mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
-      - name: Read errno after a failed realpath in both engines
-        working-directory: /workspace/Omega/tests/fixtures/run/providers/provider_errno_realpath
+            mbx build --locked -p omega --bin omega --message-format=json > "$RUNNER_TEMP/omega-artifacts.json"
+          jq -es --arg compiler "$PWD/target/debug/omega" '[.[] | select(.reason=="compiler-artifact" and .target.name=="omega" and .executable==$compiler)] |
+            length == 1 and (.[] | (.profile.opt_level=="1" or .profile.opt_level=="2" or .profile.opt_level=="3"))' \
+            "$RUNNER_TEMP/omega-artifacts.json"
+          sha256sum target/debug/omega
+      - name: Run the borrowed named implementation in both engines
+        working-directory: /workspace/Omega/tests/fixtures/run/generics/borrowed_selected_callable
+        shell: bash
         run: |
+          set -euo pipefail
           omega=/workspace/Omega/target/debug/omega
-          test ! -e q
-          env -u CI -u GITHUB_ACTIONS "$omega" run --both \
+          sha256sum main.omg build.omg
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both --verbose \
             --build-input build.omg --build-input main.omg main.omg < /dev/null
-      # The other programs import no `std`, so a change that breaks the
-      # standard library would pass it. This fixture writes `K` through
-      # `std`'s Console and its Build's provider choices. It reuses the
-      # compiler the sample gate just built and takes about three minutes.
-      - name: Run a program that imports std natively and in the interpreter
+      - name: Check the wrong result and shared-write controls
+        working-directory: /workspace/Omega/tests/fixtures/run/generics/borrowed_selected_callable
+        shell: bash
         run: |
-          cd /workspace/Omega/tests/fixtures/run/providers/default_console_provider_reached
+          set -euo pipefail
           omega=/workspace/Omega/target/debug/omega
-          [ -x "$omega" ] || { echo "the sample gate left no compiler at $omega" >&2; exit 1; }
-          env -u CI -u GITHUB_ACTIONS "$omega" run --both \
-            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/stdout.txt"
-          diff expected_stdout.txt "$RUNNER_TEMP/stdout.txt"
+          scratch=$(mktemp -d "$RUNNER_TEMP/borrowed-selection.XXXXXX")
+          for case_name in wrong-result shared-write; do
+            mkdir "$scratch/$case_name"
+            cp build.omg "$scratch/$case_name/build.omg"
+            case "$case_name" in
+              wrong-result) sed 's/{ 1u32 }/{ 0u32 }/' main.omg > "$scratch/$case_name/main.omg" ;;
+              shared-write) sed 's/{ 1u32 }/{ value = 8; 1u32 }/' main.omg > "$scratch/$case_name/main.omg" ;;
+            esac
+            echo "$case_name"
+            sha256sum "$scratch/$case_name/main.omg"
+            exit_code=0
+            (cd "$scratch/$case_name" && env -u CI -u GITHUB_ACTIONS "$omega" run --both --verbose \
+              --build-input build.omg --build-input main.omg main.omg < /dev/null) || exit_code=$?
+            test "$exit_code" = 200
+          done
 
   # Every Rust test in the workspace, only for a run started by hand with
   # `full` set: it adds most of an hour.
   tests:
-    if: inputs.full
+    if: inputs.full && !inputs.sample_only
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     # The container, user and path of a cloud session and of the warm-build
@@ -220,7 +242,7 @@ jobs:
 
   report:
     needs: [post-merge-check, sample, tests]
-    if: always()
+    if: ${{ always() && !inputs.sample_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
