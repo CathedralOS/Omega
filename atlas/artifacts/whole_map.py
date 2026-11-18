@@ -217,7 +217,7 @@ def render_architecture(atlas, prefix):
             '<header class="arch-header"><div class="map-heading"><a class="atlas-mark" href="../index.html" aria-label="Atlas overview">Ω</a><div class="map-heading-text">'
             '<h2 id="architecture-title">Compiler architecture</h2>'
             f'<span class="arch-badge">Pre-migration snapshot · {revision[:12]}</span></div></div>'
-            f'<a class="map-plan" href="{prefix}foundation-backend-plan.html#start-with-the-extra-arrows">Repair plan <span aria-hidden="true">↗</span></a></header>'
+            f'<a class="map-plan" href="{prefix}foundation-backend-plan.html#compiler-verification">Compiler verification <span aria-hidden="true">↗</span></a></header>'
             + render_layers(model, prefix)
             + '<script type="application/json" id="component-catalog">'
             + json.dumps([dict((key,n[key]) for key in ('id','title','family','page','source','description')) for n in model['nodes']],ensure_ascii=False).replace('<','\\u003c')
