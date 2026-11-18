@@ -137,6 +137,98 @@ pub(super) fn satisfies_binder(
     bound: &[(SymbolHandle, Bound)],
     applications: Option<&[TypeReferenceHandle]>,
 ) -> Served<()> {
+    let substitutions = binder_shape(
+        program,
+        binder,
+        machine,
+        binder_description,
+        bound,
+        applications,
+    )?;
+    let callback = program.symbols.name(machine.symbol);
+    let refuse = |reason: &str| {
+        Stop::Rejected(format!(
+            "`{callback}` does not satisfy the callback binder of {binder_description}: {reason}"
+        ))
+    };
+    let required_parameters = program.state_signature_type_parameters(binder);
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .ok_or(unserved("the callback has no entry"))?;
+    let binder_contracts = program.state_signature_contracts(binder);
+    if binder_contracts
+        .iter()
+        .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+    {
+        return Err(unserved(
+            "a callback binder with its own contract needs a refinement proof",
+        ));
+    }
+    let contracts = program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(entry))
+        .collect::<Vec<_>>();
+    if contracts.iter().any(|contract| {
+        contract.kind == SignatureContractKind::Requires
+            && (!admits_types_only(program, contract)
+                || required_parameters.is_empty()
+                    && !program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .all(|fact| {
+                            let crate::source_state::domain::ProofFact::Expression(expression) =
+                                fact
+                            else {
+                                return false;
+                            };
+                            program.applied_static_type_predicate_value(*expression, &substitutions)
+                                == Some(true)
+                        }))
+    }) {
+        return Err(refuse(
+            "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
+        ));
+    }
+    // Only authored routes are known here. A private callback's inferred
+    // routes exist after lowering, so Terminal Psi closure compares them with
+    // the binder's `crashes none` (`ClosedReachMachineBinding`).
+    if contracts.iter().any(|contract| contract.is_crashes()) && binder.declares_no_crash_route {
+        return Err(refuse(
+            "it may crash, and the binder declares `crashes none`",
+        ));
+    }
+    if binder_contracts
+        .iter()
+        .any(|contract| contract.is_crashes())
+    {
+        return Err(unserved(
+            "a callback binder with explicit crash routes needs a refinement proof",
+        ));
+    }
+    if (machine.suspends && !binder.suspends) || (machine.blocks && !binder.blocks) {
+        return Err(refuse("it may suspend or block, and the binder does not"));
+    }
+    if binder.termination_guarantee != declaration_contracts::TerminationGuarantee::NoGuarantee {
+        return Err(unserved(
+            "a callback binder with a termination promise needs a refinement proof",
+        ));
+    }
+    Ok(())
+}
+
+/// Check callable types before copying a closed application. Its complete
+/// behavioral contract is retained separately for checked refinement.
+pub(super) fn binder_shape(
+    program: &TypedTrees,
+    binder: &StateSignature,
+    machine: &Machine,
+    binder_description: &str,
+    bound: &[(SymbolHandle, Bound)],
+    applications: Option<&[TypeReferenceHandle]>,
+) -> Served<Vec<(SymbolHandle, TypeReferenceHandle)>> {
     let callback = program.symbols.name(machine.symbol);
     let refuse = |reason: &str| {
         Stop::Rejected(format!(
@@ -236,67 +328,7 @@ pub(super) fn satisfies_binder(
             }
         }));
     }
-    let binder_contracts = program.state_signature_contracts(binder);
-    if binder_contracts
-        .iter()
-        .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
-    {
-        return Err(unserved(
-            "a callback binder with its own contract needs a refinement proof",
-        ));
-    }
-    let contracts = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(entry))
-        .collect::<Vec<_>>();
-    if contracts.iter().any(|contract| {
-        contract.kind == SignatureContractKind::Requires
-            && (!admits_types_only(program, contract)
-                || required_parameters.is_empty()
-                    && !program
-                        .proof_facts
-                        .span_or_empty(contract.facts)
-                        .iter()
-                        .all(|fact| {
-                            let crate::source_state::domain::ProofFact::Expression(expression) =
-                                fact
-                            else {
-                                return false;
-                            };
-                            program.applied_static_type_predicate_value(*expression, &substitutions)
-                                == Some(true)
-                        }))
-    }) {
-        return Err(refuse(
-            "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
-        ));
-    }
-    // Only authored routes are known here. A private callback's inferred
-    // routes exist after lowering, so Terminal Psi closure compares them with
-    // the binder's `crashes none` (`ClosedReachMachineBinding`).
-    if contracts.iter().any(|contract| contract.is_crashes()) && binder.declares_no_crash_route {
-        return Err(refuse(
-            "it may crash, and the binder declares `crashes none`",
-        ));
-    }
-    if binder_contracts
-        .iter()
-        .any(|contract| contract.is_crashes())
-    {
-        return Err(unserved(
-            "a callback binder with explicit crash routes needs a refinement proof",
-        ));
-    }
-    if (machine.suspends && !binder.suspends) || (machine.blocks && !binder.blocks) {
-        return Err(refuse("it may suspend or block, and the binder does not"));
-    }
-    if binder.termination_guarantee != declaration_contracts::TerminationGuarantee::NoGuarantee {
-        return Err(unserved(
-            "a callback binder with a termination promise needs a refinement proof",
-        ));
-    }
-    Ok(())
+    Ok(substitutions)
 }
 
 /// An ordinary callback must admit the binder's whole type family. A finite
