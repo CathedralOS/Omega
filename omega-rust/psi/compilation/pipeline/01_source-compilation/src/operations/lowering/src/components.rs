@@ -28,8 +28,8 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::CrashRouteGuard;
 
 use crate::lowering::body::{
-    Body, Borrowed, CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, Statement,
-    Target, Termination, ValueType,
+    Body, Borrowed, CallTarget, CrashCeiling, Expression, ExpressionKind, Regions, Signature,
+    Statement, Target, Termination, ValueType,
 };
 use crate::lowering::{Unserved, refuse};
 
@@ -201,12 +201,172 @@ pub(crate) fn components(
             }
         }
     }
+    let mut forwarding = Vec::new();
     for (machine, body) in bodies.iter() {
         if needs_separate_entry(machine, body, bodies, signatures, &calls, &table)? {
             table.separate_entry(machine);
         }
+        if let Some(receiver) =
+            forwarding_receiver(machine, body, bodies, signatures, &calls, &table)?
+        {
+            table.separate_entry(receiver);
+            forwarding.push(machine);
+        }
+    }
+    // Every receiver keeps its local loop. An ordinary forwarding invocation
+    // cannot enter another forwarding frame, even when several inputs qualify.
+    for machine in forwarding {
+        table.forward_entry(machine);
     }
     Ok(table)
+}
+
+/// Keep the first reborrow under the invocation that supplies its exact
+/// shared parent. The other copies of these bodies still use the cyclic heads.
+fn forwarding_receiver(
+    machine: MachineId,
+    body: &Body,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    calls: &CallGraph<'_>,
+    components: &Components,
+) -> Checked<Option<MachineId>> {
+    let caller = index(machine);
+    if components.members(machine)?.is_empty() || calls.has_designated[caller] {
+        return Ok(None);
+    }
+    let signature = terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
+    // This entry leaves no owned structural storage in an outer frame while
+    // the receiver runs its component. Its normal exit owes no extra result
+    // or guarantee, and the canonical heads keep their ranking evidence.
+    if signature.result.is_some()
+        || !signature.ensures.is_empty()
+        || !signature.membership_ensures.is_empty()
+        || signature.ranking.is_some()
+        || signature.termination != Termination::Silent
+        || !signature
+            .borrowed
+            .iter()
+            .any(|formal| formal.access == ReferenceAccess::Shared)
+        || !has_no_owned_structural_slots(body, signature)
+    {
+        return Ok(None);
+    }
+    let internal = calls
+        .calls(caller)
+        .iter()
+        .filter(|site| components.same_component(caller, index(site.callee)));
+    let Some(first) = internal.clone().next() else {
+        return Ok(None);
+    };
+    let receiver = first.callee;
+    let receiving = terminal_check_tables::row(signatures, receiver, machine, Construct::Machine)?;
+    if receiver == machine || receiving.result.is_some() || calls.has_designated[index(receiver)] {
+        return Ok(None);
+    }
+    let caller_inputs = unchanged_inputs(body, signature);
+    if !internal.clone().all(|site| {
+        site.callee == receiver
+            && site.arguments.iter().all(|argument| match &argument.kind {
+                ExpressionKind::Borrow { place, .. } => static_field_slot(place)
+                    .is_some_and(|slot| caller_inputs.get(slot) == Some(&true)),
+                _ => true,
+            })
+    }) {
+        return Ok(None);
+    }
+    // Component admission above already proved that these edges are terminal
+    // and that they have no separately selected invocation contract.
+    let receiver_body = terminal_check_tables::row(bodies, receiver, machine, Construct::Machine)?;
+    let receiver_inputs = unchanged_inputs(receiver_body, receiving);
+    let observations = calls.calls(index(receiver));
+    for formal in &receiving.borrowed {
+        let position = formal.position;
+        if formal.access != ReferenceAccess::Shared || receiver_inputs.get(position) != Some(&true)
+        {
+            continue;
+        }
+        let Some(slot) = shared_argument_slot(first, position) else {
+            continue;
+        };
+        let Some(input) = signature
+            .borrowed(slot)
+            .filter(|input| input.access == ReferenceAccess::Shared)
+        else {
+            continue;
+        };
+        if !internal
+            .clone()
+            .all(|site| shared_argument_slot(site, position) == Some(slot))
+            || !cyclic_local_arrival(machine, input, bodies, signatures, calls, components)?
+        {
+            continue;
+        }
+        let reborrows = observations.iter().any(|site| {
+            !site.terminal
+                && site.required_contract.is_none()
+                && (0..site.arguments.len())
+                    .any(|argument| shared_argument_slot(site, argument) == Some(position))
+        });
+        if reborrows
+            && observations
+                .iter()
+                .filter(|site| components.same_component(index(receiver), index(site.callee)))
+                .all(|site| {
+                    site.arguments.iter().all(|argument| {
+                        independent_successor_argument(argument, &receiver_inputs, position)
+                    })
+                })
+        {
+            return Ok(Some(receiver));
+        }
+    }
+    Ok(None)
+}
+
+fn shared_argument_slot(site: &CallSite<'_>, position: usize) -> Option<usize> {
+    let ExpressionKind::Borrow {
+        access: ReferenceAccess::Shared,
+        place,
+        ..
+    } = &site.arguments.get(position)?.kind
+    else {
+        return None;
+    };
+    match place.kind {
+        ExpressionKind::Slot(slot) => Some(slot),
+        _ => None,
+    }
+}
+
+fn unchanged_inputs(body: &Body, signature: &Signature) -> Vec<bool> {
+    let mut unchanged = vec![true; signature.parameters.len()];
+    for statement in &body.statements {
+        let slot = match statement {
+            Statement::Bind { slot, .. }
+            | Statement::Declare { slot, .. }
+            | Statement::CaptureReference { slot, .. } => *slot,
+            _ => continue,
+        };
+        if let Some(input) = unchanged.get_mut(slot) {
+            *input = false;
+        }
+    }
+    unchanged
+}
+
+/// After the first use, a cyclic successor can carry unrelated input storage
+/// or by-value data with no carried lifetime. A copied scalar can observe the
+/// shared input without carrying its loan into the successor.
+fn independent_successor_argument(argument: &Expression, inputs: &[bool], observed: usize) -> bool {
+    let other_input = |slot| slot != observed && inputs.get(slot) == Some(&true);
+    match &argument.kind {
+        ExpressionKind::Borrow { place, .. } => static_field_slot(place).is_some_and(other_input),
+        _ => match argument.result {
+            Some(ValueType::Scalar(..) | ValueType::Record(_, _, Regions::NONE)) => true,
+            _ => matches!(argument.kind, ExpressionKind::Slot(slot) if other_input(slot)),
+        },
+    }
 }
 
 /// Keep an incoming permission's first use apart from a cyclic arrival that
@@ -315,19 +475,7 @@ fn cyclic_local_arrival(
 /// In a direct projection body, only an unchanged input can lend storage.
 /// Scalar locals carry no storage into a cyclic successor.
 fn direct_scalar_observation(body: &Body, signature: &Signature, candidates: &[bool]) -> bool {
-    let eligible = body
-        .slots
-        .iter()
-        .skip(signature.parameters.len())
-        .all(|value| matches!(value, ValueType::Scalar(..)))
-        && signature
-            .parameters
-            .iter()
-            .enumerate()
-            .all(|(slot, value)| {
-                matches!(value, ValueType::Scalar(..)) || signature.borrowed(slot).is_some()
-            });
-    if !eligible {
+    if !has_no_owned_structural_slots(body, signature) {
         return false;
     }
     let mut walk = BodyWalk::Direct {
@@ -345,6 +493,20 @@ fn direct_scalar_observation(body: &Body, signature: &Signature, candidates: &[b
             ..
         }
     )
+}
+
+fn has_no_owned_structural_slots(body: &Body, signature: &Signature) -> bool {
+    body.slots
+        .iter()
+        .skip(signature.parameters.len())
+        .all(|value| matches!(value, ValueType::Scalar(..)))
+        && signature
+            .parameters
+            .iter()
+            .enumerate()
+            .all(|(slot, value)| {
+                matches!(value, ValueType::Scalar(..)) || signature.borrowed(slot).is_some()
+            })
 }
 
 /// A static inline field path has one exact root. Crossing a descriptor,
