@@ -884,6 +884,44 @@ fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
 }
 
 #[test]
+fn a_shared_array_prefix_uses_its_own_backing_membership() {
+    let valid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/shared_fixed_array_prefix/main.omg"
+    ));
+    let invalid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/views/shared_fixed_array_prefix/main.omg"
+    ));
+    let build_source = |source: &str| {
+        source
+            .replace("use omega::language::core::byte_observation;", "")
+            .replace("machine entry_start()", "machine build_entry()")
+    };
+    match judge_portable_byte_build(&build_source(valid)) {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+            terminal_codec::decode_module(&bytes).unwrap();
+        }
+        other => panic!("the borrowed array field supplies the ASCII prefix: {other:?}"),
+    }
+    let verdict = judge_portable_byte_build(&build_source(invalid)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && unproved.len() == 1
+            && unproved[0].statement.contains("ascii_only")
+            && unestablished.len() == 1
+            && unestablished[0].detail.contains("byte-domain qualifications")),
+        "the adjacent unqualified array supplies no ASCII proof: {verdict:?}"
+    );
+}
+
+#[test]
 fn a_byte_read_keeps_ascii_facts_about_its_own_view() {
     let source = r#"
 domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);

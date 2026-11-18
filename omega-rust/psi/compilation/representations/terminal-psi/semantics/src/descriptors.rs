@@ -6412,6 +6412,42 @@ pub mod descriptor_results {
                 root: PlaceId,
                 path: &[StructuralPathSegment],
             ) -> Result<PayloadMembershipContract, &'static str> {
+                self.selected_payload_at(
+                    analysis,
+                    position,
+                    root,
+                    path,
+                    PayloadMembershipCut::BeforeOperationWithDeclaredBytes,
+                )
+            }
+
+            /// Read memberships proved at the observation. In particular, a
+            /// write can invalidate the bytes required by a declared default
+            /// while an exclusive loan still owes its restoration.
+            pub(crate) fn current_selected_payload_facts_in(
+                &mut self,
+                analysis: &mut DescriptorAnalysis<'_>,
+                position: DescriptorPosition,
+                root: PlaceId,
+                path: &[StructuralPathSegment],
+            ) -> Result<PayloadMembershipContract, &'static str> {
+                self.selected_payload_at(
+                    analysis,
+                    position,
+                    root,
+                    path,
+                    PayloadMembershipCut::BeforeOperation,
+                )
+            }
+
+            fn selected_payload_at(
+                &mut self,
+                analysis: &mut DescriptorAnalysis<'_>,
+                position: DescriptorPosition,
+                root: PlaceId,
+                path: &[StructuralPathSegment],
+                cut: PayloadMembershipCut,
+            ) -> Result<PayloadMembershipContract, &'static str> {
                 self.require_analysis_context(analysis)?;
                 let identity = self.sources.identity();
                 let sources = &self.sources;
@@ -6434,7 +6470,7 @@ pub mod descriptor_results {
                 let entry_snapshots = self.entry_snapshots.as_deref().unwrap_or(&[]);
                 let replay = &mut self.replay;
                 let contract = payload_memberships(self.types, self.domains, targets, |place| {
-                    current_payload_contract_reusing(
+                    payload_contract_at_cut(
                         self.types,
                         self.domains,
                         descriptor,
@@ -6445,6 +6481,7 @@ pub mod descriptor_results {
                         &source,
                         entry_snapshots,
                         replay,
+                        cut,
                     )
                     .map_err(|reason| failure = Some(reason))
                     .ok()
@@ -6620,6 +6657,7 @@ pub mod descriptor_results {
         #[derive(Clone, Copy, PartialEq, Eq)]
         enum PayloadMembershipCut {
             BeforeOperation,
+            BeforeOperationWithDeclaredBytes,
             NormalCompletion,
         }
 
@@ -6673,7 +6711,7 @@ pub mod descriptor_results {
                 source,
                 entry_snapshots,
                 replay,
-                PayloadMembershipCut::BeforeOperation,
+                PayloadMembershipCut::BeforeOperationWithDeclaredBytes,
             )
         }
 
@@ -7266,7 +7304,8 @@ pub mod descriptor_results {
                 });
                 failure = "requested payload root has no reached incoming membership history";
                 let mut current = match cut {
-                    PayloadMembershipCut::BeforeOperation => replay
+                    PayloadMembershipCut::BeforeOperation
+                    | PayloadMembershipCut::BeforeOperationWithDeclaredBytes => replay
                         .cached
                         .as_ref()?
                         .snapshots
@@ -7276,7 +7315,7 @@ pub mod descriptor_results {
                         completed.as_ref()?.contract(root, None)?
                     }
                 };
-                if cut == PayloadMembershipCut::NormalCompletion {
+                if cut != PayloadMembershipCut::BeforeOperationWithDeclaredBytes {
                     return Some(current);
                 }
                 failure = "requested source has no declared payload contract";

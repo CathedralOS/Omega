@@ -618,10 +618,9 @@ pub(crate) mod byte_sequence_predicates {
         shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
     }
 
-    /// Reconstruct primitive facts carried by an unchanged incoming shared
-    /// descriptor. This adds no domain membership: casts still owe their
-    /// ordinary membership and predicate judgments. Unknown custody or any
-    /// arrival without the fact supplies no additional evidence.
+    /// Recover facts about the bytes a shared view reads. An entry view
+    /// must keep the same contents on every path. A view of a fixed array
+    /// can use facts proved about that array when the view was formed.
     pub fn incoming_byte_sequence_argument_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -629,19 +628,53 @@ pub(crate) mod byte_sequence_predicates {
         position: crate::descriptor_results::DescriptorPosition,
         source: &terminal_psi::StructuralArgument,
     ) -> Option<ByteSequencePredicateSet> {
+        if source.access == StructuralAccess::WriteOnlyBorrow || !source.path.is_empty() {
+            return None;
+        }
+        unchanged_shared_view_predicates(module, machine, analysis, position, source.place).or_else(
+            || {
+                if !module
+                    .structural_type(machine.structural_place_type(source.place)?)?
+                    .shape
+                    .is_shared_readable_byte_view()
+                {
+                    return None;
+                }
+                let mut recovered_array = false;
+                let predicates = byte_sequence_source_predicates_with(
+                    module,
+                    machine,
+                    source.place,
+                    |operation, backing| {
+                        let facts = super::fixed_arrays::referenced_array_predicates(
+                            module, machine, analysis, operation, backing,
+                        )?;
+                        recovered_array |= !facts.is_empty();
+                        Some(facts)
+                    },
+                );
+                predicates.filter(|_| recovered_array)
+            },
+        )
+    }
+
+    fn unchanged_shared_view_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        position: crate::descriptor_results::DescriptorPosition,
+        source: PlaceId,
+    ) -> Option<ByteSequencePredicateSet> {
         use crate::borrowed_storage::Projection;
         use crate::descriptor_results::{
             DescriptorCallOrigin, DescriptorLocation, DescriptorSourceOrigin,
         };
 
-        if source.access == StructuralAccess::WriteOnlyBorrow || !source.path.is_empty() {
-            return None;
-        }
         let origins = analysis.unchanged_incoming_source_origins(
             &module.structural_types,
             machine.id,
             position,
-            &DescriptorLocation::whole(source.place),
+            &DescriptorLocation::whole(source),
         )?;
         let mut common: Option<ByteSequencePredicateSet> = None;
         for origin in origins {
@@ -1106,6 +1139,18 @@ pub(crate) mod byte_sequence_predicates {
         machine: &TerminalMachine,
         source: PlaceId,
     ) -> Option<ByteSequencePredicateSet> {
+        byte_sequence_source_predicates_with(module, machine, source, |_, _| None)
+    }
+
+    fn byte_sequence_source_predicates_with(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        source: PlaceId,
+        mut referenced_array: impl FnMut(
+            &Operation,
+            &terminal_psi::StructuralArgument,
+        ) -> Option<ByteSequencePredicateSet>,
+    ) -> Option<ByteSequencePredicateSet> {
         fn source_predicates<'a>(
             module: &TerminalModule,
             machine: &'a TerminalMachine,
@@ -1113,6 +1158,10 @@ pub(crate) mod byte_sequence_predicates {
             work: usize,
             memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
             incoming: &OnceCell<Option<Vec<IncomingArguments<'a>>>>,
+            referenced_array: &mut impl FnMut(
+                &Operation,
+                &terminal_psi::StructuralArgument,
+            ) -> Option<ByteSequencePredicateSet>,
         ) -> Option<ByteSequencePredicateSet> {
             if let Some((_, result)) = memo.iter().find(|(place, _)| *place == source) {
                 return *result;
@@ -1187,6 +1236,7 @@ pub(crate) mod byte_sequence_predicates {
                                             work,
                                             memo,
                                             incoming,
+                                            referenced_array,
                                         )
                                     } else {
                                         byte_sequence_argument_predicates(module, machine, argument)
@@ -1255,7 +1305,9 @@ pub(crate) mod byte_sequence_predicates {
                             .structural_type(structural_type)
                             .is_some_and(|row| row.shape.is_shared_readable_byte_view())
                     {
-                        return super::fixed_arrays::argument_predicates(module, machine, backing);
+                        return referenced_array(operation, backing).or_else(|| {
+                            super::fixed_arrays::argument_predicates(module, machine, backing)
+                        });
                     }
                     if let OperationKind::ByteSequenceSubslice {
                         source: backing, ..
@@ -1278,7 +1330,15 @@ pub(crate) mod byte_sequence_predicates {
                         {
                             predicates
                         } else if backing.path.is_empty() {
-                            source_predicates(module, machine, backing.place, work, memo, incoming)?
+                            source_predicates(
+                                module,
+                                machine,
+                                backing.place,
+                                work,
+                                memo,
+                                incoming,
+                                referenced_array,
+                            )?
                         } else {
                             byte_sequence_argument_predicates(module, machine, backing)?
                         };
@@ -1305,7 +1365,15 @@ pub(crate) mod byte_sequence_predicates {
                         })
                     {
                         let captured = if path.is_empty() {
-                            source_predicates(module, machine, backing, work, memo, incoming)?
+                            source_predicates(
+                                module,
+                                machine,
+                                backing,
+                                work,
+                                memo,
+                                incoming,
+                                referenced_array,
+                            )?
                         } else {
                             let (root, access) = byte_field_root(module, machine, backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
@@ -1334,8 +1402,17 @@ pub(crate) mod byte_sequence_predicates {
                     {
                         return byte_owned_result_predicates(module, machine, source);
                     }
-                    let mut resolve =
-                        |source| source_predicates(module, machine, source, work, memo, incoming);
+                    let mut resolve = |source| {
+                        source_predicates(
+                            module,
+                            machine,
+                            source,
+                            work,
+                            memo,
+                            incoming,
+                            referenced_array,
+                        )
+                    };
                     Some(
                         concatenation_operand_predicates(module, machine, left, &mut resolve)?
                             .concatenation(concatenation_operand_predicates(
@@ -1358,6 +1435,7 @@ pub(crate) mod byte_sequence_predicates {
             machine.structural_places.len().saturating_add(1),
             &mut Vec::new(),
             &OnceCell::new(),
+            &mut referenced_array,
         )
     }
 

@@ -271,14 +271,52 @@ fn established(
 }
 
 #[test]
+fn current_payload_facts_lose_byte_membership_after_a_write() {
+    let mut module = fixture(1);
+    let carrier = module.machines[0].structural_parameters[0].structural_type;
+    let ascii = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            id: ascii,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: TerminalIdentityIndex::ABSENT,
+            subject_identity: TerminalIdentityIndex::ABSENT,
+            carrier,
+            required_memberships: Some(Vec::new()),
+            predicate: None,
+            establishment_routes: None,
+            access_policy: None,
+            content_projection: None,
+            byte_predicate: Some(ByteSequencePredicate::AsciiOnly),
+            complete_predicate_theory: true,
+        });
+    let machine = &mut module.machines[0];
+    machine.contract.requires.clear();
+    machine.structural_parameters[0].qualifications.push(ascii);
+    let mut graph = graph(&module);
+    // The write on one branch has no proved contents for this storage.
+    graph[0]
+        .payload_invalidations
+        .insert((block(2), 0), vec![None]);
+    let machine = &module.machines[0];
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+    let mut history = analysis.payload_history(&module, machine);
+    let entry = history
+        .current_selected_payload_facts_in(&mut analysis, (block(1), 0), place(1), &[])
+        .unwrap();
+    assert_eq!(entry.qualifications, [ascii]);
+    let after = history
+        .current_selected_payload_facts_in(&mut analysis, (block(4), 0), place(1), &[])
+        .unwrap();
+    assert!(after.qualifications.is_empty());
+}
+
+#[test]
 fn incoming_byte_predicates_preserve_exact_descriptors_and_only_safe_window_facts() {
     let module = fixture(1);
     let graph = graph(&module);
-    assert!(
-        byte_sequence_source_predicates(&module, &module.machines[0], place(3))
-            .unwrap()
-            .is_empty()
-    );
     let whole = established(&module, &graph, 3, 0);
     let mut expected = ByteSequencePredicateSet::EMPTY;
     for predicate in [
@@ -289,6 +327,11 @@ fn incoming_byte_predicates_preserve_exact_descriptors_and_only_safe_window_fact
         expected.insert(predicate);
     }
     assert_eq!(whole, expected);
+    assert_eq!(
+        byte_sequence_source_predicates(&module, &module.machines[0], place(3)),
+        Some(expected),
+        "both arms pass the same immutable entry view"
+    );
     let window = observe(&module, &graph, 4, 3).unwrap();
     let mut no_nul = ByteSequencePredicateSet::EMPTY;
     no_nul.insert(ByteSequencePredicate::NoNul);
