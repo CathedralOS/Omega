@@ -7,8 +7,8 @@ through the selected lower chain: the bound Gamma evaluator runs the bound
 Delta compiler over the packed `epsilon_compiler.delta.sources` closure plus
 the bound canonical entry
 [`evaluator_entry.delta`](../evaluator-entry/evaluator_entry.delta). The
-729,060-byte receipt (SHA-256
-`bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368`) then
+728,066-byte receipt (SHA-256
+`92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7`) then
 consumes each customer framed as one EREQ v1 envelope and publishes canonical
 observations — `00` Exit, `01` Trap, `02` Reject — or an EEOUT refusal
 frame / lower-chain `Incomplete` status, per

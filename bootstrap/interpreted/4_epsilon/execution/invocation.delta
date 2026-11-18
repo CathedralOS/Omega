@@ -54,13 +54,13 @@
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
   (callables EpsilonResolvedCallableReferenceList)
-  (control EpsilonControlReferenceLedger) (owner EpsilonName) (input Bytes))
+  (control EpsilonControlReferenceLedger) (owner EpsilonName)
+  (input EpsilonRuntimeConsoleInput))
   EpsilonEvaluatorSliceOutcome
   (let typeValue EpsilonType
     (EpsilonNamedType (epsilon_name_start owner) (epsilon_name_end owner) owner)
     (match (epsilon_runtime_allocate (epsilon_runtime_zero_value typeValue)
-      (EpsilonRuntimeStoreState 1 NoEpsilonRuntimeRoots
-        (EpsilonRuntimeConsoleInputAt input 0)))
+      (EpsilonRuntimeStoreState 1 NoEpsilonRuntimeRoots input))
       ((EpsilonRuntimeAllocated identifier store)
         (epsilon_evaluator_finish_entry
           (epsilon_evaluate_invocation
@@ -77,7 +77,8 @@
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
   (callables EpsilonResolvedCallableReferenceList)
-  (control EpsilonControlReferenceLedger) (input Bytes)) EpsilonEvaluatorSliceOutcome
+  (control EpsilonControlReferenceLedger)
+  (input EpsilonRuntimeConsoleInput)) EpsilonEvaluatorSliceOutcome
   (match declarations
     (NoEpsilonDeclarations (EpsilonEvaluatorSliceInternal 0))
     ((MoreEpsilonDeclarations item rest)

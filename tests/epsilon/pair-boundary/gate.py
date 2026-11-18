@@ -33,11 +33,11 @@ EREQ = b"EEREQ\x01\x00\x00"
 # the records; this gate restates them so a drifted input fails here).
 EXPECTED = {
     "epsilon_compiler.delta": (
-        617354, "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e"),
+        617419, "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63"),
     "evaluator_entry.delta": (
-        10950, "52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91883bbfbd273e5e3"),
+        10558, "718417f256271d2de5c7b06e0e5f4824abb5993c2a115a69ac81bb1df9072daa"),
     "canonical.gamma": (
-        729060, "bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368"),
+        728066, "92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7"),
 }
 
 

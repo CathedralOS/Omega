@@ -47,8 +47,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 12097 ]
-[ "$EPSILON_BYTES" -eq 617354 ]
+[ "$EPSILON_LINES" -eq 12100 ]
+[ "$EPSILON_BYTES" -eq 617419 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -67,13 +67,13 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        617354,
-        "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e",
+        617419,
+        "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
-        2565,
-        "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38",
+        2150,
+        "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa",
     ),
 }
 for name, (data, size, digest) in artifacts.items():
@@ -217,13 +217,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 721484:
+if status != 0 or len(receipt) != 720476:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082"
+    "c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "

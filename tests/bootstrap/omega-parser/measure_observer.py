@@ -94,7 +94,11 @@ def observe(directory, label, request, timeout=14400, phase_stdin=None, cursor_p
                    threading.Thread(target=read_output, args=('stderr', process.stderr))]
         for worker in workers:
             worker.start()
-        phases = HeapPhases(process.pid, phase_stdin, cursor_points or {}, output_points or {}, started) if phase_stdin is not None else None
+        if phase_stdin is not None:
+            gamma_length, = struct.unpack_from('<I', request)
+            sealed = memoryview(request)[4 + gamma_length:]
+            phases = HeapPhases(process.pid, sealed, phase_stdin, cursor_points or {},
+                                output_points or {}, started)
         last_scan = 0.0
         last_report = started
         final_cursor = None

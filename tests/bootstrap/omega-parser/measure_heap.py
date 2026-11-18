@@ -16,7 +16,17 @@ MEMORY_SIZE = 0x2000000000
 PAIR = 0x50414952
 
 class HeapPhases:
-    def __init__(self, process_id, stdin, checkpoint_cursors, checkpoint_outputs, started):
+    def __init__(self, process_id, sealed, stdin, checkpoint_cursors, checkpoint_outputs, started):
+        # Console reads the suffix of the exact EREQ backing. Report input
+        # cursors relative to that suffix so dataset checkpoints stay comparable.
+        if len(sealed) < 52 or sealed[:8] != b'EEREQ\x01\x00\x00':
+            raise ValueError('phase observation needs a canonical EREQ')
+        source_length, stdin_length = struct.unpack_from('<II', sealed, 12)
+        self.stdin_origin = 52 + source_length
+        self.sealed_length = len(sealed)
+        if (self.stdin_origin + stdin_length != len(sealed) or len(stdin) != stdin_length or
+                sealed[self.stdin_origin:] != stdin):
+            raise ValueError('profiled stdin differs from the sealed EREQ suffix')
         self.process_id = process_id
         self.stdin = stdin
         self.checkpoint_cursors = checkpoint_cursors
@@ -26,7 +36,6 @@ class HeapPhases:
         self.base = None
         self.next_address = ARENA
         self.input_root = None
-        self.prefix = bytearray()
         self.output_root = None
         self.output = bytearray()
         self.last_input_cursor = -1
@@ -46,8 +55,6 @@ class HeapPhases:
             raise ValueError('invalid pair address')
         if self.chunk_start <= address and address + 40 <= self.chunk_start + len(self.chunk):
             result = struct.unpack_from('<5Q', self.chunk, address-self.chunk_start)
-        elif self.prefix is not None and address + 40 <= ARENA + len(self.prefix):
-            result = struct.unpack_from('<5Q', self.prefix, address-ARENA)
         else:
             result = struct.unpack('<5Q', os.pread(self.memory.fileno(), 40, self.base+address))
         if result[0] != PAIR:
@@ -115,25 +122,19 @@ class HeapPhases:
                               self.base+self.next_address)
         if len(self.chunk) != committed-self.next_address:
             raise ValueError('short heap read')
-        if self.prefix is not None:
-            self.prefix.extend(self.chunk)
         for index, node in enumerate(struct.iter_unpack('<5Q', self.chunk)):
             address = self.chunk_start + index*40
             if node[0] != PAIR:
                 raise ValueError('uncommitted heap node')
-            if self.input_root is None and node[2] == 0 and node[4] == 1 and node[1] == len(self.stdin):
-                try:
-                    decoded = self.bytes_value(address, len(self.stdin))
-                except ValueError:
-                    continue
-                if decoded == self.stdin:
+            if self.input_root is None and node[1:3] == (self.sealed_length, 0) and node[4] == 1:
+                # ConformanceBytesV1 supplies (pair (input) (pair 3 0)).
+                if self.pair(node[3])[1:] == (3, 0, 0, 0):
                     self.input_root = address
-                    self.event('stdin-tree-ready', address, wall, cpu)
-                    self.prefix = None
+                    self.event('sealed-input-ready', address, wall, cpu)
             if self.input_root is not None and node[1] == 0 and node[2] == 0 and node[4] == 1:
                 payload = self.pair(node[3])
                 if payload[1] == self.input_root and payload[2] == 1 and payload[4] == 0:
-                    cursor = payload[3]
+                    cursor = payload[3] - self.stdin_origin
                     if cursor != self.last_input_cursor:
                         if cursor != self.last_input_cursor+1 or cursor > len(self.stdin):
                             raise ValueError(f'nonsequential console cursor {cursor}')

@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 12,097
-lines / 617,354 bytes, authored in 87 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 12,100
+lines / 617,419 bytes, authored in 96 explicitly manifested members.
 The complete gate checks 150 ordinary fixtures, six D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -69,11 +69,11 @@ Views and all four Console operations execute with the controls below.
 The obsolete `Unsupported` staging cases are absent from execution outcomes.
 This removes no language observation and does not close the resource profile.
 
-The gate compiles the exact evaluator plus the 55-line / 2,565-byte
+The gate compiles the exact evaluator plus the 45-line / 2,150-byte
 `execution_driver.delta` (SHA-256
-`ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 721,484-byte receipt, SHA-256
-`71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`.
+`ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`) through the
+selected Delta route and pins the measured 720,476-byte receipt, SHA-256
+`c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities and
 `tests/bootstrap/epsilon-identity.sh` covers the refusals and every consuming
 gate's record.
@@ -171,8 +171,9 @@ of this source-program execution gate.
 The development driver receives a four-byte little-endian source length,
 exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
 The host only frames bytes; ordinary Delta code separates the two inputs.
-Source bytes remain in a validated bounded view over the request; only sealed
-stdin is rebuilt into balanced byte trees. The host diagnostic timeout is 300 seconds
+The source view ends where the Console cursor starts. Both use the same
+request bytes, and Console returns EOF at the request end.
+The host diagnostic timeout is 300 seconds
 per compilation or execution, not an Epsilon observation or resource verdict.
 Gamma's published resource profile is unchanged.
 This is private test framing, not the final evaluator request/observation

@@ -23,10 +23,10 @@ bound, or restores an Epsilon Alpha backend.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
-| packed Epsilon evaluator closure | 617,354 | `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e` |
-| execution driver `execution_driver.delta` | 2,565 | `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38` |
+| packed Epsilon evaluator closure | 617,419 | `63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63` |
+| execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
-| reconstructed evaluator receipt | 721,484 | `71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082` |
+| reconstructed evaluator receipt | 720,476 | `c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460` |
 
 Compilation of the packed evaluator plus driver plus the bound support
 section through the bound Delta compiler (`DCREQ`, profile 1) reconstructs
@@ -46,7 +46,7 @@ declared result buffer.
 The edge consumes one Gamma evaluator request:
 
 ```text
-0..4    little-endian u32 receipt length = 721,484
+0..4    little-endian u32 receipt length = 720,476
 4..     exact receipt bytes
 ...     sealed input = the private driver frame:
 
@@ -58,7 +58,7 @@ The edge consumes one Gamma evaluator request:
 The evaluator realizes the receipt's sealed input as a lazy tag-3 rope view;
 the driver validates `frame >= 4` bytes and `declared length <= frame - 4`,
 then forms a checked `EpsilonSourceView` over `frame[4 .. 4 + length)` and
-constructs the balanced stdin rope over `frame[4 + length .. end)`. A frame
+starts the Console cursor at `4 + length` in that same frame. A frame
 that fails either check produces the private `MalformedRequest` tag `05` -
 an ordinary published diagnostic result of the private adapter contract, not
 an Epsilon rejection, trap, or resource verdict.
@@ -102,8 +102,8 @@ counter names its owner, limit, refusal observation, and witness.
 Two bounds therefore dominate this composition by construction:
 
 - The adapter's 4,194,304-byte sealed-input bound binds before the request
-  extent can: the largest admitted request is `4 + 721,484 + 4,194,304 =
-  4,919,792` bytes, far below 137,363,456. The request extent refuses only
+  extent can: the largest admitted request is `4 + 720,476 + 4,194,304 =
+  4,914,784` bytes, far below 137,363,456. The request extent refuses only
   requests the adapter would already refuse, so it is a dominated outer
   bound - still pinned by the executed adjacent witness.
 - The adapter's 4,194,304-byte output bound binds before the evaluator's
@@ -118,7 +118,7 @@ Effective Epsilon-facing extents follow directly: `source + stdin <=
 Under [section 10](LANGUAGE.md#10-resource-classification), the profile
 accounts for what the evaluator actually allocates, not for hypothetical
 dense storage. The receipt realizes every Delta value - syntax nodes,
-checked ledgers, runtime roots, values, snapshots, views, and the stdin and
+checked ledgers, runtime roots, values, snapshots, views, the input cursor and
 output ropes - as nodes in the evaluator's cumulative immutable pair arena.
 Gamma cannot reclaim pairs, so demand is the sum of checking-phase and
 execution-phase allocations.
@@ -136,7 +136,7 @@ allocation:
   independent of `E` - plus the value and place-path wrappers. Record fields
   behave the same way over their sparse child list.
 
-Executed workload witnesses (macOS arm64, the bound receipt above):
+The workload measurements below used the earlier 721,484-byte diagnostic receipt on macOS arm64.
 
 | Workload | Observation | Time |
 | --- | --- | ---: |
@@ -161,7 +161,7 @@ above predicted the boundary; the gate now records the refusal.
 
 ## Refusal witnesses
 
-Exact and adjacent pairs executed against the bound receipt on macOS arm64:
+The recorded macOS arm64 timings below used the earlier 721,484-byte diagnostic receipt.
 
 | Boundary | Exact (admitted) | Adjacent (refused) |
 | --- | --- | --- |
@@ -170,9 +170,8 @@ Exact and adjacent pairs executed against the bound receipt on macOS arm64:
 | driver source-length field | declared length equal to the remaining frame: executes to `00` + exit 0 + `A` | declared length one beyond the remaining frame: tag `05` |
 | live call contexts | 34 nested non-tail machine calls: `00` + exit 34 + `A` | 35 nested calls: status 250, empty stdout, ~1.6 s |
 
-The context boundary is a measured property of this exact artifact: each
-Epsilon invocation consumes several evaluator-internal Gamma contexts, so
-the 256-context bound admits 34 nested machine calls and refuses the 35th
+Each Epsilon invocation used several Gamma contexts in that run. The
+256-context bound admitted 34 nested machine calls and refused the 35th
 before any observation. It is not an Epsilon language limit; a different
 receipt may shift it.
 
