@@ -495,6 +495,7 @@ pub fn admit_terminal_intrinsics<'selection>(
             terminal_psi::find_boundary_machine(&module.boundary_machines, proposal.boundary)
                 .ok_or_else(|| refuse("names an absent Terminal boundary"))?;
         if !boundary_contract_matches_selected_schema(
+            module,
             boundary,
             proposal.provider_plan,
             proposal.requirement_identity,

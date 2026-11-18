@@ -170,6 +170,7 @@ fn lower_ranked(
         ],
     });
     signatures.push(Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters,
         erased: Vec::new(),

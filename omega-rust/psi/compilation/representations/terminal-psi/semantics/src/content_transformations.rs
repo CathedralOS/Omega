@@ -1383,7 +1383,7 @@ pub(crate) mod boundary_correspondence {
                     boundary
                         .declaration
                         .as_ref()
-                        .map(|checked| checked.source.semantic_declaration),
+                        .map(|checked| &checked.source.state),
                 ) {
                     return Err(
                         "boundary body public requirement is not authorized for this output domain",

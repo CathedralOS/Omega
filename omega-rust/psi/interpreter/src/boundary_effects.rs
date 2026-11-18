@@ -680,6 +680,7 @@ pub(crate) mod boundary_predicates {
             let identity = terminal_psi::TerminalIdentityIndex(0);
             terminal_psi::BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 declaration: None,
@@ -2711,7 +2712,10 @@ pub(crate) mod results {
             boundary: &BoundaryMachineDeclaration,
             result: &OperationResult,
         ) -> Result<(), TerminalInterpretError> {
-            if boundary.requires_checked_result(&self.program.catalogs.structural_domains) {
+            if boundary.requires_checked_result(
+                &self.program.catalogs.structural_domains,
+                &self.program.catalogs.scalar_qualifications.domains,
+            ) {
                 return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                     boundary: boundary.id,
                     reason: "host import cannot establish result provenance owned by another issuer",

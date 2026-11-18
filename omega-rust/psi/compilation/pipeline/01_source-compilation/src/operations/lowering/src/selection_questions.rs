@@ -272,6 +272,9 @@ struct Capture<'a> {
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [crate::source_state::signature::StateSignature],
     closed_signature_templates: Vec<SymbolHandle>,
+    /// Template requirements whose clauses only their own check form reads
+    /// (`Elaboration::generic_templates`), sorted by symbol.
+    template_requirements: Vec<SymbolHandle>,
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     /// The machine an applied requirement view is read for, while it is
@@ -768,16 +771,21 @@ impl TypedReferences for Capture<'_> {
             Some(first) => first == signature || views.any(|view| view == signature),
             // A closed requirement has its own symbol. Its admitted parent
             // also exposes the template, whose clauses are a separate read.
-            None => self
-                .closed_signature_templates
-                .binary_search_by_key(
-                    &(
-                        signature.symbol.arena_index(),
-                        signature.symbol.generation(),
-                    ),
-                    |symbol| (symbol.arena_index(), symbol.generation()),
-                )
-                .is_err(),
+            // So are a template requirement's, which its own check form reads.
+            None => {
+                let key = (
+                    signature.symbol.arena_index(),
+                    signature.symbol.generation(),
+                );
+                let order = |symbol: &SymbolHandle| (symbol.arena_index(), symbol.generation());
+                self.closed_signature_templates
+                    .binary_search_by_key(&key, order)
+                    .is_err()
+                    && self
+                        .template_requirements
+                        .binary_search_by_key(&key, order)
+                        .is_err()
+            }
         }
     }
     fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
@@ -1121,6 +1129,7 @@ pub(crate) fn capture(
         completed_operators,
         signature_views,
         &owners,
+        &[],
     )
 }
 
@@ -1131,6 +1140,7 @@ pub(crate) fn capture_with_bodies(
     completed_operators: &CompletedOperators,
     signature_views: &[crate::source_state::signature::StateSignature],
     view_owners: &[SymbolHandle],
+    template_requirements: &[SymbolHandle],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     if view_owners.len() != signature_views.len() {
         return Err(SelectionCaptureError(
@@ -1166,6 +1176,10 @@ pub(crate) fn capture_with_bodies(
     closed_signature_templates
         .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     closed_signature_templates.dedup();
+    let mut template_requirements = template_requirements.to_vec();
+    template_requirements
+        .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    template_requirements.dedup();
     let mut capture = Capture {
         typed,
         admitted,
@@ -1173,6 +1187,7 @@ pub(crate) fn capture_with_bodies(
         completed_operators,
         signature_views,
         closed_signature_templates,
+        template_requirements,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()

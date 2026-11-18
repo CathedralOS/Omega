@@ -257,13 +257,14 @@ fn subject_schema(
     definition: &crate::source_state::domain::DomainDefinition,
     schema_type: SymbolHandle,
 ) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
-    let subject = typed
-        .closed_data_definition(definition.target_type)
-        .ok_or("no product route yet: an access plan for a subject that is not closed data")?;
+    let subject = crate::source_state::reflection::construction::schema_subject_symbol(
+        typed,
+        definition.target_type,
+    )?;
     let authority = crate::source_state::reflection::construction::schema_query_authority(
         typed,
         definition.symbol,
-        subject.symbol,
+        subject,
     )?;
     let graph =
         crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
@@ -271,10 +272,7 @@ fn subject_schema(
             definition.target_type,
             authority,
         )?;
-    let revision = crate::source_state::reflection::construction::declaration_source_revision(
-        typed,
-        subject.symbol,
-    )?;
+    let revision = crate::source_state::reflection::construction::schema_subject_revision(typed, subject)?;
     // Ordinary result snapshots use the canonical record identity, not its
     // short source name. Construct the input with that same identity so the
     // complete returned value can be compared without discarding its type.

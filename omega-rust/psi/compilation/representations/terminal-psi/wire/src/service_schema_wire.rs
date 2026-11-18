@@ -24,6 +24,7 @@ use declaration_contracts::service_surface::ServiceSurface;
 use declaration_contracts::service_surface::identities::ProviderIdentityId;
 use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
+use declaration_contracts::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use std::sync::Arc;
 use terminal_psi::{
     TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
@@ -103,6 +104,11 @@ wire_enum! {
         1 => CheckedRequirement,
         2 => BoundaryRequirement,
     }
+    ResultProjection: ServiceResultProjection, "ServiceResultProjection" {
+        1 => Field(name: Text),
+        2 => Case(name: Text),
+        3 => FixedIndex(index: crate::wire_fields::U64),
+    }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -125,6 +131,7 @@ wire_record! {
         effective_carry: Carry,
         authority_flow: AuthorityFlow,
     }
+    NormalMembership: ServiceNormalResultMembership { path: List<ResultProjection>, domain: Text }
     ResultClaim: ServiceResultClaim {
         domain: Text,
         effective_carry: Carry,
@@ -152,6 +159,7 @@ wire_record! {
         has_result: Flag,
         result_type_identity: ProviderIdentity,
         result_claims: List<ResultClaim>,
+        normal_result_memberships: List<NormalMembership>,
         service_reach: List<Text>,
         synchronous_invocations: List<Text>,
         may_suspend: Flag,
@@ -254,6 +262,7 @@ mod tests {
                 }],
                 has_result: true,
                 result_type_identity: scalar,
+                normal_result_memberships: Vec::new(),
                 result_claims: vec![ServiceResultClaim {
                     domain: "ResultDomain".into(),
                     effective_carry: CarryPolicy::STRICT,

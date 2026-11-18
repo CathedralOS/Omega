@@ -115,9 +115,10 @@ impl DirectBoundaryLeaf {
         let mut methods = schema.surface.methods.iter().filter(|method| {
             schema.surface.identity_text(method.requirement_identity) == requirement
         });
-        if !matches!((methods.next(), methods.next()), (Some(_), None)) {
+        let (Some(method), None) = (methods.next(), methods.next()) else {
             return Err("direct foreign requirement has no unique complete declared method".into());
-        }
+        };
+        terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
         Ok(schema)
     }
 

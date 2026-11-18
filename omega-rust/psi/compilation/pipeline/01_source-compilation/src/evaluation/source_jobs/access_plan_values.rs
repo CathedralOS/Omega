@@ -166,19 +166,22 @@ fn query_schema(
     {
         return Err("schema query lost its complete actual type application".into());
     }
-    let data = source
-        .closed_data_definition(operand.type_reference)
-        .ok_or("schema query has no actual closed data declaration")?;
-    let mut correspondence = query.program().source_records().iter().filter(|row| {
-        row.application
-            .as_ref()
-            .is_some_and(|application| application.reference == operand.type_reference)
-    });
-    let row = correspondence
-        .next()
-        .ok_or("schema query lost its produced source correspondence")?;
-    if correspondence.next().is_some() || row.declaration != data.symbol {
-        return Err("schema query has ambiguous or foreign source correspondence".into());
+    let subject = crate::source_state::reflection::construction::schema_subject_symbol(
+        source,
+        operand.type_reference,
+    )?;
+    if source.symbols.builtin_type_atom(subject).is_none() {
+        let mut correspondence = query.program().source_records().iter().filter(|row| {
+            row.application
+                .as_ref()
+                .is_some_and(|application| application.reference == operand.type_reference)
+        });
+        let row = correspondence
+            .next()
+            .ok_or("schema query lost its produced source correspondence")?;
+        if correspondence.next().is_some() || row.declaration != subject {
+            return Err("schema query has ambiguous or foreign source correspondence".into());
+        }
     }
     let author = request.lexical_owner(source);
     if !source.symbols.symbols().nodes().is_valid(author) {
@@ -190,15 +193,12 @@ fn query_schema(
         .ok_or("schema query lost its author's source custody")?;
     if !source
         .symbols
-        .source_reference_may_select_symbol(span, data.symbol)
+        .source_reference_may_select_symbol(span, subject)
     {
         return Err("schema query is outside its actual author's declaration scope".into());
     }
     let requester_identity = source.normalized_hermetic_symbol_identity(author)?;
-    let authority = if source
-        .symbols
-        .same_symbol_source_package(author, data.symbol)
-    {
+    let authority = if source.symbols.same_symbol_source_package(author, subject) {
         SchemaQueryAuthority::OwningScope { requester_identity }
     } else {
         SchemaQueryAuthority::ForeignScope { requester_identity }
@@ -208,21 +208,15 @@ fn query_schema(
     if graph.authority() != &authority {
         return Err("schema image has another actual lexical query scope".into());
     }
-    let (identity, hermetic) =
-        crate::source_state::reflection::construction::exact_symbol_identity(source, data.symbol)?;
-    let application = crate::source_state::reflection::construction::schema_type_identity(
+    let expected = crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
         source,
         operand.type_reference,
-        data.symbol,
+        authority,
     )?;
-    let declaration = graph.declaration();
-    if declaration.owner_identity != identity
-        || declaration.identity_is_hermetic != hermetic
-        || declaration.application_identity.as_deref() != Some(application.as_str())
-    {
-        return Err("schema image root differs from its actual selected source application".into());
+    if graph != expected {
+        return Err("schema image differs from its complete selected type application".into());
     }
-    Ok((graph, data.symbol))
+    Ok((graph, subject))
 }
 
 fn callable(value: &BuildTimeValue) -> Result<CallableDescription, String> {
@@ -451,10 +445,8 @@ pub(crate) fn normalize(
         return Err("semantic plan and query belong to different invocation targets".into());
     }
     let (graph, owner) = query_schema(query)?;
-    let revision = crate::source_state::reflection::construction::declaration_source_revision(
-        query.source(),
-        owner,
-    )?;
+    let revision =
+        crate::source_state::reflection::construction::schema_subject_revision(query.source(), owner)?;
     normalize_for_schema(plan, graph, materialized(query)?, &revision)
 }
 

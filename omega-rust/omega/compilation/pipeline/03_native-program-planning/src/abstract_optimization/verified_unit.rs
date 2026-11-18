@@ -581,6 +581,7 @@ mod evidence_seal_tests {
         });
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![u32_type().into(), u32_type().into()],
             erased: Vec::new(),

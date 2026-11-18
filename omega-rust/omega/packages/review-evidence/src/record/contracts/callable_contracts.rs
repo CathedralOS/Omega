@@ -19,6 +19,8 @@ pub enum PackageReviewContractFact {
     Membership {
         value: PackageReviewContractExpression,
         domain: PackageReviewNominalIdentity,
+        /// Exact canonical application, including index arguments.
+        application: String,
     },
     CarryMembership {
         value: PackageReviewContractExpression,

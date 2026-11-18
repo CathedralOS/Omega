@@ -587,6 +587,7 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
                 declaration: None,
                 numeric_intrinsic: None,
                 attachment: None,
+                membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 parameter_order: Vec::new(),
