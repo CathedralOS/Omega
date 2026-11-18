@@ -1470,7 +1470,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "source-compiler",
  "symbols",
  "target",
  "target-operations",
