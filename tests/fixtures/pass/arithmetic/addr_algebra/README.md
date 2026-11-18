@@ -1,5 +1,11 @@
-# addr_algebra
+# Address arithmetic
 
-`addr` type algebra: `addr - count -> addr`, `addr - addr -> u64`, `addr < addr` ordering (addr+addr/mul/shift reject by design).
+The program adds a `u64` count to an address in both operand orders, with typed
+and anonymous counts. It also checks backward offsets, address distance and
+an ordinary mutable caller. All four hosted entries are declared; the authored
+result is exit 0 in native code and Terminal Psi.
 
-Compile-checked only: run a check target, not native.
+[The overflow control](../../../fail/arithmetic/addr_add_overflow/main.omg)
+tries to produce the exclusive address bound and must reject. Address-plus-address,
+wrong count carriers and policy-qualified arithmetic remain covered by the
+source address-bound controls.
