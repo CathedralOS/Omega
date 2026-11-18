@@ -5,12 +5,10 @@ directories — the shape the repository root build uses for `source/psi`,
 the packages under `source/omega`, and `source/library/std`. A member row declares a *workspace*,
 and exactly one declaration kind is allowed per build:
 
-- `invalid_mixed_kinds`: `Build::application` + `Build::member` in one
-  activation rejects — "package, application, and workspace member
-  declarations cannot be mixed".
-- `invalid_workspace_root`: a member-only build is an explicit workspace;
-  `--check` refuses it — "expected a package build declaration, found an
-  explicit workspace declaration".
+- `invalid_mixed_kinds` combines `Build::application` and `Build::member`
+  in one activation. The refusal identifies the mixed roles.
+- `invalid_workspace_root` passes an explicit workspace to Product source
+  checking. A workspace declaration supplies no Product source owner.
 
 Member rows therefore grant no product imports on their own; the plain
 application root beside the controls is the passing coverage.
