@@ -58,14 +58,8 @@ pub fn admit_generated_extension(
     let logical_paths = generated_sources
         .iter()
         .map(|generated| {
-            let mut logical_path = package_root.join(".omega/generated");
-            for component in generated.relative_path().split(|byte| *byte == b'/') {
-                logical_path.push(
-                    std::str::from_utf8(component)
-                        .expect("validated generated source paths retain UTF-8 components"),
-                );
-            }
-            logical_path
+            generated_source_custody_path(package_root, generated)
+                .expect("validated generated source paths retain UTF-8 components")
         })
         .collect::<Vec<_>>();
     let collisions = match logical_paths.as_slice() {
@@ -240,13 +234,21 @@ pub(crate) fn dependency_generated_source_logical_path(
     package_root: &Path,
     source: &build_output::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
-    let mut logical_path = package_root.join(".omega/generated");
+    generated_source_custody_path(package_root, source).map_err(|_| {
+        vec![Diagnostic::error(
+            "generated dependency source path is not canonical UTF-8",
+        )]
+    })
+}
+
+// Both admissions use the same private path; relative_path stays package-relative.
+fn generated_source_custody_path(
+    package_root: &Path,
+    source: &build_output::PackageGeneratedSource,
+) -> Result<std::path::PathBuf, std::str::Utf8Error> {
+    let mut path = package_root.join(".omega/generated");
     for component in source.relative_path().split(|byte| *byte == b'/') {
-        logical_path.push(std::str::from_utf8(component).map_err(|_| {
-            vec![Diagnostic::error(
-                "generated dependency source path is not canonical UTF-8",
-            )]
-        })?);
+        path.push(std::str::from_utf8(component)?);
     }
-    Ok(logical_path)
+    Ok(path)
 }
