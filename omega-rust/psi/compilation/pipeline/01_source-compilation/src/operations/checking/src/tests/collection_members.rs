@@ -61,9 +61,15 @@ fn judged(text: &str) -> super::RouteVerdict {
 }
 
 fn judged_invocation(text: &str) -> super::RouteVerdict {
+    super::judge(elaborated_invocation(text)).unwrap()
+}
+
+fn elaborated_invocation(
+    text: &str,
+) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
     let program = typed(text);
     let entry = super::boundary_calls::entry(&program);
-    super::judge(crate::lowering::elaborate_for(
+    crate::lowering::elaborate_for(
         &program,
         crate::lowering::Compilation {
             calling: None,
@@ -78,8 +84,7 @@ fn judged_invocation(text: &str) -> super::RouteVerdict {
             supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
-    ))
-    .unwrap()
+    )
 }
 
 fn elaborated(
@@ -481,6 +486,151 @@ requires holder.bytes.len > 0 {{
         matches!(fresh, super::RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::OperationSafety { .. }))),
         "{fresh:?}"
+    );
+}
+
+/// A mutable byte call changes the bytes, while its whole view keeps its extent.
+#[test]
+fn a_mutable_boundary_keeps_the_extent_used_to_restore_a_saved_byte() {
+    let elaboration = elaborated_invocation(
+        r#"
+boundary trait Fill {
+    machine read_dir(fd: i32, bytes: &mut [u8], position: &mut i64) -> i64
+    reaches none crashes none;
+}
+machine normalize(outcome: i64) -> i64 { outcome }
+machine entry(bytes: &mut [u8], position: &mut i64) -> i64
+requires bytes.len >= 1024
+reaches Fill invokes Fill
+{
+    let index: u64 = bytes.len - 4;
+    let before: u8 = bytes[index];
+    let outcome: i64 = Fill::read_dir(0, bytes, position);
+    let normalized: i64 = normalize(outcome);
+    bytes[index] = before;
+    normalized
+}
+"#,
+    )
+    .expect("the borrowed-view source and boundary contract must be formed");
+    let machine = elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { .. }
+                )
+            })
+        })
+        .unwrap();
+    let block = machine
+        .blocks
+        .iter()
+        .find(|block| {
+            block.operations.iter().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { .. }
+                )
+            })
+        })
+        .unwrap();
+    let locate = |selected: fn(&terminal_psi::OperationKind) -> bool| {
+        block
+            .operations
+            .iter()
+            .position(|operation| selected(&operation.kind))
+            .unwrap()
+    };
+    let read = locate(|kind| matches!(kind, terminal_psi::OperationKind::ByteSequenceRead { .. }));
+    let call = locate(|kind| matches!(kind, terminal_psi::OperationKind::BoundaryCall { .. }));
+    let write =
+        locate(|kind| matches!(kind, terminal_psi::OperationKind::ByteSequenceWrite { .. }));
+    assert!(read < call && call < write);
+    let expected_machine = machine.id;
+    let expected_write = block.operations[write].id;
+    let verdict = super::judge(Ok(elaboration)).unwrap();
+    if let super::RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = &verdict
+    {
+        assert!(
+            formations.is_empty()
+                && violations.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty(),
+            "the source has an unrelated failure: {verdict:?}"
+        );
+        assert!(!unproved.is_empty());
+        assert!(
+            unproved.iter().all(|failure| {
+                failure.machine == expected_machine
+                    && failure.cause == super::UnprovedCause::NoDerivation
+                    && matches!(failure.kind,
+                    super::ObligationKind::OperationSafety { site }
+                    if site == terminal_psi::ExecutionSite::Operation(expected_write))
+            }),
+            "only the actual post-call restore may lack its bounds: {unproved:?}"
+        );
+    } else if !matches!(verdict, super::RouteVerdict::Accepted(_)) {
+        panic!("the source did not reach a restore-bounds judgment: {verdict:?}");
+    }
+    assert!(
+        matches!(verdict, super::RouteVerdict::Accepted(_)),
+        "the boundary's mutable bytes retain their original view extent: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_mutable_boundary_does_not_preserve_the_previous_byte_contents() {
+    let verdict = judged_invocation(
+        r#"
+boundary trait Fill { machine fill(bytes: &mut [u8]) reaches none crashes none; }
+machine entry(bytes: &mut [u8; 1]) -> u8
+ensures result == 7u8
+reaches Fill invokes Fill
+{
+    bytes[0] = 7;
+    Fill::fill(&mut bytes[..]);
+    bytes[0]
+}
+"#,
+    );
+    let super::RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = verdict
+    else {
+        panic!("mutable payload contents cannot be treated as unchanged: {verdict:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+    );
+    assert!(!unproved.is_empty());
+    assert!(
+        unproved.iter().all(|failure| matches!(
+            failure.kind,
+            super::ObligationKind::NormalGuarantee { .. }
+                | super::ObligationKind::PublishedGuarantee { .. }
+        )),
+        "only the unchanged-byte guarantee must remain unproved: {unproved:?}"
     );
 }
 
