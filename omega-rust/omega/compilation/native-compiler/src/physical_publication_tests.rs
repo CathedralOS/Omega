@@ -21,6 +21,9 @@ use terminal_psi::{
 #[path = "physical_publication_tests_callback.rs"]
 mod callback;
 
+#[path = "physical_publication_tests_code_layout.rs"]
+mod code_layout;
+
 fn authorize_fixture(
     artifact: &CanonicalTerminalArtifact,
 ) -> terminal_installation::AuthorizedTerminalArtifact {
@@ -709,10 +712,33 @@ fn check_publication(
     native_artifact::NativeArtifactIdentity,
     Option<image_emission::FragmentReplay>,
 ) {
+    check_canonical_publication(
+        constant_artifact(through_boundary),
+        through_boundary,
+        retain_native_stage_inputs,
+        |target, entry| {
+            check_published_plan(target, entry);
+            if !through_boundary {
+                reject_changed_entry_literal(target.original_for_audit.as_deref().unwrap(), entry);
+            }
+        },
+        |_| {},
+    )
+}
+
+fn check_canonical_publication(
+    artifact: Arc<CanonicalTerminalArtifact>,
+    through_boundary: bool,
+    retain_native_stage_inputs: bool,
+    inspect_target: impl FnOnce(&native_program_planning::NativeBodyPlan, MachineId),
+    inspect_image: impl FnOnce(&native_artifact::RetainedNativeArtifact),
+) -> (
+    native_artifact::NativeArtifactIdentity,
+    Option<image_emission::FragmentReplay>,
+) {
     use provider_admission::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
-    let artifact = constant_artifact(through_boundary);
     let entry = artifact.semantic_module().entry.unwrap();
     let terminal_psi::TargetMachineCallable::Machine(bootstrap_entry) = entry else {
         panic!("fixture has a checked root");
@@ -816,13 +842,7 @@ fn check_publication(
     );
     let (projection, providers) = emit_body(admitted, retain_native_stage_inputs, |target| {
         assert!(target.private_references.is_empty());
-        check_published_plan(target, bootstrap_entry);
-        if !through_boundary {
-            reject_changed_entry_literal(
-                target.original_for_audit.as_deref().unwrap(),
-                bootstrap_entry,
-            );
-        }
+        inspect_target(target, bootstrap_entry);
     });
     let unrelated = constant_artifact(!through_boundary);
     assert!(
@@ -911,6 +931,7 @@ fn check_publication(
     native
         .validate()
         .expect("independent receiver replays emitted code");
+    inspect_image(&native);
     let mut changed = native.image().output().clone();
     changed.final_text_bytes[0] ^= 1;
     assert!(

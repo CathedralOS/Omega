@@ -16569,24 +16569,11 @@
         "PSI embedders"
       ],
       "file": "omega-rust/omega/interpreter/terminal-runtime/tests/retained_runtime.rs",
-      "item": "function:published_layout_query_uses_the_selected_machines_linked_entry_and_regions#1",
-      "kind": "test_support",
-      "meaning": "Execute an actual linked code-layout query, reject a different target and require missing capability without a native image.",
-      "producer": "terminal hosted interpreter",
-      "signature": "3088c7adf116c59713aa73cc523ba8d4f487c3627f0e3d22fac12261ba9ade0d"
-    },
-    {
-      "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
-      ],
-      "file": "omega-rust/omega/interpreter/terminal-runtime/tests/retained_runtime.rs",
       "item": "function:retained_execution_preserves_identity_and_resumes_without_decoding#1",
       "kind": "test_support",
-      "meaning": "Reject mismatched canonical manifests and targets while preserving borrowed program identity across work slices.",
+      "meaning": "Run one published Build artifact through portable and image-aware hosts, reject foreign manifests and targets, and preserve the borrowed module across work slices.",
       "producer": "terminal hosted interpreter",
-      "signature": "32f6a876819e17fd1e835b476af39ebf0a76aaed9dea52166ad59aee6bc59b58"
+      "signature": "87f16643e718883143d2eb29b141011f0181d9fbe0b2dbff3c47034650e08f21"
     },
     {
       "consumers": [
