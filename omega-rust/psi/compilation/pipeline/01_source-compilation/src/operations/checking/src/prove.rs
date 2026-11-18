@@ -341,6 +341,50 @@ struct Bound {
     proof: ProofNode,
 }
 
+/// A failed offset translation keeps the original relation for its fallback.
+enum OffsetTranslation {
+    Translated(Bound),
+    Original(ProofNode),
+}
+
+/// Endpoint checks finish before the incoming proof is consumed.
+struct MathematicalOrderTranslation {
+    addend: IntegerMathTerm,
+    translated_conclusion: Proposition,
+    left_substituted_conclusion: Proposition,
+    goal: Proposition,
+    left_equality: ProofNode,
+    right_equality: ProofNode,
+}
+
+impl MathematicalOrderTranslation {
+    fn apply(self, relation: ProofNode) -> ProofNode {
+        let translated = node(
+            self.translated_conclusion,
+            ProofRule::IntegerMathOrderTranslation {
+                relation: Box::new(relation),
+                addend: self.addend,
+            },
+        );
+        let after_left = node(
+            self.left_substituted_conclusion,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(translated),
+                equality: Box::new(self.left_equality),
+                endpoint: 0,
+            },
+        );
+        node(
+            self.goal,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(after_left),
+                equality: Box::new(self.right_equality),
+                endpoint: 1,
+            },
+        )
+    }
+}
+
 /// Keep the fact's origin until its endpoint can improve the bound. Expanding
 /// a discarded candidate would copy its entire supporting proof for nothing.
 #[derive(Clone, Copy)]
@@ -3594,18 +3638,17 @@ impl<'a> Prover<'a> {
                         proof: le_proof,
                     });
                 }
-                if let Some(delta) = exact_constant_offset(open_side, subject, integer)
-                    && let Some(exact) = self.translate_offset_bound(
-                        le_proof.clone(),
-                        subject,
-                        integer,
-                        m_val,
-                        delta,
-                        direction,
-                    )
-                {
-                    return Some(exact);
-                }
+                let le_proof =
+                    if let Some(delta) = exact_constant_offset(open_side, subject, integer) {
+                        match self.translate_offset_bound(
+                            le_proof, subject, integer, m_val, delta, direction,
+                        ) {
+                            OffsetTranslation::Translated(exact) => return Some(exact),
+                            OffsetTranslation::Original(proof) => proof,
+                        }
+                    } else {
+                        le_proof
+                    };
                 self.monotone_open_bound(open_side, le_proof, subject, integer, m_val, direction)
             })
             .reduce(|best, next| {
@@ -3780,7 +3823,18 @@ impl<'a> Prover<'a> {
         addend: IntegerMathTerm,
         goal: &Proposition,
     ) -> Option<ProofNode> {
-        let Proposition::IntegerMathLessOrEqual(left, right) = &relation.conclusion else {
+        let translation =
+            self.prepare_mathematical_order_translation(&relation.conclusion, addend, goal)?;
+        Some(translation.apply(relation))
+    }
+
+    fn prepare_mathematical_order_translation(
+        &self,
+        relation: &Proposition,
+        addend: IntegerMathTerm,
+        goal: &Proposition,
+    ) -> Option<MathematicalOrderTranslation> {
+        let Proposition::IntegerMathLessOrEqual(left, right) = relation else {
             return None;
         };
         let lifted = lift_exact_integer_order(goal);
@@ -3793,35 +3847,26 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::Add(Box::new(left.clone()), Box::new(addend.clone()));
         let translated_right =
             IntegerMathTerm::Add(Box::new(right.clone()), Box::new(addend.clone()));
-        let translated = node(
-            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone()),
-            ProofRule::IntegerMathOrderTranslation {
-                relation: Box::new(relation),
-                addend,
-            },
-        );
-        let left_eq = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
-        let after_left = node(
-            Proposition::IntegerMathLessOrEqual(goal_left.clone(), translated_right.clone()),
-            ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(translated),
-                equality: Box::new(left_eq),
-                endpoint: 0,
-            },
-        );
-        let right_eq = self.closed(sorted_math_equal(translated_right, goal_right.clone()))?;
-        Some(node(
-            goal.clone(),
-            ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(after_left),
-                equality: Box::new(right_eq),
-                endpoint: 1,
-            },
-        ))
+        let translated_conclusion =
+            Proposition::IntegerMathLessOrEqual(translated_left.clone(), translated_right.clone());
+        let left_equality = self.closed(sorted_math_equal(translated_left, goal_left.clone()))?;
+        let left_substituted_conclusion =
+            Proposition::IntegerMathLessOrEqual(goal_left.clone(), translated_right.clone());
+        let right_equality =
+            self.closed(sorted_math_equal(translated_right, goal_right.clone()))?;
+        Some(MathematicalOrderTranslation {
+            addend,
+            translated_conclusion,
+            left_substituted_conclusion,
+            goal: goal.clone(),
+            left_equality,
+            right_equality,
+        })
     }
 
     /// Translates `open_side <= m_val` (or `m_val <= open_side`) by `-delta`
-    /// where `open_side` denotes `subject + delta`.
+    /// where `open_side` denotes `subject + delta`. Failed preparation returns
+    /// the original relation for the unchanged monotone fallback.
     fn translate_offset_bound(
         &self,
         le_proof: ProofNode,
@@ -3830,19 +3875,39 @@ impl<'a> Prover<'a> {
         m_val: IntegerValue,
         delta: i128,
         direction: Direction,
-    ) -> Option<Bound> {
-        let shifted = shift_integer_value(integer, m_val, delta)?;
-        let m_term = ScalarTerm::integer(integer, m_val).ok()?;
-        let target_term = ScalarTerm::integer(integer, shifted).ok()?;
-        let Proposition::LessOrEqual(le_left, le_right) = &le_proof.conclusion else {
-            return None;
+    ) -> OffsetTranslation {
+        let Some(shifted) = shift_integer_value(integer, m_val, delta) else {
+            return OffsetTranslation::Original(le_proof);
         };
-        let embedded_le = Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::embed(le_left.clone())?,
-            IntegerMathTerm::embed(le_right.clone())?,
-        );
+        let Ok(m_term) = ScalarTerm::integer(integer, m_val) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Ok(target_term) = ScalarTerm::integer(integer, shifted) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Proposition::LessOrEqual(le_left, le_right) = &le_proof.conclusion else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(math_left) = IntegerMathTerm::embed(le_left.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(math_right) = IntegerMathTerm::embed(le_right.clone()) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let embedded_le = Proposition::IntegerMathLessOrEqual(math_left, math_right);
         let goal = Self::oriented(subject, target_term, direction);
-        let m_refl = self.reflexive(Proposition::Equal(m_term.clone(), m_term))?;
+        let Some(m_refl) = self.reflexive(Proposition::Equal(m_term.clone(), m_term)) else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let Some(negative_delta) = delta.checked_neg() else {
+            return OffsetTranslation::Original(le_proof);
+        };
+        let addend = IntegerMathTerm::literal(IntegerValue::Signed(negative_delta));
+        let Some(translation) =
+            self.prepare_mathematical_order_translation(&embedded_le, addend, &goal)
+        else {
+            return OffsetTranslation::Original(le_proof);
+        };
         let endpoint = match direction {
             Direction::Upper => 1,
             Direction::Lower => 0,
@@ -3855,10 +3920,9 @@ impl<'a> Prover<'a> {
                 endpoint,
             },
         );
-        let addend = IntegerMathTerm::literal(IntegerValue::Signed(delta.checked_neg()?));
-        Some(Bound {
+        OffsetTranslation::Translated(Bound {
             literal: shifted,
-            proof: self.translate_mathematical_order(math_le, addend, &goal)?,
+            proof: translation.apply(math_le),
         })
     }
 

@@ -1389,6 +1389,59 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
     );
     assert_eq!(prover.activity.bound_certificate_copies, before_copies);
     let exact_goal = Proposition::LessOrEqual(index.clone(), lit(2));
+    {
+        let Slot::Done(Some(bound)) =
+            &prover.bounds.get(index_id).unwrap()[Direction::Upper.index()]
+        else {
+            panic!("the offset bound must retain its completed certificate");
+        };
+        let mut translated = &bound.proof;
+        for expected_endpoint in [1, 0] {
+            let ProofRule::IntegerOrderSubstitution {
+                relation, endpoint, ..
+            } = &translated.rule
+            else {
+                panic!(
+                    "translation must restore both exact endpoints: {:?}",
+                    translated.rule
+                );
+            };
+            assert_eq!(*endpoint, expected_endpoint);
+            translated = relation.as_ref();
+        }
+        let ProofRule::IntegerMathOrderTranslation { relation, addend } = &translated.rule else {
+            panic!(
+                "the exact offset must use mathematical order translation: {:?}",
+                translated.rule
+            );
+        };
+        assert_eq!(addend, &IntegerMathTerm::literal(IntegerValue::Signed(-1)));
+        let ProofRule::IntegerOrderSubstitution {
+            relation: original,
+            endpoint: 1,
+            ..
+        } = &relation.rule
+        else {
+            panic!(
+                "the original upper order must retain its literal endpoint: {:?}",
+                relation.rule
+            );
+        };
+        assert_eq!(
+            original.as_ref(),
+            &node(
+                Proposition::LessOrEqual(add(&index, &lit(1)), lit(3)),
+                ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(node(
+                        assumptions[0].clone(),
+                        ProofRule::Assumption { index: 0 }
+                    )),
+                },
+            )
+        );
+        proof_admission::accept_certificate(&context, &exact_goal, &assumptions, &[], &bound.proof)
+            .unwrap();
+    }
     let proof = prover.prove(&exact_goal).unwrap();
     proof_admission::accept_certificate(&context, &exact_goal, &assumptions, &[], &proof).unwrap();
     assert!(
