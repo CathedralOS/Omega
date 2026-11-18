@@ -1,0 +1,16 @@
+data Main {
+    console: Console;
+    scanner: OmegaLexScan;
+    diagnostic: OmegaLexDiagnosticCode;
+}
+machine Main::main(&mut self) {
+    self.scanner.reset(0);
+    self.scanner.reject(self.diagnostic, 2, 8);
+    assert self.scanner.accepted == 0;
+    assert self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 2;
+    assert self.scanner.diagnostic_end == 8;
+    self.scanner.reject(self.scanner.diagnostic_code, 9, 9);
+    assert self.scanner.internal_failure == 1;
+    self.console.exit_process(42);
+}

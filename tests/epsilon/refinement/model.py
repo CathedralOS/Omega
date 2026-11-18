@@ -1480,7 +1480,9 @@ class Checker:
             actual = self.check_expr(argument, machine, scope, owner_type)
             if actual == NEVER:
                 raise Reject("InvalidTerminal", argument.start)
-            self.require_equal(declared, actual, argument.start)
+            if actual == RESULTLESS:
+                raise Reject("TypeMismatch", argument.start)
+            self.require_equal(declared, actual, anchor)
 
     # Expression checking returns the value type. check_place additionally
     # reports whether the expression carries an assignable place.
