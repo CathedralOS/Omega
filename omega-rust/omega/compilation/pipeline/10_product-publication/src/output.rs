@@ -95,11 +95,11 @@ struct PublishedDynamicElfProduct {
 enum CompileProduct {
     CheckOnly,
     BuildArtifacts,
-    TerminalArtifact(TerminalProduct),
-    RetainedNativeArtifact(NativeProduct),
-    NativeExecutable(PublishedNativeProduct),
-    RetainedDynamicElfArtifact(DynamicElfProduct),
-    DynamicElfExecutable(PublishedDynamicElfProduct),
+    TerminalArtifact(Box<TerminalProduct>),
+    RetainedNativeArtifact(Box<NativeProduct>),
+    NativeExecutable(Box<PublishedNativeProduct>),
+    RetainedDynamicElfArtifact(Box<DynamicElfProduct>),
+    DynamicElfExecutable(Box<PublishedDynamicElfProduct>),
     ObjectContainer,
 }
 
@@ -183,13 +183,15 @@ impl CompletedProduct {
             CompileOutputKind::CheckOnly => CompileProduct::CheckOnly,
             CompileOutputKind::ObjectContainer => CompileProduct::ObjectContainer,
             CompileOutputKind::NativeExecutable => match executable_publication {
-                Some(executable) => CompileProduct::NativeExecutable(PublishedNativeProduct {
-                    runtime_provisions: None,
-                    executable,
-                    package: None,
-                    optimization_rollback: None,
-                    application: NativeApplicationMetadata::default(),
-                }),
+                Some(executable) => {
+                    CompileProduct::NativeExecutable(Box::new(PublishedNativeProduct {
+                        runtime_provisions: None,
+                        executable,
+                        package: None,
+                        optimization_rollback: None,
+                        application: NativeApplicationMetadata::default(),
+                    }))
+                }
                 None => {
                     return Err("a native executable report requires its publication receipt");
                 }
@@ -214,20 +216,20 @@ impl CompletedProduct {
     ) -> Self {
         let product = match image.0 {
             native_artifact::RequestedNativeArtifact::Direct(artifact) => {
-                CompileProduct::RetainedNativeArtifact(NativeProduct {
+                CompileProduct::RetainedNativeArtifact(Box::new(NativeProduct {
                     artifact: artifact.into_retained(),
                     runtime_provisions: None,
                     optimization_rollback,
                     application,
-                })
+                }))
             }
             native_artifact::RequestedNativeArtifact::DynamicElf(artifact) => {
-                CompileProduct::RetainedDynamicElfArtifact(DynamicElfProduct {
+                CompileProduct::RetainedDynamicElfArtifact(Box::new(DynamicElfProduct {
                     artifact: artifact.into_retained(),
                     runtime_provisions: None,
                     optimization_rollback,
                     application,
-                })
+                }))
             }
         };
         Self {
@@ -247,11 +249,11 @@ impl CompletedProduct {
             );
         }
         Ok(Self {
-            product: CompileProduct::TerminalArtifact(TerminalProduct {
+            product: CompileProduct::TerminalArtifact(Box::new(TerminalProduct {
                 artifact,
                 optimization_rollback,
                 runtime_provisions,
-            }),
+            })),
             wrote_output: false,
         })
     }
@@ -466,13 +468,13 @@ impl CompletedProduct {
         if self.wrote_output {
             return Err("native publication requires exactly one retained native artifact".into());
         }
-        self.product = CompileProduct::NativeExecutable(PublishedNativeProduct {
+        self.product = CompileProduct::NativeExecutable(Box::new(PublishedNativeProduct {
             runtime_provisions: product.runtime_provisions,
             executable: receipt,
             package,
             optimization_rollback: product.optimization_rollback,
             application: product.application,
-        });
+        }));
         self.wrote_output = true;
         Ok(self)
     }
@@ -491,12 +493,12 @@ impl CompletedProduct {
                 "dynamic ELF publication requires exactly one retained dynamic ELF artifact".into(),
             );
         }
-        self.product = CompileProduct::DynamicElfExecutable(PublishedDynamicElfProduct {
+        self.product = CompileProduct::DynamicElfExecutable(Box::new(PublishedDynamicElfProduct {
             runtime_provisions: product.runtime_provisions,
             executable: receipt,
             optimization_rollback: product.optimization_rollback,
             application: product.application,
-        });
+        }));
         self.wrote_output = true;
         Ok(self)
     }

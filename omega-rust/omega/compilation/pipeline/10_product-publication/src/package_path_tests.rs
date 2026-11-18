@@ -68,13 +68,13 @@ fn report(
     package: NativePackagePublicationReceipt,
 ) -> CompletedProduct {
     CompletedProduct {
-        product: CompileProduct::NativeExecutable(PublishedNativeProduct {
+        product: CompileProduct::NativeExecutable(Box::new(PublishedNativeProduct {
             runtime_provisions: None,
             executable,
             package: Some(package),
             optimization_rollback: None,
             application,
-        }),
+        })),
         wrote_output: true,
     }
 }
