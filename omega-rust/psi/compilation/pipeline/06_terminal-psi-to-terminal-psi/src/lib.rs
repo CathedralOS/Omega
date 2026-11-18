@@ -108,7 +108,7 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EvidenceIdentity, IdTable, IntegerMathTerm,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, IntegerMathTerm,
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
     ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
@@ -124,6 +124,8 @@ use terminal_codec::ObligationEvidenceSeal;
 use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
 use graph::Graph;
+
+type VerifiedBorrowEnds = [(MachineId, Vec<(EdgeId, PlaceId)>)];
 
 /// What the kernel accepted for one obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -380,7 +382,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], activity)
+    discharge_inner(elaboration, &[], None, activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -398,12 +400,13 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, activity)
+    discharge_inner(elaboration, carried, None, activity)
 }
 
 fn discharge_inner(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],
+    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     for boundary in &elaboration.module.boundary_machines {
@@ -549,6 +552,10 @@ fn discharge_inner(
                 });
             }
             let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
+            let borrow_ends = verified_borrow_ends.map(|ends| {
+                ends.binary_search_by_key(&id, |(machine, _)| *machine)
+                    .map_or(&[][..], |position| ends[position].1.as_slice())
+            });
             machine(
                 formed,
                 &inhabitation,
@@ -560,6 +567,7 @@ fn discharge_inner(
                 inputs.branches,
                 &empty_contracts,
                 &application_sized_storage,
+                borrow_ends,
                 activity,
             )
         })?;
@@ -668,6 +676,7 @@ fn machine(
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     application_sized_storage: &[StructuralTypeId],
+    borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let module = formed.source();
@@ -695,6 +704,7 @@ fn machine(
                 carried,
                 empty_contracts,
                 application_sized_storage,
+                borrow_ends,
                 activity,
             )
         },
@@ -715,6 +725,7 @@ fn check_prepared_machine(
     carried: Option<&Carried<'_>>,
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     application_sized_storage: &[StructuralTypeId],
+    borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let PreparedMachine {
@@ -732,7 +743,7 @@ fn check_prepared_machine(
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(references, module, tables)?;
+    let (lent, conflicts) = storage.loans(references, module, tables, borrow_ends)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))

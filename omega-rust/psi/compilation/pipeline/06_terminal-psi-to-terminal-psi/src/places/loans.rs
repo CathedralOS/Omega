@@ -59,7 +59,8 @@ certificate, as the initialization judgment has none. Two refusals, each
 use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
-use semantic_vocabulary::{InvocationSite, ObligationId};
+use semantic_vocabulary::{EdgeId, InvocationSite, ObligationId, PlaceId};
+use std::collections::BTreeMap;
 use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
@@ -67,7 +68,7 @@ use terminal_check_tables::{
 };
 use terminal_psi::StructuralAccess;
 use terminal_semantics::descriptor_lifetimes::{
-    DescriptorFlowStep, DescriptorLocation, descriptor_path,
+    DescriptorFlowStep, DescriptorLocation, DescriptorPosition, descriptor_path,
 };
 
 use super::{Backing, Storage, index, lineage};
@@ -136,6 +137,11 @@ struct CleanupCohort {
 }
 type CleanupCohorts =
     std::collections::BTreeMap<(ObligationId, semantic_vocabulary::EdgeId, u32), CleanupCohort>;
+struct BorrowedHeaderEnd {
+    edge: EdgeId,
+    target: DescriptorPosition,
+    places: Vec<PlaceId>,
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum BorrowedResource {
@@ -1440,6 +1446,7 @@ impl<'a> Storage<'a> {
         &self,
         formed: &[Formed],
         flow: &std::collections::BTreeMap<(semantic_vocabulary::EdgeId, u32), DescriptorFlowStep>,
+        header_ends: &[BorrowedHeaderEnd],
     ) -> Checked<CleanupCohorts> {
         let mut rosters = Vec::new();
         for block in &self.lowered.blocks {
@@ -1448,6 +1455,9 @@ impl<'a> Storage<'a> {
                 crate::position(block.operations.len(), self.machine)?,
             );
             for (edge, actions) in block.terminator.cleanup_rosters() {
+                if actions.is_empty() {
+                    continue;
+                }
                 let mut killed = Vec::with_capacity(actions.len());
                 for action in actions {
                     killed.push(
@@ -1465,13 +1475,23 @@ impl<'a> Storage<'a> {
             }
         }
         let mut result = CleanupCohorts::new();
-        for loan in formed {
-            let Some(life) = &loan.lifetime else {
-                continue;
-            };
-            for (edge, at, killed) in &rosters {
+        for (edge, at, killed) in &rosters {
+            let ended = header_ends
+                .binary_search_by_key(edge, |end| end.edge)
+                .ok()
+                .map(|position| &header_ends[position]);
+            for loan in formed {
+                let Some(life) = &loan.lifetime else {
+                    continue;
+                };
                 let mut surviving = life.surviving.get(at).cloned().unwrap_or_default();
                 let mut authorized = life.authorized.get(at).cloned().unwrap_or_default();
+                // Ancestor liveness already includes every surviving descendant.
+                if let Some(end) = ended.filter(|end| !holds(life, &end.target)) {
+                    let live = |name: &DescriptorLocation| !end.places.contains(&name.root);
+                    surviving.retain(live);
+                    authorized.retain(live);
+                }
                 for (ordinal, consumed) in killed.iter().enumerate() {
                     if surviving.is_empty() && authorized.is_empty() {
                         break;
@@ -1690,6 +1710,7 @@ impl<'a> Storage<'a> {
         for block in &self.lowered.blocks {
             let successors = block.terminator.successor_edges();
             let arguments = block.terminator.successor_block_arguments();
+            let mut cleanup_rosters = None;
             for ((edge, target), arguments) in successors.into_iter().zip(arguments) {
                 let concerns = Construct::Edge(edge);
                 let target = self.block(target)?;
@@ -1775,6 +1796,56 @@ impl<'a> Storage<'a> {
                         }
                     }
                     captured.push((access, backing));
+                }
+                if captured.is_empty() {
+                    continue;
+                }
+                let rosters = cleanup_rosters.get_or_insert_with(|| {
+                    let mut rosters = block.terminator.cleanup_rosters().collect::<Vec<_>>();
+                    rosters.sort_unstable_by_key(|(edge, _)| *edge);
+                    rosters
+                });
+                let position = rosters
+                    .binary_search_by_key(&edge, |(edge, _)| *edge)
+                    .map_err(|_| {
+                        self.foreign(concerns, "successor borrow lost its cleanup edge")
+                    })?;
+                let actions = rosters[position].1;
+                for (ordinal, action) in actions.iter().enumerate() {
+                    let ordinal = crate::position(ordinal, self.machine)?;
+                    let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
+                    let backing = LoanRegion::Storage(
+                        self.cleanup_backing(references, &cleaned, edge, ordinal, concerns)?,
+                    );
+                    if captured.iter().any(|(access, capture)| {
+                        competing_borrows(*access, capture, ReferenceAccess::Mutable, &backing)
+                            .is_some()
+                    }) {
+                        return Err(crate::refusal(
+                            RefusalReason::Conflict,
+                            self.machine,
+                            concerns,
+                            "successor cleanup changes the backing of a captured borrow",
+                        ));
+                    }
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        for (_, backing, effect) in
+                            self.cleanup_reference_accesses(references, edge, ordinal, cleanup)?
+                        {
+                            let backing = LoanRegion::Storage(backing);
+                            if captured.iter().any(|(access, capture)| {
+                                competing_borrows(*access, capture, effect, &backing).is_some()
+                            }) {
+                                return Err(crate::refusal(
+                                    RefusalReason::Conflict,
+                                    self.machine,
+                                    concerns,
+                                    "successor cleanup conflicts with a captured borrow",
+                                ));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1966,6 +2037,84 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    /// Convey the verified end of a fully restored plain shared name to the
+    /// loan walk. Require an edge without descriptor effects or bindings.
+    fn borrow_header_ends(
+        &self,
+        flow: &mut BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        verified: Option<&[(EdgeId, PlaceId)]>,
+    ) -> Vec<BorrowedHeaderEnd> {
+        let mut selected = Vec::new();
+        if verified.is_some_and(|ends| ends.is_empty()) {
+            return selected;
+        }
+        let mut plain_headers: Vec<_> = self
+            .lowered
+            .block_structural_parameters()
+            .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+            .filter(|parameter| {
+                terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage
+                    .owned_inventory(self.types, parameter.place, parameter.structural_type)
+                    .is_some_and(|inventory| {
+                        inventory.slots.is_empty() && inventory.unknown_contents.is_empty()
+                    })
+            })
+            .map(|parameter| parameter.place)
+            .collect();
+        if plain_headers.is_empty() {
+            return selected;
+        }
+        plain_headers.sort_unstable();
+        let independently_verified;
+        let verified = match verified {
+            Some(ends) => ends,
+            None => {
+                // Direct discharge callers have no examined closure yet.
+                // A missing schedule can confer no implicit retirement.
+                let Ok(plan) =
+                    terminal_semantics::plain_affine::verify_in(self.module, self.machine)
+                else {
+                    return selected;
+                };
+                if !plan.unavailable.is_empty() {
+                    return selected;
+                }
+                independently_verified = plan.borrowed_header_ends;
+                &independently_verified
+            }
+        };
+        for step in flow.values_mut() {
+            if step.may_escape {
+                continue;
+            }
+            for edge in &mut step.successors {
+                let Some(identity) = edge.edge else { continue };
+                if !edge.effects.is_empty() || !edge.bindings.is_empty() {
+                    continue;
+                }
+                let start = verified.partition_point(|(at, _)| *at < identity);
+                let mut places = Vec::new();
+                for (_, place) in verified[start..]
+                    .iter()
+                    .take_while(|(at, _)| *at == identity)
+                    .filter(|(_, place)| plain_headers.binary_search(place).is_ok())
+                {
+                    edge.definitions.push(DescriptorLocation::whole(*place));
+                    places.push(*place);
+                }
+                if !places.is_empty() {
+                    selected.push(BorrowedHeaderEnd {
+                        edge: identity,
+                        target: edge.target,
+                        places,
+                    });
+                }
+            }
+        }
+        selected.sort_unstable_by_key(|end| end.edge);
+        selected
+    }
+
     /// Recomputes every loan from the lowered form and refuses `tables`
     /// unless its `Loan` rows are exactly those, each once. Returns them in
     /// block and operation order, each call's loans in argument order.
@@ -1974,10 +2123,11 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
-    ) -> Checked<Vec<Formed>> {
+        borrow_ends: Option<&[(EdgeId, PlaceId)]>,
+    ) -> Checked<(Vec<Formed>, Vec<BorrowedHeaderEnd>)> {
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
-        let flow = if self.lowered.blocks.iter().any(|block| {
+        let mut flow = if self.lowered.blocks.iter().any(|block| {
             block
                 .structural_parameters
                 .iter()
@@ -2009,6 +2159,10 @@ impl<'a> Storage<'a> {
         } else {
             None
         };
+        let header_ends = flow
+            .as_mut()
+            .map(|flow| self.borrow_header_ends(flow, borrow_ends))
+            .unwrap_or_default();
         for block in &self.lowered.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
@@ -2228,7 +2382,7 @@ impl<'a> Storage<'a> {
                 }
             }
         }
-        Ok(formed)
+        Ok((formed, header_ends))
     }
 
     /// The advertised return paths must be the paths the body actually
@@ -2479,9 +2633,10 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
+        borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
-        let mut formed = self.formed(references, module, tables)?;
+        let (mut formed, header_ends) = self.formed(references, module, tables, borrow_ends)?;
         self.parents(references, module, &formed)?;
         self.successor_borrows(references, &formed)?;
         self.reference_completions(references, module, &formed)?;
@@ -2521,7 +2676,7 @@ impl<'a> Storage<'a> {
                 }
             }
         }
-        let cleanup_cohorts = self.cleanup_cohorts(&formed, &cleanup_flow)?;
+        let cleanup_cohorts = self.cleanup_cohorts(&formed, &cleanup_flow, &header_ends)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {

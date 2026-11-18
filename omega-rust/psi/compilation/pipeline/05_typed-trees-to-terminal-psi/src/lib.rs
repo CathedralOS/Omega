@@ -1710,6 +1710,7 @@ fn lower_program<'source>(
             contract,
             bodies,
             component,
+            components.has_separate_entry(id),
             signatures,
             &outcomes,
             &declared.records,
