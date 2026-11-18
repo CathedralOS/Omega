@@ -42,3 +42,5 @@ The product request packs 284 units (3,822,481 source bytes) into 3,826,171 byte
 | --- | --- | --- |
 | Eager | `2a078cce0cb5c671c9fd9ae91c29c00831dbabe5adc897ed170e59ed57dc4c26` | `d3586bcdbaac8c947814f1e9c593f6906041399563d17181e1884fc852127437` |
 | Cursor | `eec989b92850e3d18f14586a22111e3dbad1a7cf3ac15bc1580ba4870c94ee34` | `5c9425d50aa62ca233f30e123a48ffcd424d6b6b451475c79cf4e82e3e934fbb` |
+
+A smaller request kept all five packages, all four dependency edges and unit zero, the unchanged 13,510-byte `source/omega/application/construction/main.omg`. Encoding that single unit with the same entry produces 13,804 product bytes. The eager 8 MiB evaluator returned `00020000007f030000` in 268.335 seconds at 6,581,284 KiB. The bootstrap compiler reported unsupported source at coordinate 895, byte 765 of that frozen file, at `crashes Trap` on line 25.
