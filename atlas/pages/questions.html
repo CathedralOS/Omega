@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Open questions</h1>
       <p class="lede">Design choices that still need a ruling; recommendations remain proposals.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas"><code>f20ddd821003</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/questions.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas"><code>cfd68d7bfee9</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/questions.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -595,16 +595,8 @@ main h2,main h3 { scroll-margin-top:100px; }
 </ul>
 </div>
 </details></aside>
-    <main id="main"><p>The <a href="foundation-backend-plan.html">migration plan</a> now specifies <strong>one
-coordinated change set and one cutover</strong>, after the architecture is resolved.
-The task remains plan first; no compiler implementation is authorized by this
-page. Internal work packages can run in dependency order or in parallel, but
-are not separate migration rollouts. The six <a href="rulings.html">owner rulings</a> remain
-unchanged.</p>
-<p>All recommendations below are <strong>judgment</strong>. Source links describe compiler
-snapshot <code>3f9ce43f0c9d179048911d18faa91ba93f60176d</code>; the plan separately identifies
-known later changes. “Unverified” means a concrete design obligation must close
-before implementation, not that the old behavior may be dropped.</p>
+    <main id="main"><p>The <a href="foundation-backend-plan.html">migration plan</a> records the owner’s decision to replace the old routes in one coordinated change. These questions and recommendations describe the design work at the pre-migration snapshot <code>3f9ce43f0c9d</code>. The <a href="foundation-backend-plan.html#implementation-checkpoint">implementation checkpoint</a> identifies which routes the compiler now uses and which still need acceptance evidence.</p>
+<p>All recommendations below are <strong>judgment</strong>. <strong>Unverified</strong> marks an obligation as it stood when the plan was written. The six <a href="rulings.html">owner rulings</a> govern the destination.</p>
 <h2 id="q-a-where-does-shared-host-support-belong">Q-A. Where does shared host support belong?</h2>
 <p><strong>Recommendation:</strong> a narrow host-support owner outside compilation. Package
 resolvers, runtimes, CLI and tools may use generic process/filesystem mechanisms;
@@ -613,7 +605,7 @@ runtime dependency rule explicitly with these consumers. Placing a compiler
 coordinator or source lookup behind a generic host interface is not allowed.</p>
 <p><strong>Planning obligation:</strong> classify the <code>bounded-process</code>, <code>platform-custody</code> and
 filesystem-authority exports by real consumer and operation. The
-<a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
+<a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
 The exact packages/names follow that classification; they are not already
 ratified by the owner.</p>
 <h2 id="q-b-which-buildsource-information-may-cross-the-boundary">Q-B. Which Build/source information may cross the boundary?</h2>
@@ -739,7 +731,7 @@ been completed.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/cfd68d7bfee9ce5b0d4559e4f03074279b2dc89c/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1044,7 +1036,14 @@ been completed.</p></main>
     const heading=document.createElement('h3');heading.textContent=isEdge?chosen.label||`${nodes.get(chosen.start).title} → ${nodes.get(chosen.end).title}`:chosen.title;heading.tabIndex=-1;detail.append(heading);
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
-      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Obligation in the recorded plan. '+chosen.gate;detail.append(gate);}
+      if(chosen.implementation){
+        const observation=document.createElement('p');
+        const label=document.createElement('strong');label.textContent='Implemented on the migration branch. ';
+        observation.append(label,chosen.implementation.description);
+        for(const [title,url] of chosen.implementation.evidence){observation.append(' · ');link(title,url,observation);}
+        detail.append(observation);
+      }
       if(chosen.evidence){
         const sources=document.createElement('p');sources.textContent='Pinned compiler source';
         for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
@@ -1086,7 +1085,7 @@ been completed.</p></main>
     root.querySelector('.arch-component-list').hidden=view!=='current';
     root.querySelector('.proposed-contracts').hidden=view!=='proposed';
     root.querySelector('.connected-minimap span').textContent=view==='proposed'?'Pipeline':'Whole compiler';
-    svg.setAttribute('aria-label',view==='proposed'?'Proposed architecture: unverified planning contracts':'Current compiler architecture');
+    svg.setAttribute('aria-label',view==='proposed'?'Proposed stage order with separate implementation evidence':'Compiler architecture before migration');
   }
   function comparisonTrace(){
     if(traceSelect.value || view!=='current' || !selected)return traceSelect.value;
