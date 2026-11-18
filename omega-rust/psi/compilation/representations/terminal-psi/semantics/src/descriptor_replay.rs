@@ -11903,7 +11903,6 @@ pub(crate) mod engine {
                 }
             }
             drop(replay);
-            let mut graph = graph;
             let mut other = graph[0].flow[&entry].successors[0].clone();
             other.bindings[0].captured_storage.as_mut().unwrap().0 = replacement.clone();
             graph[0]
