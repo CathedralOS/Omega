@@ -256,6 +256,7 @@ impl FilesystemContext {
         use Formal::{ByteView, IntegerReference, Signed, Unsigned, UnsignedArray};
         use StructuralAccess::{MutableBorrow, SharedBorrow};
         let path = UnsignedArray(4096, 8, SharedBorrow);
+        let realpath: &[Formal] = &[path, UnsignedArray(4096, 8, MutableBorrow)];
         let metadata = UnsignedArray(144, 8, MutableBorrow);
         let candidates: &[(&[u8], &[Formal], Formal, DescriptorEffect)] = &[
             (b"open", &[path, Signed(32)], Signed(32), Acquire),
@@ -269,6 +270,7 @@ impl FilesystemContext {
             (b"close", &[Signed(32)], Signed(32), Close),
             (b"unlink", &[path], Signed(32), NoDescriptor),
             (b"rmdir", &[path], Signed(32), NoDescriptor),
+            (b"realpath", realpath, Unsigned(64), NoDescriptor),
             (b"mkdir", &[path, Unsigned(16)], Signed(32), NoDescriptor),
             (b"rename", &[path, path], Signed(32), NoDescriptor),
             (b"link", &[path, path], Signed(32), NoDescriptor),
@@ -418,16 +420,7 @@ impl FilesystemContext {
         let mut selected = None;
         if linux {
             if glibc_realpath(locator)? {
-                selected = Some((
-                    Some(
-                        &[
-                            UnsignedArray(4096, 8, SharedBorrow),
-                            UnsignedArray(4096, 8, MutableBorrow),
-                        ][..],
-                    ),
-                    Unsigned(64),
-                    NoDescriptor,
-                ));
+                selected = Some((Some(realpath), Unsigned(64), NoDescriptor));
             }
         } else {
             for &(symbol, parameters, result, descriptor) in candidates {
