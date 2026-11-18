@@ -155,7 +155,8 @@ contract for every argument and region. A program that reads the trait
 records the requirement as a template row (`StaticRequirementSchema::signature`
 is `None`) and carries only its uses, which are requirement instances at
 their actual arguments and regions; a published module never holds an open
-size. See
+size. The template's clauses are read, and their operators captured, only by
+its own form; a program's source capture leaves them to it. See
 [generics](../../../../../wiki/spec/language/generics.md#publication-and-assumptions).
 
 ### What one compilation elaborates
